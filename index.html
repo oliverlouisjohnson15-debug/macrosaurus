@@ -414,9 +414,11 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { kcal: round(kcal), protein_g: protein_g, fat_g: round(fat_g), carbs_g: round(carbs_g) };
   }
 
-  // Fiber min/max target scaled to calories (~14 g per 1000 kcal minimum).
+  // Adequate daily fiber, scaled to the day's calories (~12 g per 1000 kcal),
+  // kept in a realistic, achievable band (18–38 g). `min` is the goal to aim for.
   function fiberTarget(kcal) {
-    return { min: Math.round(14 * kcal / 1000), max: Math.round(24 * kcal / 1000) };
+    var goal = Math.round(clamp((kcal / 1000) * 12, 18, 38));
+    return { min: goal, max: goal + 10 };
   }
 
   function computeInitialTargets(profile) {
