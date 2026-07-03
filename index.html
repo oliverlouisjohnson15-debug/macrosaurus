@@ -991,14 +991,6 @@ function leanKg(p) {
   const f = E.fatFreeMassKg(p.weightKg, p.bodyFatPct);
   return f != null && f > 0 ? f : p.weightKg;
 }
-// Pick a food emoji from the name (playful dino fallback 🦖).
-const FOOD_EMOJI = [['blueberr', '🫐'], ['strawberr', '🍓'], ['raspberr', '🍓'], ['banana', '🍌'], ['apple', '🍎'], ['grape', '🍇'], ['orange', '🍊'], ['lemon', '🍋'], ['melon', '🍉'], ['peach', '🍑'], ['pineapple', '🍍'], ['mango', '🥭'], ['avocado', '🥑'], ['tomato', '🍅'], ['potato', '🥔'], ['carrot', '🥕'], ['corn', '🌽'], ['broccoli', '🥦'], ['cucumber', '🥒'], ['pepper', '🫑'], ['mushroom', '🍄'], ['salad', '🥗'], ['egg', '🥚'], ['feta', '🧀'], ['babybel', '🧀'], ['cheese', '🧀'], ['milk', '🥛'], ['yog', '🥛'], ['chicken', '🍗'], ['turkey', '🍗'], ['beef', '🥩'], ['steak', '🥩'], ['lamb', '🥩'], ['pork', '🥓'], ['bacon', '🥓'], ['ham', '🍖'], ['sausage', '🌭'], ['salmon', '🐟'], ['tuna', '🍣'], ['sushi', '🍣'], ['fish', '🐟'], ['prawn', '🍤'], ['shrimp', '🍤'], ['ciabatta', '🥖'], ['baguette', '🥖'], ['bagel', '🥯'], ['croissant', '🥐'], ['pretzel', '🥨'], ['bread', '🍞'], ['toast', '🍞'], ['rice', '🍚'], ['pasta', '🍝'], ['spaghetti', '🍝'], ['noodle', '🍜'], ['pizza', '🍕'], ['burger', '🍔'], ['fries', '🍟'], ['chip', '🍟'], ['taco', '🌮'], ['burrito', '🌯'], ['wrap', '🌯'], ['sandwich', '🥪'], ['soup', '🍲'], ['curry', '🍛'], ['oat', '🥣'], ['cereal', '🥣'], ['granola', '🥣'], ['pancake', '🥞'], ['waffle', '🧇'], ['peanut', '🥜'], ['nut', '🥜'], ['almond', '🌰'], ['chocolate', '🍫'], ['cookie', '🍪'], ['biscuit', '🍪'], ['cake', '🍰'], ['donut', '🍩'], ['ice cream', '🍨'], ['honey', '🍯'], ['popcorn', '🍿'], ['coffee', '☕'], ['tea', '🍵'], ['juice', '🧃'], ['water', '💧'], ['protein', '🥤'], ['shake', '🥤'], ['whey', '🥤'], ['smoothie', '🥤'], ['butter', '🧈'], ['olive', '🫒'], ['oil', '🫒'], ['bean', '🫘'], ['tofu', '🧊'], ['sauce', '🥫'], ['wasabi', '🌿']];
-function foodEmoji(name, isAlc) {
-  if (isAlc) return '🍺';
-  const n = (name || '').toLowerCase();
-  for (const [k, e] of FOOD_EMOJI) if (n.includes(k)) return e;
-  return '🦖';
-}
 // ---- pixel-art glyphs (no emoji) ----
 const PX_ICONS = {
   meat: ['.####.', '######', '######', '.####.', '...##.', '...##.'],
@@ -1008,7 +1000,17 @@ const PX_ICONS = {
   grain: ['.####.', '######', '#.##.#', '######', '######', '.####.'],
   sweet: ['#....#', '.####.', '######', '######', '.####.', '#....#'],
   drop: ['..#...', '..#...', '.###..', '#####', '#####', '.###..'],
-  dino: ['.####.', '#.##.#', '######', '#....#', '.#### ', '#....#']
+  dino: ['.####.', '#.##.#', '######', '#....#', '.#### ', '#....#'],
+  down: ['..##..', '..##..', '..##..', '######', '.####.', '..##..'],
+  up: ['..##..', '.####.', '######', '..##..', '..##..', '..##..'],
+  scale: ['......', '######', '......', '......', '######', '......'],
+  sun: ['#.#.#.', '.###..', '#####.', '.###..', '#.#.#.', '......'],
+  moon: ['.###..', '###...', '##....', '###...', '.###..', '......'],
+  doc: ['#####.', '#...#.', '#.#.#.', '#...#.', '#.#.#.', '#####.'],
+  plate: ['.####.', '#....#', '#....#', '#....#', '.####.', '......'],
+  glove: ['.###..', '#####.', '######', '######', '.####.', '.####.'],
+  trophy: ['#.##.#', '######', '.####.', '..##..', '..##..', '.####.'],
+  cup: ['######', '#....#', '#....#', '.####.', '.####.', '..##..']
 };
 function foodKind(name, isAlc) {
   if (isAlc) return 'drink';
@@ -4187,16 +4189,24 @@ function FightModal({
   }, ladderCleared ? rival.name : rival.name), /*#__PURE__*/React.createElement("div", {
     className: "text-[8px] text-[#8A8A90]"
   }, "PWR ", rival.power))), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mb-3 text-center"
-  }, ladderCleared ? 'Ladder cleared — you\'re the champ. Rematch the top contender any time.' : `Ladder rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}. Beat them to climb.`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0, " 🏆"), /*#__PURE__*/React.createElement(Btn, {
+    className: "text-[11px] text-[#8A8A90] mb-3 text-center inline-flex items-center justify-center gap-1.5 flex-wrap"
+  }, ladderCleared ? 'Ladder cleared — you\'re the champ. Rematch the top contender any time.' : `Ladder rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}. Beat them to climb.`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0, " ", /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "trophy",
+    color: "var(--fat)",
+    size: 12
+  })), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-2",
     onClick: () => start(rival, false)
   }, "Fight ", rival.name), bossReady ? /*#__PURE__*/React.createElement(Btn, {
     kind: "danger",
-    className: "w-full",
+    className: "w-full inline-flex items-center justify-center gap-2",
     onClick: () => start(FIGHT_BOSS, true)
-  }, "⚔ Weekly Boss: ", FIGHT_BOSS.name) : /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "glove",
+    color: "currentColor",
+    size: 14
+  }), " Weekly Boss: ", FIGHT_BOSS.name) : /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] text-center mt-1"
   }, "Weekly boss beaten — resets next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -4233,7 +4243,7 @@ function FightModal({
     }
   }, winner === 'you' ? 'K.O. — YOU WIN!' : 'YOU LOST'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3"
-  }, winner === 'you' ? isBoss ? 'Boss down! Trophy earned 🏆' : ladderCleared ? 'Champion holds the belt.' : 'You climb the ladder!' : fighter.power < opp.power ? 'They outmuscled you — evolve your buddy by logging more days.' : 'So close. Run it back.'), /*#__PURE__*/React.createElement("div", {
+  }, winner === 'you' ? isBoss ? 'Boss down! Trophy earned.' : ladderCleared ? 'Champion holds the belt.' : 'You climb the ladder!' : fighter.power < opp.power ? 'They outmuscled you — evolve your buddy by logging more days.' : 'So close. Run it back.'), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -4397,7 +4407,11 @@ function Dashboard({
       background: 'var(--carb)',
       color: '#fff'
     }
-  }, "⚔ FIGHT")), /*#__PURE__*/React.createElement(BuddyCard, {
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "glove",
+    color: "#fff",
+    size: 16
+  }), " FIGHT")), /*#__PURE__*/React.createElement(BuddyCard, {
     db: db,
     streak: streak,
     onOpenDex: () => setShowDex(true)
@@ -4988,11 +5002,15 @@ function LogSheet({
     label: "Type"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
-  }, [['food', '🍽️ Food'], ['alc', '🍺 Drink']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+  }, [['food', 'plate', 'Food'], ['alc', 'drink', 'Drink']].map(([k, g, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setIsAlc(k === 'alc'),
-    className: `flex-1 rounded-2xl py-3 text-sm ${isAlc === (k === 'alc') ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90] border border-[#262629]'}`
-  }, l))))), /*#__PURE__*/React.createElement("div", {
+    className: `flex-1 rounded-2xl py-3 text-sm inline-flex items-center justify-center gap-2 ${isAlc === (k === 'alc') ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90] border border-[#262629]'}`
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: g,
+    color: "currentColor",
+    size: 15
+  }), " ", l))))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl"
   }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
@@ -5685,7 +5703,11 @@ function MealEstimate({
     }
   })), /*#__PURE__*/React.createElement("label", {
     className: "flex items-center justify-center gap-2 bg-[#1E1E22] rounded-2xl py-3 text-[13px] border border-[#262629] cursor-pointer"
-  }, "📄 Menu photo", /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "doc",
+    color: "currentColor",
+    size: 15
+  }), " Menu photo", /*#__PURE__*/React.createElement("input", {
     type: "file",
     accept: "image/*",
     className: "hidden",
@@ -5936,7 +5958,11 @@ function PhotoTab({
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-medium flex items-center gap-2"
-  }, "🍽️ Estimate a meal ", /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "plate",
+    color: "currentColor",
+    size: 15
+  }), " Estimate a meal ", /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] uppercase tracking-wide text-black bg-white rounded px-1.5 py-0.5"
   }, key ? 'Claude' : 'Key')), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
@@ -5996,7 +6022,7 @@ function AlcoholTab({
       fiber: 0
     };
     onPick({
-      name: name + ' 🍺',
+      name: name,
       source: 'alcohol',
       is_alcohol: true,
       qtyLabel: qty,
@@ -6092,14 +6118,18 @@ function GoalCard({
   onClick,
   title,
   sub,
-  emoji
+  glyph
 }) {
   return /*#__PURE__*/React.createElement("button", {
     onClick: onClick,
     className: `text-left rounded-2xl p-3 border transition ${active ? 'bg-white text-black border-white' : 'bg-[#1E1E22] text-white border-[#262629]'}`
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-xl mb-1"
-  }, emoji), /*#__PURE__*/React.createElement("div", {
+    className: "mb-1.5"
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: glyph,
+    color: "currentColor",
+    size: 20
+  })), /*#__PURE__*/React.createElement("div", {
     className: "font-semibold text-[13px]"
   }, title), /*#__PURE__*/React.createElement("div", {
     className: `text-[10px] mt-0.5 ${active ? 'text-black/60' : 'text-[#8A8A90]'}`
@@ -6213,19 +6243,19 @@ function Goals({
   }, /*#__PURE__*/React.createElement(GoalCard, {
     active: g.goalType === 'cut',
     onClick: () => pickGoal('cut'),
-    emoji: "📉",
+    glyph: "down",
     title: "Fat loss",
     sub: "Lose fat"
   }), /*#__PURE__*/React.createElement(GoalCard, {
     active: g.goalType === 'maintain',
     onClick: () => pickGoal('maintain'),
-    emoji: "⚖️",
+    glyph: "scale",
     title: "Maintain",
     sub: "Hold steady"
   }), /*#__PURE__*/React.createElement(GoalCard, {
     active: g.goalType === 'gain',
     onClick: () => pickGoal('gain'),
-    emoji: "📈",
+    glyph: "up",
     title: "Lean gain",
     sub: "Build muscle"
   })), /*#__PURE__*/React.createElement(Card, {
@@ -6421,10 +6451,22 @@ function SettingsTab({
     onChange: v => sset('theme', v),
     options: [{
       v: 'light',
-      l: '☀ GB Color'
+      l: /*#__PURE__*/React.createElement("span", {
+        className: "inline-flex items-center justify-center gap-1.5"
+      }, /*#__PURE__*/React.createElement(PixelGlyph, {
+        kind: "sun",
+        color: "currentColor",
+        size: 12
+      }), " GB Color")
     }, {
       v: 'dark',
-      l: '🕶 Dark GB'
+      l: /*#__PURE__*/React.createElement("span", {
+        className: "inline-flex items-center justify-center gap-1.5"
+      }, /*#__PURE__*/React.createElement(PixelGlyph, {
+        kind: "moon",
+        color: "currentColor",
+        size: 12
+      }), " Dark GB")
     }]
   })), /*#__PURE__*/React.createElement(Section, {
     title: "Check-in day"
@@ -6784,8 +6826,13 @@ function More({
   }, "Just changing your details? Use ", /*#__PURE__*/React.createElement("span", {
     className: "text-white"
   }, "Edit details & recalculate"), " on the Profile tab, it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
-    kind: "danger",
+    kind: "ghost",
     className: "w-full",
+    style: {
+      background: 'var(--fat)',
+      color: 'var(--on-accent)',
+      borderColor: 'var(--border)'
+    },
     onClick: () => {
       if (confirm('Delete EVERYTHING (profile, food log, weigh-ins, history) and start over from setup? This cannot be undone.')) onReset();
     }
