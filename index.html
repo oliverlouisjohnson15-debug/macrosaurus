@@ -3311,37 +3311,35 @@ function FoodLog({
   }, remFat, "g fat left"))) : /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-center mb-4"
+    className: "text-center mb-5"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-3xl font-bold tnum"
+    className: "text-4xl tnum",
+    style: {
+      color: mode === 'remaining' && et.eff.kcal - tot.kcal < 0 ? 'var(--danger)' : 'var(--hero)'
+    }
   }, mode === 'remaining' ? Math.abs(Math.round(et.eff.kcal - tot.kcal)) : Math.round(tot.kcal)), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90]"
-  }, mode === 'remaining' ? et.eff.kcal - tot.kcal < 0 ? 'kcal over' : 'kcal left' : 'kcal of ' + et.eff.kcal)), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-3"
-  }, /*#__PURE__*/React.createElement(MiniRing, {
-    label: "Protein",
+    className: "text-[11px] text-[#8A8A90] mt-1"
+  }, mode === 'remaining' ? et.eff.kcal - tot.kcal < 0 ? 'KCAL OVER' : 'KCAL LEFT' : 'kcal of ' + et.eff.kcal)), /*#__PURE__*/React.createElement(PixelBar, {
+    label: "PROT",
     eaten: tot.protein,
     target: et.eff.protein_g,
-    color: PRO,
-    mode: mode
-  }), /*#__PURE__*/React.createElement(MiniRing, {
-    label: "Carbs",
+    color: PRO
+  }), /*#__PURE__*/React.createElement(PixelBar, {
+    label: "CARB",
     eaten: tot.carbs,
     target: et.eff.carbs_g,
-    color: CARB,
-    mode: mode
-  }), /*#__PURE__*/React.createElement(MiniRing, {
-    label: "Fat",
+    color: CARB
+  }), /*#__PURE__*/React.createElement(PixelBar, {
+    label: "FATS",
     eaten: tot.fat,
     target: et.eff.fat_g,
-    color: FAT,
-    mode: mode
-  })), (() => {
+    color: FAT
+  }), (() => {
     const ft = E.fiberTarget(et.eff.kcal);
     const rem = Math.max(0, ft.min - Math.round(tot.fiber));
     return /*#__PURE__*/React.createElement("div", {
-      className: "text-center text-[11px] text-[#8A8A90] mt-3"
-    }, "🌾 Fiber ", Math.round(tot.fiber), " / ", ft.min, "g", rem > 0 ? ` · ${rem}g to go` : ' ✓');
+      className: "text-[11px] text-[#8A8A90] mt-2"
+    }, "FIBER ", Math.round(tot.fiber), " / ", ft.min, "g", rem > 0 ? ` · ${rem} TO GO` : ' OK');
   })())), /*#__PURE__*/React.createElement("button", {
     onClick: copyYesterday,
     className: "w-full text-[12px] text-[#8A8A90] mb-3 flex items-center justify-center gap-1.5 py-1.5"
