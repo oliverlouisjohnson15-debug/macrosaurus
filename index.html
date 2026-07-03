@@ -427,10 +427,18 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return round(-(nHigh * bump) / (7 - nHigh));
   }
 
-  // ---- carryover: bank yesterday's surplus/deficit into today ----
+  // ---- carryover (aggressive): bank yesterday's surplus/deficit into today ----
   function carryover(prevTargetKcal, prevConsumedKcal, capKcal) {
     var cap = capKcal == null ? 500 : capKcal;
     return round(clamp(prevTargetKcal - prevConsumedKcal, -cap, cap));
+  }
+
+  // ---- carryover (dispersed): spread the cycle's accumulated surplus/deficit
+  // evenly across the remaining days of the check-in cycle (incl. today) ----
+  function carryoverDispersed(accumulatedKcal, remainingDays, capKcal) {
+    var cap = capKcal == null ? 500 : capKcal;
+    var n = remainingDays < 1 ? 1 : remainingDays;
+    return round(clamp(accumulatedKcal / n, -cap, cap));
   }
 
   // Apply a kcal delta to a base target, holding protein & fat, flexing carbs.
@@ -492,7 +500,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
     goalDailyDelta: goalDailyDelta, fatFreeMassKg: fatFreeMassKg, proteinGrams: proteinGrams,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets,
-    cyclingDelta: cyclingDelta, carryover: carryover, applyKcalDelta: applyKcalDelta,
+    cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, round: round,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
@@ -813,11 +821,24 @@ function effectiveTarget(db, date) {
   const cyc = p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(date), base.kcal) : 0;
   let carry = 0;
   if (p.carryover && p.carryover.enabled) {
-    const prev = shiftISO(date, -1);
-    const pe = entriesOn(db, prev);
-    if (pe.length) {
-      const pbk = base.kcal + (p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(prev), base.kcal) : 0);
-      carry = E.carryover(pbk, sumMacros(pe).kcal, p.carryover.capKcal || 500);
+    const cap = p.carryover.capKcal || 500;
+    const dayTarget = dISO => base.kcal + (p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), base.kcal) : 0);
+    if (p.carryover.mode === 'dispersed') {
+      // spread the cycle's accumulated surplus/deficit across the remaining days
+      const cs = db.last_checkin || db.log_entries[0] && db.log_entries[0].date || date;
+      const idx = Math.max(0, daysBetween(cs, date)); // today's position in the cycle
+      let acc = 0;
+      for (let i = 0; i < idx; i++) {
+        const dISO = shiftISO(cs, i);
+        const pe = entriesOn(db, dISO);
+        if (pe.length) acc += dayTarget(dISO) - sumMacros(pe).kcal;
+      }
+      const remaining = Math.max(1, 7 - idx); // days left in the ~7-day cycle, incl. today
+      carry = E.carryoverDispersed(acc, remaining, cap);
+    } else {
+      const prev = shiftISO(date, -1);
+      const pe = entriesOn(db, prev);
+      if (pe.length) carry = E.carryover(dayTarget(prev), sumMacros(pe).kcal, cap);
     }
   }
   let eff = E.applyKcalDelta(base, cyc + carry);
@@ -1474,6 +1495,7 @@ function Wizard({
     program_mode: 'collaborative',
     carryover: {
       enabled: true,
+      mode: 'aggressive',
       capKcal: 400
     },
     cycling: {
@@ -3630,6 +3652,7 @@ function AdvancedTab({
   const base = currentTargets(db);
   const initCarry = () => ({
     enabled: !!(p.carryover && p.carryover.enabled),
+    mode: p.carryover && p.carryover.mode || 'aggressive',
     capKcal: p.carryover && p.carryover.capKcal || 400
   });
   const initCyc = () => ({
@@ -3661,14 +3684,39 @@ function AdvancedTab({
     title: "Calorie carryover"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Over- or under-eat one day and the difference banks onto the next, so a single off day doesn't derail the week."), /*#__PURE__*/React.createElement(RowToggle, {
-    label: "Bank surplus/deficit to next day",
+  }, "Over- or under-eat and the difference gets made up later, so a single off day doesn't derail the week."), /*#__PURE__*/React.createElement(RowToggle, {
+    label: "Carry surplus/deficit forward",
     on: carry.enabled,
     onClick: () => setCarry(c => Object.assign({}, c, {
       enabled: !c.enabled
     }))
-  }), carry.enabled && /*#__PURE__*/React.createElement(Field, {
-    label: `Daily cap: ±${carry.capKcal} kcal`
+  }), carry.enabled && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Field, {
+    label: "How to make it up"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: carry.mode,
+    onChange: v => setCarry(c => Object.assign({}, c, {
+      mode: v
+    })),
+    options: [{
+      v: 'aggressive',
+      l: 'Aggressive'
+    }, {
+      v: 'dispersed',
+      l: 'Dispersed'
+    }]
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mb-3.5"
+  }, carry.mode === 'dispersed' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, "Dispersed."), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "Spreads the surplus or deficit evenly across the remaining days of your check-in cycle. Gentler — a big day barely moves any single day.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, "Aggressive."), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "Applies yesterday's whole surplus or deficit to today. Fast to correct, but one big day can swing tomorrow hard."))), /*#__PURE__*/React.createElement(Field, {
+    label: `Daily cap: ±${carry.capKcal} kcal`,
+    hint: "The most any single day can shift, whichever mode you pick."
   }, /*#__PURE__*/React.createElement("input", {
     type: "range",
     min: "100",
@@ -3679,7 +3727,7 @@ function AdvancedTab({
       capKcal: +e.target.value
     })),
     className: "w-full accent-[#4A9EEB]"
-  }))), /*#__PURE__*/React.createElement(Section, {
+  })))), /*#__PURE__*/React.createElement(Section, {
     title: "High / low days"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
