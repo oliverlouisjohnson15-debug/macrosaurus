@@ -506,13 +506,36 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     newTargets.estimatedTDEE = opts.estimate.tdee;
     newTargets.source = 'adaptive';
     var dir = cappedDelta > 0.5 ? 'up' : (cappedDelta < -0.5 ? 'down' : 'unchanged');
+
+    // ---- transparent, blunt-but-friendly explanation of the change ----
+    var unit = profile.weight_unit;
+    function rt(kg) { return unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(2) + ' kg'; }
+    var goal = profile.goalType;
+    var actual = opts.estimate.weeklyChangeKg; // -ve = losing
+    var expected = goal === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : goal === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0;
+    var actualStr = actual < -0.02 ? 'losing ' + rt(actual) + '/wk' : actual > 0.02 ? 'gaining ' + rt(actual) + '/wk' : 'holding steady';
+    var deltaR = Math.abs(round(cappedDelta));
+    var newKcalR = round(newKcal);
     var reason;
     if (dir === 'unchanged') {
-      reason = 'Trend is tracking your goal (' + opts.estimate.weeklyChangeKg + ' kg/wk). No change needed — keep going.';
+      if (goal === 'maintain') reason = 'You\'re ' + actualStr + ' — steady, exactly the plan. Keeping you at ' + newKcalR + ' kcal. No change, nice work.';
+      else reason = 'Your goal is to ' + (goal === 'cut' ? 'lose' : 'gain') + ' ' + rt(expected) + '/wk and you\'re ' + actualStr + ' — bang on target. No change: keep doing exactly what you\'re doing.';
     } else {
-      reason = 'Over ' + opts.estimate.days + ' days your real burn looks like ~' + opts.estimate.tdee + ' kcal and weight moved ' + opts.estimate.weeklyChangeKg + ' kg/wk. Nudging calories ' + dir + ' ' + Math.abs(round(cappedDelta)) + ' to ' + round(newKcal) + ' kcal. Protein stays ' + newTargets.protein_g + ' g.';
+      var why;
+      if (goal === 'cut') {
+        why = dir === 'down'
+          ? 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual > 0.02 ? ' — you actually went up' : '') + ', so to get fat loss moving again I\'m dropping you '
+          : 'That\'s faster than your ' + rt(expected) + '/wk target — great going, but to protect muscle and keep it sustainable I\'m giving you back ';
+      } else if (goal === 'gain') {
+        why = dir === 'up'
+          ? 'That\'s slower than the ' + rt(expected) + '/wk you\'re aiming for' + (actual <= 0 ? ' — you didn\'t gain' : '') + ', so to keep the muscle coming I\'m adding '
+          : 'That\'s faster than your ' + rt(expected) + '/wk target, and extra gain that quick is mostly fat, so I\'m trimming ';
+      } else {
+        why = actual < 0 ? 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ' : 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
+      }
+      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, to ' + newKcalR + ' kcal. (Your food and weight over the last ' + opts.estimate.days + ' days point to burning ~' + opts.estimate.tdee + ' kcal a day.) Protein stays ' + newTargets.protein_g + ' g.';
     }
-    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), newTargets: newTargets, reason: reason, estimate: opts.estimate };
+    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate };
   }
 
   var Engine = {
