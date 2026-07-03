@@ -743,16 +743,29 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var coverage = clamp(loggedDays / windowDays, 0, 1);
     var intakePenalty = 1 + (1 - coverage) * 1.5; // up to +150% when few days logged
     var sigma = Math.sqrt(weightSEkcal * weightSEkcal + (intakeSE * intakePenalty) * (intakeSE * intakePenalty));
+    if (!isFinite(sigma)) sigma = 250;
     sigma = Math.max(sigma, 40); // never claim silly precision
     var band = round(sigma / 10) * 10;
+
+    var weeklyChangeKg = slopeKgPerDay * 7;
+    var direction = weeklyChangeKg < -0.03 ? 'down' : weeklyChangeKg > 0.03 ? 'up' : 'flat';
+
+    // Plausibility guard: a fast water-weight swing over a short window can imply an
+    // absurd (or negative) TDEE. If the estimate is outside a sane band around BMR,
+    // flag it as still-settling rather than showing a garbage number.
+    var bmr = opts.bmr || 0;
+    var plausible = !bmr || (tdee >= bmr * 0.9 && tdee <= bmr * 2.6);
+    if (!plausible) {
+      return {
+        ok: true, implausible: true, tdee: round(tdee), weeklyChangeKg: round(weeklyChangeKg, 2), direction: direction,
+        weighDays: weighDays, loggedDays: loggedDays, windowDays: windowDays,
+      };
+    }
 
     // Confidence from band width relative to TDEE plus data quantity.
     var rel = band / Math.max(tdee, 1);
     var confidence = (rel < 0.055 && weighDays >= 7 && loggedDays >= 10) ? 'high'
       : (rel < 0.11 && weighDays >= 5 && loggedDays >= 7) ? 'medium' : 'low';
-
-    var weeklyChangeKg = slopeKgPerDay * 7;
-    var direction = weeklyChangeKg < -0.03 ? 'down' : weeklyChangeKg > 0.03 ? 'up' : 'flat';
 
     // Forecast the next check-in nudge: compare implied target to current target.
     var goalDelta = goalDailyDelta(opts.goalType, opts.rateKgPerWeek);
@@ -1316,10 +1329,10 @@ function dietBreakStatus(db, today) {
   const firstCi = db.checkins && db.checkins.length ? db.checkins[0].date : null;
   const dietStart = firstLog && firstCi ? firstLog < firstCi ? firstLog : firstCi : firstLog || firstCi || today;
   const anchors = [];
-  if (db.last_break_end) anchors.push(db.last_break_end);
+  if (db.last_break_end && db.last_break_end <= today) anchors.push(db.last_break_end);
   if (db.diet_break && db.diet_break.end < today) anchors.push(db.diet_break.end);
   const windowStart = anchors.length ? anchors.reduce((a, b) => a > b ? a : b) : dietStart;
-  const daysDieting = daysBetween(windowStart, today);
+  const daysDieting = Math.max(0, daysBetween(windowStart, today));
   const checkins = (db.checkins || []).filter(c => c.date >= windowStart).length;
   const loggedDays = new Set(logDates.filter(d => d >= windowStart)).size;
   const snoozed = db.diet_break_snooze && today <= db.diet_break_snooze;
@@ -1365,9 +1378,11 @@ function effectiveTarget(db, date) {
     const cap = p.carryover.capKcal || 500;
     const dayTarget = dISO => base.kcal + (p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), base.kcal) : 0);
     if (p.carryover.mode === 'dispersed') {
-      // spread the cycle's accumulated surplus/deficit across the remaining days
-      const cs = db.last_checkin || db.log_entries[0] && db.log_entries[0].date || date;
-      const idx = Math.max(0, daysBetween(cs, date)); // today's position in the cycle
+      // spread the cycle's accumulated surplus/deficit across the remaining days.
+      // Anchor on the last check-in (fall back to a 7-day window) and clamp the
+      // position to the cycle length so this is always O(≤7), never O(all days).
+      const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(date, -6);
+      const idx = Math.max(0, Math.min(6, daysBetween(cs, date))); // today's position in the cycle
       let acc = 0;
       for (let i = 0; i < idx; i++) {
         const dISO = shiftISO(cs, i);
@@ -2522,7 +2537,7 @@ function Wizard({
   const profile = useMemo(() => {
     const p = Object.assign({}, f);
     p.age = +f.age || 0;
-    p.bodyFatPct = +f.bodyFatPct || 0;
+    p.bodyFatPct = f.bodyFatPct === '' || f.bodyFatPct == null || isNaN(+f.bodyFatPct) ? null : +f.bodyFatPct;
     if (f.weight_unit === 'st_lb') p.weightKg = stLbToKg(+st || 0, +lb || 0);else p.weightKg = +f.weightKg || 0;
     if (f.height_unit === 'ft_in') p.heightCm = ftInToCm(+ft || 0, +inch || 0);else p.heightCm = +f.heightCm || 0;
     if (f.proteinManualG === '') delete p.proteinManualG;
@@ -3225,6 +3240,7 @@ function ExpenditureCard({
     date: w.date,
     kg: w.scale_weight
   }));
+  const bmr = E.mifflinBMR(withActivity(db.profile));
   const est = E.liveExpenditure({
     weights,
     kcalByDate,
@@ -3232,8 +3248,10 @@ function ExpenditureCard({
     windowDays: 14,
     currentTargetKcal: t ? t.kcal : null,
     goalType: db.profile.goalType,
-    rateKgPerWeek: db.profile.rateKgPerWeek
+    rateKgPerWeek: db.profile.rateKgPerWeek,
+    bmr
   });
+  const unit = db.profile.weight_unit;
   if (!est.ok) return /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3245,7 +3263,16 @@ function ExpenditureCard({
   }, est.weighDays), " weigh-ins, ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--text)]"
   }, est.loggedDays), " days logged."));
-  const unit = db.profile.weight_unit;
+  if (est.implausible) {
+    const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
+    return /*#__PURE__*/React.createElement(Card, {
+      className: "p-5 mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[9px] text-[#8A8A90] mb-2"
+    }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] text-[#8A8A90] leading-relaxed"
+    }, "Still settling — a sharp weight move (", est.direction === 'up' ? 'up' : 'down', " ", rate, ", likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days."));
+  }
   const confColor = est.confidence === 'high' ? 'var(--good)' : est.confidence === 'medium' ? 'var(--fat)' : 'var(--muted)';
   const dirTxt = est.direction === 'down' ? 'trending down' : est.direction === 'up' ? 'trending up' : 'holding steady';
   const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
@@ -4734,24 +4761,33 @@ function AiConfirm({
     }
   }, "Claude's honest range: ", low, "–", high, " kcal. Logging the midpoint — it doesn't sugar-coat."), /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-[#8A8A90] mb-3 tnum"
-  }, "Logging ", final.kcal, " kcal · P", final.protein, " C", final.carbs, " F", final.fat), /*#__PURE__*/React.createElement("div", {
+  }, "Logging ", final.kcal, " kcal · P", final.protein, " C", final.carbs, " F", final.fat), final.kcal <= 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mb-2",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, "Claude couldn't read the calories. Add a note or a clearer photo and try again, or use Manual entry."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "flex-1",
-    onClick: () => onAdd({
-      name: name || 'Meal',
-      source: 'ai_estimate',
-      qtyLabel: '',
-      macros: final
-    })
+    disabled: final.kcal <= 0,
+    style: {
+      opacity: final.kcal <= 0 ? 0.5 : 1
+    },
+    onClick: () => {
+      if (final.kcal <= 0) return;
+      onAdd({
+        name: name || 'Meal',
+        source: 'ai_estimate',
+        qtyLabel: '',
+        macros: final
+      });
+    }
   }, "Add"), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     onClick: onCancel
   }, "Back")));
-  function set_name(e) {
-    setName(e.target.value);
-  }
 }
 const MEAL_SOURCES = [{
   v: 'home',
@@ -6224,13 +6260,16 @@ function App() {
       t.id = Store.uid();
       t.effective_date = Store.todayISO();
       n.targets.push(t);
-      if (isNew && !n.weight_entries.length) n.weight_entries.push({
-        id: Store.uid(),
-        date: Store.todayISO(),
-        scale_weight: +profile.weightKg.toFixed(2),
-        bodyfat: +profile.bodyFatPct,
-        trend_weight: +profile.weightKg.toFixed(2)
-      });
+      if (isNew && !n.weight_entries.length) {
+        const seed = {
+          id: Store.uid(),
+          date: Store.todayISO(),
+          scale_weight: +profile.weightKg.toFixed(2),
+          trend_weight: +profile.weightKg.toFixed(2)
+        };
+        if (profile.bodyFatPct != null) seed.bodyfat = +profile.bodyFatPct;
+        n.weight_entries.push(seed);
+      }
       n.last_checkin = Store.todayISO();
       if (n.profile.checkinDay == null) n.profile.checkinDay = new Date(Store.todayISO() + 'T00:00:00').getDay();
       if (session) cloudSave(session.user.id, n);
