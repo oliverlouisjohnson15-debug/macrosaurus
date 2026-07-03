@@ -855,7 +855,9 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
       last_checkin: null, // ISO date of last completed weekly check-in (gates cadence)
       checkins: [],       // history: [{ date, weightKg, onTrack, changed }]
       paused: false,      // goal paused (holiday mode)
-      diet_break: null,   // temporary maintenance phase: { start, end, returnGoal }
+      diet_break: null,       // temporary maintenance phase: { start, end, returnGoal }
+      last_break_end: null,   // ISO date the last diet break ended (resets the dieting clock)
+      diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
       goals: null,
     };
@@ -1299,6 +1301,33 @@ function maintenanceKcal(db) {
 function dietBreakActive(db, date) {
   const b = db.diet_break;
   return !!(b && date >= b.start && date <= b.end);
+}
+// Research-backed eligibility: only offer a diet break after a sustained, well-tracked
+// cut (~6 weeks). MATADOR (Byrne 2018) shows periodic maintenance breaks blunt metabolic
+// adaptation and improve fat-loss efficiency. Thresholds keep the dashboard uncluttered.
+const DIETBREAK_MIN_DAYS = 42,
+  DIETBREAK_MIN_CHECKINS = 4,
+  DIETBREAK_MIN_LOGGED = 28,
+  DIETBREAK_SNOOZE_DAYS = 14;
+function dietBreakStatus(db, today) {
+  const p = db.profile || {};
+  const logDates = db.log_entries.map(e => e.date);
+  const firstLog = logDates.length ? logDates.reduce((a, b) => a < b ? a : b) : null;
+  const firstCi = db.checkins && db.checkins.length ? db.checkins[0].date : null;
+  const dietStart = firstLog && firstCi ? firstLog < firstCi ? firstLog : firstCi : firstLog || firstCi || today;
+  const anchors = [];
+  if (db.last_break_end) anchors.push(db.last_break_end);
+  if (db.diet_break && db.diet_break.end < today) anchors.push(db.diet_break.end);
+  const windowStart = anchors.length ? anchors.reduce((a, b) => a > b ? a : b) : dietStart;
+  const daysDieting = daysBetween(windowStart, today);
+  const checkins = (db.checkins || []).filter(c => c.date >= windowStart).length;
+  const loggedDays = new Set(logDates.filter(d => d >= windowStart)).size;
+  const snoozed = db.diet_break_snooze && today <= db.diet_break_snooze;
+  const eligible = p.goalType === 'cut' && !db.paused && !dietBreakActive(db, today) && daysDieting >= DIETBREAK_MIN_DAYS && checkins >= DIETBREAK_MIN_CHECKINS && loggedDays >= DIETBREAK_MIN_LOGGED && !snoozed;
+  return {
+    eligible,
+    weeks: Math.max(1, Math.floor(daysDieting / 7))
+  };
 }
 function effectiveTarget(db, date) {
   let base = currentTargets(db);
@@ -3279,13 +3308,12 @@ function DietBreakCard({
   update
 }) {
   const today = Store.todayISO();
-  const [open, setOpen] = useState(false);
+  const [ask, setAsk] = useState(false);
   if (db.paused) return null;
   const brk = db.diet_break;
-  const active = dietBreakActive(db, today);
   const mk = maintenanceKcal(db);
   const goalLabel = g => g === 'gain' ? 'lean gain' : g === 'maintain' ? 'maintenance goal' : 'cut';
-  if (active) {
+  if (dietBreakActive(db, today)) {
     const daysLeft = daysBetween(today, brk.end) + 1;
     return /*#__PURE__*/React.createElement(Card, {
       className: "p-5 mb-4",
@@ -3312,43 +3340,58 @@ function DietBreakCard({
       className: "w-full",
       onClick: () => {
         if (confirm('End your diet break now and go back to your goal?')) update(d => {
+          d.last_break_end = today;
           d.diet_break = null;
         });
       }
     }, "End break now"));
   }
-  if (db.profile.goalType === 'maintain') return null;
+  // Only surface once a sustained, well-tracked cut makes a break worthwhile.
+  const status = dietBreakStatus(db, today);
+  if (!status.eligible) return null;
+  const start = n => update(d => {
+    d.diet_break = {
+      start: today,
+      end: shiftISO(today, n - 1),
+      returnGoal: d.profile.goalType
+    };
+    d.diet_break_snooze = null;
+  });
+  const notNow = () => update(d => {
+    d.diet_break_snooze = shiftISO(today, DIETBREAK_SNOOZE_DAYS);
+  });
   return /*#__PURE__*/React.createElement(Card, {
-    className: "p-5 mb-4"
+    className: "p-5 mb-4",
+    style: {
+      borderTopColor: 'var(--hero)',
+      borderTopWidth: '7px'
+    }
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
-  }, "Diet break"), /*#__PURE__*/React.createElement("div", {
+  }, "Time for a diet break?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-relaxed"
-  }, "A planned week or two at maintenance (~", mk, " kcal) — an evidence-based way to recharge on a long ", goalLabel(db.profile.goalType), " without losing the plot. Tracking keeps running and your goal targets come back automatically at the end."), !open ? /*#__PURE__*/React.createElement(Btn, {
+  }, "You've been cutting consistently for ", status.weeks, " weeks. Research (MATADOR — Byrne 2018) shows a 1–2 week maintenance break here blunts metabolic slowdown and improves fat-loss efficiency. It holds you at ~", mk, " kcal, then your cut resumes automatically."), !ask ? /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    onClick: () => setAsk(true)
+  }, "Yes please"), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
-    className: "w-full",
-    onClick: () => setOpen(true)
-  }, "Start a diet break") : /*#__PURE__*/React.createElement("div", {
+    onClick: notNow
+  }, "Not now")) : /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-2 mb-2"
+    className: "text-[11px] text-[#8A8A90] mb-2"
+  }, "How long?"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
   }, [7, 14].map(n => /*#__PURE__*/React.createElement(Btn, {
     key: n,
     kind: "accent",
-    onClick: () => {
-      update(d => {
-        d.diet_break = {
-          start: today,
-          end: shiftISO(today, n - 1),
-          returnGoal: d.profile.goalType
-        };
-      });
-      setOpen(false);
-    }
+    onClick: () => start(n)
   }, n, " days"))), /*#__PURE__*/React.createElement("button", {
-    className: "text-[11px] text-[#8A8A90] w-full text-center",
-    onClick: () => setOpen(false)
-  }, "Cancel")));
+    className: "text-[11px] text-[#8A8A90] w-full text-center mt-2",
+    onClick: () => setAsk(false)
+  }, "Back")));
 }
 function Dashboard({
   db,
