@@ -941,6 +941,33 @@ function PixelDino({
     }
   }, rects);
 }
+// Pixel flame — outer glow (fat/orange), inner core (accent). Replaces the 🔥 emoji.
+const FIRE_OUTER = ['...#...', '..###..', '.#.###.', '.#####.', '#####.#', '#######', '#######', '.#####.', '..###..'];
+const FIRE_INNER = ['.......', '.......', '.......', '...#...', '..###..', '..###..', '..###..', '...#...', '.......'];
+function PixelFire({
+  size,
+  color,
+  core
+}) {
+  const build = (grid, fill) => grid.flatMap((row, y) => row.split('').map((c, x) => c === '#' ? /*#__PURE__*/React.createElement("rect", {
+    key: fill + x + '_' + y,
+    x: x,
+    y: y,
+    width: "1",
+    height: "1",
+    fill: fill
+  }) : null));
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 7 9",
+    width: (size || 16) * 7 / 9,
+    height: size || 16,
+    className: "inline-block align-[-0.15em]",
+    style: {
+      imageRendering: 'pixelated',
+      shapeRendering: 'crispEdges'
+    }
+  }, build(FIRE_OUTER, color || 'var(--fat)'), build(FIRE_INNER, core || 'var(--danger)'));
+}
 
 /* ---------- unit helpers ---------- */
 function kgToStLb(kg) {
@@ -2585,11 +2612,13 @@ function StatusCard({
   }, ready ? 'Check-in ready' : `${daysTo} day${daysTo === 1 ? '' : 's'} until check-in`), streak > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-right shrink-0 ml-3"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-xl font-bold tnum",
+    className: "text-xl font-bold tnum flex items-center justify-end gap-1.5",
     style: {
       color: 'var(--fat)'
     }
-  }, "🔥 ", streak), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(PixelFire, {
+    size: 18
+  }), streak), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
   }, "day", streak === 1 ? '' : 's', " on goal"))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
