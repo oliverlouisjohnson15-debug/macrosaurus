@@ -350,6 +350,10 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var KCAL_PER_GYM_SESSION_PER_KG = 5.5; // ~410 kcal for a 75kg lifter, moderate-hard session
   var RESTING_MULT = 1.2; // BMR + thermic effect of food + baseline (non-step) daily movement
   var DIET_STYLE_FAT_PCT = { balanced: 0.28, lower_carb: 0.38, higher_carb: 0.22 };
+  var KCAL_FLOOR = 1200; // single absolute daily-calorie floor used everywhere
+
+  // One principled floor for initial targets, adaptive changes, and cycling low days.
+  function kcalFloor(_profile) { return KCAL_FLOOR; }
 
   function round(n, dp) { var f = Math.pow(10, dp || 0); return Math.round(n * f) / f; }
   function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
@@ -386,11 +390,18 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return weightKg * (1 - bodyFatPct / 100);
   }
 
-  // Moderate, evidence-based protein: default 1.8 g/kg bodyweight, or a manual gram target.
+  // Reference mass for protein: lean (fat-free) mass when body fat is known,
+  // otherwise fall back to bodyweight. Sizing protein to lean mass avoids
+  // over-prescribing it for higher-body-fat users.
+  function proteinReferenceKg(p) {
+    var ffm = fatFreeMassKg(p.weightKg, p.bodyFatPct);
+    return (ffm != null && ffm > 0) ? ffm : p.weightKg;
+  }
+  // Evidence-based protein: default 2.0 g/kg LEAN mass, or a manual gram target.
   function proteinGrams(p) {
     if (p.proteinManualG) return Math.round(+p.proteinManualG);
-    var gPerKg = p.proteinGPerKgBW || 1.8;
-    return Math.round(gPerKg * p.weightKg);
+    var gPerKg = p.proteinGPerKgLBM || 2.0;
+    return Math.round(gPerKg * proteinReferenceKg(p));
   }
 
   // Macro split from a kcal budget. No ranges (removed by design).
@@ -408,7 +419,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var kcal = bd.tdee + goalDailyDelta(profile.goalType, profile.rateKgPerWeek);
     if (profile.proteinManualG && profile.manualKcal) kcal = +profile.manualKcal; // fully manual override
     // Absolute health floor only, so the rate slider keeps reducing calories across its full range.
-    if (kcal < 1200) kcal = 1200;
+    if (kcal < kcalFloor(profile)) kcal = kcalFloor(profile);
     var out = macrosFromKcal(kcal, profile);
     out.estimatedTDEE = bd.tdee;
     out.tdeeBreakdown = bd;
@@ -473,15 +484,17 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var bmr = mifflinBMR(profile);
     var goalDelta = goalDailyDelta(profile.goalType, profile.rateKgPerWeek);
 
-    if (opts.adherenceDays < 5) {
-      return { changed: false, reason: 'Only ' + opts.adherenceDays + '/7 days logged this week. I\'ll hold your targets — log a fuller week and I\'ll dial them in.', estimate: opts.estimate };
+    var minDays = opts.minDays || 5;
+    var periodDays = opts.periodDays || (opts.estimate && opts.estimate.days) || 7;
+    if (opts.adherenceDays < minDays) {
+      return { changed: false, reason: 'Only ' + opts.adherenceDays + '/' + periodDays + ' days logged this cycle. I\'ll hold your targets — log a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
     }
     if (opts.estimate.tdee < bmr * 1.05) {
-      return { changed: false, underReportFlagged: true, reason: 'Your numbers imply an expenditure (' + opts.estimate.tdee + ' kcal) near or below your BMR (' + round(bmr) + '), which usually means food was under-logged. Trusting your weight trend and holding targets this week.', estimate: opts.estimate };
+      return { changed: false, underReportFlagged: true, reason: 'Your numbers imply an expenditure (' + opts.estimate.tdee + ' kcal) near or below your BMR (' + round(bmr) + '), which usually means food was under-logged. Trusting your weight trend and holding targets this cycle.', estimate: opts.estimate };
     }
     var desiredKcal = opts.estimate.tdee + goalDelta;
     var cappedDelta = clamp(desiredKcal - currentKcal, -150, 150);
-    var newKcal = Math.max(bmr * 1.1, currentKcal + cappedDelta);
+    var newKcal = Math.max(kcalFloor(profile), currentKcal + cappedDelta);
     var newTargets = macrosFromKcal(newKcal, profile);
     newTargets.estimatedTDEE = opts.estimate.tdee;
     newTargets.source = 'adaptive';
@@ -498,7 +511,8 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
-    goalDailyDelta: goalDailyDelta, fatFreeMassKg: fatFreeMassKg, proteinGrams: proteinGrams,
+    goalDailyDelta: goalDailyDelta, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
+    KCAL_FLOOR: KCAL_FLOOR, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets,
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, round: round,
@@ -519,8 +533,38 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var KEY = 'macrosaurus:v1';
   var USER = 'local';
 
-  function todayISO() { return new Date().toISOString().slice(0, 10); }
+  // LOCAL calendar date (not UTC) so entries land on the user's actual day.
+  function isoOf(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+  function todayISO() { return isoOf(new Date()); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  // Profile-level defaults (profile is null in defaultState, so it needs its own
+  // backfill map for deep-merge migration of nested settings).
+  var PROFILE_DEFAULTS = {
+    carryover: { enabled: true, mode: 'aggressive', capKcal: 400 },
+    cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
+    program_mode: 'collaborative',
+    proteinGPerKgLBM: 2.0,
+  };
+
+  // Recursively fill in any keys missing from `target` using `defaults`,
+  // without overwriting values the user already has. Arrays are treated as leaves.
+  function deepDefaults(target, defaults) {
+    if (Array.isArray(defaults)) return target === undefined ? defaults : target;
+    if (defaults && typeof defaults === 'object') {
+      var out = (target && typeof target === 'object' && !Array.isArray(target)) ? target : {};
+      for (var k in defaults) { if (Object.prototype.hasOwnProperty.call(defaults, k)) out[k] = deepDefaults(out[k], defaults[k]); }
+      return out;
+    }
+    return target === undefined ? defaults : target;
+  }
+
+  // Bring any loaded/older state up to the current shape.
+  function migrate(state) {
+    var s = deepDefaults(state ? JSON.parse(JSON.stringify(state)) : {}, defaultState());
+    if (s.profile) s.profile = deepDefaults(s.profile, PROFILE_DEFAULTS);
+    return s;
+  }
 
   function defaultState() {
     return {
@@ -549,8 +593,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
     try {
       var raw = root.localStorage.getItem(KEY);
       if (!raw) return defaultState();
-      var s = JSON.parse(raw);
-      return Object.assign(defaultState(), s);
+      return migrate(JSON.parse(raw));
     } catch (e) {
       console.warn('store.load failed, resetting', e);
       return defaultState();
@@ -569,9 +612,11 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 
   var Store = {
     USER: USER,
+    isoOf: isoOf,
     todayISO: todayISO,
     uid: uid,
     defaultState: defaultState,
+    migrate: migrate,
     load: load,
     save: save,
     reset: reset,
@@ -639,6 +684,11 @@ function withActivity(p) {
     avgSteps: a.steps,
     gymSessionsPerWeek: a.gym
   });
+}
+// Lean (fat-free) mass in kg when body fat is known, else bodyweight.
+function leanKg(p) {
+  const f = E.fatFreeMassKg(p.weightKg, p.bodyFatPct);
+  return f != null && f > 0 ? f : p.weightKg;
 }
 
 /* ---------- unit helpers ---------- */
@@ -841,7 +891,10 @@ function effectiveTarget(db, date) {
       if (pe.length) carry = E.carryover(dayTarget(prev), sumMacros(pe).kcal, cap);
     }
   }
-  let eff = E.applyKcalDelta(base, cyc + carry);
+  // Never let cycling/carryover push a day below the shared calorie floor.
+  const floor = E.KCAL_FLOOR || 1200;
+  const delta = Math.max(cyc + carry, floor - base.kcal);
+  let eff = E.applyKcalDelta(base, delta);
   const ov = (db.day_overrides || {})[date];
   if (ov && ov.shiftKcal) {
     const s = ov.shiftKcal;
@@ -1490,7 +1543,7 @@ function Wizard({
     goalType: 'cut',
     rateKgPerWeek: 0.5,
     dietStyle: 'balanced',
-    proteinGPerKgBW: 1.8,
+    proteinGPerKgLBM: 2.0,
     proteinManualG: '',
     program_mode: 'collaborative',
     carryover: {
@@ -1659,16 +1712,16 @@ function Wizard({
   }, {
     t: 'Nutrition',
     body: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Field, {
-      label: `Protein: ${f.proteinManualG || Math.round(f.proteinGPerKgBW * profile.weightKg)} g (${f.proteinGPerKgBW.toFixed(1)} g/kg)`,
-      hint: "Benefits plateau around 1.6 g/kg. 1.8 is a solid default."
+      label: `Protein: ${f.proteinManualG || Math.round(f.proteinGPerKgLBM * leanKg(profile))} g (${f.proteinGPerKgLBM.toFixed(1)} g/kg lean mass)`,
+      hint: "Sized to your lean mass, so body fat doesn't inflate it. ~2.0 g/kg is a strong default; benefits plateau near 2.2."
     }, /*#__PURE__*/React.createElement("input", {
       type: "range",
-      min: "1.4",
-      max: "2.4",
+      min: "1.6",
+      max: "2.6",
       step: "0.1",
-      value: f.proteinGPerKgBW,
+      value: f.proteinGPerKgLBM,
       onChange: e => {
-        set('proteinGPerKgBW', +e.target.value);
+        set('proteinGPerKgLBM', +e.target.value);
         set('proteinManualG', '');
       },
       className: "w-full accent-[#4A9EEB]"
@@ -1877,63 +1930,72 @@ function CheckInModal({
   const unit = p.weight_unit;
   const today = Store.todayISO();
   const base = currentTargets(db);
-  const wkStart = shiftISO(today, -6);
-  const loggedDays = new Set(db.log_entries.filter(e => e.date >= wkStart && e.date <= today).map(e => e.date)).size;
-  const weighDays = countWeighIns(db.weight_entries, wkStart, today);
-  const onTrack = loggedDays >= 5 && weighDays >= 4;
-  const wkAvg = avgWeight(db.weight_entries, wkStart, today);
+  // Windows derive from the actual cadence (day after last check-in → today), not a fixed week.
+  const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(today, -6);
+  const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
+  const loggedDays = new Set(db.log_entries.filter(e => e.date >= cs && e.date <= today).map(e => e.date)).size;
+  const weighDays = countWeighIns(db.weight_entries, cs, today);
+  const needLogs = Math.max(4, Math.ceil(cycleDays * 0.7));
+  const needWeigh = Math.max(3, Math.ceil(cycleDays * 0.5));
+  const onTrack = loggedDays >= needLogs && weighDays >= needWeigh;
+  const wkAvg = avgWeight(db.weight_entries, cs, today);
   const last = db.weight_entries[db.weight_entries.length - 1];
   const seed = kgToStLb(last ? last.scale_weight : p.weightKg);
   const [kg, setKg] = useState(last ? last.scale_weight : p.weightKg);
   const [st, setSt] = useState(seed.st);
   const [lb, setLb] = useState(seed.lb);
-  const [bf, setBf] = useState(last ? last.bodyfat : p.bodyFatPct);
+  const [bf, setBf] = useState(p.bodyFatPct != null ? p.bodyFatPct : '');
   const [result, setResult] = useState(null);
   function complete() {
     const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
-    if (!weightKg || !bf) {
-      alert("Enter today's weight and body fat %.");
+    if (!weightKg) {
+      alert("Enter today's weight.");
       return;
     }
-    const entries = db.weight_entries.filter(w => w.date !== today).concat([{
+    const bfVal = bf === '' || bf == null || isNaN(+bf) ? null : +bf; // body fat optional
+    const todayEntry = {
       date: today,
-      scale_weight: +weightKg,
-      bodyfat: +bf
-    }]);
-    const last7 = avgWeight(entries, wkStart, today);
-    const prev7 = avgWeight(entries, shiftISO(today, -13), shiftISO(today, -7));
+      scale_weight: +weightKg
+    };
+    if (bfVal != null) todayEntry.bodyfat = bfVal;
+    const entries = db.weight_entries.filter(w => w.date !== today).concat([todayEntry]);
+    const curAvg = avgWeight(entries, cs, today);
+    const prevAvg = avgWeight(entries, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
     update(d => {
       const ex = d.weight_entries.find(x => x.date === today);
       if (ex) {
         ex.scale_weight = +weightKg.toFixed(2);
-        ex.bodyfat = +bf;
-      } else d.weight_entries.push({
-        id: Store.uid(),
-        date: today,
-        scale_weight: +weightKg.toFixed(2),
-        bodyfat: +bf
-      });
+        if (bfVal != null) ex.bodyfat = bfVal;
+      } else {
+        const ne = {
+          id: Store.uid(),
+          date: today,
+          scale_weight: +weightKg.toFixed(2)
+        };
+        if (bfVal != null) ne.bodyfat = bfVal;
+        d.weight_entries.push(ne);
+      }
       recomputeTrend(d);
-      d.profile.bodyFatPct = +bf;
-      if (last7 != null) d.profile.weightKg = +last7.toFixed(2);
+      if (bfVal != null) d.profile.bodyFatPct = bfVal;
+      if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.checkins = (d.checkins || []).concat([{
         date: today,
-        weightKg: last7 != null ? +last7.toFixed(2) : +weightKg.toFixed(2),
+        weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2),
         onTrack: onTrack
       }]);
     });
     if (!onTrack) {
       setResult({
         status: 'held',
-        reason: `You logged food on ${loggedDays}/7 days and weighed in on ${weighDays}/7. Not a full enough week to safely change your macros, so you will stay on your current plan. Aim for daily logging and weigh-ins to unlock a change next time.`
+        reason: `You logged food on ${loggedDays}/${cycleDays} days and weighed in on ${weighDays}/${cycleDays} this cycle. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.`
       });
       return;
     }
     const byDate = {};
-    db.log_entries.filter(e => e.date >= shiftISO(today, -13)).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
+    db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
     const days = Object.keys(byDate);
-    if (prev7 == null || days.length < 3) {
+    if (prevAvg == null || days.length < 3) {
       setResult({
         status: 'needdata',
         reason: 'Not enough history yet. Keep weighing in daily and logging, and your next check-in will retune from the averages.'
@@ -1942,19 +2004,21 @@ function CheckInModal({
     }
     const est = E.estimateExpenditure({
       dailyKcal: days.map(k => byDate[k]),
-      trendStartKg: prev7,
-      trendEndKg: last7,
-      days: 7
+      trendStartKg: prevAvg,
+      trendEndKg: curAvg,
+      days: cycleDays
     });
     setResult(Object.assign({
       status: 'proposed'
     }, E.weeklyAdjust({
       profile: withActivity(Object.assign({}, p, {
-        weightKg: last7
+        weightKg: curAvg
       })),
       currentTargets: base,
       estimate: est,
-      adherenceDays: days.length
+      adherenceDays: loggedDays,
+      minDays: needLogs,
+      periodDays: cycleDays
     })));
   }
   function approve() {
@@ -1982,7 +2046,7 @@ function CheckInModal({
     className: "flex justify-between items-center mb-3"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold"
-  }, "Weekly check-in"), /*#__PURE__*/React.createElement("button", {
+  }, "Check-in"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
   }, "×")), result ? /*#__PURE__*/React.createElement("div", {
@@ -2028,21 +2092,21 @@ function CheckInModal({
     className: "text-[#34D399] text-sm mt-3"
   }, "✓ New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Compares this week's average weight to last week's, so one odd morning never throws it off."), /*#__PURE__*/React.createElement("div", {
+  }, "Compares this cycle's average weight to the previous one, so one odd morning never throws it off."), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
   }, /*#__PURE__*/React.createElement(MiniStat, {
-    label: "Food logs this week",
-    value: loggedDays + '/7',
-    ok: loggedDays >= 5
+    label: `Food logs (${cycleDays}-day cycle)`,
+    value: loggedDays + '/' + cycleDays,
+    ok: loggedDays >= needLogs
   }), /*#__PURE__*/React.createElement(MiniStat, {
-    label: "Weigh-ins this week",
-    value: weighDays + '/7',
-    ok: weighDays >= 4
+    label: `Weigh-ins (${cycleDays}-day cycle)`,
+    value: weighDays + '/' + cycleDays,
+    ok: weighDays >= needWeigh
   })), !onTrack && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mb-3"
-  }, "You are short on tracking. You can still check in, but your macros will hold until you complete a fuller week."), wkAvg != null && /*#__PURE__*/React.createElement("div", {
+  }, "You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle."), wkAvg != null && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 bg-[#1E1E22] rounded-xl px-3 py-2.5"
-  }, "This week: average ", /*#__PURE__*/React.createElement("span", {
+  }, "This cycle: average ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum font-semibold"
   }, fmtWeight(wkAvg, unit))), /*#__PURE__*/React.createElement(Field, {
     label: "Today's weight"
@@ -2062,10 +2126,12 @@ function CheckInModal({
     value: kg,
     onChange: e => setKg(e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Body fat %"
+    label: "Body fat %",
+    hint: "Optional — leave blank to keep your last figure. Used for your protein target and lean-mass tracking."
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: bf,
-    onChange: e => setBf(e.target.value)
+    onChange: e => setBf(e.target.value),
+    placeholder: "optional"
   })), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
@@ -2316,7 +2382,7 @@ function FoodLog({
   const daysIn = new Date(calMonth.y, calMonth.m + 1, 0).getDate();
   const cells = [];
   for (let i = 0; i < startDow; i++) cells.push(null);
-  for (let dd = 1; dd <= daysIn; dd++) cells.push(new Date(calMonth.y, calMonth.m, dd).toISOString().slice(0, 10));
+  for (let dd = 1; dd <= daysIn; dd++) cells.push(Store.isoOf(new Date(calMonth.y, calMonth.m, dd)));
   const logSet = new Set(db.log_entries.map(e => e.date));
   const monthName = new Date(calMonth.y, calMonth.m, 1).toLocaleDateString('en-GB', {
     month: 'long',
@@ -3295,7 +3361,7 @@ function Goals({
     goalType: p.goalType,
     rateKgPerWeek: p.rateKgPerWeek,
     dietStyle: p.dietStyle,
-    proteinGPerKgBW: p.proteinGPerKgBW || 1.8
+    proteinGPerKgLBM: p.proteinGPerKgLBM || 2.0
   });
   const setg = (k, v) => setG(x => Object.assign({}, x, {
     [k]: v
@@ -3309,7 +3375,7 @@ function Goals({
   const [st, setSt] = useState(seed.st);
   const [lb, setLb] = useState(seed.lb);
   const goalWChanged = unit === 'st_lb' ? (gwSt ? +stLbToKg(gwSt, gwLb).toFixed(2) : null) !== (p.goalWeightKg || null) : (+gwKg || null) !== (p.goalWeightKg || null);
-  const changed = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle || g.proteinGPerKgBW !== (p.proteinGPerKgBW || 1.8) || goalWChanged;
+  const changed = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || 2.0) || goalWChanged;
   function apply() {
     const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
     if (!weightKg) {
@@ -3322,7 +3388,7 @@ function Goals({
         goalType: g.goalType,
         rateKgPerWeek: g.rateKgPerWeek,
         dietStyle: g.dietStyle,
-        proteinGPerKgBW: g.proteinGPerKgBW,
+        proteinGPerKgLBM: g.proteinGPerKgLBM,
         weightKg: +weightKg.toFixed(2),
         goalWeightKg: goalW ? +goalW.toFixed(2) : null
       });
@@ -3444,15 +3510,15 @@ function Goals({
     onChange: e => setGwKg(e.target.value),
     placeholder: "kg"
   }))), /*#__PURE__*/React.createElement(Field, {
-    label: `Protein: ${Math.round(g.proteinGPerKgBW * p.weightKg)} g`,
-    hint: "Higher protein protects muscle in a cut and supports growth in a gain."
+    label: `Protein: ${Math.round(g.proteinGPerKgLBM * leanKg(p))} g (${g.proteinGPerKgLBM.toFixed(1)} g/kg lean mass)`,
+    hint: "Sized to lean mass. Higher protein protects muscle in a cut and supports growth in a gain."
   }, /*#__PURE__*/React.createElement("input", {
     type: "range",
-    min: "1.4",
-    max: "2.4",
+    min: "1.6",
+    max: "2.6",
     step: "0.1",
-    value: g.proteinGPerKgBW,
-    onChange: e => setg('proteinGPerKgBW', +e.target.value),
+    value: g.proteinGPerKgLBM,
+    onChange: e => setg('proteinGPerKgLBM', +e.target.value),
     className: "w-full accent-[#4A9EEB]"
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Diet style",
@@ -3824,7 +3890,10 @@ function More({
     v: fmtWeight(p.weightKg, p.weight_unit)
   }), /*#__PURE__*/React.createElement(Row2, {
     k: "Body fat",
-    v: p.bodyFatPct + '%',
+    v: p.bodyFatPct != null ? p.bodyFatPct + '%' : '–'
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "Lean mass",
+    v: fmtWeight(leanKg(p), p.weight_unit),
     last: true
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -3979,7 +4048,7 @@ function App() {
     if (!session) return;
     let cancelled = false;
     cloudLoad(session.user.id).then(function (remote) {
-      if (!cancelled) setDb(Object.assign(Store.defaultState(), remote || {}));
+      if (!cancelled) setDb(Store.migrate(remote));
     }).catch(function () {
       if (!cancelled) setDb(Store.defaultState());
     });
