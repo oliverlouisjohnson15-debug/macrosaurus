@@ -2079,10 +2079,12 @@ function TrendCard({
 /* =====================================================================
    AUTH (polished email login)
    ===================================================================== */
+const BETA_INVITE_CODE = 'henryalfie'; // required to create an account while in beta
 function Auth() {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [code, setCode] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   async function submit() {
@@ -2092,6 +2094,10 @@ function Auth() {
     }
     if (!email || !pw) {
       setMsg('Enter your email and a password.');
+      return;
+    }
+    if (mode === 'signup' && code.trim().toLowerCase() !== BETA_INVITE_CODE) {
+      setMsg('That invite code isn\'t right. Macrosaurus is invite-only during the beta.');
       return;
     }
     setBusy(true);
@@ -2189,6 +2195,17 @@ function Auth() {
     onChange: e => setPw(e.target.value),
     onKeyDown: e => e.key === 'Enter' && submit(),
     placeholder: "at least 6 characters"
+  })), mode === 'signup' && /*#__PURE__*/React.createElement(Field, {
+    label: "Beta invite code",
+    hint: "Macrosaurus is invite-only right now. Enter the code you were given."
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    autoComplete: "off",
+    className: inputCls,
+    value: code,
+    onChange: e => setCode(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && submit(),
+    placeholder: "invite code"
   })), /*#__PURE__*/React.createElement("button", {
     onClick: submit,
     className: "w-full pixel-btn mt-1 py-3 text-[11px] pf",
