@@ -6335,12 +6335,27 @@ function More({
   update,
   onSignOut,
   onReset,
+  onDeleteAccount,
   onFreshStart,
   email
 }) {
   const p = db.profile;
   const act = ACTIVITY.find(a => a.v === p.activityLevel) || ACTIVITY[2];
   const [tab, setTab] = useState('details');
+  const [delOpen, setDelOpen] = useState(false);
+  const [delText, setDelText] = useState('');
+  const [delBusy, setDelBusy] = useState(false);
+  const [delErr, setDelErr] = useState('');
+  async function doDelete() {
+    setDelBusy(true);
+    setDelErr('');
+    try {
+      await onDeleteAccount();
+    } catch (e) {
+      setDelErr(e.message || 'Something went wrong.');
+      setDelBusy(false);
+    }
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement(PageHeader, {
@@ -6402,13 +6417,62 @@ function More({
     className: "text-[12px] text-[#8A8A90] mb-2"
   }, "Just changing your details? Use ", /*#__PURE__*/React.createElement("span", {
     className: "text-white"
-  }, "Edit details & recalculate"), " on the Profile tab, it keeps your history. The button below wipes the lot."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Edit details & recalculate"), " on the Profile tab, it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
     kind: "danger",
     className: "w-full",
     onClick: () => {
       if (confirm('Delete EVERYTHING (profile, food log, weigh-ins, history) and start over from setup? This cannot be undone.')) onReset();
     }
-  }, "Delete all data & start over")), /*#__PURE__*/React.createElement("div", {
+  }, "Reset all data & start over")), /*#__PURE__*/React.createElement(Section, {
+    title: "Delete account"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Permanently deletes your login and every trace of your data from our servers. This cannot be undone, and you'll need to sign up again to come back."), !delOpen ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "danger",
+    className: "w-full",
+    onClick: () => {
+      setDelOpen(true);
+      setDelText('');
+      setDelErr('');
+    }
+  }, "Delete my account") : /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-4 fade-in",
+    style: {
+      borderColor: 'var(--danger)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-2",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, "This erases your account and all data forever. Type ", /*#__PURE__*/React.createElement("span", {
+    className: "font-bold"
+  }, "DELETE"), " to confirm."), /*#__PURE__*/React.createElement(TextInput, {
+    value: delText,
+    onChange: e => setDelText(e.target.value),
+    placeholder: "DELETE"
+  }), delErr && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, delErr), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-3"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "danger",
+    className: "flex-1",
+    disabled: delText.trim().toUpperCase() !== 'DELETE' || delBusy,
+    style: {
+      opacity: delText.trim().toUpperCase() !== 'DELETE' || delBusy ? 0.5 : 1
+    },
+    onClick: doDelete
+  }, delBusy ? 'Deleting…' : 'Delete forever'), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: () => {
+      setDelOpen(false);
+      setDelErr('');
+    }
+  }, "Cancel")))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]/70 mt-2 text-center"
   }, BRAND, " · your data syncs to your account")));
 }
@@ -6789,6 +6853,16 @@ function App() {
     if (session) cloudSave(session.user.id, f2);
     setView('dashboard');
   }
+  async function deleteAccount() {
+    if (!supa) throw new Error('Account deletion needs an internet connection.');
+    // Server-side function verifies the caller's own JWT, then deletes their data + auth record.
+    const r = await supa.functions.invoke('delete-account');
+    if (r.error) throw new Error(r.error && r.error.message || 'Could not delete your account. Please try again.');
+    await supa.auth.signOut();
+    setDb(null);
+    setSession(null);
+    setView('dashboard');
+  }
   if (session === undefined) return /*#__PURE__*/React.createElement(Loading, {
     text: "Waking the Macrosaurus…"
   });
@@ -6839,6 +6913,7 @@ function App() {
     update: update,
     onSignOut: signOut,
     onReset: resetAll,
+    onDeleteAccount: deleteAccount,
     onFreshStart: () => setFresh(true),
     email: session.user.email
   }), /*#__PURE__*/React.createElement(BottomNav, {
