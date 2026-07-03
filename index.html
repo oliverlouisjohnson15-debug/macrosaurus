@@ -826,7 +826,7 @@ async function claudeVision(key, files, prompt) {
   if (!m) throw new Error('no data returned');
   return JSON.parse(m[0]);
 }
-const LABEL_PROMPT = 'Read this nutrition label. Return ONLY compact JSON with values PER 100 g (use the per-100g column): {"name": string, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}. If a value is missing use 0.';
+const LABEL_PROMPT = 'Read this nutrition label. Return ONLY compact JSON with values PER 100 g (convert from the per-portion column if only that is shown): {"name": string, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "serving_g": number, "serving_label": string}. serving_g is the size in grams of ONE portion, serving, or the whole pack that a person would typically eat in one go — read it from the "per portion", "per serving", or "per pack" figure; if no serving/pack size is stated use 0. serving_label is a short human label for that amount like "1 portion (55 g)" or "1 pack (330 g)"; use "" if unknown. If any value is missing use 0.';
 const AI_PROMPT = 'You are a nutrition estimator for someone tracking macros. You may be given one or more images (a photo of the food, and/or a photo of a menu listing) plus optional notes from the user. Use every clue — menu wording, portion size, the user\'s notes — to estimate the macros for the WHOLE portion they are about to eat. Respond ONLY with compact JSON: {"name": string, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number}. Assume typical UK preparation.';
 
 /* ---------- data helpers ---------- */
@@ -3221,10 +3221,13 @@ function PhotoTab({
     setErr('');
     try {
       const est = await claudeVision(key, [file], LABEL_PROMPT);
+      const sg = +est.serving_g || null;
       setParsed({
         per100: true,
         source: 'label',
-        note: 'Read from your label (per 100 g).',
+        note: sg ? 'Read from your label — defaulting to one portion.' : 'Read from your label.',
+        servingG: sg,
+        servingLabel: est.serving_label || (sg ? `1 portion (${sg} g)` : null),
         initial: {
           name: est.name || 'Scanned food',
           kcal: Math.round(est.kcal || 0),
