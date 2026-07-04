@@ -1246,7 +1246,7 @@ async function claudeVision(key, files, prompt) {
   if (!m) throw new Error('no data returned');
   return JSON.parse(m[0]);
 }
-const LABEL_PROMPT = 'Read this nutrition label. Return ONLY compact JSON with values PER 100 g (convert from the per-portion column if only that is shown): {"name": string, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "serving_g": number, "serving_label": string}. serving_g is the size in grams of ONE portion, serving, or the whole pack that a person would typically eat in one go. Read it from the "per portion", "per serving", or "per pack" figure; if no serving/pack size is stated use 0. serving_label is a short human label for that amount like "1 portion (55 g)" or "1 pack (330 g)"; use "" if unknown. If any value is missing use 0.';
+const LABEL_PROMPT = 'Read this nutrition label carefully. UK labels usually have TWO columns: one PER 100 g / 100 ml, and one PER SERVING / PER PACK / PER CAN / PER BOTTLE. Read each column EXACTLY as printed — do NOT convert, scale or mix the two. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}}. serving_g = the size in grams (or ml) of ONE serving/pack/can a person consumes in one go, e.g. 500 for a 500 ml can, 55 for a 55 g bar, 330 for a 330 ml bottle; if no serving/pack size is stated, 0. serving_label = a short human label like "1 can (500 ml)", "1 bar (55 g)"; "" if unknown. per_serving = the numbers from the per-serving/per-pack/per-can column (all 0 if that column is not printed). per_100g = the numbers from the per-100 g/ml column (all 0 if not printed). If only one column exists, fill that one and leave the other all 0. Never invent numbers or scale one column into the other.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD — anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent — these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
@@ -5610,37 +5610,52 @@ function ConfirmFood({
   servingG,
   servingLabel,
   branded,
+  perServing,
   onAdd,
   onCancel
 }) {
+  const perServ = !!perServing;
+  const base = perServing || {
+    kcal: initial.kcal,
+    protein: initial.protein,
+    carbs: initial.carbs,
+    fat: initial.fat,
+    fiber: initial.fiber
+  };
   const [v, setV] = useState({
     name: initial.name || '',
-    kcal: initial.kcal || '',
-    protein: initial.protein || '',
-    carbs: initial.carbs || '',
-    fat: initial.fat || '',
-    fiber: initial.fiber || ''
+    kcal: base.kcal || '',
+    protein: base.protein || '',
+    carbs: base.carbs || '',
+    fat: base.fat || '',
+    fiber: base.fiber || ''
   });
   const set = (k, x) => setV(p => Object.assign({}, p, {
     [k]: x
   }));
-  // Smart default: packaged/branded foods with a known pack size open on "portion"; everything
-  // else (generic, weighed) opens on "grams". Both are always one tap apart.
-  const [amtUnit, setAmtUnit] = useState(servingG && branded ? 'serv' : 'g');
-  const [g, setG] = useState(servingG && !branded ? String(servingG) : '100');
+  const scalable = per100 || perServ;
+  const gramsOn = per100 || perServ && servingG;
+  const portionsOn = perServ || per100 && servingG;
+  const [amtUnit, setAmtUnit] = useState(portionsOn && (branded || perServ) ? 'serv' : 'g');
+  const [g, setG] = useState(String(servingG || 100));
   const [servN, setServN] = useState('1');
   const label = servingLabel || (servingG ? servingG + ' g' : 'serving');
-  const grams = per100 ? amtUnit === 'serv' && servingG ? (+servN || 0) * servingG : +g || 0 : 0;
-  const f = per100 ? grams / 100 : 1;
+  // factor multiplies the reference values (per-serving totals for a scanned can, else per-100)
+  let factor;
+  if (perServ) factor = amtUnit === 'serv' ? +servN || 0 : servingG ? (+g || 0) / servingG : 1;else if (per100) {
+    const grams = amtUnit === 'serv' && servingG ? (+servN || 0) * servingG : +g || 0;
+    factor = grams / 100;
+  } else factor = 1;
   const final = {
-    kcal: Math.round((+v.kcal || 0) * f),
-    protein: +((+v.protein || 0) * f).toFixed(1),
-    carbs: +((+v.carbs || 0) * f).toFixed(1),
-    fat: +((+v.fat || 0) * f).toFixed(1),
-    fiber: +((+v.fiber || 0) * f).toFixed(1)
+    kcal: Math.round((+v.kcal || 0) * factor),
+    protein: +((+v.protein || 0) * factor).toFixed(1),
+    carbs: +((+v.carbs || 0) * factor).toFixed(1),
+    fat: +((+v.fat || 0) * factor).toFixed(1),
+    fiber: +((+v.fiber || 0) * factor).toFixed(1)
   };
-  const qtyLabel = per100 ? amtUnit === 'serv' && servingG ? `${servN} × ${label}` : `${g} g` : '';
+  const qtyLabel = !scalable ? '' : amtUnit === 'serv' ? `${servN} × ${label}` : `${g} g`;
   const chip = on => `flex-1 pixel-box py-2.5 text-[13px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`;
+  const refLabel = perServ ? `Per serving (${label}) — edit if wrong` : per100 ? 'Nutrition per 100 g — edit if wrong' : 'This portion';
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
@@ -5650,17 +5665,17 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
     onChange: e => set('name', e.target.value)
-  })), per100 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  })), scalable && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
   }, "How much did you eat?"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mb-3"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, gramsOn ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setAmtUnit('g'),
     className: chip(amtUnit === 'g')
-  }, "Grams"), servingG ? /*#__PURE__*/React.createElement("button", {
+  }, "Grams") : null, portionsOn ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setAmtUnit('serv'),
     className: chip(amtUnit === 'serv')
-  }, "Portions") : null), amtUnit === 'serv' && servingG ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(FractionChips, {
+  }, "Portions") : null), amtUnit === 'serv' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(FractionChips, {
     value: servN,
     onPick: n => setServN(String(n))
   }), /*#__PURE__*/React.createElement(Field, {
@@ -5701,7 +5716,7 @@ function ConfirmFood({
     }
   }, "F", final.fat))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
-  }, per100 ? 'Nutrition per 100 g — edit if wrong' : 'This portion'), /*#__PURE__*/React.createElement("div", {
+  }, refLabel), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Kcal"
@@ -6204,22 +6219,47 @@ function PhotoTab({
     try {
       const est = await claudeVision(key, [file], LABEL_PROMPT);
       const sg = +est.serving_g || null;
-      setParsed({
-        per100: true,
-        source: 'label',
-        branded: true,
-        note: sg ? 'Read off your label. Defaulting to one portion.' : 'Read from your label.',
-        servingG: sg,
-        servingLabel: est.serving_label || (sg ? `1 portion (${sg} g)` : null),
-        initial: {
-          name: est.name || 'Scanned food',
-          kcal: Math.round(est.kcal || 0),
-          protein: est.protein_g,
-          carbs: est.carbs_g,
-          fat: est.fat_g,
-          fiber: est.fiber_g
-        }
-      });
+      const ps = est.per_serving || {},
+        p100 = est.per_100g || {};
+      const hasServing = (+ps.kcal || 0) > 0 || (+ps.carbs_g || 0) > 0 || (+ps.protein_g || 0) > 0 || (+ps.fat_g || 0) > 0;
+      const label = est.serving_label || (sg ? `1 serving (${sg} g)` : '1 serving');
+      if (hasServing) {
+        // Per-serving column exists: log the whole serving/can by its own figures — no per-100 scaling.
+        setParsed({
+          source: 'label',
+          branded: true,
+          servingG: sg,
+          servingLabel: label,
+          note: 'One ' + label + ' from your label. Change the amount below if you had more or less.',
+          perServing: {
+            kcal: Math.round(+ps.kcal || 0),
+            protein: +ps.protein_g || 0,
+            carbs: +ps.carbs_g || 0,
+            fat: +ps.fat_g || 0,
+            fiber: +ps.fiber_g || 0
+          },
+          initial: {
+            name: est.name || 'Scanned food'
+          }
+        });
+      } else {
+        setParsed({
+          per100: true,
+          source: 'label',
+          branded: true,
+          servingG: sg,
+          servingLabel: est.serving_label || (sg ? `1 portion (${sg} g)` : null),
+          note: 'Read from your label (per 100 g).',
+          initial: {
+            name: est.name || 'Scanned food',
+            kcal: Math.round(+p100.kcal || 0),
+            protein: +p100.protein_g,
+            carbs: +p100.carbs_g,
+            fat: +p100.fat_g,
+            fiber: +p100.fiber_g
+          }
+        });
+      }
     } catch (e) {
       setErr('Label read failed: ' + e.message);
     }
