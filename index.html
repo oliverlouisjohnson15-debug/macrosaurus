@@ -4598,21 +4598,29 @@ function Dashboard({
 /* =====================================================================
    FOOD LOG (calendar + diary)
    ===================================================================== */
+const PAW_GRID = ['#..#..#', '#..#..#', '.#.#.#.', '.#.#.#.', '..###..', '.#####.', '.#####.', '..###..'];
 function PixelGrip() {
-  return /*#__PURE__*/React.createElement("span", {
-    className: "flex flex-col gap-[3px]",
+  const rects = [];
+  PAW_GRID.forEach((row, y) => row.split('').forEach((c, x) => {
+    if (c === '#') rects.push(/*#__PURE__*/React.createElement("rect", {
+      key: x + '_' + y,
+      x: x,
+      y: y,
+      width: "1",
+      height: "1"
+    }));
+  }));
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 7 8",
+    width: "16",
+    height: "18",
+    fill: "currentColor",
     style: {
-      lineHeight: 0
-    }
-  }, [0, 1, 2].map(i => /*#__PURE__*/React.createElement("span", {
-    key: i,
-    style: {
-      width: 16,
-      height: 2,
-      background: 'currentColor',
+      imageRendering: 'pixelated',
+      shapeRendering: 'crispEdges',
       display: 'block'
     }
-  })));
+  }, rects);
 }
 function FoodLog({
   db,
