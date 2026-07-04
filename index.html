@@ -5778,11 +5778,10 @@ function LogSheet({
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
-    style: {
-      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
-    },
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box sheet-up flex flex-col max-h-[90vh]",
     onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "p-5 pb-3 flex-none"
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4"
   }), /*#__PURE__*/React.createElement("div", {
@@ -5816,12 +5815,17 @@ function LogSheet({
     color: "currentColor",
     size: 15
   }), " ", l))))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl"
+    className: "flex gap-1.5 bg-[#1E1E22] p-1 rounded-2xl"
   }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setTab(k),
     className: `flex-1 rounded-xl py-2 text-[13px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
-  }, l))), tab === 'recent' && /*#__PURE__*/React.createElement(RecentTab, {
+  }, l)))), /*#__PURE__*/React.createElement("div", {
+    className: "px-5 pt-1 overflow-y-auto flex-1",
+    style: {
+      paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))'
+    }
+  }, tab === 'recent' && /*#__PURE__*/React.createElement(RecentTab, {
     db: db,
     update: update,
     isAlc: isAlc,
@@ -5839,7 +5843,7 @@ function LogSheet({
   })), tab === 'photo' && /*#__PURE__*/React.createElement(PhotoTab, {
     db: db,
     onPick: i => onAdd(mealId, i)
-  })));
+  }))));
 }
 function RecentTab({
   db,
@@ -5850,7 +5854,10 @@ function RecentTab({
   const [q, setQ] = useState('');
   const foods = db.foods.filter(f => !!f.is_alcohol === isAlc).filter(f => !q || f.name.toLowerCase().includes(q.toLowerCase()));
   const favs = foods.filter(f => f.is_favorite).sort((a, b) => b.updated_at - a.updated_at);
-  const recents = foods.filter(f => !f.is_favorite).sort((a, b) => b.updated_at - a.updated_at);
+  const allRecents = foods.filter(f => !f.is_favorite).sort((a, b) => b.updated_at - a.updated_at);
+  const CAP = 25;
+  const recents = q ? allRecents : allRecents.slice(0, CAP);
+  const moreCount = q ? 0 : allRecents.length - recents.length;
   const star = food => update(d => {
     const x = d.foods.find(y => y.id === food.id);
     if (x) x.is_favorite = !x.is_favorite;
@@ -5907,7 +5914,9 @@ function RecentTab({
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2"
   }, "Recent"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
-  }, recents.map(Row))));
+  }, recents.map(Row)), moreCount > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-3 text-center"
+  }, "+ ", moreCount, " more — type above to search all your foods.")));
 }
 function SavedMealsTab({
   db,
@@ -8176,9 +8185,10 @@ function BottomNav({
   onAdd
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2 safe-bottom",
+    className: "lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2",
     style: {
-      height: 74,
+      height: 'calc(74px + env(safe-area-inset-bottom))',
+      paddingBottom: 'env(safe-area-inset-bottom)',
       background: 'var(--header)',
       borderColor: 'var(--border)'
     }
