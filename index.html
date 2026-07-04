@@ -1645,10 +1645,24 @@ function Logo({
     className: "text-[#4A9EEB]"
   }, "saurus")));
 }
-function rateLabel(r) {
+function rateLabel(r, goalType) {
   const a = Math.abs(r || 0);
+  if (goalType === 'gain') {
+    if (a <= 0.35) return {
+      t: 'Lean, minimal fat gain',
+      c: CARB
+    };
+    if (a <= 0.7) return {
+      t: 'Moderate, some fat gain',
+      c: FAT
+    };
+    return {
+      t: 'Fast, more fat to trim later',
+      c: PRO
+    };
+  }
   if (a <= 0.35) return {
-    t: 'Sustainable, easy to hold',
+    t: 'Gentle, easy to sustain',
     c: CARB
   };
   if (a <= 0.7) return {
@@ -1656,7 +1670,7 @@ function rateLabel(r) {
     c: FAT
   };
   return {
-    t: 'Aggressive, high hunger',
+    t: 'Aggressive, harder to sustain',
     c: PRO
   };
 }
@@ -2746,7 +2760,7 @@ function Wizard({
       onChange: e => set('rateKgPerWeek', +e.target.value),
       className: "w-full accent-[#4A9EEB]"
     }), (() => {
-      const rl = rateLabel(f.rateKgPerWeek);
+      const rl = rateLabel(f.rateKgPerWeek, f.goalType);
       return /*#__PURE__*/React.createElement("div", {
         className: "text-[12px] mt-1.5",
         style: {
@@ -7344,7 +7358,7 @@ function Goals({
     className: "p-5 mb-6"
   }, g.goalType !== 'maintain' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Field, {
     label: `Rate: ${g.rateKgPerWeek} kg/week`,
-    hint: "How fast you aim to change weight. Faster is more aggressive and hungrier."
+    hint: g.goalType === 'gain' ? 'How fast you aim to gain. A gentler pace stays leaner; faster adds more fat alongside the muscle.' : 'How fast you aim to lose. A gentler pace is easier to sustain; faster brings more hunger.'
   }, /*#__PURE__*/React.createElement("input", {
     type: "range",
     min: "0.1",
@@ -7354,7 +7368,7 @@ function Goals({
     onChange: e => setg('rateKgPerWeek', +e.target.value),
     className: "w-full accent-[#4A9EEB]"
   }), (() => {
-    const rl = rateLabel(g.rateKgPerWeek);
+    const rl = rateLabel(g.rateKgPerWeek, g.goalType);
     return /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] mt-1.5",
       style: {
