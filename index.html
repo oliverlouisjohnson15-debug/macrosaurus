@@ -1247,7 +1247,7 @@ async function claudeVision(key, files, prompt) {
   return JSON.parse(m[0]);
 }
 const LABEL_PROMPT = 'Read this nutrition label. Return ONLY compact JSON with values PER 100 g (convert from the per-portion column if only that is shown): {"name": string, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "serving_g": number, "serving_label": string}. serving_g is the size in grams of ONE portion, serving, or the whole pack that a person would typically eat in one go. Read it from the "per portion", "per serving", or "per pack" figure; if no serving/pack size is stated use 0. serving_label is a short human label for that amount like "1 portion (55 g)" or "1 pack (330 g)"; use "" if unknown. If any value is missing use 0.';
-const AI_PROMPT = 'You are a BRUTALLY HONEST nutrition estimator for someone in England tracking macros to build muscle and lose fat. Your job is accuracy, not reassurance. Most people badly UNDER-count calories, so never lowball to be nice, and never round down. Assume British ingredients and realistic UK portion sizes; for restaurant and takeaway meals assume the generous oil, butter, sugar and larger portions they genuinely use. Count everything the eye misses: cooking oils, butter, dressings, mayo, sauces, breading, glazes, cheese and sides. Use every clue from the image(s) and notes. Break the meal into its components and estimate each. Respond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level kcal/protein_g/carbs_g/fat_g are your best single estimate for the WHOLE portion and must equal the sum of the items. kcal_low and kcal_high are an honest plausible range for total calories (wider when you are unsure). grams is the estimated cooked weight of each item (0 only if truly impossible to tell). "assumption" is a short note on what you assumed for that item, e.g. "fried in ~1 tbsp oil". "assumptions" is one short sentence naming the biggest calorie drivers you had to assume. If unsure, err toward the realistic higher end, not the flattering lower one.';
+const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD — anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent — these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
@@ -5619,10 +5619,13 @@ function ConfirmFood({
 function AiConfirm({
   est,
   onAdd,
-  onCancel
+  onCancel,
+  onRefine,
+  busy
 }) {
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (Claude estimate)');
+  const [fix, setFix] = useState('');
   const [items, setItems] = useState(() => (src.items || []).map(it => {
     const grams = +it.grams || 0;
     const kcal = +it.kcal || 0,
@@ -5697,7 +5700,7 @@ function AiConfirm({
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90]"
-  }, "Claude's honest estimate — tweak any portion."), /*#__PURE__*/React.createElement("span", {
+  }, "Here's what I think you ate. Edit a portion, or correct me below."), /*#__PURE__*/React.createElement("span", {
     className: "text-[8px] px-2 py-1",
     style: {
       color: confColor,
@@ -5747,13 +5750,57 @@ function AiConfirm({
       color: 'var(--muted)'
     }
   }, "Claude's honest range: ", low, "–", high, " kcal. Logging the midpoint — it doesn't sugar-coat."), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm text-[#8A8A90] mb-3 tnum"
-  }, "Logging ", final.kcal, " kcal · P", final.protein, " C", final.carbs, " F", final.fat), final.kcal <= 0 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3 text-center",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] text-[#8A8A90] mb-1"
+  }, "TOTAL"), /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold tnum"
+  }, final.kcal, " kcal"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] tnum mt-0.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: PRO
+    }
+  }, "P", final.protein), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: CARB
+    }
+  }, "C", final.carbs), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: FAT
+    }
+  }, "F", final.fat))), final.kcal <= 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-2",
     style: {
       color: 'var(--danger)'
     }
-  }, "Claude couldn't read the calories. Add a note or a clearer photo and try again, or use Manual entry."), /*#__PURE__*/React.createElement("div", {
+  }, "Claude couldn't read the calories. Add a correction below, or use Manual entry."), onRefine && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "Not quite right? Tell Claude what to fix"), /*#__PURE__*/React.createElement("textarea", {
+    value: fix,
+    onChange: e => setFix(e.target.value),
+    rows: 2,
+    className: inputCls + ' resize-y leading-relaxed',
+    placeholder: "e.g. it was a large, extra cheese, no chips, and I only ate half"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mt-2",
+    disabled: busy || !fix.trim(),
+    style: {
+      opacity: busy || !fix.trim() ? 0.5 : 1
+    },
+    onClick: () => onRefine(fix.trim())
+  }, busy ? 'Re-estimating…' : 'Re-estimate with this')), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -5771,10 +5818,10 @@ function AiConfirm({
         macros: final
       });
     }
-  }, "Add"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Yes, log it"), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     onClick: onCancel
-  }, "Back")));
+  }, "Start over")));
 }
 const MEAL_SOURCES = [{
   v: 'home',
@@ -5785,13 +5832,10 @@ const MEAL_SOURCES = [{
 }, {
   v: 'takeaway',
   l: 'Takeaway'
-}, {
-  v: 'packaged',
-  l: 'Packaged'
 }];
 function MealEstimate({
   apiKey,
-  onParsed,
+  onPick,
   onBack
 }) {
   const [imgs, setImgs] = useState([]); // { id, file, url }
@@ -5799,6 +5843,8 @@ function MealEstimate({
   const [source, setSource] = useState('home');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [result, setResult] = useState(null);
+  const [ver, setVer] = useState(0);
   function addImgs(list) {
     const arr = Array.from(list || []).map(f => ({
       id: Store.uid(),
@@ -5810,30 +5856,55 @@ function MealEstimate({
   function remove(id) {
     setImgs(x => x.filter(f => f.id !== id));
   }
+  function ctx() {
+    const srcLabel = (MEAL_SOURCES.find(s => s.v === source) || {}).l;
+    return 'Context: a ' + srcLabel + ' meal in England.' + (notes.trim() ? ' Notes: ' + notes.trim() : '');
+  }
   async function run() {
     if (!apiKey) {
       setErr('Add your Claude API key in More → Settings first.');
       return;
     }
     if (!imgs.length && !notes.trim()) {
-      setErr('Add a photo of the food or menu, or type a description.');
+      setErr('Add a food photo, a menu photo, or a description.');
       return;
     }
     setBusy(true);
     setErr('');
     try {
-      const srcLabel = (MEAL_SOURCES.find(s => s.v === source) || {}).l;
-      const prompt = AI_PROMPT + '\n\nThis is a ' + srcLabel + ' meal, eaten in England.' + (notes.trim() ? ' User notes: ' + notes.trim() : '');
-      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt);
-      onParsed({
-        ai: true,
-        est
-      });
+      const est = await claudeVision(apiKey, imgs.map(i => i.file), AI_PROMPT + '\n\n' + ctx());
+      setResult(est);
+      setVer(v => v + 1);
     } catch (e) {
       setErr('Estimate failed: ' + e.message);
     }
     setBusy(false);
   }
+  async function refine(correction) {
+    setBusy(true);
+    setErr('');
+    try {
+      const prompt = AI_PROMPT + '\n\n' + ctx() + '\n\nYour previous estimate was: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Revise your estimate to reflect this, keeping the exact same JSON format.';
+      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt);
+      setResult(est);
+      setVer(v => v + 1);
+    } catch (e) {
+      setErr('Re-estimate failed: ' + e.message);
+    }
+    setBusy(false);
+  }
+  if (result) return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(AiConfirm, {
+    key: ver,
+    est: result,
+    busy: busy,
+    onRefine: refine,
+    onAdd: onPick,
+    onCancel: () => setResult(null)
+  }), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#F5C542] mt-3"
+  }, err));
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -5841,14 +5912,14 @@ function MealEstimate({
     className: "text-[13px] text-[#8A8A90] mb-3"
   }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Add any mix of a food photo, a photo of the menu listing, and notes. Claude assumes UK portions and combines it all into one estimate."), /*#__PURE__*/React.createElement(Field, {
+  }, "Add a food photo, a photo of the menu, and any notes. Claude proposes what you ate — for a restaurant it anchors to that chain's published nutrition — then you say yes or correct it."), /*#__PURE__*/React.createElement(Field, {
     label: "Where's it from?"
   }, /*#__PURE__*/React.createElement(Seg, {
     value: source,
     onChange: setSource,
     options: MEAL_SOURCES
   })), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-2 mb-3"
+    className: "grid grid-cols-2 gap-2 mb-1"
   }, /*#__PURE__*/React.createElement("label", {
     className: "flex items-center justify-center gap-2 bg-[#1E1E22] rounded-2xl py-3 text-[13px] border border-[#262629] cursor-pointer"
   }, /*#__PURE__*/React.createElement(Icon.cam, {
@@ -5879,7 +5950,9 @@ function MealEstimate({
       addImgs(e.target.files);
       e.target.value = '';
     }
-  }))), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] mb-3"
+  }, "Take a new photo or choose one from your library."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
     key: i.id,
@@ -5891,8 +5964,8 @@ function MealEstimate({
     onClick: () => remove(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, "×")))), /*#__PURE__*/React.createElement(Field, {
-    label: "Notes for Claude (optional)",
-    hint: "The more detail the better: portion size, cooking method, brands, sauces, sides, anything the photo can't show."
+    label: "Notes (optional)",
+    hint: "Name the place or dish for the best guess, plus size, sides and sauces."
   }, /*#__PURE__*/React.createElement("textarea", {
     value: notes,
     onChange: e => setNotes(e.target.value),
@@ -5901,7 +5974,7 @@ function MealEstimate({
     style: {
       minHeight: 120
     },
-    placeholder: "e.g. large portion, chicken thigh not breast, fried in oil, extra cheese, side of chips, ketchup..."
+    placeholder: "e.g. Nando's — half chicken, medium, peri chips and coleslaw, ate it all"
   })), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
@@ -6057,14 +6130,7 @@ function PhotoTab({
     }
     setBusy('');
   }
-  if (parsed) return parsed.ai ? /*#__PURE__*/React.createElement(AiConfirm, {
-    est: parsed.est,
-    onAdd: onPick,
-    onCancel: () => {
-      setParsed(null);
-      setMode(null);
-    }
-  }) : /*#__PURE__*/React.createElement(ConfirmFood, {
+  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, {
     ...parsed,
     onAdd: onPick,
     onCancel: () => {
@@ -6074,7 +6140,7 @@ function PhotoTab({
   });
   if (mode === 'meal') return /*#__PURE__*/React.createElement(MealEstimate, {
     apiKey: key,
-    onParsed: setParsed,
+    onPick: onPick,
     onBack: () => setMode(null)
   });
   if (mode === 'scan') return /*#__PURE__*/React.createElement(LiveScanner, {
@@ -6090,7 +6156,6 @@ function PhotoTab({
   }, /*#__PURE__*/React.createElement("input", {
     type: "file",
     accept: "image/*",
-    capture: "environment",
     className: "hidden",
     onChange: e => onLabel(e.target.files[0])
   }), /*#__PURE__*/React.createElement("div", {
