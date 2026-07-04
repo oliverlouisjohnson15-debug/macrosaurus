@@ -4882,11 +4882,7 @@ function FoodLog({
     }
     arr.splice(insertAt, 0, item);
   });
-  const startDrag = (ev, entry, mc) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    setMenu(null);
-    setMealMenu(null);
+  const beginDrag = (entry, mc, x, y) => {
     const m = entry.computed_macros || {};
     setDrag({
       id: entry.id,
@@ -4900,9 +4896,52 @@ function FoodLog({
       f: m.fat
     });
     setGhost({
-      x: ev.clientX,
-      y: ev.clientY
+      x,
+      y
     });
+    if (navigator.vibrate) {
+      try {
+        navigator.vibrate(10);
+      } catch (e) {}
+    }
+  };
+  // Small friction: require a brief press-and-hold before a drag arms, so a quick brush doesn't grab.
+  const [arming, setArming] = useState(null); // entry id currently being held
+  const startDrag = (ev, entry, mc) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setMenu(null);
+    setMealMenu(null);
+    const sx = ev.clientX,
+      sy = ev.clientY;
+    setArming(entry.id);
+    const timer = setTimeout(() => {
+      cleanup();
+      setArming(null);
+      beginDrag(entry, mc, sx, sy);
+    }, 180);
+    const onMove = e => {
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) {
+        clearTimeout(timer);
+        cleanup();
+        setArming(null);
+      }
+    };
+    const onUp = () => {
+      clearTimeout(timer);
+      cleanup();
+      setArming(null);
+    };
+    function cleanup() {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    }
+    window.addEventListener('pointermove', onMove, {
+      passive: true
+    });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
   useEffect(() => {
     if (!drag) return;
@@ -5041,9 +5080,11 @@ function FoodLog({
       className: "shrink-0 px-2 py-2 cursor-grab select-none flex items-center justify-center",
       style: {
         touchAction: 'none',
-        color: dragging ? 'var(--accent)' : 'var(--muted)'
+        color: dragging || arming === e.id ? 'var(--accent)' : 'var(--muted)',
+        transform: arming === e.id ? 'scale(1.35)' : 'none',
+        transition: 'transform .16s ease'
       },
-      title: "Drag to move or reorder"
+      title: "Press and hold to drag"
     }, /*#__PURE__*/React.createElement(PixelGrip, null)), /*#__PURE__*/React.createElement("button", {
       onClick: ev => {
         ev.stopPropagation();
