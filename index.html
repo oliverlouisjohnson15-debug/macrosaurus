@@ -5716,7 +5716,8 @@ function ManualTab({
       fat: +(per.fat * f).toFixed(1),
       fiber: +(per.fiber * f).toFixed(1)
     };
-    const label = mode === 'grams' ? `${v.grams} g` : v.serving ? c > 1 ? `${c} × ${v.serving}` : v.serving : c > 1 ? `${c} servings` : '';
+    const noun = (v.serving || '').trim().replace(/^\d+(?:\.\d+)?\s*/, '') || 'portion';
+    const label = mode === 'grams' ? `${v.grams} g` : `${fmtCount(c)} ${noun}${+c > 1 && !/s$/i.test(noun) ? 's' : ''}`;
     onPick({
       name: v.name,
       source: 'custom',
@@ -5755,7 +5756,7 @@ function ManualTab({
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.serving,
     onChange: e => set('serving', e.target.value),
-    placeholder: "1 pack"
+    placeholder: "e.g. can, pack, slice"
   })), /*#__PURE__*/React.createElement(Field, {
     label: "How many"
   }, /*#__PURE__*/React.createElement(NumInput, {
@@ -5925,6 +5926,30 @@ function SearchTab({
     className: "text-xs text-[#8A8A90] tnum"
   }, r.brand ? r.brand + ' · ' : '', Math.round(r.per100.kcal), " kcal/100g", r.serving ? ' · ' + r.serving : '')))));
 }
+// Pretty count for portion labels: 0.5 -> "½", 2 -> "2", 1.5 -> "1.5"
+function fmtCount(n) {
+  n = +n;
+  if (!isFinite(n)) return '1';
+  const r = Math.round(n * 100) / 100;
+  const fr = {
+    0.25: '¼',
+    0.33: '⅓',
+    0.5: '½',
+    0.67: '⅔',
+    0.75: '¾'
+  };
+  if (fr[r]) return fr[r];
+  if (Math.abs(r - 1 / 3) < 0.02) return '⅓';
+  if (Math.abs(r - 2 / 3) < 0.02) return '⅔';
+  return String(r);
+}
+// Natural portion phrase, e.g. "2 cans", "½ pack", "1 can (500 ml)" — never "2 × 1 can".
+function portionPhrase(count, servingLabel) {
+  const cs = fmtCount(count);
+  if (servingLabel && /^\s*\d/.test(servingLabel)) return servingLabel.replace(/^\s*\d+(?:\.\d+)?/, cs);
+  if (servingLabel) return cs + ' ' + servingLabel;
+  return cs + ' portion' + (+count > 1 ? 's' : '');
+}
 const PORTION_FRACTIONS = [['1/4', 0.25], ['1/3', 0.333], ['1/2', 0.5], ['2/3', 0.667], ['3/4', 0.75], ['1', 1], ['2', 2]];
 function FractionChips({
   value,
@@ -5998,8 +6023,9 @@ function ConfirmFood({
   const final = scaled(factor);
   // per-100 reference column: derive from per-serving figures, or use the per-100 values directly
   const per100Vals = perServ ? servingG ? scaled(100 / servingG) : null : per100 ? scaled(1) : null;
-  const qtyLabel = !scalable ? '' : amtUnit === 'serv' ? `${servN} × ${label}` : `${g} g`;
-  const portionHead = amtUnit === 'serv' ? String(servN) === '1' ? label : `${servN}× ${label}` : `${g} g`;
+  const servPhrase = portionPhrase(servN, servingLabel);
+  const qtyLabel = !scalable ? '' : amtUnit === 'serv' ? servPhrase : `${g} g`;
+  const portionHead = amtUnit === 'serv' ? servPhrase : `${g} g`;
   const chip = on => `flex-1 pixel-box py-2.5 text-[13px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`;
   const Row = ({
     lab,
