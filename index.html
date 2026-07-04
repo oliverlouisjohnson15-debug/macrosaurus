@@ -1540,10 +1540,10 @@ function ConfirmDialog({
   onClose
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 z-[85] bg-black/70 flex items-end lg:items-center justify-center",
+    className: "fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-sm pixel-box p-5 fade-in",
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-2"
@@ -2465,7 +2465,10 @@ function BodyFatPicker({
     className: "fixed inset-0 z-[70] bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4"
@@ -3166,7 +3169,10 @@ function CheckInModal({
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4"
@@ -3881,7 +3887,10 @@ function MacrodexModal({
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4"
@@ -4239,7 +4248,10 @@ function FightModal({
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-3"
@@ -5531,7 +5543,10 @@ function EditEntryModal({
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-3"
@@ -5626,7 +5641,10 @@ function CopyToModal({
     className: "fixed inset-0 z-[60] bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-1"
@@ -5719,7 +5737,10 @@ function LogSheet({
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4"
