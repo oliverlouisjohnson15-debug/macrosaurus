@@ -4785,23 +4785,32 @@ function FoodLog({
   useEffect(() => {
     if (!drag) return;
     const computeDrop = (x, y) => {
-      const el = document.elementFromPoint(x, y);
-      if (!el) return null;
-      const row = el.closest('[data-entry-id]');
-      if (row) {
-        const mealId = row.getAttribute('data-meal-id');
-        const eid = row.getAttribute('data-entry-id');
-        const r = row.getBoundingClientRect();
-        const after = y > r.top + r.height / 2;
-        const list = entriesOn(db, date).filter(e => e.meal_id === mealId).map(e => e.id);
-        const i = list.indexOf(eid);
-        const beforeId = after ? list[i + 1] || null : eid;
-        return {
-          mealId,
-          beforeId
-        };
+      // Walk every element under the finger, skipping the floating drag preview, and take
+      // the first logged row (preferred) or meal drop-zone we hit.
+      const els = (document.elementsFromPoint ? document.elementsFromPoint(x, y) : [document.elementFromPoint(x, y)]).filter(Boolean);
+      let mealEl = null;
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i];
+        if (!el.closest || el.closest('[data-ghost]')) continue;
+        const row = el.closest('[data-entry-id]');
+        if (row) {
+          const mealId = row.getAttribute('data-meal-id');
+          const eid = row.getAttribute('data-entry-id');
+          const r = row.getBoundingClientRect();
+          const after = y > r.top + r.height / 2;
+          const list = entriesOn(db, date).filter(e => e.meal_id === mealId).map(e => e.id);
+          const idx = list.indexOf(eid);
+          const beforeId = after ? list[idx + 1] || null : eid;
+          return {
+            mealId,
+            beforeId
+          };
+        }
+        if (!mealEl) {
+          const me = el.closest('[data-meal-drop]');
+          if (me) mealEl = me;
+        }
       }
-      const mealEl = el.closest('[data-meal-drop]');
       if (mealEl) return {
         mealId: mealEl.getAttribute('data-meal-drop'),
         beforeId: null
@@ -5252,6 +5261,7 @@ function FoodLog({
   }), drag && ghost && (() => {
     const W = Math.min(320, (typeof window !== 'undefined' ? window.innerWidth : 360) - 40);
     return /*#__PURE__*/React.createElement("div", {
+      "data-ghost": true,
       className: "fixed z-[80] pointer-events-none pixel-box",
       style: {
         width: W,
@@ -5261,7 +5271,8 @@ function FoodLog({
         boxShadow: '5px 5px 0 0 var(--shadow)',
         transform: 'scale(1.02)',
         borderLeft: '4px solid ' + drag.mc,
-        opacity: 0.97
+        opacity: 0.97,
+        pointerEvents: 'none'
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-3 py-2.5 px-2"
