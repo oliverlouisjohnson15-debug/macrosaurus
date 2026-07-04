@@ -5247,10 +5247,12 @@ function SavedMealsTab({
 function ManualTab({
   onPick
 }) {
+  const [mode, setMode] = useState('portion'); // 'portion' = per portion × count · 'grams' = per 100g × grams
   const [v, setV] = useState({
     name: '',
     serving: '',
     count: 1,
+    grams: 100,
     kcal: '',
     protein: '',
     carbs: '',
@@ -5262,6 +5264,7 @@ function ManualTab({
   }));
   const autoKcal = (+v.protein || 0) * 4 + (+v.carbs || 0) * 4 + (+v.fat || 0) * 9;
   const c = +v.count || 1;
+  const f = mode === 'grams' ? (+v.grams || 0) / 100 : c;
   function add() {
     if (!v.name) return;
     const per = {
@@ -5272,29 +5275,45 @@ function ManualTab({
       fiber: +v.fiber || 0
     };
     const macros = {
-      kcal: Math.round(per.kcal * c),
-      protein: +(per.protein * c).toFixed(1),
-      carbs: +(per.carbs * c).toFixed(1),
-      fat: +(per.fat * c).toFixed(1),
-      fiber: +(per.fiber * c).toFixed(1)
+      kcal: Math.round(per.kcal * f),
+      protein: +(per.protein * f).toFixed(1),
+      carbs: +(per.carbs * f).toFixed(1),
+      fat: +(per.fat * f).toFixed(1),
+      fiber: +(per.fiber * f).toFixed(1)
     };
-    const label = v.serving ? c > 1 ? `${c} × ${v.serving}` : v.serving : c > 1 ? `${c} servings` : '';
+    const label = mode === 'grams' ? `${v.grams} g` : v.serving ? c > 1 ? `${c} × ${v.serving}` : v.serving : c > 1 ? `${c} servings` : '';
     onPick({
       name: v.name,
       source: 'custom',
       qtyLabel: label,
-      macros
+      macros,
+      unit: mode === 'grams' ? 'g' : 'serv'
     });
   }
+  const chip = on => `flex-1 pixel-box py-2.5 text-[13px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`;
+  const perLabel = mode === 'grams' ? 'per 100 g' : 'per portion';
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setMode('portion'),
+    className: chip(mode === 'portion')
+  }, "Per portion"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setMode('grams'),
+    className: chip(mode === 'grams')
+  }, "Per 100 g")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Enter the macros for one portion (e.g. one tin), then set how many you had."), /*#__PURE__*/React.createElement(Field, {
+  }, mode === 'grams' ? 'Enter the per-100g figures from the label, then the grams you weighed.' : 'Enter the macros for one portion (e.g. one tin), then how many you had.'), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
     onChange: e => set('name', e.target.value),
     placeholder: "e.g. Baked beans"
-  })), /*#__PURE__*/React.createElement("div", {
+  })), mode === 'grams' ? /*#__PURE__*/React.createElement(Field, {
+    label: "Amount eaten (g)"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: v.grams,
+    onChange: e => set('grams', e.target.value)
+  })) : /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Portion"
@@ -5309,7 +5328,7 @@ function ManualTab({
     onChange: e => set('count', e.target.value)
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
-  }, "Per portion"), /*#__PURE__*/React.createElement("div", {
+  }, mode === 'grams' ? 'Per 100 g' : 'Per portion'), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Prot"
@@ -5333,14 +5352,14 @@ function ManualTab({
     onChange: e => set('fiber', e.target.value)
   }))), /*#__PURE__*/React.createElement(Field, {
     label: "Calories",
-    hint: autoKcal ? `From macros about ${autoKcal} kcal per portion` : ''
+    hint: autoKcal ? `From macros about ${autoKcal} kcal ${perLabel}` : ''
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.kcal,
     onChange: e => set('kcal', e.target.value),
     placeholder: autoKcal ? String(autoKcal) : ''
-  })), c > 1 && /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-[#8A8A90] mb-3 tnum"
-  }, "Logging ", c, " portions: ", Math.round((+v.kcal || autoKcal) * c), " kcal"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Logging ", mode === 'grams' ? `${v.grams || 0} g` : c > 1 ? `${c} portions` : '1 portion', ": ", Math.round((+v.kcal || autoKcal) * f), " kcal"), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: add
@@ -5392,6 +5411,7 @@ function SearchTab({
     note: "From Open Food Facts.",
     per100: true,
     source: "off",
+    branded: !!sel.brand,
     servingG: sel.servingG,
     servingLabel: sel.serving,
     initial: {
@@ -5445,6 +5465,7 @@ function ConfirmFood({
   initial,
   servingG,
   servingLabel,
+  branded,
   onAdd,
   onCancel
 }) {
@@ -5459,9 +5480,11 @@ function ConfirmFood({
   const set = (k, x) => setV(p => Object.assign({}, p, {
     [k]: x
   }));
-  const [amtUnit, setAmtUnit] = useState(servingG ? 'serv' : 'g');
-  const [g, setG] = useState(100);
-  const [servN, setServN] = useState(1);
+  // Smart default: packaged/branded foods with a known pack size open on "portion"; everything
+  // else (generic, weighed) opens on "grams". Both are always one tap apart.
+  const [amtUnit, setAmtUnit] = useState(servingG && branded ? 'serv' : 'g');
+  const [g, setG] = useState(servingG && !branded ? String(servingG) : '100');
+  const [servN, setServN] = useState('1');
   const label = servingLabel || (servingG ? servingG + ' g' : 'serving');
   const grams = per100 ? amtUnit === 'serv' && servingG ? (+servN || 0) * servingG : +g || 0 : 0;
   const f = per100 ? grams / 100 : 1;
@@ -5473,6 +5496,7 @@ function ConfirmFood({
     fiber: +((+v.fiber || 0) * f).toFixed(1)
   };
   const qtyLabel = per100 ? amtUnit === 'serv' && servingG ? `${servN} × ${label}` : `${g} g` : '';
+  const chip = on => `flex-1 pixel-box py-2.5 text-[13px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`;
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
@@ -5506,20 +5530,25 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.fat,
     onChange: e => set('fat', e.target.value)
-  }))), per100 && /*#__PURE__*/React.createElement(React.Fragment, null, servingG && /*#__PURE__*/React.createElement("div", {
+  }))), per100 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] uppercase text-[#8A8A90] mb-2 mt-1"
+  }, "How much?"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mb-3"
-  }, [['serv', 'Servings'], ['g', 'Grams']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
-    key: k,
-    onClick: () => setAmtUnit(k),
-    className: `flex-1 rounded-2xl py-2.5 text-sm ${amtUnit === k ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90] border border-[#262629]'}`
-  }, l))), amtUnit === 'serv' && servingG ? /*#__PURE__*/React.createElement(Field, {
-    label: "Servings",
-    hint: `1 serving = ${label}`
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAmtUnit('g'),
+    className: chip(amtUnit === 'g')
+  }, "Grams"), servingG ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAmtUnit('serv'),
+    className: chip(amtUnit === 'serv')
+  }, "Portion · ", label) : null), amtUnit === 'serv' && servingG ? /*#__PURE__*/React.createElement(Field, {
+    label: "How many portions",
+    hint: `1 portion = ${label}`
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: servN,
     onChange: e => setServN(e.target.value)
   })) : /*#__PURE__*/React.createElement(Field, {
-    label: "Amount eaten (g)"
+    label: "Amount eaten (g)",
+    hint: servingG ? `1 portion is about ${servingG} g` : ''
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: g,
     onChange: e => setG(e.target.value)
@@ -5534,7 +5563,8 @@ function ConfirmFood({
       name: v.name || 'Food',
       source,
       qtyLabel,
-      macros: final
+      macros: final,
+      unit: amtUnit
     })
   }, "Add"), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
@@ -5935,6 +5965,7 @@ function PhotoTab({
       setParsed({
         per100: true,
         source: 'label',
+        branded: true,
         note: sg ? 'Read off your label. Defaulting to one portion.' : 'Read from your label.',
         servingG: sg,
         servingLabel: est.serving_label || (sg ? `1 portion (${sg} g)` : null),
@@ -5963,6 +5994,7 @@ function PhotoTab({
       setParsed({
         per100: true,
         source: 'off',
+        branded: true,
         note: 'From Open Food Facts.',
         servingG: +j.product.serving_quantity || null,
         servingLabel: j.product.serving_size || null,
