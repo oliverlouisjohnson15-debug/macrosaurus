@@ -5979,55 +5979,49 @@ function SavedMealsTab({
 function ManualTab({
   onPick
 }) {
-  const [mode, setMode] = useState('portion'); // 'portion' = per portion × count · 'grams' = per 100g × grams
-  const [more, setMore] = useState(false);
+  // Avatar-style: enter the macros for a given amount + unit (grams, ounces, or a custom unit you name).
   const [v, setV] = useState({
     name: '',
-    serving: '',
-    count: 1,
-    grams: 100,
-    kcal: '',
     protein: '',
     carbs: '',
     fat: '',
-    fiber: ''
+    fiber: '',
+    kcal: '',
+    amount: '',
+    unit: 'g',
+    customUnit: ''
   });
   const set = (k, x) => setV(p => Object.assign({}, p, {
     [k]: x
   }));
   const autoKcal = (+v.protein || 0) * 4 + (+v.carbs || 0) * 4 + (+v.fat || 0) * 9;
-  const c = +v.count || 1;
-  const f = mode === 'grams' ? (+v.grams || 0) / 100 : c;
-  const sc = n => +(n * f).toFixed(1);
+  function amountLabel() {
+    if (v.amount === '' || v.amount == null) return '';
+    const a = fmtCount(v.amount);
+    if (v.unit === 'custom') {
+      const n = (v.customUnit || '').trim() || 'serving';
+      return `${a} ${n}${+v.amount > 1 && !/s$/i.test(n) ? 's' : ''}`;
+    }
+    return `${a} ${v.unit === 'oz' ? 'oz' : 'g'}`;
+  }
   function add() {
     if (!v.name) return;
-    const per = {
-      kcal: +v.kcal || autoKcal,
+    const macros = {
+      kcal: Math.round(+v.kcal || autoKcal),
       protein: +v.protein || 0,
       carbs: +v.carbs || 0,
       fat: +v.fat || 0,
       fiber: +v.fiber || 0
     };
-    const macros = {
-      kcal: Math.round(per.kcal * f),
-      protein: +(per.protein * f).toFixed(1),
-      carbs: +(per.carbs * f).toFixed(1),
-      fat: +(per.fat * f).toFixed(1),
-      fiber: +(per.fiber * f).toFixed(1)
-    };
-    const noun = (v.serving || '').trim().replace(/^\d+(?:\.\d+)?\s*/, '') || 'serving';
-    const label = mode === 'grams' ? `${v.grams} g` : `${fmtCount(c)} ${noun}${+c > 1 && !/s$/i.test(noun) ? 's' : ''}`;
     onPick({
       name: v.name,
       source: 'custom',
-      qtyLabel: label,
+      qtyLabel: amountLabel(),
       macros,
-      unit: mode === 'grams' ? 'g' : 'serv'
+      unit: v.unit
     });
   }
-  const chip = on => `flex-1 pixel-box py-2.5 text-[13px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`;
-  const grams = mode === 'grams';
-  const amtText = grams ? `${v.grams || 0} g` : c > 1 ? `${fmtCount(c)} servings` : '1 serving';
+  const lbl = amountLabel();
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
@@ -6035,11 +6029,9 @@ function ManualTab({
     onChange: e => set('name', e.target.value),
     placeholder: "e.g. Baked beans"
   })), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
-  }, "Macros ", grams ? 'per 100 g' : 'for one serving'), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Prot (g)"
+    label: "Protein (g)"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.protein,
     onChange: e => set('protein', e.target.value)
@@ -6054,86 +6046,73 @@ function ManualTab({
     value: v.fat,
     onChange: e => set('fat', e.target.value)
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2 mt-1"
-  }, "How much did you eat?"), grams ? /*#__PURE__*/React.createElement(Field, {
-    label: "Amount eaten (g)"
-  }, /*#__PURE__*/React.createElement(NumInput, {
-    value: v.grams,
-    onChange: e => set('grams', e.target.value)
-  })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(FractionChips, {
-    value: v.count,
-    onPick: n => set('count', String(n))
-  }), /*#__PURE__*/React.createElement(Field, {
-    label: "Servings",
-    hint: "Tap a chip or type any number"
-  }, /*#__PURE__*/React.createElement(NumInput, {
-    value: v.count,
-    onChange: e => set('count', e.target.value)
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 my-3 flex justify-between items-center",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] text-[#8A8A90] mb-0.5"
-  }, "LOGGING ", amtText), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] tnum"
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: PRO
-    }
-  }, "P", sc(+v.protein || 0)), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: CARB
-    }
-  }, "C", sc(+v.carbs || 0)), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: FAT
-    }
-  }, "F", sc(+v.fat || 0)))), /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold tnum"
-  }, Math.round((+v.kcal || autoKcal) * f), /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] text-[#8A8A90]"
-  }, " kcal"))), /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "w-full",
-    onClick: add
-  }, "Add to log"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setMore(m => !m),
-    className: "w-full text-[11px] text-[#8A8A90] mt-3"
-  }, more ? '▲ Fewer options' : '▾ More options — per 100 g, portion name, fibre, calories'), more && /*#__PURE__*/React.createElement("div", {
-    className: "fade-in mt-2"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
-  }, "My macros are"), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 mb-3"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setMode('portion'),
-    className: chip(!grams)
-  }, "Per serving"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setMode('grams'),
-    className: chip(grams)
-  }, "Per 100 g")), !grams && /*#__PURE__*/React.createElement(Field, {
-    label: "Portion name (optional)",
-    hint: "e.g. can, pack, slice — shows in your log"
-  }, /*#__PURE__*/React.createElement(TextInput, {
-    value: v.serving,
-    onChange: e => set('serving', e.target.value),
-    placeholder: "serving"
-  })), /*#__PURE__*/React.createElement(Field, {
+    className: "grid grid-cols-2 gap-2.5"
+  }, /*#__PURE__*/React.createElement(Field, {
     label: "Fibre (g)"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.fiber,
     onChange: e => set('fiber', e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Calories (auto — leave blank to calculate)",
-    hint: autoKcal ? `${+v.protein || 0}P×4 + ${+v.carbs || 0}C×4 + ${+v.fat || 0}F×9 = ${autoKcal} kcal` : 'Enter protein, carbs and fat and I\'ll work out the calories.'
+    label: "Calories",
+    hint: "Auto from macros"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.kcal,
     onChange: e => set('kcal', e.target.value),
-    placeholder: autoKcal ? String(autoKcal) : ''
-  }))));
+    placeholder: autoKcal ? String(autoKcal) : '0'
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2.5"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Amount"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: v.amount,
+    onChange: e => set('amount', e.target.value),
+    placeholder: "e.g. 100"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Unit"
+  }, /*#__PURE__*/React.createElement(Dropdown, {
+    value: v.unit,
+    onChange: x => set('unit', x),
+    options: [{
+      v: 'g',
+      l: 'grams'
+    }, {
+      v: 'oz',
+      l: 'ounces'
+    }, {
+      v: 'custom',
+      l: 'Custom unit…'
+    }]
+  }))), v.unit === 'custom' && /*#__PURE__*/React.createElement(Field, {
+    label: "Custom unit name",
+    hint: "e.g. can, slice, scoop — shows in your log"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: v.customUnit,
+    onChange: e => set('customUnit', e.target.value),
+    placeholder: "can"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] tnum my-3"
+  }, "Logging ", lbl || '—', ": ", /*#__PURE__*/React.createElement("span", {
+    className: "font-bold",
+    style: {
+      color: 'var(--text)'
+    }
+  }, Math.round(+v.kcal || autoKcal), " kcal"), " · ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: PRO
+    }
+  }, +v.protein || 0, "P"), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: CARB
+    }
+  }, +v.carbs || 0, "C"), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: FAT
+    }
+  }, +v.fat || 0, "F")), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full",
+    onClick: add
+  }, "Add to log"));
 }
 function SearchTab({
   onPick
