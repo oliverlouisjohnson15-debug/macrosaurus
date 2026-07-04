@@ -4321,6 +4321,7 @@ function Dashboard({
   const [showStats, setShowStats] = useState(false);
   const [showDex, setShowDex] = useState(false);
   const [showFight, setShowFight] = useState(false);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
   if (!et) return null;
@@ -4388,6 +4389,8 @@ function Dashboard({
   const remindOn = db.profile.reminders !== false;
   const missWeigh = !weighSet.has(today),
     missLog = !logSet.has(today);
+  const nudgeHour = db.profile.nudgeHour == null ? 14 : db.profile.nudgeHour;
+  const showNudge = remindOn && missLog && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   const remColor = remaining < 0 ? 'var(--danger)' : 'var(--hero)';
   return /*#__PURE__*/React.createElement("div", {
@@ -4395,7 +4398,37 @@ function Dashboard({
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: prettyDate(today),
     title: "Dashboard"
-  }), /*#__PURE__*/React.createElement("div", {
+  }), showNudge && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-4 mb-4 fade-in",
+    style: {
+      background: 'var(--surface3)',
+      borderTopColor: 'var(--fat)',
+      borderTopWidth: '7px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0 mt-0.5"
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 26,
+    color: "var(--header)"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold mb-0.5"
+  }, "Nothing logged yet today"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug"
+  }, freezeAvail ? 'Log a meal to keep your streak alive and evolve your buddy. Miss today and it spends this month’s streak freeze.' : 'Log a meal to keep your streak — you’ve already used this month’s freeze, so missing today resets your buddy to the egg.')), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setNudgeDismissed(true),
+    className: "text-[#8A8A90] text-xl leading-none shrink-0"
+  }, "×")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onQuickAdd(false),
+    className: "pixel-btn w-full mt-3 py-2.5 text-[11px]",
+    style: {
+      background: 'var(--pro)',
+      color: '#fff'
+    }
+  }, "+ LOG FOOD NOW")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold"
@@ -6483,6 +6516,7 @@ function SettingsTab({
     height_unit: p.height_unit,
     aiKey: p.aiKey || '',
     reminders: p.reminders !== false,
+    nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour,
     theme: p.theme || 'light'
   });
   const [s, setS] = useState(init);
@@ -6578,7 +6612,17 @@ function SettingsTab({
     label: "Daily weigh-in & log reminder",
     on: s.reminders,
     onClick: () => sset('reminders', !s.reminders)
-  })), /*#__PURE__*/React.createElement(Section, {
+  }), s.reminders && /*#__PURE__*/React.createElement(Field, {
+    label: "Nudge me if I haven't logged by",
+    hint: "A banner appears on the Dashboard after this time if you've not logged food yet — a heads-up before you'd have to spend your monthly streak freeze."
+  }, /*#__PURE__*/React.createElement(Dropdown, {
+    value: s.nudgeHour,
+    onChange: v => sset('nudgeHour', +v),
+    options: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({
+      v: h,
+      l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am')
+    }))
+  }))), /*#__PURE__*/React.createElement(Section, {
     title: "AI (Claude)"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Anthropic API key",
