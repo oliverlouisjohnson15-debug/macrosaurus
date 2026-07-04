@@ -1272,6 +1272,16 @@ function sumMacros(entries) {
 function entriesOn(db, date) {
   return db.log_entries.filter(e => e.date === date);
 }
+// Atwater factors: protein 4, carbs 4, fat 9 kcal/g (alcohol is 7, handled via its own kcal).
+function kcalFromMacros(m) {
+  return Math.round((+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9);
+}
+// Never log a food with real macros but zero/missing calories — fill from the macros.
+function normalizeMacros(m, isAlcohol) {
+  const mm = Object.assign({}, m);
+  if (!isAlcohol && (!+mm.kcal || +mm.kcal <= 0) && (+mm.protein || +mm.carbs || +mm.fat)) mm.kcal = kcalFromMacros(mm);
+  return mm;
+}
 // Average scale weight across a date range, inclusive.
 function avgWeight(entries, startISO, endISO) {
   const ws = entries.filter(w => w.date >= startISO && w.date <= endISO && w.scale_weight != null).map(w => w.scale_weight);
@@ -5478,15 +5488,15 @@ function ManualTab({
     value: v.fiber,
     onChange: e => set('fiber', e.target.value)
   }))), /*#__PURE__*/React.createElement(Field, {
-    label: "Calories",
-    hint: autoKcal ? `From macros about ${autoKcal} kcal ${perLabel}` : ''
+    label: "Calories (auto — leave blank to calculate)",
+    hint: autoKcal ? `${+v.protein || 0}P×4 + ${+v.carbs || 0}C×4 + ${+v.fat || 0}F×9 = ${autoKcal} kcal ${perLabel}` : 'Enter protein, carbs and fat and I\'ll work out the calories.'
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.kcal,
     onChange: e => set('kcal', e.target.value),
     placeholder: autoKcal ? String(autoKcal) : ''
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-[#8A8A90] mb-3 tnum"
-  }, "Logging ", mode === 'grams' ? `${v.grams || 0} g` : c > 1 ? `${c} portions` : '1 portion', ": ", Math.round((+v.kcal || autoKcal) * f), " kcal"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Logging ", mode === 'grams' ? `${v.grams || 0} g` : c > 1 ? `${c} portions` : '1 portion', ": ", Math.round((+v.kcal || autoKcal) * f), " kcal · P", +((+v.protein || 0) * f).toFixed(1), " C", +((+v.carbs || 0) * f).toFixed(1), " F", +((+v.fat || 0) * f).toFixed(1)), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: add
@@ -7625,6 +7635,7 @@ function App() {
   }
   function addEntry(date, mealId, item) {
     const entryId = Store.uid();
+    const macros = normalizeMacros(item.macros, item.is_alcohol);
     update(d => {
       d.log_entries.push({
         id: entryId,
@@ -7636,13 +7647,13 @@ function App() {
         is_alcohol: !!item.is_alcohol,
         alcohol_split: item.alcohol_split,
         qty_label: item.qtyLabel || '',
-        computed_macros: item.macros,
+        computed_macros: macros,
         sort_order: d.log_entries.length
       });
       const key = item.name.trim().toLowerCase();
       let food = d.foods.find(x => x.name.trim().toLowerCase() === key && !!x.is_alcohol === !!item.is_alcohol);
       if (food) {
-        food.macros = item.macros;
+        food.macros = macros;
         food.last_qty = item.qtyLabel || food.last_qty;
         food.updated_at = Date.now();
       } else d.foods.push({
@@ -7652,7 +7663,7 @@ function App() {
         is_alcohol: !!item.is_alcohol,
         is_favorite: false,
         last_qty: item.qtyLabel || '',
-        macros: item.macros,
+        macros: macros,
         alcohol_split: item.alcohol_split,
         updated_at: Date.now()
       });
@@ -7675,7 +7686,7 @@ function App() {
         is_alcohol: !!item.is_alcohol,
         alcohol_split: item.alcohol_split,
         qty_label: item.qtyLabel || '',
-        computed_macros: item.macros,
+        computed_macros: normalizeMacros(item.macros, item.is_alcohol),
         sort_order: d.log_entries.length + i
       }));
     });
