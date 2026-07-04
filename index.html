@@ -2508,7 +2508,8 @@ function BodyFatPicker({
 function Wizard({
   initial,
   onDone,
-  onCancel
+  onCancel,
+  initialKey
 }) {
   const [step, setStep] = useState(0);
   const [f, setF] = useState(initial || {
@@ -2536,7 +2537,7 @@ function Wizard({
       highDays: [6],
       deltaPct: 0.15
     },
-    aiKey: ''
+    aiKey: initialKey || ''
   });
   const set = (k, v) => setF(p => Object.assign({}, p, {
     [k]: v
@@ -7261,7 +7262,9 @@ function App() {
     setView('dashboard');
   }
   function resetAll() {
+    const prevKey = db && db.profile && db.profile.aiKey || '';
     const f2 = Store.defaultState();
+    f2.aiKey = prevKey;
     setDb(f2);
     if (session) cloudSave(session.user.id, f2);
     setView('dashboard');
@@ -7289,7 +7292,8 @@ function App() {
     onCancel: () => setFresh(false)
   });
   if (!db.profile) return /*#__PURE__*/React.createElement(Wizard, {
-    onDone: pr => saveProfile(pr, true)
+    onDone: pr => saveProfile(pr, true),
+    initialKey: db.aiKey || ''
   });
   const meals = db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order);
   return /*#__PURE__*/React.createElement("div", {
