@@ -1532,6 +1532,38 @@ function Section({
     className: "text-lg font-bold mb-3"
   }, title), children);
 }
+function ConfirmDialog({
+  title,
+  body,
+  confirmLabel = 'Delete',
+  onConfirm,
+  onClose
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[85] bg-black/70 flex items-end lg:items-center justify-center",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold mb-2"
+  }, title), body && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
+  }, body), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "flex-1",
+    onClick: onClose
+  }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "danger",
+    className: "flex-1",
+    onClick: () => {
+      onConfirm();
+      onClose();
+    }
+  }, confirmLabel))));
+}
 function Seg({
   value,
   options,
@@ -4656,6 +4688,7 @@ function FoodLog({
   const [mealName, setMealName] = useState('');
   const [showCal, setShowCal] = useState(false);
   const [copyTo, setCopyTo] = useState(null);
+  const [confirm, setConfirm] = useState(null);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date(today + 'T00:00:00');
     return {
@@ -5325,7 +5358,15 @@ function FoodLog({
       onClick: () => clearMeal(m, me),
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
     }, "Clear food"), /*#__PURE__*/React.createElement("button", {
-      onClick: () => deleteMeal(m),
+      onClick: () => {
+        setMealMenu(null);
+        setConfirm({
+          title: 'Delete ' + m.name + '?',
+          body: me.length ? `Its ${me.length} logged item${me.length === 1 ? '' : 's'} will move to the meal above so nothing is lost. Only ${date === today ? 'today' : 'this day'} changes.` : `Removes this meal from ${date === today ? 'today' : 'this day'} only.`,
+          confirmLabel: 'Delete meal',
+          onConfirm: () => deleteMeal(m)
+        });
+      },
       className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
     }, "Delete meal"))))), me.map(e => renderEntry(e, m, mc)), drag && me.length === 0 && /*#__PURE__*/React.createElement("div", {
       className: "mt-2 py-4 text-center text-[11px] pf uppercase",
@@ -5378,6 +5419,12 @@ function FoodLog({
     defaultMeal: copyTo.meal,
     onPick: (t, mealId) => copyEntriesTo(copyTo.entries, t, mealId),
     onClose: () => setCopyTo(null)
+  }), confirm && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: confirm.title,
+    body: confirm.body,
+    confirmLabel: confirm.confirmLabel,
+    onConfirm: confirm.onConfirm,
+    onClose: () => setConfirm(null)
   }), drag && ghost && (() => {
     const W = Math.min(320, (typeof window !== 'undefined' ? window.innerWidth : 360) - 40);
     return /*#__PURE__*/React.createElement("div", {
@@ -5806,6 +5853,7 @@ function SavedMealsTab({
   onLog
 }) {
   const meals = (db.saved_meals || []).slice().sort((a, b) => b.created_at - a.created_at);
+  const [confirmDel, setConfirmDel] = useState(null);
   const del = id => update(d => {
     d.saved_meals = (d.saved_meals || []).filter(x => x.id !== id);
   });
@@ -5846,10 +5894,16 @@ function SavedMealsTab({
     }, "· ", sm.items.length, " item", sm.items.length === 1 ? '' : 's')), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum"
     }, Math.round(t.kcal), " kcal · P", Math.round(t.protein), " C", Math.round(t.carbs), " F", Math.round(t.fat))), /*#__PURE__*/React.createElement("button", {
-      onClick: () => del(sm.id),
+      onClick: () => setConfirmDel(sm),
       className: "px-2 shrink-0 text-[#8A8A90] text-lg leading-none"
     }, "×"));
-  })));
+  })), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Delete "' + confirmDel.name + '"?',
+    body: "This removes the saved meal. Food already logged from it stays in your diary.",
+    confirmLabel: "Delete",
+    onConfirm: () => del(confirmDel.id),
+    onClose: () => setConfirmDel(null)
+  }));
 }
 function ManualTab({
   onPick
@@ -7457,6 +7511,7 @@ function SettingsTab({
     [k]: v
   }));
   const [saved, setSaved] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
   const dirty = JSON.stringify(s) !== JSON.stringify(init());
   function save() {
     update(d => {
@@ -7594,7 +7649,7 @@ function SettingsTab({
     value: m.name,
     onChange: e => renameDef(m, e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => removeDef(m),
+    onClick: () => setConfirmDel(m),
     disabled: defMeals.length <= 1,
     style: {
       opacity: defMeals.length <= 1 ? 0.3 : 1
@@ -7638,6 +7693,12 @@ function SettingsTab({
     saved: saved,
     onSave: save,
     label: "Save settings"
+  }), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Remove ' + confirmDel.name + '?',
+    body: "This removes it from your default meals for new days. Days you've already set up won't change.",
+    confirmLabel: "Remove",
+    onConfirm: () => removeDef(confirmDel),
+    onClose: () => setConfirmDel(null)
   }));
 }
 function AdvancedTab({
