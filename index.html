@@ -8136,7 +8136,7 @@ function BottomNav({
   return /*#__PURE__*/React.createElement("div", {
     className: "lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2",
     style: {
-      height: 'calc(74px + env(safe-area-inset-bottom))',
+      height: 'calc(64px + env(safe-area-inset-bottom))',
       paddingBottom: 'env(safe-area-inset-bottom)',
       background: 'var(--header)',
       borderColor: 'var(--border)'
@@ -8152,14 +8152,14 @@ function BottomNav({
     className: "flex-1 flex justify-center"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onAdd,
-    className: "w-14 h-14 pixel-btn flex items-center justify-center -mt-6",
+    className: "w-16 h-16 pixel-btn flex items-center justify-center -mt-8",
     style: {
       background: '#fff',
       color: '#111'
     }
   }, /*#__PURE__*/React.createElement(Icon.plus, {
-    width: "24",
-    height: "24"
+    width: "28",
+    height: "28"
   }))), NAV_ITEMS.slice(2).map(([k, l, Ic]) => /*#__PURE__*/React.createElement(NavBtn, {
     key: k,
     k: k,
