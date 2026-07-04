@@ -872,6 +872,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
         { id: 'm_s', user_id: USER, name: 'Snacks', sort_order: 3 },
         { id: 'm_o', user_id: USER, name: 'Other', sort_order: 4 },
       ],
+      day_meals: {},      // per-date meal lists overriding meal_templates: { 'YYYY-MM-DD': [{id,user_id,name,sort_order}] }
       foods: [],          // saved foods: favorites (is_favorite) + recents (updated_at); remembered serving
       log_entries: [],    // what was eaten, per date+meal
       weight_entries: [], // check-ins (weight + body fat)
@@ -1251,6 +1252,23 @@ const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping some
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
+// Meals shown for a given day: a per-day override if one exists, else the default template.
+function mealsForDay(db, date) {
+  const dm = db.day_meals && db.day_meals[date];
+  const list = (dm && dm.length ? dm : db.meal_templates) || [];
+  return list.slice().sort((a, b) => a.sort_order - b.sort_order);
+}
+// Inside an update(): give this date its own editable meal list (a copy of the default) if it hasn't got one.
+function ensureDayMeals(d, date) {
+  if (!d.day_meals) d.day_meals = {};
+  if (!d.day_meals[date]) d.day_meals[date] = (d.meal_templates || []).map(m => ({
+    id: m.id,
+    user_id: m.user_id,
+    name: m.name,
+    sort_order: m.sort_order
+  }));
+  return d.day_meals[date];
+}
 function currentTargets(db) {
   return db.targets.length ? db.targets[db.targets.length - 1] : null;
 }
@@ -4645,7 +4663,7 @@ function FoodLog({
       m: d.getMonth()
     };
   });
-  const meals = db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order);
+  const meals = mealsForDay(db, date);
   const day = entriesOn(db, date);
   const et = effectiveTarget(db, date);
   const tot = sumMacros(day);
@@ -4700,6 +4718,65 @@ function FoodLog({
     });
     setMealMenu(null);
     toast('Cleared ' + m.name, 'Undo', () => update(d => removed.forEach(e => d.log_entries.push(e))));
+  };
+  // ---- per-day meal editing (only this date; other days + the Settings default are untouched) ----
+  const renameMeal = (m, name) => {
+    if (!name.trim()) return;
+    update(d => {
+      const arr = ensureDayMeals(d, date);
+      const mm = arr.find(x => x.id === m.id);
+      if (mm) mm.name = name.trim();
+    });
+  };
+  const addDayMeal = () => update(d => {
+    const arr = ensureDayMeals(d, date);
+    const maxS = arr.length ? Math.max.apply(null, arr.map(x => x.sort_order)) : -1;
+    arr.push({
+      id: Store.uid(),
+      user_id: Store.USER,
+      name: 'Meal ' + (arr.length + 1),
+      sort_order: maxS + 1
+    });
+  });
+  const moveMeal = (m, dir) => update(d => {
+    const arr = ensureDayMeals(d, date);
+    arr.sort((a, b) => a.sort_order - b.sort_order);
+    const i = arr.findIndex(x => x.id === m.id);
+    const j = dir < 0 ? i - 1 : i + 1;
+    if (j < 0 || j >= arr.length) return;
+    const t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
+    arr.forEach((x, k) => x.sort_order = k);
+  });
+  const deleteMeal = m => {
+    const hadOverride = !!(db.day_meals && db.day_meals[date]);
+    const prevMeals = hadOverride ? db.day_meals[date].map(x => Object.assign({}, x)) : null;
+    const affected = day.filter(e => e.meal_id === m.id).map(e => e.id);
+    update(d => {
+      const arr = ensureDayMeals(d, date);
+      arr.sort((a, b) => a.sort_order - b.sort_order);
+      const i = arr.findIndex(x => x.id === m.id);
+      if (i < 0) return;
+      const target = arr[i - 1] || arr[i + 1] || null;
+      if (target && affected.length) {
+        const ids = new Set(affected);
+        d.log_entries.forEach(e => {
+          if (ids.has(e.id)) e.meal_id = target.id;
+        });
+      }
+      arr.splice(i, 1);
+      arr.forEach((x, k) => x.sort_order = k);
+    });
+    setMealMenu(null);
+    toast('Deleted ' + m.name, 'Undo', () => update(d => {
+      if (!d.day_meals) d.day_meals = {};
+      if (prevMeals) d.day_meals[date] = prevMeals;else delete d.day_meals[date];
+      const ids = new Set(affected);
+      d.log_entries.forEach(e => {
+        if (ids.has(e.id)) e.meal_id = m.id;
+      });
+    }));
   };
   const saveMeal = (m, me) => {
     const name = (window.prompt('Save this meal for one-tap logging. Name it:', m.name) || '').trim();
@@ -4850,6 +4927,113 @@ function FoodLog({
       document.body.style.userSelect = prevSel;
     };
   }, [drag]);
+  const renderEntry = (e, m, mc) => {
+    const dragging = drag && drag.id === e.id;
+    return /*#__PURE__*/React.createElement("div", {
+      key: e.id,
+      "data-entry-id": e.id,
+      "data-meal-id": m.id,
+      className: "flex items-center gap-3 py-2.5 border-t border-[#262629] mt-2 relative",
+      style: {
+        borderLeft: '4px solid ' + mc,
+        paddingLeft: 8,
+        opacity: dragging ? 0.45 : 1,
+        outline: dragging ? '2px dashed var(--muted)' : 'none',
+        outlineOffset: '-2px',
+        background: dragging ? 'var(--surface2)' : undefined
+      }
+    }, drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && /*#__PURE__*/React.createElement("div", {
+      className: "absolute -top-1 left-0 right-0 h-1.5 pointer-events-none",
+      style: {
+        background: 'var(--accent)',
+        boxShadow: '2px 2px 0 0 var(--shadow)'
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "w-9 h-9 pixel-box flex items-center justify-center shrink-0",
+      style: {
+        background: mc
+      }
+    }, /*#__PURE__*/React.createElement(PixelGlyph, {
+      kind: foodKind(e.name, e.is_alcohol),
+      color: "rgba(0,0,0,0.8)",
+      size: 20
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0 flex-1"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm truncate"
+    }, e.name), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1 text-[11px] tnum mt-0.5",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, /*#__PURE__*/React.createElement(PixelGlyph, {
+      kind: "scale",
+      color: "var(--muted)",
+      size: 11
+    }), e.qty_label || '1 portion'), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] tnum mt-0.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-bold",
+      style: {
+        color: mc
+      }
+    }, Math.round(e.computed_macros.kcal)), /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, " kc"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: PRO
+      }
+    }, e.computed_macros.protein, "P"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: CARB
+      }
+    }, e.computed_macros.carbs, "C"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: FAT
+      }
+    }, e.computed_macros.fat, "F"))), /*#__PURE__*/React.createElement("button", {
+      onPointerDown: ev => startDrag(ev, e, mc),
+      className: "shrink-0 px-2 py-2 cursor-grab select-none flex items-center justify-center",
+      style: {
+        touchAction: 'none',
+        color: dragging ? 'var(--accent)' : 'var(--muted)'
+      },
+      title: "Drag to move or reorder"
+    }, /*#__PURE__*/React.createElement(PixelGrip, null)), /*#__PURE__*/React.createElement("button", {
+      onClick: ev => {
+        ev.stopPropagation();
+        setMenu(menu === e.id ? null : e.id);
+      },
+      className: "px-2 text-[#8A8A90] shrink-0"
+    }, "⋯"), menu === e.id && /*#__PURE__*/React.createElement("div", {
+      className: "absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl",
+      onClick: ev => ev.stopPropagation()
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setEditing(e);
+        setMenu(null);
+      },
+      className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
+    }, "Edit"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => dup(e),
+      className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
+    }, "Duplicate"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setCopyTo({
+          title: 'Copy ' + e.name,
+          entries: [e],
+          srcDate: date,
+          pickMeal: true,
+          meal: e.meal_id
+        });
+        setMenu(null);
+      },
+      className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
+    }, "Copy to…"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => del(e),
+      className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
+    }, "Delete")));
+  };
   const first = new Date(calMonth.y, calMonth.m, 1);
   const startDow = (first.getDay() + 6) % 7; // Mon=0
   const daysIn = new Date(calMonth.y, calMonth.m + 1, 0).getDate();
@@ -5055,28 +5239,47 @@ function FoodLog({
       } : undefined
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex justify-between items-start"
-    }, editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1.5 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-col -my-1 shrink-0"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => moveMeal(m, -1),
+      disabled: mi === 0,
+      style: {
+        opacity: mi === 0 ? 0.25 : 1
+      },
+      className: "text-[#8A8A90] leading-none text-[10px] px-1 py-0.5",
+      title: "Move up"
+    }, "▲"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => moveMeal(m, 1),
+      disabled: mi === meals.length - 1,
+      style: {
+        opacity: mi === meals.length - 1 ? 0.25 : 1
+      },
+      className: "text-[#8A8A90] leading-none text-[10px] px-1 py-0.5",
+      title: "Move down"
+    }, "▼")), editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
       autoFocus: true,
       value: mealName,
       onChange: e => setMealName(e.target.value),
       onBlur: () => {
-        update(d => {
-          const mm = d.meal_templates.find(x => x.id === m.id);
-          if (mm && mealName.trim()) mm.name = mealName.trim();
-        });
+        renameMeal(m, mealName);
         setEditMeal(null);
       },
       onKeyDown: e => e.key === 'Enter' && e.currentTarget.blur(),
-      className: "bg-[#1E1E22] border border-[#262629] rounded-lg px-2 py-1 text-sm font-semibold w-44"
+      className: "bg-[#1E1E22] border border-[#262629] rounded-lg px-2 py-1 text-sm font-semibold w-40"
     }) : /*#__PURE__*/React.createElement("button", {
       onClick: () => {
         setEditMeal(m.id);
         setMealName(m.name);
       },
-      className: "font-semibold flex items-center gap-1.5 pt-0.5"
-    }, m.name, /*#__PURE__*/React.createElement("span", {
-      className: "text-[#5A5A62] text-[11px]"
-    }, "✎")), /*#__PURE__*/React.createElement("div", {
+      className: "font-semibold flex items-center gap-1.5 pt-0.5 min-w-0"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "truncate"
+    }, m.name), /*#__PURE__*/React.createElement("span", {
+      className: "text-[#5A5A62] text-[11px] shrink-0"
+    }, "✎"))), /*#__PURE__*/React.createElement("div", {
       className: "flex items-start gap-1.5"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum text-right leading-tight pt-0.5"
@@ -5094,7 +5297,7 @@ function FoodLog({
       style: {
         color: FAT
       }
-    }, "F", Math.round(ms.fat)))), me.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, "F", Math.round(ms.fat)))), /*#__PURE__*/React.createElement("div", {
       className: "relative"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: ev => {
@@ -5105,10 +5308,10 @@ function FoodLog({
     }, "⋯"), mealMenu === m.id && /*#__PURE__*/React.createElement("div", {
       className: "absolute right-0 top-7 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-40",
       onClick: ev => ev.stopPropagation()
-    }, /*#__PURE__*/React.createElement("button", {
+    }, me.length > 0 && /*#__PURE__*/React.createElement("button", {
       onClick: () => saveMeal(m, me),
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Save as meal"), /*#__PURE__*/React.createElement("button", {
+    }, "Save as meal"), me.length > 0 && /*#__PURE__*/React.createElement("button", {
       onClick: () => {
         setCopyTo({
           title: 'Copy ' + m.name,
@@ -5118,116 +5321,13 @@ function FoodLog({
         setMealMenu(null);
       },
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Copy to…"), /*#__PURE__*/React.createElement("button", {
+    }, "Copy to…"), me.length > 0 && /*#__PURE__*/React.createElement("button", {
       onClick: () => clearMeal(m, me),
+      className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
+    }, "Clear food"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => deleteMeal(m),
       className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
-    }, "Clear meal"))))), me.map(e => {
-      const dragging = drag && drag.id === e.id;
-      return /*#__PURE__*/React.createElement("div", {
-        key: e.id,
-        "data-entry-id": e.id,
-        "data-meal-id": m.id,
-        className: "flex items-center gap-3 py-2.5 border-t border-[#262629] mt-2 relative",
-        style: {
-          borderLeft: '4px solid ' + mc,
-          paddingLeft: 8,
-          opacity: dragging ? 0.45 : 1,
-          outline: dragging ? '2px dashed var(--muted)' : 'none',
-          outlineOffset: '-2px',
-          background: dragging ? 'var(--surface2)' : undefined
-        }
-      }, drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && /*#__PURE__*/React.createElement("div", {
-        className: "absolute -top-1 left-0 right-0 h-1.5 pointer-events-none",
-        style: {
-          background: 'var(--accent)',
-          boxShadow: '2px 2px 0 0 var(--shadow)'
-        }
-      }), /*#__PURE__*/React.createElement("div", {
-        className: "w-9 h-9 pixel-box flex items-center justify-center shrink-0",
-        style: {
-          background: mc
-        }
-      }, /*#__PURE__*/React.createElement(PixelGlyph, {
-        kind: foodKind(e.name, e.is_alcohol),
-        color: "rgba(0,0,0,0.8)",
-        size: 20
-      })), /*#__PURE__*/React.createElement("div", {
-        className: "min-w-0 flex-1"
-      }, /*#__PURE__*/React.createElement("div", {
-        className: "text-sm truncate"
-      }, e.name), /*#__PURE__*/React.createElement("div", {
-        className: "flex items-center gap-1 text-[11px] tnum mt-0.5",
-        style: {
-          color: 'var(--text2)'
-        }
-      }, /*#__PURE__*/React.createElement(PixelGlyph, {
-        kind: "scale",
-        color: "var(--muted)",
-        size: 11
-      }), e.qty_label || '1 portion'), /*#__PURE__*/React.createElement("div", {
-        className: "text-[11px] tnum mt-0.5"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "font-bold",
-        style: {
-          color: mc
-        }
-      }, Math.round(e.computed_macros.kcal)), /*#__PURE__*/React.createElement("span", {
-        className: "text-[#8A8A90]"
-      }, " kc"), " ", /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: PRO
-        }
-      }, e.computed_macros.protein, "P"), " ", /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: CARB
-        }
-      }, e.computed_macros.carbs, "C"), " ", /*#__PURE__*/React.createElement("span", {
-        style: {
-          color: FAT
-        }
-      }, e.computed_macros.fat, "F"))), /*#__PURE__*/React.createElement("button", {
-        onPointerDown: ev => startDrag(ev, e, mc),
-        className: "shrink-0 px-2 py-2 cursor-grab select-none flex items-center justify-center",
-        style: {
-          touchAction: 'none',
-          color: dragging ? 'var(--accent)' : 'var(--muted)'
-        },
-        title: "Drag to move or reorder"
-      }, /*#__PURE__*/React.createElement(PixelGrip, null)), /*#__PURE__*/React.createElement("button", {
-        onClick: ev => {
-          ev.stopPropagation();
-          setMenu(menu === e.id ? null : e.id);
-        },
-        className: "px-2 text-[#8A8A90] shrink-0"
-      }, "⋯"), menu === e.id && /*#__PURE__*/React.createElement("div", {
-        className: "absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl",
-        onClick: ev => ev.stopPropagation()
-      }, /*#__PURE__*/React.createElement("button", {
-        onClick: () => {
-          setEditing(e);
-          setMenu(null);
-        },
-        className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-      }, "Edit"), /*#__PURE__*/React.createElement("button", {
-        onClick: () => dup(e),
-        className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-      }, "Duplicate"), /*#__PURE__*/React.createElement("button", {
-        onClick: () => {
-          setCopyTo({
-            title: 'Copy ' + e.name,
-            entries: [e],
-            srcDate: date,
-            pickMeal: true,
-            meal: e.meal_id
-          });
-          setMenu(null);
-        },
-        className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-      }, "Copy to…"), /*#__PURE__*/React.createElement("button", {
-        onClick: () => del(e),
-        className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
-      }, "Delete")));
-    }), drag && me.length === 0 && /*#__PURE__*/React.createElement("div", {
+    }, "Delete meal"))))), me.map(e => renderEntry(e, m, mc)), drag && me.length === 0 && /*#__PURE__*/React.createElement("div", {
       className: "mt-2 py-4 text-center text-[11px] pf uppercase",
       style: {
         color: 'var(--accent)',
@@ -5240,14 +5340,34 @@ function FoodLog({
       }),
       className: "mt-2 text-[13px] text-[#4A9EEB] font-medium"
     }, "+ Add food"));
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => update(d => d.meal_templates.push({
-      id: Store.uid(),
-      name: 'Meal ' + (d.meal_templates.length + 1),
-      sort_order: d.meal_templates.length ? Math.max.apply(null, d.meal_templates.map(x => x.sort_order)) + 1 : 0
-    })),
+  }), (() => {
+    const mealIds = new Set(meals.map(m => m.id));
+    const orphans = day.filter(e => !mealIds.has(e.meal_id));
+    if (!orphans.length) return null;
+    const um = {
+      id: '__unsorted__'
+    };
+    return /*#__PURE__*/React.createElement(Card, {
+      className: "p-4 mb-3",
+      style: {
+        borderColor: 'var(--muted)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-center"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "font-semibold flex items-center gap-1.5",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Unsorted"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] tnum"
+    }, Math.round(sumMacros(orphans).kcal), " kcal")), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] mt-1 mb-1"
+    }, "These were logged under a meal that isn't on this day. Drag each into a meal above."), orphans.map(e => renderEntry(e, um, 'var(--muted)')));
+  })(), /*#__PURE__*/React.createElement("button", {
+    onClick: addDayMeal,
     className: "w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-3"
-  }, "+ Add a meal"))), editing && /*#__PURE__*/React.createElement(EditEntryModal, {
+  }, "+ Add a meal to this day"))), editing && /*#__PURE__*/React.createElement(EditEntryModal, {
     entry: editing,
     onSave: saveEdit,
     onClose: () => setEditing(null)
@@ -7345,6 +7465,34 @@ function SettingsTab({
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   }
+  const defMeals = db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order);
+  const renameDef = (m, name) => update(d => {
+    const mm = d.meal_templates.find(x => x.id === m.id);
+    if (mm) mm.name = name;
+  });
+  const addDef = () => update(d => {
+    const maxS = d.meal_templates.length ? Math.max.apply(null, d.meal_templates.map(x => x.sort_order)) : -1;
+    d.meal_templates.push({
+      id: Store.uid(),
+      user_id: Store.USER,
+      name: 'Meal ' + (d.meal_templates.length + 1),
+      sort_order: maxS + 1
+    });
+  });
+  const removeDef = m => update(d => {
+    d.meal_templates = d.meal_templates.filter(x => x.id !== m.id);
+    d.meal_templates.sort((a, b) => a.sort_order - b.sort_order).forEach((x, k) => x.sort_order = k);
+  });
+  const moveDef = (m, dir) => update(d => {
+    const arr = d.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order);
+    const i = arr.findIndex(x => x.id === m.id);
+    const j = dir < 0 ? i - 1 : i + 1;
+    if (j < 0 || j >= arr.length) return;
+    const t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
+    arr.forEach((x, k) => x.sort_order = k);
+  });
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Section, {
     title: "Theme"
   }, /*#__PURE__*/React.createElement("div", {
@@ -7418,6 +7566,45 @@ function SettingsTab({
     onClick: () => sset('height_unit', v),
     className: `flex-1 rounded-2xl py-2.5 text-sm ${s.height_unit === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90] border border-[#262629]'}`
   }, l))))), /*#__PURE__*/React.createElement(Section, {
+    title: "Meals"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Your default meals for each new day. Set the standard layout here — you can still add, remove or reorder meals on any individual day in the Food Log without changing this default."), defMeals.map((m, i) => /*#__PURE__*/React.createElement("div", {
+    key: m.id,
+    className: "flex items-center gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col -my-1 shrink-0"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => moveDef(m, -1),
+    disabled: i === 0,
+    style: {
+      opacity: i === 0 ? 0.25 : 1
+    },
+    className: "text-[#8A8A90] text-[10px] leading-none px-1 py-0.5",
+    title: "Move up"
+  }, "▲"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => moveDef(m, 1),
+    disabled: i === defMeals.length - 1,
+    style: {
+      opacity: i === defMeals.length - 1 ? 0.25 : 1
+    },
+    className: "text-[#8A8A90] text-[10px] leading-none px-1 py-0.5",
+    title: "Move down"
+  }, "▼")), /*#__PURE__*/React.createElement(TextInput, {
+    value: m.name,
+    onChange: e => renameDef(m, e.target.value)
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeDef(m),
+    disabled: defMeals.length <= 1,
+    style: {
+      opacity: defMeals.length <= 1 ? 0.3 : 1
+    },
+    className: "px-2 text-[#8A8A90] text-lg leading-none shrink-0",
+    title: "Remove"
+  }, "×"))), /*#__PURE__*/React.createElement("button", {
+    onClick: addDef,
+    className: "w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1"
+  }, "+ Add default meal")), /*#__PURE__*/React.createElement(Section, {
     title: "Reminders"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -8208,7 +8395,7 @@ function App() {
     onDone: pr => saveProfile(pr, true),
     initialKey: db.aiKey || ''
   });
-  const meals = db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order);
+  const meals = mealsForDay(db, Store.todayISO());
   return /*#__PURE__*/React.createElement("div", {
     className: "lg:pl-56"
   }, /*#__PURE__*/React.createElement(Sidebar, {
@@ -8256,7 +8443,7 @@ function App() {
   }), adding && /*#__PURE__*/React.createElement(LogSheet, {
     db: db,
     update: update,
-    meals: meals,
+    meals: mealsForDay(db, adding.date),
     target: adding,
     onAdd: (mealId, item) => addEntry(adding.date, mealId, item),
     onAddMeal: (mealId, items) => addMeal(adding.date, mealId, items),
