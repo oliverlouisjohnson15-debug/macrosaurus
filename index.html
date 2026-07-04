@@ -4600,17 +4600,15 @@ function Dashboard({
    ===================================================================== */
 function PixelGrip() {
   return /*#__PURE__*/React.createElement("span", {
-    className: "grid grid-cols-2 gap-[3px]",
+    className: "flex flex-col gap-[3px]",
     style: {
       lineHeight: 0
     }
-  }, Array.from({
-    length: 6
-  }).map((_, i) => /*#__PURE__*/React.createElement("span", {
+  }, [0, 1, 2].map(i => /*#__PURE__*/React.createElement("span", {
     key: i,
     style: {
-      width: 3,
-      height: 3,
+      width: 16,
+      height: 2,
       background: 'currentColor',
       display: 'block'
     }
@@ -4669,14 +4667,16 @@ function FoodLog({
     })));
     setMenu(null);
   };
-  const copyEntriesTo = (entries, targetDate) => {
+  const copyEntriesTo = (entries, targetDate, targetMeal) => {
     const copies = entries.map(e => Object.assign({}, e, {
       id: Store.uid(),
       date: targetDate
-    }));
+    }, targetMeal ? {
+      meal_id: targetMeal
+    } : {}));
     update(d => copies.forEach(c => d.log_entries.push(c)));
     setCopyTo(null);
-    const lbl = targetDate === today ? 'today' : new Date(targetDate + 'T00:00:00').toLocaleDateString('en-GB', {
+    const lbl = targetDate === today ? 'today' : targetDate === shiftISO(today, 1) ? 'tomorrow' : new Date(targetDate + 'T00:00:00').toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short'
     });
@@ -4871,20 +4871,14 @@ function FoodLog({
     className: "flex items-center gap-2 px-4 py-2 rounded-full bg-[#1E1E22] border border-[#262629]"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-sm font-semibold"
-  }, date === today ? 'Today' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
+  }, date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
     weekday: 'short',
     day: 'numeric',
     month: 'short'
   })), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] text-[10px]"
   }, showCal ? '▲' : '▼')), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      if (date < today) setDate(shiftISO(date, 1));
-    },
-    disabled: date >= today,
-    style: {
-      opacity: date >= today ? .3 : 1
-    },
+    onClick: () => setDate(shiftISO(date, 1)),
     className: "text-[#8A8A90] px-3 py-2 text-lg"
   }, "›")), showCal && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4 fade-in"
@@ -4928,7 +4922,7 @@ function FoodLog({
       setDate(c);
       setShowCal(false);
     },
-    className: `aspect-square rounded-lg text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : 'text-[#C9C9CF]'} ${c > today ? 'opacity-30' : ''}`
+    className: `aspect-square rounded-lg text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : c > today ? 'text-[#8A8A90]' : 'text-[#C9C9CF]'}`
   }, new Date(c + 'T00:00:00').getDate(), logSet.has(c) && (() => {
     const cd = creatureForDay(db, c);
     const cr = cd && CR_BY_ID[cd.id];
@@ -5139,10 +5133,17 @@ function FoodLog({
         className: "min-w-0 flex-1"
       }, /*#__PURE__*/React.createElement("div", {
         className: "text-sm truncate"
-      }, e.name, e.qty_label ? /*#__PURE__*/React.createElement("span", {
-        className: "text-[#8A8A90] text-[12px]"
-      }, " · ", e.qty_label) : ''), /*#__PURE__*/React.createElement("div", {
-        className: "text-[11px] tnum"
+      }, e.name), /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-1 text-[11px] tnum mt-0.5",
+        style: {
+          color: 'var(--text2)'
+        }
+      }, /*#__PURE__*/React.createElement(PixelGlyph, {
+        kind: "scale",
+        color: "var(--muted)",
+        size: 11
+      }), e.qty_label || '1 portion'), /*#__PURE__*/React.createElement("div", {
+        className: "text-[11px] tnum mt-0.5"
       }, /*#__PURE__*/React.createElement("span", {
         className: "font-bold",
         style: {
@@ -5193,7 +5194,9 @@ function FoodLog({
           setCopyTo({
             title: 'Copy ' + e.name,
             entries: [e],
-            srcDate: date
+            srcDate: date,
+            pickMeal: true,
+            meal: e.meal_id
           });
           setMenu(null);
         },
@@ -5229,7 +5232,9 @@ function FoodLog({
   }), copyTo && /*#__PURE__*/React.createElement(CopyToModal, {
     title: copyTo.title,
     srcDate: copyTo.srcDate,
-    onPick: t => copyEntriesTo(copyTo.entries, t),
+    meals: copyTo.pickMeal ? meals : null,
+    defaultMeal: copyTo.meal,
+    onPick: (t, mealId) => copyEntriesTo(copyTo.entries, t, mealId),
     onClose: () => setCopyTo(null)
   }), drag && ghost && /*#__PURE__*/React.createElement("div", {
     className: "fixed z-[80] pointer-events-none pixel-box flex items-center gap-2 pl-1.5 pr-3 py-1.5",
@@ -5364,6 +5369,8 @@ function EditEntryModal({
 function CopyToModal({
   title,
   srcDate,
+  meals,
+  defaultMeal,
   onPick,
   onClose
 }) {
@@ -5375,6 +5382,7 @@ function CopyToModal({
       m: d.getMonth()
     };
   });
+  const [selMeal, setSelMeal] = useState(defaultMeal || meals && meals[0] && meals[0].id);
   const first = new Date(cm.y, cm.m, 1);
   const startDow = (first.getDay() + 6) % 7;
   const daysIn = new Date(cm.y, cm.m + 1, 0).getDate();
@@ -5389,7 +5397,7 @@ function CopyToModal({
     className: "fixed inset-0 z-[60] bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 sheet-up",
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[92vh] overflow-y-auto sheet-up",
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-1"
@@ -5398,7 +5406,20 @@ function CopyToModal({
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none shrink-0"
-  }, "×")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), meals && /*#__PURE__*/React.createElement("div", {
+    className: "mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
+  }, "Into which meal"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 flex-wrap"
+  }, meals.map(m => /*#__PURE__*/React.createElement("button", {
+    key: m.id,
+    onClick: () => setSelMeal(m.id),
+    className: `pixel-box px-2.5 py-1.5 text-[11px] ${selMeal === m.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
+    style: {
+      boxShadow: 'none'
+    }
+  }, m.name)))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Pick the day to copy to."), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-2"
@@ -5436,7 +5457,7 @@ function CopyToModal({
     className: "grid grid-cols-7 gap-1"
   }, cells.map((c, i) => c ? /*#__PURE__*/React.createElement("button", {
     key: i,
-    onClick: () => onPick(c),
+    onClick: () => onPick(c, meals ? selMeal : undefined),
     className: `aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22]'}`,
     style: {
       boxShadow: 'none'
