@@ -1161,8 +1161,8 @@ function weekdayIdx(d) {
 function shiftISO(d, n) {
   const x = new Date(d + 'T00:00:00');
   x.setDate(x.getDate() + n);
-  return x.toISOString().slice(0, 10);
-}
+  return Store.isoOf(x);
+} // isoOf keeps it the LOCAL date (toISOString would shift it a day in +UTC zones)
 function prettyDate(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
     weekday: 'long',
