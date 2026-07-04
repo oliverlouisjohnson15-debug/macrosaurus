@@ -4765,12 +4765,17 @@ function FoodLog({
     ev.stopPropagation();
     setMenu(null);
     setMealMenu(null);
+    const m = entry.computed_macros || {};
     setDrag({
       id: entry.id,
       name: entry.name,
       mc,
       kind: foodKind(entry.name, entry.is_alcohol),
-      kcal: Math.round(entry.computed_macros.kcal)
+      kcal: Math.round(m.kcal || 0),
+      qty: entry.qty_label,
+      p: m.protein,
+      c: m.carbs,
+      f: m.fat
     });
     setGhost({
       x: ev.clientX,
@@ -5244,35 +5249,73 @@ function FoodLog({
     defaultMeal: copyTo.meal,
     onPick: (t, mealId) => copyEntriesTo(copyTo.entries, t, mealId),
     onClose: () => setCopyTo(null)
-  }), drag && ghost && /*#__PURE__*/React.createElement("div", {
-    className: "fixed z-[80] pointer-events-none pixel-box flex items-center gap-2 pl-1.5 pr-3 py-1.5",
-    style: {
-      left: ghost.x + 14,
-      top: ghost.y - 16,
-      background: 'var(--card)',
-      boxShadow: '4px 4px 0 0 var(--shadow)',
-      transform: 'rotate(-3deg) scale(1.03)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-7 h-7 pixel-box flex items-center justify-center shrink-0",
-    style: {
-      background: drag.mc,
-      boxShadow: 'none'
-    }
-  }, /*#__PURE__*/React.createElement(PixelGlyph, {
-    kind: drag.kind,
-    color: "rgba(0,0,0,0.8)",
-    size: 16
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] font-bold truncate max-w-[150px]"
-  }, drag.name), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] tnum",
-    style: {
-      color: drag.mc
-    }
-  }, drag.kcal, " kcal"))));
+  }), drag && ghost && (() => {
+    const W = Math.min(320, (typeof window !== 'undefined' ? window.innerWidth : 360) - 40);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "fixed z-[80] pointer-events-none pixel-box",
+      style: {
+        width: W,
+        left: ghost.x - W + 14,
+        top: ghost.y - 28,
+        background: 'var(--card)',
+        boxShadow: '5px 5px 0 0 var(--shadow)',
+        transform: 'scale(1.02)',
+        borderLeft: '4px solid ' + drag.mc,
+        opacity: 0.97
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-3 py-2.5 px-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-9 h-9 pixel-box flex items-center justify-center shrink-0",
+      style: {
+        background: drag.mc,
+        boxShadow: 'none'
+      }
+    }, /*#__PURE__*/React.createElement(PixelGlyph, {
+      kind: drag.kind,
+      color: "rgba(0,0,0,0.8)",
+      size: 20
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0 flex-1"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm truncate"
+    }, drag.name), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1 text-[11px] tnum mt-0.5",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, /*#__PURE__*/React.createElement(PixelGlyph, {
+      kind: "scale",
+      color: "var(--muted)",
+      size: 11
+    }), drag.qty || '1 portion'), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] tnum mt-0.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-bold",
+      style: {
+        color: drag.mc
+      }
+    }, drag.kcal), /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, " kc"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: PRO
+      }
+    }, drag.p, "P"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: CARB
+      }
+    }, drag.c, "C"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: FAT
+      }
+    }, drag.f, "F"))), /*#__PURE__*/React.createElement("span", {
+      className: "shrink-0 pr-1",
+      style: {
+        color: drag.mc
+      }
+    }, /*#__PURE__*/React.createElement(PixelGrip, null))));
+  })());
 }
 function EditEntryModal({
   entry,
