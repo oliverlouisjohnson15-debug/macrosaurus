@@ -1495,10 +1495,12 @@ function Btn({
 }
 function Card({
   children,
-  className = ''
+  className = '',
+  ...rest
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: `bg-[#161618] pixel-box ${className}`
+    className: `bg-[#161618] pixel-box ${className}`,
+    ...rest
   }, children);
 }
 function Section({
@@ -4611,6 +4613,7 @@ function FoodLog({
   const [editMeal, setEditMeal] = useState(null);
   const [mealName, setMealName] = useState('');
   const [showCal, setShowCal] = useState(false);
+  const [copyTo, setCopyTo] = useState(null);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date(today + 'T00:00:00');
     return {
@@ -4648,22 +4651,18 @@ function FoodLog({
     })));
     setMenu(null);
   };
-  const copyNext = e => {
-    update(d => d.log_entries.push(Object.assign({}, e, {
+  const copyEntriesTo = (entries, targetDate) => {
+    const copies = entries.map(e => Object.assign({}, e, {
       id: Store.uid(),
-      date: shiftISO(e.date, 1)
-    })));
-    setMenu(null);
-    toast('Copied to tomorrow');
-  };
-  const copyMealNext = (m, me) => {
-    const copies = me.map(e => Object.assign({}, e, {
-      id: Store.uid(),
-      date: shiftISO(date, 1)
+      date: targetDate
     }));
     update(d => copies.forEach(c => d.log_entries.push(c)));
-    setMealMenu(null);
-    toast(copies.length + ' copied to tomorrow', 'Undo', () => update(d => {
+    setCopyTo(null);
+    const lbl = targetDate === today ? 'today' : new Date(targetDate + 'T00:00:00').toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short'
+    });
+    toast(copies.length + (copies.length === 1 ? ' item' : ' items') + ' copied to ' + lbl, 'Undo', () => update(d => {
       const ids = new Set(copies.map(c => c.id));
       d.log_entries = d.log_entries.filter(x => !ids.has(x.id));
     }));
@@ -4728,6 +4727,101 @@ function FoodLog({
     setEditing(null);
     toast('Updated ' + patch.name);
   };
+
+  // ---- drag & drop: move a logged entry to another meal / reorder within a meal ----
+  const [drag, setDrag] = useState(null); // { id, name, mc }
+  const [ghost, setGhost] = useState(null); // { x, y } floating chip position
+  const [dropAt, setDropAt] = useState(null); // { mealId, beforeId }
+  const moveEntry = (dragId, targetMealId, beforeId) => update(d => {
+    const arr = d.log_entries;
+    const idx = arr.findIndex(x => x.id === dragId);
+    if (idx < 0) return;
+    const item = arr.splice(idx, 1)[0];
+    item.meal_id = targetMealId;
+    let insertAt;
+    if (beforeId) {
+      insertAt = arr.findIndex(x => x.id === beforeId);
+      if (insertAt < 0) insertAt = arr.length;
+    } else {
+      let last = -1;
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i].date === date && arr[i].meal_id === targetMealId) last = i;
+      }
+      insertAt = last >= 0 ? last + 1 : arr.length;
+    }
+    arr.splice(insertAt, 0, item);
+  });
+  const startDrag = (ev, entry, mc) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setMenu(null);
+    setMealMenu(null);
+    setDrag({
+      id: entry.id,
+      name: entry.name,
+      mc
+    });
+    setGhost({
+      x: ev.clientX,
+      y: ev.clientY
+    });
+  };
+  useEffect(() => {
+    if (!drag) return;
+    const computeDrop = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return null;
+      const row = el.closest('[data-entry-id]');
+      if (row) {
+        const mealId = row.getAttribute('data-meal-id');
+        const eid = row.getAttribute('data-entry-id');
+        const r = row.getBoundingClientRect();
+        const after = y > r.top + r.height / 2;
+        const list = entriesOn(db, date).filter(e => e.meal_id === mealId).map(e => e.id);
+        const i = list.indexOf(eid);
+        const beforeId = after ? list[i + 1] || null : eid;
+        return {
+          mealId,
+          beforeId
+        };
+      }
+      const mealEl = el.closest('[data-meal-drop]');
+      if (mealEl) return {
+        mealId: mealEl.getAttribute('data-meal-drop'),
+        beforeId: null
+      };
+      return null;
+    };
+    const move = ev => {
+      const x = ev.clientX,
+        y = ev.clientY;
+      setGhost({
+        x,
+        y
+      });
+      setDropAt(computeDrop(x, y));
+      const es = y < 100 ? -14 : y > window.innerHeight - 130 ? 14 : 0;
+      if (es) window.scrollBy(0, es);
+      ev.preventDefault();
+    };
+    const up = ev => {
+      const t = computeDrop(ev.clientX, ev.clientY);
+      if (t && t.beforeId !== drag.id) moveEntry(drag.id, t.mealId, t.beforeId);
+      setDrag(null);
+      setDropAt(null);
+      setGhost(null);
+    };
+    window.addEventListener('pointermove', move, {
+      passive: false
+    });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [drag]);
   const first = new Date(calMonth.y, calMonth.m, 1);
   const startDow = (first.getDay() + 6) % 7; // Mon=0
   const daysIn = new Date(calMonth.y, calMonth.m + 1, 0).getDate();
@@ -4917,8 +5011,15 @@ function FoodLog({
     }, "FIBER ", Math.round(tot.fiber), " / ", ft.min, "g", rem > 0 ? ` · ${rem} TO GO` : ' OK');
   })())), /*#__PURE__*/React.createElement("button", {
     onClick: copyYesterday,
+    className: "w-full text-[12px] text-[#8A8A90] mb-2 flex items-center justify-center gap-1.5 py-1.5"
+  }, "⧉ Copy the previous day's food"), day.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCopyTo({
+      title: 'Copy this whole day',
+      entries: day,
+      srcDate: date
+    }),
     className: "w-full text-[12px] text-[#8A8A90] mb-3 flex items-center justify-center gap-1.5 py-1.5"
-  }, "⧉ Copy the previous day's food")), /*#__PURE__*/React.createElement("div", {
+  }, "⧉ Copy this day to another date…")), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, meals.map((m, mi) => {
     const me = day.filter(e => e.meal_id === m.id);
@@ -4926,7 +5027,12 @@ function FoodLog({
     const mc = [PRO, CARB, FAT, 'var(--accent)', 'var(--weight)'][mi % 5];
     return /*#__PURE__*/React.createElement(Card, {
       key: m.id,
-      className: "p-4 mb-3"
+      className: "p-4 mb-3",
+      "data-meal-drop": m.id,
+      style: drag && dropAt && dropAt.mealId === m.id ? {
+        outline: '3px dashed var(--accent)',
+        outlineOffset: '-2px'
+      } : undefined
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex justify-between items-start"
     }, editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
@@ -4983,19 +5089,34 @@ function FoodLog({
       onClick: () => saveMeal(m, me),
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
     }, "Save as meal"), /*#__PURE__*/React.createElement("button", {
-      onClick: () => copyMealNext(m, me),
+      onClick: () => {
+        setCopyTo({
+          title: 'Copy ' + m.name,
+          entries: me,
+          srcDate: date
+        });
+        setMealMenu(null);
+      },
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Copy to tomorrow"), /*#__PURE__*/React.createElement("button", {
+    }, "Copy to…"), /*#__PURE__*/React.createElement("button", {
       onClick: () => clearMeal(m, me),
       className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
     }, "Clear meal"))))), me.map(e => /*#__PURE__*/React.createElement("div", {
       key: e.id,
+      "data-entry-id": e.id,
+      "data-meal-id": m.id,
       className: "flex items-center gap-3 py-2.5 border-t border-[#262629] mt-2 relative",
       style: {
         borderLeft: '4px solid ' + mc,
-        paddingLeft: 8
+        paddingLeft: 8,
+        opacity: drag && drag.id === e.id ? 0.35 : 1
       }
-    }, /*#__PURE__*/React.createElement("div", {
+    }, drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && /*#__PURE__*/React.createElement("div", {
+      className: "absolute -top-0.5 left-0 right-0 h-1",
+      style: {
+        background: 'var(--accent)'
+      }
+    }), /*#__PURE__*/React.createElement("div", {
       className: "w-9 h-9 pixel-box flex items-center justify-center shrink-0",
       style: {
         background: mc
@@ -5032,6 +5153,13 @@ function FoodLog({
         color: FAT
       }
     }, e.computed_macros.fat, "F"))), /*#__PURE__*/React.createElement("button", {
+      onPointerDown: ev => startDrag(ev, e, mc),
+      className: "px-1.5 text-[#8A8A90] shrink-0 cursor-grab select-none text-base leading-none",
+      style: {
+        touchAction: 'none'
+      },
+      title: "Drag to move or reorder"
+    }, "⠿"), /*#__PURE__*/React.createElement("button", {
       onClick: ev => {
         ev.stopPropagation();
         setMenu(menu === e.id ? null : e.id);
@@ -5050,9 +5178,16 @@ function FoodLog({
       onClick: () => dup(e),
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
     }, "Duplicate"), /*#__PURE__*/React.createElement("button", {
-      onClick: () => copyNext(e),
+      onClick: () => {
+        setCopyTo({
+          title: 'Copy ' + e.name,
+          entries: [e],
+          srcDate: date
+        });
+        setMenu(null);
+      },
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Copy to tomorrow"), /*#__PURE__*/React.createElement("button", {
+    }, "Copy to…"), /*#__PURE__*/React.createElement("button", {
       onClick: () => del(e),
       className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
     }, "Delete")))), /*#__PURE__*/React.createElement("button", {
@@ -5073,7 +5208,21 @@ function FoodLog({
     entry: editing,
     onSave: saveEdit,
     onClose: () => setEditing(null)
-  }));
+  }), copyTo && /*#__PURE__*/React.createElement(CopyToModal, {
+    title: copyTo.title,
+    srcDate: copyTo.srcDate,
+    onPick: t => copyEntriesTo(copyTo.entries, t),
+    onClose: () => setCopyTo(null)
+  }), drag && ghost && /*#__PURE__*/React.createElement("div", {
+    className: "fixed z-[80] pointer-events-none pixel-box px-3 py-2 text-[12px] font-bold truncate max-w-[220px]",
+    style: {
+      left: ghost.x + 14,
+      top: ghost.y - 12,
+      background: drag.mc,
+      color: 'rgba(0,0,0,0.85)',
+      boxShadow: '3px 3px 0 rgba(0,0,0,.45)'
+    }
+  }, drag.name));
 }
 function EditEntryModal({
   entry,
@@ -5174,6 +5323,90 @@ function EditEntryModal({
     kind: "ghost",
     onClick: onClose
   }, "Cancel"))));
+}
+function CopyToModal({
+  title,
+  srcDate,
+  onPick,
+  onClose
+}) {
+  const today = Store.todayISO();
+  const [cm, setCm] = useState(() => {
+    const d = new Date((srcDate || today) + 'T00:00:00');
+    return {
+      y: d.getFullYear(),
+      m: d.getMonth()
+    };
+  });
+  const first = new Date(cm.y, cm.m, 1);
+  const startDow = (first.getDay() + 6) % 7;
+  const daysIn = new Date(cm.y, cm.m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push(null);
+  for (let dd = 1; dd <= daysIn; dd++) cells.push(Store.isoOf(new Date(cm.y, cm.m, dd)));
+  const monthName = new Date(cm.y, cm.m, 1).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric'
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[60] bg-black/70 flex items-end lg:items-center justify-center",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 sheet-up",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-1"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold truncate pr-2"
+  }, title), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-[#8A8A90] text-2xl leading-none shrink-0"
+  }, "×")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Pick the day to copy to."), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCm(c => {
+      const m = c.m - 1;
+      return m < 0 ? {
+        y: c.y - 1,
+        m: 11
+      } : {
+        y: c.y,
+        m
+      };
+    }),
+    className: "text-[#8A8A90] px-2 py-1"
+  }, "‹"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-semibold"
+  }, monthName), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCm(c => {
+      const m = c.m + 1;
+      return m > 11 ? {
+        y: c.y + 1,
+        m: 0
+      } : {
+        y: c.y,
+        m
+      };
+    }),
+    className: "text-[#8A8A90] px-2 py-1"
+  }, "›")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
+  }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
+    key: i
+  }, d))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-7 gap-1"
+  }, cells.map((c, i) => c ? /*#__PURE__*/React.createElement("button", {
+    key: i,
+    onClick: () => onPick(c),
+    className: `aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22]'}`,
+    style: {
+      boxShadow: 'none'
+    }
+  }, new Date(c + 'T00:00:00').getDate()) : /*#__PURE__*/React.createElement("div", {
+    key: i
+  })))));
 }
 
 /* =====================================================================
@@ -5382,6 +5615,7 @@ function ManualTab({
   onPick
 }) {
   const [mode, setMode] = useState('portion'); // 'portion' = per portion × count · 'grams' = per 100g × grams
+  const [more, setMore] = useState(false);
   const [v, setV] = useState({
     name: '',
     serving: '',
@@ -5399,6 +5633,7 @@ function ManualTab({
   const autoKcal = (+v.protein || 0) * 4 + (+v.carbs || 0) * 4 + (+v.fat || 0) * 9;
   const c = +v.count || 1;
   const f = mode === 'grams' ? (+v.grams || 0) / 100 : c;
+  const sc = n => +(n * f).toFixed(1);
   function add() {
     if (!v.name) return;
     const per = {
@@ -5426,7 +5661,15 @@ function ManualTab({
   }
   const chip = on => `flex-1 pixel-box py-2.5 text-[13px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`;
   const perLabel = mode === 'grams' ? 'per 100 g' : 'per portion';
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Field, {
+    label: "Name"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: v.name,
+    onChange: e => set('name', e.target.value),
+    placeholder: "e.g. Baked beans"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "My numbers are…"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mb-3"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setMode('portion'),
@@ -5434,15 +5677,7 @@ function ManualTab({
   }, "Per portion"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setMode('grams'),
     className: chip(mode === 'grams')
-  }, "Per 100 g")), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, mode === 'grams' ? 'Enter the per-100g figures from the label, then the grams you weighed.' : 'Enter the macros for one portion (e.g. one tin), then how many you had.'), /*#__PURE__*/React.createElement(Field, {
-    label: "Name"
-  }, /*#__PURE__*/React.createElement(TextInput, {
-    value: v.name,
-    onChange: e => set('name', e.target.value),
-    placeholder: "e.g. Baked beans"
-  })), mode === 'grams' ? /*#__PURE__*/React.createElement(Field, {
+  }, "Per 100 g")), mode === 'grams' ? /*#__PURE__*/React.createElement(Field, {
     label: "Amount eaten (g)"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.grams,
@@ -5450,7 +5685,7 @@ function ManualTab({
   })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Portion"
+    label: "Portion name (optional)"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.serving,
     onChange: e => set('serving', e.target.value),
@@ -5464,9 +5699,9 @@ function ManualTab({
     value: v.count,
     onPick: n => set('count', String(n))
   })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
   }, mode === 'grams' ? 'Per 100 g' : 'Per portion'), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-4 gap-2.5"
+    className: "grid grid-cols-3 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Prot"
   }, /*#__PURE__*/React.createElement(NumInput, {
@@ -5482,25 +5717,54 @@ function ManualTab({
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.fat,
     onChange: e => set('fat', e.target.value)
-  })), /*#__PURE__*/React.createElement(Field, {
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 my-3 flex justify-between items-center",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] text-[#8A8A90] mb-0.5"
+  }, "LOGGING ", mode === 'grams' ? `${v.grams || 0} g` : c > 1 ? `${c} portions` : '1 portion'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] tnum"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: PRO
+    }
+  }, "P", sc(+v.protein || 0)), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: CARB
+    }
+  }, "C", sc(+v.carbs || 0)), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: FAT
+    }
+  }, "F", sc(+v.fat || 0)))), /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold tnum"
+  }, Math.round((+v.kcal || autoKcal) * f), /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] text-[#8A8A90]"
+  }, " kcal"))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setMore(m => !m),
+    className: "text-[11px] text-[#8A8A90] mb-2"
+  }, more ? '▲ Fewer options' : '▾ Add fibre or set calories'), more && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(Field, {
     label: "Fibre"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.fiber,
     onChange: e => set('fiber', e.target.value)
-  }))), /*#__PURE__*/React.createElement(Field, {
+  })), /*#__PURE__*/React.createElement(Field, {
     label: "Calories (auto — leave blank to calculate)",
     hint: autoKcal ? `${+v.protein || 0}P×4 + ${+v.carbs || 0}C×4 + ${+v.fat || 0}F×9 = ${autoKcal} kcal ${perLabel}` : 'Enter protein, carbs and fat and I\'ll work out the calories.'
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.kcal,
     onChange: e => set('kcal', e.target.value),
     placeholder: autoKcal ? String(autoKcal) : ''
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm text-[#8A8A90] mb-3 tnum"
-  }, "Logging ", mode === 'grams' ? `${v.grams || 0} g` : c > 1 ? `${c} portions` : '1 portion', ": ", Math.round((+v.kcal || autoKcal) * f), " kcal · P", +((+v.protein || 0) * f).toFixed(1), " C", +((+v.carbs || 0) * f).toFixed(1), " F", +((+v.fat || 0) * f).toFixed(1)), /*#__PURE__*/React.createElement(Btn, {
+  }))), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: add
-  }, "Add"));
+  }, "Add to log"));
 }
 function SearchTab({
   onPick
@@ -5643,6 +5907,7 @@ function ConfirmFood({
   const set = (k, x) => setV(p => Object.assign({}, p, {
     [k]: x
   }));
+  const [edit, setEdit] = useState(false);
   const scalable = per100 || perServ;
   const gramsOn = per100 || perServ && servingG;
   const portionsOn = perServ || per100 && servingG;
@@ -5656,21 +5921,46 @@ function ConfirmFood({
     const grams = amtUnit === 'serv' && servingG ? (+servN || 0) * servingG : +g || 0;
     factor = grams / 100;
   } else factor = 1;
-  const final = {
-    kcal: Math.round((+v.kcal || 0) * factor),
-    protein: +((+v.protein || 0) * factor).toFixed(1),
-    carbs: +((+v.carbs || 0) * factor).toFixed(1),
-    fat: +((+v.fat || 0) * factor).toFixed(1),
-    fiber: +((+v.fiber || 0) * factor).toFixed(1)
-  };
+  const num = k => +v[k] || 0;
+  const scaled = fac => ({
+    kcal: Math.round(num('kcal') * fac),
+    protein: +(num('protein') * fac).toFixed(1),
+    carbs: +(num('carbs') * fac).toFixed(1),
+    fat: +(num('fat') * fac).toFixed(1),
+    fiber: +(num('fiber') * fac).toFixed(1)
+  });
+  const final = scaled(factor);
+  // per-100 reference column: derive from per-serving figures, or use the per-100 values directly
+  const per100Vals = perServ ? servingG ? scaled(100 / servingG) : null : per100 ? scaled(1) : null;
   const qtyLabel = !scalable ? '' : amtUnit === 'serv' ? `${servN} × ${label}` : `${g} g`;
+  const portionHead = amtUnit === 'serv' ? String(servN) === '1' ? label : `${servN}× ${label}` : `${g} g`;
   const chip = on => `flex-1 pixel-box py-2.5 text-[13px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`;
-  const refLabel = perServ ? `Per serving (${label}) — edit if wrong` : per100 ? 'Nutrition per 100 g — edit if wrong' : 'This portion';
+  const Row = ({
+    lab,
+    k,
+    unit
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center py-1.5 border-t border-[#262629] text-[12px]"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, lab), /*#__PURE__*/React.createElement("span", {
+    className: "tnum flex items-center"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-14 text-right text-[#8A8A90]"
+  }, per100Vals ? per100Vals[k] + unit : '—'), /*#__PURE__*/React.createElement("span", {
+    className: "w-16 text-right font-bold",
+    style: {
+      color: 'var(--text)'
+    }
+  }, final[k], unit)));
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onCancel,
+    className: "text-[13px] text-[#8A8A90] mb-2"
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, note, " You can tweak anything below."), /*#__PURE__*/React.createElement(Field, {
+  }, note), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
@@ -5678,7 +5968,7 @@ function ConfirmFood({
   })), scalable && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
   }, "How much did you eat?"), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 mb-3"
+    className: "flex gap-2 mb-2"
   }, gramsOn ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setAmtUnit('g'),
     className: chip(amtUnit === 'g')
@@ -5696,37 +5986,51 @@ function ConfirmFood({
     onChange: e => setServN(e.target.value)
   }))) : /*#__PURE__*/React.createElement(Field, {
     label: "Amount eaten (g)",
-    hint: servingG ? `1 portion is about ${servingG} g` : ''
+    hint: servingG ? `1 portion ≈ ${servingG} g` : ''
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: g,
     onChange: e => setG(e.target.value)
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 mb-4 text-center",
+    className: "pixel-box p-3 mb-2",
     style: {
       background: 'var(--surface3)',
       boxShadow: 'none'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] text-[#8A8A90] mb-1"
-  }, "YOU'RE ADDING", qtyLabel ? ' · ' + qtyLabel : ''), /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold tnum"
-  }, final.kcal, " kcal"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] tnum mt-0.5"
+    className: "flex justify-between items-center mb-1 pf text-[8px] uppercase text-[#8A8A90]"
+  }, /*#__PURE__*/React.createElement("span", null, "Nutrition"), /*#__PURE__*/React.createElement("span", {
+    className: "flex items-center"
   }, /*#__PURE__*/React.createElement("span", {
+    className: "w-14 text-right"
+  }, "Per 100g"), /*#__PURE__*/React.createElement("span", {
+    className: "w-16 text-right",
     style: {
-      color: PRO
+      color: 'var(--text)'
     }
-  }, "P", final.protein), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: CARB
-    }
-  }, "C", final.carbs), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: FAT
-    }
-  }, "F", final.fat))), /*#__PURE__*/React.createElement("div", {
+  }, portionHead))), /*#__PURE__*/React.createElement(Row, {
+    lab: "Energy",
+    k: "kcal",
+    unit: ""
+  }), /*#__PURE__*/React.createElement(Row, {
+    lab: "Protein",
+    k: "protein",
+    unit: "g"
+  }), /*#__PURE__*/React.createElement(Row, {
+    lab: "Carbs",
+    k: "carbs",
+    unit: "g"
+  }), /*#__PURE__*/React.createElement(Row, {
+    lab: "Fat",
+    k: "fat",
+    unit: "g"
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEdit(e => !e),
+    className: "text-[11px] text-[#8A8A90] mb-3"
+  }, edit ? '▲ Hide values' : '▾ Numbers look off? Edit them'), edit && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in mb-2"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
-  }, refLabel), /*#__PURE__*/React.createElement("div", {
+  }, perServ ? `Per serving (${label})` : per100 ? 'Per 100 g' : 'This portion'), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Kcal"
@@ -5748,11 +6052,14 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.fat,
     onChange: e => set('fat', e.target.value)
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 mt-1"
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }))), /*#__PURE__*/React.createElement(Field, {
+    label: "Fibre"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: v.fiber,
+    onChange: e => set('fiber', e.target.value)
+  }))), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
-    className: "flex-1",
+    className: "w-full mt-1",
     onClick: () => onAdd({
       name: v.name || 'Food',
       source,
@@ -5760,10 +6067,7 @@ function ConfirmFood({
       macros: final,
       unit: amtUnit
     })
-  }, "Add"), /*#__PURE__*/React.createElement(Btn, {
-    kind: "ghost",
-    onClick: onCancel
-  }, "Back")));
+  }, "Add to log"));
 }
 function AiConfirm({
   est,
