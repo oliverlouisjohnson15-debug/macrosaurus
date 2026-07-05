@@ -1569,12 +1569,18 @@ function effectiveTarget(db, date) {
 
 /* ---------- primitives ---------- */
 const inputCls = "w-full bg-[#1E1E22] pixel-box px-4 py-3 text-[var(--text)] focus:outline-none";
+// Select all on focus so a field showing a default "0" is replaced as soon as you type — no fiddly deleting.
 function NumInput(props) {
   return /*#__PURE__*/React.createElement("input", _extends({
     type: "number",
     inputMode: "decimal",
     className: inputCls
-  }, props));
+  }, props, {
+    onFocus: e => {
+      e.target.select();
+      if (props.onFocus) props.onFocus(e);
+    }
+  }));
 }
 function TextInput(props) {
   return /*#__PURE__*/React.createElement("input", _extends({
@@ -8141,7 +8147,19 @@ function Goals({
   const [st, setSt] = useState(seed.st);
   const [lb, setLb] = useState(seed.lb);
   const goalWChanged = unit === 'st_lb' ? (gwSt ? +stLbToKg(gwSt, gwLb).toFixed(2) : null) !== (p.goalWeightKg || null) : (+gwKg || null) !== (p.goalWeightKg || null);
-  const changed = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType)) || goalWChanged;
+  // Plan-affecting changes retune macros and re-anchor the trend; target weight is just a progress marker.
+  const planChanged = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType));
+  const changed = planChanged || goalWChanged;
+  // Save only the target weight — no current-weight re-anchor, no macro rebuild, no check-in reset.
+  function saveTargetOnly() {
+    const goalW = g.goalType === 'maintain' ? null : unit === 'st_lb' ? gwSt ? stLbToKg(gwSt, gwLb) : null : +gwKg || null;
+    update(d => {
+      d.profile = Object.assign({}, d.profile, {
+        goalWeightKg: goalW ? +goalW.toFixed(2) : null
+      });
+    });
+    alert('Target weight saved.');
+  }
   function apply() {
     const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
     if (!weightKg) {
@@ -8312,8 +8330,8 @@ function Goals({
     style: {
       opacity: changed ? 1 : .5
     },
-    onClick: () => setConfirming(true)
-  }, changed ? 'Save & update goal' : 'No changes to save') : /*#__PURE__*/React.createElement("div", {
+    onClick: () => planChanged ? setConfirming(true) : saveTargetOnly()
+  }, !changed ? 'No changes to save' : planChanged ? 'Save & update goal' : 'Save target weight') : /*#__PURE__*/React.createElement("div", {
     className: "bg-[#1E1E22] rounded-2xl p-4 mt-1 fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
