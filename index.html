@@ -7235,8 +7235,13 @@ function AiConfirm({
       });
     }));
   }
-  const hasItems = items.length > 0;
-  const total = hasItems ? items.reduce((a, it) => ({
+  function removeItem(i) {
+    setItems(arr => arr.filter((_, idx) => idx !== i));
+  }
+  // If Claude returned a breakdown, always total from the (possibly-edited) items — so removing
+  // an item you didn't eat, e.g. a glass of wine in the photo, immediately updates the totals.
+  const hadItems = (src.items || []).length > 0;
+  const total = hadItems ? items.reduce((a, it) => ({
     kcal: a.kcal + (+it.kcal || 0),
     protein: a.protein + (+it.protein || 0),
     carbs: a.carbs + (+it.carbs || 0),
@@ -7279,9 +7284,9 @@ function AiConfirm({
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: name,
     onChange: e => setName(e.target.value)
-  })), hasItems && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  })), hadItems && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
-  }, "Breakdown \u2014 edit grams to correct"), /*#__PURE__*/React.createElement("div", {
+  }, "Breakdown \u2014 edit grams, or remove what you didn't eat"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-3"
   }, items.map((it, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
@@ -7308,9 +7313,15 @@ function AiConfirm({
     }
   }), /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] text-[#8A8A90]"
-  }, "g")), it.assumption && /*#__PURE__*/React.createElement("div", {
+  }, "g"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeItem(i),
+    className: "text-[#8A8A90] pl-1 text-lg leading-none shrink-0",
+    "aria-label": `Remove ${it.name}`
+  }, "\xD7")), it.assumption && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
-  }, "\u21B3 ", it.assumption))))), src.assumptions && /*#__PURE__*/React.createElement("div", {
+  }, "\u21B3 ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] py-1"
+  }, "All items removed. Add a correction below, or start over."))), src.assumptions && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
   }, "Assumed: ", src.assumptions), high > low && low > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-2",
