@@ -10,26 +10,26 @@
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
 /* Dark Game Boy (Pocket) is the default. Add .theme-light on <html> for Game Boy Color. */
 :root, .theme-dark {
-  --bg: #121212;
-  --card: #1e1e1e;
-  --surface2: #262626;
-  --surface3: #171717;
-  --track: #000000;
-  --border: #333333;
-  --header: #171717;         /* top bar / bottom nav */
-  --header-text: #ffffff;
+  --bg: #000000;             /* pure black */
+  --card: #0d0d0d;
+  --surface2: #17171a;
+  --surface3: #0a0a0a;
+  --track: #1a1a1a;
+  --border: #2c2c2e;
+  --header: #000000;         /* top bar / bottom nav */
+  --header-text: #39FF14;
   --hero: #39FF14;           /* big kcal number */
   --text: #ffffff;
   --text2: #cfcfcf;
-  --muted: #999999;
+  --muted: #8a8a90;
   --muted2: #6f6f6f;
-  --accent: #FFF01F;         /* neon yellow, primary action */
-  --on-accent: #101010;
-  --accent-dim: #2a2a12;
+  --accent: #39FF14;         /* neon green, primary action */
+  --on-accent: #05140a;
+  --accent-dim: #0f2a12;
   --pro: #39FF14;            /* neon green */
-  --carb: #FF00FF;          /* neon magenta */
-  --fat: #00F3FF;           /* neon cyan */
-  --cal: #FFF01F;
+  --carb: #00F3FF;          /* neon cyan */
+  --fat: #FF2FD0;           /* neon magenta */
+  --cal: #39FF14;
   --weight: #B388FF;
   --danger: #FF5555;
   --good: #39FF14;
@@ -126,8 +126,8 @@ input, select { color-scheme: dark; }
 .theme-light .scanline { display: none; }
 /* neon glow on dark-theme accent text/icons */
 .theme-dark .neon-pro { text-shadow: 0 0 8px rgba(57,255,20,0.5); }
-.theme-dark .neon-carb { text-shadow: 0 0 8px rgba(255,0,255,0.5); }
-.theme-dark .neon-fat { text-shadow: 0 0 8px rgba(0,243,255,0.5); }
+.theme-dark .neon-carb { text-shadow: 0 0 8px rgba(0,243,255,0.5); }
+.theme-dark .neon-fat { text-shadow: 0 0 8px rgba(255,47,208,0.5); }
 
 /* ---- rings/charts track ---- */
 .ring-track { stroke: var(--border); }
@@ -1067,13 +1067,16 @@ function PixelGlyph({
     }
   }, rects);
 }
-// The Macrosaurus mascot as pixel art (replaces the 🦖 emoji everywhere).
-const DINO_GRID = ['.....#####.', '....######.', '....##.###.', '....######.', '....######.', '#...######.', '##..######.', '##.#######.', '##########.', '.########..', '..######...', '..##.##....', '.##...##...'];
+// The Macrosaurus mascot: a front-facing triceratops (two brow horns, a frill, stout body, legs).
+const DINO_GRID = ['..#......#..', '..#......#..', '..##....##..', '.##########.', '############', '.##########.', '.##########.', '.##########.', '..##.##.##..', '..##.##.##..'];
 function PixelDino({
   color,
   size,
   className
 }) {
+  const W = DINO_GRID[0].length,
+    H = DINO_GRID.length,
+    px = size || 24;
   const rects = [];
   DINO_GRID.forEach((row, y) => row.split('').forEach((c, x) => {
     if (c === '#') rects.push(/*#__PURE__*/React.createElement("rect", {
@@ -1085,9 +1088,9 @@ function PixelDino({
     }));
   }));
   return /*#__PURE__*/React.createElement("svg", {
-    viewBox: "0 0 11 13",
-    width: size || 24,
-    height: (size || 24) * 13 / 11,
+    viewBox: `0 0 ${W} ${H}`,
+    width: px,
+    height: px * H / W,
     fill: color || 'currentColor',
     className: className,
     style: {
