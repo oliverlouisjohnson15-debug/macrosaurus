@@ -2282,7 +2282,7 @@ function TrendCard({
     all: 'all time'
   }[range];
   const deltaStr = delta == null ? '' : (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + (tab === 'bodyfat' ? '%' : ' ' + yl);
-  const deltaGood = delta == null ? null : tab === 'bodyfat' ? delta < 0 : tab === 'lean' ? delta > 0 : db.profile.goalType === 'gain' ? delta > 0 : db.profile.goalType === 'cut' ? delta < 0 : true;
+  const deltaGood = delta == null || delta === 0 ? null : tab === 'bodyfat' ? delta < 0 : tab === 'lean' ? delta > 0 : db.profile.goalType === 'gain' ? delta > 0 : db.profile.goalType === 'cut' ? delta < 0 : true;
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
