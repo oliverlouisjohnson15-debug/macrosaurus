@@ -1234,7 +1234,7 @@ async function claudeVision(key, files, prompt) {
     },
     body: JSON.stringify({
       model: AI_MODEL,
-      max_tokens: 1536,
+      max_tokens: 4096,
       messages: [{
         role: 'user',
         content
@@ -1244,9 +1244,94 @@ async function claudeVision(key, files, prompt) {
   const j = await res.json();
   if (j.type === 'error' || j.error) throw new Error(j.error && j.error.message || 'API error');
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
-  const m = txt.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('no data returned');
-  return JSON.parse(m[0]);
+  return parseModelJSON(txt);
+}
+// Robustly parse the single JSON object Claude returns. LLMs occasionally add a trailing
+// comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open —
+// strict JSON.parse rejects all of these, so we clean and, as a last resort, auto-close.
+function parseModelJSON(txt) {
+  const s = String(txt || '').replace(/```(?:json)?/gi, '');
+  const start = s.indexOf('{');
+  if (start < 0) throw new Error('no data returned');
+  // Walk from the first "{" and balance braces, ignoring any inside strings.
+  let depth = 0,
+    inStr = false,
+    esc = false,
+    end = -1;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (esc) {
+      esc = false;
+      continue;
+    }
+    if (c === '\\') {
+      esc = true;
+      continue;
+    }
+    if (c === '"') {
+      inStr = !inStr;
+      continue;
+    }
+    if (!inStr) {
+      if (c === '{') depth++;else if (c === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+  }
+  const core = end >= 0 ? s.slice(start, end + 1) : s.slice(start);
+  const stripped = core.replace(/,(\s*[}\]])/g, '$1'); // drop trailing commas
+  const candidates = [core, stripped, autoClose(stripped)];
+  for (const c of candidates) {
+    try {
+      return JSON.parse(c);
+    } catch (e) {/* try next */}
+  }
+  // Last resort: response was truncated mid-element — drop the incomplete tail back to the
+  // last complete } or ] and re-close, salvaging whatever parsed cleanly.
+  let work = stripped;
+  for (let guard = 0; guard < 300 && work.length > start + 1; guard++) {
+    const cut = Math.max(work.lastIndexOf('}'), work.lastIndexOf(']'));
+    if (cut < 0) break;
+    const closed = autoClose(work.slice(0, cut + 1).replace(/,\s*$/, ''));
+    try {
+      return JSON.parse(closed);
+    } catch (e) {/* keep trimming */}
+    work = work.slice(0, cut);
+  }
+  throw new Error("couldn't read the estimate — please try again");
+}
+// Close any brackets/quote left open by a truncated response so JSON.parse can succeed.
+function autoClose(json) {
+  let inStr = false,
+    esc = false;
+  const stack = [];
+  for (let i = 0; i < json.length; i++) {
+    const c = json[i];
+    if (esc) {
+      esc = false;
+      continue;
+    }
+    if (c === '\\') {
+      esc = true;
+      continue;
+    }
+    if (c === '"') {
+      inStr = !inStr;
+      continue;
+    }
+    if (!inStr) {
+      if (c === '{' || c === '[') stack.push(c);else if (c === '}' || c === ']') stack.pop();
+    }
+  }
+  let out = json.replace(/,\s*$/, '');
+  if (inStr) out += '"';
+  out = out.replace(/,\s*$/, '');
+  for (let i = stack.length - 1; i >= 0; i--) out += stack[i] === '{' ? '}' : ']';
+  return out;
 }
 const LABEL_PROMPT = 'Read this nutrition label carefully. UK labels usually have TWO columns: one PER 100 g / 100 ml, and one PER SERVING / PER PACK / PER CAN / PER BOTTLE. Read each column EXACTLY as printed — do NOT convert, scale or mix the two. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. serving_g = the size in grams (or ml) of ONE serving/pack/can a person consumes in one go, e.g. 500 for a 500 ml can, 55 for a 55 g bar, 330 for a 330 ml bottle; if no serving/pack size is stated, 0. serving_label = a short human label like "1 can (500 ml)", "1 bar (55 g)"; "" if unknown. per_serving = the numbers from the per-serving/per-pack/per-can column (all 0 if that column is not printed). per_100g = the numbers from the per-100 g/ml column (all 0 if not printed). If only one column exists, fill that one and leave the other all 0. Never scale one column into the other. IMPORTANT — missing macros: if a column shows energy/calories but the protein, carbs or fat figures are missing, blank or unreadable, then ESTIMATE those macros from the product name/type and the stated calories. Pick a realistic macro split for that SPECIFIC product (identify the product from the name/brand if you can) so that protein_g×4 + carbs_g×4 + fat_g×9 ≈ the stated kcal for that column, and set "macros_estimated": true. Only set "macros_estimated": true if you actually estimated one or more macros; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD — anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent — these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
