@@ -2197,7 +2197,7 @@ function LineChart({
   const tapPts = dotPts.filter(p => xByDate[p.date] != null);
   const selPt = sel ? tapPts.find(p => p.date === sel) : null;
   const selX = selPt ? xByDate[selPt.date] : 0;
-  const boxW = 88,
+  const boxW = 66,
     bx = Math.max(2, Math.min(W - boxW - 2, selX - boxW / 2));
   const suffix = unitLabel ? ' ' + unitLabel : '';
   return /*#__PURE__*/React.createElement("svg", {
@@ -2293,28 +2293,27 @@ function LineChart({
     x: bx,
     y: 2,
     width: boxW,
-    height: trendByDate[selPt.date] != null ? 30 : 20,
+    height: trendByDate[selPt.date] != null ? 32 : 22,
     rx: "3",
     fill: "var(--surface2)",
     stroke: "var(--border)",
     strokeWidth: "1"
   }), /*#__PURE__*/React.createElement("text", {
     x: bx + 5,
-    y: 12,
+    y: 11,
     fill: "var(--muted)",
     fontSize: "7.5"
   }, fmtd(selPt.date)), /*#__PURE__*/React.createElement("text", {
     x: bx + 5,
-    y: 12 + 9,
+    y: 21,
     fill: "var(--text)",
     fontSize: "9",
     fontWeight: "bold"
   }, (+selPt.value).toFixed(dec), suffix), trendByDate[selPt.date] != null && /*#__PURE__*/React.createElement("text", {
-    x: bx + boxW - 5,
-    y: 12 + 9,
+    x: bx + 5,
+    y: 30,
     fill: "var(--muted)",
-    fontSize: "7.5",
-    textAnchor: "end"
+    fontSize: "7"
   }, "trend ", (+trendByDate[selPt.date]).toFixed(dec))));
 }
 // Signed weight delta in the user's unit (small deltas read better in lb than st/lb).
