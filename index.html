@@ -885,6 +885,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       last_break_end: null,   // ISO date the last diet break ended (resets the dieting clock)
       diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
+      catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] } — locked so later edits never lose a caught creature
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null }, // Punch-Out ladder + weekly boss progress
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       goals: null,
@@ -2148,8 +2149,11 @@ function HabitGrid({
 function LineChart({
   series,
   color,
-  decimals
+  decimals,
+  dots,
+  unitLabel
 }) {
+  const [sel, setSel] = useState(null); // selected date (tap a point for details)
   const H = 150,
     W = 320,
     padL = 30,
@@ -2160,7 +2164,8 @@ function LineChart({
   if (pts.length < 2) return /*#__PURE__*/React.createElement("div", {
     className: "h-[150px] flex items-center justify-center text-[12px] text-[#8A8A90]"
   }, "Not enough data yet. Keep logging and weighing in.");
-  const vals = pts.map(p => p.value);
+  const dotPts = (dots || []).filter(p => p.value != null);
+  const vals = pts.map(p => p.value).concat(dotPts.map(p => p.value));
   let min = Math.min(...vals),
     max = Math.max(...vals);
   if (min === max) {
@@ -2172,6 +2177,14 @@ function LineChart({
   max += pad;
   const X = i => padL + i / (pts.length - 1) * (W - padL - padR);
   const Y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
+  const xByDate = {};
+  pts.forEach((p, i) => {
+    xByDate[p.date] = X(i);
+  });
+  const trendByDate = {};
+  pts.forEach(p => {
+    trendByDate[p.date] = p.value;
+  });
   const line = pts.map((p, i) => `${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join(' ');
   const area = `${X(0).toFixed(1)},${Y(min).toFixed(1)} ` + line + ` ${X(pts.length - 1).toFixed(1)},${Y(min).toFixed(1)}`;
   const ticks = [max - pad * 0.4, (max + min) / 2, min + pad * 0.4];
@@ -2179,7 +2192,14 @@ function LineChart({
     day: 'numeric',
     month: 'short'
   });
+  const dec = decimals != null ? decimals : 1;
   const gid = 'lg' + color.replace(/[^a-z0-9]/gi, '');
+  const tapPts = dotPts.filter(p => xByDate[p.date] != null);
+  const selPt = sel ? tapPts.find(p => p.date === sel) : null;
+  const selX = selPt ? xByDate[selPt.date] : 0;
+  const boxW = 88,
+    bx = Math.max(2, Math.min(W - boxW - 2, selX - boxW / 2));
+  const suffix = unitLabel ? ' ' + unitLabel : '';
   return /*#__PURE__*/React.createElement("svg", {
     viewBox: `0 0 ${W} ${H}`,
     className: "w-full",
@@ -2216,18 +2236,34 @@ function LineChart({
       y: y + 3,
       fill: "var(--muted)",
       fontSize: "8"
-    }, t.toFixed(decimals != null ? decimals : 1)));
+    }, t.toFixed(dec)));
   }), /*#__PURE__*/React.createElement("polygon", {
     points: area,
     fill: `url(#${gid})`
-  }), /*#__PURE__*/React.createElement("polyline", {
+  }), selPt && /*#__PURE__*/React.createElement("line", {
+    x1: selX,
+    y1: padT,
+    x2: selX,
+    y2: H - padB,
+    stroke: color,
+    strokeWidth: "1",
+    strokeDasharray: "2 2",
+    opacity: "0.6"
+  }), dotPts.map((p, i) => xByDate[p.date] != null ? /*#__PURE__*/React.createElement("circle", {
+    key: 'd' + i,
+    cx: xByDate[p.date],
+    cy: Y(p.value),
+    r: sel === p.date ? 3 : 1.8,
+    fill: color,
+    opacity: sel === p.date ? 1 : 0.4
+  }) : null), /*#__PURE__*/React.createElement("polyline", {
     points: line,
     fill: "none",
     stroke: color,
     strokeWidth: "2",
     strokeLinejoin: "round",
     strokeLinecap: "round"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }), !sel && /*#__PURE__*/React.createElement("circle", {
     cx: X(pts.length - 1),
     cy: Y(pts[pts.length - 1].value),
     r: "3",
@@ -2243,7 +2279,43 @@ function LineChart({
     fill: "var(--muted)",
     fontSize: "8",
     textAnchor: "end"
-  }, fmtd(pts[pts.length - 1].date)));
+  }, fmtd(pts[pts.length - 1].date)), tapPts.map((p, i) => /*#__PURE__*/React.createElement("circle", {
+    key: 't' + i,
+    cx: xByDate[p.date],
+    cy: Y(p.value),
+    r: "10",
+    fill: "transparent",
+    style: {
+      cursor: 'pointer'
+    },
+    onClick: () => setSel(sel === p.date ? null : p.date)
+  })), selPt && /*#__PURE__*/React.createElement("g", null, /*#__PURE__*/React.createElement("rect", {
+    x: bx,
+    y: 2,
+    width: boxW,
+    height: trendByDate[selPt.date] != null ? 30 : 20,
+    rx: "3",
+    fill: "var(--surface2)",
+    stroke: "var(--border)",
+    strokeWidth: "1"
+  }), /*#__PURE__*/React.createElement("text", {
+    x: bx + 5,
+    y: 12,
+    fill: "var(--muted)",
+    fontSize: "7.5"
+  }, fmtd(selPt.date)), /*#__PURE__*/React.createElement("text", {
+    x: bx + 5,
+    y: 12 + 9,
+    fill: "var(--text)",
+    fontSize: "9",
+    fontWeight: "bold"
+  }, (+selPt.value).toFixed(dec), suffix), trendByDate[selPt.date] != null && /*#__PURE__*/React.createElement("text", {
+    x: bx + boxW - 5,
+    y: 12 + 9,
+    fill: "var(--muted)",
+    fontSize: "7.5",
+    textAnchor: "end"
+  }, "trend ", (+trendByDate[selPt.date]).toFixed(dec))));
 }
 // Signed weight delta in the user's unit (small deltas read better in lb than st/lb).
 function fmtWeightDelta(kg, unit, suffix) {
@@ -2266,6 +2338,15 @@ function TrendCard({
   const series = ents.map(e => {
     let v = null;
     if (tab === 'weight') v = toDisp(e.trend_weight != null ? e.trend_weight : e.scale_weight);else if (tab === 'bodyfat') v = e.bodyfat != null ? +e.bodyfat : null;else if (e.bodyfat != null && e.scale_weight != null) v = toDisp(e.scale_weight * (1 - e.bodyfat / 100));
+    return {
+      date: e.date,
+      value: v
+    };
+  });
+  // Raw measured points (scale weight / measured bf / measured lean) so daily values show as dots even when the smoothed line is flat.
+  const dots = ents.map(e => {
+    let v = null;
+    if (tab === 'weight') v = e.scale_weight != null ? toDisp(e.scale_weight) : null;else if (tab === 'bodyfat') v = e.bodyfat != null ? +e.bodyfat : null;else if (e.bodyfat != null && e.scale_weight != null) v = toDisp(e.scale_weight * (1 - e.bodyfat / 100));
     return {
       date: e.date,
       value: v
@@ -2313,9 +2394,35 @@ function TrendCard({
     className: "text-[10px] text-[#8A8A90]"
   }, rangeLabel))), /*#__PURE__*/React.createElement(LineChart, {
     series: series,
+    dots: dots,
     color: color,
-    decimals: tab === 'bodyfat' ? 1 : 1
+    decimals: tab === 'bodyfat' ? 1 : 1,
+    unitLabel: tab === 'bodyfat' ? '%' : yl
   }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 10,
+      height: 2,
+      background: color,
+      display: 'inline-block'
+    }
+  }), " trend"), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 6,
+      height: 6,
+      borderRadius: 6,
+      background: color,
+      opacity: 0.4,
+      display: 'inline-block'
+    }
+  }), " ", tab === 'weight' ? 'scale weight' : 'measured'), /*#__PURE__*/React.createElement("span", {
+    className: "ml-auto text-[#8A8A90]"
+  }, "tap a point for details")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mt-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1"
@@ -3589,16 +3696,18 @@ function WeighInLog({
       className: "flex items-center border-t border-[#262629] first:border-0"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: () => setEditing(e),
-      className: "flex-1 text-left flex items-baseline gap-3 py-2.5 min-w-0"
+      className: "flex-1 text-left py-2.5 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between gap-3"
     }, /*#__PURE__*/React.createElement("span", {
-      className: "text-[13px] text-[#C9C9CF] w-24 shrink-0"
+      className: "text-[13px] text-[#C9C9CF]"
     }, fmtWeighDay(e.date)), /*#__PURE__*/React.createElement("span", {
-      className: "text-[13px] tnum font-semibold shrink-0"
-    }, fmtWeight(e.scale_weight, unit)), /*#__PURE__*/React.createElement("span", {
-      className: "text-[11px] text-[#8A8A90] tnum truncate"
-    }, e.bodyfat != null ? `${e.bodyfat}% bf · lean ${fmtWeight(lean, unit)}` : '')), /*#__PURE__*/React.createElement("button", {
+      className: "text-[13px] tnum font-semibold"
+    }, fmtWeight(e.scale_weight, unit))), e.bodyfat != null && /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] tnum mt-0.5"
+    }, e.bodyfat, "% bf \xB7 lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(e),
-      className: "text-[#8A8A90] px-2 text-xl leading-none shrink-0",
+      className: "text-[#8A8A90] pl-3 pr-1 text-xl leading-none shrink-0",
       "aria-label": "Delete"
     }, "\xD7"));
   }), entries.length > CAP && /*#__PURE__*/React.createElement("button", {
@@ -4162,22 +4271,39 @@ function creatureForDay(db, date) {
 }
 function macrodex(db) {
   const caught = {};
-  const seen = {};
-  db.log_entries.forEach(e => {
-    seen[e.date] = true;
-  });
-  Object.keys(seen).sort().forEach(d => {
-    const c = creatureForDay(db, d);
-    if (!c) return;
-    const cur = caught[c.id] || {
-      count: 0,
-      shiny: false,
-      firstDate: d
-    };
-    cur.count++;
-    if (c.shiny) cur.shiny = true;
-    caught[c.id] = cur;
-  });
+  const cl = db.catch_log || {};
+  const dates = Object.keys(cl);
+  if (dates.length) {
+    // Read from the persisted catch log so a creature you've caught stays caught, even if you later edit that day's food.
+    dates.sort().forEach(d => (cl[d] || []).forEach(c => {
+      const cur = caught[c.id] || {
+        count: 0,
+        shiny: false,
+        firstDate: d
+      };
+      cur.count++;
+      if (c.shiny) cur.shiny = true;
+      caught[c.id] = cur;
+    }));
+  } else {
+    // Fallback for accounts logged before catch_log existed (until the persist effect backfills it).
+    const seen = {};
+    db.log_entries.forEach(e => {
+      seen[e.date] = true;
+    });
+    Object.keys(seen).sort().forEach(d => {
+      const c = creatureForDay(db, d);
+      if (!c) return;
+      const cur = caught[c.id] || {
+        count: 0,
+        shiny: false,
+        firstDate: d
+      };
+      cur.count++;
+      if (c.shiny) cur.shiny = true;
+      caught[c.id] = cur;
+    });
+  }
   return caught;
 }
 const BUDDY_STAGES = [{
@@ -4891,6 +5017,32 @@ function Dashboard({
       d.freezes.frozen = Array.from(s).sort().slice(-120);
     });
   }, [newFrozenKey]);
+  // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
+  // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
+  const todayCr = creatureForDay(db, today);
+  const catchSig = Array.from(logSet).sort().join(',') + '|' + (todayCr ? todayCr.id + (todayCr.shiny ? 's' : '') : '');
+  useEffect(() => {
+    const cl = db.catch_log || {};
+    const adds = [];
+    Array.from(logSet).forEach(d => {
+      const c = creatureForDay(db, d);
+      if (!c) return;
+      const arr = cl[d] || [];
+      const isToday = d === today;
+      if (arr.length === 0 || isToday && !arr.some(x => x.id === c.id)) adds.push([d, c]);
+    });
+    if (adds.length) update(dd => {
+      dd.catch_log = dd.catch_log || {};
+      adds.forEach(([d, c]) => {
+        const arr = dd.catch_log[d] || [];
+        if (!arr.some(x => x.id === c.id)) arr.push({
+          id: c.id,
+          shiny: !!c.shiny
+        });
+        dd.catch_log[d] = arr;
+      });
+    });
+  }, [catchSig]);
   const remindOn = db.profile.reminders !== false;
   const missWeigh = !weighSet.has(today),
     missLog = !logSet.has(today);
