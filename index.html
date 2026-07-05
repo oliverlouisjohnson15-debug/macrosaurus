@@ -3282,6 +3282,207 @@ function CheckInModal({
     onClose: () => setBfPick(false)
   }));
 }
+function fmtWeighDay(dateISO) {
+  const d = new Date(dateISO + 'T00:00:00');
+  if (dateISO === Store.todayISO()) return 'Today';
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  });
+}
+function WeighInEditModal({
+  db,
+  update,
+  entry,
+  onClose
+}) {
+  const p = db.profile;
+  const unit = p.weight_unit;
+  const isNew = !entry;
+  const today = Store.todayISO();
+  const lastEntry = db.weight_entries[db.weight_entries.length - 1];
+  const seedKg = entry ? entry.scale_weight : lastEntry ? lastEntry.scale_weight : p.weightKg;
+  const s0 = kgToStLb(seedKg || 0);
+  const [date, setDate] = useState(entry ? entry.date : today);
+  const [kg, setKg] = useState(seedKg || '');
+  const [st, setSt] = useState(s0.st);
+  const [lb, setLb] = useState(s0.lb);
+  const [bf, setBf] = useState(entry && entry.bodyfat != null ? entry.bodyfat : '');
+  const [bfPick, setBfPick] = useState(false);
+  const dupe = isNew && db.weight_entries.some(w => w.date === date);
+  function save() {
+    const w = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
+    if (!w) {
+      alert('Enter a weight.');
+      return;
+    }
+    const bfVal = bf === '' || bf == null || isNaN(+bf) ? null : +bf;
+    update(d => {
+      const ex = d.weight_entries.find(x => x.date === date);
+      if (ex) {
+        ex.scale_weight = +w.toFixed(2);
+        if (bfVal != null) ex.bodyfat = bfVal;else delete ex.bodyfat;
+      } else {
+        const ne = {
+          id: Store.uid(),
+          date,
+          scale_weight: +w.toFixed(2)
+        };
+        if (bfVal != null) ne.bodyfat = bfVal;
+        d.weight_entries.push(ne);
+      }
+      recomputeTrend(d);
+    });
+    onClose();
+  }
+  const weighInputs = unit === 'st_lb' ? /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: st,
+    onChange: e => setSt(+e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "st"), /*#__PURE__*/React.createElement(NumInput, {
+    value: lb,
+    onChange: e => setLb(+e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "lb")) : /*#__PURE__*/React.createElement(NumInput, {
+    value: kg,
+    onChange: e => setKg(e.target.value)
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[80] bg-black/70 flex items-end lg:items-center justify-center",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-3"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold"
+  }, isNew ? 'Add weigh-in' : 'Edit weigh-in'), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-[#8A8A90] text-2xl leading-none"
+  }, "\xD7")), isNew ? /*#__PURE__*/React.createElement(Field, {
+    label: "Date"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    max: today,
+    value: date,
+    onChange: e => setDate(e.target.value),
+    className: inputCls
+  }), dupe && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-1.5",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "You already weighed in on this day \u2014 saving overwrites it.")) : /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-3"
+  }, fmtWeighDay(date)), /*#__PURE__*/React.createElement(Field, {
+    label: "Weight"
+  }, weighInputs), /*#__PURE__*/React.createElement(Field, {
+    label: "Body fat %",
+    hint: "Optional. Sets your protein target and lean-mass trend."
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: bf,
+    onChange: e => setBf(e.target.value),
+    placeholder: "optional"
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setBfPick(true),
+    className: "text-[12px] text-[#4A9EEB] mt-1.5"
+  }, "Not sure? Estimate it visually \u2192")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "flex-1",
+    onClick: save
+  }, "Save"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: onClose
+  }, "Cancel"))), bfPick && /*#__PURE__*/React.createElement(BodyFatPicker, {
+    sex: p.sex,
+    apiKey: p.aiKey,
+    prevBf: p.bodyFatPct,
+    onPick: v => setBf(v),
+    onClose: () => setBfPick(false)
+  }));
+}
+function WeighInLog({
+  db,
+  update
+}) {
+  const unit = db.profile.weight_unit;
+  const [editing, setEditing] = useState(null); // { new:true } or an entry
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [showAll, setShowAll] = useState(false);
+  const entries = db.weight_entries.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const CAP = 8;
+  const shown = showAll ? entries : entries.slice(0, CAP);
+  function del(e) {
+    update(d => {
+      d.weight_entries = d.weight_entries.filter(x => e.id ? x.id !== e.id : x.date !== e.date);
+      recomputeTrend(d);
+    });
+  }
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start justify-between mb-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold mb-0.5"
+  }, "Weigh-in log"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, "Tap an entry to edit")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditing({
+      new: true
+    }),
+    className: "pixel-box px-3 py-1.5 text-[11px] shrink-0",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none'
+    }
+  }, "+ Add")), !entries.length ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] py-2"
+  }, "No weigh-ins yet. Weigh in from the dashboard, or add a past day with \u201C+ Add\u201D.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
+    const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: e.id || e.date,
+      className: "flex items-center border-t border-[#262629] first:border-0"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEditing(e),
+      className: "flex-1 text-left flex items-baseline gap-3 py-2.5 min-w-0"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[13px] text-[#C9C9CF] w-24 shrink-0"
+    }, fmtWeighDay(e.date)), /*#__PURE__*/React.createElement("span", {
+      className: "text-[13px] tnum font-semibold shrink-0"
+    }, fmtWeight(e.scale_weight, unit)), /*#__PURE__*/React.createElement("span", {
+      className: "text-[11px] text-[#8A8A90] tnum truncate"
+    }, e.bodyfat != null ? `${e.bodyfat}% bf · lean ${fmtWeight(lean, unit)}` : '')), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setConfirmDel(e),
+      className: "text-[#8A8A90] px-2 text-xl leading-none shrink-0",
+      "aria-label": "Delete"
+    }, "\xD7"));
+  }), entries.length > CAP && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAll(s => !s),
+    className: "text-[12px] text-[#8A8A90] pt-2.5 border-t border-[#262629] w-full text-left"
+  }, showAll ? 'Show less' : `See all ${entries.length} weigh-ins`)), editing && /*#__PURE__*/React.createElement(WeighInEditModal, {
+    db: db,
+    update: update,
+    entry: editing.new ? null : editing,
+    onClose: () => setEditing(null)
+  }), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: "Delete weigh-in?",
+    body: `Remove your ${fmtWeight(confirmDel.scale_weight, unit)} weigh-in from ${fmtWeighDay(confirmDel.date)}? Your weight trend will recompute.`,
+    confirmLabel: "Delete",
+    onConfirm: () => del(confirmDel),
+    onClose: () => setConfirmDel(null)
+  }));
+}
 function CheckInHistory({
   db
 }) {
@@ -4593,6 +4794,9 @@ function Dashboard({
     className: "text-lg font-bold mb-3 mt-6"
   }, "Trends"), /*#__PURE__*/React.createElement(TrendCard, {
     db: db
+  }), /*#__PURE__*/React.createElement(WeighInLog, {
+    db: db,
+    update: update
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowStats(s => !s),
     className: "w-full pixel-box bg-[#1E1E22] py-3 mb-4 text-[10px] flex items-center justify-center gap-2"
