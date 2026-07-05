@@ -5078,7 +5078,6 @@ function Dashboard({
   const weighWk = last7.filter(d => weighSet.has(d)).length;
   const logWk = last7.filter(d => logSet.has(d)).length;
   const t = currentTargets(db);
-  const expTrend = db.targets.slice(-12).map(x => x.estimatedTDEE).filter(Boolean);
   const unit = db.profile.weight_unit;
   // 7-day average of daily intake (over logged days only)
   const loggedDates = Array.from(logSet).filter(x => x <= today).sort().slice(-7);
@@ -5323,18 +5322,7 @@ function Dashboard({
     className: "font-bold tnum"
   }, logWk, "/7"), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, "this week")))), /*#__PURE__*/React.createElement(Card, {
-    className: "p-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90]"
-  }, "Estimated expenditure"), /*#__PURE__*/React.createElement(MiniSpark, {
-    points: expTrend,
-    color: PRO
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-semibold tnum mt-1"
-  }, t && t.estimatedTDEE ? t.estimatedTDEE : '–', " ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[12px] text-[#8A8A90] font-normal"
-  }, "kcal / day")))), /*#__PURE__*/React.createElement("div", {
+  }, "this week"))))), /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"
   }, quote), showDex && /*#__PURE__*/React.createElement(MacrodexModal, {
     db: db,
