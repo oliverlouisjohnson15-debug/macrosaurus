@@ -2747,7 +2747,7 @@ function BodyFatPicker({
   }
   async function estimate() {
     if (!apiKey) {
-      setErr('Add your AI key in More → Settings first.');
+      setErr('Add your AI key in Menu → Settings first.');
       return;
     }
     const have = SLOTS.map(([s]) => s).filter(s => imgs[s]);
@@ -5197,7 +5197,7 @@ function Dashboard({
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold"
-  }, "Fuel gauge"), /*#__PURE__*/React.createElement(Pill, {
+  }, "Today's macros"), /*#__PURE__*/React.createElement(Pill, {
     value: span,
     onChange: setSpan,
     options: [{
@@ -5253,7 +5253,7 @@ function Dashboard({
       background: 'var(--pro)',
       color: '#fff'
     }
-  }, "+ LOG MEAL"), /*#__PURE__*/React.createElement("button", {
+  }, "+ LOG FOOD"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowFight(true),
     className: "pixel-btn py-4 text-[11px] flex items-center justify-center gap-2",
     style: {
@@ -7495,7 +7495,7 @@ function MealEstimate({
   }
   async function run() {
     if (!apiKey) {
-      setErr('Add your AI key in More → Settings first.');
+      setErr('Add your AI key in Menu → Settings first.');
       return;
     }
     if (!imgs.length && !notes.trim()) {
@@ -7785,7 +7785,7 @@ function PhotoTab({
   async function onLabel(file) {
     if (!file) return;
     if (!key) {
-      setErr('Add your AI key in More → Settings to scan labels.');
+      setErr('Add your AI key in Menu → Settings to scan labels.');
       return;
     }
     setBusy('Reading the label…');
@@ -7918,7 +7918,7 @@ function PhotoTab({
   }, "Uses AI. You check every estimate before it's added."), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2.5"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => key ? setMode('label') : setErr('Add your AI key in More → Settings first.'),
+    onClick: () => key ? setMode('label') : setErr('Add your AI key in Menu → Settings first.'),
     className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"
@@ -7937,7 +7937,7 @@ function PhotoTab({
   }, key ? 'AI' : 'Key')), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
   }, key ? 'Point your camera at the pack — the AI reads the macros.' : 'Add an AI key in Settings to enable.'))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => key ? setMode('meal') : setErr('Add your AI key in More → Settings first.'),
+    onClick: () => key ? setMode('meal') : setErr('Add your AI key in Menu → Settings first.'),
     className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"
@@ -8840,7 +8840,7 @@ function More({
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Your profile",
-    title: "More"
+    title: "Menu"
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl"
   }, [['details', 'Profile'], ['settings', 'Settings'], ['advanced', 'Advanced'], ['account', 'Account']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
@@ -9018,7 +9018,7 @@ function Toast({
     className: "text-sm font-semibold text-[#4A9EEB] shrink-0"
   }, toast.actionLabel)));
 }
-const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FEED', Icon.food], ['goals', 'QUEST', Icon.goal], ['more', 'MENU', Icon.more]];
+const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['goals', 'GOAL', Icon.goal], ['more', 'MENU', Icon.more]];
 function BottomNav({
   view,
   setView,
