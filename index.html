@@ -1340,7 +1340,7 @@ function autoClose(json) {
   return out;
 }
 const LABEL_PROMPT = 'Read this nutrition label carefully. UK labels usually have TWO columns: one PER 100 g / 100 ml, and one PER SERVING / PER PACK / PER CAN / PER BOTTLE. Read each column EXACTLY as printed — do NOT convert, scale or mix the two. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. serving_g = the size in grams (or ml) of ONE serving/pack/can a person consumes in one go, e.g. 500 for a 500 ml can, 55 for a 55 g bar, 330 for a 330 ml bottle; if no serving/pack size is stated, 0. serving_label = a short human label like "1 can (500 ml)", "1 bar (55 g)"; "" if unknown. per_serving = the numbers from the per-serving/per-pack/per-can column (all 0 if that column is not printed). per_100g = the numbers from the per-100 g/ml column (all 0 if not printed). If only one column exists, fill that one and leave the other all 0. Never scale one column into the other. IMPORTANT — missing macros: if a column shows energy/calories but the protein, carbs or fat figures are missing, blank or unreadable, then ESTIMATE those macros from the product name/type and the stated calories. Pick a realistic macro split for that SPECIFIC product (identify the product from the name/brand if you can) so that protein_g×4 + carbs_g×4 + fat_g×9 ≈ the stated kcal for that column, and set "macros_estimated": true. Only set "macros_estimated": true if you actually estimated one or more macros; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0.';
-const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD — anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent — these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
+const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD — anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent — these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present — vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
@@ -7199,7 +7199,8 @@ function AiConfirm({
     const kcal = +it.kcal || 0,
       protein = +it.protein_g || 0,
       carbs = +it.carbs_g || 0,
-      fat = +it.fat_g || 0;
+      fat = +it.fat_g || 0,
+      fiber = +it.fiber_g || 0;
     return {
       name: it.name || 'Item',
       grams: grams,
@@ -7207,12 +7208,14 @@ function AiConfirm({
       protein: protein,
       carbs: carbs,
       fat: fat,
+      fiber: fiber,
       assumption: it.assumption || '',
       per: grams > 0 ? {
         kcal: kcal / grams,
         protein: protein / grams,
         carbs: carbs / grams,
-        fat: fat / grams
+        fat: fat / grams,
+        fiber: fiber / grams
       } : null
     };
   }));
@@ -7228,7 +7231,8 @@ function AiConfirm({
         kcal: Math.round(it.per.kcal * g),
         protein: +(it.per.protein * g).toFixed(1),
         carbs: +(it.per.carbs * g).toFixed(1),
-        fat: +(it.per.fat * g).toFixed(1)
+        fat: +(it.per.fat * g).toFixed(1),
+        fiber: +(it.per.fiber * g).toFixed(1)
       });
       return Object.assign({}, it, {
         grams: g
@@ -7245,23 +7249,27 @@ function AiConfirm({
     kcal: a.kcal + (+it.kcal || 0),
     protein: a.protein + (+it.protein || 0),
     carbs: a.carbs + (+it.carbs || 0),
-    fat: a.fat + (+it.fat || 0)
+    fat: a.fat + (+it.fat || 0),
+    fiber: a.fiber + (+it.fiber || 0)
   }), {
     kcal: 0,
     protein: 0,
     carbs: 0,
-    fat: 0
+    fat: 0,
+    fiber: 0
   }) : {
     kcal: +src.kcal || 0,
     protein: +src.protein_g || 0,
     carbs: +src.carbs_g || 0,
-    fat: +src.fat_g || 0
+    fat: +src.fat_g || 0,
+    fiber: +src.fiber_g || 0
   };
   const final = {
     kcal: Math.round(total.kcal),
     protein: +total.protein.toFixed(1),
     carbs: +total.carbs.toFixed(1),
-    fat: +total.fat.toFixed(1)
+    fat: +total.fat.toFixed(1),
+    fiber: +(+total.fiber || 0).toFixed(1)
   };
   const conf = src.confidence || 'medium';
   const confColor = conf === 'high' ? 'var(--good)' : conf === 'medium' ? 'var(--fat)' : 'var(--danger)';
@@ -7352,7 +7360,11 @@ function AiConfirm({
     style: {
       color: FAT
     }
-  }, "F", final.fat))), final.kcal <= 0 && /*#__PURE__*/React.createElement("div", {
+  }, "F", final.fat), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Fib", final.fiber))), final.kcal <= 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-2",
     style: {
       color: 'var(--danger)'
