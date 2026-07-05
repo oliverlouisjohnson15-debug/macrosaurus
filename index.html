@@ -2146,47 +2146,51 @@ function HabitGrid({
     }
   })));
 }
+// Weight-app style chart: the ACTUAL measured points are the primary line + markers (so real
+// movement shows), with the smoothed trend as a faint dashed overlay. Tap any point for details.
 function LineChart({
-  series,
+  points,
+  trend,
   color,
   decimals,
-  dots,
   unitLabel
 }) {
-  const [sel, setSel] = useState(null); // selected date (tap a point for details)
+  const [sel, setSel] = useState(null);
   const H = 150,
     W = 320,
     padL = 30,
     padR = 8,
-    padT = 10,
+    padT = 14,
     padB = 18;
-  const pts = (series || []).filter(p => p.value != null);
+  const pts = (points || []).filter(p => p.value != null);
   if (pts.length < 2) return /*#__PURE__*/React.createElement("div", {
-    className: "h-[150px] flex items-center justify-center text-[12px] text-[#8A8A90]"
-  }, "Not enough data yet. Keep logging and weighing in.");
-  const dotPts = (dots || []).filter(p => p.value != null);
-  const vals = pts.map(p => p.value).concat(dotPts.map(p => p.value));
-  let min = Math.min(...vals),
-    max = Math.max(...vals);
+    className: "h-[150px] flex items-center justify-center text-center text-[12px] text-[#8A8A90] px-6"
+  }, "Weigh in on another day and your weight line will appear here.");
+  const trendPts = (trend || []).filter(p => p.value != null);
+  const allVals = pts.map(p => p.value).concat(trendPts.map(p => p.value));
+  let min = Math.min(...allVals),
+    max = Math.max(...allVals);
   if (min === max) {
     min -= 1;
     max += 1;
   }
-  const pad = (max - min) * 0.15;
+  const pad = (max - min) * 0.18;
   min -= pad;
   max += pad;
+  const idxByDate = {};
+  pts.forEach((p, i) => {
+    idxByDate[p.date] = i;
+  });
   const X = i => padL + i / (pts.length - 1) * (W - padL - padR);
   const Y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
-  const xByDate = {};
-  pts.forEach((p, i) => {
-    xByDate[p.date] = X(i);
-  });
-  const trendByDate = {};
-  pts.forEach(p => {
-    trendByDate[p.date] = p.value;
-  });
+  const xOf = d => idxByDate[d] != null ? X(idxByDate[d]) : null;
   const line = pts.map((p, i) => `${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join(' ');
   const area = `${X(0).toFixed(1)},${Y(min).toFixed(1)} ` + line + ` ${X(pts.length - 1).toFixed(1)},${Y(min).toFixed(1)}`;
+  const trendLine = trendPts.filter(p => xOf(p.date) != null).map(p => `${xOf(p.date).toFixed(1)},${Y(p.value).toFixed(1)}`).join(' ');
+  const trendByDate = {};
+  trendPts.forEach(p => {
+    trendByDate[p.date] = p.value;
+  });
   const ticks = [max - pad * 0.4, (max + min) / 2, min + pad * 0.4];
   const fmtd = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -2194,18 +2198,21 @@ function LineChart({
   });
   const dec = decimals != null ? decimals : 1;
   const gid = 'lg' + color.replace(/[^a-z0-9]/gi, '');
-  const tapPts = dotPts.filter(p => xByDate[p.date] != null);
-  const selPt = sel ? tapPts.find(p => p.date === sel) : null;
-  const selX = selPt ? xByDate[selPt.date] : 0;
-  const boxW = 66,
-    bx = Math.max(2, Math.min(W - boxW - 2, selX - boxW / 2));
   const suffix = unitLabel ? ' ' + unitLabel : '';
+  const selPt = sel ? pts.find(p => p.date === sel) : null;
+  const selX = selPt ? X(idxByDate[selPt.date]) : 0;
+  const selY = selPt ? Y(selPt.value) : 0;
+  const boxW = 66,
+    boxH = selPt && trendByDate[selPt.date] != null ? 32 : 22;
+  const bx = Math.max(2, Math.min(W - boxW - 2, selX - boxW / 2));
+  const by = selPt ? selY < H / 2 ? Math.min(H - padB - boxH, selY + 9) : Math.max(padT, selY - boxH - 9) : 0;
   return /*#__PURE__*/React.createElement("svg", {
     viewBox: `0 0 ${W} ${H}`,
     className: "w-full",
     style: {
       height: H
-    }
+    },
+    onClick: () => setSel(null)
   }, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("linearGradient", {
     id: gid,
     x1: "0",
@@ -2215,7 +2222,7 @@ function LineChart({
   }, /*#__PURE__*/React.createElement("stop", {
     offset: "0%",
     stopColor: color,
-    stopOpacity: "0.25"
+    stopOpacity: "0.22"
   }), /*#__PURE__*/React.createElement("stop", {
     offset: "100%",
     stopColor: color,
@@ -2240,6 +2247,15 @@ function LineChart({
   }), /*#__PURE__*/React.createElement("polygon", {
     points: area,
     fill: `url(#${gid})`
+  }), trendLine && /*#__PURE__*/React.createElement("polyline", {
+    points: trendLine,
+    fill: "none",
+    stroke: color,
+    strokeWidth: "1.5",
+    opacity: "0.4",
+    strokeDasharray: "4 3",
+    strokeLinejoin: "round",
+    strokeLinecap: "round"
   }), selPt && /*#__PURE__*/React.createElement("line", {
     x1: selX,
     y1: padT,
@@ -2248,27 +2264,21 @@ function LineChart({
     stroke: color,
     strokeWidth: "1",
     strokeDasharray: "2 2",
-    opacity: "0.6"
-  }), dotPts.map((p, i) => xByDate[p.date] != null ? /*#__PURE__*/React.createElement("circle", {
-    key: 'd' + i,
-    cx: xByDate[p.date],
-    cy: Y(p.value),
-    r: sel === p.date ? 3 : 1.8,
-    fill: color,
-    opacity: sel === p.date ? 1 : 0.4
-  }) : null), /*#__PURE__*/React.createElement("polyline", {
+    opacity: "0.5"
+  }), /*#__PURE__*/React.createElement("polyline", {
     points: line,
     fill: "none",
     stroke: color,
     strokeWidth: "2",
     strokeLinejoin: "round",
     strokeLinecap: "round"
-  }), !sel && /*#__PURE__*/React.createElement("circle", {
-    cx: X(pts.length - 1),
-    cy: Y(pts[pts.length - 1].value),
-    r: "3",
+  }), pts.map((p, i) => /*#__PURE__*/React.createElement("circle", {
+    key: 'm' + i,
+    cx: X(i),
+    cy: Y(p.value),
+    r: sel === p.date ? 3.4 : 2.2,
     fill: color
-  }), /*#__PURE__*/React.createElement("text", {
+  })), /*#__PURE__*/React.createElement("text", {
     x: padL,
     y: H - 4,
     fill: "var(--muted)",
@@ -2279,39 +2289,46 @@ function LineChart({
     fill: "var(--muted)",
     fontSize: "8",
     textAnchor: "end"
-  }, fmtd(pts[pts.length - 1].date)), tapPts.map((p, i) => /*#__PURE__*/React.createElement("circle", {
+  }, fmtd(pts[pts.length - 1].date)), pts.map((p, i) => /*#__PURE__*/React.createElement("circle", {
     key: 't' + i,
-    cx: xByDate[p.date],
+    cx: X(i),
     cy: Y(p.value),
-    r: "10",
+    r: "11",
     fill: "transparent",
     style: {
       cursor: 'pointer'
     },
-    onClick: () => setSel(sel === p.date ? null : p.date)
-  })), selPt && /*#__PURE__*/React.createElement("g", null, /*#__PURE__*/React.createElement("rect", {
+    onClick: e => {
+      e.stopPropagation();
+      setSel(sel === p.date ? null : p.date);
+    }
+  })), selPt && /*#__PURE__*/React.createElement("g", {
+    style: {
+      pointerEvents: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("rect", {
     x: bx,
-    y: 2,
+    y: by,
     width: boxW,
-    height: trendByDate[selPt.date] != null ? 32 : 22,
+    height: boxH,
     rx: "3",
     fill: "var(--surface2)",
     stroke: "var(--border)",
     strokeWidth: "1"
   }), /*#__PURE__*/React.createElement("text", {
     x: bx + 5,
-    y: 11,
+    y: by + 9,
     fill: "var(--muted)",
     fontSize: "7.5"
   }, fmtd(selPt.date)), /*#__PURE__*/React.createElement("text", {
     x: bx + 5,
-    y: 21,
+    y: by + 19,
     fill: "var(--text)",
     fontSize: "9",
     fontWeight: "bold"
   }, (+selPt.value).toFixed(dec), suffix), trendByDate[selPt.date] != null && /*#__PURE__*/React.createElement("text", {
     x: bx + 5,
-    y: 30,
+    y: by + 28,
     fill: "var(--muted)",
     fontSize: "7"
   }, "trend ", (+trendByDate[selPt.date]).toFixed(dec))));
@@ -2354,7 +2371,8 @@ function TrendCard({
   const color = tab === 'weight' ? 'var(--weight)' : tab === 'bodyfat' ? FAT : CARB;
   const yl = tab === 'bodyfat' ? '%' : unit === 'st_lb' ? 'lb' : 'kg';
   const dec = tab === 'bodyfat' ? 1 : 1;
-  const valid = series.filter(s => s.value != null);
+  // Headline + change track the ACTUAL measured weight (not the smoothed trend), so real movement shows.
+  const valid = dots.filter(s => s.value != null);
   const first = valid[0],
     last = valid[valid.length - 1];
   const delta = first && last ? +(last.value - first.value).toFixed(1) : null;
@@ -2392,8 +2410,8 @@ function TrendCard({
   }, deltaStr), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
   }, rangeLabel))), /*#__PURE__*/React.createElement(LineChart, {
-    series: series,
-    dots: dots,
+    points: dots,
+    trend: tab === 'weight' ? series : null,
     color: color,
     decimals: tab === 'bodyfat' ? 1 : 1,
     unitLabel: tab === 'bodyfat' ? '%' : yl
@@ -2403,25 +2421,24 @@ function TrendCard({
     className: "inline-flex items-center gap-1"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      width: 10,
+      width: 12,
       height: 2,
       background: color,
       display: 'inline-block'
     }
-  }), " trend"), /*#__PURE__*/React.createElement("span", {
+  }), " ", tab === 'weight' ? 'weight' : 'measured'), tab === 'weight' && /*#__PURE__*/React.createElement("span", {
     className: "inline-flex items-center gap-1"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      width: 6,
-      height: 6,
-      borderRadius: 6,
-      background: color,
-      opacity: 0.4,
+      width: 12,
+      height: 0,
+      borderTop: `2px dashed ${color}`,
+      opacity: 0.6,
       display: 'inline-block'
     }
-  }), " ", tab === 'weight' ? 'scale weight' : 'measured'), /*#__PURE__*/React.createElement("span", {
+  }), " trend"), /*#__PURE__*/React.createElement("span", {
     className: "ml-auto text-[#8A8A90]"
-  }, "tap a point for details")), /*#__PURE__*/React.createElement("div", {
+  }, "tap a point")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mt-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1"
