@@ -1174,7 +1174,8 @@ function prettyDate(d) {
 }
 
 /* ---------- image / AI helpers (Claude / Anthropic) ---------- */
-const AI_MODEL = 'claude-sonnet-5'; // strongest vision model for accurate food estimates
+const AI_MODEL = 'claude-sonnet-5'; // reasoning jobs: meal estimates, body fat
+const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutrition-label scans
 function fileToDataURL(file) {
   return new Promise(res => {
     const r = new FileReader();
@@ -1207,10 +1208,14 @@ async function imageToB64(file, max) {
   }
 }
 // Call Claude with any number of images + a text prompt; expect one JSON object back.
-async function claudeVision(key, files, prompt) {
+async function claudeVision(key, files, prompt, opts) {
+  opts = opts || {};
+  const model = opts.model || AI_MODEL;
+  const maxTokens = opts.maxTokens || 2048;
+  const maxImg = opts.maxImg || 1024;
   const content = [];
   for (const f of files || []) {
-    const im = await imageToB64(f);
+    const im = await imageToB64(f, maxImg);
     content.push({
       type: 'image',
       source: {
@@ -1233,8 +1238,8 @@ async function claudeVision(key, files, prompt) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: AI_MODEL,
-      max_tokens: 4096,
+      model,
+      max_tokens: maxTokens,
       messages: [{
         role: 'user',
         content
@@ -2574,7 +2579,10 @@ function BodyFatPicker({
     setErr('');
     try {
       const prompt = BF_PROMPT + ' The person is ' + (sex === 'female' ? 'female' : 'male') + '.' + (prevBf != null ? ' Their last recorded body fat was ' + prevBf + '%. Treat that as a consistency anchor and only move away from it if the photos clearly justify it.' : '') + ' Photos provided (in order): ' + have.join(', ') + '.';
-      const est = await claudeVision(apiKey, have.map(s => imgs[s].file), prompt);
+      const est = await claudeVision(apiKey, have.map(s => imgs[s].file), prompt, {
+        model: AI_MODEL,
+        maxTokens: 400
+      });
       setResult({
         pct: Math.round(est.bodyfat_percent),
         confidence: est.confidence || 'medium',
@@ -7216,7 +7224,10 @@ function MealEstimate({
     setBusy(true);
     setErr('');
     try {
-      const est = await claudeVision(apiKey, imgs.map(i => i.file), AI_PROMPT + '\n\n' + ctx());
+      const est = await claudeVision(apiKey, imgs.map(i => i.file), AI_PROMPT + '\n\n' + ctx(), {
+        model: AI_MODEL,
+        maxTokens: 2048
+      });
       setResult(est);
       setVer(v => v + 1);
     } catch (e) {
@@ -7228,8 +7239,12 @@ function MealEstimate({
     setBusy(true);
     setErr('');
     try {
-      const prompt = AI_PROMPT + '\n\n' + ctx() + '\n\nYour previous estimate was: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Revise your estimate to reflect this, keeping the exact same JSON format.';
-      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt);
+      // Slim refine: the previous JSON already carries the schema, so we skip resending the full estimator prompt.
+      const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items, stay honest and do not round down. Respond ONLY with the JSON.';
+      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, {
+        model: AI_MODEL,
+        maxTokens: 2048
+      });
       setResult(est);
       setVer(v => v + 1);
     } catch (e) {
@@ -7422,7 +7437,21 @@ function PhotoTab({
     setBusy('Reading the label with Claude…');
     setErr('');
     try {
-      const est = await claudeVision(key, [file], LABEL_PROMPT);
+      // Label OCR runs on the cheaper fast model; if that ever errors, fall back to the stronger model so scanning never breaks.
+      let est;
+      try {
+        est = await claudeVision(key, [file], LABEL_PROMPT, {
+          model: AI_MODEL_FAST,
+          maxTokens: 900,
+          maxImg: 1152
+        });
+      } catch (e1) {
+        est = await claudeVision(key, [file], LABEL_PROMPT, {
+          model: AI_MODEL,
+          maxTokens: 900,
+          maxImg: 1152
+        });
+      }
       const sg = +est.serving_g || null;
       const ps = est.per_serving || {},
         p100 = est.per_100g || {};
@@ -8240,7 +8269,7 @@ function SettingsTab({
     placeholder: "paste your Anthropic key (sk-ant-...)"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
-  }, "Get a key at console.anthropic.com. Runs on Claude Sonnet.")), /*#__PURE__*/React.createElement(SaveBar, {
+  }, "Get a key at console.anthropic.com. Meal & body-fat estimates run on Claude Sonnet; label scans use the faster Haiku to save tokens.")), /*#__PURE__*/React.createElement(SaveBar, {
     dirty: dirty,
     saved: saved,
     onSave: save,
