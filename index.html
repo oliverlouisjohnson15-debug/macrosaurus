@@ -2240,6 +2240,14 @@ function LineChart({
     textAnchor: "end"
   }, fmtd(pts[pts.length - 1].date)));
 }
+// Signed weight delta in the user's unit (small deltas read better in lb than st/lb).
+function fmtWeightDelta(kg, unit, suffix) {
+  if (kg == null || isNaN(kg)) return '–';
+  const sign = kg > 0 ? '+' : kg < 0 ? '−' : '';
+  const a = Math.abs(kg);
+  const body = unit === 'st_lb' ? `${(a * 2.20462).toFixed(1)} lb` : `${a.toFixed(1)} kg`;
+  return `${sign}${body}${suffix || ''}`;
+}
 function TrendCard({
   db
 }) {
@@ -2260,6 +2268,21 @@ function TrendCard({
   });
   const color = tab === 'weight' ? 'var(--weight)' : tab === 'bodyfat' ? FAT : CARB;
   const yl = tab === 'bodyfat' ? '%' : unit === 'st_lb' ? 'lb' : 'kg';
+  const dec = tab === 'bodyfat' ? 1 : 1;
+  const valid = series.filter(s => s.value != null);
+  const first = valid[0],
+    last = valid[valid.length - 1];
+  const delta = first && last ? +(last.value - first.value).toFixed(1) : null;
+  const rangeLabel = {
+    7: 'past week',
+    30: 'past month',
+    90: 'past 3 months',
+    180: 'past 6 months',
+    365: 'past year',
+    all: 'all time'
+  }[range];
+  const deltaStr = delta == null ? '' : (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + (tab === 'bodyfat' ? '%' : ' ' + yl);
+  const deltaGood = delta == null ? null : tab === 'bodyfat' ? delta < 0 : tab === 'lean' ? delta > 0 : db.profile.goalType === 'gain' ? delta > 0 : db.profile.goalType === 'cut' ? delta < 0 : true;
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2268,21 +2291,36 @@ function TrendCard({
     key: k,
     onClick: () => setTab(k),
     className: `flex-1 rounded-xl py-2 transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
-  }, l))), /*#__PURE__*/React.createElement(LineChart, {
+  }, l))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-end justify-between mb-1 px-0.5"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl font-bold tnum"
+  }, last ? last.value : '–'), /*#__PURE__*/React.createElement("span", {
+    className: "text-[11px] text-[#8A8A90] ml-1"
+  }, tab === 'bodyfat' ? '%' : yl)), delta != null && /*#__PURE__*/React.createElement("div", {
+    className: "text-right"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-semibold tnum",
+    style: {
+      color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good)' : 'var(--fat)'
+    }
+  }, deltaStr), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90]"
+  }, rangeLabel))), /*#__PURE__*/React.createElement(LineChart, {
     series: series,
     color: color,
-    decimals: tab === 'bodyfat' ? 0 : 1
+    decimals: tab === 'bodyfat' ? 1 : 1
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mt-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1"
-  }, [['1M', 30], ['3M', 90], ['6M', 180], ['1Y', 365], ['All', 'all']].map(([l, v]) => /*#__PURE__*/React.createElement("button", {
+  }, [['W', 7], ['M', 30], ['3M', 90], ['6M', 180], ['Y', 365], ['All', 'all']].map(([l, v]) => /*#__PURE__*/React.createElement("button", {
     key: l,
     onClick: () => setRange(v),
-    className: `px-2.5 py-1 rounded-lg text-[11px] ${range === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
+    className: `px-2 py-1 rounded-lg text-[11px] ${range === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
   }, l))), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
-  }, yl)));
+  }, tab === 'bodyfat' ? '%' : yl)));
 }
 
 /* =====================================================================
@@ -3192,7 +3230,10 @@ function CheckInModal({
       d.checkins = (d.checkins || []).concat([{
         date: today,
         weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2),
-        onTrack: onTrack
+        onTrack: onTrack,
+        days: cycleDays,
+        logged: loggedDays,
+        weighed: weighDays
       }]);
     });
     if (dietBreakActive(db, today)) {
@@ -3568,37 +3609,132 @@ function WeighInLog({
     onClose: () => setConfirmDel(null)
   }));
 }
+function fmtShortDay(dateISO) {
+  return new Date(dateISO + 'T00:00:00').toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short'
+  });
+}
 function CheckInHistory({
   db
 }) {
-  const list = (db.checkins || []).slice(-6).reverse();
+  const unit = db.profile.weight_unit;
+  const goal = db.profile.goalType;
+  const [showAll, setShowAll] = useState(false);
+  const all = db.checkins || [];
+  // Enrich each check-in from history: period covered, weight change vs previous, weekly rate.
+  const rows = all.map((c, i) => {
+    const prev = i > 0 ? all[i - 1] : null;
+    const periodDays = c.days != null ? c.days : prev ? Math.max(1, daysBetween(prev.date, c.date)) : null;
+    const startISO = prev ? shiftISO(prev.date, 1) : c.date;
+    const changeKg = prev ? c.weightKg - prev.weightKg : null;
+    const rate = changeKg != null && periodDays ? changeKg / (periodDays / 7) : null;
+    return {
+      c,
+      startISO,
+      periodDays,
+      changeKg,
+      rate
+    };
+  }).reverse();
+  const CAP = 6;
+  const shown = showAll ? rows : rows.slice(0, CAP);
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-semibold mb-0.5"
   }, "Check-ins"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3"
-  }, "Your weekly rhythm"), !list.length ? /*#__PURE__*/React.createElement("div", {
+  }, "Each cycle: how long, weight change, and whether you were compliant."), !rows.length ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] py-2"
-  }, "No check-ins yet. Recommended every 7 days; the first unlocks from day 5 after setup.") : /*#__PURE__*/React.createElement("div", {
+  }, "No check-ins yet. Recommended every 7 days; the first unlocks from day 5 after setup. Complete one from the dashboard to see it here.") : /*#__PURE__*/React.createElement("div", {
     className: "space-y-2.5"
-  }, list.map((c, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    className: "flex items-center justify-between text-[13px] border-t border-[#262629] pt-2.5 first:border-0 first:pt-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[#C9C9CF]"
-  }, new Date(c.date + 'T00:00:00').toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short'
-  })), /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "tnum text-[#8A8A90]"
-  }, fmtWeight(c.weightKg, db.profile.weight_unit)), /*#__PURE__*/React.createElement("span", {
+  }, shown.map(({
+    c,
+    startISO,
+    periodDays,
+    changeKg,
+    rate
+  }, i) => {
+    const good = changeKg == null ? null : goal === 'gain' ? changeKg > 0 : goal === 'cut' ? changeKg < 0 : Math.abs(changeKg) < 0.3;
+    const hasCounts = c.logged != null && c.weighed != null && c.days != null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      className: "pixel-box p-3",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between mb-1.5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] text-[#C9C9CF]"
+    }, periodDays ? `${fmtShortDay(startISO)} – ${fmtShortDay(c.date)}` : fmtShortDay(c.date), periodDays ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, " \xB7 ", periodDays, " days") : ''), /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[8px] px-2 py-1",
+      style: {
+        background: c.onTrack ? 'var(--accent-dim)' : 'transparent',
+        color: c.onTrack ? 'var(--good)' : 'var(--fat)',
+        border: '2px solid var(--border)'
+      }
+    }, c.onTrack ? c.changed ? 'ADJUSTED' : 'ON TRACK' : 'HELD')), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-lg font-bold tnum",
+      style: {
+        color: good == null ? 'var(--text)' : good ? 'var(--good)' : 'var(--fat)'
+      }
+    }, changeKg == null ? '—' : fmtWeightDelta(changeKg, unit)), rate != null && /*#__PURE__*/React.createElement("span", {
+      className: "text-[11px] text-[#8A8A90] tnum"
+    }, fmtWeightDelta(rate, unit, '/wk'))), /*#__PURE__*/React.createElement("span", {
+      className: "text-[11px] tnum text-[#8A8A90]"
+    }, "avg ", fmtWeight(c.weightKg, unit))), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] mt-1.5 pt-1.5 border-t border-[#262629] flex items-center justify-between"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, hasCounts ? `Logged ${c.logged}/${c.days} · Weighed ${c.weighed}/${c.days}` : 'Compliance'), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: c.onTrack ? 'var(--good)' : 'var(--fat)'
+      }
+    }, c.onTrack ? 'Compliant' : 'Short')));
+  }), rows.length > CAP && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAll(s => !s),
+    className: "text-[12px] text-[#8A8A90] pt-1 w-full text-left"
+  }, showAll ? 'Show fewer' : `See all ${rows.length} check-ins`)));
+}
+// One condensed panel: switch between the trend Graph, the Daily weigh-in log, and Check-ins.
+function ProgressPanel({
+  db,
+  update
+}) {
+  const [view, setView] = useState('graph');
+  const tabs = [['graph', 'Graph'], ['daily', 'Daily'], ['checkins', 'Check-ins']];
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mb-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 mb-3 pixel-box p-1 text-[12px]",
     style: {
-      color: c.onTrack ? 'var(--carb)' : 'var(--fat)'
+      background: 'var(--surface2)',
+      boxShadow: 'none'
     }
-  }, c.onTrack ? c.changed ? '✓ adjusted' : '✓ on track' : 'held'))))));
+  }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setView(k),
+    className: `flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`,
+    style: {
+      borderRadius: 2
+    }
+  }, l))), view === 'graph' && /*#__PURE__*/React.createElement(TrendCard, {
+    db: db
+  }), view === 'daily' && /*#__PURE__*/React.createElement(WeighInLog, {
+    db: db,
+    update: update
+  }), view === 'checkins' && /*#__PURE__*/React.createElement(CheckInHistory, {
+    db: db
+  }));
 }
 function ExpenditureCard({
   db
@@ -4877,9 +5013,7 @@ function Dashboard({
     update: update
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-3 mt-6"
-  }, "Trends"), /*#__PURE__*/React.createElement(TrendCard, {
-    db: db
-  }), /*#__PURE__*/React.createElement(WeighInLog, {
+  }, "Progress"), /*#__PURE__*/React.createElement(ProgressPanel, {
     db: db,
     update: update
   }), /*#__PURE__*/React.createElement("button", {
@@ -4887,9 +5021,7 @@ function Dashboard({
     className: "w-full pixel-box bg-[#1E1E22] py-3 mb-4 text-[10px] flex items-center justify-center gap-2"
   }, showStats ? 'HIDE STATS' : 'MORE STATS'), showStats && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
-  }, /*#__PURE__*/React.createElement(CheckInHistory, {
-    db: db
-  }), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-3"
   }, "Habits"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-4"
