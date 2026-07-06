@@ -8514,13 +8514,14 @@ function MealEstimate({
   const [err, setErr] = useState('');
   const [result, setResult] = useState(null);
   const [ver, setVer] = useState(0);
+  const MAX_PHOTOS = 3;
   function addImgs(list) {
     const arr = Array.from(list || []).map(f => ({
       id: Store.uid(),
       file: f,
       url: URL.createObjectURL(f)
     }));
-    setImgs(x => x.concat(arr));
+    setImgs(x => x.concat(arr).slice(0, MAX_PHOTOS));
   }
   function remove(id) {
     setImgs(x => x.filter(f => f.id !== id));
@@ -8542,7 +8543,8 @@ function MealEstimate({
     try {
       const est = await claudeVision(apiKey, imgs.map(i => i.file), AI_PROMPT + '\n\n' + ctx(), {
         model: AI_MODEL,
-        maxTokens: 2048
+        maxTokens: 2048,
+        maxImg: 768
       });
       setResult(est);
       setVer(v => v + 1);
@@ -8559,7 +8561,8 @@ function MealEstimate({
       const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items, stay honest and do not round down. Respond ONLY with the JSON.';
       const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, {
         model: AI_MODEL,
-        maxTokens: 2048
+        maxTokens: 2048,
+        maxImg: 768
       });
       setResult(est);
       setVer(v => v + 1);
@@ -8599,7 +8602,7 @@ function MealEstimate({
     className: "w-full"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-3"
-  }, "Add your food and/or the menu — take a new photo or choose from your library."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Add your food and/or the menu (up to 3 photos) — take a new photo or choose from your library."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
     key: i.id,
@@ -8832,13 +8835,13 @@ function PhotoTab({
         est = await claudeVision(key, [file], LABEL_PROMPT, {
           model: AI_MODEL_FAST,
           maxTokens: 900,
-          maxImg: 1152
+          maxImg: 1024
         });
       } catch (e1) {
         est = await claudeVision(key, [file], LABEL_PROMPT, {
           model: AI_MODEL,
           maxTokens: 900,
-          maxImg: 1152
+          maxImg: 1024
         });
       }
       const sg = +est.serving_g || null;
