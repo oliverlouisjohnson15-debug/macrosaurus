@@ -2261,6 +2261,152 @@ function HabitGrid({
     }
   })));
 }
+// GitHub-style consistency heatmap: one square per day over the last 12 weeks, week-aligned into
+// columns. Intensity = how complete the day was (neither / logged or weighed / both).
+function ConsistencyHeatmap({
+  db,
+  today
+}) {
+  const WEEKS = 12,
+    N = WEEKS * 7;
+  const logSet = new Set(db.log_entries.map(e => e.date));
+  const weighSet = new Set(db.weight_entries.map(w => w.date));
+  const start = shiftISO(today, -(N - 1));
+  const pad = (new Date(start + 'T00:00:00').getDay() + 6) % 7; // Mon=0, so columns are weeks
+  const cells = [];
+  for (let i = 0; i < pad; i++) cells.push(null);
+  for (let i = 0; i < N; i++) cells.push(shiftISO(start, i));
+  const level = d => (logSet.has(d) ? 1 : 0) + (weighSet.has(d) ? 1 : 0);
+  const colorFor = lv => lv === 2 ? 'var(--good)' : lv === 1 ? 'var(--carb)' : 'var(--border)';
+  const last7 = Array.from({
+    length: 7
+  }, (_, i) => shiftISO(today, -(6 - i)));
+  const logWk = last7.filter(d => logSet.has(d)).length,
+    weighWk = last7.filter(d => weighSet.has(d)).length;
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold mb-0.5 text-[13px]"
+  }, "Consistency"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-3"
+  }, "Last ", WEEKS, " weeks"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateRows: 'repeat(7, 1fr)',
+      gridAutoFlow: 'column',
+      gap: '3px'
+    }
+  }, cells.map((d, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    title: d || '',
+    className: "rounded-[2px]",
+    style: {
+      aspectRatio: '1 / 1',
+      background: d ? colorFor(level(d)) : 'transparent'
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center flex-wrap gap-x-3 gap-y-1 mt-3 text-[10px] text-[#8A8A90]"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-2.5 h-2.5 rounded-[2px] inline-block",
+    style: {
+      background: 'var(--border)'
+    }
+  }), " none"), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-2.5 h-2.5 rounded-[2px] inline-block",
+    style: {
+      background: 'var(--carb)'
+    }
+  }), " one"), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-2.5 h-2.5 rounded-[2px] inline-block",
+    style: {
+      background: 'var(--good)'
+    }
+  }), " logged & weighed"), /*#__PURE__*/React.createElement("span", {
+    className: "ml-auto tnum"
+  }, "This week: ", logWk, "/7 logged · ", weighWk, "/7 weighed")));
+}
+// Behaviour-level insights that the raw graphs don't show: how consistent you are and how well the
+// adaptive engine has your numbers dialled in.
+function InsightsCard({
+  db,
+  today
+}) {
+  const logSet = new Set(db.log_entries.map(e => e.date));
+  const loggedDates = Array.from(logSet).filter(d => d <= today).sort().slice(-14);
+  const n = loggedDates.length;
+  const t = currentTargets(db) || {};
+  const kcalTarget = Math.round(+t.kcal || 0),
+    proTarget = Math.round(+t.protein_g || 0);
+  const sums = loggedDates.map(d => sumMacros(entriesOn(db, d)));
+  const avgKcal = n ? Math.round(sums.reduce((a, s) => a + s.kcal, 0) / n) : 0;
+  const proHitPct = n && proTarget ? Math.round(100 * sums.filter(s => s.protein >= proTarget * 0.9).length / n) : 0;
+  const kcalDiff = kcalTarget ? avgKcal - kcalTarget : 0;
+  const unit = db.profile.weight_unit;
+  const cur = avgWeight(db.weight_entries, shiftISO(today, -6), today);
+  const prev = avgWeight(db.weight_entries, shiftISO(today, -13), shiftISO(today, -7));
+  const rateKg = cur != null && prev != null ? +(cur - prev).toFixed(2) : null;
+  const goalRate = db.profile.goalType === 'cut' ? -Math.abs(db.profile.rateKgPerWeek || 0) : db.profile.goalType === 'gain' ? Math.abs(db.profile.rateKgPerWeek || 0) : 0;
+  const fmtRate = r => (r > 0 ? '+' : r < 0 ? '−' : '') + (unit === 'st_lb' ? (Math.abs(r) * 2.20462).toFixed(1) + ' lb' : Math.abs(r).toFixed(2) + ' kg') + '/wk';
+  const estTDEE = t.estimatedTDEE ? Math.round(t.estimatedTDEE) : null;
+  const nCi = (db.checkins || []).length;
+  const Row = ({
+    label,
+    value,
+    sub,
+    color
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between py-2 border-b border-[#262629] last:border-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px]"
+  }, label), sub && /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-snug"
+  }, sub)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold tnum shrink-0 ml-3",
+    style: color ? {
+      color
+    } : undefined
+  }, value));
+  if (!n) return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold mb-1 text-[13px]"
+  }, "Insights"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "Log a few days and your consistency and coaching insights show up here."));
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold mb-0.5 text-[13px]"
+  }, "Insights"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-2"
+  }, "Your last ", n, " logged day", n === 1 ? '' : 's'), /*#__PURE__*/React.createElement(Row, {
+    label: "Protein target hit",
+    value: proHitPct + '%',
+    sub: 'of days you reached 90%+ of ' + proTarget + 'g',
+    color: proHitPct >= 80 ? 'var(--good)' : undefined
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Calorie adherence",
+    value: (kcalDiff > 0 ? '+' : kcalDiff < 0 ? '−' : '') + Math.abs(kcalDiff),
+    sub: 'avg ' + avgKcal.toLocaleString() + ' vs ' + kcalTarget.toLocaleString() + ' target',
+    color: Math.abs(kcalDiff) <= 100 ? 'var(--good)' : 'var(--fat)'
+  }), rateKg != null && /*#__PURE__*/React.createElement(Row, {
+    label: "Current pace",
+    value: fmtRate(rateKg),
+    sub: goalRate ? 'goal ' + fmtRate(goalRate) : 'maintaining'
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Estimated burn",
+    value: estTDEE ? estTDEE.toLocaleString() : 'learning',
+    sub: estTDEE ? nCi ? 'refined over ' + nCi + ' check-in' + (nCi === 1 ? '' : 's') : 'from your profile — sharpens with check-ins' : 'complete a check-in to estimate'
+  }));
+}
 // Adaptive weight-app chart. FEW points → your ACTUAL weight is the bold line with markers, so real
 // movement shows. MANY points (long range) → the smoothed TREND becomes the bold line (a moving
 // average across the range) and raw weight fades to a faint background, so a year of daily weigh-ins
@@ -6287,41 +6433,13 @@ function Dashboard({
     className: "w-full pixel-box bg-[#1E1E22] py-3 mb-4 text-[10px] flex items-center justify-center gap-2"
   }, showStats ? 'HIDE STATS' : 'MORE STATS'), showStats && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold mb-3"
-  }, "Habits"), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3 mb-4"
-  }, /*#__PURE__*/React.createElement(Card, {
-    className: "p-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-semibold mb-0.5 text-[13px]"
-  }, "Weigh-In"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mb-3"
-  }, "Last 30 days"), /*#__PURE__*/React.createElement(HabitGrid, {
-    days: weighDays,
-    color: CARB
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "mt-3 text-[13px]"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "font-bold tnum"
-  }, weighWk, "/7"), " ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[#8A8A90]"
-  }, "this week"))), /*#__PURE__*/React.createElement(Card, {
-    className: "p-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-semibold mb-0.5 text-[13px]"
-  }, "Food log"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mb-3"
-  }, "Last 30 days"), /*#__PURE__*/React.createElement(HabitGrid, {
-    days: logDays,
-    color: CAL
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "mt-3 text-[13px]"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "font-bold tnum"
-  }, logWk, "/7"), " ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[#8A8A90]"
-  }, "this week"))))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(ConsistencyHeatmap, {
+    db: db,
+    today: today
+  }), /*#__PURE__*/React.createElement(InsightsCard, {
+    db: db,
+    today: today
+  })), /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"
   }, quote), showDex && /*#__PURE__*/React.createElement(MacrodexModal, {
     db: db,
