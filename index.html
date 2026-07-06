@@ -942,8 +942,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   root.Store = Store;
 })(typeof window !== 'undefined' ? window : this);
 </script>
-<script>function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-const {
+<script>const {
   useState,
   useEffect,
   useMemo,
@@ -1597,11 +1596,11 @@ function NumInput(props) {
     onFocus,
     ...rest
   } = props;
-  return /*#__PURE__*/React.createElement("input", _extends({
+  return /*#__PURE__*/React.createElement("input", {
     type: "number",
     inputMode: "decimal",
-    className: inputCls
-  }, rest, {
+    className: inputCls,
+    ...rest,
     onChange: onChange,
     onFocus: e => {
       const v = props.value;
@@ -1616,13 +1615,14 @@ function NumInput(props) {
       }
       if (onFocus) onFocus(e);
     }
-  }));
+  });
 }
 function TextInput(props) {
-  return /*#__PURE__*/React.createElement("input", _extends({
+  return /*#__PURE__*/React.createElement("input", {
     type: "text",
-    className: inputCls
-  }, props));
+    className: inputCls,
+    ...props
+  });
 }
 function Field({
   label,
@@ -1650,10 +1650,11 @@ function Btn({
     ghost: 'bg-[#1E1E22] text-[var(--text)]',
     danger: 'bg-[#ff6b6b] text-black font-bold'
   };
-  return /*#__PURE__*/React.createElement("button", _extends({
+  return /*#__PURE__*/React.createElement("button", {
     onClick: onClick,
-    className: `pixel-btn px-4 py-3 ${s[kind]} ${className}`
-  }, rest), children);
+    className: `pixel-btn px-4 py-3 ${s[kind]} ${className}`,
+    ...rest
+  }, children);
 }
 // One consistent "Add photo" control used across every photo/AI add-food flow. No `capture` flag,
 // so the native picker offers Camera, Photo Library and Files in a single tap — same on all flows.
@@ -1689,9 +1690,10 @@ function Card({
   className = '',
   ...rest
 }) {
-  return /*#__PURE__*/React.createElement("div", _extends({
-    className: `bg-[#161618] pixel-box ${className}`
-  }, rest), children);
+  return /*#__PURE__*/React.createElement("div", {
+    className: `bg-[#161618] pixel-box ${className}`,
+    ...rest
+  }, children);
 }
 function Section({
   title,
@@ -1779,7 +1781,7 @@ function Dropdown({
     className: "truncate"
   }, cur ? cur.l : 'Select'), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] ml-2"
-  }, "\u25BE")), open && /*#__PURE__*/React.createElement("div", {
+  }, "▾")), open && /*#__PURE__*/React.createElement("div", {
     className: "absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl"
   }, options.map(o => /*#__PURE__*/React.createElement("button", {
     key: o.v,
@@ -1882,10 +1884,11 @@ function Loading({
 
 /* ---------- icons ---------- */
 const Icon = {
-  dash: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  dash: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("rect", {
+  }, /*#__PURE__*/React.createElement("rect", {
     x: "3",
     y: "3",
     width: "8",
@@ -1910,20 +1913,22 @@ const Icon = {
     height: "8",
     rx: "2"
   })),
-  food: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  food: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M12 21c4.5 0 7-3.6 7-8.5C19 8 16 4 12 4S5 8 5 12.5C5 17.4 7.5 21 12 21z"
   }), /*#__PURE__*/React.createElement("path", {
     d: "M12 4c0-1 .5-2 1.5-2.5"
   })),
-  strategy: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  strategy: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "7",
     cy: "7",
     r: "2.4"
@@ -1940,12 +1945,13 @@ const Icon = {
     cy: "17",
     r: "2.4"
   })),
-  goal: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  goal: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "12",
     cy: "12",
     r: "8"
@@ -1959,10 +1965,11 @@ const Icon = {
     r: "0.6",
     fill: "currentColor"
   })),
-  more: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  more: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "5",
     cy: "12",
     r: "2"
@@ -1975,45 +1982,50 @@ const Icon = {
     cy: "12",
     r: "2"
   })),
-  plus: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  plus: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2.6"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M12 5v14M5 12h14"
   })),
-  cam: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  cam: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"
   }), /*#__PURE__*/React.createElement("circle", {
     cx: "12",
     cy: "13",
     r: "3.2"
   })),
-  barcode: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  barcode: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M3 6v12M7 6v12M11 6v12M15 6v12M19 6v12"
   })),
-  star: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  star: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M12 3l2.6 5.6 6 .7-4.4 4.1 1.2 6-5.4-3-5.4 3 1.2-6L3.4 9.3l6-.7z"
   })),
-  chevron: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  chevron: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M9 6l6 6-6 6"
   }))
 };
@@ -2834,14 +2846,14 @@ function BodyFatPicker({
   }, "Estimate body fat"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), mode === 'bands' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, "×")), mode === 'bands' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos."), /*#__PURE__*/React.createElement("button", {
     onClick: () => setMode('photos'),
     className: "w-full flex items-center gap-3 bg-[#4A9EEB]/12 border border-[#4A9EEB]/40 rounded-2xl p-3.5 mb-4 active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-2xl"
-  }, "\uD83D\uDCF8"), /*#__PURE__*/React.createElement("div", {
+  }, "📸"), /*#__PURE__*/React.createElement("div", {
     className: "text-left"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-semibold text-sm"
@@ -2891,7 +2903,7 @@ function BodyFatPicker({
   }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => setMode('bands'),
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Back"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and ", /*#__PURE__*/React.createElement("span", {
     className: "text-white"
@@ -3085,7 +3097,7 @@ function Wizard({
     }), /*#__PURE__*/React.createElement("button", {
       onClick: () => setBfPick(true),
       className: "text-[12px] text-[#4A9EEB] mt-1.5"
-    }, "Not sure? Estimate it visually \u2192")))
+    }, "Not sure? Estimate it visually →")))
   }, {
     t: 'Activity level',
     body: /*#__PURE__*/React.createElement("div", {
@@ -3215,9 +3227,9 @@ function Wizard({
       className: "uppercase tracking-widest text-[10px]"
     }, "How this was worked out"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text2)]"
-    }, "Calories:"), " maintenance \u2248 ", preview.estimatedTDEE, " kcal (Mifflin\u2013St Jeor BMR + your steps + training), ", f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal/day for a ${f.rateKgPerWeek} kg/week ${f.goalType}`, "."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
+    }, "Calories:"), " maintenance ≈ ", preview.estimatedTDEE, " kcal (Mifflin–St Jeor BMR + your steps + training), ", f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal/day for a ${f.rateKgPerWeek} kg/week ${f.goalType}`, "."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text2)]"
-    }, "Protein:"), " ", f.proteinManualG ? `${preview.protein_g} g (manual)` : `${(+f.proteinGPerKgLBM || 2.2).toFixed(1)} g/kg lean mass = ${preview.protein_g} g`, ". Based on Helms 2014 (2.3\u20133.1 g/kg lean in a deficit) and Jeff Nippard (1.8\u20132.7 g/kg bodyweight cutting)."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
+    }, "Protein:"), " ", f.proteinManualG ? `${preview.protein_g} g (manual)` : `${(+f.proteinGPerKgLBM || 2.2).toFixed(1)} g/kg lean mass = ${preview.protein_g} g`, ". Based on Helms 2014 (2.3–3.1 g/kg lean in a deficit) and Jeff Nippard (1.8–2.7 g/kg bodyweight cutting)."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text2)]"
     }, "Fat & carbs:"), " fat from your diet style (", f.dietStyle.replace('_', ' '), "), carbs fill the rest."), /*#__PURE__*/React.createElement("div", null, "Everything retunes automatically from your weekly check-ins."))) : /*#__PURE__*/React.createElement("div", null)
   }];
@@ -3562,7 +3574,7 @@ function CheckInModal({
   }, "Check-in"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), result ? /*#__PURE__*/React.createElement("div", {
+  }, "×")), result ? /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2"
@@ -3570,7 +3582,7 @@ function CheckInModal({
     className: "text-sm"
   }, result.reason), result.estimate && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2 tnum"
-  }, "Est. burn ~", result.estimate.tdee, " \xB7 trend ", result.estimate.weeklyChangeKg, " kg/wk"), result.status === 'proposed' && result.changed && !result.accepted && /*#__PURE__*/React.createElement("div", {
+  }, "Est. burn ~", result.estimate.tdee, " · trend ", result.estimate.weeklyChangeKg, " kg/wk"), result.status === 'proposed' && result.changed && !result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2 my-3"
   }, /*#__PURE__*/React.createElement(Mini, {
     n: result.newTargets.kcal,
@@ -3603,7 +3615,7 @@ function CheckInModal({
     onClick: onClose
   }, "Done"), result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "text-[#34D399] text-sm mt-3"
-  }, "\u2713 New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "✓ New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Compares this cycle's average weight to the previous one, so one odd morning never throws it off."), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
@@ -3653,7 +3665,7 @@ function CheckInModal({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
-  }, "Not sure? Estimate it visually \u2192")), /*#__PURE__*/React.createElement(Btn, {
+  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: complete
@@ -3753,7 +3765,7 @@ function WeighInEditModal({
   }, isNew ? 'Add weigh-in' : 'Edit weigh-in'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), isNew ? /*#__PURE__*/React.createElement(Field, {
+  }, "×")), isNew ? /*#__PURE__*/React.createElement(Field, {
     label: "Date"
   }, /*#__PURE__*/React.createElement("input", {
     type: "date",
@@ -3766,7 +3778,7 @@ function WeighInEditModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "You already weighed in on this day \u2014 saving overwrites it.")) : /*#__PURE__*/React.createElement("div", {
+  }, "You already weighed in on this day — saving overwrites it.")) : /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-3"
   }, fmtWeighDay(date)), /*#__PURE__*/React.createElement(Field, {
     label: "Weight"
@@ -3785,7 +3797,7 @@ function WeighInEditModal({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
-  }, "Not sure? Estimate it visually \u2192")), /*#__PURE__*/React.createElement("div", {
+  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -3838,7 +3850,7 @@ function WeighInLog({
     }
   }, "+ Add")), !entries.length ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] py-2"
-  }, "No weigh-ins yet. Weigh in from the dashboard, or add a past day with \u201C+ Add\u201D.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
+  }, "No weigh-ins yet. Weigh in from the dashboard, or add a past day with “+ Add”.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
     const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
     return /*#__PURE__*/React.createElement("div", {
       key: e.id || e.date,
@@ -3854,11 +3866,11 @@ function WeighInLog({
       className: "text-[13px] tnum font-semibold"
     }, fmtWeight(e.scale_weight, unit))), e.bodyfat != null && /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum mt-0.5"
-    }, e.bodyfat, "% bf \xB7 lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
+    }, e.bodyfat, "% bf · lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(e),
       className: "text-[#8A8A90] pl-3 pr-1 text-xl leading-none shrink-0",
       "aria-label": "Delete"
-    }, "\xD7"));
+    }, "×"));
   }), entries.length > CAP && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowAll(s => !s),
     className: "text-[12px] text-[#8A8A90] pt-2.5 border-t border-[#262629] w-full text-left"
@@ -3937,7 +3949,7 @@ function CheckInHistory({
       className: "text-[12px] text-[#C9C9CF]"
     }, periodDays ? `${fmtShortDay(startISO)} – ${fmtShortDay(c.date)}` : fmtShortDay(c.date), periodDays ? /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, " \xB7 ", periodDays, " days") : ''), /*#__PURE__*/React.createElement("span", {
+    }, " · ", periodDays, " days") : ''), /*#__PURE__*/React.createElement("span", {
       className: "pf text-[8px] px-2 py-1",
       style: {
         background: c.onTrack ? 'var(--accent-dim)' : 'transparent',
@@ -4033,7 +4045,7 @@ function ExpenditureCard({
     className: "text-[9px] text-[#8A8A90] mb-2"
   }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed"
-  }, "Keep logging and weighing in \u2014 I need about ", est.needWeigh, " weigh-ins and ", est.needLog, " logged days across a fortnight before I can estimate your burn honestly. So far: ", /*#__PURE__*/React.createElement("span", {
+  }, "Keep logging and weighing in — I need about ", est.needWeigh, " weigh-ins and ", est.needLog, " logged days across a fortnight before I can estimate your burn honestly. So far: ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--text)]"
   }, est.weighDays), " weigh-ins, ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--text)]"
@@ -4046,7 +4058,7 @@ function ExpenditureCard({
       className: "text-[9px] text-[#8A8A90] mb-2"
     }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90] leading-relaxed"
-    }, "Still settling \u2014 a sharp weight move (", est.direction === 'up' ? 'up' : 'down', " ", rate, ", likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days."));
+    }, "Still settling — a sharp weight move (", est.direction === 'up' ? 'up' : 'down', " ", rate, ", likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days."));
   }
   const confColor = est.confidence === 'high' ? 'var(--good)' : est.confidence === 'medium' ? 'var(--fat)' : 'var(--muted)';
   const dirTxt = est.direction === 'down' ? 'trending down' : est.direction === 'up' ? 'trending up' : 'holding steady';
@@ -4058,7 +4070,7 @@ function ExpenditureCard({
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90]"
-  }, "LIVE EXPENDITURE \xB7 ", est.windowDays, "-DAY"), /*#__PURE__*/React.createElement("span", {
+  }, "LIVE EXPENDITURE · ", est.windowDays, "-DAY"), /*#__PURE__*/React.createElement("span", {
     className: "text-[8px] px-2 py-1",
     style: {
       color: confColor,
@@ -4073,7 +4085,7 @@ function ExpenditureCard({
     }
   }, est.tdee), /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] text-[#8A8A90] mb-1.5"
-  }, "\xB1 ", est.band, " ", /*#__PURE__*/React.createElement("span", {
+  }, "± ", est.band, " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[10px]"
   }, "kcal/day"))), /*#__PURE__*/React.createElement("div", {
     className: "relative h-3 my-3"
@@ -4098,7 +4110,7 @@ function ExpenditureCard({
     }
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-relaxed"
-  }, "Range ~", est.low, "\u2013", est.high, " kcal \xB7 ", dirTxt, " at ", rate, ", from your weight trend and intake."), /*#__PURE__*/React.createElement("div", {
+  }, "Range ~", est.low, "–", est.high, " kcal · ", dirTxt, " at ", rate, ", from your weight trend and intake."), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2 pt-2 border-t border-[#262629]",
     style: {
       color: fcColor
@@ -4178,7 +4190,7 @@ function DietBreakCard({
     className: "text-lg font-bold mb-1"
   }, "Time for a diet break?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-relaxed"
-  }, "You've been cutting consistently for ", status.weeks, " weeks. Research (MATADOR \u2014 Byrne 2018) shows a 1\u20132 week maintenance break here blunts metabolic slowdown and improves fat-loss efficiency. It holds you at ~", mk, " kcal, then your cut resumes automatically."), !ask ? /*#__PURE__*/React.createElement("div", {
+  }, "You've been cutting consistently for ", status.weeks, " weeks. Research (MATADOR — Byrne 2018) shows a 1–2 week maintenance break here blunts metabolic slowdown and improves fat-loss efficiency. It holds you at ~", mk, " kcal, then your cut resumes automatically."), !ask ? /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -4911,7 +4923,7 @@ function BuddyCard({
     className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] flex items-center gap-1.5"
-  }, "YOUR BUDDY \xB7 LV", streak, /*#__PURE__*/React.createElement("span", {
+  }, "YOUR BUDDY · LV", streak, /*#__PURE__*/React.createElement("span", {
     className: "inline-flex items-center gap-0.5",
     title: freezeReady ? 'Streak freeze ready — one missed day is forgiven this month' : 'Streak freeze already used this month',
     style: {
@@ -4988,7 +5000,7 @@ function MacrodexModal({
     }, /*#__PURE__*/React.createElement("button", {
       onClick: () => setSel(null),
       className: "text-[11px] text-[#8A8A90] mb-3"
-    }, "\u2039 Back to dex"), /*#__PURE__*/React.createElement("div", {
+    }, "‹ Back to dex"), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-col items-center text-center"
     }, /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 mb-3",
@@ -5016,12 +5028,12 @@ function MacrodexModal({
       style: {
         color: 'var(--fat)'
       }
-    }, " \u2726") : ''), /*#__PURE__*/React.createElement("div", {
+    }, " ✦") : ''), /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase mt-1",
       style: {
         color: rc
       }
-    }, CR_RARITY_LABEL[cr.rarity], " \xB7 ", bm.name)), /*#__PURE__*/React.createElement("div", {
+    }, CR_RARITY_LABEL[cr.rarity], " · ", bm.name)), /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 mt-4 text-[11px]",
       style: {
         background: 'var(--surface3)',
@@ -5035,7 +5047,7 @@ function MacrodexModal({
       className: "mt-3 text-[11px] leading-relaxed"
     }, got ? cr.lore : /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "Not yet caught. Meet the condition above on any logged day and it joins your dex \u2014 its lore unlocks then.")), got && /*#__PURE__*/React.createElement("div", {
+    }, "Not yet caught. Meet the condition above on any logged day and it joins your dex — its lore unlocks then.")), got && /*#__PURE__*/React.createElement("div", {
       className: "mt-3 text-[10px] text-[#8A8A90]"
     }, "Caught ", /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text)]"
@@ -5047,9 +5059,9 @@ function MacrodexModal({
   }, "Macrodex"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
-  }, "Log a day to catch a creature \u2014 the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), /*#__PURE__*/React.createElement("div", {
+  }, "Log a day to catch a creature — the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-bar flex-1",
@@ -5091,7 +5103,7 @@ function MacrodexModal({
       className: "text-[11px] font-bold"
     }, it.name, " ", /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "\xD7", n)), /*#__PURE__*/React.createElement("div", {
+    }, "×", n)), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] leading-snug"
     }, it.desc)), it.kind === 'dex' && /*#__PURE__*/React.createElement("button", {
       onClick: () => id === 'lure' ? setLurePick(v => !v) : useItem(id),
@@ -5105,7 +5117,7 @@ function MacrodexModal({
     className: "mt-3 fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mb-1.5"
-  }, "Point the lure at a biome for today\u2019s catch:"), /*#__PURE__*/React.createElement("div", {
+  }, "Point the lure at a biome for today’s catch:"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-1.5"
   }, [['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
     key: v,
@@ -5225,7 +5237,7 @@ function DailyCatch({
     style: {
       color: 'var(--fat)'
     }
-  }, " \u2726 shiny") : ''), /*#__PURE__*/React.createElement("div", {
+  }, " ✦ shiny") : ''), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] leading-snug"
   }, cr.lore)));
 }
@@ -5665,7 +5677,7 @@ function FightModal({
     s
   }) => /*#__PURE__*/React.createElement("div", {
     className: "text-[8px] text-[#8A8A90] tnum"
-  }, "HP ", s.hp, " \xB7 ATK ", s.atk, " \xB7 DEF ", s.def);
+  }, "HP ", s.hp, " · ATK ", s.atk, " · DEF ", s.def);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
@@ -5682,7 +5694,7 @@ function FightModal({
   }, "Dino fight"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), phase === 'egg' && /*#__PURE__*/React.createElement("div", {
+  }, "×")), phase === 'egg' && /*#__PURE__*/React.createElement("div", {
     className: "text-center py-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center mb-3"
@@ -5705,7 +5717,7 @@ function FightModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "Prestige ", fight.prestige, " \xB7 elite ladder"), /*#__PURE__*/React.createElement("div", {
+  }, "Prestige ", fight.prestige, " · elite ladder"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-start justify-between mb-3 gap-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-center flex-1 min-w-0"
@@ -5751,17 +5763,17 @@ function FightModal({
     }
   }, ABIL_LABEL[rival.ability]))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 text-center inline-flex items-center justify-center gap-1.5 flex-wrap w-full"
-  }, ladderCleared ? 'Ladder cleared — prestige up for a tougher run.' : `Rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}.`, " \xB7 ", fight.wins || 0, " wins \xB7 ", fight.trophies || 0, " ", /*#__PURE__*/React.createElement(PixelGlyph, {
+  }, ladderCleared ? 'Ladder cleared — prestige up for a tougher run.' : `Rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}.`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0, " ", /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
     size: 12
   })), fighter.stats.pro + fighter.stats.fib + fighter.stats.per > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] text-center mb-3 leading-snug"
-  }, "Buddy's strength is your last 7 days: ", fighter.stats.pro, " protein \xB7 ", fighter.stats.fib, " fibre \xB7 ", fighter.stats.per, " perfect."), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
+  }, "Buddy's strength is your last 7 days: ", fighter.stats.pro, " protein · ", fighter.stats.fib, " fibre · ", fighter.stats.per, " perfect."), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-2",
     onClick: prestige
-  }, "Prestige \u2191 \u2014 tougher ladder, better drops") : /*#__PURE__*/React.createElement(Btn, {
+  }, "Prestige ↑ — tougher ladder, better drops") : /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-2",
     onClick: () => start(rival, false)
@@ -5775,7 +5787,7 @@ function FightModal({
     size: 14
   }), " Weekly Boss: ", boss.name) : /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] text-center mt-1"
-  }, "Weekly boss beaten \u2014 a new challenger arrives next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
+  }, "Weekly boss beaten — a new challenger arrives next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-2"
@@ -5803,7 +5815,7 @@ function FightModal({
     style: {
       opacity: 1 - i * 0.16
     }
-  }, "\u203A ", l))), phase === 'done' && /*#__PURE__*/React.createElement("div", {
+  }, "› ", l))), phase === 'done' && /*#__PURE__*/React.createElement("div", {
     className: "text-center fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-2xl mb-1",
@@ -5994,7 +6006,7 @@ function Dashboard({
   }, freezeAvail ? 'Log a meal to keep your streak alive and evolve your buddy. Miss today and it spends this month’s streak freeze.' : 'Log a meal to keep your streak — you’ve already used this month’s freeze, so missing today resets your buddy to the egg.')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setNudgeDismissed(true),
     className: "text-[#8A8A90] text-xl leading-none shrink-0"
-  }, "\xD7")), /*#__PURE__*/React.createElement("button", {
+  }, "×")), /*#__PURE__*/React.createElement("button", {
     onClick: () => onQuickAdd(false),
     className: "pixel-btn w-full mt-3 py-2.5 text-[11px]",
     style: {
@@ -6219,7 +6231,7 @@ function CarryoverSheet({
   }, "Today's target"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 leading-snug"
   }, "Where today's ", et.eff.kcal, " kcal comes from."), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-4",
@@ -6246,7 +6258,7 @@ function CarryoverSheet({
     bold: true
   }))), cd && cd.days.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-3"
-  }, "This week \xB7 since ", dd(cd.cycleStart)), /*#__PURE__*/React.createElement("div", {
+  }, "This week · since ", dd(cd.cycleStart)), /*#__PURE__*/React.createElement("div", {
     className: "flex items-end gap-1.5 mb-2",
     style: {
       height: '64px'
@@ -6284,11 +6296,11 @@ function CarryoverSheet({
     style: {
       color: 'var(--good)'
     }
-  }, "\u25A0"), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+  }, "■"), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--fat)'
     }
-  }, "\u25A0"), " over target")), /*#__PURE__*/React.createElement("div", {
+  }, "■"), " over target")), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3 flex justify-between items-center tnum text-[11px]",
     style: {
       background: 'var(--surface3)',
@@ -6749,7 +6761,7 @@ function FoodLog({
         setMenu(menu === e.id ? null : e.id);
       },
       className: "px-2 text-[#8A8A90] shrink-0"
-    }, "\u22EF"), menu === e.id && /*#__PURE__*/React.createElement("div", {
+    }, "⋯"), menu === e.id && /*#__PURE__*/React.createElement("div", {
       className: "absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl",
       onClick: ev => ev.stopPropagation()
     }, /*#__PURE__*/React.createElement("button", {
@@ -6773,7 +6785,7 @@ function FoodLog({
         setMenu(null);
       },
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Copy to\u2026"), /*#__PURE__*/React.createElement("button", {
+    }, "Copy to…"), /*#__PURE__*/React.createElement("button", {
       onClick: () => del(e),
       className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
     }, "Delete")));
@@ -6807,7 +6819,7 @@ function FoodLog({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setDate(shiftISO(date, -1)),
     className: "text-[#8A8A90] px-3 py-2 text-lg"
-  }, "\u2039"), /*#__PURE__*/React.createElement("button", {
+  }, "‹"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (!showCal) {
         const d = new Date(date + 'T00:00:00');
@@ -6830,7 +6842,7 @@ function FoodLog({
   }, showCal ? '▲' : '▼')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setDate(shiftISO(date, 1)),
     className: "text-[#8A8A90] px-3 py-2 text-lg"
-  }, "\u203A")), showCal && /*#__PURE__*/React.createElement(Card, {
+  }, "›")), showCal && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4 fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-2"
@@ -6846,7 +6858,7 @@ function FoodLog({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u2039"), /*#__PURE__*/React.createElement("div", {
+  }, "‹"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold"
   }, monthName), /*#__PURE__*/React.createElement("button", {
     onClick: () => setCalMonth(c => {
@@ -6860,7 +6872,7 @@ function FoodLog({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u203A")), /*#__PURE__*/React.createElement("div", {
+  }, "›")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
     key: i
@@ -6966,7 +6978,7 @@ function FoodLog({
       srcDate: date
     }),
     className: "w-full text-[12px] text-[#8A8A90] mb-3 flex items-center justify-center gap-1.5 py-1.5"
-  }, "\u29C9 Copy this day to another date\u2026")), /*#__PURE__*/React.createElement("div", {
+  }, "⧉ Copy this day to another date…")), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, meals.map((m, mi) => {
     const me = day.filter(e => e.meal_id === m.id);
@@ -6995,7 +7007,7 @@ function FoodLog({
       },
       className: "text-[#8A8A90] leading-none text-[10px] px-1 py-0.5",
       title: "Move up"
-    }, "\u25B2"), /*#__PURE__*/React.createElement("button", {
+    }, "▲"), /*#__PURE__*/React.createElement("button", {
       onClick: () => moveMeal(m, 1),
       disabled: mi === meals.length - 1,
       style: {
@@ -7003,7 +7015,7 @@ function FoodLog({
       },
       className: "text-[#8A8A90] leading-none text-[10px] px-1 py-0.5",
       title: "Move down"
-    }, "\u25BC")), editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
+    }, "▼")), editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
       autoFocus: true,
       value: mealName,
       onChange: e => setMealName(e.target.value),
@@ -7023,7 +7035,7 @@ function FoodLog({
       className: "truncate"
     }, m.name), /*#__PURE__*/React.createElement("span", {
       className: "text-[#5A5A62] text-[11px] shrink-0"
-    }, "\u270E"))), /*#__PURE__*/React.createElement("div", {
+    }, "✎"))), /*#__PURE__*/React.createElement("div", {
       className: "flex items-start gap-1.5"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum text-right leading-tight pt-0.5"
@@ -7049,7 +7061,7 @@ function FoodLog({
         setMealMenu(mealMenu === m.id ? null : m.id);
       },
       className: "px-1 text-[#8A8A90]"
-    }, "\u22EF"), mealMenu === m.id && /*#__PURE__*/React.createElement("div", {
+    }, "⋯"), mealMenu === m.id && /*#__PURE__*/React.createElement("div", {
       className: "absolute right-0 top-7 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-40",
       onClick: ev => ev.stopPropagation()
     }, me.length > 0 && /*#__PURE__*/React.createElement("button", {
@@ -7060,12 +7072,14 @@ function FoodLog({
         setCopyTo({
           title: 'Copy ' + m.name,
           entries: me,
-          srcDate: date
+          srcDate: date,
+          pickMeal: true,
+          meal: m.id
         });
         setMealMenu(null);
       },
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Copy to\u2026"), me.length > 0 && /*#__PURE__*/React.createElement("button", {
+    }, "Copy to…"), me.length > 0 && /*#__PURE__*/React.createElement("button", {
       onClick: () => clearMeal(m, me),
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
     }, "Clear food"), /*#__PURE__*/React.createElement("button", {
@@ -7124,6 +7138,7 @@ function FoodLog({
     onSave: saveEdit,
     onClose: () => setEditing(null)
   }), copyTo && /*#__PURE__*/React.createElement(CopyToModal, {
+    key: (copyTo.entries[0] ? copyTo.entries[0].id : '') + '|' + (copyTo.pickMeal ? 'm' : 'd') + '|' + copyTo.title,
     title: copyTo.title,
     srcDate: copyTo.srcDate,
     meals: copyTo.pickMeal ? meals : null,
@@ -7315,7 +7330,7 @@ function EditEntryModal({
   }, "Edit food"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement(Field, {
+  }, "×")), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: name,
@@ -7331,7 +7346,7 @@ function EditEntryModal({
       boxShadow: 'none',
       background: 'var(--surface2)'
     }
-  }, "\u2212"), /*#__PURE__*/React.createElement("input", {
+  }, "−"), /*#__PURE__*/React.createElement("input", {
     value: amount,
     onChange: e => setAmount(e.target.value),
     inputMode: "decimal",
@@ -7457,7 +7472,7 @@ function CopyToModal({
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none shrink-0"
-  }, "\xD7")), meals && /*#__PURE__*/React.createElement("div", {
+  }, "×")), meals && /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
@@ -7486,7 +7501,7 @@ function CopyToModal({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u2039"), /*#__PURE__*/React.createElement("div", {
+  }, "‹"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold"
   }, monthName), /*#__PURE__*/React.createElement("button", {
     onClick: () => setCm(c => {
@@ -7500,7 +7515,7 @@ function CopyToModal({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u203A")), /*#__PURE__*/React.createElement("div", {
+  }, "›")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
     key: i
@@ -7554,7 +7569,7 @@ function LogSheet({
   }, "Log ", isAlc ? 'a drink' : 'food'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Meal"
@@ -7604,6 +7619,7 @@ function LogSheet({
     db: db,
     update: update,
     isAlc: isAlc,
+    mealName: (meals.find(m => m.id === mealId) || {}).name,
     onPick: i => onAdd(mealId, i)
   }), tab === 'meals' && /*#__PURE__*/React.createElement(SavedMealsTab, {
     db: db,
@@ -7624,12 +7640,42 @@ function RecentTab({
   db,
   update,
   isAlc,
+  mealName,
   onPick
 }) {
   const [q, setQ] = useState('');
   const foods = db.foods.filter(f => !!f.is_alcohol === isAlc).filter(f => !q || f.name.toLowerCase().includes(q.toLowerCase()));
+  // How often each food has been logged overall, and how often into THIS meal (by meal name).
+  const freq = useMemo(() => {
+    const total = {},
+      perMeal = {},
+      cache = {};
+    const nameOf = (date, mealId) => {
+      const ms = cache[date] || (cache[date] = mealsForDay(db, date));
+      const m = ms.find(x => x.id === mealId);
+      return m ? m.name : '';
+    };
+    (db.log_entries || []).forEach(e => {
+      const k = (e.name || '').toLowerCase();
+      if (!k) return;
+      total[k] = (total[k] || 0) + 1;
+      if (mealName && nameOf(e.date, e.meal_id) === mealName) perMeal[k] = (perMeal[k] || 0) + 1;
+    });
+    return {
+      total,
+      perMeal
+    };
+  }, [db.log_entries, mealName]);
+  const score = f => {
+    const k = f.name.toLowerCase();
+    return (freq.perMeal[k] || 0) * 100 + (freq.total[k] || 0);
+  };
   const favs = foods.filter(f => f.is_favorite).sort((a, b) => b.updated_at - a.updated_at);
-  const allRecents = foods.filter(f => !f.is_favorite).sort((a, b) => b.updated_at - a.updated_at);
+  const nonFav = foods.filter(f => !f.is_favorite);
+  // Suggested = your most-logged foods, weighted heavily toward ones you usually eat for this meal.
+  const suggested = q ? [] : nonFav.filter(f => score(f) > 1).sort((a, b) => score(b) - score(a)).slice(0, 5);
+  const sugSet = new Set(suggested.map(f => f.id));
+  const allRecents = nonFav.filter(f => !sugSet.has(f.id)).sort((a, b) => b.updated_at - a.updated_at);
   const CAP = 25;
   const recents = q ? allRecents : allRecents.slice(0, CAP);
   const moreCount = q ? 0 : allRecents.length - recents.length;
@@ -7655,9 +7701,9 @@ function RecentTab({
     className: "text-sm truncate"
   }, f.name, f.last_qty ? /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, " \xB7 ", f.last_qty) : ''), /*#__PURE__*/React.createElement("div", {
+  }, " · ", f.last_qty) : ''), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] tnum"
-  }, Math.round(f.macros.kcal), " kcal \xB7 P", f.macros.protein, " C", f.macros.carbs, " F", f.macros.fat)), /*#__PURE__*/React.createElement("button", {
+  }, Math.round(f.macros.kcal), " kcal · P", f.macros.protein, " C", f.macros.carbs, " F", f.macros.fat)), /*#__PURE__*/React.createElement("button", {
     onClick: () => star(f),
     className: "px-2 shrink-0",
     style: {
@@ -7668,8 +7714,9 @@ function RecentTab({
     height: "18",
     fill: "currentColor"
   })));
+  const sugLabel = mealName ? `Suggested for ${mealName}` : 'You log these a lot';
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TextInput, {
-    placeholder: "Search your foods\u2026",
+    placeholder: "Search your foods…",
     value: q,
     onChange: e => setQ(e.target.value)
   }), /*#__PURE__*/React.createElement("div", {
@@ -7681,7 +7728,11 @@ function RecentTab({
   }, /*#__PURE__*/React.createElement(PixelDino, {
     size: 40,
     color: "var(--muted)"
-  })), "Nothing here yet. Anything you log shows up here so you can add it again in one tap."), favs.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  })), "Nothing here yet. Anything you log shows up here so you can add it again in one tap."), suggested.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2"
+  }, sugLabel), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-4"
+  }, suggested.map(Row))), favs.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2"
   }, "Favourites"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-4"
@@ -7691,7 +7742,7 @@ function RecentTab({
     className: "space-y-2"
   }, recents.map(Row)), moreCount > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3 text-center"
-  }, "+ ", moreCount, " more \u2014 type above to search all your foods.")));
+  }, "+ ", moreCount, " more — type above to search all your foods.")));
 }
 function SavedMealsTab({
   db,
@@ -7716,7 +7767,7 @@ function SavedMealsTab({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3 leading-relaxed"
-  }, "One tap logs every item in a saved meal. Build one from the Food log: open a day, tap \u22EF on a meal, and choose \u201CSave as meal\u201D."), !meals.length && /*#__PURE__*/React.createElement("div", {
+  }, "One tap logs every item in a saved meal. Build one from the Food log: open a day, tap ⋯ on a meal, and choose “Save as meal”."), !meals.length && /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[#8A8A90] text-sm py-8"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center mb-3"
@@ -7737,12 +7788,12 @@ function SavedMealsTab({
       className: "text-sm truncate"
     }, sm.name, " ", /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "\xB7 ", sm.items.length, " item", sm.items.length === 1 ? '' : 's')), /*#__PURE__*/React.createElement("div", {
+    }, "· ", sm.items.length, " item", sm.items.length === 1 ? '' : 's')), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum"
-    }, Math.round(t.kcal), " kcal \xB7 P", Math.round(t.protein), " C", Math.round(t.carbs), " F", Math.round(t.fat))), /*#__PURE__*/React.createElement("button", {
+    }, Math.round(t.kcal), " kcal · P", Math.round(t.protein), " C", Math.round(t.carbs), " F", Math.round(t.fat))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(sm),
       className: "px-2 shrink-0 text-[#8A8A90] text-lg leading-none"
-    }, "\xD7"));
+    }, "×"));
   })), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Delete "' + confirmDel.name + '"?',
     body: "This removes the saved meal. Food already logged from it stays in your diary.",
@@ -7859,7 +7910,7 @@ function ManualTab({
     }]
   }))), v.unit === 'custom' && /*#__PURE__*/React.createElement(Field, {
     label: "Custom unit name",
-    hint: "e.g. can, slice, scoop \u2014 shows in your log"
+    hint: "e.g. can, slice, scoop — shows in your log"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.customUnit,
     onChange: e => set('customUnit', e.target.value),
@@ -7871,7 +7922,7 @@ function ManualTab({
     style: {
       color: 'var(--text)'
     }
-  }, Math.round(+v.kcal || autoKcal), " kcal"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, Math.round(+v.kcal || autoKcal), " kcal"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: PRO
     }
@@ -7953,7 +8004,7 @@ function SearchTab({
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mb-2"
   }, /*#__PURE__*/React.createElement(TextInput, {
-    placeholder: "Search foods\u2026",
+    placeholder: "Search foods…",
     value: q,
     onChange: e => setQ(e.target.value),
     onKeyDown: e => e.key === 'Enter' && run()
@@ -8106,7 +8157,7 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] mb-2"
-  }, "\u2039 Back"), estimated ? /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), estimated ? /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
     style: {
       background: 'var(--accent-dim)',
@@ -8145,7 +8196,7 @@ function ConfirmFood({
     style: {
       color: 'var(--text)'
     }
-  }, final.kcal, " kcal"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, final.kcal, " kcal"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: PRO
     }
@@ -8317,7 +8368,7 @@ function AiConfirm({
     onChange: e => setName(e.target.value)
   })), hadItems && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
-  }, "Breakdown \u2014 edit grams, or remove what you didn't eat"), /*#__PURE__*/React.createElement("div", {
+  }, "Breakdown — edit grams, or remove what you didn't eat"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-3"
   }, items.map((it, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
@@ -8333,7 +8384,7 @@ function AiConfirm({
     className: "text-[13px] truncate"
   }, it.name), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] tnum"
-  }, Math.round(it.kcal), " kcal \xB7 P", it.protein, " C", it.carbs, " F", it.fat)), /*#__PURE__*/React.createElement("input", {
+  }, Math.round(it.kcal), " kcal · P", it.protein, " C", it.carbs, " F", it.fat)), /*#__PURE__*/React.createElement("input", {
     type: "number",
     inputMode: "decimal",
     value: it.grams,
@@ -8348,9 +8399,9 @@ function AiConfirm({
     onClick: () => removeItem(i),
     className: "text-[#8A8A90] pl-1 text-lg leading-none shrink-0",
     "aria-label": `Remove ${it.name}`
-  }, "\xD7")), it.assumption && /*#__PURE__*/React.createElement("div", {
+  }, "×")), it.assumption && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
-  }, "\u21B3 ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "↳ ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] py-1"
   }, "All items removed. Add a correction below, or start over."))), src.assumptions && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
@@ -8359,7 +8410,7 @@ function AiConfirm({
     style: {
       color: 'var(--muted)'
     }
-  }, "Honest range: ", low, "\u2013", high, " kcal. Logging your total \u2014 no sugar-coating."), /*#__PURE__*/React.createElement("div", {
+  }, "Honest range: ", low, "–", high, " kcal. Logging your total — no sugar-coating."), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3 text-center",
     style: {
       background: 'var(--surface3)',
@@ -8532,9 +8583,9 @@ function MealEstimate({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Back"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Add a food photo, a photo of the menu, and any notes. The AI proposes what you ate \u2014 for a restaurant it anchors to that chain's published nutrition \u2014 then you say yes or correct it."), /*#__PURE__*/React.createElement("div", {
+  }, "Add a food photo, a photo of the menu, and any notes. The AI proposes what you ate — for a restaurant it anchors to that chain's published nutrition — then you say yes or correct it."), /*#__PURE__*/React.createElement("div", {
     className: "mb-1"
   }, /*#__PURE__*/React.createElement(PhotoButton, {
     label: "Add photos",
@@ -8543,7 +8594,7 @@ function MealEstimate({
     className: "w-full"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-3"
-  }, "Add your food and/or the menu \u2014 take a new photo or choose from your library."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Add your food and/or the menu — take a new photo or choose from your library."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
     key: i.id,
@@ -8554,7 +8605,7 @@ function MealEstimate({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => remove(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
-  }, "\xD7")))), /*#__PURE__*/React.createElement(Field, {
+  }, "×")))), /*#__PURE__*/React.createElement(Field, {
     label: "Notes (optional)",
     hint: "Name the place or dish for the best guess, plus size, sides and sauces."
   }, /*#__PURE__*/React.createElement("textarea", {
@@ -8565,7 +8616,7 @@ function MealEstimate({
     style: {
       minHeight: 120
     },
-    placeholder: "e.g. Nando's \u2014 half chicken, medium, peri chips and coleslaw, ate it all"
+    placeholder: "e.g. Nando's — half chicken, medium, peri chips and coleslaw, ate it all"
   })), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
@@ -8636,7 +8687,7 @@ function LiveScanner({
   }, "Scan barcode"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
     ref: videoRef,
@@ -8718,7 +8769,7 @@ function LabelScanner({
   }, "Scan nutrition label"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
     ref: videoRef,
@@ -8729,7 +8780,7 @@ function LabelScanner({
     className: "absolute inset-x-8 h-56 border-2 border-white/70 rounded-xl"
   }), err && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-x-8 text-center text-white/90 text-sm"
-  }, "Camera unavailable here \u2014 upload a photo of the label instead.")), /*#__PURE__*/React.createElement("div", {
+  }, "Camera unavailable here — upload a photo of the label instead.")), /*#__PURE__*/React.createElement("div", {
     className: "p-5 flex flex-col items-center gap-3"
   }, !err && /*#__PURE__*/React.createElement("button", {
     onClick: capture,
@@ -8866,13 +8917,14 @@ function PhotoTab({
     }
     setBusy('');
   }
-  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, _extends({}, parsed, {
+  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, {
+    ...parsed,
     onAdd: onPick,
     onCancel: () => {
       setParsed(null);
       setMode(null);
     }
-  }));
+  });
   if (mode === 'meal') return /*#__PURE__*/React.createElement(MealEstimate, {
     apiKey: key,
     onPick: onPick,
@@ -9052,7 +9104,7 @@ function AlcoholTab({
     className: "w-full accent-[#4A9EEB]"
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-[#8A8A90] mt-2 tnum"
-  }, "= ", autoCarbs.toFixed(1), "g carbs \xB7 ", autoFat.toFixed(1), "g fat")) : /*#__PURE__*/React.createElement("div", {
+  }, "= ", autoCarbs.toFixed(1), "g carbs · ", autoFat.toFixed(1), "g fat")) : /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Protein"
@@ -9547,7 +9599,7 @@ function SettingsTab({
     title: "Meals"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Your default meals for each new day. Set the standard layout here \u2014 you can still add, remove or reorder meals on any individual day in the Food log without changing this default."), dm.map((m, i) => /*#__PURE__*/React.createElement("div", {
+  }, "Your default meals for each new day. Set the standard layout here — you can still add, remove or reorder meals on any individual day in the Food log without changing this default."), dm.map((m, i) => /*#__PURE__*/React.createElement("div", {
     key: m.id,
     className: "flex items-center gap-2 mb-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -9560,7 +9612,7 @@ function SettingsTab({
     },
     className: "text-[#8A8A90] text-[10px] leading-none px-1 py-0.5",
     title: "Move up"
-  }, "\u25B2"), /*#__PURE__*/React.createElement("button", {
+  }, "▲"), /*#__PURE__*/React.createElement("button", {
     onClick: () => moveDef(m.id, 1),
     disabled: i === dm.length - 1,
     style: {
@@ -9568,7 +9620,7 @@ function SettingsTab({
     },
     className: "text-[#8A8A90] text-[10px] leading-none px-1 py-0.5",
     title: "Move down"
-  }, "\u25BC")), /*#__PURE__*/React.createElement(TextInput, {
+  }, "▼")), /*#__PURE__*/React.createElement(TextInput, {
     value: m.name,
     onChange: e => renameDef(m.id, e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
@@ -9579,7 +9631,7 @@ function SettingsTab({
     },
     className: "px-2 text-[#8A8A90] text-lg leading-none shrink-0",
     title: "Remove"
-  }, "\xD7"))), /*#__PURE__*/React.createElement("button", {
+  }, "×"))), /*#__PURE__*/React.createElement("button", {
     onClick: addDef,
     className: "w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1"
   }, "+ Add default meal")), /*#__PURE__*/React.createElement(Section, {
@@ -9602,7 +9654,7 @@ function SettingsTab({
     onClick: () => sset('reminders', !s.reminders)
   }), s.reminders && /*#__PURE__*/React.createElement(Field, {
     label: "Nudge me if I haven't logged by",
-    hint: "A banner appears on the Dashboard after this time if you've not logged food yet \u2014 a heads-up before you'd have to spend your monthly streak freeze."
+    hint: "A banner appears on the Dashboard after this time if you've not logged food yet — a heads-up before you'd have to spend your monthly streak freeze."
   }, /*#__PURE__*/React.createElement(Dropdown, {
     value: s.nudgeHour,
     onChange: v => sset('nudgeHour', +v),
@@ -9618,7 +9670,7 @@ function SettingsTab({
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: s.aiKey,
     onChange: e => sset('aiKey', e.target.value),
-    placeholder: "paste your API key (sk-ant-\u2026)"
+    placeholder: "paste your API key (sk-ant-…)"
   }))), /*#__PURE__*/React.createElement(SaveBar, {
     dirty: dirty,
     saved: saved,
@@ -9699,7 +9751,7 @@ function AdvancedTab({
   }
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
-  }, "How your targets are set and adjusted. The defaults work great \u2014 tune these only if you want to."), /*#__PURE__*/React.createElement(Section, {
+  }, "How your targets are set and adjusted. The defaults work great — tune these only if you want to."), /*#__PURE__*/React.createElement(Section, {
     title: "Coaching mode"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -9752,7 +9804,7 @@ function AdvancedTab({
     className: "font-semibold"
   }, "Dispersed"), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--good)]"
-  }, "\xB7 recommended."), " ", /*#__PURE__*/React.createElement("span", {
+  }, "· recommended."), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
   }, "Adds up your running surplus/deficit since the last check-in and spreads it evenly across the days left in the week. Gentle: one big day barely nudges any single day.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
@@ -9965,7 +10017,7 @@ function ProfileTab({
       background: 'var(--surface3)',
       boxShadow: 'none'
     }
-  }, "Saving rebuilds today's calorie & macro targets from these details. Your food log and weigh-in history stay put \u2014 weight and body fat only change at a check-in."), /*#__PURE__*/React.createElement("div", {
+  }, "Saving rebuilds today's calorie & macro targets from these details. Your food log and weigh-in history stay put — weight and body fat only change at a check-in."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -10004,7 +10056,7 @@ function ProfileTab({
     style: {
       color: 'var(--good)'
     }
-  }, "Saved \u2014 targets recalculated."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Saved — targets recalculated."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-3",
     onClick: () => {
@@ -10096,7 +10148,7 @@ function More({
     title: "Your data"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Download everything \u2014 profile, food log, weigh-ins and history \u2014 as a JSON file you can keep or re-import later."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Download everything — profile, food log, weigh-ins and history — as a JSON file you can keep or re-import later."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full mb-4",
     onClick: exportData
@@ -10104,7 +10156,7 @@ function More({
     className: "text-[12px] text-[#8A8A90] mb-2"
   }, "Just changing details? Use ", /*#__PURE__*/React.createElement("span", {
     className: "text-white"
-  }, "Edit details"), " on the Profile tab \u2014 it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Edit details"), " on the Profile tab — it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
     style: {
@@ -10164,9 +10216,9 @@ function More({
     }
   }, "Cancel")))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]/70 mt-2 text-center"
-  }, BRAND, " \xB7 your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, BRAND, " · your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Reset all data & start over?",
-    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone \u2014 export your data first if you want a copy.",
+    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone — export your data first if you want a copy.",
     confirmLabel: "Reset everything",
     onConfirm: onReset,
     onClose: () => setResetOpen(false)
@@ -10567,11 +10619,11 @@ function App() {
     setView('dashboard');
   }
   if (session === undefined) return /*#__PURE__*/React.createElement(Loading, {
-    text: "Waking the Macrosaurus\u2026"
+    text: "Waking the Macrosaurus…"
   });
   if (!session) return /*#__PURE__*/React.createElement(Auth, null);
   if (!db) return /*#__PURE__*/React.createElement(Loading, {
-    text: "Digging up your data\u2026"
+    text: "Digging up your data…"
   });
   if (fresh) return /*#__PURE__*/React.createElement(Wizard, {
     initial: db.profile,
