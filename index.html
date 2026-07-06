@@ -1426,6 +1426,14 @@ function recomputeTrend(d) {
 function daysBetween(aISO, bISO) {
   return Math.floor((new Date(bISO + 'T00:00:00') - new Date(aISO + 'T00:00:00')) / 86400000);
 }
+// Start of the current check-in cycle. After a REAL check-in it's the day after (that check-in
+// closed the previous cycle), but when the plan was just set up / changed with no check-in yet,
+// it's that day itself — so the very first day of tracking isn't orphaned from cycle one.
+function cycleStartISO(db, todayISO) {
+  if (!db.last_checkin) return shiftISO(todayISO, -6);
+  const checkedInOnLast = (db.checkins || []).some(c => c.date === db.last_checkin);
+  return shiftISO(db.last_checkin, checkedInOnLast ? 1 : 0);
+}
 function MiniStat({
   label,
   value,
@@ -3450,7 +3458,7 @@ function CoachCard({
   const full = variant === 'goals';
   const unit = db.profile.weight_unit;
   // Same window the check-in itself uses.
-  const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(today, -6);
+  const cs = cycleStartISO(db, today);
   const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
   const dayN = Math.min(daysSince > 900 ? cycleDays : daysSince, 7);
   const loggedDates = Array.from(new Set(db.log_entries.filter(e => e.date >= cs && e.date <= today).map(e => e.date)));
@@ -3558,8 +3566,8 @@ function CheckInModal({
   const unit = p.weight_unit;
   const today = Store.todayISO();
   const base = currentTargets(db);
-  // Windows derive from the actual cadence (day after last check-in → today), not a fixed week.
-  const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(today, -6);
+  // Windows derive from the actual cadence (cycle start → today), not a fixed week.
+  const cs = cycleStartISO(db, today);
   const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
   const loggedDays = new Set(db.log_entries.filter(e => e.date >= cs && e.date <= today).map(e => e.date)).size;
   const weighDays = countWeighIns(db.weight_entries, cs, today);
