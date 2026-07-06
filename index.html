@@ -3431,9 +3431,10 @@ function StatusCard({
   }, fmtWeight(last7, unit)))));
 }
 
-// Weekly reflection: recaps adherence + weight trend so the adaptive engine's rhythm is visible.
-// variant "dashboard" surfaces it only when a check-in is actually DUE; variant "goals" is a
-// permanent section that's always shown (with the check-in CTA enabling once due).
+// Coaching panel. All figures derive from the REAL check-in cadence (day after last check-in →
+// today) so they match the check-in screen exactly and stay correct whether you check in on day
+// 5, 7 or later. variant "dashboard" only surfaces when a check-in is due; "goals" is permanent
+// and shows the fuller breakdown (cycle progress + readiness).
 function CoachCard({
   db,
   onCheckIn,
@@ -3445,33 +3446,40 @@ function CoachCard({
   const ready = daysSince >= 5; // check-in unlocked
   const due = daysSince >= 7; // recommended cadence reached
   const alreadyToday = db.last_checkin === today;
-  if (variant === 'dashboard' && !due) return null; // dashboard: only when a check-in is due
+  if (variant === 'dashboard' && !due) return null;
+  const full = variant === 'goals';
   const unit = db.profile.weight_unit;
-  const last7 = Array.from({
-    length: 7
-  }, (_, i) => shiftISO(today, -(6 - i)));
-  const logSet = new Set(db.log_entries.map(e => e.date));
-  const weighSet = new Set(db.weight_entries.map(w => w.date));
-  const logWk = last7.filter(d => logSet.has(d)).length;
-  const weighWk = last7.filter(d => weighSet.has(d)).length;
-  const loggedDays = last7.filter(d => logSet.has(d));
+  // Same window the check-in itself uses.
+  const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(today, -6);
+  const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
+  const dayN = Math.min(daysSince > 900 ? cycleDays : daysSince, 7);
+  const loggedDates = Array.from(new Set(db.log_entries.filter(e => e.date >= cs && e.date <= today).map(e => e.date)));
+  const logged = loggedDates.length;
+  const weighed = countWeighIns(db.weight_entries, cs, today);
   const t = currentTargets(db) || {};
-  const proTarget = +t.protein_g || 0;
-  const proHit = proTarget > 0 ? loggedDays.filter(d => sumMacros(entriesOn(db, d)).protein >= proTarget * 0.9).length : 0;
-  const curAvg = avgWeight(db.weight_entries, shiftISO(today, -6), today);
-  const prevAvg = avgWeight(db.weight_entries, shiftISO(today, -13), shiftISO(today, -7));
+  const proTarget = Math.round(+t.protein_g || 0);
+  const proHit = proTarget > 0 ? loggedDates.filter(d => sumMacros(entriesOn(db, d)).protein >= proTarget * 0.9).length : 0;
+  const needLogs = Math.max(4, Math.ceil(cycleDays * 0.7));
+  const needWeigh = Math.max(3, Math.ceil(cycleDays * 0.5));
+  const onTrack = logged >= needLogs && weighed >= needWeigh;
+  const curAvg = avgWeight(db.weight_entries, cs, today);
+  const prevAvg = avgWeight(db.weight_entries, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
   const trendKg = curAvg != null && prevAvg != null ? +(curAvg - prevAvg).toFixed(2) : null;
   const trendStr = trendKg == null ? null : (trendKg > 0 ? '+' : trendKg < 0 ? '−' : '') + (unit === 'st_lb' ? (Math.abs(trendKg) * 2.20462).toFixed(1) + ' lb' : Math.abs(trendKg).toFixed(2) + ' kg');
-  const kicker = alreadyToday ? 'Checked in' : due ? 'Check-in due' : ready ? 'Check-in unlocked' : 'This week';
+  const kicker = alreadyToday ? 'Checked in today' : due ? 'Check-in due' : ready ? 'Check-in unlocked' : 'This cycle';
   const Stat = ({
     label,
-    value
+    value,
+    good
   }) => /*#__PURE__*/React.createElement("div", {
     className: "bg-[#1E1E22] rounded-2xl px-2 py-3 text-center"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold tnum leading-none"
+    className: "text-lg font-bold tnum leading-none",
+    style: good ? {
+      color: 'var(--good)'
+    } : undefined
   }, value), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] mt-1"
+    className: "text-[10px] text-[#8A8A90] mt-1 leading-tight"
   }, label));
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-6"
@@ -3483,25 +3491,49 @@ function CoachCard({
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90]"
   }, kicker)), /*#__PURE__*/React.createElement("div", {
-    className: "text-xl font-bold mb-3"
-  }, "Your week in review"), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-2 mb-3"
+    className: "text-xl font-bold mb-1"
+  }, "Coaching"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, alreadyToday ? 'Fresh cycle — here\'s how the last one went.' : `Day ${dayN} of your check-in cycle · ${cycleDays} day${cycleDays === 1 ? '' : 's'} of data.`), full && !alreadyToday && /*#__PURE__*/React.createElement("div", {
+    className: "mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "h-1.5 rounded-full bg-[#262629] overflow-hidden mb-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "h-full rounded-full",
+    style: {
+      width: Math.min(100, dayN / 7 * 100) + '%',
+      background: due ? 'var(--good)' : 'var(--carb)'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90]"
+  }, "Check-in unlocks on day 5, recommended on day 7.")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-3 gap-2 mb-2"
   }, /*#__PURE__*/React.createElement(Stat, {
     label: "Days logged",
-    value: logWk + '/7'
+    value: logged + '/' + cycleDays,
+    good: logged >= needLogs
   }), /*#__PURE__*/React.createElement(Stat, {
     label: "Weigh-ins",
-    value: weighWk + '/7'
+    value: weighed + '/' + cycleDays,
+    good: weighed >= needWeigh
   }), /*#__PURE__*/React.createElement(Stat, {
-    label: "Protein goal",
-    value: loggedDays.length ? proHit + '/' + loggedDays.length : '—'
-  })), trendStr && /*#__PURE__*/React.createElement("div", {
+    label: 'Protein hit' + (logged ? ' (of ' + logged + ')' : ''),
+    value: logged ? proHit + '/' + logged : '—',
+    good: logged > 0 && proHit === logged
+  })), proTarget > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] mb-3 leading-snug"
+  }, "“Protein hit” counts the days you reached 90%+ of your ", proTarget, "g target, out of the days you logged."), trendStr && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Weight trend: ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum"
-  }, trendStr), " vs the previous week."), /*#__PURE__*/React.createElement("div", {
+  }, trendStr), " vs the previous cycle."), full && !alreadyToday && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3 leading-snug",
+    style: {
+      color: onTrack ? 'var(--good)' : 'var(--muted)'
+    }
+  }, onTrack ? '✓ Enough logged and weighed for a confident adjustment.' : `For a reliable read, aim for ${needLogs} logged days and ${needWeigh} weigh-ins this cycle.`), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, alreadyToday ? 'Checked in today — your macros are up to date. Nice work.' : ready ? 'Your macros retune from weeks like this — run your check-in to apply any adjustment.' : 'A few more daily weigh-ins this week and you\'ll have a steady trend to check in against.'), !alreadyToday && /*#__PURE__*/React.createElement(Btn, {
+  }, alreadyToday ? 'Your macros are up to date. Nice work.' : ready ? 'Your targets retune from cycles like this — run your check-in to apply any adjustment.' : 'Keep logging and weighing daily; your check-in unlocks on day 5.'), !alreadyToday && /*#__PURE__*/React.createElement(Btn, {
     kind: ready ? 'accent' : 'ghost',
     disabled: !ready,
     className: "w-full",
@@ -3509,7 +3541,7 @@ function CoachCard({
       opacity: ready ? 1 : .5
     },
     onClick: onCheckIn
-  }, "Run weekly check-in"));
+  }, "Run check-in"));
 }
 function CheckInModal({
   db,
