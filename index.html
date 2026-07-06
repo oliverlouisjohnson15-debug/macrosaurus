@@ -3475,17 +3475,21 @@ function StatusCard({
   }, fmtWeight(last7, unit)))));
 }
 
-// Weekly reflection, shown ONLY on the user's chosen check-in weekday. Recaps adherence + weight
-// trend so the adaptive engine's weekly rhythm is visible, and points into the check-in.
+// Weekly reflection: recaps adherence + weight trend so the adaptive engine's rhythm is visible.
+// variant "dashboard" surfaces it only when a check-in is actually DUE; variant "goals" is a
+// permanent section that's always shown (with the check-in CTA enabling once due).
 function CoachCard({
   db,
-  onCheckIn
+  onCheckIn,
+  variant = 'dashboard'
 }) {
   const today = Store.todayISO();
   if (db.paused) return null;
-  const dow = new Date(today + 'T00:00:00').getDay();
-  const checkinDay = db.profile.checkinDay == null ? 1 : db.profile.checkinDay;
-  if (dow !== checkinDay) return null;
+  const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
+  const ready = daysSince >= 5; // check-in unlocked
+  const due = daysSince >= 7; // recommended cadence reached
+  const alreadyToday = db.last_checkin === today;
+  if (variant === 'dashboard' && !due) return null; // dashboard: only when a check-in is due
   const unit = db.profile.weight_unit;
   const last7 = Array.from({
     length: 7
@@ -3502,9 +3506,7 @@ function CoachCard({
   const prevAvg = avgWeight(db.weight_entries, shiftISO(today, -13), shiftISO(today, -7));
   const trendKg = curAvg != null && prevAvg != null ? +(curAvg - prevAvg).toFixed(2) : null;
   const trendStr = trendKg == null ? null : (trendKg > 0 ? '+' : trendKg < 0 ? '−' : '') + (unit === 'st_lb' ? (Math.abs(trendKg) * 2.20462).toFixed(1) + ' lb' : Math.abs(trendKg).toFixed(2) + ' kg');
-  const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
-  const ready = daysSince >= 5;
-  const alreadyToday = db.last_checkin === today;
+  const kicker = alreadyToday ? 'Checked in' : due ? 'Check-in due' : ready ? 'Check-in unlocked' : 'This week';
   const Stat = ({
     label,
     value
@@ -3524,7 +3526,7 @@ function CoachCard({
     color: "var(--good)"
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90]"
-  }, "Check-in day")), /*#__PURE__*/React.createElement("div", {
+  }, kicker)), /*#__PURE__*/React.createElement("div", {
     className: "text-xl font-bold mb-3"
   }, "Your week in review"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-2 mb-3"
@@ -9450,7 +9452,8 @@ function GoalCard({
 function Goals({
   db,
   update,
-  showToast
+  showToast,
+  onCheckIn
 }) {
   const p = db.profile;
   const unit = p.weight_unit;
@@ -9541,6 +9544,10 @@ function Goals({
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "What you're working toward",
     title: "Goals"
+  }), /*#__PURE__*/React.createElement(CoachCard, {
+    db: db,
+    onCheckIn: onCheckIn,
+    variant: "goals"
   }), base && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-5"
   }, /*#__PURE__*/React.createElement("div", {
@@ -10949,7 +10956,8 @@ function App() {
   }), view === 'goals' && /*#__PURE__*/React.createElement(Goals, {
     db: db,
     update: update,
-    showToast: showToast
+    showToast: showToast,
+    onCheckIn: () => setCheckingIn(true)
   }), view === 'more' && /*#__PURE__*/React.createElement(More, {
     db: db,
     update: update,
