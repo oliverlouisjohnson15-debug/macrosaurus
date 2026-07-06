@@ -1277,6 +1277,33 @@ async function claudeVision(key, files, prompt, opts) {
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return parseModelJSON(txt);
 }
+// AI coaching layer: the deterministic engine has ALREADY decided the numbers; this only turns them
+// into a warm, plain-English explanation + one tip. Guardrailed so it can't invent numbers or give
+// medical/extreme advice, and it's optional (needs a key, degrades gracefully offline). Returns text.
+async function coachNarrative(key, payload) {
+  const rules = 'You are Macrosaurus, a warm but honest UK body-composition coach. A deterministic engine has ALREADY decided this week\'s calorie change from the user\'s weight trend and intake. Do NOT invent, recalculate, or contradict any number — refer only to the figures given. In 2-3 short sentences, explain in plain UK English what this week\'s result means for the user, then give ONE concrete, evidence-aligned tip for the coming week (e.g. logging consistency, hitting the protein target, weighing in daily, or being patient with the weight trend). No medical or supplement advice, no crash-dieting or extreme measures, no emojis, no headings, no bullet points, no markdown. Address the user directly as "you".';
+  const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nCoach\'s take:';
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: AI_MODEL_FAST,
+      max_tokens: 240,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    })
+  });
+  const j = await res.json();
+  if (j.type === 'error' || j.error) throw new Error(j.error && j.error.message || 'API error');
+  return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+}
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
 // comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open —
 // strict JSON.parse rejects all of these, so we clean and, as a last resort, auto-close.
@@ -3740,6 +3767,45 @@ function CheckInModal({
   const [bf, setBf] = useState(p.bodyFatPct != null ? p.bodyFatPct : '');
   const [result, setResult] = useState(null);
   const [bfPick, setBfPick] = useState(false);
+  const [coach, setCoach] = useState(null); // AI explanation of the check-in result: {loading}|{text}|{error}
+  useEffect(() => {
+    if (!result || result.accepted || !p.aiKey) return;
+    if (!['proposed', 'held', 'needdata'].includes(result.status)) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    let cancelled = false;
+    setCoach({
+      loading: true
+    });
+    const payload = {
+      goal: p.goalType,
+      targetRatePerWeek_kg: p.goalType === 'maintain' ? 0 : p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0),
+      actualRatePerWeek_kg: result.estimate ? result.estimate.weeklyChangeKg : null,
+      outcome: result.status === 'proposed' ? result.changed ? result.direction === 'up' ? 'calories increased' : 'calories decreased' : 'no change — on target' : result.status === 'held' ? 'held (not enough tracking or on a diet break)' : 'not enough history yet',
+      currentKcal: base ? base.kcal : null,
+      newKcal: result.newTargets ? result.newTargets.kcal : base ? base.kcal : null,
+      deltaKcal: result.deltaKcal || 0,
+      protein_g: result.newTargets ? result.newTargets.protein_g : base ? base.protein_g : null,
+      estimatedBurn_kcal: result.estimate ? result.estimate.tdee : null,
+      daysLogged: loggedDays,
+      daysWeighed: weighDays,
+      cycleDays: cycleDays,
+      enoughData: onTrack,
+      underReportFlagged: !!result.underReportFlagged,
+      unit: unit === 'st_lb' ? 'stones/pounds' : 'kilograms'
+    };
+    coachNarrative(p.aiKey, payload).then(t => {
+      if (!cancelled) setCoach(t ? {
+        text: t
+      } : null);
+    }).catch(() => {
+      if (!cancelled) setCoach({
+        error: true
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [result && result.status, result && result.accepted]);
   const [wErr, setWErr] = useState('');
   function complete() {
     const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
@@ -3866,7 +3932,25 @@ function CheckInModal({
     className: "text-sm"
   }, result.reason), result.estimate && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2 tnum"
-  }, "Est. burn ~", result.estimate.tdee, " · trend ", result.estimate.weeklyChangeKg, " kg/wk"), result.status === 'proposed' && result.changed && !result.accepted && /*#__PURE__*/React.createElement("div", {
+  }, "Est. burn ~", result.estimate.tdee, " · trend ", result.estimate.weeklyChangeKg, " kg/wk"), coach && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 pixel-box p-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      borderLeft: '4px solid var(--good)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5 flex items-center gap-1.5"
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 13,
+    color: "var(--good)"
+  }), " Coach's take"), coach.loading ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "Reading your week…") : coach.error ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "Couldn't reach the AI coach this time — your numbers above are all set.") : /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] leading-snug"
+  }, coach.text)), result.status === 'proposed' && result.changed && !result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2 my-3"
   }, /*#__PURE__*/React.createElement(Mini, {
     n: result.newTargets.kcal,
