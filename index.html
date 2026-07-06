@@ -5267,43 +5267,30 @@ function Dashboard({
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2"
   }, "FIBER ", Math.round(tot.fiber), " / ", ft.min, "g", Math.round(tot.fiber) >= ft.min ? ' OK' : ` · ${ft.min - Math.round(tot.fiber)} TO GO`), (et.cyc !== 0 || et.carry !== 0) && (() => {
-    const parts = [];
-    if (et.cyc) parts.push(`${et.cyc > 0 ? '+' : '−'}${Math.abs(et.cyc)} ${et.cyc > 0 ? 'high day' : 'low day'}`);
-    if (et.carry) parts.push(`${et.carry > 0 ? '+' : '−'}${Math.abs(et.carry)} carried over`);
+    const adj = et.eff.kcal - et.base.kcal;
     const cd = et.carryDetail;
-    const canExpand = !!(cd && cd.days && cd.days.length);
-    const dd = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short'
-    });
+    const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
+    const label = et.cyc && et.carry ? 'adjusted' : et.cyc ? et.cyc > 0 ? 'high day' : 'low day' : et.carry > 0 ? 'carried over' : 'carried back';
     const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-    return /*#__PURE__*/React.createElement("div", {
-      className: "mt-2 pt-2 border-t border-[#262629]"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: () => canExpand && setShowCarry(s => !s),
-      className: "text-[10px] text-[#8A8A90] leading-snug w-full text-left flex items-center gap-1"
-    }, /*#__PURE__*/React.createElement("span", null, et.base.kcal, " base \xB7 ", parts.join(' · '), " \u2192 ", et.eff.kcal), canExpand && /*#__PURE__*/React.createElement("span", {
-      className: "ml-auto shrink-0"
-    }, showCarry ? '▲ hide' : '▾ why')), showCarry && cd && /*#__PURE__*/React.createElement("div", {
-      className: "mt-2 text-[10px] text-[#8A8A90] leading-relaxed fade-in"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[8px] uppercase mb-1.5"
-    }, "Carryover since ", dd(cd.cycleStart)), cd.days.map((d, i) => /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "flex justify-between tnum"
-    }, /*#__PURE__*/React.createElement("span", null, dd(d.date), " \xB7 ate ", d.eaten), /*#__PURE__*/React.createElement("span", {
+    const bg = adj > 0 ? 'var(--good)' : 'var(--fat)';
+    const txt = adj > 0 ? '#05140a' : '#2b0018';
+    return /*#__PURE__*/React.createElement("button", {
+      onClick: () => canOpen && setShowCarry(true),
+      className: "mt-2 pt-2 border-t border-[#262629] w-full flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pixel-box text-[8px] px-2 py-1 shrink-0",
       style: {
-        color: d.delta > 0 ? 'var(--good)' : d.delta < 0 ? 'var(--fat)' : 'var(--muted)'
+        background: bg,
+        color: txt,
+        boxShadow: 'none',
+        borderWidth: '2px',
+        borderColor: bg
       }
-    }, sgn(d.delta), d.delta > 0 ? ' under' : d.delta < 0 ? ' over' : ''))), /*#__PURE__*/React.createElement("div", {
-      className: "flex justify-between tnum border-t border-[#262629] mt-1.5 pt-1.5 font-bold",
-      style: {
-        color: 'var(--text)'
-      }
-    }, /*#__PURE__*/React.createElement("span", null, "Running balance"), /*#__PURE__*/React.createElement("span", null, sgn(cd.balance), " kcal")), /*#__PURE__*/React.createElement("div", {
-      className: "mt-1.5"
-    }, cd.mode === 'dispersed' ? `Dispersed: spread across ${cd.remaining} day${cd.remaining === 1 ? '' : 's'} left → ${sgn(cd.applied)} added to today.` : `Aggressive: whole balance applied today (${sgn(cd.applied)}), capped at ±${cd.cap}.`)));
+    }, sgn(adj), " ", label), /*#__PURE__*/React.createElement("span", {
+      className: "text-[9px] text-[#8A8A90] leading-snug text-left"
+    }, "why your target isn't ", et.base.kcal), canOpen && /*#__PURE__*/React.createElement("span", {
+      className: "ml-auto shrink-0 text-[9px] text-[#8A8A90]"
+    }, "\u25B8"));
   })()), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-4"
   }, /*#__PURE__*/React.createElement("button", {
@@ -5393,7 +5380,153 @@ function Dashboard({
     update: update,
     streak: streak,
     onClose: () => setShowFight(false)
+  }), showCarry && /*#__PURE__*/React.createElement(CarryoverSheet, {
+    et: et,
+    onClose: () => setShowCarry(false)
   }));
+}
+function CarryoverSheet({
+  et,
+  onClose
+}) {
+  const cd = et.carryDetail;
+  const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+  const dd = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  });
+  const dShort = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
+    weekday: 'short'
+  });
+  const maxAbs = cd && cd.days.length ? Math.max(1, ...cd.days.map(d => Math.abs(d.delta))) : 1;
+  const Row = ({
+    label,
+    val,
+    color,
+    bold
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between tnum text-[11px] py-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: bold ? 'font-bold' : 'text-[#8A8A90]',
+    style: bold ? {
+      color: 'var(--text)'
+    } : null
+  }, label), /*#__PURE__*/React.createElement("span", {
+    className: "font-bold",
+    style: color ? {
+      color
+    } : bold ? {
+      color: 'var(--text)'
+    } : null
+  }, val));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[80] bg-black/70 flex items-end lg:items-center justify-center",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-1"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold"
+  }, "Today's target"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-[#8A8A90] text-2xl leading-none"
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-4 leading-snug"
+  }, "Where today's ", et.eff.kcal, " kcal comes from."), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-4",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(Row, {
+    label: "Base target",
+    val: et.base.kcal
+  }), et.cyc !== 0 && /*#__PURE__*/React.createElement(Row, {
+    label: et.cyc > 0 ? 'High day' : 'Low day',
+    val: sgn(et.cyc),
+    color: et.cyc > 0 ? 'var(--good)' : 'var(--fat)'
+  }), et.carry !== 0 && /*#__PURE__*/React.createElement(Row, {
+    label: et.carry > 0 ? 'Carried over' : 'Carried back',
+    val: sgn(et.carry),
+    color: et.carry > 0 ? 'var(--good)' : 'var(--fat)'
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "border-t border-[#262629] mt-1 pt-1"
+  }, /*#__PURE__*/React.createElement(Row, {
+    label: "Today you get",
+    val: et.eff.kcal + ' kcal',
+    bold: true
+  }))), cd && cd.days.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-3"
+  }, "This week \xB7 since ", dd(cd.cycleStart)), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-end gap-1.5 mb-2",
+    style: {
+      height: '64px'
+    }
+  }, cd.days.map((d, i) => {
+    const h = Math.round(5 + Math.abs(d.delta) / maxAbs * 40);
+    const under = d.delta > 0,
+      over = d.delta < 0;
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      className: "flex-1 flex flex-col items-center justify-end",
+      style: {
+        height: '100%'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "tnum text-[7px] mb-1",
+      style: {
+        color: under ? 'var(--good)' : over ? 'var(--fat)' : 'var(--muted)'
+      }
+    }, sgn(d.delta)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: '100%',
+        height: h + 'px',
+        background: under ? 'var(--good)' : over ? 'var(--fat)' : 'var(--border)'
+      }
+    }));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 mb-3"
+  }, cd.days.map((d, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "flex-1 text-center pf text-[7px] text-[#8A8A90]"
+  }, dShort(d.date)))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between text-[9px] text-[#8A8A90] mb-4"
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--good)'
+    }
+  }, "\u25A0"), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "\u25A0"), " over target")), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3 flex justify-between items-center tnum text-[11px]",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-bold"
+  }, "Running balance"), /*#__PURE__*/React.createElement("span", {
+    className: "font-bold",
+    style: {
+      color: cd.balance > 0 ? 'var(--good)' : cd.balance < 0 ? 'var(--fat)' : 'var(--text)'
+    }
+  }, sgn(cd.balance), " kcal")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-relaxed"
+  }, cd.mode === 'dispersed' ? `Dispersed mode spreads this ${sgn(cd.balance)} balance across the ${cd.remaining} day${cd.remaining === 1 ? '' : 's'} left this week, so ${sgn(cd.applied)} lands on today.` : `Aggressive mode applies the whole ${sgn(cd.balance)} balance to today (${sgn(cd.applied)}), capped at ±${cd.cap} kcal a day.`)), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "pixel-btn w-full mt-4 py-2.5 text-[11px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "Got it")));
 }
 
 /* =====================================================================
