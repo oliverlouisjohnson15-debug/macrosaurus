@@ -896,7 +896,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
       catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] } — locked so later edits never lose a caught creature
-      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null }, // Punch-Out ladder + weekly boss progress
+      items: {},          // shared item inventory: { itemId: count }
+      dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
+      game_awards: {},    // idempotency keys for one-time item / milestone grants
+      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }, // ladder + weekly boss + prestige tier
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       goals: null,
     };
@@ -4258,86 +4261,361 @@ function Sprite({
     shapeRendering: "crispEdges"
   }, rects);
 }
-const CREATURES = [{
+const BIOMES = [{
+  id: 'nursery',
+  name: 'The Nursery',
+  blurb: 'Where every log begins. Show up and something hatches.'
+}, {
+  id: 'protein',
+  name: 'Protein Peaks',
+  blurb: 'High, hard country. Only the well-fed climb it.'
+}, {
+  id: 'carb',
+  name: 'Carb Canyon',
+  blurb: 'Fast rivers of slow-release energy.'
+}, {
+  id: 'fat',
+  name: 'Fat Flats',
+  blurb: 'Rich, golden country. Steady does it.'
+}, {
+  id: 'fibre',
+  name: 'Fibre Forest',
+  blurb: 'Green, thriving and quietly smug.'
+}, {
+  id: 'apex',
+  name: 'Apex Ridge',
+  blurb: 'The summit. Only a perfect day reaches it.'
+}, {
+  id: 'mythic',
+  name: 'The Wilds',
+  blurb: 'Off every map. Legends roam here for those who never miss.'
+}];
+const RARITY_RANK = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+  mythic: 5
+};
+const CR_RARITY_COLOR = {
+  common: 'var(--muted)',
+  uncommon: 'var(--good)',
+  rare: 'var(--carb)',
+  epic: 'var(--weight)',
+  legendary: 'var(--header)',
+  mythic: 'var(--fat)'
+};
+const CR_RARITY_LABEL = {
+  common: 'Common',
+  uncommon: 'Uncommon',
+  rare: 'Rare',
+  epic: 'Epic',
+  legendary: 'Legendary',
+  mythic: 'Mythic'
+};
+const CREATURES = [
+// The Nursery — any logged day
+{
   id: 'nugg',
   name: 'Nugg',
   art: 'egg',
   colors: crC('#EAD9A0', '#C77D3A'),
-  tier: 'common',
-  blurb: 'A speckled egg. Something stirs within.'
+  biome: 'nursery',
+  rarity: 'common',
+  cond: 'Log any food on any day.',
+  lore: 'A speckled egg kept warm by good habits. Nobody knows what hatches from it — and that is rather the point. Feed it enough days and it makes up its own mind.',
+  evo: [{
+    at: 5,
+    name: 'Nuggle',
+    art: 'hatch',
+    colors: crC('#EAD9A0', '#C77D3A')
+  }, {
+    at: 10,
+    name: 'Nuggosaur',
+    art: 'saur',
+    colors: crC('#E6C878', '#b8862f')
+  }]
 }, {
   id: 'dinky',
   name: 'Dinky',
   art: 'hatch',
   colors: crC('#7FD46B', '#3f8e2f'),
-  tier: 'common',
-  blurb: 'A curious little hatchling.'
+  biome: 'nursery',
+  rarity: 'common',
+  cond: 'Log any food on any day.',
+  lore: 'A curious hatchling that follows you home the very first day you log. Fiercely loyal, faintly clumsy, and convinced it invented breakfast.',
+  evo: [{
+    at: 5,
+    name: 'Dinko',
+    art: 'saur',
+    colors: crC('#6cc258', '#2f7a24')
+  }, {
+    at: 10,
+    name: 'Dinorush',
+    art: 'raptor',
+    colors: crC('#57b043', '#245e1a')
+  }]
 }, {
   id: 'pebble',
   name: 'Pebble',
   art: 'hatch',
   colors: crC('#9FB8C9', '#5f7d90'),
-  tier: 'common',
-  blurb: 'Sleepy and stony-skinned.'
-}, {
+  biome: 'nursery',
+  rarity: 'common',
+  cond: 'Log any food on any day.',
+  lore: 'Sleepy and stony-skinned, Pebble naps through most of the day and still somehow evolves. A patron saint of the slow-but-consistent.',
+  evo: [{
+    at: 5,
+    name: 'Cobble',
+    art: 'saur',
+    colors: crC('#8da7ba', '#4f6d80')
+  }, {
+    at: 10,
+    name: 'Boulderex',
+    art: 'trike',
+    colors: crC('#7d97aa', '#3f5d70')
+  }]
+},
+// Protein Peaks
+{
   id: 'protops',
   name: 'Protops',
   art: 'longneck',
   colors: crC('#E5556B', '#a83145'),
-  tier: 'protein',
-  blurb: 'Grows tall on a hearty protein day.'
+  biome: 'protein',
+  rarity: 'common',
+  cond: 'Hit your protein target.',
+  lore: 'Grows a neck-length taller for every gram of protein you land. A devout believer in the second helping of chicken.',
+  evo: [{
+    at: 5,
+    name: 'Protolith',
+    art: 'stego',
+    colors: crC('#d94459', '#8e2436')
+  }, {
+    at: 10,
+    name: 'Proterex',
+    art: 'rex',
+    colors: crC('#c23a4d', '#71202e')
+  }]
 }, {
+  id: 'flexor',
+  name: 'Flexor',
+  art: 'raptor',
+  colors: crC('#F0655F', '#a83a34'),
+  biome: 'protein',
+  rarity: 'rare',
+  cond: 'Hit protein AND land your calories.',
+  lore: 'A swaggering raptor that only struts out when protein and calories both land on the same day. It does not know what a rest day is.'
+},
+// Carb Canyon
+{
   id: 'carbo',
   name: 'Carbo',
   art: 'saur',
   colors: crC('#4A90E2', '#2f66b0'),
-  tier: 'carb',
-  blurb: 'Bounds with slow-carb energy.'
+  biome: 'carb',
+  rarity: 'common',
+  cond: 'Land your carb target.',
+  lore: 'Bounds across the canyon on slow-release energy, powered by oats and good intentions. Naps at 3pm like clockwork.',
+  evo: [{
+    at: 5,
+    name: 'Carbon',
+    art: 'longneck',
+    colors: crC('#3f82d4', '#265a9e')
+  }, {
+    at: 10,
+    name: 'Carbozon',
+    art: 'rex',
+    colors: crC('#356fbf', '#1e4a86')
+  }]
 }, {
+  id: 'noodon',
+  name: 'Noodon',
+  art: 'longneck',
+  colors: crC('#5AA0E8', '#356fb0'),
+  biome: 'carb',
+  rarity: 'uncommon',
+  cond: 'Carbs on point with fibre in range.',
+  lore: 'A gentle long-neck woven from whole grains and good noodles. Surprisingly wise; will not be rushed.'
+},
+// Fat Flats
+{
   id: 'fatzilla',
   name: 'Fatzilla',
   art: 'saur',
   colors: crC('#F5C518', '#c99a10'),
-  tier: 'fat',
-  blurb: 'Loves a good healthy-fat day.'
+  biome: 'fat',
+  rarity: 'common',
+  cond: 'Hit your healthy fats.',
+  lore: 'Radiates a warm, oily glow and insists that avocados are, technically, a personality trait. Difficult to argue with.',
+  evo: [{
+    at: 5,
+    name: 'Fatlas',
+    art: 'stego',
+    colors: crC('#e6b910', '#b8890c')
+  }, {
+    at: 10,
+    name: 'Fatalisk',
+    art: 'rex',
+    colors: crC('#d4a810', '#9e7a08')
+  }]
 }, {
+  id: 'buttron',
+  name: 'Buttron',
+  art: 'stego',
+  colors: crC('#F0C838', '#b8901c'),
+  biome: 'fat',
+  rarity: 'uncommon',
+  cond: 'Fats on point and calories in range.',
+  lore: 'Plated in golden scutes of grass-fed calm. Moves slowly, thinks richly, spreads easily.'
+},
+// Fibre Forest
+{
   id: 'sprowl',
   name: 'Sprowl',
   art: 'sprout',
   colors: crC('#5FBF4A', '#2f7a24'),
-  tier: 'fibre',
-  blurb: 'Sprouts up when the fibre lands.'
+  biome: 'fibre',
+  rarity: 'common',
+  cond: 'Reach your fibre goal.',
+  lore: 'Sprouts a fresh leaf for every serving of veg and photosynthesises a mild, leafy smugness. Beloved by your gut bacteria.',
+  evo: [{
+    at: 5,
+    name: 'Sprowler',
+    art: 'longneck',
+    colors: crC('#54b03f', '#276a1e')
+  }, {
+    at: 10,
+    name: 'Frondzilla',
+    art: 'stego',
+    colors: crC('#49a034', '#1f5a18')
+  }]
 }, {
+  id: 'frondo',
+  name: 'Frondo',
+  art: 'longneck',
+  colors: crC('#66C24F', '#357f28'),
+  biome: 'fibre',
+  rarity: 'uncommon',
+  cond: 'Fibre goal plus a protein hit.',
+  lore: 'A leafy long-neck that only trusts you once you have eaten your greens AND your protein. Keeps a tidy compost heap.'
+},
+// Apex Ridge — perfect days
+{
   id: 'veloci',
   name: 'Veloci',
   art: 'raptor',
   colors: crC('#B06BE0', '#7a3fb0'),
-  tier: 'rare',
-  blurb: 'Only shows up on a sharp, on-point day.'
+  biome: 'apex',
+  rarity: 'rare',
+  cond: 'Nail a perfect macro day.',
+  lore: 'Fast, precise and unforgiving. Appears only when every macro lands in range — and vanishes the moment you get sloppy.'
 }, {
   id: 'platealon',
   name: 'Platealon',
   art: 'stego',
   colors: crC('#2FB0A0', '#1e7a70'),
-  tier: 'rare',
-  blurb: 'Plated back, perfectly balanced.'
+  biome: 'apex',
+  rarity: 'rare',
+  cond: 'A perfect, balanced day.',
+  lore: 'Its back-plates only align when protein, carbs and fats sit in perfect harmony. A living spirit level for your diet.'
 }, {
   id: 'triceros',
   name: 'Triceros',
   art: 'trike',
   colors: crC('#E0975B', '#a8642f'),
-  tier: 'rare',
-  blurb: 'Three horns for three macros nailed.'
+  biome: 'apex',
+  rarity: 'rare',
+  cond: 'A perfect day — three macros nailed.',
+  lore: 'Three horns for three macros. Charges, without warning, at anyone who says "I will start again on Monday".'
 }, {
   id: 'rexosaur',
   name: 'Rexosaur',
   art: 'rex',
   colors: crC('#6B5FC0', '#3a3170'),
-  tier: 'legendary',
-  blurb: 'The apex. Earned by true consistency.'
+  biome: 'apex',
+  rarity: 'legendary',
+  cond: 'A perfect day, on a rare roll.',
+  lore: 'The apex predator of consistency. Seen only by those who truly earn the day, and only when the stars — and the macros — align.'
+},
+// The Wilds — wandering mythics
+{
+  id: 'aurora',
+  name: 'Aurora',
+  art: 'trike',
+  colors: crC('#7FE0E8', '#3f9ea8'),
+  biome: 'mythic',
+  rarity: 'mythic',
+  cond: 'Roams only after a perfect week (5+ perfect days in 7).',
+  lore: 'A shimmering wanderer said to trail the northern lights across the sky. A whole week of perfect days is the only thing that draws it near.'
+}, {
+  id: 'chronos',
+  name: 'Chronos',
+  art: 'rex',
+  colors: crC('#FFD400', '#B8860B'),
+  biome: 'mythic',
+  rarity: 'mythic',
+  cond: 'A 30-day streak crowned by a perfect day.',
+  lore: 'Ancient keeper of streaks. It remembers every single day you showed up — and it rewards only the truly relentless.'
 }];
 const CR_BY_ID = {};
 CREATURES.forEach(c => CR_BY_ID[c.id] = c);
+// The evolved form of a creature at a given re-catch count (levels): picks the highest unlocked stage.
+function creatureForm(cr, count) {
+  if (!cr || !cr.evo) return cr ? {
+    name: cr.name,
+    art: cr.art,
+    colors: cr.colors
+  } : null;
+  let f = {
+    name: cr.name,
+    art: cr.art,
+    colors: cr.colors
+  };
+  cr.evo.forEach(e => {
+    if ((count || 0) >= e.at) f = {
+      name: e.name,
+      art: e.art || cr.art,
+      colors: e.colors || cr.colors
+    };
+  });
+  return f;
+}
+// ---- Shared item system (earned from streaks, perfect weeks, biome sets and boss/ladder wins) ----
+const ITEMS = {
+  lure: {
+    name: 'Macro Lure',
+    kind: 'dex',
+    desc: 'Point it at a macro to make today’s catch favour that biome.'
+  },
+  golden_steak: {
+    name: 'Golden Steak',
+    kind: 'dex',
+    desc: 'Your next perfect day is guaranteed to catch a shiny.'
+  },
+  incubator: {
+    name: 'Incubator',
+    kind: 'dex',
+    desc: 'Makes today’s catch a guaranteed rare or better — if you qualify for one.'
+  },
+  amber: {
+    name: 'Amber Fossil',
+    kind: 'trophy',
+    desc: 'A rare boss trophy sealed in golden amber.'
+  },
+  belt: {
+    name: 'Champion Belt',
+    kind: 'trophy',
+    desc: 'Proof you cleared the whole fight ladder.'
+  },
+  medal: {
+    name: 'Biome Medal',
+    kind: 'trophy',
+    desc: 'Awarded for completing a biome in the Macrodex.'
+  }
+};
+const ITEM_ORDER = ['lure', 'golden_steak', 'incubator', 'medal', 'amber', 'belt'];
 // Hopping dino shown while the AI is thinking, so a wait never looks like a crash.
 function DinoLoader({
   label
@@ -4367,15 +4645,6 @@ function DinoLoader({
     className: "dino-dot"
   }, ".")));
 }
-const CR_TIER_COLOR = {
-  common: 'var(--muted)',
-  protein: 'var(--pro)',
-  carb: 'var(--carb)',
-  fat: 'var(--fat)',
-  fibre: 'var(--good)',
-  rare: 'var(--weight)',
-  legendary: 'var(--header)'
-};
 function dayQuality(db, date) {
   const day = entriesOn(db, date);
   if (!day.length) return null;
@@ -4415,19 +4684,60 @@ function crHash(s) {
   }
   return h >>> 0;
 }
+function loggedDatesSet(db) {
+  const s = new Set();
+  (db.log_entries || []).forEach(e => s.add(e.date));
+  return s;
+}
+function streakEndingOn(db, dateISO) {
+  const s = loggedDatesSet(db);
+  let d = dateISO,
+    n = 0;
+  while (s.has(d) && n < 400) {
+    n++;
+    d = shiftISO(d, -1);
+  }
+  return n;
+}
+function perfectDaysIn(db, endISO, span) {
+  let n = 0;
+  for (let i = 0; i < span; i++) {
+    const q = dayQuality(db, shiftISO(endISO, -i));
+    if (q && q.perfect) n++;
+  }
+  return n;
+}
 function creatureForDay(db, date) {
   const q = dayQuality(db, date);
   if (!q) return null;
   const h = crHash(date);
+  const boost = db.dex_boost && db.dex_boost.date === date ? db.dex_boost : null;
   let pool = ['nugg', 'dinky', 'pebble'];
   if (q.proteinHit) pool.push('protops');
+  if (q.proteinHit && q.kcalIn) pool.push('flexor');
   if (q.carbHit) pool.push('carbo');
+  if (q.carbHit && q.fiberHit) pool.push('noodon');
   if (q.fatHit) pool.push('fatzilla');
+  if (q.fatHit && q.kcalIn) pool.push('buttron');
   if (q.fiberHit) pool.push('sprowl');
+  if (q.fiberHit && q.proteinHit) pool.push('frondo');
   if (q.perfect) pool = pool.concat(['veloci', 'platealon', 'triceros']);
-  if (q.perfect && h % 18 === 0) pool.push('rexosaur');
-  const id = pool[h % pool.length];
-  const shiny = q.perfect && h % 11 === 0;
+  if (q.perfect && h % 14 === 0) pool.push('rexosaur');
+  if (q.perfect && perfectDaysIn(db, date, 7) >= 5) pool.push('aurora');
+  if (q.perfect && streakEndingOn(db, date) >= 30) pool.push('chronos');
+  // Item boosts narrow the pool: Incubator forces rare+, Lure favours a chosen biome.
+  let sub = null;
+  if (boost && boost.rare) {
+    const r = pool.filter(id => RARITY_RANK[CR_BY_ID[id].rarity] >= 2);
+    if (r.length) sub = r;
+  }
+  if (!sub && boost && boost.lure) {
+    const l = pool.filter(id => CR_BY_ID[id].biome === boost.lure);
+    if (l.length) sub = l;
+  }
+  const from = sub || pool;
+  const id = from[h % from.length];
+  const shiny = q.perfect && h % 11 === 0 || !!(boost && boost.shiny && q.perfect);
   return {
     id: id,
     shiny: shiny
@@ -4600,10 +4910,37 @@ function BuddyCard({
 }
 function MacrodexModal({
   db,
+  update,
   onClose
 }) {
   const dex = macrodex(db);
   const caught = Object.keys(dex).length;
+  const items = db.items || {};
+  const today = Store.todayISO();
+  const boost = db.dex_boost && db.dex_boost.date === today ? db.dex_boost : null;
+  const [sel, setSel] = useState(null);
+  const [lurePick, setLurePick] = useState(false);
+  const invIds = ITEM_ORDER.filter(id => (items[id] || 0) > 0);
+  function useItem(id, macro) {
+    update(d => {
+      if (!(d.items && d.items[id] > 0)) return;
+      d.items[id]--;
+      if (d.items[id] <= 0) delete d.items[id];
+      const b = d.dex_boost && d.dex_boost.date === today ? d.dex_boost : {
+        date: today,
+        lure: null,
+        shiny: false,
+        rare: false
+      };
+      if (id === 'lure') b.lure = macro;
+      if (id === 'golden_steak') b.shiny = true;
+      if (id === 'incubator') b.rare = true;
+      d.dex_boost = b;
+    });
+    setLurePick(false);
+  }
+  const cr = sel ? CR_BY_ID[sel] : null;
+  const got = cr ? dex[cr.id] : null;
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
@@ -4615,7 +4952,63 @@ function MacrodexModal({
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4"
-  }), /*#__PURE__*/React.createElement("div", {
+  }), cr ? (() => {
+    const form = creatureForm(cr, got ? got.count : 0);
+    const rc = CR_RARITY_COLOR[cr.rarity];
+    const nextEvo = cr.evo ? cr.evo.find(e => (got ? got.count : 0) < e.at) : null;
+    const bm = BIOMES.find(b => b.id === cr.biome) || {};
+    return /*#__PURE__*/React.createElement("div", {
+      className: "fade-in"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setSel(null),
+      className: "text-[11px] text-[#8A8A90] mb-3"
+    }, "\u2039 Back to dex"), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-col items-center text-center"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-3 mb-3",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none'
+      }
+    }, got ? /*#__PURE__*/React.createElement(Sprite, {
+      art: form.art,
+      colors: got.shiny ? crShiny(form.colors) : form.colors,
+      px: 7
+    }) : /*#__PURE__*/React.createElement(Sprite, {
+      art: cr.art,
+      colors: crSilhouette(),
+      px: 7
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "text-lg font-bold"
+    }, got ? form.name : '???', got && got.shiny ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--fat)'
+      }
+    }, " \u2726") : ''), /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mt-1",
+      style: {
+        color: rc
+      }
+    }, CR_RARITY_LABEL[cr.rarity], " \xB7 ", bm.name)), /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-3 mt-4 text-[11px]",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase text-[#8A8A90] mb-1"
+    }, "How to catch"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[var(--text2)] leading-snug"
+    }, cr.cond)), /*#__PURE__*/React.createElement("div", {
+      className: "mt-3 text-[11px] leading-relaxed"
+    }, got ? cr.lore : /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, "Not yet caught. Meet the condition above on any logged day and it joins your dex \u2014 its lore unlocks then.")), got && /*#__PURE__*/React.createElement("div", {
+      className: "mt-3 text-[10px] text-[#8A8A90]"
+    }, "Caught ", /*#__PURE__*/React.createElement("b", {
+      className: "text-[var(--text)]"
+    }, "Lv ", got.count), cr.evo ? nextEvo ? ` · evolves at Lv ${nextEvo.at}` : ' · fully evolved' : '', got.shiny ? ' · ✦ shiny' : ''));
+  })() : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-1"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold"
@@ -4626,46 +5019,112 @@ function MacrodexModal({
     className: "text-[11px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Caught ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--text)] font-bold"
-  }, caught), " of ", CREATURES.length, ". Every day you log catches a creature \u2014 hit your macros for rarer ones, and a perfect day can turn one shiny. Catch the same creature again to ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[var(--text)]"
-  }, "level it up"), "."), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-2"
-  }, CREATURES.map(cr => {
-    const got = dex[cr.id];
-    const col = CR_TIER_COLOR[cr.tier] || 'var(--muted)';
+  }, caught), " of ", CREATURES.length, ". Log a day to catch a creature \u2014 the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), invIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-4",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Your items"), boost && (boost.lure || boost.shiny || boost.rare) && /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] mb-2",
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Active today:", boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : '', boost.rare ? ' · rare boost' : '', boost.shiny ? ' · shiny locked' : ''), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, invIds.map(id => {
+    const it = ITEMS[id];
+    const n = items[id];
     return /*#__PURE__*/React.createElement("div", {
-      key: cr.id,
-      className: "pixel-box p-2 flex flex-col items-center text-center",
-      style: {
-        background: 'var(--surface3)',
-        boxShadow: 'none'
-      }
+      key: id,
+      className: "flex items-center gap-2"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "h-14 flex items-center justify-center"
-    }, got ? /*#__PURE__*/React.createElement(Sprite, {
-      art: cr.art,
-      colors: got.shiny ? crShiny(cr.colors) : cr.colors,
-      px: 4
-    }) : /*#__PURE__*/React.createElement(Sprite, {
-      art: cr.art,
-      colors: crSilhouette(),
-      px: 4
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "text-[9px] mt-1 truncate w-full"
-    }, got ? cr.name : '???'), got ? /*#__PURE__*/React.createElement("div", {
-      className: "text-[7px] uppercase tracking-wide",
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] font-bold"
+    }, it.name, " ", /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, "\xD7", n)), /*#__PURE__*/React.createElement("div", {
+      className: "text-[9px] text-[#8A8A90] leading-snug"
+    }, it.desc)), it.kind === 'dex' && /*#__PURE__*/React.createElement("button", {
+      onClick: () => id === 'lure' ? setLurePick(v => !v) : useItem(id),
+      className: "pixel-btn px-2.5 py-1.5 text-[9px] shrink-0",
       style: {
-        color: 'var(--good)'
+        background: 'var(--accent)',
+        color: 'var(--on-accent)'
       }
-    }, "Lv ", got.count, got.shiny ? ' · shiny' : '') : /*#__PURE__*/React.createElement("div", {
-      className: "text-[7px] uppercase tracking-wide",
+    }, "USE"));
+  })), lurePick && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mb-1.5"
+  }, "Point the lure at a biome for today\u2019s catch:"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-1.5"
+  }, [['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
+    key: v,
+    onClick: () => useItem('lure', v),
+    className: "pixel-box py-2 text-[10px]",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none'
+    }
+  }, l))))), BIOMES.map(bm => {
+    const list = CREATURES.filter(c => c.biome === bm.id);
+    const done = list.filter(c => dex[c.id]).length;
+    const complete = done === list.length && list.length > 0;
+    return /*#__PURE__*/React.createElement("div", {
+      key: bm.id,
+      className: "mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase",
       style: {
-        color: 'var(--muted2)'
+        color: complete ? 'var(--good)' : 'var(--text2)'
       }
-    }, cr.tier));
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] text-center mt-4"
-  }, "Tip: hitting protein, carbs, fats and fibre each summon their own creature.")));
+    }, bm.name, complete ? ' ✓' : ''), /*#__PURE__*/React.createElement("div", {
+      className: "text-[9px] text-[#8A8A90] tnum"
+    }, done, "/", list.length)), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-3 gap-2"
+    }, list.map(c => {
+      const g = dex[c.id];
+      const form = creatureForm(c, g ? g.count : 0);
+      const rc = CR_RARITY_COLOR[c.rarity];
+      return /*#__PURE__*/React.createElement("button", {
+        key: c.id,
+        onClick: () => setSel(c.id),
+        className: "pixel-box p-2 flex flex-col items-center text-center",
+        style: {
+          background: 'var(--surface3)',
+          boxShadow: 'none'
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "h-14 flex items-center justify-center"
+      }, g ? /*#__PURE__*/React.createElement(Sprite, {
+        art: form.art,
+        colors: g.shiny ? crShiny(form.colors) : form.colors,
+        px: 4
+      }) : /*#__PURE__*/React.createElement(Sprite, {
+        art: c.art,
+        colors: crSilhouette(),
+        px: 4
+      })), /*#__PURE__*/React.createElement("div", {
+        className: "text-[9px] mt-1 truncate w-full"
+      }, g ? form.name : '???'), g ? /*#__PURE__*/React.createElement("div", {
+        className: "text-[7px] uppercase tracking-wide",
+        style: {
+          color: 'var(--good)'
+        }
+      }, "Lv ", g.count, g.shiny ? ' ✦' : '') : /*#__PURE__*/React.createElement("div", {
+        className: "text-[7px] uppercase tracking-wide",
+        style: {
+          color: rc
+        }
+      }, CR_RARITY_LABEL[c.rarity]));
+    })));
+  }))));
 }
 function DailyCatch({
   db,
@@ -4677,6 +5136,7 @@ function DailyCatch({
   if (!cr) return null;
   const dex = macrodex(db);
   const isNew = dex[cr.id] && dex[cr.id].firstDate === date && dex[cr.id].count === 1;
+  const form = creatureForm(cr, dex[cr.id] ? dex[cr.id].count : 1);
   return /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-4 flex items-center gap-3",
     style: {
@@ -4685,83 +5145,124 @@ function DailyCatch({
   }, /*#__PURE__*/React.createElement("div", {
     className: "shrink-0"
   }, /*#__PURE__*/React.createElement(Sprite, {
-    art: cr.art,
-    colors: c.shiny ? crShiny(cr.colors) : cr.colors,
+    art: form.art,
+    colors: c.shiny ? crShiny(form.colors) : form.colors,
     px: 5
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px]",
+    className: "text-[9px] flex items-center gap-1.5"
+  }, /*#__PURE__*/React.createElement("span", {
     style: {
       color: isNew ? 'var(--good)' : 'var(--muted)'
     }
-  }, isNew ? '★ NEW CATCH!' : 'CAUGHT THIS DAY'), /*#__PURE__*/React.createElement("div", {
+  }, isNew ? '★ NEW CATCH!' : 'CAUGHT THIS DAY'), /*#__PURE__*/React.createElement("span", {
+    className: "pf uppercase",
+    style: {
+      color: CR_RARITY_COLOR[cr.rarity]
+    }
+  }, CR_RARITY_LABEL[cr.rarity])), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold"
-  }, cr.name, c.shiny ? /*#__PURE__*/React.createElement("span", {
+  }, form.name, c.shiny ? /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--fat)'
     }
   }, " \u2726 shiny") : ''), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] leading-snug"
-  }, cr.blurb)));
+  }, cr.lore)));
 }
-/* ---- Punch-Out style auto-battle: your evolving buddy vs a rival ladder + weekly boss ---- */
+/* ---- Auto-battle: your buddy (stats from your recent eating) vs a rival ladder + rotating weekly boss ---- */
 const FIGHT_LADDER = [{
   name: 'Dinky',
   art: 'hatch',
   colors: crC('#7FD46B', '#3f8e2f'),
-  power: 1
+  power: 1,
+  ability: 'none'
 }, {
   name: 'Pebble',
   art: 'hatch',
   colors: crC('#9FB8C9', '#5f7d90'),
-  power: 1
+  power: 1,
+  ability: 'none'
 }, {
   name: 'Carbo',
   art: 'saur',
   colors: crC('#4A90E2', '#2f66b0'),
-  power: 2
+  power: 2,
+  ability: 'dodge'
 }, {
   name: 'Sprowl',
   art: 'sprout',
   colors: crC('#5FBF4A', '#2f7a24'),
-  power: 2
+  power: 2,
+  ability: 'heal'
 }, {
   name: 'Fatzilla',
   art: 'saur',
   colors: crC('#F5C518', '#c99a10'),
-  power: 3
+  power: 3,
+  ability: 'rage'
 }, {
   name: 'Protops',
   art: 'longneck',
   colors: crC('#E5556B', '#a83145'),
-  power: 3
+  power: 3,
+  ability: 'dodge'
 }, {
   name: 'Triceros',
   art: 'trike',
   colors: crC('#E0975B', '#a8642f'),
-  power: 4
+  power: 4,
+  ability: 'heal'
 }, {
   name: 'Platealon',
   art: 'stego',
   colors: crC('#2FB0A0', '#1e7a70'),
-  power: 4
+  power: 4,
+  ability: 'rage'
 }, {
   name: 'Veloci',
   art: 'raptor',
   colors: crC('#B06BE0', '#7a3fb0'),
-  power: 5
+  power: 5,
+  ability: 'dodge'
 }, {
   name: 'Rexosaur',
   art: 'rex',
   colors: crC('#6B5FC0', '#3a3170'),
-  power: 6
+  power: 6,
+  ability: 'rage'
 }];
-const FIGHT_BOSS = {
+const FIGHT_BOSSES = [{
   name: 'KING REX',
   art: 'rex',
   colors: crC('#E5342A', '#8e1e18'),
-  power: 6
+  power: 6,
+  ability: 'rage'
+}, {
+  name: 'TITANOPS',
+  art: 'longneck',
+  colors: crC('#C0392B', '#7a2018'),
+  power: 6,
+  ability: 'heal'
+}, {
+  name: 'DREADPLATE',
+  art: 'stego',
+  colors: crC('#8E44AD', '#5b2c6f'),
+  power: 6,
+  ability: 'dodge'
+}, {
+  name: 'GRIMHORN',
+  art: 'trike',
+  colors: crC('#34506B', '#1f3243'),
+  power: 7,
+  ability: 'rage'
+}];
+const ABIL_LABEL = {
+  none: '',
+  dodge: 'Slips punches',
+  heal: 'Regenerates',
+  rage: 'Rages when hurt'
 };
 function fightWeekKey() {
   const t = new Date();
@@ -4769,12 +5270,50 @@ function fightWeekKey() {
   const days = Math.floor((t - on) / 86400000);
   return t.getFullYear() + '-' + Math.floor((days + on.getDay()) / 7);
 }
+function bossForWeek() {
+  return FIGHT_BOSSES[crHash(fightWeekKey()) % FIGHT_BOSSES.length];
+}
 function buddyStageIndex(streak) {
   let si = 0;
   BUDDY_STAGES.forEach((x, i) => {
     if (streak >= x.min) si = i;
   });
   return si;
+}
+// Buddy fight stats grow from the last 7 days of eating: protein → attack, fibre → defence, consistency → HP.
+function buddyStats(db, streak) {
+  const today = Store.todayISO();
+  let pro = 0,
+    fib = 0,
+    per = 0;
+  for (let i = 0; i < 7; i++) {
+    const q = dayQuality(db, shiftISO(today, -i));
+    if (q) {
+      if (q.proteinHit) pro++;
+      if (q.fiberHit) fib++;
+      if (q.perfect) per++;
+    }
+  }
+  const si = buddyStageIndex(streak);
+  return {
+    hp: Math.min(220, 90 + streak * 2 + per * 5),
+    atk: 10 + si * 2 + pro * 2 + per,
+    def: 4 + fib * 2 + si,
+    si,
+    pro,
+    fib,
+    per,
+    ability: 'none'
+  };
+}
+function rivalStats(rival, rank, prestige) {
+  const sc = 1 + (prestige || 0) * 0.4;
+  return {
+    hp: Math.round((80 + rank * 12) * sc),
+    atk: Math.round((9 + rival.power * 3 + rank) * sc),
+    def: Math.round((3 + rival.power * 2) * sc),
+    ability: rival.ability || 'none'
+  };
 }
 const FIGHT_HIT = ['{x} lands a jab', '{x} throws a hook', '{x} with a body blow', '{x} counters clean', '{x} unloads a combo', '{x} clips the chin', '{x} presses forward'];
 function FightModal({
@@ -4787,7 +5326,8 @@ function FightModal({
     rank: 0,
     wins: 0,
     trophies: 0,
-    lastBossWeek: null
+    lastBossWeek: null,
+    prestige: 0
   };
   const si = buddyStageIndex(streak);
   const b = buddyForStreak(streak);
@@ -4795,18 +5335,28 @@ function FightModal({
     name: b.name,
     art: b.art,
     colors: b.colors,
-    power: si
+    stats: buddyStats(db, streak)
   };
   const ladderCleared = (fight.rank || 0) >= FIGHT_LADDER.length;
-  const rival = FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)];
+  const rivalBase = FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)];
+  const rival = Object.assign({}, rivalBase, {
+    stats: rivalStats(rivalBase, fight.rank || 0, fight.prestige || 0)
+  });
+  const weekBoss = bossForWeek();
+  const boss = Object.assign({}, weekBoss, {
+    stats: rivalStats(weekBoss, FIGHT_LADDER.length, fight.prestige || 0)
+  });
   const bossReady = fight.lastBossWeek !== fightWeekKey();
   const [phase, setPhase] = useState(si === 0 ? 'egg' : 'select');
   const [opp, setOpp] = useState(null);
   const [isBoss, setIsBoss] = useState(false);
   const [hpA, setHpA] = useState(100);
   const [hpB, setHpB] = useState(100);
+  const [maxA, setMaxA] = useState(100);
+  const [maxB, setMaxB] = useState(100);
   const [log, setLog] = useState([]);
   const [winner, setWinner] = useState(null);
+  const [drops, setDrops] = useState([]);
   const [lungeA, setLungeA] = useState(false);
   const [lungeB, setLungeB] = useState(false);
   const [pop, setPop] = useState(null);
@@ -4816,56 +5366,81 @@ function FightModal({
   function start(opponent, boss) {
     setOpp(opponent);
     setIsBoss(!!boss);
-    setHpA(100);
-    setHpB(100);
+    setMaxA(fighter.stats.hp);
+    setMaxB(opponent.stats.hp);
+    setHpA(fighter.stats.hp);
+    setHpB(opponent.stats.hp);
     setLog([]);
     setWinner(null);
+    setDrops([]);
     rewarded.current = false;
     setPhase('fight');
   }
+  function prestige() {
+    update(d => {
+      d.fight = d.fight || {};
+      d.fight.rank = 0;
+      d.fight.prestige = (d.fight.prestige || 0) + 1;
+    });
+    setPhase('select');
+  }
   useEffect(() => {
     if (phase !== 'fight' || !opp) return;
-    let a = 100,
-      d2 = 100,
+    const my = fighter.stats,
+      rv = opp.stats;
+    let a = my.hp,
+      d2 = rv.hp,
       round = 0,
       alive = true;
+    const rnd = n => Math.floor(Math.random() * n);
     const step = () => {
       if (!alive) return;
       round++;
-      const aAtk = Math.random() < (fighter.power + 1) / (fighter.power + 1 + (opp.power + 1));
-      const atkP = aAtk ? fighter.power : opp.power,
-        defP = aAtk ? opp.power : fighter.power;
-      let dmg = 9 + Math.floor(Math.random() * 11) + atkP * 2 - defP;
-      if (dmg < 4) dmg = 4;
-      const big = dmg >= 20;
-      if (aAtk) {
-        d2 = Math.max(0, d2 - dmg);
+      if (rv.ability === 'heal' && d2 > 0 && d2 < rv.hp * 0.7) {
+        d2 = Math.min(rv.hp, d2 + Math.round(rv.hp * 0.06));
         setHpB(d2);
-        setLungeA(true);
-        const lt = setTimeout(() => setLungeA(false), 350);
-        timers.current.push(lt);
-        setPop({
-          side: 'r',
-          text: big ? 'WHAM!' : 'POW!',
-          id: round
-        });
-      } else {
-        a = Math.max(0, a - dmg);
-        setHpA(a);
-        setLungeB(true);
-        const lt = setTimeout(() => setLungeB(false), 350);
-        timers.current.push(lt);
-        setPop({
-          side: 'l',
-          text: big ? 'WHAM!' : 'POW!',
-          id: round
-        });
       }
-      const nm = aAtk ? fighter.name : opp.name;
-      setLog(l => [FIGHT_HIT[Math.floor(Math.random() * FIGHT_HIT.length)].replace('{x}', nm) + (big ? '! Big one!' : '.'), ...l].slice(0, 5));
-      if (a <= 0 || d2 <= 0 || round >= 26) {
+      const aAtk = Math.random() < my.atk / (my.atk + rv.atk);
+      const atk = aAtk ? my : rv,
+        def = aAtk ? rv : my;
+      const defAbil = aAtk ? rv.ability : my.ability;
+      if (defAbil === 'dodge' && Math.random() < 0.22) {
+        setLog(l => [(aAtk ? opp.name : fighter.name) + ' slips the punch!', ...l].slice(0, 5));
+      } else {
+        let dmg = Math.max(3, atk.atk - Math.round(def.def / 2) + rnd(7));
+        const atkHp = aAtk ? a : d2,
+          atkMax = aAtk ? my.hp : rv.hp;
+        if (atk.ability === 'rage' && atkHp < atkMax * 0.35) dmg = Math.round(dmg * 1.5);
+        const big = dmg >= 22;
+        if (aAtk) {
+          d2 = Math.max(0, d2 - dmg);
+          setHpB(d2);
+          setLungeA(true);
+          const lt = setTimeout(() => setLungeA(false), 350);
+          timers.current.push(lt);
+          setPop({
+            side: 'r',
+            text: big ? 'WHAM!' : 'POW!',
+            id: round
+          });
+        } else {
+          a = Math.max(0, a - dmg);
+          setHpA(a);
+          setLungeB(true);
+          const lt = setTimeout(() => setLungeB(false), 350);
+          timers.current.push(lt);
+          setPop({
+            side: 'l',
+            text: big ? 'WHAM!' : 'POW!',
+            id: round
+          });
+        }
+        const nm = aAtk ? fighter.name : opp.name;
+        setLog(l => [FIGHT_HIT[rnd(FIGHT_HIT.length)].replace('{x}', nm) + (big ? '! Big one!' : '.'), ...l].slice(0, 5));
+      }
+      if (a <= 0 || d2 <= 0 || round >= 32) {
         alive = false;
-        const win = d2 <= 0 ? true : a <= 0 ? false : a >= d2;
+        const win = d2 <= 0 ? true : a <= 0 ? false : a / my.hp >= d2 / rv.hp;
         const et = setTimeout(() => {
           setWinner(win ? 'you' : 'them');
           setPhase('done');
@@ -4873,7 +5448,7 @@ function FightModal({
         timers.current.push(et);
         return;
       }
-      const t = setTimeout(step, 780);
+      const t = setTimeout(step, 760);
       timers.current.push(t);
     };
     const t0 = setTimeout(step, 650);
@@ -4885,22 +5460,43 @@ function FightModal({
   useEffect(() => {
     if (phase !== 'done' || winner == null || rewarded.current) return;
     rewarded.current = true;
-    if (winner === 'you') update(d => {
-      d.fight = d.fight || {
-        rank: 0,
-        wins: 0,
-        trophies: 0,
-        lastBossWeek: null
-      };
-      d.fight.wins = (d.fight.wins || 0) + 1;
-      if (isBoss) {
-        d.fight.trophies = (d.fight.trophies || 0) + 1;
-        d.fight.lastBossWeek = fightWeekKey();
-      } else if ((d.fight.rank || 0) < FIGHT_LADDER.length) d.fight.rank = (d.fight.rank || 0) + 1;
-    });
+    if (winner === 'you') {
+      const got = [];
+      update(d => {
+        d.fight = d.fight || {
+          rank: 0,
+          wins: 0,
+          trophies: 0,
+          lastBossWeek: null,
+          prestige: 0
+        };
+        d.fight.wins = (d.fight.wins || 0) + 1;
+        d.items = d.items || {};
+        d.game_awards = d.game_awards || {};
+        const give = id => {
+          d.items[id] = (d.items[id] || 0) + 1;
+          got.push(id);
+        };
+        if (isBoss) {
+          d.fight.trophies = (d.fight.trophies || 0) + 1;
+          d.fight.lastBossWeek = fightWeekKey();
+          give('amber');
+          if (crHash(fightWeekKey() + 's') % 2 === 0) give('golden_steak');
+        } else if ((d.fight.rank || 0) < FIGHT_LADDER.length) {
+          d.fight.rank = (d.fight.rank || 0) + 1;
+          if (d.fight.rank % 3 === 0) give('lure');
+          if (d.fight.rank >= FIGHT_LADDER.length && !d.game_awards['belt']) {
+            d.game_awards['belt'] = true;
+            give('belt');
+          }
+        }
+      });
+      setDrops(got);
+    }
   }, [phase, winner]);
   const HpBar = ({
     hp,
+    max,
     color,
     align
   }) => /*#__PURE__*/React.createElement("div", {
@@ -4913,7 +5509,7 @@ function FightModal({
     }
   }, /*#__PURE__*/React.createElement("i", {
     style: {
-      width: hp + '%',
+      width: Math.max(0, Math.min(100, hp / max * 100)) + '%',
       background: color,
       transition: 'width .3s'
     }
@@ -4965,6 +5561,11 @@ function FightModal({
       color: 'var(--fat)'
     }
   }, pop.text));
+  const StatLine = ({
+    s
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "text-[8px] text-[#8A8A90] tnum"
+  }, "HP ", s.hp, " \xB7 ATK ", s.atk, " \xB7 DEF ", s.def);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
@@ -4999,10 +5600,15 @@ function FightModal({
     onClick: onClose
   }, "Got it")), phase === 'select' && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
+  }, (fight.prestige || 0) > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-center pf text-[8px] uppercase mb-2",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "Prestige ", fight.prestige, " \xB7 elite ladder"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start justify-between mb-3 gap-2"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-center"
+    className: "text-center flex-1 min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2 inline-block",
     style: {
@@ -5013,13 +5619,13 @@ function FightModal({
     colors: fighter.colors,
     px: 5
   })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] mt-1 font-bold"
-  }, fighter.name), /*#__PURE__*/React.createElement("div", {
-    className: "text-[8px] text-[#8A8A90]"
-  }, "PWR ", fighter.power)), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[12px] text-[#8A8A90]"
+    className: "text-[10px] mt-1 font-bold truncate"
+  }, fighter.name), /*#__PURE__*/React.createElement(StatLine, {
+    s: fighter.stats
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[12px] text-[#8A8A90] self-center"
   }, "VS"), /*#__PURE__*/React.createElement("div", {
-    className: "text-center"
+    className: "text-center flex-1 min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2 inline-block",
     style: {
@@ -5035,42 +5641,55 @@ function FightModal({
     colors: rival.colors,
     px: 5
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] mt-1 font-bold"
-  }, ladderCleared ? rival.name : rival.name), /*#__PURE__*/React.createElement("div", {
-    className: "text-[8px] text-[#8A8A90]"
-  }, "PWR ", rival.power))), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mb-3 text-center inline-flex items-center justify-center gap-1.5 flex-wrap"
-  }, ladderCleared ? 'Ladder cleared — you\'re the champ. Rematch the top contender any time.' : `Ladder rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}. Beat them to climb.`, " \xB7 ", fight.wins || 0, " wins \xB7 ", fight.trophies || 0, " ", /*#__PURE__*/React.createElement(PixelGlyph, {
+    className: "text-[10px] mt-1 font-bold truncate"
+  }, rival.name), /*#__PURE__*/React.createElement(StatLine, {
+    s: rival.stats
+  }), rival.ability !== 'none' && /*#__PURE__*/React.createElement("div", {
+    className: "text-[8px]",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, ABIL_LABEL[rival.ability]))), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-2 text-center inline-flex items-center justify-center gap-1.5 flex-wrap w-full"
+  }, ladderCleared ? 'Ladder cleared — prestige up for a tougher run.' : `Rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}.`, " \xB7 ", fight.wins || 0, " wins \xB7 ", fight.trophies || 0, " ", /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
     size: 12
-  })), /*#__PURE__*/React.createElement(Btn, {
+  })), fighter.stats.pro + fighter.stats.fib + fighter.stats.per > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] text-center mb-3 leading-snug"
+  }, "Buddy's strength is your last 7 days: ", fighter.stats.pro, " protein \xB7 ", fighter.stats.fib, " fibre \xB7 ", fighter.stats.per, " perfect."), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full mb-2",
+    onClick: prestige
+  }, "Prestige \u2191 \u2014 tougher ladder, better drops") : /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-2",
     onClick: () => start(rival, false)
   }, "Fight ", rival.name), bossReady ? /*#__PURE__*/React.createElement(Btn, {
     kind: "danger",
     className: "w-full inline-flex items-center justify-center gap-2",
-    onClick: () => start(FIGHT_BOSS, true)
+    onClick: () => start(boss, true)
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "glove",
     color: "currentColor",
     size: 14
-  }), " Weekly Boss: ", FIGHT_BOSS.name) : /*#__PURE__*/React.createElement("div", {
+  }), " Weekly Boss: ", boss.name) : /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] text-center mt-1"
-  }, "Weekly boss beaten \u2014 resets next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
+  }, "Weekly boss beaten \u2014 a new challenger arrives next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-2"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] mb-1 font-bold"
+    className: "text-[9px] mb-1 font-bold truncate"
   }, fighter.name), /*#__PURE__*/React.createElement(HpBar, {
     hp: hpA,
+    max: maxA,
     color: "var(--good)"
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] mb-1 font-bold text-right"
+    className: "text-[9px] mb-1 font-bold text-right truncate"
   }, opp.name), /*#__PURE__*/React.createElement(HpBar, {
     hp: hpB,
+    max: maxB,
     color: "var(--danger)",
     align: "r"
   }))), /*#__PURE__*/React.createElement(Ring, null), /*#__PURE__*/React.createElement("div", {
@@ -5092,8 +5711,13 @@ function FightModal({
       color: winner === 'you' ? 'var(--good)' : 'var(--danger)'
     }
   }, winner === 'you' ? 'K.O. — YOU WIN!' : 'YOU LOST'), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mb-3"
-  }, winner === 'you' ? isBoss ? 'Boss down! Trophy earned.' : ladderCleared ? 'Champion holds the belt.' : 'You climb the ladder!' : fighter.power < opp.power ? 'They outmuscled you — evolve your buddy by logging more days.' : 'So close. Run it back.'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-2"
+  }, winner === 'you' ? isBoss ? 'Boss down! Trophy earned.' : ladderCleared ? 'Champion holds the belt.' : 'You climb the ladder!' : 'They had your number. Log more strong days to power up your buddy.'), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mb-3",
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Loot: ", drops.map(id => ITEMS[id].name).join(', ')), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -5207,6 +5831,34 @@ function Dashboard({
       });
     });
   }, [catchSig]);
+  // One-time item / milestone rewards: streak tiers, a perfect week, and completing a Macrodex biome.
+  useEffect(() => {
+    const aw = db.game_awards || {};
+    const pending = [];
+    const g = (key, id) => {
+      if (!aw[key]) pending.push([key, id]);
+    };
+    if (streak >= 7) g('streak7', 'lure');
+    if (streak >= 14) g('streak14', 'golden_steak');
+    if (streak >= 30) g('streak30', 'incubator');
+    if (perfectDaysIn(db, today, 7) >= 5) g('perfweek:' + fightWeekKey(), 'golden_steak');
+    const dex = macrodex(db);
+    BIOMES.forEach(bm => {
+      const list = CREATURES.filter(c => c.biome === bm.id);
+      if (list.length && list.every(c => dex[c.id])) g('biome:' + bm.id, 'medal');
+    });
+    if (!pending.length) return;
+    update(d => {
+      d.game_awards = d.game_awards || {};
+      d.items = d.items || {};
+      pending.forEach(([k, id]) => {
+        if (!d.game_awards[k]) {
+          d.game_awards[k] = true;
+          d.items[id] = (d.items[id] || 0) + 1;
+        }
+      });
+    });
+  }, [streak, catchSig]);
   const remindOn = db.profile.reminders !== false;
   const missWeigh = !weighSet.has(today),
     missLog = !logSet.has(today);
@@ -5404,6 +6056,7 @@ function Dashboard({
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"
   }, quote), showDex && /*#__PURE__*/React.createElement(MacrodexModal, {
     db: db,
+    update: update,
     onClose: () => setShowDex(false)
   }), showFight && /*#__PURE__*/React.createElement(FightModal, {
     db: db,
