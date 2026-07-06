@@ -2338,7 +2338,8 @@ function InsightsCard({
   today
 }) {
   const logSet = new Set(db.log_entries.map(e => e.date));
-  const loggedDates = Array.from(logSet).filter(d => d <= today).sort().slice(-14);
+  // Completed days only — a part-logged today shouldn't drag any of these averages down.
+  const loggedDates = Array.from(logSet).filter(d => d < today).sort().slice(-14);
   const n = loggedDates.length;
   const t = currentTargets(db) || {};
   const kcalTarget = Math.round(+t.kcal || 0),
@@ -8781,9 +8782,14 @@ const MEAL_SOURCES = [{
 function MealEstimate({
   apiKey,
   onPick,
-  onBack
+  onBack,
+  initialFiles
 }) {
-  const [imgs, setImgs] = useState([]); // { id, file, url }
+  const [imgs, setImgs] = useState(() => (initialFiles || []).slice(0, 3).map(f => ({
+    id: Store.uid(),
+    file: f,
+    url: URL.createObjectURL(f)
+  }))); // { id, file, url }
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -10787,8 +10793,10 @@ function App() {
   const [adding, setAdding] = useState(null);
   const [fresh, setFresh] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
+  const entryHandled = useRef(false);
   function showToast(msg, actionLabel, onAction) {
     clearTimeout(toastTimer.current);
     setToast({
@@ -10871,6 +10879,66 @@ function App() {
       window.removeEventListener('online', flush);
     };
   }, [session]);
+
+  // Handle launch intents once data is ready: home-screen shortcuts (?action=log/weigh) and Web
+  // Share hand-offs (?shared=1 → pick the stashed photos out of the SW cache into the estimator).
+  useEffect(() => {
+    if (!db || !db.profile || entryHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action'),
+      isShared = params.get('shared');
+    if (!action && !isShared) {
+      entryHandled.current = true;
+      return;
+    }
+    entryHandled.current = true;
+    const meals = mealsForDay(db, Store.todayISO());
+    const firstMeal = meals[0] && meals[0].id;
+    if (action === 'log') setAdding({
+      date: Store.todayISO(),
+      mealId: firstMeal
+    });else if (action === 'weigh') {
+      setView('dashboard');
+      setTimeout(() => {
+        const el = document.getElementById('checkin-card');
+        if (el) el.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }, 400);
+    }
+    if (isShared) (async () => {
+      try {
+        const cache = await caches.open('share-incoming');
+        const metaR = await cache.match('/shared-meta');
+        const meta = metaR ? await metaR.json() : {
+          count: 0,
+          text: ''
+        };
+        const files = [];
+        for (let i = 0; i < (meta.count || 0); i++) {
+          const r = await cache.match('/shared-file-' + i);
+          if (r) {
+            const b = await r.blob();
+            files.push(new File([b], 'shared-' + i + '.jpg', {
+              type: b.type || 'image/jpeg'
+            }));
+          }
+        }
+        await Promise.all((await cache.keys()).map(k => cache.delete(k)));
+        if (files.length) setShared({
+          files: files,
+          text: meta.text || ''
+        });else if (meta.text && firstMeal) setAdding({
+          date: Store.todayISO(),
+          mealId: firstMeal
+        });
+      } catch (e) {/* ignore */}
+    })();
+    try {
+      window.history.replaceState(null, '', window.location.pathname);
+    } catch (e) {}
+  }, [db]);
   function update(m) {
     setDb(prev => {
       const n = JSON.parse(JSON.stringify(prev));
@@ -11076,7 +11144,31 @@ function App() {
     db: db,
     update: update,
     onClose: () => setCheckingIn(false)
-  }), /*#__PURE__*/React.createElement(Toast, {
+  }), shared && shared.files && shared.files.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[80] bg-black/60 flex items-end lg:items-center justify-center",
+    onClick: () => setShared(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[var(--bg)] w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold"
+  }, "Log shared photo", shared.files.length === 1 ? '' : 's'), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShared(null),
+    className: "text-[#8A8A90] text-xl leading-none"
+  }, "×")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal — you confirm before it's logged."), /*#__PURE__*/React.createElement(MealEstimate, {
+    apiKey: db.profile.aiKey,
+    initialFiles: shared.files,
+    onBack: () => setShared(null),
+    onPick: item => {
+      const meals = mealsForDay(db, Store.todayISO());
+      if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item);
+      setShared(null);
+    }
+  }))), /*#__PURE__*/React.createElement(Toast, {
     toast: toast
   }));
 }

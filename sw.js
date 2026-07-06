@@ -38,8 +38,30 @@ self.addEventListener('activate', function (e) {
 
 self.addEventListener('fetch', function (e) {
   var req = e.request;
-  if (req.method !== 'GET') return; // never intercept POSTs (Anthropic, Supabase writes)
   var url = new URL(req.url);
+
+  // Web Share Target: receive photos/text shared from other apps, stash them in a temp cache,
+  // then hand off to the app which picks them up on load (/?shared=1) and opens the meal estimator.
+  if (req.method === 'POST' && url.pathname === '/share-target') {
+    e.respondWith((async function () {
+      try {
+        var form = await req.formData();
+        var files = (form.getAll('photos') || []).filter(Boolean);
+        var text = form.get('text') || form.get('title') || form.get('url') || '';
+        var cache = await caches.open('share-incoming');
+        var old = await cache.keys();
+        await Promise.all(old.map(function (k) { return cache.delete(k); }));
+        for (var i = 0; i < files.length; i++) {
+          await cache.put('/shared-file-' + i, new Response(files[i], { headers: { 'content-type': files[i].type || 'image/jpeg' } }));
+        }
+        await cache.put('/shared-meta', new Response(JSON.stringify({ count: files.length, text: String(text || '') }), { headers: { 'content-type': 'application/json' } }));
+      } catch (err) { /* fall through to the app either way */ }
+      return Response.redirect('/?shared=1', 303);
+    })());
+    return;
+  }
+
+  if (req.method !== 'GET') return; // never intercept other POSTs (Anthropic, Supabase writes)
   if (NO_CACHE_HOSTS.some(function (h) { return url.hostname === h || url.hostname.endsWith('.' + h); })) return;
 
   var isShell = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html';
