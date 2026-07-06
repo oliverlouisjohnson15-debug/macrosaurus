@@ -8599,7 +8599,6 @@ function SettingsTab({
   const p = db.profile;
   const init = () => ({
     checkinDay: p.checkinDay == null ? 1 : p.checkinDay,
-    program_mode: p.program_mode,
     weight_unit: p.weight_unit,
     height_unit: p.height_unit,
     aiKey: p.aiKey || '',
@@ -8650,10 +8649,11 @@ function SettingsTab({
     arr.forEach((x, k) => x.sort_order = k);
   });
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Section, {
-    title: "Theme"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-2"
-  }, "Pick your Game Boy. Dark is neon-on-black, Light is Game Boy Color."), /*#__PURE__*/React.createElement(Seg, {
+    title: "Appearance"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Theme",
+    hint: "Dark is neon-on-black; Light is Game Boy Color."
+  }, /*#__PURE__*/React.createElement(Seg, {
     value: s.theme,
     onChange: v => sset('theme', v),
     options: [{
@@ -8675,53 +8675,31 @@ function SettingsTab({
         size: 12
       }), " Dark GB")
     }]
-  })), /*#__PURE__*/React.createElement(Section, {
-    title: "Check-in day"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-2"
-  }, "A weekly reminder of when to check in. Recommended cadence is every 7 days; you can check in early any day from day 5."), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5"
-  }, DOW.map((d, i) => /*#__PURE__*/React.createElement("button", {
-    key: i,
-    onClick: () => sset('checkinDay', i),
-    className: `flex-1 rounded-lg py-2 text-[11px] ${s.checkinDay === i ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
-  }, d[0])))), /*#__PURE__*/React.createElement(Section, {
-    title: "Coaching mode"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Weight units"
   }, /*#__PURE__*/React.createElement(Seg, {
-    value: s.program_mode,
-    onChange: v => sset('program_mode', v),
-    options: COACH_MODES.map(m => ({
-      v: m.v,
-      l: m.l
-    }))
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "mt-3 space-y-2"
-  }, COACH_MODES.map(m => /*#__PURE__*/React.createElement("div", {
-    key: m.v,
-    className: `rounded-xl px-3 py-2.5 text-[12px] transition ${s.program_mode === m.v ? 'bg-[#1E1E22] border border-[#262629]' : 'opacity-45'}`
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "font-semibold"
-  }, m.l, "."), " ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[#8A8A90]"
-  }, m.d))))), /*#__PURE__*/React.createElement(Section, {
-    title: "Units"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Weight"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, [['st_lb', 'st / lb'], ['kg', 'kg']].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
-    key: v,
-    onClick: () => sset('weight_unit', v),
-    className: `flex-1 rounded-2xl py-2.5 text-sm ${s.weight_unit === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90] border border-[#262629]'}`
-  }, l)))), /*#__PURE__*/React.createElement(Field, {
-    label: "Height"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, [['cm', 'cm'], ['ft_in', 'ft / in']].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
-    key: v,
-    onClick: () => sset('height_unit', v),
-    className: `flex-1 rounded-2xl py-2.5 text-sm ${s.height_unit === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90] border border-[#262629]'}`
-  }, l))))), /*#__PURE__*/React.createElement(Section, {
+    value: s.weight_unit,
+    onChange: v => sset('weight_unit', v),
+    options: [{
+      v: 'st_lb',
+      l: 'st / lb'
+    }, {
+      v: 'kg',
+      l: 'kg'
+    }]
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Height units"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: s.height_unit,
+    onChange: v => sset('height_unit', v),
+    options: [{
+      v: 'cm',
+      l: 'cm'
+    }, {
+      v: 'ft_in',
+      l: 'ft / in'
+    }]
+  }))), /*#__PURE__*/React.createElement(Section, {
     title: "Meals"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -8761,10 +8739,20 @@ function SettingsTab({
     onClick: addDef,
     className: "w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1"
   }, "+ Add default meal")), /*#__PURE__*/React.createElement(Section, {
-    title: "Reminders"
+    title: "Notifications"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Check-in day",
+    hint: "Your weekly check-in reminder. Recommended cadence is every 7 days; you can check in early any day from day 5."
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Show a nudge on your Dashboard when you haven't weighed in or logged your food yet today."), /*#__PURE__*/React.createElement(RowToggle, {
+    className: "flex gap-1.5"
+  }, DOW.map((d, i) => /*#__PURE__*/React.createElement("button", {
+    key: i,
+    onClick: () => sset('checkinDay', i),
+    className: `flex-1 pixel-box py-2 text-[11px] ${s.checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
+    style: {
+      boxShadow: 'none'
+    }
+  }, d[0])))), /*#__PURE__*/React.createElement(RowToggle, {
     label: "Daily weigh-in & log reminder",
     on: s.reminders,
     onClick: () => sset('reminders', !s.reminders)
@@ -8779,17 +8767,15 @@ function SettingsTab({
       l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am')
     }))
   }))), /*#__PURE__*/React.createElement(Section, {
-    title: "AI"
+    title: "AI food logging"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "AI API key",
-    hint: "Powers label scanning and AI meal estimates. Saved to your account."
+    hint: "Powers label scanning and AI meal estimates. Stays on your device; used only for your own estimates."
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: s.aiKey,
     onChange: e => sset('aiKey', e.target.value),
     placeholder: "paste your API key (sk-ant-\u2026)"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90]"
-  }, "Paste your API key to enable AI food estimates. Your key stays on your device and is only used for your own estimates.")), /*#__PURE__*/React.createElement(SaveBar, {
+  }))), /*#__PURE__*/React.createElement(SaveBar, {
     dirty: dirty,
     saved: saved,
     onSave: save,
@@ -8830,8 +8816,9 @@ function AdvancedTab({
   const mset = (k, v) => setManual(m => Object.assign({}, m, {
     [k]: v
   }));
+  const [coach, setCoach] = useState(p.program_mode);
   const [saved, setSaved] = useState(false);
-  const dirty = manual.enabled || JSON.stringify({
+  const dirty = manual.enabled || coach !== p.program_mode || JSON.stringify({
     carry,
     cyc
   }) !== JSON.stringify({
@@ -8842,6 +8829,7 @@ function AdvancedTab({
     update(d => {
       d.profile.carryover = carry;
       d.profile.cycling = cyc;
+      d.profile.program_mode = coach;
       if (manual.enabled) {
         const kcal = Math.round(+manual.kcal || 0);
         if (kcal > 0) {
@@ -8867,7 +8855,30 @@ function AdvancedTab({
   }
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
-  }, "Power tools for experienced trackers. Not sure? Leave them off, the defaults work great."), /*#__PURE__*/React.createElement(Section, {
+  }, "How your targets are set and adjusted. The defaults work great \u2014 tune these only if you want to."), /*#__PURE__*/React.createElement(Section, {
+    title: "Coaching mode"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Whether Macrosaurus adjusts your numbers at each check-in, or leaves them exactly where you set them."), /*#__PURE__*/React.createElement(Seg, {
+    value: coach,
+    onChange: setCoach,
+    options: COACH_MODES.map(m => ({
+      v: m.v,
+      l: m.l
+    }))
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 space-y-2"
+  }, COACH_MODES.map(m => /*#__PURE__*/React.createElement("div", {
+    key: m.v,
+    className: `pixel-box px-3 py-2.5 text-[12px] transition ${coach === m.v ? 'bg-[#1E1E22]' : 'opacity-45'}`,
+    style: {
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, m.l, "."), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, m.d))))), /*#__PURE__*/React.createElement(Section, {
     title: "Calorie carryover"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -8937,7 +8948,10 @@ function AdvancedTab({
       onClick: () => setCyc(c => Object.assign({}, c, {
         highDays: on ? c.highDays.filter(x => x !== i) : c.highDays.concat([i])
       })),
-      className: `flex-1 rounded-lg py-2 text-[11px] ${on ? 'bg-[#4A9EEB] text-white font-semibold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
+      className: `flex-1 pixel-box py-2 text-[11px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
+      style: {
+        boxShadow: 'none'
+      }
     }, d[0]);
   })), /*#__PURE__*/React.createElement(Field, {
     label: `High-day boost: +${Math.round(cyc.deltaPct * 100)}%`
@@ -9002,44 +9016,122 @@ function AdvancedTab({
     label: "Save advanced settings"
   }));
 }
-function More({
+function ProfileTab({
   db,
   update,
-  onSignOut,
-  onReset,
-  onDeleteAccount,
-  onFreshStart,
-  email
+  onFreshStart
 }) {
   const p = db.profile;
   const act = ACTIVITY.find(a => a.v === p.activityLevel) || ACTIVITY[2];
-  const [tab, setTab] = useState('details');
-  const [delOpen, setDelOpen] = useState(false);
-  const [delText, setDelText] = useState('');
-  const [delBusy, setDelBusy] = useState(false);
-  const [delErr, setDelErr] = useState('');
-  async function doDelete() {
-    setDelBusy(true);
-    setDelErr('');
-    try {
-      await onDeleteAccount();
-    } catch (e) {
-      setDelErr(e.message || 'Something went wrong.');
-      setDelBusy(false);
-    }
+  const [edit, setEdit] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const init = () => {
+    const h = cmToFtIn(p.heightCm);
+    return {
+      sex: p.sex,
+      age: p.age,
+      heightCm: p.heightCm,
+      ft: h.ft,
+      inch: h.inch,
+      activityLevel: p.activityLevel
+    };
+  };
+  const [f, setF] = useState(init);
+  const fset = (k, v) => setF(x => Object.assign({}, x, {
+    [k]: v
+  }));
+  const ftIn = p.height_unit === 'ft_in';
+  function cancel() {
+    setF(init());
+    setEdit(false);
   }
-  return /*#__PURE__*/React.createElement("div", {
-    className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
-  }, /*#__PURE__*/React.createElement(PageHeader, {
-    kicker: "Your profile",
-    title: "Menu"
+  function save() {
+    update(d => {
+      const np = Object.assign({}, d.profile, {
+        sex: f.sex,
+        age: Math.round(+f.age) || d.profile.age,
+        heightCm: ftIn ? ftInToCm(+f.ft || 0, +f.inch || 0) : Math.round(+f.heightCm) || d.profile.heightCm,
+        activityLevel: f.activityLevel
+      });
+      d.profile = np;
+      const nt = E.computeInitialTargets(withActivity(np));
+      nt.id = Store.uid();
+      nt.effective_date = Store.todayISO();
+      nt.source = 'profile-edit';
+      d.targets.push(nt);
+    });
+    setEdit(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2200);
+  }
+  if (edit) return /*#__PURE__*/React.createElement(Section, {
+    title: "Edit profile"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Sex"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: f.sex,
+    onChange: v => fset('sex', v),
+    options: [{
+      v: 'male',
+      l: 'Male'
+    }, {
+      v: 'female',
+      l: 'Female'
+    }]
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Age"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: f.age,
+    onChange: e => fset('age', e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Height"
+  }, ftIn ? /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: f.ft,
+    onChange: e => fset('ft', e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "ft"), /*#__PURE__*/React.createElement(NumInput, {
+    value: f.inch,
+    onChange: e => fset('inch', e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "in")) : /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: f.heightCm,
+    onChange: e => fset('heightCm', e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "cm"))), /*#__PURE__*/React.createElement(Field, {
+    label: "Activity"
+  }, /*#__PURE__*/React.createElement(Dropdown, {
+    value: f.activityLevel,
+    onChange: v => fset('activityLevel', v),
+    options: ACTIVITY.map(a => ({
+      v: a.v,
+      l: a.l
+    }))
   }), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl"
-  }, [['details', 'Profile'], ['settings', 'Settings'], ['advanced', 'Advanced'], ['account', 'Account']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
-    key: k,
-    onClick: () => setTab(k),
-    className: `flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
-  }, l))), tab === 'details' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
+    className: "text-[12px] text-[#8A8A90] mt-1.5 leading-snug"
+  }, (ACTIVITY.find(a => a.v === f.activityLevel) || act).d)), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 text-[12px] text-[#8A8A90] leading-snug mb-4",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, "Saving rebuilds today's calorie & macro targets from these details. Your food log and weigh-in history stay put \u2014 weight and body fat only change at a check-in."), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "flex-1",
+    onClick: save
+  }, "Save & recalculate"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: cancel
+  }, "Cancel")));
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Sex",
@@ -9063,13 +9155,84 @@ function More({
     k: "Lean mass",
     v: fmtWeight(leanKg(p), p.weight_unit),
     last: true
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Weight and body fat only change at a check-in. Use the button below to edit your age, height, activity or goal and rebuild your targets. Your food log and weigh-in history stay put."), /*#__PURE__*/React.createElement(Btn, {
+  })), saved && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3 fade-in",
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Saved \u2014 targets recalculated."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full mb-3",
+    onClick: () => {
+      setF(init());
+      setEdit(true);
+    }
+  }, "Edit details"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-2 leading-snug"
+  }, "Editing age, height or activity recalculates your targets and keeps your history. To also change your weight or rebuild from scratch, use full setup."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
     onClick: onFreshStart
-  }, "Edit details & recalculate")), tab === 'settings' && /*#__PURE__*/React.createElement(SettingsTab, {
+  }, "Full setup & recalculate"));
+}
+function More({
+  db,
+  update,
+  onSignOut,
+  onReset,
+  onDeleteAccount,
+  onFreshStart,
+  email
+}) {
+  const [tab, setTab] = useState('details');
+  const [delOpen, setDelOpen] = useState(false);
+  const [delText, setDelText] = useState('');
+  const [delBusy, setDelBusy] = useState(false);
+  const [delErr, setDelErr] = useState('');
+  const [resetOpen, setResetOpen] = useState(false);
+  async function doDelete() {
+    setDelBusy(true);
+    setDelErr('');
+    try {
+      await onDeleteAccount();
+    } catch (e) {
+      setDelErr(e.message || 'Something went wrong.');
+      setDelBusy(false);
+    }
+  }
+  function exportData() {
+    try {
+      const blob = new Blob([JSON.stringify(db, null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'macrosaurus-data-' + Store.todayISO() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alert('Could not export: ' + (e.message || e));
+    }
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
+  }, /*#__PURE__*/React.createElement(PageHeader, {
+    kicker: "Your profile",
+    title: "Menu"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl"
+  }, [['details', 'Profile'], ['settings', 'Settings'], ['advanced', 'Advanced'], ['account', 'Account']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setTab(k),
+    className: `flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
+  }, l))), tab === 'details' && /*#__PURE__*/React.createElement(ProfileTab, {
+    db: db,
+    update: update,
+    onFreshStart: onFreshStart
+  }), tab === 'settings' && /*#__PURE__*/React.createElement(SettingsTab, {
     db: db,
     update: update
   }), tab === 'advanced' && /*#__PURE__*/React.createElement(AdvancedTab, {
@@ -9083,13 +9246,21 @@ function More({
     className: "text-white"
   }, email), "."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
-    className: "w-full mb-3",
+    className: "w-full",
     onClick: onSignOut
-  }, "Sign out"), /*#__PURE__*/React.createElement("div", {
+  }, "Sign out")), /*#__PURE__*/React.createElement(Section, {
+    title: "Your data"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Download everything \u2014 profile, food log, weigh-ins and history \u2014 as a JSON file you can keep or re-import later."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mb-4",
+    onClick: exportData
+  }, "Export my data"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-2"
-  }, "Just changing your details? Use ", /*#__PURE__*/React.createElement("span", {
+  }, "Just changing details? Use ", /*#__PURE__*/React.createElement("span", {
     className: "text-white"
-  }, "Edit details & recalculate"), " on the Profile tab, it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Edit details"), " on the Profile tab \u2014 it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
     style: {
@@ -9097,9 +9268,7 @@ function More({
       color: 'var(--on-accent)',
       borderColor: 'var(--border)'
     },
-    onClick: () => {
-      if (confirm('Delete EVERYTHING (profile, food log, weigh-ins, history) and start over from setup? This cannot be undone.')) onReset();
-    }
+    onClick: () => setResetOpen(true)
   }, "Reset all data & start over")), /*#__PURE__*/React.createElement(Section, {
     title: "Delete account"
   }, /*#__PURE__*/React.createElement("div", {
@@ -9151,7 +9320,13 @@ function More({
     }
   }, "Cancel")))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]/70 mt-2 text-center"
-  }, BRAND, " \xB7 your data syncs to your account")));
+  }, BRAND, " \xB7 your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: "Reset all data & start over?",
+    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone \u2014 export your data first if you want a copy.",
+    confirmLabel: "Reset everything",
+    onConfirm: onReset,
+    onClose: () => setResetOpen(false)
+  }));
 }
 function Row2({
   k,
