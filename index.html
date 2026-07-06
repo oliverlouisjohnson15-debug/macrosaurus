@@ -6112,7 +6112,7 @@ function Dashboard({
   const missWeigh = !weighSet.has(today),
     missLog = !logSet.has(today);
   const nudgeHour = db.profile.nudgeHour == null ? 14 : db.profile.nudgeHour;
-  const showNudge = remindOn && missLog && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
+  const showNudge = remindOn && (missLog || missWeigh) && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   const remColor = remaining < 0 ? 'var(--danger)' : 'var(--hero)';
   return /*#__PURE__*/React.createElement("div", {
@@ -6138,19 +6138,34 @@ function Dashboard({
     className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold mb-0.5"
-  }, "Nothing logged yet today"), /*#__PURE__*/React.createElement("div", {
+  }, missLog && missWeigh ? 'Log &amp; weigh-in still to do' : missLog ? 'Nothing logged yet today' : 'No weigh-in yet today'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-snug"
-  }, freezeAvail ? 'Log a meal to keep your streak alive and evolve your buddy. Miss today and it spends this month’s streak freeze.' : 'Log a meal to keep your streak — you’ve already used this month’s freeze, so missing today resets your buddy to the egg.')), /*#__PURE__*/React.createElement("button", {
+  }, missLog ? freezeAvail ? 'Log a meal to keep your streak alive and evolve your buddy. Miss today and it spends this month’s streak freeze.' : 'Log a meal to keep your streak — you’ve already used this month’s freeze, so missing today resets your buddy to the egg.' : 'A quick weigh-in keeps your weight trend accurate, so your next check-in reads true.')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setNudgeDismissed(true),
     className: "text-[#8A8A90] text-xl leading-none shrink-0"
-  }, "×")), /*#__PURE__*/React.createElement("button", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-3"
+  }, missLog && /*#__PURE__*/React.createElement("button", {
     onClick: () => onQuickAdd(false),
-    className: "pixel-btn w-full mt-3 py-2.5 text-[11px]",
+    className: "pixel-btn flex-1 py-2.5 text-[11px]",
     style: {
       background: 'var(--pro)',
       color: '#fff'
     }
-  }, "+ LOG FOOD NOW")), /*#__PURE__*/React.createElement("div", {
+  }, "+ LOG FOOD"), missWeigh && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      const el = document.getElementById('checkin-card');
+      if (el) el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    },
+    className: "pixel-btn flex-1 py-2.5 text-[11px]",
+    style: {
+      background: 'var(--weight)',
+      color: '#fff'
+    }
+  }, "⚖ WEIGH IN"))), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold"
@@ -6250,12 +6265,14 @@ function Dashboard({
   }), /*#__PURE__*/React.createElement(CoachCard, {
     db: db,
     onCheckIn: onCheckIn
-  }), /*#__PURE__*/React.createElement(StatusCard, {
+  }), /*#__PURE__*/React.createElement("div", {
+    id: "checkin-card"
+  }, /*#__PURE__*/React.createElement(StatusCard, {
     db: db,
     update: update,
     onCheckIn: onCheckIn,
     streak: streak
-  }), /*#__PURE__*/React.createElement(ExpenditureCard, {
+  })), /*#__PURE__*/React.createElement(ExpenditureCard, {
     db: db
   }), /*#__PURE__*/React.createElement(DietBreakCard, {
     db: db,
@@ -9807,7 +9824,7 @@ function SettingsTab({
     onClick: () => sset('reminders', !s.reminders)
   }), s.reminders && /*#__PURE__*/React.createElement(Field, {
     label: "Nudge me if I haven't logged by",
-    hint: "A banner appears on the Dashboard after this time if you've not logged food yet — a heads-up before you'd have to spend your monthly streak freeze."
+    hint: "A banner appears on the Dashboard after this time if you've not logged food or weighed in yet — a heads-up before you'd have to spend your monthly streak freeze."
   }, /*#__PURE__*/React.createElement(Dropdown, {
     value: s.nudgeHour,
     onChange: v => sset('nudgeHour', +v),
