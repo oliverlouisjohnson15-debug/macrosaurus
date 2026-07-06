@@ -1267,6 +1267,32 @@ async function claudeVision(key, files, prompt, opts) {
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return parseModelJSON(txt);
 }
+// Text-only AI call (no images) — powers the fast, low-cost "Describe" logger. Defaults to the
+// cheap fast model; expects the same JSON object back so it flows into the shared AiConfirm UI.
+async function claudeText(key, prompt, opts) {
+  opts = opts || {};
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: opts.model || AI_MODEL_FAST,
+      max_tokens: opts.maxTokens || 1024,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    })
+  });
+  const j = await res.json();
+  if (j.type === 'error' || j.error) throw new Error(j.error && j.error.message || 'API error');
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  return parseModelJSON(txt);
+}
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
 // comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open —
 // strict JSON.parse rejects all of these, so we clean and, as a last resort, auto-close.
@@ -2027,6 +2053,24 @@ const Icon = {
     strokeWidth: "2"
   }, /*#__PURE__*/React.createElement("path", {
     d: "M9 6l6 6-6 6"
+  })),
+  mic: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "9",
+    y: "3",
+    width: "6",
+    height: "11",
+    rx: "3"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M6 11a6 6 0 0 0 12 0"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M12 17v4M9 21h6"
   }))
 };
 
@@ -3429,6 +3473,85 @@ function StatusCard({
   }, /*#__PURE__*/React.createElement("span", null, todays ? 'Logged today: ' + fmtWeight(todays.scale_weight, unit) : 'Not weighed in today'), last7 != null && /*#__PURE__*/React.createElement("span", null, "7-day avg ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum"
   }, fmtWeight(last7, unit)))));
+}
+
+// Weekly reflection, shown ONLY on the user's chosen check-in weekday. Recaps adherence + weight
+// trend so the adaptive engine's weekly rhythm is visible, and points into the check-in.
+function CoachCard({
+  db,
+  onCheckIn
+}) {
+  const today = Store.todayISO();
+  if (db.paused) return null;
+  const dow = new Date(today + 'T00:00:00').getDay();
+  const checkinDay = db.profile.checkinDay == null ? 1 : db.profile.checkinDay;
+  if (dow !== checkinDay) return null;
+  const unit = db.profile.weight_unit;
+  const last7 = Array.from({
+    length: 7
+  }, (_, i) => shiftISO(today, -(6 - i)));
+  const logSet = new Set(db.log_entries.map(e => e.date));
+  const weighSet = new Set(db.weight_entries.map(w => w.date));
+  const logWk = last7.filter(d => logSet.has(d)).length;
+  const weighWk = last7.filter(d => weighSet.has(d)).length;
+  const loggedDays = last7.filter(d => logSet.has(d));
+  const t = currentTargets(db) || {};
+  const proTarget = +t.protein_g || 0;
+  const proHit = proTarget > 0 ? loggedDays.filter(d => sumMacros(entriesOn(db, d)).protein >= proTarget * 0.9).length : 0;
+  const curAvg = avgWeight(db.weight_entries, shiftISO(today, -6), today);
+  const prevAvg = avgWeight(db.weight_entries, shiftISO(today, -13), shiftISO(today, -7));
+  const trendKg = curAvg != null && prevAvg != null ? +(curAvg - prevAvg).toFixed(2) : null;
+  const trendStr = trendKg == null ? null : (trendKg > 0 ? '+' : trendKg < 0 ? '−' : '') + (unit === 'st_lb' ? (Math.abs(trendKg) * 2.20462).toFixed(1) + ' lb' : Math.abs(trendKg).toFixed(2) + ' kg');
+  const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
+  const ready = daysSince >= 5;
+  const alreadyToday = db.last_checkin === today;
+  const Stat = ({
+    label,
+    value
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#1E1E22] rounded-2xl px-2 py-3 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold tnum leading-none"
+  }, value), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] mt-1"
+  }, label));
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-5 mb-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-1"
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 20,
+    color: "var(--good)"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] uppercase tracking-widest text-[#8A8A90]"
+  }, "Check-in day")), /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold mb-3"
+  }, "Your week in review"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-3 gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement(Stat, {
+    label: "Days logged",
+    value: logWk + '/7'
+  }), /*#__PURE__*/React.createElement(Stat, {
+    label: "Weigh-ins",
+    value: weighWk + '/7'
+  }), /*#__PURE__*/React.createElement(Stat, {
+    label: "Protein goal",
+    value: loggedDays.length ? proHit + '/' + loggedDays.length : '—'
+  })), trendStr && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Weight trend: ", /*#__PURE__*/React.createElement("span", {
+    className: "text-white tnum"
+  }, trendStr), " vs the previous week."), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, alreadyToday ? 'Checked in today — your macros are up to date. Nice work.' : ready ? 'Your macros retune from weeks like this — run your check-in to apply any adjustment.' : 'A few more daily weigh-ins this week and you\'ll have a steady trend to check in against.'), !alreadyToday && /*#__PURE__*/React.createElement(Btn, {
+    kind: ready ? 'accent' : 'ghost',
+    disabled: !ready,
+    className: "w-full",
+    style: {
+      opacity: ready ? 1 : .5
+    },
+    onClick: onCheckIn
+  }, "Run weekly check-in"));
 }
 function CheckInModal({
   db,
@@ -6110,6 +6233,9 @@ function Dashboard({
     streak: streak,
     freezeReady: freezeAvail,
     onOpenDex: () => setShowDex(true)
+  }), /*#__PURE__*/React.createElement(CoachCard, {
+    db: db,
+    onCheckIn: onCheckIn
   }), /*#__PURE__*/React.createElement(StatusCard, {
     db: db,
     update: update,
@@ -7558,9 +7684,9 @@ function LogSheet({
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTab] = useState('recent');
   const [mealId, setMealId] = useState(target.mealId || meals[0].id);
-  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['recent', 'Recents'], ['meals', 'Meals'], ['search', 'Search'], ['manual', 'Manual'], ['photo', 'Photo']];
+  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['recent', 'Recent'], ['meals', 'Meals'], ['search', 'Search'], ['describe', 'Describe'], ['photo', 'Photo'], ['manual', 'Manual']];
   useEffect(() => {
-    if (isAlc && (tab === 'search' || tab === 'photo' || tab === 'meals')) setTab('recent');
+    if (isAlc && (tab === 'search' || tab === 'photo' || tab === 'meals' || tab === 'describe')) setTab('recent');
   }, [isAlc]);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
@@ -7615,11 +7741,11 @@ function LogSheet({
       }), " Drink")
     }]
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 bg-[#1E1E22] p-1 rounded-2xl"
+    className: "flex gap-1 bg-[#1E1E22] p-1 rounded-2xl"
   }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setTab(k),
-    className: `flex-1 rounded-xl py-2 text-[13px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
+    className: `flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
   }, l)))), /*#__PURE__*/React.createElement("div", {
     className: "px-5 pt-1 overflow-y-auto flex-1 min-h-0",
     style: {
@@ -7635,6 +7761,9 @@ function LogSheet({
     db: db,
     update: update,
     onLog: items => onAddMeal(mealId, items)
+  }), tab === 'describe' && /*#__PURE__*/React.createElement(DescribeTab, {
+    db: db,
+    onPick: i => onAdd(mealId, i)
   }), tab === 'search' && /*#__PURE__*/React.createElement(SearchTab, {
     onPick: i => onAdd(mealId, i)
   }), tab === 'manual' && (isAlc ? /*#__PURE__*/React.createElement(AlcoholTab, {
@@ -8492,6 +8621,154 @@ function AiConfirm({
     kind: "ghost",
     onClick: onCancel
   }, "Start over")));
+}
+// Fast, low-token logger: describe a meal in words (typed or dictated) → Haiku estimates the
+// macros → the shared AiConfirm sheet lets you check and log it. No photo, so far cheaper than vision.
+function DescribeTab({
+  db,
+  onPick
+}) {
+  const key = db.profile.aiKey;
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [result, setResult] = useState(null);
+  const [ver, setVer] = useState(0);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef(null);
+  const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+  function stopMic() {
+    try {
+      recRef.current && recRef.current.stop();
+    } catch (e) {}
+    setListening(false);
+  }
+  function toggleMic() {
+    if (!SR) return;
+    if (listening) {
+      stopMic();
+      return;
+    }
+    let r;
+    try {
+      r = new SR();
+    } catch (e) {
+      return;
+    }
+    recRef.current = r;
+    r.lang = 'en-GB';
+    r.interimResults = true;
+    r.continuous = false;
+    const base = text.trim() ? text.trim() + ' ' : '';
+    r.onresult = e => {
+      let s = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) s += e.results[i][0].transcript;
+      setText(base + s);
+    };
+    r.onerror = () => setListening(false);
+    r.onend = () => setListening(false);
+    setListening(true);
+    try {
+      r.start();
+    } catch (e) {
+      setListening(false);
+    }
+  }
+  async function run() {
+    if (!key) {
+      setErr('Add your AI key in Menu → Settings first.');
+      return;
+    }
+    if (!text.trim()) {
+      setErr('Describe what you ate first.');
+      return;
+    }
+    if (listening) stopMic();
+    setBusy(true);
+    setErr('');
+    try {
+      const prompt = AI_PROMPT + '\n\nContext: a meal eaten in England, described in words with NO photo: "' + text.trim() + '". If it names a UK chain, anchor to that chain\'s published nutrition. Estimate from the description alone.';
+      const est = await claudeText(key, prompt, {
+        model: AI_MODEL_FAST,
+        maxTokens: 1200
+      });
+      setResult(est);
+      setVer(v => v + 1);
+    } catch (e) {
+      setErr('Estimate failed: ' + e.message);
+    }
+    setBusy(false);
+  }
+  async function refine(correction) {
+    setBusy(true);
+    setErr('');
+    try {
+      const prompt = 'Revise this meal estimate (a meal eaten in England, described in words). Previous estimate JSON: ' + JSON.stringify(result) + '\nOriginal description: "' + text.trim() + '"\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items, stay honest and do not round down. Respond ONLY with the JSON.';
+      const est = await claudeText(key, prompt, {
+        model: AI_MODEL_FAST,
+        maxTokens: 1200
+      });
+      setResult(est);
+      setVer(v => v + 1);
+    } catch (e) {
+      setErr('Re-estimate failed: ' + e.message);
+    }
+    setBusy(false);
+  }
+  if (result) return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(AiConfirm, {
+    key: ver,
+    est: result,
+    busy: busy,
+    onRefine: refine,
+    onAdd: onPick,
+    onCancel: () => setResult(null)
+  }), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#F5C542] mt-3"
+  }, err));
+  if (busy) return /*#__PURE__*/React.createElement(DinoLoader, {
+    label: "Estimating your meal"
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Type or say what you ate and the AI estimates the macros — you confirm before anything is logged. The fastest, lowest-data way to log (no photo)."), /*#__PURE__*/React.createElement("div", {
+    className: "relative"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: text,
+    onChange: e => setText(e.target.value),
+    rows: 4,
+    className: inputCls + ' resize-y leading-relaxed',
+    style: {
+      paddingRight: SR ? 52 : undefined
+    },
+    placeholder: "e.g. two scrambled eggs, two slices of buttered toast and a flat white"
+  }), SR && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: toggleMic,
+    "aria-label": "Dictate",
+    className: "absolute right-2 top-2 w-9 h-9 rounded-full flex items-center justify-center transition active:scale-95",
+    style: {
+      background: listening ? FAT : 'var(--surface3)',
+      color: listening ? '#fff' : 'var(--muted)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.mic, {
+    width: "18",
+    height: "18"
+  }))), listening && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-1.5",
+    style: {
+      color: FAT
+    }
+  }, "Listening… tap the mic again to stop."), !key && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-2"
+  }, "Add your AI key in Menu → Settings to enable this."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full mt-3",
+    onClick: run
+  }, "Estimate with AI"), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#F5C542] mt-3 fade-in"
+  }, err));
 }
 const MEAL_SOURCES = [{
   v: 'home',
