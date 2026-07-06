@@ -1589,15 +1589,32 @@ function effectiveTarget(db, date) {
 /* ---------- primitives ---------- */
 const inputCls = "w-full bg-[#1E1E22] pixel-box px-4 py-3 text-[var(--text)] focus:outline-none";
 // Select all on focus so a field showing a default "0" is replaced as soon as you type — no fiddly deleting.
+// Number field that's easy to overwrite: tapping a lone "0" clears it (select() alone is
+// unreliable on mobile), and selects the text otherwise. Empty coerces back to 0 on save.
 function NumInput(props) {
+  const {
+    onChange,
+    onFocus,
+    ...rest
+  } = props;
   return /*#__PURE__*/React.createElement("input", _extends({
     type: "number",
     inputMode: "decimal",
     className: inputCls
-  }, props, {
+  }, rest, {
+    onChange: onChange,
     onFocus: e => {
-      e.target.select();
-      if (props.onFocus) props.onFocus(e);
+      const v = props.value;
+      if ((v === 0 || v === '0') && onChange) onChange({
+        target: {
+          value: ''
+        }
+      });else {
+        try {
+          e.target.select();
+        } catch (_) {}
+      }
+      if (onFocus) onFocus(e);
     }
   }));
 }
@@ -7253,7 +7270,9 @@ function EditEntryModal({
     fiber: +(base.fiber * a).toFixed(1),
     kcal: Math.round(base.kcal * a)
   };
-  const step = unit === 'g' ? 5 : 1;
+  // Adaptive step: fine control at small amounts, bigger jumps as the number grows (standard practice).
+  const gramStep = n => n < 25 ? 1 : n < 250 ? 5 : 10;
+  const step = unit === 'g' ? gramStep(a) : 1;
   const bump = d => setAmount(x => String(Math.max(0, +((+x || 0) + d).toFixed(2))));
   const setTotalField = (k, val) => {
     const v = +val || 0;
