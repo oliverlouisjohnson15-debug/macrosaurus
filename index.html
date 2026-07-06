@@ -3458,7 +3458,13 @@ function CoachCard({
   const weighed = countWeighIns(db.weight_entries, cs, today);
   const t = currentTargets(db) || {};
   const proTarget = Math.round(+t.protein_g || 0);
-  const proHit = proTarget > 0 ? loggedDates.filter(d => sumMacros(entriesOn(db, d)).protein >= proTarget * 0.9).length : 0;
+  // Protein is a FLOOR: reaching the target or going over both count (with a 90% tolerance so it
+  // needn't be perfect). Today is only judged once it has actually hit — an in-progress day is
+  // never counted as a miss, so a part-logged today can't drag the ratio down.
+  const proteinHitOn = d => proTarget > 0 && sumMacros(entriesOn(db, d)).protein >= proTarget * 0.9;
+  const proDays = loggedDates.filter(d => d < today || proteinHitOn(d));
+  const proHit = proDays.filter(proteinHitOn).length;
+  const proDenom = proDays.length;
   const needLogs = Math.max(4, Math.ceil(cycleDays * 0.7));
   const needWeigh = Math.max(3, Math.ceil(cycleDays * 0.5));
   const onTrack = logged >= needLogs && weighed >= needWeigh;
@@ -3517,9 +3523,9 @@ function CoachCard({
     value: weighed + '/' + cycleDays,
     good: weighed >= needWeigh
   }), /*#__PURE__*/React.createElement(Stat, {
-    label: 'Protein hit' + (logged ? ' (of ' + logged + ')' : ''),
-    value: logged ? proHit + '/' + logged : '—',
-    good: logged > 0 && proHit === logged
+    label: 'Protein hit' + (proDenom ? ' (of ' + proDenom + ')' : ''),
+    value: proDenom ? proHit + '/' + proDenom : '—',
+    good: proDenom > 0 && proHit === proDenom
   })), proTarget > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-3 leading-snug"
   }, "“Protein hit” counts the days you reached 90%+ of your ", proTarget, "g target, out of the days you logged."), trendStr && /*#__PURE__*/React.createElement("div", {
