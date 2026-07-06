@@ -1527,9 +1527,10 @@ function effectiveTarget(db, date) {
   if (p.carryover && p.carryover.enabled) {
     const cap = p.carryover.capKcal || 500;
     const dayTarget = dISO => base.kcal + (p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), base.kcal) : 0);
-    // Running balance since the last check-in: for every logged past day, add (planned target − eaten).
-    // Under-eating grows the balance, over-eating shrinks it — so deficits/surpluses ADD UP day over day.
-    const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(date, -6);
+    // Running balance since the last check-in (INCLUSIVE of the check-in / goal-change day): for every
+    // logged past day, add (planned target − eaten). Under-eating grows the balance, over-eating shrinks
+    // it — so deficits/surpluses ADD UP day over day. Falls back to a 7-day window before any check-in.
+    const cs = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
     const idx = Math.max(0, Math.min(90, daysBetween(cs, date))); // days elapsed in the cycle (bounded)
     let acc = 0;
     for (let i = 0; i < idx; i++) {
