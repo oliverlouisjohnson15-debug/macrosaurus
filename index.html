@@ -846,7 +846,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Profile-level defaults (profile is null in defaultState, so it needs its own
   // backfill map for deep-merge migration of nested settings).
   var PROFILE_DEFAULTS = {
-    carryover: { enabled: true, mode: 'aggressive', capKcal: 400 },
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
@@ -1527,25 +1527,19 @@ function effectiveTarget(db, date) {
   if (p.carryover && p.carryover.enabled) {
     const cap = p.carryover.capKcal || 500;
     const dayTarget = dISO => base.kcal + (p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), base.kcal) : 0);
-    if (p.carryover.mode === 'dispersed') {
-      // spread the cycle's accumulated surplus/deficit across the remaining days.
-      // Anchor on the last check-in (fall back to a 7-day window) and clamp the
-      // position to the cycle length so this is always O(≤7), never O(all days).
-      const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(date, -6);
-      const idx = Math.max(0, Math.min(6, daysBetween(cs, date))); // today's position in the cycle
-      let acc = 0;
-      for (let i = 0; i < idx; i++) {
-        const dISO = shiftISO(cs, i);
-        const pe = entriesOn(db, dISO);
-        if (pe.length) acc += dayTarget(dISO) - sumMacros(pe).kcal;
-      }
-      const remaining = Math.max(1, 7 - idx); // days left in the ~7-day cycle, incl. today
-      carry = E.carryoverDispersed(acc, remaining, cap);
-    } else {
-      const prev = shiftISO(date, -1);
-      const pe = entriesOn(db, prev);
-      if (pe.length) carry = E.carryover(dayTarget(prev), sumMacros(pe).kcal, cap);
+    // Running balance since the last check-in: for every logged past day, add (planned target − eaten).
+    // Under-eating grows the balance, over-eating shrinks it — so deficits/surpluses ADD UP day over day.
+    const cs = db.last_checkin ? shiftISO(db.last_checkin, 1) : shiftISO(date, -6);
+    const idx = Math.max(0, Math.min(90, daysBetween(cs, date))); // days elapsed in the cycle (bounded)
+    let acc = 0;
+    for (let i = 0; i < idx; i++) {
+      const dISO = shiftISO(cs, i);
+      const pe = entriesOn(db, dISO);
+      if (pe.length) acc += dayTarget(dISO) - sumMacros(pe).kcal;
     }
+    // Dispersed spreads the whole balance across the days left in the week; Aggressive dumps it all on today.
+    const remaining = p.carryover.mode === 'dispersed' ? Math.max(1, 7 - idx) : 1;
+    carry = E.carryoverDispersed(acc, remaining, cap);
   }
   // Never let cycling/carryover push a day below the shared calorie floor.
   const floor = E.KCAL_FLOOR || 1200;
@@ -2920,7 +2914,7 @@ function Wizard({
     program_mode: 'collaborative',
     carryover: {
       enabled: true,
-      mode: 'aggressive',
+      mode: 'dispersed',
       capKcal: 400
     },
     cycling: {
@@ -5249,7 +5243,14 @@ function Dashboard({
     color: FAT
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2"
-  }, "FIBER ", Math.round(tot.fiber), " / ", ft.min, "g", Math.round(tot.fiber) >= ft.min ? ' OK' : ` · ${ft.min - Math.round(tot.fiber)} TO GO`)), /*#__PURE__*/React.createElement("div", {
+  }, "FIBER ", Math.round(tot.fiber), " / ", ft.min, "g", Math.round(tot.fiber) >= ft.min ? ' OK' : ` · ${ft.min - Math.round(tot.fiber)} TO GO`), (et.cyc !== 0 || et.carry !== 0) && (() => {
+    const parts = [];
+    if (et.cyc) parts.push(`${et.cyc > 0 ? '+' : '−'}${Math.abs(et.cyc)} ${et.cyc > 0 ? 'high day' : 'low day'}`);
+    if (et.carry) parts.push(`${et.carry > 0 ? '+' : '−'}${Math.abs(et.carry)} carried over`);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90] mt-2 pt-2 border-t border-[#262629] leading-snug"
+    }, et.base.kcal, " base \xB7 ", parts.join(' · '), " \u2192 ", et.eff.kcal);
+  })()), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-4"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => onQuickAdd(false),
@@ -8701,23 +8702,25 @@ function AdvancedTab({
       mode: v
     })),
     options: [{
-      v: 'aggressive',
-      l: 'Aggressive'
-    }, {
       v: 'dispersed',
       l: 'Dispersed'
+    }, {
+      v: 'aggressive',
+      l: 'Aggressive'
     }]
   })), /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mb-3.5"
   }, carry.mode === 'dispersed' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
-  }, "Dispersed."), " ", /*#__PURE__*/React.createElement("span", {
+  }, "Dispersed"), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[var(--good)]"
+  }, "\xB7 recommended."), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, "Spreads the surplus or deficit evenly across the remaining days of your check-in cycle. Gentler: one big day barely nudges any single day.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+  }, "Adds up your running surplus/deficit since the last check-in and spreads it evenly across the days left in the week. Gentle: one big day barely nudges any single day.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
   }, "Aggressive."), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, "Applies yesterday's whole surplus or deficit to today. Fast to correct, but one big day can swing tomorrow hard."))), /*#__PURE__*/React.createElement(Field, {
+  }, "Dumps your whole running surplus/deficit onto the next day (deficits and surpluses add up day over day), capped below. Faster to clear, but swings each day harder."))), /*#__PURE__*/React.createElement(Field, {
     label: `Daily cap: ±${carry.capKcal} kcal`,
     hint: "The most any single day can shift, whichever mode you pick."
   }, /*#__PURE__*/React.createElement("input", {
