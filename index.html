@@ -1523,7 +1523,8 @@ function effectiveTarget(db, date) {
     };
   }
   const cyc = p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(date), base.kcal) : 0;
-  let carry = 0;
+  let carry = 0,
+    carryDetail = null;
   if (p.carryover && p.carryover.enabled) {
     const cap = p.carryover.capKcal || 500;
     const dayTarget = dISO => base.kcal + (p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), base.kcal) : 0);
@@ -1533,14 +1534,33 @@ function effectiveTarget(db, date) {
     const cs = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
     const idx = Math.max(0, Math.min(90, daysBetween(cs, date))); // days elapsed in the cycle (bounded)
     let acc = 0;
+    const days = [];
     for (let i = 0; i < idx; i++) {
       const dISO = shiftISO(cs, i);
       const pe = entriesOn(db, dISO);
-      if (pe.length) acc += dayTarget(dISO) - sumMacros(pe).kcal;
+      if (pe.length) {
+        const tgt = dayTarget(dISO);
+        const eaten = Math.round(sumMacros(pe).kcal);
+        acc += tgt - eaten;
+        days.push({
+          date: dISO,
+          eaten,
+          delta: Math.round(tgt - eaten)
+        });
+      }
     }
     // Dispersed spreads the whole balance across the days left in the week; Aggressive dumps it all on today.
     const remaining = p.carryover.mode === 'dispersed' ? Math.max(1, 7 - idx) : 1;
     carry = E.carryoverDispersed(acc, remaining, cap);
+    carryDetail = {
+      days,
+      balance: Math.round(acc),
+      mode: p.carryover.mode,
+      cap,
+      remaining,
+      applied: carry,
+      cycleStart: cs
+    };
   }
   // Never let cycling/carryover push a day below the shared calorie floor.
   const floor = E.KCAL_FLOOR || 1200;
@@ -1558,7 +1578,8 @@ function effectiveTarget(db, date) {
     base,
     cyc,
     carry,
-    eff
+    eff,
+    carryDetail
   };
 }
 
@@ -5059,6 +5080,7 @@ function Dashboard({
   const [mode, setMode] = useState('consumed');
   const [span, setSpan] = useState('today');
   const [showStats, setShowStats] = useState(false);
+  const [showCarry, setShowCarry] = useState(false);
   const [showDex, setShowDex] = useState(false);
   const [showFight, setShowFight] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
@@ -5248,9 +5270,40 @@ function Dashboard({
     const parts = [];
     if (et.cyc) parts.push(`${et.cyc > 0 ? '+' : '−'}${Math.abs(et.cyc)} ${et.cyc > 0 ? 'high day' : 'low day'}`);
     if (et.carry) parts.push(`${et.carry > 0 ? '+' : '−'}${Math.abs(et.carry)} carried over`);
+    const cd = et.carryDetail;
+    const canExpand = !!(cd && cd.days && cd.days.length);
+    const dd = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    });
+    const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
     return /*#__PURE__*/React.createElement("div", {
-      className: "text-[10px] text-[#8A8A90] mt-2 pt-2 border-t border-[#262629] leading-snug"
-    }, et.base.kcal, " base \xB7 ", parts.join(' · '), " \u2192 ", et.eff.kcal);
+      className: "mt-2 pt-2 border-t border-[#262629]"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => canExpand && setShowCarry(s => !s),
+      className: "text-[10px] text-[#8A8A90] leading-snug w-full text-left flex items-center gap-1"
+    }, /*#__PURE__*/React.createElement("span", null, et.base.kcal, " base \xB7 ", parts.join(' · '), " \u2192 ", et.eff.kcal), canExpand && /*#__PURE__*/React.createElement("span", {
+      className: "ml-auto shrink-0"
+    }, showCarry ? '▲ hide' : '▾ why')), showCarry && cd && /*#__PURE__*/React.createElement("div", {
+      className: "mt-2 text-[10px] text-[#8A8A90] leading-relaxed fade-in"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-1.5"
+    }, "Carryover since ", dd(cd.cycleStart)), cd.days.map((d, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      className: "flex justify-between tnum"
+    }, /*#__PURE__*/React.createElement("span", null, dd(d.date), " \xB7 ate ", d.eaten), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: d.delta > 0 ? 'var(--good)' : d.delta < 0 ? 'var(--fat)' : 'var(--muted)'
+      }
+    }, sgn(d.delta), d.delta > 0 ? ' under' : d.delta < 0 ? ' over' : ''))), /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between tnum border-t border-[#262629] mt-1.5 pt-1.5 font-bold",
+      style: {
+        color: 'var(--text)'
+      }
+    }, /*#__PURE__*/React.createElement("span", null, "Running balance"), /*#__PURE__*/React.createElement("span", null, sgn(cd.balance), " kcal")), /*#__PURE__*/React.createElement("div", {
+      className: "mt-1.5"
+    }, cd.mode === 'dispersed' ? `Dispersed: spread across ${cd.remaining} day${cd.remaining === 1 ? '' : 's'} left → ${sgn(cd.applied)} added to today.` : `Aggressive: whole balance applied today (${sgn(cd.applied)}), capped at ±${cd.cap}.`)));
   })()), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-4"
   }, /*#__PURE__*/React.createElement("button", {
