@@ -4314,6 +4314,15 @@ const CR_RARITY_LABEL = {
   legendary: 'Legendary',
   mythic: 'Mythic'
 };
+const BIOME_COLOR = {
+  nursery: 'var(--muted)',
+  protein: 'var(--pro)',
+  carb: 'var(--carb)',
+  fat: 'var(--fat)',
+  fibre: 'var(--good)',
+  apex: 'var(--weight)',
+  mythic: 'var(--header)'
+};
 const CREATURES = [
 // The Nursery — any logged day
 {
@@ -4968,8 +4977,14 @@ function MacrodexModal({
       className: "pixel-box p-3 mb-3",
       style: {
         background: 'var(--surface3)',
-        boxShadow: 'none'
+        boxShadow: 'none',
+        borderColor: got ? rc : 'var(--border)',
+        borderWidth: 4
       }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: got && got.shiny ? {
+        filter: 'drop-shadow(0 0 5px var(--fat))'
+      } : null
     }, got ? /*#__PURE__*/React.createElement(Sprite, {
       art: form.art,
       colors: got.shiny ? crShiny(form.colors) : form.colors,
@@ -4978,7 +4993,7 @@ function MacrodexModal({
       art: cr.art,
       colors: crSilhouette(),
       px: 7
-    })), /*#__PURE__*/React.createElement("div", {
+    }))), /*#__PURE__*/React.createElement("div", {
       className: "text-lg font-bold"
     }, got ? form.name : '???', got && got.shiny ? /*#__PURE__*/React.createElement("span", {
       style: {
@@ -5016,10 +5031,23 @@ function MacrodexModal({
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
   }, "\xD7")), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mb-4 leading-relaxed"
-  }, "Caught ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[var(--text)] font-bold"
-  }, caught), " of ", CREATURES.length, ". Log a day to catch a creature \u2014 the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), invIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
+  }, "Log a day to catch a creature \u2014 the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-bar flex-1",
+    style: {
+      height: 14,
+      borderWidth: 2
+    }
+  }, /*#__PURE__*/React.createElement("i", {
+    style: {
+      width: Math.round(caught / CREATURES.length * 100) + '%',
+      background: 'var(--good)'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] tnum shrink-0"
+  }, caught, "/", CREATURES.length)), invIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-4",
     style: {
       background: 'var(--surface3)',
@@ -5080,11 +5108,18 @@ function MacrodexModal({
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center justify-between mb-2"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[9px] uppercase",
+      className: "pf text-[9px] uppercase flex items-center gap-1.5",
       style: {
         color: complete ? 'var(--good)' : 'var(--text2)'
       }
-    }, bm.name, complete ? ' ✓' : ''), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 8,
+        height: 8,
+        background: BIOME_COLOR[bm.id],
+        display: 'inline-block'
+      }
+    }), bm.name, complete ? ' ✓' : ''), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] tnum"
     }, done, "/", list.length)), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-3 gap-2"
@@ -5092,16 +5127,22 @@ function MacrodexModal({
       const g = dex[c.id];
       const form = creatureForm(c, g ? g.count : 0);
       const rc = CR_RARITY_COLOR[c.rarity];
+      const strong = g && (c.rarity === 'legendary' || c.rarity === 'mythic' || g.shiny);
       return /*#__PURE__*/React.createElement("button", {
         key: c.id,
         onClick: () => setSel(c.id),
         className: "pixel-box p-2 flex flex-col items-center text-center",
         style: {
           background: 'var(--surface3)',
-          boxShadow: 'none'
+          boxShadow: 'none',
+          borderColor: g ? rc : 'var(--border)',
+          borderWidth: strong ? 4 : 3
         }
       }, /*#__PURE__*/React.createElement("div", {
-        className: "h-14 flex items-center justify-center"
+        className: "h-14 flex items-center justify-center",
+        style: g && g.shiny ? {
+          filter: 'drop-shadow(0 0 4px var(--fat))'
+        } : null
       }, g ? /*#__PURE__*/React.createElement(Sprite, {
         art: form.art,
         colors: g.shiny ? crShiny(form.colors) : form.colors,
@@ -5115,7 +5156,7 @@ function MacrodexModal({
       }, g ? form.name : '???'), g ? /*#__PURE__*/React.createElement("div", {
         className: "text-[7px] uppercase tracking-wide",
         style: {
-          color: 'var(--good)'
+          color: g.shiny ? 'var(--fat)' : 'var(--good)'
         }
       }, "Lv ", g.count, g.shiny ? ' ✦' : '') : /*#__PURE__*/React.createElement("div", {
         className: "text-[7px] uppercase tracking-wide",
@@ -5260,9 +5301,9 @@ const FIGHT_BOSSES = [{
 }];
 const ABIL_LABEL = {
   none: '',
-  dodge: 'Slips punches',
-  heal: 'Regenerates',
-  rage: 'Rages when hurt'
+  dodge: 'Nimble — darts aside',
+  heal: 'Regrows wounds',
+  rage: 'Frenzies when hurt'
 };
 function fightWeekKey() {
   const t = new Date();
@@ -5315,7 +5356,7 @@ function rivalStats(rival, rank, prestige) {
     ability: rival.ability || 'none'
   };
 }
-const FIGHT_HIT = ['{x} lands a jab', '{x} throws a hook', '{x} with a body blow', '{x} counters clean', '{x} unloads a combo', '{x} clips the chin', '{x} presses forward'];
+const FIGHT_HIT = ['{x} chomps down', '{x} swings its tail', '{x} rakes with its claws', '{x} headbutts hard', '{x} lets out a roar', '{x} snaps its jaws', '{x} gores with its horns', '{x} stomps in'];
 function FightModal({
   db,
   update,
@@ -5405,13 +5446,14 @@ function FightModal({
         def = aAtk ? rv : my;
       const defAbil = aAtk ? rv.ability : my.ability;
       if (defAbil === 'dodge' && Math.random() < 0.22) {
-        setLog(l => [(aAtk ? opp.name : fighter.name) + ' slips the punch!', ...l].slice(0, 5));
+        setLog(l => [(aAtk ? opp.name : fighter.name) + ' darts aside!', ...l].slice(0, 5));
       } else {
         let dmg = Math.max(3, atk.atk - Math.round(def.def / 2) + rnd(7));
         const atkHp = aAtk ? a : d2,
           atkMax = aAtk ? my.hp : rv.hp;
         if (atk.ability === 'rage' && atkHp < atkMax * 0.35) dmg = Math.round(dmg * 1.5);
         const big = dmg >= 22;
+        const hitTxt = big ? 'CRUNCH!' : round % 3 === 0 ? 'CHOMP!' : round % 3 === 1 ? 'SMASH!' : 'THWACK!';
         if (aAtk) {
           d2 = Math.max(0, d2 - dmg);
           setHpB(d2);
@@ -5420,7 +5462,7 @@ function FightModal({
           timers.current.push(lt);
           setPop({
             side: 'r',
-            text: big ? 'WHAM!' : 'POW!',
+            text: hitTxt,
             id: round
           });
         } else {
@@ -5431,7 +5473,7 @@ function FightModal({
           timers.current.push(lt);
           setPop({
             side: 'l',
-            text: big ? 'WHAM!' : 'POW!',
+            text: hitTxt,
             id: round
           });
         }
@@ -5521,33 +5563,74 @@ function FightModal({
       background: 'linear-gradient(var(--surface2), var(--surface3))'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 right-0",
+    className: "absolute",
     style: {
-      top: 14,
-      height: 2,
+      bottom: 24,
+      left: '42%'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      width: 60,
+      height: 44
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      width: 0,
+      height: 0,
+      borderLeft: '30px solid transparent',
+      borderRight: '30px solid transparent',
+      borderBottom: '44px solid var(--border)'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: -3,
+      left: 22,
+      width: 16,
+      height: 6,
       background: 'var(--danger)'
     }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 right-0",
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "absolute left-0 right-0 bottom-0",
     style: {
-      top: 26,
-      height: 2,
-      background: 'var(--carb)'
+      height: 24,
+      background: 'var(--surface3)',
+      borderTop: '3px solid var(--border)'
     }
   }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 right-0 bottom-6",
+    className: "absolute",
     style: {
-      height: 3,
-      background: 'var(--border)'
+      bottom: 18,
+      left: 2,
+      opacity: 0.5
     }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: 'absolute bottom-7 left-6 ' + (lungeA ? 'flungeR' : 'fbob')
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: "sprout",
+    colors: crSilhouette(),
+    px: 3
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: {
+      bottom: 18,
+      right: 2,
+      opacity: 0.5
+    }
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: "sprout",
+    colors: crSilhouette(),
+    px: 3
+  })), /*#__PURE__*/React.createElement("div", {
+    className: 'absolute bottom-6 left-6 ' + (lungeA ? 'flungeR' : 'fbob')
   }, /*#__PURE__*/React.createElement(Sprite, {
     art: fighter.art,
     colors: fighter.colors,
     px: 6
   })), /*#__PURE__*/React.createElement("div", {
-    className: 'absolute bottom-7 right-6 ' + (lungeB ? 'flungeLflip' : 'fbobFlip')
+    className: 'absolute bottom-6 right-6 ' + (lungeB ? 'flungeLflip' : 'fbobFlip')
   }, /*#__PURE__*/React.createElement(Sprite, {
     art: opp.art,
     colors: opp.colors,
@@ -5556,7 +5639,7 @@ function FightModal({
     key: pop.id,
     className: "absolute pf text-[13px] fpop",
     style: {
-      top: 44,
+      top: 40,
       [pop.side === 'r' ? 'right' : 'left']: 40,
       color: 'var(--fat)'
     }
@@ -5594,7 +5677,7 @@ function FightModal({
     className: "text-sm font-bold mb-1"
   }, "Your buddy is still an egg"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
-  }, "Log a day to hatch a fighter, then step into the ring."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Log a day to hatch a fighter, then step into the pit."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: onClose
@@ -5710,9 +5793,9 @@ function FightModal({
     style: {
       color: winner === 'you' ? 'var(--good)' : 'var(--danger)'
     }
-  }, winner === 'you' ? 'K.O. — YOU WIN!' : 'YOU LOST'), /*#__PURE__*/React.createElement("div", {
+  }, winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
-  }, winner === 'you' ? isBoss ? 'Boss down! Trophy earned.' : ladderCleared ? 'Champion holds the belt.' : 'You climb the ladder!' : 'They had your number. Log more strong days to power up your buddy.'), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, winner === 'you' ? isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!' : 'They had your number. Log more strong days to power up your buddy.'), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-3",
     style: {
       color: 'var(--good)'
