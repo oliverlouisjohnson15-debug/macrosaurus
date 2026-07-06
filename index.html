@@ -6758,6 +6758,7 @@ function FoodLog({
     }, /*#__PURE__*/React.createElement(PixelGrip, null)), /*#__PURE__*/React.createElement("button", {
       onClick: ev => {
         ev.stopPropagation();
+        setMealMenu(null);
         setMenu(menu === e.id ? null : e.id);
       },
       className: "px-2 text-[#8A8A90] shrink-0"
@@ -7058,6 +7059,7 @@ function FoodLog({
     }, /*#__PURE__*/React.createElement("button", {
       onClick: ev => {
         ev.stopPropagation();
+        setMenu(null);
         setMealMenu(mealMenu === m.id ? null : m.id);
       },
       className: "px-1 text-[#8A8A90]"
