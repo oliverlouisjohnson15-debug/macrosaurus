@@ -549,6 +549,25 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   }
   function tdeeFromProfile(p) { return tdeeBreakdown(p).tdee; }
 
+  // Evidence-based sustainable rate guardrail. Helms et al.: ~0.5–1% of bodyweight/week during a cut
+  // best preserves lean mass, with leaner dieters sitting at the slower end; lean bulks want roughly
+  // 0.25–0.5%/week to limit fat gain (Nippard). Returns the recommended ceiling (kg/wk), the user's
+  // target, and whether they're above it — used to warn, not to silently override the user's choice.
+  function rateGuidance(p) {
+    var bw = p.weightKg || 0;
+    var target = Math.abs(p.rateKgPerWeek || 0);
+    if (p.goalType === 'maintain') return { maxKg: 0, pctCap: 0, targetKg: 0, tooFast: false };
+    var pctCap;
+    if (p.goalType === 'gain') { pctCap = 0.005; }
+    else { // cut — tighten for lean individuals
+      var bf = p.bodyFatPct;
+      var lean = (bf != null) && ((p.sex === 'male' && bf < 12) || (p.sex !== 'male' && bf < 20));
+      pctCap = lean ? 0.0075 : 0.01;
+    }
+    var maxKg = round(bw * pctCap, 2);
+    return { maxKg: maxKg, pctCap: pctCap, targetKg: round(target, 2), tooFast: target > maxKg + 1e-9, pctOfBW: bw ? round((target / bw) * 100, 2) : 0 };
+  }
+
   function goalDailyDelta(goalType, rateKgPerWeek) {
     var perDay = (Math.abs(rateKgPerWeek || 0) * KCAL_PER_KG) / 7;
     if (goalType === 'cut') return -perDay;
@@ -680,7 +699,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       return { changed: false, underReportFlagged: true, reason: 'Your numbers imply an expenditure (' + opts.estimate.tdee + ' kcal) near or below your BMR (' + round(bmr) + '), which usually means food was under-logged. Trusting your weight trend and holding targets this cycle.', estimate: opts.estimate };
     }
     var desiredKcal = opts.estimate.tdee + goalDelta;
-    var cappedDelta = clamp(desiredKcal - currentKcal, -150, 150);
+    // Cap each check-in's move PROPORTIONAL to estimated burn — a bigger person, or bigger metabolic
+    // adaptation, gets a bigger allowed step, while small intakes stay gentle and noise can't cause a
+    // wild swing. ~10% of estimated TDEE, bounded 150–350 kcal. Grounded in Helms/Nippard practical
+    // guidance (typical single moves ~100–200 kcal, larger when adaptation demands it) and
+    // MacroFactor's expenditure-scaled, smoothed adjustments (not a flat number).
+    var adjCap = clamp(round(0.10 * (opts.estimate.tdee || currentKcal)), 150, 350);
+    var cappedDelta = clamp(desiredKcal - currentKcal, -adjCap, adjCap);
     var newKcal = Math.max(kcalFloor(profile), currentKcal + cappedDelta);
     var newTargets = macrosFromKcal(newKcal, profile);
     newTargets.estimatedTDEE = opts.estimate.tdee;
@@ -803,7 +828,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var goalDelta = goalDailyDelta(opts.goalType, opts.rateKgPerWeek);
     var desired = tdee + goalDelta;
     var rawDelta = desired - (opts.currentTargetKcal || tdee);
-    var fcDelta = clamp(rawDelta, -150, 150);
+    var fcCap = clamp(round(0.10 * tdee), 150, 350); // same proportional cap the check-in will apply
+    var fcDelta = clamp(rawDelta, -fcCap, fcCap);
     var forecast;
     if (confidence === 'low') forecast = { dir: 'unknown', deltaKcal: 0, text: 'need a bit more data to call it' };
     else if (Math.abs(fcDelta) < 25) forecast = { dir: 'hold', deltaKcal: 0, text: 'on track — no change likely' };
@@ -825,7 +851,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     linreg: linreg, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
-    goalDailyDelta: goalDailyDelta, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
+    goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
@@ -834,8 +860,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
-})(typeof window !== 'undefined' ? window : this);
-</script>
+})(typeof window !== 'undefined' ? window : this);</script>
 <script>/*
  * store.js — Local-first repository (localStorage).
  * This is the swap point: replace these methods with a Supabase-backed
@@ -9701,6 +9726,22 @@ function Goals({
         color: rl.c
       }
     }, "Pace: ", rl.t);
+  })(), (() => {
+    const rg = E.rateGuidance({
+      weightKg: p.weightKg,
+      bodyFatPct: p.bodyFatPct,
+      sex: p.sex,
+      goalType: g.goalType,
+      rateKgPerWeek: g.rateKgPerWeek
+    });
+    if (!rg.tooFast || !rg.maxKg) return null;
+    const mk = unit === 'st_lb' ? (rg.maxKg * 2.20462).toFixed(1) + ' lb' : rg.maxKg + ' kg';
+    return /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] mt-1.5 leading-snug",
+      style: {
+        color: 'var(--fat)'
+      }
+    }, "That's ~", rg.pctOfBW, "% of your bodyweight a week. The evidence favours ≤ ~", mk, "/week (", rg.pctCap * 100, "% of bodyweight) ", g.goalType === 'gain' ? 'to keep the gain lean' : 'to protect muscle and stay sustainable', ".");
   })()), /*#__PURE__*/React.createElement(Field, {
     label: "Target weight",
     hint: "Optional. Shows your progress toward it."
