@@ -6523,6 +6523,14 @@ function FoodLog({
         if (patch.amount != null) x.amount = patch.amount;
         if (patch.unit) x.unit = patch.unit;
         if (patch.unit_noun) x.unit_noun = patch.unit_noun;
+        // Carry the edit back to the saved food so Recents re-adds with these latest details.
+        const key = patch.name.trim().toLowerCase();
+        const food = d.foods.find(y => y.name.trim().toLowerCase() === key && !!y.is_alcohol === !!x.is_alcohol);
+        if (food) {
+          food.macros = patch.macros;
+          food.last_qty = patch.qty || food.last_qty;
+          food.updated_at = Date.now();
+        }
       }
     });
     setEditing(null);
@@ -7674,10 +7682,10 @@ function RecentTab({
   };
   const favs = foods.filter(f => f.is_favorite).sort((a, b) => b.updated_at - a.updated_at);
   const nonFav = foods.filter(f => !f.is_favorite);
-  // Suggested = your most-logged foods, weighted heavily toward ones you usually eat for this meal.
-  const suggested = q ? [] : nonFav.filter(f => score(f) > 1).sort((a, b) => score(b) - score(a)).slice(0, 5);
-  const sugSet = new Set(suggested.map(f => f.id));
-  const allRecents = nonFav.filter(f => !sugSet.has(f.id)).sort((a, b) => b.updated_at - a.updated_at);
+  // Recent is smart-ranked: foods you usually eat for THIS meal float to the top, then your
+  // overall most-logged, with recency breaking ties and filling the long tail. When searching,
+  // fall back to plain recency so results feel predictable.
+  const allRecents = nonFav.slice().sort((a, b) => q ? b.updated_at - a.updated_at : score(b) - score(a) || b.updated_at - a.updated_at);
   const CAP = 25;
   const recents = q ? allRecents : allRecents.slice(0, CAP);
   const moreCount = q ? 0 : allRecents.length - recents.length;
@@ -7716,7 +7724,6 @@ function RecentTab({
     height: "18",
     fill: "currentColor"
   })));
-  const sugLabel = mealName ? `Suggested for ${mealName}` : 'You log these a lot';
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TextInput, {
     placeholder: "Search your foods…",
     value: q,
@@ -7730,11 +7737,7 @@ function RecentTab({
   }, /*#__PURE__*/React.createElement(PixelDino, {
     size: 40,
     color: "var(--muted)"
-  })), "Nothing here yet. Anything you log shows up here so you can add it again in one tap."), suggested.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2"
-  }, sugLabel), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-2 mb-4"
-  }, suggested.map(Row))), favs.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  })), "Nothing here yet. Anything you log shows up here so you can add it again in one tap."), favs.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2"
   }, "Favourites"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-4"
