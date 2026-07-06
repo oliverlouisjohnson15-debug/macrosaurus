@@ -5272,25 +5272,21 @@ function Dashboard({
     const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
     const label = et.cyc && et.carry ? 'adjusted' : et.cyc ? et.cyc > 0 ? 'high day' : 'low day' : et.carry > 0 ? 'carried over' : 'carried back';
     const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-    const bg = adj > 0 ? 'var(--good)' : 'var(--fat)';
-    const txt = adj > 0 ? '#05140a' : '#2b0018';
     return /*#__PURE__*/React.createElement("button", {
       onClick: () => canOpen && setShowCarry(true),
-      className: "mt-2 pt-2 border-t border-[#262629] w-full flex items-center gap-2"
+      className: "mt-2 pt-2 border-t border-[#262629] w-full flex items-center gap-1.5 text-[11px] text-[#8A8A90]"
     }, /*#__PURE__*/React.createElement("span", {
-      className: "pixel-box text-[8px] px-2 py-1 shrink-0",
+      className: "tnum"
+    }, /*#__PURE__*/React.createElement("span", {
       style: {
-        background: bg,
-        color: txt,
-        boxShadow: 'none',
-        borderWidth: '2px',
-        borderColor: bg
+        color: adj > 0 ? 'var(--good)' : 'var(--fat)'
       }
-    }, sgn(adj), " ", label), /*#__PURE__*/React.createElement("span", {
-      className: "text-[9px] text-[#8A8A90] leading-snug text-left"
-    }, "why your target isn't ", et.base.kcal), canOpen && /*#__PURE__*/React.createElement("span", {
-      className: "ml-auto shrink-0 text-[9px] text-[#8A8A90]"
-    }, "\u25B8"));
+    }, sgn(adj)), " ", label), canOpen && /*#__PURE__*/React.createElement("span", {
+      className: "ml-auto shrink-0 inline-flex items-center justify-center w-[15px] h-[15px] border-2 border-[#262629] text-[8px] leading-none",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "i"));
   })()), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-4"
   }, /*#__PURE__*/React.createElement("button", {
