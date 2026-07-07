@@ -10715,7 +10715,9 @@ function More({
   onReset,
   onDeleteAccount,
   onFreshStart,
-  email
+  email,
+  isAdmin,
+  onOpenAdmin
 }) {
   const [tab, setTab] = useState('details');
   const [delOpen, setDelOpen] = useState(false);
@@ -10771,7 +10773,20 @@ function More({
   }), tab === 'advanced' && /*#__PURE__*/React.createElement(AdvancedTab, {
     db: db,
     update: update
-  }), tab === 'account' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Section, {
+  }), tab === 'account' && /*#__PURE__*/React.createElement(React.Fragment, null, isAdmin && /*#__PURE__*/React.createElement(Section, {
+    title: "Admin"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Manage user accounts, AI spend limits and support actions. Everything you do here is logged."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      borderColor: 'var(--border)'
+    },
+    onClick: onOpenAdmin
+  }, "Open admin panel")), /*#__PURE__*/React.createElement(Section, {
     title: "Account"
   }, email && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -10873,6 +10888,440 @@ function Row2({
   }, k), /*#__PURE__*/React.createElement("span", {
     className: "font-medium tnum"
   }, v));
+}
+
+/* =====================================================================
+   ADMIN — owner/admin-only support panel. All privileged reads/writes go through the
+   `admin-api` edge function, which re-checks admin status server-side and logs every action.
+   The UI here is only a convenience gate: security does NOT depend on it being hidden.
+   ===================================================================== */
+async function adminCall(action, payload) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) throw new Error('Not signed in.');
+  const res = await fetch(SUPA_URL + '/functions/v1/admin-api', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + token,
+      'apikey': SUPA_KEY
+    },
+    body: JSON.stringify(Object.assign({
+      action
+    }, payload || {}))
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error(j.error && (j.error.message || j.error) || 'Request failed (' + res.status + ')');
+  return j;
+}
+function adminFmtDate(s) {
+  try {
+    return s ? new Date(s).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }) : '—';
+  } catch (e) {
+    return '—';
+  }
+}
+function adminFmtWhen(s) {
+  try {
+    return s ? new Date(s).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'never';
+  } catch (e) {
+    return '—';
+  }
+}
+function AdminPanel({
+  onBack,
+  adminEmail
+}) {
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [users, setUsers] = useState([]);
+  const [defaultCap, setDefaultCap] = useState(1);
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState(null);
+  const [selLoading, setSelLoading] = useState(false);
+  async function loadList() {
+    setLoading(true);
+    setErr('');
+    try {
+      const j = await adminCall('list_users');
+      setUsers(j.users || []);
+      setDefaultCap(j.defaultCap || 1);
+    } catch (e) {
+      setErr(e.message);
+    }
+    setLoading(false);
+  }
+  useEffect(() => {
+    loadList();
+  }, []);
+  async function openUser(id) {
+    setSelLoading(true);
+    setErr('');
+    try {
+      const j = await adminCall('get_user', {
+        userId: id
+      });
+      setSel(j);
+    } catch (e) {
+      setErr(e.message);
+    }
+    setSelLoading(false);
+  }
+  if (sel) return /*#__PURE__*/React.createElement(AdminUserDetail, {
+    detail: sel,
+    adminEmail: adminEmail,
+    onBack: () => {
+      setSel(null);
+      loadList();
+    },
+    reload: () => openUser(sel.user.id)
+  });
+  const filtered = users.filter(u => !q || (u.email || '').toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.spend_usd - a.spend_usd);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "text-[12px] text-[#8A8A90] mb-2"
+  }, "← Back to menu"), /*#__PURE__*/React.createElement(PageHeader, {
+    kicker: "Admin",
+    title: "Users"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, users.length, " account", users.length === 1 ? '' : 's', " · default AI cap $", defaultCap.toFixed(2), "/mo. Every action here is logged."), /*#__PURE__*/React.createElement(TextInput, {
+    value: q,
+    onChange: e => setQ(e.target.value),
+    placeholder: "Search by email…"
+  }), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-3",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, err), loading ? /*#__PURE__*/React.createElement("div", {
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement(DinoLoader, {
+    label: "Loading users"
+  })) : /*#__PURE__*/React.createElement("div", {
+    className: "mt-4 space-y-2"
+  }, filtered.map(u => /*#__PURE__*/React.createElement("button", {
+    key: u.id,
+    onClick: () => openUser(u.id),
+    className: "w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-medium truncate"
+  }, u.email, !u.confirmed && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] ml-1.5 px-1 rounded",
+    style: {
+      background: 'var(--fat)',
+      color: '#fff'
+    }
+  }, "unconfirmed")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, u.hasProfile ? u.goal || 'profile set' : 'no profile', " · joined ", adminFmtDate(u.created_at))), /*#__PURE__*/React.createElement("div", {
+    className: "text-right shrink-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] tnum",
+    style: {
+      color: u.spend_usd >= u.cap_usd ? 'var(--danger)' : 'var(--muted)'
+    }
+  }, "$", u.spend_usd.toFixed(2), "/$", u.cap_usd.toFixed(2)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90]"
+  }, u.calls, " call", u.calls === 1 ? '' : 's', " this mo."))))), !filtered.length && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mt-4"
+  }, "No matching users.")), selLoading && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black/50 z-[70] flex items-center justify-center"
+  }, /*#__PURE__*/React.createElement(DinoLoader, {
+    label: "Opening account"
+  })));
+}
+function AdminUserDetail({
+  detail,
+  onBack,
+  reload,
+  adminEmail
+}) {
+  const u = detail.user;
+  const [cap, setCap] = useState(String(detail.cap_usd));
+  const [jsonText, setJsonText] = useState(JSON.stringify(detail.state || {}, null, 2));
+  const [editData, setEditData] = useState(false);
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [confirmKind, setConfirmKind] = useState(null);
+  const [delText, setDelText] = useState('');
+  const isSelf = (u.email || '').toLowerCase() === (adminEmail || '').toLowerCase();
+  const prof = detail.state && detail.state.profile;
+  function flash(m) {
+    setMsg(m);
+    setErr('');
+  }
+  async function saveCap() {
+    const c = Number(cap);
+    if (!isFinite(c) || c < 0) {
+      setErr('Enter a valid amount.');
+      return;
+    }
+    setBusy('cap');
+    setErr('');
+    setMsg('');
+    try {
+      const j = await adminCall('set_cap', {
+        userId: u.id,
+        cap: c
+      });
+      flash('Monthly cap set to $' + Number(j.cap_usd).toFixed(2) + '.');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  }
+  async function saveData() {
+    let data;
+    try {
+      data = JSON.parse(jsonText);
+    } catch (e) {
+      setErr('Invalid JSON: ' + e.message);
+      return;
+    }
+    setBusy('data');
+    setErr('');
+    setMsg('');
+    try {
+      await adminCall('update_state', {
+        userId: u.id,
+        data
+      });
+      flash('User data saved.');
+      setEditData(false);
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  }
+  async function doReset() {
+    setBusy('reset');
+    setErr('');
+    try {
+      await adminCall('reset_user', {
+        userId: u.id
+      });
+      setConfirmKind(null);
+      flash('User data reset to a fresh account.');
+      reload();
+    } catch (e) {
+      setErr(e.message);
+      setConfirmKind(null);
+    }
+    setBusy('');
+  }
+  async function doDelete() {
+    setBusy('delete');
+    setErr('');
+    try {
+      await adminCall('delete_user', {
+        userId: u.id
+      });
+      onBack();
+    } catch (e) {
+      setErr(e.message);
+      setBusy('');
+      setConfirmKind(null);
+    }
+  }
+  async function doResend() {
+    setBusy('resend');
+    setErr('');
+    setMsg('');
+    try {
+      const j = await adminCall('resend_confirmation', {
+        userId: u.id
+      });
+      flash(j.note || 'Confirmation link generated.');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "text-[12px] text-[#8A8A90] mb-2"
+  }, "← All users"), /*#__PURE__*/React.createElement(PageHeader, {
+    kicker: "Admin · user",
+    title: u.email
+  }), msg && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3",
+    style: {
+      color: 'var(--good)'
+    }
+  }, msg), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, err), /*#__PURE__*/React.createElement(Section, {
+    title: "Account"
+  }, /*#__PURE__*/React.createElement(Row2, {
+    k: "Email",
+    v: u.email
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "Confirmed",
+    v: u.confirmed ? 'Yes' : 'No'
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "Joined",
+    v: adminFmtDate(u.created_at)
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "Last sign-in",
+    v: adminFmtWhen(u.last_sign_in_at),
+    last: true
+  }), !u.confirmed && /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mt-3",
+    disabled: busy === 'resend',
+    onClick: doResend
+  }, busy === 'resend' ? 'Working…' : 'Resend confirmation link')), /*#__PURE__*/React.createElement(Section, {
+    title: "AI usage this month"
+  }, /*#__PURE__*/React.createElement(Row2, {
+    k: "Spent",
+    v: '$' + Number(detail.spend_usd).toFixed(2)
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "Calls",
+    v: detail.calls,
+    last: true
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mt-3 mb-1.5"
+  }, "Monthly spend cap (USD)", isSelf ? ' — note: your own account is exempt from the cap regardless of this value.' : ''), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: cap,
+    onChange: e => setCap(e.target.value),
+    placeholder: "1.00",
+    className: "flex-1"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    disabled: busy === 'cap',
+    onClick: saveCap
+  }, busy === 'cap' ? 'Saving…' : 'Save cap'))), prof && /*#__PURE__*/React.createElement(Section, {
+    title: "Profile summary"
+  }, /*#__PURE__*/React.createElement(Row2, {
+    k: "Goal",
+    v: prof.goalType || '—'
+  }), prof.weightKg != null && /*#__PURE__*/React.createElement(Row2, {
+    k: "Weight (kg)",
+    v: prof.weightKg
+  }), prof.bodyFatPct != null && /*#__PURE__*/React.createElement(Row2, {
+    k: "Body fat %",
+    v: prof.bodyFatPct
+  }), prof.rateKgPerWeek != null && /*#__PURE__*/React.createElement(Row2, {
+    k: "Rate kg/wk",
+    v: prof.rateKgPerWeek,
+    last: true
+  })), /*#__PURE__*/React.createElement(Section, {
+    title: "Raw data"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-2"
+  }, "The user's full stored state. Editing this changes their account — use carefully. Updated ", adminFmtWhen(detail.updated_at), "."), !editData ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    onClick: () => setEditData(true)
+  }, "View / edit raw data") : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("textarea", {
+    value: jsonText,
+    onChange: e => setJsonText(e.target.value),
+    rows: 12,
+    className: inputCls + ' font-mono text-[11px] leading-snug',
+    spellCheck: false
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "flex-1",
+    disabled: busy === 'data',
+    onClick: saveData
+  }, busy === 'data' ? 'Saving…' : 'Save data'), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: () => {
+      setEditData(false);
+      setJsonText(JSON.stringify(detail.state || {}, null, 2));
+      setErr('');
+    }
+  }, "Cancel")))), /*#__PURE__*/React.createElement(Section, {
+    title: "Danger zone"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Reset wipes their data but keeps the login. Delete removes the account and all data permanently (for GDPR/erasure requests)."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mb-2",
+    style: {
+      background: 'var(--fat)',
+      color: '#fff',
+      borderColor: 'var(--border)'
+    },
+    disabled: busy === 'reset',
+    onClick: () => setConfirmKind('reset')
+  }, "Reset this user's data"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "danger",
+    className: "w-full",
+    onClick: () => {
+      setConfirmKind('delete');
+      setDelText('');
+    }
+  }, "Delete this account"), isSelf && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, "Heads up: this is your own account.")), confirmKind === 'reset' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: "Reset this user's data?",
+    body: 'This wipes ' + u.email + "'s profile, food log and history back to a fresh account. Their login stays. This cannot be undone.",
+    confirmLabel: busy === 'reset' ? 'Resetting…' : 'Reset user',
+    onConfirm: doReset,
+    onClose: () => setConfirmKind(null)
+  }), confirmKind === 'delete' && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[80] bg-black/60 flex items-end lg:items-center justify-center",
+    onClick: () => setConfirmKind(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[var(--bg)] w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold mb-1",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, "Delete ", u.email, "?"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Permanently removes the account and every trace of their data. This cannot be undone. Type ", /*#__PURE__*/React.createElement("span", {
+    className: "font-bold"
+  }, "DELETE"), " to confirm."), /*#__PURE__*/React.createElement(TextInput, {
+    value: delText,
+    onChange: e => setDelText(e.target.value),
+    placeholder: "DELETE"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-3"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "danger",
+    className: "flex-1",
+    disabled: delText.trim().toUpperCase() !== 'DELETE' || busy === 'delete',
+    style: {
+      opacity: delText.trim().toUpperCase() !== 'DELETE' || busy === 'delete' ? 0.5 : 1
+    },
+    onClick: doDelete
+  }, busy === 'delete' ? 'Deleting…' : 'Delete forever'), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: () => setConfirmKind(null)
+  }, "Cancel")))));
 }
 
 /* =====================================================================
@@ -11133,6 +11582,7 @@ function App() {
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [adding, setAdding] = useState(null);
   const [fresh, setFresh] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -11180,6 +11630,23 @@ function App() {
       sub.data.subscription.unsubscribe();
     };
   }, []);
+  // Am I an admin? A user may read only their own admins row (RLS), so this just decides whether to
+  // surface the admin entry. Real authorisation is enforced server-side by the admin-api function.
+  useEffect(() => {
+    if (!session || !supa) {
+      setIsAdmin(false);
+      return;
+    }
+    let cancelled = false;
+    supa.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle().then(function (r) {
+      if (!cancelled) setIsAdmin(!!(r && r.data));
+    }, function () {
+      if (!cancelled) setIsAdmin(false);
+    });
+    return function () {
+      cancelled = true;
+    };
+  }, [session]);
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
@@ -11467,7 +11934,12 @@ function App() {
     onReset: resetAll,
     onDeleteAccount: deleteAccount,
     onFreshStart: () => setFresh(true),
-    email: session.user.email
+    email: session.user.email,
+    isAdmin: isAdmin,
+    onOpenAdmin: () => setView('admin')
+  }), view === 'admin' && isAdmin && /*#__PURE__*/React.createElement(AdminPanel, {
+    onBack: () => setView('more'),
+    adminEmail: session.user.email
   }), /*#__PURE__*/React.createElement(BottomNav, {
     view: view,
     setView: setView,
