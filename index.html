@@ -11021,7 +11021,13 @@ function AdminPanel({
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-medium truncate"
-  }, u.email, !u.confirmed && /*#__PURE__*/React.createElement("span", {
+  }, u.email, u.is_admin && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] ml-1.5 px-1 rounded",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "admin"), !u.confirmed && /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] ml-1.5 px-1 rounded",
     style: {
       background: 'var(--fat)',
@@ -11061,6 +11067,7 @@ function AdminUserDetail({
   const [err, setErr] = useState('');
   const [confirmKind, setConfirmKind] = useState(null);
   const [delText, setDelText] = useState('');
+  const [adminRole, setAdminRole] = useState(!!detail.is_admin);
   const isSelf = (u.email || '').toLowerCase() === (adminEmail || '').toLowerCase();
   const prof = detail.state && detail.state.profile;
   function flash(m) {
@@ -11154,6 +11161,55 @@ function AdminUserDetail({
     }
     setBusy('');
   }
+  async function doResetUsage() {
+    setBusy('usage');
+    setErr('');
+    try {
+      await adminCall('reset_usage', {
+        userId: u.id
+      });
+      setConfirmKind(null);
+      flash("This month's AI usage was reset to $0.");
+    } catch (e) {
+      setErr(e.message);
+      setConfirmKind(null);
+    }
+    setBusy('');
+  }
+  async function doGrant() {
+    setBusy('admin');
+    setErr('');
+    try {
+      await adminCall('set_admin', {
+        userId: u.id,
+        makeAdmin: true
+      });
+      setAdminRole(true);
+      setConfirmKind(null);
+      flash(u.email + ' is now an admin.');
+    } catch (e) {
+      setErr(e.message);
+      setConfirmKind(null);
+    }
+    setBusy('');
+  }
+  async function doRevoke() {
+    setBusy('admin');
+    setErr('');
+    try {
+      await adminCall('set_admin', {
+        userId: u.id,
+        makeAdmin: false
+      });
+      setAdminRole(false);
+      setConfirmKind(null);
+      flash('Admin access revoked.');
+    } catch (e) {
+      setErr(e.message);
+      setConfirmKind(null);
+    }
+    setBusy('');
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -11214,7 +11270,38 @@ function AdminUserDetail({
     kind: "accent",
     disabled: busy === 'cap',
     onClick: saveCap
-  }, busy === 'cap' ? 'Saving…' : 'Save cap'))), prof && /*#__PURE__*/React.createElement(Section, {
+  }, busy === 'cap' ? 'Saving…' : 'Save cap')), detail.spend_usd > 0 && /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mt-2",
+    disabled: busy === 'usage',
+    onClick: () => setConfirmKind('usage')
+  }, "Reset this month's usage to $0")), /*#__PURE__*/React.createElement(Section, {
+    title: "Access"
+  }, /*#__PURE__*/React.createElement(Row2, {
+    k: "Role",
+    v: adminRole ? 'Admin' : 'User',
+    last: true
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mt-3 mb-2"
+  }, "Admins can see and manage every account. Grant this only to people you trust."), adminRole ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    disabled: isSelf || busy === 'admin',
+    style: {
+      opacity: isSelf ? 0.5 : 1
+    },
+    onClick: () => setConfirmKind('revoke')
+  }, isSelf ? "This is you — can't self-revoke" : busy === 'admin' ? 'Working…' : 'Revoke admin access') : /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      borderColor: 'var(--border)'
+    },
+    disabled: busy === 'admin',
+    onClick: () => setConfirmKind('grant')
+  }, busy === 'admin' ? 'Working…' : 'Make this user an admin')), prof && /*#__PURE__*/React.createElement(Section, {
     title: "Profile summary"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Goal",
@@ -11283,7 +11370,27 @@ function AdminUserDetail({
     style: {
       color: 'var(--danger)'
     }
-  }, "Heads up: this is your own account.")), confirmKind === 'reset' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, "Heads up: this is your own account.")), confirmKind === 'grant' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Make ' + u.email + ' an admin?',
+    body: "They'll be able to view and manage every user account, including AI spend limits and deletions. Only do this for people you trust.",
+    confirmLabel: busy === 'admin' ? 'Working…' : 'Make admin',
+    confirmKind: "accent",
+    onConfirm: doGrant,
+    onClose: () => setConfirmKind(null)
+  }), confirmKind === 'revoke' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: "Revoke admin access?",
+    body: 'This removes ' + u.email + "'s access to the admin panel. They keep their normal account.",
+    confirmLabel: busy === 'admin' ? 'Working…' : 'Revoke access',
+    onConfirm: doRevoke,
+    onClose: () => setConfirmKind(null)
+  }), confirmKind === 'usage' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: "Reset this month's AI usage?",
+    body: 'This sets ' + u.email + "'s AI spend back to $0 for this month, giving them their full allowance again.",
+    confirmLabel: busy === 'usage' ? 'Resetting…' : 'Reset usage',
+    confirmKind: "accent",
+    onConfirm: doResetUsage,
+    onClose: () => setConfirmKind(null)
+  }), confirmKind === 'reset' && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Reset this user's data?",
     body: 'This wipes ' + u.email + "'s profile, food log and history back to a fresh account. Their login stays. This cannot be undone.",
     confirmLabel: busy === 'reset' ? 'Resetting…' : 'Reset user',
