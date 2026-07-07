@@ -3799,6 +3799,7 @@ function CheckInModal({
   const [bf, setBf] = useState(p.bodyFatPct != null ? p.bodyFatPct : '');
   const [result, setResult] = useState(null);
   const [bfPick, setBfPick] = useState(false);
+  const [adhered, setAdhered] = useState('yes'); // self-reported: did you actually follow the plan this cycle?
   const [coach, setCoach] = useState(null); // AI explanation of the check-in result: {loading}|{text}|{error}
   useEffect(() => {
     if (!result || result.accepted || !p.aiKey) return;
@@ -3812,7 +3813,8 @@ function CheckInModal({
       goal: p.goalType,
       targetRatePerWeek_kg: p.goalType === 'maintain' ? 0 : p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0),
       actualRatePerWeek_kg: result.estimate ? result.estimate.weeklyChangeKg : null,
-      outcome: result.status === 'proposed' ? result.changed ? result.direction === 'up' ? 'calories increased' : 'calories decreased' : 'no change — on target' : result.status === 'held' ? 'held (not enough tracking or on a diet break)' : 'not enough history yet',
+      outcome: result.status === 'proposed' ? result.changed ? result.direction === 'up' ? 'calories increased' : 'calories decreased' : 'no change — on target' : result.status === 'held' ? result.offPlan ? 'held — user said this was an off-plan week' : 'held — not enough tracking or on a diet break' : 'not enough history yet',
+      selfReportedOffPlan: !!result.offPlan,
       currentKcal: base ? base.kcal : null,
       newKcal: result.newTargets ? result.newTargets.kcal : base ? base.kcal : null,
       deltaKcal: result.deltaKcal || 0,
@@ -3879,6 +3881,7 @@ function CheckInModal({
         date: today,
         weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2),
         onTrack: onTrack,
+        adhered: adhered === 'yes',
         days: cycleDays,
         logged: loggedDays,
         weighed: weighDays
@@ -3888,6 +3891,14 @@ function CheckInModal({
       setResult({
         status: 'held',
         reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends — then adaptive adjustments pick right back up.`
+      });
+      return;
+    }
+    if (adhered === 'no') {
+      setResult({
+        status: 'held',
+        offPlan: true,
+        reason: `You said this wasn't a week you stuck to your targets, so I'm holding your macros exactly as they are — changing them off an off-plan week would just chase noise, not real progress. Your weigh-in is saved. Get a clean cycle in and your next check-in will retune properly.`
       });
       return;
     }
@@ -4068,7 +4079,22 @@ function CheckInModal({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
-  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement(Btn, {
+  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement(Field, {
+    label: "Did you stick to your targets this cycle?",
+    hint: "Be honest — an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week."
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: adhered,
+    onChange: setAdhered,
+    options: [{
+      v: 'yes',
+      l: 'Yes, on track'
+    }, {
+      v: 'no',
+      l: 'No, off-plan'
+    }]
+  })), adhered === 'no' && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3 -mt-1"
+  }, "I'll log your weigh-in and keep your macros the same — no change from an off-plan week."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: complete
