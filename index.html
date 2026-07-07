@@ -934,9 +934,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       user_id: USER,
       profile: null, // set during onboarding
       meal_templates: [
-        { id: 'm_1', user_id: USER, name: 'Meal 1', sort_order: 0 },
-        { id: 'm_2', user_id: USER, name: 'Meal 2', sort_order: 1 },
-        { id: 'm_3', user_id: USER, name: 'Meal 3', sort_order: 2 },
+        { id: 'm_1', user_id: USER, name: 'Breakfast', sort_order: 0 },
+        { id: 'm_2', user_id: USER, name: 'Lunch', sort_order: 1 },
+        { id: 'm_3', user_id: USER, name: 'Dinner', sort_order: 2 },
         { id: 'm_s', user_id: USER, name: 'Snacks', sort_order: 3 },
         { id: 'm_o', user_id: USER, name: 'Other', sort_order: 4 },
       ],
@@ -8710,6 +8710,55 @@ function FoodTab({
     onClose: () => setConfirmDel(null)
   }));
 }
+// Store.uid() is Date.now().toString(36) + 5 random chars, so a log entry's id encodes the exact time
+// it was added. Recover the local hour-of-day from it (null if it doesn't look like a real timestamp).
+function hourFromId(id) {
+  if (!id || id.length < 6) return null;
+  const ts = parseInt(id.slice(0, -5), 36);
+  if (!isFinite(ts) || ts < 1600000000000 || ts > 4000000000000) return null; // ~2020..2096 sanity window
+  return new Date(ts).getHours();
+}
+// Fallback when there isn't enough history: match a meal by name for the time of day, else split the
+// day's meals across morning/midday/evening/late by their order.
+function timeDefaultMealId(meals, H) {
+  const byName = kw => meals.find(m => new RegExp(kw, 'i').test(m.name || ''));
+  let want;
+  if (H >= 4 && H < 11) want = byName('break|morning|brunch');else if (H >= 11 && H < 15) want = byName('lunch|midday|noon');else if (H >= 15 && H < 18) want = byName('snack|after');else if (H >= 18 && H < 22) want = byName('dinner|evening|tea\\b|supper|main');else want = byName('snack|night|late|supper');
+  if (want) return want.id;
+  const n = meals.length;
+  let idx;
+  if (H >= 4 && H < 11) idx = 0;else if (H >= 11 && H < 16) idx = Math.min(1, n - 1);else if (H >= 16 && H < 22) idx = Math.min(2, n - 1);else idx = n - 1;
+  return (meals[idx] || meals[0]).id;
+}
+// Suggest which meal the food is probably for, based on WHEN this person usually logs to each meal.
+// Builds an hour histogram per meal from the last ~90 days, scores each meal in a window around now,
+// and returns the best match; falls back to the time-of-day heuristic when history is thin.
+function suggestMealId(db, meals, now) {
+  now = now || new Date();
+  const H = now.getHours();
+  const ids = new Set(meals.map(m => m.id));
+  const cutoff = shiftISO(Store.todayISO(), -90);
+  const counts = {};
+  for (const e of db.log_entries || []) {
+    if (!ids.has(e.meal_id) || e.date < cutoff) continue;
+    const h = hourFromId(e.id);
+    if (h == null) continue;
+    (counts[e.meal_id] || (counts[e.meal_id] = new Array(24).fill(0)))[h]++;
+  }
+  let best = null,
+    bestScore = 0;
+  for (const m of meals) {
+    const c = counts[m.id];
+    if (!c) continue;
+    let sc = 0;
+    for (let d = -2; d <= 2; d++) sc += c[(H + d + 24) % 24] * (3 - Math.abs(d));
+    if (sc > bestScore) {
+      bestScore = sc;
+      best = m.id;
+    }
+  }
+  return bestScore > 0 && best ? best : timeDefaultMealId(meals, H);
+}
 function LogSheet({
   db,
   update,
@@ -8721,7 +8770,7 @@ function LogSheet({
 }) {
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTab] = useState(target.alc ? 'recent' : 'food');
-  const [mealId, setMealId] = useState(target.mealId || meals[0].id);
+  const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
   useEffect(() => {
     if (isAlc) {
