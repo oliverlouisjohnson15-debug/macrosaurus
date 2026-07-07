@@ -2104,6 +2104,24 @@ const Icon = {
     strokeWidth: "2"
   }, /*#__PURE__*/React.createElement("path", {
     d: "M9 6l6 6-6 6"
+  })),
+  mic: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "9",
+    y: "3",
+    width: "6",
+    height: "11",
+    rx: "3"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M6 11a6 6 0 0 0 12 0"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M12 17v4M9 21h6"
   }))
 };
 
@@ -7995,9 +8013,9 @@ function LogSheet({
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTab] = useState('recent');
   const [mealId, setMealId] = useState(target.mealId || meals[0].id);
-  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['recent', 'Recents'], ['meals', 'Meals'], ['search', 'Search'], ['manual', 'Manual'], ['photo', 'Photo']];
+  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['recent', 'Recent'], ['meals', 'Meals'], ['search', 'Search'], ['describe', 'Describe'], ['photo', 'Photo'], ['manual', 'Manual']];
   useEffect(() => {
-    if (isAlc && (tab === 'search' || tab === 'photo' || tab === 'meals')) setTab('recent');
+    if (isAlc && (tab === 'search' || tab === 'photo' || tab === 'meals' || tab === 'describe')) setTab('recent');
   }, [isAlc]);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
@@ -8052,11 +8070,11 @@ function LogSheet({
       }), " Drink")
     }]
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 bg-[#1E1E22] p-1 rounded-2xl"
+    className: "flex gap-1 bg-[#1E1E22] p-1 rounded-2xl"
   }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setTab(k),
-    className: `flex-1 rounded-xl py-2 text-[13px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
+    className: `flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
   }, l)))), /*#__PURE__*/React.createElement("div", {
     className: "px-5 pt-1 overflow-y-auto flex-1 min-h-0",
     style: {
@@ -8072,6 +8090,9 @@ function LogSheet({
     db: db,
     update: update,
     onLog: items => onAddMeal(mealId, items)
+  }), tab === 'describe' && /*#__PURE__*/React.createElement(DescribeTab, {
+    db: db,
+    onPick: i => onAdd(mealId, i)
   }), tab === 'search' && /*#__PURE__*/React.createElement(SearchTab, {
     onPick: i => onAdd(mealId, i)
   }), tab === 'manual' && (isAlc ? /*#__PURE__*/React.createElement(AlcoholTab, {
@@ -8929,6 +8950,154 @@ function AiConfirm({
     kind: "ghost",
     onClick: onCancel
   }, "Start over")));
+}
+// Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
+// UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
+function DescribeTab({
+  db,
+  onPick
+}) {
+  const key = db.profile.aiKey;
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [result, setResult] = useState(null);
+  const [ver, setVer] = useState(0);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef(null);
+  const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+  function stopMic() {
+    try {
+      recRef.current && recRef.current.stop();
+    } catch (e) {}
+    setListening(false);
+  }
+  function toggleMic() {
+    if (!SR) return;
+    if (listening) {
+      stopMic();
+      return;
+    }
+    let r;
+    try {
+      r = new SR();
+    } catch (e) {
+      return;
+    }
+    recRef.current = r;
+    r.lang = 'en-GB';
+    r.interimResults = true;
+    r.continuous = false;
+    const base = text.trim() ? text.trim() + ' ' : '';
+    r.onresult = e => {
+      let s = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) s += e.results[i][0].transcript;
+      setText(base + s);
+    };
+    r.onerror = () => setListening(false);
+    r.onend = () => setListening(false);
+    setListening(true);
+    try {
+      r.start();
+    } catch (e) {
+      setListening(false);
+    }
+  }
+  const ctx = () => 'Context: eaten/drunk in England, described in words with NO photo. If it names a UK chain (e.g. Starbucks, Costa, Caffè Nero, Pret, Greggs, McDonald\'s, Nando\'s, Wagamama), anchor to that chain\'s PUBLISHED nutrition for the named item(s), adjusting for size and add-ons (syrups, milk type, extra shots, sides). Description: "' + text.trim() + '"';
+  async function run() {
+    if (!key) {
+      setErr('Add your AI key in Menu → Settings first.');
+      return;
+    }
+    if (!text.trim()) {
+      setErr('Describe what you had first.');
+      return;
+    }
+    if (listening) stopMic();
+    setBusy(true);
+    setErr('');
+    try {
+      const est = await claudeVision(key, [], AI_PROMPT + '\n\n' + ctx(), {
+        model: AI_MODEL,
+        maxTokens: 2048
+      });
+      setResult(est);
+      setVer(v => v + 1);
+    } catch (e) {
+      setErr('Estimate failed: ' + e.message);
+    }
+    setBusy(false);
+  }
+  async function refine(correction) {
+    setBusy(true);
+    setErr('');
+    try {
+      const prompt = 'Revise this meal estimate (described in words, eaten in England). Previous estimate JSON: ' + JSON.stringify(result) + '\nOriginal description: "' + text.trim() + '"\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items, stay honest and do not round down. Respond ONLY with the JSON.';
+      const est = await claudeVision(key, [], prompt, {
+        model: AI_MODEL,
+        maxTokens: 2048
+      });
+      setResult(est);
+      setVer(v => v + 1);
+    } catch (e) {
+      setErr('Re-estimate failed: ' + e.message);
+    }
+    setBusy(false);
+  }
+  if (result) return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(AiConfirm, {
+    key: ver,
+    est: result,
+    busy: busy,
+    onRefine: refine,
+    onAdd: onPick,
+    onCancel: () => setResult(null)
+  }), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#F5C542] mt-3"
+  }, err));
+  if (busy) return /*#__PURE__*/React.createElement(DinoLoader, {
+    label: "Working out your order"
+  });
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Type or say what you had — perfect for coffees, cocktails or a named order a photo can't capture. The AI works out the macros and you confirm before it's logged."), /*#__PURE__*/React.createElement("div", {
+    className: "relative"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: text,
+    onChange: e => setText(e.target.value),
+    rows: 4,
+    className: inputCls + ' resize-y leading-relaxed',
+    style: {
+      paddingRight: SR ? 52 : undefined
+    },
+    placeholder: "e.g. Starbucks grande oat milk caramel macchiato and a butter croissant"
+  }), SR && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: toggleMic,
+    "aria-label": "Dictate",
+    className: "absolute right-2 top-2 w-9 h-9 rounded-full flex items-center justify-center transition active:scale-95",
+    style: {
+      background: listening ? FAT : 'var(--surface3)',
+      color: listening ? '#fff' : 'var(--muted)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.mic, {
+    width: "18",
+    height: "18"
+  }))), listening && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-1.5",
+    style: {
+      color: FAT
+    }
+  }, "Listening… tap the mic again to stop."), !key && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-2"
+  }, "Add your AI key in Menu → Settings to enable this."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full mt-3",
+    onClick: run
+  }, "Estimate with AI"), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#F5C542] mt-3 fade-in"
+  }, err));
 }
 const MEAL_SOURCES = [{
   v: 'home',
