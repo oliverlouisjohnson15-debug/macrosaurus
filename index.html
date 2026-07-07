@@ -2814,6 +2814,130 @@ function TrendCard({
    AUTH (polished email login)
    ===================================================================== */
 const BETA_INVITE_CODE = 'henryalfie'; // required to create an account while in beta
+// Shown when a user arrives via a password-reset link (Supabase fires a PASSWORD_RECOVERY event and
+// puts the session into a recovery state). They set a new password, which logs them straight in.
+function ResetPassword({
+  onDone
+}) {
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [done, setDone] = useState(false);
+  async function save() {
+    if (!supa) return;
+    if (pw.length < 6) {
+      setMsg('Use at least 6 characters.');
+      return;
+    }
+    if (pw !== pw2) {
+      setMsg("The two passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    setMsg('');
+    try {
+      const r = await supa.auth.updateUser({
+        password: pw
+      });
+      if (r.error) throw r.error;
+      setDone(true);
+    } catch (e) {
+      setMsg(e.message);
+    }
+    setBusy(false);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "theme-light min-h-screen flex flex-col",
+    style: {
+      background: 'var(--bg)',
+      color: 'var(--text)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 px-5 py-4 border-b-[3px]",
+    style: {
+      background: 'var(--header)',
+      borderColor: 'var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box w-9 h-9 flex items-center justify-center",
+    style: {
+      background: '#111',
+      borderColor: '#000'
+    }
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 20,
+    color: "#fff"
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[12px]",
+    style: {
+      color: 'var(--header-text)'
+    }
+  }, "MACROSAURUS")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 flex flex-col justify-center px-6 py-10"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-full max-w-sm mx-auto fade-in"
+  }, /*#__PURE__*/React.createElement("h1", {
+    className: "pf text-lg text-center mb-4",
+    style: {
+      color: 'var(--header)'
+    }
+  }, "SET A NEW PASSWORD"), done ? /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box bg-[#161618] p-5 text-center",
+    style: {
+      borderTopColor: 'var(--header)',
+      borderTopWidth: '7px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] mb-4"
+  }, "Your password has been updated — you're signed in."), /*#__PURE__*/React.createElement("button", {
+    onClick: onDone,
+    className: "w-full pixel-btn py-3 text-[11px] pf",
+    style: {
+      background: 'var(--header)',
+      color: '#fff'
+    }
+  }, "CONTINUE TO APP")) : /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box bg-[#161618] p-5",
+    style: {
+      borderTopColor: 'var(--header)',
+      borderTopWidth: '7px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-3 leading-relaxed"
+  }, "Choose a new password for your account."), /*#__PURE__*/React.createElement(Field, {
+    label: "New password"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    autoComplete: "new-password",
+    className: inputCls,
+    value: pw,
+    onChange: e => setPw(e.target.value),
+    placeholder: "at least 6 characters"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Confirm password"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    autoComplete: "new-password",
+    className: inputCls,
+    value: pw2,
+    onChange: e => setPw2(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && save(),
+    placeholder: "type it again"
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: save,
+    className: "w-full pixel-btn mt-1 py-3 text-[11px] pf",
+    style: {
+      background: 'var(--header)',
+      color: '#fff'
+    }
+  }, busy ? 'SAVING…' : 'SAVE PASSWORD'), msg && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-3 text-center",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, msg)))));
+}
 function Auth() {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -2824,6 +2948,25 @@ function Auth() {
   async function submit() {
     if (!supa) {
       setMsg('Accounts need an internet connection. Open the deployed site.');
+      return;
+    }
+    if (mode === 'forgot') {
+      if (!email) {
+        setMsg('Enter your email and we\'ll send a reset link.');
+        return;
+      }
+      setBusy(true);
+      setMsg('');
+      try {
+        const r = await supa.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin
+        });
+        if (r.error) throw r.error;
+        setMsg('If an account exists for ' + email + ", we've emailed a link to reset your password. It can take a minute to arrive.");
+      } catch (e) {
+        setMsg(e.message);
+      }
+      setBusy(false);
       return;
     }
     if (!email || !pw) {
@@ -2918,8 +3061,9 @@ function Auth() {
     className: inputCls,
     value: email,
     onChange: e => setEmail(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && submit(),
     placeholder: "you@email.com"
-  })), /*#__PURE__*/React.createElement(Field, {
+  })), mode !== 'forgot' && /*#__PURE__*/React.createElement(Field, {
     label: "Password"
   }, /*#__PURE__*/React.createElement("input", {
     type: "password",
@@ -2940,19 +3084,36 @@ function Auth() {
     onChange: e => setCode(e.target.value),
     onKeyDown: e => e.key === 'Enter' && submit(),
     placeholder: "invite code"
-  })), /*#__PURE__*/React.createElement("button", {
+  })), mode === 'forgot' && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-3 leading-relaxed"
+  }, "Enter your account email and we'll send you a link to set a new password."), /*#__PURE__*/React.createElement("button", {
     onClick: submit,
     className: "w-full pixel-btn mt-1 py-3 text-[11px] pf",
     style: {
       background: 'var(--header)',
       color: '#fff'
     }
-  }, busy ? 'PLEASE WAIT…' : mode === 'signup' ? 'CREATE ACCOUNT' : 'LOG IN'), msg && /*#__PURE__*/React.createElement("div", {
+  }, busy ? 'PLEASE WAIT…' : mode === 'signup' ? 'CREATE ACCOUNT' : mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'), mode === 'login' && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setMode('forgot');
+      setMsg('');
+    },
+    className: "w-full text-[11px] mt-3 text-center",
+    style: {
+      color: 'var(--header)'
+    }
+  }, "Forgot your password?"), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-3 text-center leading-relaxed",
     style: {
       color: 'var(--danger)'
     }
-  }, msg)), /*#__PURE__*/React.createElement("button", {
+  }, msg)), mode === 'forgot' ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setMode('login');
+      setMsg('');
+    },
+    className: "w-full text-[11px] text-[#8A8A90] mt-5 text-center"
+  }, "← Back to log in") : /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setMode(mode === 'signup' ? 'login' : 'signup');
       setMsg('');
@@ -11436,6 +11597,28 @@ function AdminUserDetail({
       setErr('Export failed: ' + e.message);
     }
   }
+  async function doRecovery() {
+    setBusy('recovery');
+    setErr('');
+    try {
+      const j = await adminCall('send_recovery', {
+        userId: u.id
+      });
+      if (j.action_link) {
+        try {
+          await navigator.clipboard.writeText(j.action_link);
+          flash('Reset link generated and copied to your clipboard — send it to the user. ' + (j.note || ''));
+        } catch (_) {
+          flash('Reset link generated. ' + (j.note || ''));
+        }
+      } else {
+        flash(j.note || 'Reset link generated.');
+      }
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -11488,7 +11671,12 @@ function AdminUserDetail({
       color: banned ? 'var(--good)' : 'var(--danger)'
     },
     onClick: () => banned ? toggleBan() : setConfirmKind('ban')
-  }, busy === 'ban' ? 'Working…' : banned ? 'Reinstate account' : 'Suspend account'))), /*#__PURE__*/React.createElement(Section, {
+  }, busy === 'ban' ? 'Working…' : banned ? 'Reinstate account' : 'Suspend account')), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mt-2",
+    disabled: busy === 'recovery',
+    onClick: doRecovery
+  }, busy === 'recovery' ? 'Generating…' : 'Send password-reset link')), /*#__PURE__*/React.createElement(Section, {
     title: "AI usage this month"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Spent",
@@ -11971,6 +12159,7 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [adding, setAdding] = useState(null);
   const [fresh, setFresh] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -12010,7 +12199,8 @@ function App() {
     supa.auth.getSession().then(function (r) {
       setSession(r.data.session || null);
     });
-    const sub = supa.auth.onAuthStateChange(function (_e, s) {
+    const sub = supa.auth.onAuthStateChange(function (e, s) {
+      if (e === 'PASSWORD_RECOVERY') setRecovering(true);
       setSession(s || null);
       if (!s) setDb(null);
     });
@@ -12269,6 +12459,9 @@ function App() {
   }
   if (session === undefined) return /*#__PURE__*/React.createElement(Loading, {
     text: "Waking the Macrosaurus…"
+  });
+  if (recovering) return /*#__PURE__*/React.createElement(ResetPassword, {
+    onDone: () => setRecovering(false)
   });
   if (!session) return /*#__PURE__*/React.createElement(Auth, null);
   if (!db) return /*#__PURE__*/React.createElement(Loading, {
