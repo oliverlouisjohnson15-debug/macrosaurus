@@ -10496,16 +10496,28 @@ function LiveScanner({
       try {
         await loadExternalScript(BARCODE_LIB, 'Html5Qrcode');
         if (stopped || !window.Html5Qrcode) throw new Error('scanner library unavailable');
+        // Explicitly enable the 1D product-barcode formats, and let the native detector help where it
+        // exists. Without this some builds only try QR codes and never lock onto an EAN/UPC.
+        const S = window.Html5QrcodeSupportedFormats;
+        const fmts = S ? [S.EAN_13, S.EAN_8, S.UPC_A, S.UPC_E, S.CODE_128, S.CODE_39, S.ITF].filter(x => x != null) : undefined;
         scanner = new window.Html5Qrcode(holderId, {
-          verbose: false
+          verbose: false,
+          formatsToSupport: fmts,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
         });
         await scanner.start({
           facingMode: 'environment'
-        }, {
-          fps: 10,
-          qrbox: vw => ({
-            width: Math.min(300, (vw || 320) - 40),
-            height: 170
+        },
+        // Wide, short scan box suits barcodes. The video is shown at its NATIVE ratio (no object-fit
+        // cover) so the region under the box matches the frame the decoder samples, which is what lets
+        // it actually lock on.
+        {
+          fps: 12,
+          qrbox: (w, h) => ({
+            width: Math.floor(Math.min((w || 320) * 0.92, 340)),
+            height: Math.floor(Math.min((h || 320) * 0.5, 150))
           })
         }, text => {
           if (!stopped && text) {
@@ -10537,7 +10549,7 @@ function LiveScanner({
   }, []);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[70] bg-black flex flex-col"
-  }, /*#__PURE__*/React.createElement("style", null, '#' + holderId + ' video{width:100%!important;height:100%!important;object-fit:cover!important}'), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("style", null, '#' + holderId + ' video{width:100%!important;height:auto!important;max-height:100%!important}'), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center px-4 pb-3 text-white",
     style: {
       paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)'
