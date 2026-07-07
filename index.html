@@ -5574,6 +5574,13 @@ function MacrodexModal({
   update,
   onClose
 }) {
+  useEffect(() => {
+    if (db.onboarding && db.onboarding.sawDex) return;
+    update(d => {
+      d.onboarding = d.onboarding || {};
+      d.onboarding.sawDex = true;
+    });
+  }, []);
   const dex = macrodex(db);
   const caught = Object.keys(dex).length;
   const items = db.items || {};
@@ -6606,6 +6613,11 @@ function Dashboard({
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: prettyDate(today),
     title: "Dashboard"
+  }), /*#__PURE__*/React.createElement(OnboardingChecklist, {
+    db: db,
+    update: update,
+    onLog: () => onQuickAdd(false),
+    onOpenDex: () => setShowDex(true)
   }), showNudge && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-4 mb-4 fade-in",
     style: {
@@ -10995,6 +11007,7 @@ function More({
   onOpenAdmin
 }) {
   const [tab, setTab] = useState('details');
+  const [guide, setGuide] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [delText, setDelText] = useState('');
   const [delBusy, setDelBusy] = useState(false);
@@ -11074,6 +11087,14 @@ function More({
   }, "Sign out")), /*#__PURE__*/React.createElement(ChangePassword, {
     email: email
   }), /*#__PURE__*/React.createElement(Section, {
+    title: "How it works"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "A quick refresher on how Macrosaurus adapts your plan, logging, and check-ins."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    onClick: () => setGuide(true)
+  }, "Replay the intro tour")), /*#__PURE__*/React.createElement(Section, {
     title: "Your data"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -11151,6 +11172,9 @@ function More({
     confirmLabel: "Reset everything",
     onConfirm: onReset,
     onClose: () => setResetOpen(false)
+  }), guide && /*#__PURE__*/React.createElement(WelcomeCarousel, {
+    reviewing: true,
+    onDone: () => setGuide(false)
   }));
 }
 function Row2({
@@ -12270,12 +12294,171 @@ function MobileHeader({
     d: "M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"
   }))));
 }
+
+// First-run welcome tour: a few full-screen slides teaching the core concepts. Shown once to new
+// users after setup, and replayable from the menu (reviewing=true just changes the button labels).
+const WELCOME_SLIDES = [{
+  title: 'Welcome to Macrosaurus',
+  body: "A UK-first macro tracker that adapts to you. Here's the 30-second tour — then you're off."
+}, {
+  title: 'Your plan adapts',
+  body: "Your calorie and macro targets aren't fixed. Each week Macrosaurus reads your real weight trend and retunes them, so progress keeps coming. Protein is a floor — hit it or go over."
+}, {
+  title: 'Logging is fast',
+  body: 'Snap a photo, describe a meal in words or your voice, scan a barcode or label, or reuse recents. The AI works out the macros — you just confirm.'
+}, {
+  title: 'Weigh in, check in',
+  body: 'Hop on the scales a few times a week. Your weekly check-in uses the trend — not one noisy reading — to decide the next move.'
+}, {
+  title: 'Make it stick',
+  body: 'Every day you log earns a collectible Macrodex dino, with a playful Fight arena to keep your streak alive. Now let’s log something.'
+}];
+function WelcomeCarousel({
+  onDone,
+  reviewing
+}) {
+  const [i, setI] = useState(0);
+  const last = i === WELCOME_SLIDES.length - 1;
+  const s = WELCOME_SLIDES[i];
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[95] theme-light flex flex-col",
+    style: {
+      background: 'var(--bg)',
+      color: 'var(--text)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center px-5 py-4"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[11px]",
+    style: {
+      color: 'var(--header)'
+    }
+  }, "MACROSAURUS"), /*#__PURE__*/React.createElement("button", {
+    onClick: onDone,
+    className: "text-[12px] text-[#8A8A90]"
+  }, reviewing ? 'Close' : 'Skip')), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 flex flex-col justify-center items-center text-center px-8 max-w-sm mx-auto"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-6 mb-6",
+    style: {
+      background: 'var(--header)',
+      borderColor: 'var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 64,
+    color: "#fff"
+  })), /*#__PURE__*/React.createElement("h2", {
+    className: "pf text-base mb-3 leading-relaxed",
+    style: {
+      color: 'var(--header)'
+    }
+  }, s.title), /*#__PURE__*/React.createElement("p", {
+    className: "text-[14px] leading-relaxed"
+  }, s.body)), /*#__PURE__*/React.createElement("div", {
+    className: "px-6 pb-10 max-w-sm mx-auto w-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-center gap-1.5 mb-5"
+  }, WELCOME_SLIDES.map((_, k) => /*#__PURE__*/React.createElement("div", {
+    key: k,
+    className: "h-1.5 rounded-full transition-all",
+    style: {
+      width: k === i ? 18 : 6,
+      background: k === i ? 'var(--header)' : 'var(--border)'
+    }
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => last ? onDone() : setI(i + 1),
+    className: "w-full pixel-btn py-3 text-[11px] pf",
+    style: {
+      background: 'var(--header)',
+      color: '#fff'
+    }
+  }, last ? reviewing ? 'DONE' : 'START TRACKING' : 'NEXT'), i > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setI(i - 1),
+    className: "w-full text-[11px] text-[#8A8A90] mt-3"
+  }, "Back")));
+}
+// Getting-started checklist card on the dashboard. Drives first actions; completion is derived from
+// real data (plus a "saw the Macrodex" flag). Hides once everything's done or the user dismisses it.
+function OnboardingChecklist({
+  db,
+  update,
+  onLog,
+  onOpenDex
+}) {
+  const ob = db.onboarding || {};
+  if (!ob.welcomed || ob.dismissed) return null;
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  const proteinTgt = et ? et.eff.protein : 0;
+  const todayProtein = sumMacros(entriesOn(db, today)).protein;
+  const items = [{
+    k: 'meal',
+    label: 'Log your first meal',
+    done: db.log_entries.length > 0,
+    go: onLog
+  }, {
+    k: 'ai',
+    label: 'Try a Photo or Describe estimate',
+    done: db.log_entries.some(e => e.source === 'ai_estimate' || e.source === 'label'),
+    go: onLog
+  }, {
+    k: 'protein',
+    label: 'Hit your protein target today',
+    done: proteinTgt > 0 && todayProtein >= proteinTgt,
+    go: onLog
+  }, {
+    k: 'dex',
+    label: 'Meet your first Macrodex dino',
+    done: !!ob.sawDex,
+    go: onOpenDex
+  }];
+  const doneCount = items.filter(x => x.done).length;
+  if (doneCount === items.length) return null;
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4 fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold"
+  }, "Getting started"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, doneCount, "/", items.length), /*#__PURE__*/React.createElement("button", {
+    onClick: () => update(d => {
+      d.onboarding = d.onboarding || {};
+      d.onboarding.dismissed = true;
+    }),
+    className: "text-[#8A8A90] text-lg leading-none",
+    "aria-label": "Dismiss"
+  }, "×"))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-1"
+  }, items.map(it => /*#__PURE__*/React.createElement("button", {
+    key: it.k,
+    onClick: it.done ? undefined : it.go,
+    className: "w-full flex items-center gap-3 text-left py-1.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]",
+    style: {
+      border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'),
+      background: it.done ? 'var(--good)' : 'transparent',
+      color: '#fff'
+    }
+  }, it.done ? '✓' : ''), /*#__PURE__*/React.createElement("span", {
+    className: "text-[13px]",
+    style: {
+      color: it.done ? 'var(--muted)' : 'var(--text)',
+      textDecoration: it.done ? 'line-through' : 'none'
+    }
+  }, it.label)))));
+}
 function App() {
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [adding, setAdding] = useState(null);
   const [fresh, setFresh] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -12479,10 +12662,19 @@ function App() {
       }
       n.last_checkin = Store.todayISO();
       if (n.profile.checkinDay == null) n.profile.checkinDay = new Date(Store.todayISO() + 'T00:00:00').getDay();
+      if (isNew) {
+        n.onboarding = Object.assign({
+          welcomed: false,
+          sawDex: false,
+          dismissed: false
+        }, n.onboarding);
+        n.onboarding.welcomed = true;
+      }
       if (session) cloudSave(session.user.id, n);
       return n;
     });
     setFresh(false);
+    if (isNew) setShowWelcome(true);
   }
   function addEntry(date, mealId, item) {
     const entryId = Store.uid();
@@ -12682,6 +12874,8 @@ function App() {
     }
   }))), /*#__PURE__*/React.createElement(Toast, {
     toast: toast
+  }), showWelcome && /*#__PURE__*/React.createElement(WelcomeCarousel, {
+    onDone: () => setShowWelcome(false)
   }));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));</script>
