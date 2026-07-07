@@ -552,14 +552,14 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Evidence-based sustainable rate guardrail. Helms et al.: ~0.5–1% of bodyweight/week during a cut
   // best preserves lean mass, with leaner dieters sitting at the slower end; lean bulks want roughly
   // 0.25–0.5%/week to limit fat gain (Nippard). Returns the recommended ceiling (kg/wk), the user's
-  // target, and whether they're above it — used to warn, not to silently override the user's choice.
+  // target, and whether they're above it, used to warn, not to silently override the user's choice.
   function rateGuidance(p) {
     var bw = p.weightKg || 0;
     var target = Math.abs(p.rateKgPerWeek || 0);
     if (p.goalType === 'maintain') return { maxKg: 0, pctCap: 0, targetKg: 0, tooFast: false };
     var pctCap;
     if (p.goalType === 'gain') { pctCap = 0.005; }
-    else { // cut — tighten for lean individuals
+    else { // cut, tighten for lean individuals
       var bf = p.bodyFatPct;
       var lean = (bf != null) && ((p.sex === 'male' && bf < 12) || (p.sex !== 'male' && bf < 20));
       pctCap = lean ? 0.0075 : 0.01;
@@ -701,7 +701,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var desiredKcal = opts.estimate.tdee + goalDelta;
     // Cap each check-in's move PROPORTIONAL to estimated burn (bigger person / bigger adaptation ->
     // bigger allowed step; ~10% of TDEE, 150–350 kcal), THEN scale that by how confident this cycle's
-    // data is — coverage of logging and weigh-ins, and cycle length. A clean, complete cycle earns
+    // data is, coverage of logging and weigh-ins, and cycle length. A clean, complete cycle earns
     // the full step; a sparser one moves more cautiously so noise can't drive a big swing. Follows
     // Helms/Nippard practical sizing and MacroFactor's expenditure-scaled, smoothed adjustments.
     var fullCap = clamp(round(0.10 * (opts.estimate.tdee || currentKcal)), 150, 350);
@@ -839,7 +839,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var fcDelta = clamp(rawDelta, -fcCap, fcCap);
     var forecast;
     if (confidence === 'low') forecast = { dir: 'unknown', deltaKcal: 0, text: 'need a bit more data to call it' };
-    else if (Math.abs(fcDelta) < 25) forecast = { dir: 'hold', deltaKcal: 0, text: 'on track — no change likely' };
+    else if (Math.abs(fcDelta) < 25) forecast = { dir: 'hold', deltaKcal: 0, text: 'on track, no change likely' };
     else forecast = { dir: fcDelta > 0 ? 'up' : 'down', deltaKcal: round(fcDelta), text: (fcDelta > 0 ? 'leaning toward a small increase' : 'leaning toward a small decrease') + ' (~' + Math.abs(round(fcDelta)) + ' kcal)' };
 
     return {
@@ -869,7 +869,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   root.Engine = Engine;
 })(typeof window !== 'undefined' ? window : this);</script>
 <script>/*
- * store.js — Local-first repository (localStorage).
+ * store.js, Local-first repository (localStorage).
  * This is the swap point: replace these methods with a Supabase-backed
  * implementation later and the UI does not change. See PLAN.md §7 & §9.
  * Everything is namespaced by user_id (a fixed 'local' user for now).
@@ -937,7 +937,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       last_break_end: null,   // ISO date the last diet break ended (resets the dieting clock)
       diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
-      catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] } — locked so later edits never lose a caught creature
+      catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] }, locked so later edits never lose a caught creature
       items: {},          // shared item inventory: { itemId: count }
       dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
       game_awards: {},    // idempotency keys for one-time item / milestone grants
@@ -1143,7 +1143,7 @@ function PixelDino({
     }
   }, rects);
 }
-// Pixel flame — outer glow (fat/orange), inner core (accent). Replaces the 🔥 emoji.
+// Pixel flame, outer glow (fat/orange), inner core (accent). Replaces the 🔥 emoji.
 const FIRE_OUTER = ['...#...', '..###..', '.#.###.', '.#####.', '#####.#', '#######', '#######', '.#####.', '..###..'];
 const FIRE_INNER = ['.......', '.......', '.......', '...#...', '..###..', '..###..', '..###..', '...#...', '.......'];
 function PixelFire({
@@ -1290,7 +1290,7 @@ async function aiRequest(body) {
   return j;
 }
 // Call the AI with any number of images + a text prompt; expect one JSON object back.
-// `key` is retained for signature compatibility but is no longer used — the proxy holds the key.
+// `key` is retained for signature compatibility but is no longer used, the proxy holds the key.
 async function claudeVision(key, files, prompt, opts) {
   opts = opts || {};
   const model = opts.model || AI_MODEL;
@@ -1327,7 +1327,7 @@ async function claudeVision(key, files, prompt, opts) {
 // into a warm, plain-English explanation + one tip. Guardrailed so it can't invent numbers or give
 // medical/extreme advice, and it's optional (needs a key, degrades gracefully offline). Returns text.
 async function coachNarrative(key, payload) {
-  const rules = 'You are Macrosaurus, a warm but honest UK body-composition coach. A deterministic engine has ALREADY decided this week\'s calorie change from the user\'s weight trend and intake. Do NOT invent, recalculate, or contradict any number — refer only to the figures given. In 2-3 short sentences, explain in plain UK English what this week\'s result means for the user, then give ONE concrete, evidence-aligned tip for the coming week (e.g. logging consistency, hitting the protein target, weighing in daily, or being patient with the weight trend). No medical or supplement advice, no crash-dieting or extreme measures, no emojis, no headings, no bullet points, no markdown. Address the user directly as "you".';
+  const rules = 'You are Macrosaurus, a warm but honest UK body-composition coach. A deterministic engine has ALREADY decided this week\'s calorie change from the user\'s weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. In 2-3 short sentences, explain in plain UK English what this week\'s result means for the user, then give ONE concrete, evidence-aligned tip for the coming week (e.g. logging consistency, hitting the protein target, weighing in daily, or being patient with the weight trend). No medical or supplement advice, no crash-dieting or extreme measures, no emojis, no headings, no bullet points, no markdown. Address the user directly as "you".';
   const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nCoach\'s take:';
   const j = await aiRequest({
     model: AI_MODEL_FAST,
@@ -1340,7 +1340,7 @@ async function coachNarrative(key, payload) {
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
-// comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open —
+// comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open , 
 // strict JSON.parse rejects all of these, so we clean and, as a last resort, auto-close.
 function parseModelJSON(txt) {
   const s = String(txt || '').replace(/```(?:json)?/gi, '');
@@ -1383,7 +1383,7 @@ function parseModelJSON(txt) {
       return JSON.parse(c);
     } catch (e) {/* try next */}
   }
-  // Last resort: response was truncated mid-element — drop the incomplete tail back to the
+  // Last resort: response was truncated mid-element, drop the incomplete tail back to the
   // last complete } or ] and re-close, salvaging whatever parsed cleanly.
   let work = stripped;
   for (let guard = 0; guard < 300 && work.length > start + 1; guard++) {
@@ -1395,7 +1395,7 @@ function parseModelJSON(txt) {
     } catch (e) {/* keep trimming */}
     work = work.slice(0, cut);
   }
-  throw new Error("couldn't read the estimate — please try again");
+  throw new Error("couldn't read the estimate, please try again");
 }
 // Close any brackets/quote left open by a truncated response so JSON.parse can succeed.
 function autoClose(json) {
@@ -1426,8 +1426,8 @@ function autoClose(json) {
   for (let i = stack.length - 1; i >= 0; i--) out += stack[i] === '{' ? '}' : ']';
   return out;
 }
-const LABEL_PROMPT = 'Read this nutrition label carefully. UK labels usually have TWO columns: one PER 100 g / 100 ml, and one PER SERVING / PER PACK / PER CAN / PER BOTTLE. Read each column EXACTLY as printed — do NOT convert, scale or mix the two. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. serving_g = the size in grams (or ml) of ONE serving/pack/can a person consumes in one go, e.g. 500 for a 500 ml can, 55 for a 55 g bar, 330 for a 330 ml bottle; if no serving/pack size is stated, 0. serving_label = a short human label like "1 can (500 ml)", "1 bar (55 g)"; "" if unknown. per_serving = the numbers from the per-serving/per-pack/per-can column (all 0 if that column is not printed). per_100g = the numbers from the per-100 g/ml column (all 0 if not printed). If only one column exists, fill that one and leave the other all 0. Never scale one column into the other. IMPORTANT — missing macros: if a column shows energy/calories but the protein, carbs or fat figures are missing, blank or unreadable, then ESTIMATE those macros from the product name/type and the stated calories. Pick a realistic macro split for that SPECIFIC product (identify the product from the name/brand if you can) so that protein_g×4 + carbs_g×4 + fat_g×9 ≈ the stated kcal for that column, and set "macros_estimated": true. Only set "macros_estimated": true if you actually estimated one or more macros; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0.';
-const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD — anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent — these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present — vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
+const LABEL_PROMPT = 'Read this nutrition label carefully. UK labels usually have TWO columns: one PER 100 g / 100 ml, and one PER SERVING / PER PACK / PER CAN / PER BOTTLE. Read each column EXACTLY as printed, do NOT convert, scale or mix the two. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. serving_g = the size in grams (or ml) of ONE serving/pack/can a person consumes in one go, e.g. 500 for a 500 ml can, 55 for a 55 g bar, 330 for a 330 ml bottle; if no serving/pack size is stated, 0. serving_label = a short human label like "1 can (500 ml)", "1 bar (55 g)"; "" if unknown. per_serving = the numbers from the per-serving/per-pack/per-can column (all 0 if that column is not printed). per_100g = the numbers from the per-100 g/ml column (all 0 if not printed). If only one column exists, fill that one and leave the other all 0. Never scale one column into the other. IMPORTANT, missing macros: if a column shows energy/calories but the protein, carbs or fat figures are missing, blank or unreadable, then ESTIMATE those macros from the product name/type and the stated calories. Pick a realistic macro split for that SPECIFIC product (identify the product from the name/brand if you can) so that protein_g×4 + carbs_g×4 + fat_g×9 ≈ the stated kcal for that column, and set "macros_estimated": true. Only set "macros_estimated": true if you actually estimated one or more macros; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0.';
+const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD, anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent, these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
@@ -1473,7 +1473,7 @@ function entriesOn(db, date) {
 function kcalFromMacros(m) {
   return Math.round((+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9);
 }
-// Never log a food with real macros but zero/missing calories — fill from the macros.
+// Never log a food with real macros but zero/missing calories, fill from the macros.
 function normalizeMacros(m, isAlcohol) {
   const mm = Object.assign({}, m);
   if (!isAlcohol && (!+mm.kcal || +mm.kcal <= 0) && (+mm.protein || +mm.carbs || +mm.fat)) mm.kcal = kcalFromMacros(mm);
@@ -1500,7 +1500,7 @@ function daysBetween(aISO, bISO) {
 }
 // Start of the current check-in cycle. After a REAL check-in it's the day after (that check-in
 // closed the previous cycle), but when the plan was just set up / changed with no check-in yet,
-// it's that day itself — so the very first day of tracking isn't orphaned from cycle one.
+// it's that day itself, so the very first day of tracking isn't orphaned from cycle one.
 function cycleStartISO(db, todayISO) {
   if (!db.last_checkin) return shiftISO(todayISO, -6);
   const checkedInOnLast = (db.checkins || []).some(c => c.date === db.last_checkin);
@@ -1612,7 +1612,7 @@ function effectiveTarget(db, date) {
     const dayTarget = dISO => base.kcal + (p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), base.kcal) : 0);
     // Running balance since the last check-in (INCLUSIVE of the check-in / goal-change day): for every
     // logged past day, add (planned target − eaten). Under-eating grows the balance, over-eating shrinks
-    // it — so deficits/surpluses ADD UP day over day. Falls back to a 7-day window before any check-in.
+    // it, so deficits/surpluses ADD UP day over day. Falls back to a 7-day window before any check-in.
     const cs = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
     const idx = Math.max(0, Math.min(90, daysBetween(cs, date))); // days elapsed in the cycle (bounded)
     let acc = 0;
@@ -1667,7 +1667,7 @@ function effectiveTarget(db, date) {
 
 /* ---------- primitives ---------- */
 const inputCls = "w-full bg-[#1E1E22] pixel-box px-4 py-3 text-[var(--text)] focus:outline-none";
-// Select all on focus so a field showing a default "0" is replaced as soon as you type — no fiddly deleting.
+// Select all on focus so a field showing a default "0" is replaced as soon as you type, no fiddly deleting.
 // Number field that's easy to overwrite: tapping a lone "0" clears it (select() alone is
 // unreliable on mobile), and selects the text otherwise. Empty coerces back to 0 on save.
 function NumInput(props) {
@@ -1737,7 +1737,7 @@ function Btn({
   }, children);
 }
 // One consistent "Add photo" control used across every photo/AI add-food flow. No `capture` flag,
-// so the native picker offers Camera, Photo Library and Files in a single tap — same on all flows.
+// so the native picker offers Camera, Photo Library and Files in a single tap, same on all flows.
 function PhotoButton({
   label = 'Add photo',
   multiple = false,
@@ -2244,8 +2244,8 @@ function PixelBar({
   })));
 }
 const DINO_QUOTES = ['"KEEP HUNTING! YOUR GOALS ARE WITHIN REACH. DINO-MITE!"', '"EAT YOUR PROTEIN OR GO EXTINCT."', '"SMALL BITES, BIG GAINS. RAWR."', '"THE SCALE IS JUST A HIGH SCORE. BEAT IT TOMORROW."', '"STAY CONSISTENT, STAY PREHISTORIC."', '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."'];
-// Motivating (not scolding) lines when a user reports an off-plan week — keeps the dino on their side.
-const DINO_OFFPLAN = ['One off week won\'t undo you — the Macrosaurus has outlasted ice ages. Back on the hunt next cycle.', 'No extinction here. Shake it off, line up a clean week, and we\'re roaring again.', 'Even T-rex had off days (and tiny arms). Momentum\'s paused, not lost — go get the next one.', 'The Macrosaurus dusts you off: one wobble, no drama. Clean cycle next and we retune properly.', 'Head up, protein up. One honest reset and you\'re back to dino-mite.'];
+// Motivating (not scolding) lines when a user reports an off-plan week, keeps the dino on their side.
+const DINO_OFFPLAN = ['One off week won\'t undo you, the Macrosaurus has outlasted ice ages. Back on the hunt next cycle.', 'No extinction here. Shake it off, line up a clean week, and we\'re roaring again.', 'Even T-rex had off days (and tiny arms). Momentum\'s paused, not lost, go get the next one.', 'The Macrosaurus dusts you off: one wobble, no drama. Clean cycle next and we retune properly.', 'Head up, protein up. One honest reset and you\'re back to dino-mite.'];
 function MiniRing({
   label,
   eaten,
@@ -2420,7 +2420,7 @@ function InsightsCard({
   today
 }) {
   const logSet = new Set(db.log_entries.map(e => e.date));
-  // Completed days only — a part-logged today shouldn't drag any of these averages down.
+  // Completed days only, a part-logged today shouldn't drag any of these averages down.
   const loggedDates = Array.from(logSet).filter(d => d < today).sort().slice(-14);
   const n = loggedDates.length;
   const t = currentTargets(db) || {};
@@ -2487,7 +2487,7 @@ function InsightsCard({
   }), /*#__PURE__*/React.createElement(Row, {
     label: "Estimated burn",
     value: estTDEE ? estTDEE.toLocaleString() : 'learning',
-    sub: estTDEE ? nCi ? 'refined over ' + nCi + ' check-in' + (nCi === 1 ? '' : 's') : 'from your profile — sharpens with check-ins' : 'complete a check-in to estimate'
+    sub: estTDEE ? nCi ? 'refined over ' + nCi + ' check-in' + (nCi === 1 ? '' : 's') : 'from your profile, sharpens with check-ins' : 'complete a check-in to estimate'
   }));
 }
 // Adaptive weight-app chart. FEW points → your ACTUAL weight is the bold line with markers, so real
@@ -3863,7 +3863,7 @@ function CoachCard({
   const t = currentTargets(db) || {};
   const proTarget = Math.round(+t.protein_g || 0);
   // Protein is a FLOOR: reaching the target or going over both count (with a 90% tolerance so it
-  // needn't be perfect). Today is only judged once it has actually hit — an in-progress day is
+  // needn't be perfect). Today is only judged once it has actually hit, an in-progress day is
   // never counted as a miss, so a part-logged today can't drag the ratio down.
   const proteinHitOn = d => proTarget > 0 && sumMacros(entriesOn(db, d)).protein >= proTarget * 0.9;
   const proDays = loggedDates.filter(d => d < today || proteinHitOn(d));
@@ -3904,7 +3904,7 @@ function CoachCard({
     className: "text-xl font-bold mb-1"
   }, "Coaching"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, alreadyToday ? 'Fresh cycle — here\'s how the last one went.' : `${cycleDays} day${cycleDays === 1 ? '' : 's'} of data so far this cycle.`), full && !alreadyToday && /*#__PURE__*/React.createElement("div", {
+  }, alreadyToday ? 'Fresh cycle, here\'s how the last one went.' : `${cycleDays} day${cycleDays === 1 ? '' : 's'} of data so far this cycle.`), full && !alreadyToday && /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "h-1.5 rounded-full bg-[#262629] overflow-hidden mb-1"
@@ -3928,7 +3928,7 @@ function CoachCard({
     good: weighed >= needWeigh
   }), /*#__PURE__*/React.createElement(Stat, {
     label: 'Protein hit' + (proDenom ? ' (of ' + proDenom + ')' : ''),
-    value: proDenom ? proHit + '/' + proDenom : '—',
+    value: proDenom ? proHit + '/' + proDenom : '·',
     good: proDenom > 0 && proHit === proDenom
   })), proTarget > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-3 leading-snug"
@@ -3943,7 +3943,7 @@ function CoachCard({
     }
   }, onTrack ? '✓ Enough logged and weighed for a confident adjustment.' : `For a reliable read, aim for ${needLogs} logged days and ${needWeigh} weigh-ins this cycle.`), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, alreadyToday ? 'Your macros are up to date. Nice work.' : ready ? 'Your targets retune from cycles like this — run your check-in to apply any adjustment.' : 'Keep logging and weighing daily; your check-in unlocks on day 5.'), !alreadyToday && /*#__PURE__*/React.createElement(Btn, {
+  }, alreadyToday ? 'Your macros are up to date. Nice work.' : ready ? 'Your targets retune from cycles like this, run your check-in to apply any adjustment.' : 'Keep logging and weighing daily; your check-in unlocks on day 5.'), !alreadyToday && /*#__PURE__*/React.createElement(Btn, {
     kind: ready ? 'accent' : 'ghost',
     disabled: !ready,
     className: "w-full",
@@ -3993,7 +3993,7 @@ function CheckInModal({
       goal: p.goalType,
       targetRatePerWeek_kg: p.goalType === 'maintain' ? 0 : p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0),
       actualRatePerWeek_kg: result.estimate ? result.estimate.weeklyChangeKg : null,
-      outcome: result.status === 'proposed' ? result.changed ? result.direction === 'up' ? 'calories increased' : 'calories decreased' : 'no change — on target' : result.status === 'held' ? result.offPlan ? 'held — user said this was an off-plan week' : 'held — not enough tracking or on a diet break' : 'not enough history yet',
+      outcome: result.status === 'proposed' ? result.changed ? result.direction === 'up' ? 'calories increased' : 'calories decreased' : 'no change (on target' : result.status === 'held' ? result.offPlan ? 'held) user said this was an off-plan week' : 'held, not enough tracking or on a diet break' : 'not enough history yet',
       selfReportedOffPlan: !!result.offPlan,
       currentKcal: base ? base.kcal : null,
       newKcal: result.newTargets ? result.newTargets.kcal : base ? base.kcal : null,
@@ -4070,7 +4070,7 @@ function CheckInModal({
     if (dietBreakActive(db, today)) {
       setResult({
         status: 'held',
-        reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends — then adaptive adjustments pick right back up.`
+        reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.`
       });
       return;
     }
@@ -4079,7 +4079,7 @@ function CheckInModal({
         status: 'held',
         offPlan: true,
         dinoLine: DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)],
-        reason: `Macros held — no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.`
+        reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.`
       });
       return;
     }
@@ -4188,7 +4188,7 @@ function CheckInModal({
     className: "text-[12px] text-[#8A8A90]"
   }, "Reading your week…") : coach.error ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90]"
-  }, "Couldn't reach the AI coach this time — your numbers above are all set.") : /*#__PURE__*/React.createElement("div", {
+  }, "Couldn't reach the AI coach this time, your numbers above are all set.") : /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] leading-snug"
   }, coach.text)), result.status === 'proposed' && result.changed && !result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2 my-3"
@@ -4275,7 +4275,7 @@ function CheckInModal({
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
   }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement(Field, {
     label: "Did you stick to your targets this cycle?",
-    hint: "Be honest — an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week."
+    hint: "Be honest, an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week."
   }, /*#__PURE__*/React.createElement(Seg, {
     value: adhered,
     onChange: setAdhered,
@@ -4288,7 +4288,7 @@ function CheckInModal({
     }]
   })), adhered === 'no' && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "No worries — I'll still log your weigh-in and hold your macros steady. We'll retune after a clean cycle."), /*#__PURE__*/React.createElement(Btn, {
+  }, "No worries, I'll still log your weigh-in and hold your macros steady. We'll retune after a clean cycle."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: complete
@@ -4401,7 +4401,7 @@ function WeighInEditModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "You already weighed in on this day — saving overwrites it.")) : /*#__PURE__*/React.createElement("div", {
+  }, "You already weighed in on this day, saving overwrites it.")) : /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-3"
   }, fmtWeighDay(date)), /*#__PURE__*/React.createElement(Field, {
     label: "Weight"
@@ -4588,7 +4588,7 @@ function CheckInHistory({
       style: {
         color: good == null ? 'var(--text)' : good ? 'var(--good)' : 'var(--fat)'
       }
-    }, changeKg == null ? '—' : fmtWeightDelta(changeKg, unit)), rate != null && /*#__PURE__*/React.createElement("span", {
+    }, changeKg == null ? '·' : fmtWeightDelta(changeKg, unit)), rate != null && /*#__PURE__*/React.createElement("span", {
       className: "text-[11px] text-[#8A8A90] tnum"
     }, fmtWeightDelta(rate, unit, '/wk'))), /*#__PURE__*/React.createElement("span", {
       className: "text-[11px] tnum text-[#8A8A90]"
@@ -4668,7 +4668,7 @@ function ExpenditureCard({
     className: "text-[9px] text-[#8A8A90] mb-2"
   }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed"
-  }, "Keep logging and weighing in — I need about ", est.needWeigh, " weigh-ins and ", est.needLog, " logged days across a fortnight before I can estimate your burn honestly. So far: ", /*#__PURE__*/React.createElement("span", {
+  }, "Keep logging and weighing in, I need about ", est.needWeigh, " weigh-ins and ", est.needLog, " logged days across a fortnight before I can estimate your burn honestly. So far: ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--text)]"
   }, est.weighDays), " weigh-ins, ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--text)]"
@@ -4681,7 +4681,7 @@ function ExpenditureCard({
       className: "text-[9px] text-[#8A8A90] mb-2"
     }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90] leading-relaxed"
-    }, "Still settling — a sharp weight move (", est.direction === 'up' ? 'up' : 'down', " ", rate, ", likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days."));
+    }, "Still settling, a sharp weight move (", est.direction === 'up' ? 'up' : 'down', " ", rate, ", likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days."));
   }
   const confColor = est.confidence === 'high' ? 'var(--good)' : est.confidence === 'medium' ? 'var(--fat)' : 'var(--muted)';
   const dirTxt = est.direction === 'down' ? 'trending down' : est.direction === 'up' ? 'trending up' : 'holding steady';
@@ -4813,7 +4813,7 @@ function DietBreakCard({
     className: "text-lg font-bold mb-1"
   }, "Time for a diet break?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-relaxed"
-  }, "You've been cutting consistently for ", status.weeks, " weeks. Research (MATADOR — Byrne 2018) shows a 1–2 week maintenance break here blunts metabolic slowdown and improves fat-loss efficiency. It holds you at ~", mk, " kcal, then your cut resumes automatically."), !ask ? /*#__PURE__*/React.createElement("div", {
+  }, "You've been cutting consistently for ", status.weeks, " weeks. Research (MATADOR, Byrne 2018) shows a 1–2 week maintenance break here blunts metabolic slowdown and improves fat-loss efficiency. It holds you at ~", mk, " kcal, then your cut resumes automatically."), !ask ? /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -4837,7 +4837,7 @@ function DietBreakCard({
   }, "Back")));
 }
 /* =====================================================================
-   MACRODEX — collect original prehistoric creatures for logging (fun layer)
+   MACRODEX, collect original prehistoric creatures for logging (fun layer)
    Every logged day "catches" a deterministic creature; hitting macros unlocks
    rarer ones; a perfect day can be shiny. Your dashboard buddy evolves by streak.
    All art is original pixel work (no third-party IP).
@@ -4976,7 +4976,7 @@ const BIOME_COLOR = {
   mythic: 'var(--header)'
 };
 const CREATURES = [
-// The Nursery — any logged day
+// The Nursery, any logged day
 {
   id: 'nugg',
   name: 'Nugg',
@@ -4985,7 +4985,7 @@ const CREATURES = [
   biome: 'nursery',
   rarity: 'common',
   cond: 'Log any food on any day.',
-  lore: 'A speckled egg kept warm by good habits. Nobody knows what hatches from it — and that is rather the point. Feed it enough days and it makes up its own mind.',
+  lore: 'A speckled egg kept warm by good habits. Nobody knows what hatches from it, and that is rather the point. Feed it enough days and it makes up its own mind.',
   evo: [{
     at: 5,
     name: 'Nuggle',
@@ -5162,7 +5162,7 @@ const CREATURES = [
   cond: 'Fibre goal plus a protein hit.',
   lore: 'A leafy long-neck that only trusts you once you have eaten your greens AND your protein. Keeps a tidy compost heap.'
 },
-// Apex Ridge — perfect days
+// Apex Ridge, perfect days
 {
   id: 'veloci',
   name: 'Veloci',
@@ -5171,7 +5171,7 @@ const CREATURES = [
   biome: 'apex',
   rarity: 'rare',
   cond: 'Nail a perfect macro day.',
-  lore: 'Fast, precise and unforgiving. Appears only when every macro lands in range — and vanishes the moment you get sloppy.'
+  lore: 'Fast, precise and unforgiving. Appears only when every macro lands in range, and vanishes the moment you get sloppy.'
 }, {
   id: 'platealon',
   name: 'Platealon',
@@ -5188,7 +5188,7 @@ const CREATURES = [
   colors: crC('#E0975B', '#a8642f'),
   biome: 'apex',
   rarity: 'rare',
-  cond: 'A perfect day — three macros nailed.',
+  cond: 'A perfect day, three macros nailed.',
   lore: 'Three horns for three macros. Charges, without warning, at anyone who says "I will start again on Monday".'
 }, {
   id: 'rexosaur',
@@ -5198,9 +5198,9 @@ const CREATURES = [
   biome: 'apex',
   rarity: 'legendary',
   cond: 'A perfect day, on a rare roll.',
-  lore: 'The apex predator of consistency. Seen only by those who truly earn the day, and only when the stars — and the macros — align.'
+  lore: 'The apex predator of consistency. Seen only by those who truly earn the day, and only when the stars (and the macros) align.'
 },
-// The Wilds — wandering mythics
+// The Wilds, wandering mythics
 {
   id: 'aurora',
   name: 'Aurora',
@@ -5218,7 +5218,7 @@ const CREATURES = [
   biome: 'mythic',
   rarity: 'mythic',
   cond: 'A 30-day streak crowned by a perfect day.',
-  lore: 'Ancient keeper of streaks. It remembers every single day you showed up — and it rewards only the truly relentless.'
+  lore: 'Ancient keeper of streaks. It remembers every single day you showed up, and it rewards only the truly relentless.'
 }];
 const CR_BY_ID = {};
 CREATURES.forEach(c => CR_BY_ID[c.id] = c);
@@ -5258,7 +5258,7 @@ const ITEMS = {
   incubator: {
     name: 'Incubator',
     kind: 'dex',
-    desc: 'Makes today’s catch a guaranteed rare or better — if you qualify for one.'
+    desc: 'Makes today’s catch a guaranteed rare or better, if you qualify for one.'
   },
   amber: {
     name: 'Amber Fossil',
@@ -5548,7 +5548,7 @@ function BuddyCard({
     className: "text-[9px] text-[#8A8A90] flex items-center gap-1.5"
   }, "YOUR BUDDY · LV", streak, /*#__PURE__*/React.createElement("span", {
     className: "inline-flex items-center gap-0.5",
-    title: freezeReady ? 'Streak freeze ready — one missed day is forgiven this month' : 'Streak freeze already used this month',
+    title: freezeReady ? 'Streak freeze ready, one missed day is forgiven this month' : 'Streak freeze already used this month',
     style: {
       opacity: freezeReady ? 1 : 0.35
     }
@@ -5560,7 +5560,7 @@ function BuddyCard({
     className: "text-lg font-bold leading-tight"
   }, b.name), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-snug"
-  }, b.next ? `Log ${toNext} more day${toNext === 1 ? '' : 's'} to evolve` : 'Fully evolved — legend status.', freezeReady ? ' · freeze ready' : '')), /*#__PURE__*/React.createElement("button", {
+  }, b.next ? `Log ${toNext} more day${toNext === 1 ? '' : 's'} to evolve` : 'Fully evolved. Legend status.', freezeReady ? ' · freeze ready' : '')), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenDex,
     className: "pixel-btn px-3 py-2 text-[9px] text-center shrink-0 leading-tight",
     style: {
@@ -5677,7 +5677,7 @@ function MacrodexModal({
       className: "mt-3 text-[11px] leading-relaxed"
     }, got ? cr.lore : /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "Not yet caught. Meet the condition above on any logged day and it joins your dex — its lore unlocks then.")), got && /*#__PURE__*/React.createElement("div", {
+    }, "Not yet caught. Meet the condition above on any logged day and it joins your dex, its lore unlocks then.")), got && /*#__PURE__*/React.createElement("div", {
       className: "mt-3 text-[10px] text-[#8A8A90]"
     }, "Caught ", /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text)]"
@@ -5691,7 +5691,7 @@ function MacrodexModal({
     className: "text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
-  }, "Log a day to catch a creature — the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), /*#__PURE__*/React.createElement("div", {
+  }, "Log a day to catch a creature, the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-bar flex-1",
@@ -5960,7 +5960,7 @@ const FIGHT_BOSSES = [{
 }];
 const ABIL_LABEL = {
   none: '',
-  dodge: 'Nimble — darts aside',
+  dodge: 'Nimble, darts aside',
   heal: 'Regrows wounds',
   rage: 'Frenzies when hurt'
 };
@@ -6393,7 +6393,7 @@ function FightModal({
     }
   }, ABIL_LABEL[rival.ability]))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 text-center inline-flex items-center justify-center gap-1.5 flex-wrap w-full"
-  }, ladderCleared ? 'Ladder cleared — prestige up for a tougher run.' : `Rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}.`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0, " ", /*#__PURE__*/React.createElement(PixelGlyph, {
+  }, ladderCleared ? 'Ladder cleared, prestige up for a tougher run.' : `Rung ${(fight.rank || 0) + 1} of ${FIGHT_LADDER.length}.`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0, " ", /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
     size: 12
@@ -6403,7 +6403,7 @@ function FightModal({
     kind: "accent",
     className: "w-full mb-2",
     onClick: prestige
-  }, "Prestige ↑ — tougher ladder, better drops") : /*#__PURE__*/React.createElement(Btn, {
+  }, "Prestige ↑, tougher ladder, better drops") : /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-2",
     onClick: () => start(rival, false)
@@ -6417,7 +6417,7 @@ function FightModal({
     size: 14
   }), " Weekly Boss: ", boss.name) : /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] text-center mt-1"
-  }, "Weekly boss beaten — a new challenger arrives next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
+  }, "Weekly boss beaten, a new challenger arrives next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-2"
@@ -6638,7 +6638,7 @@ function Dashboard({
     className: "text-sm font-bold mb-0.5"
   }, missLog && missWeigh ? 'Log &amp; weigh-in still to do' : missLog ? 'Nothing logged yet today' : 'No weigh-in yet today'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-snug"
-  }, missLog ? freezeAvail ? 'Log a meal to keep your streak alive and evolve your buddy. Miss today and it spends this month’s streak freeze.' : 'Log a meal to keep your streak — you’ve already used this month’s freeze, so missing today resets your buddy to the egg.' : 'A quick weigh-in keeps your weight trend accurate, so your next check-in reads true.')), /*#__PURE__*/React.createElement("button", {
+  }, missLog ? freezeAvail ? 'Log a meal to keep your streak alive and evolve your buddy. Miss today and it spends this month’s streak freeze.' : 'Log a meal to keep your streak, you’ve already used this month’s freeze, so missing today resets your buddy to the egg.' : 'A quick weigh-in keeps your weight trend accurate, so your next check-in reads true.')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setNudgeDismissed(true),
     className: "text-[#8A8A90] text-xl leading-none shrink-0"
   }, "×")), /*#__PURE__*/React.createElement("div", {
@@ -7137,7 +7137,7 @@ function FoodLog({
         created_at: Date.now()
       }]);
     });
-    toast('Saved "' + name + '" — find it under Meals when logging');
+    toast('Saved "' + name + '", find it under Meals when logging');
   };
   const saveEdit = patch => {
     const id = editing.id;
@@ -8377,7 +8377,7 @@ function RecentTab({
     className: "space-y-2"
   }, recents.map(Row)), moreCount > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3 text-center"
-  }, "+ ", moreCount, " more — type above to search all your foods.")));
+  }, "+ ", moreCount, " more, type above to search all your foods.")));
 }
 function SavedMealsTab({
   db,
@@ -8545,14 +8545,14 @@ function ManualTab({
     }]
   }))), v.unit === 'custom' && /*#__PURE__*/React.createElement(Field, {
     label: "Custom unit name",
-    hint: "e.g. can, slice, scoop — shows in your log"
+    hint: "e.g. can, slice, scoop, shows in your log"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.customUnit,
     onChange: e => set('customUnit', e.target.value),
     placeholder: "can"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] tnum my-3"
-  }, "Logging ", lbl || '—', ": ", /*#__PURE__*/React.createElement("span", {
+  }, "Logging ", lbl || '·', ": ", /*#__PURE__*/React.createElement("span", {
     className: "font-bold",
     style: {
       color: 'var(--text)'
@@ -8685,7 +8685,7 @@ function fmtCount(n) {
   if (Math.abs(r - 2 / 3) < 0.02) return '⅔';
   return String(r);
 }
-// Natural portion phrase, e.g. "2 cans", "½ pack", "1 can (500 ml)" — never "2 × 1 can".
+// Natural portion phrase, e.g. "2 cans", "½ pack", "1 can (500 ml)", never "2 × 1 can".
 function portionPhrase(count, servingLabel) {
   const cs = fmtCount(count);
   if (servingLabel && /^\s*\d/.test(servingLabel)) return servingLabel.replace(/^\s*\d+(?:\.\d+)?/, cs);
@@ -8826,7 +8826,7 @@ function ConfirmFood({
     options: units
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] tnum my-3"
-  }, "Logging ", qtyLabel || '—', ": ", /*#__PURE__*/React.createElement("span", {
+  }, "Logging ", qtyLabel || '·', ": ", /*#__PURE__*/React.createElement("span", {
     className: "font-bold",
     style: {
       color: 'var(--text)'
@@ -8951,7 +8951,7 @@ function AiConfirm({
   function removeItem(i) {
     setItems(arr => arr.filter((_, idx) => idx !== i));
   }
-  // If the AI returned a breakdown, always total from the (possibly-edited) items — so removing
+  // If the AI returned a breakdown, always total from the (possibly-edited) items, so removing
   // an item you didn't eat, e.g. a glass of wine in the photo, immediately updates the totals.
   const hadItems = (src.items || []).length > 0;
   const total = hadItems ? items.reduce((a, it) => ({
@@ -9003,7 +9003,7 @@ function AiConfirm({
     onChange: e => setName(e.target.value)
   })), hadItems && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
-  }, "Breakdown — edit grams, or remove what you didn't eat"), /*#__PURE__*/React.createElement("div", {
+  }, "Breakdown, edit grams, or remove what you didn't eat"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-3"
   }, items.map((it, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
@@ -9045,7 +9045,7 @@ function AiConfirm({
     style: {
       color: 'var(--muted)'
     }
-  }, "Honest range: ", low, "–", high, " kcal. Logging your total — no sugar-coating."), /*#__PURE__*/React.createElement("div", {
+  }, "Honest range: ", low, "–", high, " kcal. Logging your total, no sugar-coating."), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3 text-center",
     style: {
       background: 'var(--surface3)',
@@ -9377,7 +9377,7 @@ function MealEstimate({
     className: "text-[13px] text-[#8A8A90] mb-3"
   }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Add a food photo, a photo of the menu, and any notes. The AI proposes what you ate — for a restaurant it anchors to that chain's published nutrition — then you say yes or correct it."), /*#__PURE__*/React.createElement("div", {
+  }, "Add a food photo, a photo of the menu, and any notes. The AI proposes what you ate (for a restaurant it anchors to that chain's published nutrition) then you say yes or correct it."), /*#__PURE__*/React.createElement("div", {
     className: "mb-1"
   }, /*#__PURE__*/React.createElement(PhotoButton, {
     label: "Add photos",
@@ -9386,7 +9386,7 @@ function MealEstimate({
     className: "w-full"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-3"
-  }, "Add your food and/or the menu (up to 3 photos) — take a new photo or choose from your library."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Add your food and/or the menu (up to 3 photos), take a new photo or choose from your library."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
     key: i.id,
@@ -9408,7 +9408,7 @@ function MealEstimate({
     style: {
       minHeight: 120
     },
-    placeholder: "e.g. Nando's — half chicken, medium, peri chips and coleslaw, ate it all"
+    placeholder: "e.g. Nando's, half chicken, medium, peri chips and coleslaw, ate it all"
   })), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
@@ -9494,7 +9494,7 @@ function LiveScanner({
     className: "p-4 text-center text-white/70 text-[12px]"
   }, "Point at the barcode. It scans on its own."));
 }
-// Live in-app camera capture for nutrition labels — mirrors the barcode scanner, but grabs a still
+// Live in-app camera capture for nutrition labels, mirrors the barcode scanner, but grabs a still
 // frame on tap and hands it to the AI. Falls back to an upload for desktop / no-camera.
 function LabelScanner({
   onCapture,
@@ -9572,7 +9572,7 @@ function LabelScanner({
     className: "absolute inset-x-8 h-56 border-2 border-white/70 rounded-xl"
   }), err && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-x-8 text-center text-white/90 text-sm"
-  }, "Camera unavailable here — upload a photo of the label instead.")), /*#__PURE__*/React.createElement("div", {
+  }, "Camera unavailable here, upload a photo of the label instead.")), /*#__PURE__*/React.createElement("div", {
     className: "p-5 flex flex-col items-center gap-3"
   }, !err && /*#__PURE__*/React.createElement("button", {
     onClick: capture,
@@ -9637,7 +9637,7 @@ function PhotoTab({
       const estCol = c => (+c.kcal || 0) > 0 && !+c.protein_g && !+c.carbs_g && !+c.fat_g;
       const estimated = !!est.macros_estimated || (hasServing ? estCol(ps) : estCol(p100));
       if (hasServing) {
-        // Per-serving column exists: log the whole serving/can by its own figures — no per-100 scaling.
+        // Per-serving column exists: log the whole serving/can by its own figures, no per-100 scaling.
         setParsed({
           source: 'label',
           branded: true,
@@ -9759,7 +9759,7 @@ function PhotoTab({
     className: "text-[10px] uppercase tracking-wide text-black bg-white rounded px-1.5 py-0.5"
   }, key ? 'AI' : 'Key')), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
-  }, key ? 'Point your camera at the pack — the AI reads the macros.' : 'Add an AI key in Settings to enable.'))), /*#__PURE__*/React.createElement("button", {
+  }, key ? 'Point your camera at the pack, the AI reads the macros.' : 'Add an AI key in Settings to enable.'))), /*#__PURE__*/React.createElement("button", {
     onClick: () => key ? setMode('meal') : setErr('Add your AI key in Menu → Settings first.'),
     className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
@@ -9992,7 +9992,7 @@ function Goals({
   // Plan-affecting changes retune macros and re-anchor the trend; target weight is just a progress marker.
   const planChanged = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType));
   const changed = planChanged || goalWChanged;
-  // Save only the target weight — no current-weight re-anchor, no macro rebuild, no check-in reset.
+  // Save only the target weight, no current-weight re-anchor, no macro rebuild, no check-in reset.
   function saveTargetOnly() {
     const goalW = g.goalType === 'maintain' ? null : unit === 'st_lb' ? gwSt ? stLbToKg(gwSt, gwLb) : null : +gwKg || null;
     update(d => {
@@ -10036,7 +10036,7 @@ function Goals({
       d.paused = false;
     });
     setConfirming(false);
-    showToast && showToast('Goal updated — plan re-anchored from today');
+    showToast && showToast('Goal updated, plan re-anchored from today');
   }
   function pause() {
     update(d => {
@@ -10412,7 +10412,7 @@ function SettingsTab({
     title: "Meals"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Your default meals for each new day. Set the standard layout here — you can still add, remove or reorder meals on any individual day in the Food log without changing this default."), dm.map((m, i) => /*#__PURE__*/React.createElement("div", {
+  }, "Your default meals for each new day. Set the standard layout here, you can still add, remove or reorder meals on any individual day in the Food log without changing this default."), dm.map((m, i) => /*#__PURE__*/React.createElement("div", {
     key: m.id,
     className: "flex items-center gap-2 mb-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -10467,7 +10467,7 @@ function SettingsTab({
     onClick: () => sset('reminders', !s.reminders)
   }), s.reminders && /*#__PURE__*/React.createElement(Field, {
     label: "Nudge me if I haven't logged by",
-    hint: "A banner appears on the Dashboard after this time if you've not logged food or weighed in yet — a heads-up before you'd have to spend your monthly streak freeze."
+    hint: "A banner appears on the Dashboard after this time if you've not logged food or weighed in yet, a heads-up before you'd have to spend your monthly streak freeze."
   }, /*#__PURE__*/React.createElement(Dropdown, {
     value: s.nudgeHour,
     onChange: v => sset('nudgeHour', +v),
@@ -10479,7 +10479,7 @@ function SettingsTab({
     title: "AI food logging"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] text-[var(--text)] mb-1"
-  }, "AI is built in — no setup needed."), /*#__PURE__*/React.createElement("div", {
+  }, "AI is built in. No setup needed."), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90]"
   }, "Label scanning, photo meal estimates and the Describe tab all just work. Each account gets a monthly AI allowance; if you ever hit it, it resets on the 1st of the month.")), /*#__PURE__*/React.createElement(SaveBar, {
     dirty: dirty,
@@ -10561,7 +10561,7 @@ function AdvancedTab({
   }
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
-  }, "How your targets are set and adjusted. The defaults work great — tune these only if you want to."), /*#__PURE__*/React.createElement(Section, {
+  }, "How your targets are set and adjusted. The defaults work great, so tune these only if you want to."), /*#__PURE__*/React.createElement(Section, {
     title: "Coaching mode"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -10827,7 +10827,7 @@ function ProfileTab({
       background: 'var(--surface3)',
       boxShadow: 'none'
     }
-  }, "Saving rebuilds today's calorie & macro targets from these details. Your food log and weigh-in history stay put — weight and body fat only change at a check-in."), /*#__PURE__*/React.createElement("div", {
+  }, "Saving rebuilds today's calorie & macro targets from these details. Your food log and weigh-in history stay put, weight and body fat only change at a check-in."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -10866,7 +10866,7 @@ function ProfileTab({
     style: {
       color: 'var(--good)'
     }
-  }, "Saved — targets recalculated."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Saved. Targets recalculated."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-3",
     onClick: () => {
@@ -11098,7 +11098,7 @@ function More({
     title: "Your data"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Download everything — profile, food log, weigh-ins and history — as a JSON file you can keep or re-import later."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Download everything (profile, food log, weigh-ins and history) as a JSON file you can keep or re-import later."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full mb-4",
     onClick: exportData
@@ -11106,7 +11106,7 @@ function More({
     className: "text-[12px] text-[#8A8A90] mb-2"
   }, "Just changing details? Use ", /*#__PURE__*/React.createElement("span", {
     className: "text-white"
-  }, "Edit details"), " on the Profile tab — it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Edit details"), " on the Profile tab, it keeps your history. The button below wipes your data but keeps your login."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
     style: {
@@ -11168,7 +11168,7 @@ function More({
     className: "text-[11px] text-[#8A8A90]/70 mt-2 text-center"
   }, BRAND, " · your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Reset all data & start over?",
-    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone — export your data first if you want a copy.",
+    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, export your data first if you want a copy.",
     confirmLabel: "Reset everything",
     onConfirm: onReset,
     onClose: () => setResetOpen(false)
@@ -11192,7 +11192,7 @@ function Row2({
 }
 
 /* =====================================================================
-   ADMIN — owner/admin-only support panel. All privileged reads/writes go through the
+   ADMIN, owner/admin-only support panel. All privileged reads/writes go through the
    `admin-api` edge function, which re-checks admin status server-side and logs every action.
    The UI here is only a convenience gate: security does NOT depend on it being hidden.
    ===================================================================== */
@@ -12532,7 +12532,7 @@ function App() {
     let cancelled = false;
     const uid = session.user.id;
     (async function () {
-      // 1) Paint instantly from the local snapshot — this is what makes the app work offline.
+      // 1) Paint instantly from the local snapshot, this is what makes the app work offline.
       const local = await localLoad(uid);
       if (local && !cancelled) setDb(Store.migrate(local));
       // 2) Reconcile with the cloud when reachable; newest _rev wins, offline edits get pushed up.
@@ -12866,7 +12866,7 @@ function App() {
     className: "text-[#8A8A90] text-xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal — you confirm before it's logged."), /*#__PURE__*/React.createElement(MealEstimate, {
+  }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(MealEstimate, {
     apiKey: db.profile.aiKey,
     initialFiles: shared.files,
     onBack: () => setShared(null),
