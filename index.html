@@ -699,12 +699,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       return { changed: false, underReportFlagged: true, reason: 'Your numbers imply an expenditure (' + opts.estimate.tdee + ' kcal) near or below your BMR (' + round(bmr) + '), which usually means food was under-logged. Trusting your weight trend and holding targets this cycle.', estimate: opts.estimate };
     }
     var desiredKcal = opts.estimate.tdee + goalDelta;
-    // Cap each check-in's move PROPORTIONAL to estimated burn — a bigger person, or bigger metabolic
-    // adaptation, gets a bigger allowed step, while small intakes stay gentle and noise can't cause a
-    // wild swing. ~10% of estimated TDEE, bounded 150–350 kcal. Grounded in Helms/Nippard practical
-    // guidance (typical single moves ~100–200 kcal, larger when adaptation demands it) and
-    // MacroFactor's expenditure-scaled, smoothed adjustments (not a flat number).
-    var adjCap = clamp(round(0.10 * (opts.estimate.tdee || currentKcal)), 150, 350);
+    // Cap each check-in's move PROPORTIONAL to estimated burn (bigger person / bigger adaptation ->
+    // bigger allowed step; ~10% of TDEE, 150–350 kcal), THEN scale that by how confident this cycle's
+    // data is — coverage of logging and weigh-ins, and cycle length. A clean, complete cycle earns
+    // the full step; a sparser one moves more cautiously so noise can't drive a big swing. Follows
+    // Helms/Nippard practical sizing and MacroFactor's expenditure-scaled, smoothed adjustments.
+    var fullCap = clamp(round(0.10 * (opts.estimate.tdee || currentKcal)), 150, 350);
+    var logCov = clamp((opts.adherenceDays || 0) / periodDays, 0, 1);
+    var weighCov = clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
+    var conf = clamp(Math.min(logCov, weighCov) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    var confidence = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
+    var adjCap = clamp(round(fullCap * (0.5 + 0.5 * conf)), 100, 350);
     var cappedDelta = clamp(desiredKcal - currentKcal, -adjCap, adjCap);
     var newKcal = Math.max(kcalFloor(profile), currentKcal + cappedDelta);
     var newTargets = macrosFromKcal(newKcal, profile);
@@ -740,7 +745,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       }
       reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, to ' + newKcalR + ' kcal. (Your food and weight over the last ' + opts.estimate.days + ' days point to burning ~' + opts.estimate.tdee + ' kcal a day.) Protein stays ' + newTargets.protein_g + ' g.';
     }
-    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate };
+    return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate };
   }
 
   // ---- linear regression: returns slope, intercept, and standard error of slope ----
@@ -828,7 +833,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var goalDelta = goalDailyDelta(opts.goalType, opts.rateKgPerWeek);
     var desired = tdee + goalDelta;
     var rawDelta = desired - (opts.currentTargetKcal || tdee);
-    var fcCap = clamp(round(0.10 * tdee), 150, 350); // same proportional cap the check-in will apply
+    // Same proportional cap the check-in applies, scaled by this estimate's confidence.
+    var confFactor = confidence === 'high' ? 1 : confidence === 'medium' ? 0.75 : 0.5;
+    var fcCap = clamp(round(0.10 * tdee * confFactor), 100, 350);
     var fcDelta = clamp(rawDelta, -fcCap, fcCap);
     var forecast;
     if (confidence === 'low') forecast = { dir: 'unknown', deltaKcal: 0, text: 'need a bit more data to call it' };
@@ -3815,6 +3822,8 @@ function CheckInModal({
       daysWeighed: weighDays,
       cycleDays: cycleDays,
       enoughData: onTrack,
+      dataConfidence: result.confidence || null,
+      maxStepThisCycle_kcal: result.adjCap || null,
       underReportFlagged: !!result.underReportFlagged,
       unit: unit === 'st_lb' ? 'stones/pounds' : 'kilograms'
     };
@@ -3914,6 +3923,7 @@ function CheckInModal({
       currentTargets: base,
       estimate: est,
       adherenceDays: loggedDays,
+      weighDays: weighDays,
       minDays: needLogs,
       periodDays: cycleDays
     })));
