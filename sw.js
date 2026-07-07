@@ -7,7 +7,7 @@
    - API traffic (Supabase, Anthropic, Open Food Facts): never cached — always straight to the
      network; offline reads/writes are handled by the app's own IndexedDB store.
    Bump VERSION to force old caches to clear on the next activate. */
-const VERSION = '11';
+const VERSION = '12';
 const CORE = 'macrosaurus-core-v' + VERSION;
 const RUNTIME = 'macrosaurus-rt-v' + VERSION;
 const CORE_ASSETS = [
@@ -66,9 +66,11 @@ self.addEventListener('fetch', function (e) {
 
   var isShell = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html';
   if (isShell) {
-    // Network-first: fresh page when online, cached page when offline.
+    // Network-first, and crucially bypass the browser HTTP cache ('no-store') so a fresh deploy
+    // always wins. Without this the network fetch could itself return a stale HTTP-cached page,
+    // which then gets re-cached, pinning users to an old build. Falls back to cache only offline.
     e.respondWith(
-      fetch(req).then(function (res) {
+      fetch(url.pathname, { cache: 'no-store' }).then(function (res) {
         var copy = res.clone();
         caches.open(CORE).then(function (c) { c.put('/index.html', copy); });
         return res;
