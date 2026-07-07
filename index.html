@@ -8310,12 +8310,10 @@ function FoodTab({
     onAdd: onPick,
     onCancel: () => setSel(null)
   });
-  if (manual) return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setManual(false),
-    className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "‹ Back"), /*#__PURE__*/React.createElement(ManualTab, {
-    onPick: onPick
-  }));
+  if (manual) return /*#__PURE__*/React.createElement(ManualTab, {
+    onPick: onPick,
+    onCancel: () => setManual(false)
+  });
   const MyRow = f => /*#__PURE__*/React.createElement("div", {
     key: f.id,
     className: "flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5"
@@ -8685,7 +8683,8 @@ function SavedMealsTab({
 // Manual entry: capture the food's nutrition on a clear basis (per 100 g, or per serving), then hand
 // off to the SAME confirm screen for the amount, so it scales exactly like a scan or a database hit.
 function ManualTab({
-  onPick
+  onPick,
+  onCancel
 }) {
   const [parsed, setParsed] = useState(null);
   const [v, setV] = useState({
@@ -8741,7 +8740,10 @@ function ManualTab({
     onAdd: onPick,
     onCancel: () => setParsed(null)
   });
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Field, {
+  return /*#__PURE__*/React.createElement("div", null, onCancel && /*#__PURE__*/React.createElement("button", {
+    onClick: onCancel,
+    className: "text-[13px] text-[#8A8A90] mb-3"
+  }, "‹ Back"), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
