@@ -10516,7 +10516,13 @@ function LiveScanner({
         // Continuous scanning (works well on Android/desktop). On iOS Safari it is flaky, so a shutter
         // button below lets you grab a single high-res still and decode that, which is far more reliable.
         await s.start({
-          facingMode: 'environment'
+          facingMode: 'environment',
+          width: {
+            ideal: 1920
+          },
+          height: {
+            ideal: 1080
+          }
         }, {
           fps: 12,
           qrbox: (w, h) => ({
