@@ -1234,6 +1234,10 @@ function prettyDate(d) {
 /* ---------- image / AI helpers (the AI / Anthropic) ---------- */
 const AI_MODEL = 'claude-sonnet-5'; // reasoning jobs: meal estimates, body fat
 const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutrition-label scans
+// AI now runs through our own server-side proxy (Supabase Edge Function) that holds the Anthropic
+// key, so users never need to bring their own. The proxy checks the signed-in user and enforces a
+// small monthly spend cap per account. No API key is ever shipped to the browser.
+const AI_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/ai-proxy';
 function fileToDataURL(file) {
   return new Promise(res => {
     const r = new FileReader();
@@ -1265,7 +1269,28 @@ async function imageToB64(file, max) {
     };
   }
 }
+// Send a message request to Claude via our server-side proxy. The proxy attaches the real API key,
+// verifies the signed-in user and enforces the per-account monthly spend cap. Returns the raw
+// Anthropic message JSON (same shape as calling the API directly).
+async function aiRequest(body) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) throw new Error('Please sign in to use AI features.');
+  const res = await fetch(AI_PROXY, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + token,
+      'apikey': SUPA_KEY
+    },
+    body: JSON.stringify(body)
+  });
+  const j = await res.json();
+  if (j.type === 'error' || j.error) throw new Error(j.error && j.error.message || 'AI error');
+  return j;
+}
 // Call the AI with any number of images + a text prompt; expect one JSON object back.
+// `key` is retained for signature compatibility but is no longer used — the proxy holds the key.
 async function claudeVision(key, files, prompt, opts) {
   opts = opts || {};
   const model = opts.model || AI_MODEL;
@@ -1287,25 +1312,14 @@ async function claudeVision(key, files, prompt, opts) {
     type: 'text',
     text: prompt
   });
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      messages: [{
-        role: 'user',
-        content
-      }]
-    })
+  const j = await aiRequest({
+    model,
+    max_tokens: maxTokens,
+    messages: [{
+      role: 'user',
+      content
+    }]
   });
-  const j = await res.json();
-  if (j.type === 'error' || j.error) throw new Error(j.error && j.error.message || 'API error');
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return parseModelJSON(txt);
 }
@@ -1315,25 +1329,14 @@ async function claudeVision(key, files, prompt, opts) {
 async function coachNarrative(key, payload) {
   const rules = 'You are Macrosaurus, a warm but honest UK body-composition coach. A deterministic engine has ALREADY decided this week\'s calorie change from the user\'s weight trend and intake. Do NOT invent, recalculate, or contradict any number — refer only to the figures given. In 2-3 short sentences, explain in plain UK English what this week\'s result means for the user, then give ONE concrete, evidence-aligned tip for the coming week (e.g. logging consistency, hitting the protein target, weighing in daily, or being patient with the weight trend). No medical or supplement advice, no crash-dieting or extreme measures, no emojis, no headings, no bullet points, no markdown. Address the user directly as "you".';
   const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nCoach\'s take:';
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: AI_MODEL_FAST,
-      max_tokens: 240,
-      messages: [{
-        role: 'user',
-        content: prompt
-      }]
-    })
+  const j = await aiRequest({
+    model: AI_MODEL_FAST,
+    max_tokens: 240,
+    messages: [{
+      role: 'user',
+      content: prompt
+    }]
   });
-  const j = await res.json();
-  if (j.type === 'error' || j.error) throw new Error(j.error && j.error.message || 'API error');
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
@@ -3045,10 +3048,6 @@ function BodyFatPicker({
     }));
   }
   async function estimate() {
-    if (!apiKey) {
-      setErr('Add your AI key in Menu → Settings first.');
-      return;
-    }
     const have = SLOTS.map(([s]) => s).filter(s => imgs[s]);
     if (!have.length) {
       setErr('Add at least one photo: front, back or side.');
@@ -3822,7 +3821,7 @@ function CheckInModal({
   const [adhered, setAdhered] = useState('yes'); // self-reported: did you actually follow the plan this cycle?
   const [coach, setCoach] = useState(null); // AI explanation of the check-in result: {loading}|{text}|{error}
   useEffect(() => {
-    if (!result || result.accepted || !p.aiKey) return;
+    if (!result || result.accepted) return;
     if (!['proposed', 'held', 'needdata'].includes(result.status)) return;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     let cancelled = false;
@@ -8957,7 +8956,7 @@ function DescribeTab({
   db,
   onPick
 }) {
-  const key = db.profile.aiKey;
+  const key = db.profile.aiKey || 'builtin';
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -9146,10 +9145,6 @@ function MealEstimate({
     return 'Context: a meal eaten in England. If the notes name a UK restaurant or chain, anchor to that chain\'s published nutrition.' + (notes.trim() ? ' Notes: ' + notes.trim() : '');
   }
   async function run() {
-    if (!apiKey) {
-      setErr('Add your AI key in Menu → Settings first.');
-      return;
-    }
     if (!imgs.length && !notes.trim()) {
       setErr('Add a food photo, a menu photo, or a description.');
       return;
@@ -9435,7 +9430,7 @@ function PhotoTab({
   const [err, setErr] = useState('');
   const [parsed, setParsed] = useState(null);
   const [mode, setMode] = useState(null);
-  const key = db.profile.aiKey;
+  const key = db.profile.aiKey || 'builtin';
   async function onLabel(file) {
     if (!file) return;
     if (!key) {
@@ -10309,14 +10304,11 @@ function SettingsTab({
     }))
   }))), /*#__PURE__*/React.createElement(Section, {
     title: "AI food logging"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "AI API key",
-    hint: "Powers label scanning and AI meal estimates. Stays on your device; used only for your own estimates."
-  }, /*#__PURE__*/React.createElement(TextInput, {
-    value: s.aiKey,
-    onChange: e => sset('aiKey', e.target.value),
-    placeholder: "paste your API key (sk-ant-…)"
-  }))), /*#__PURE__*/React.createElement(SaveBar, {
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] text-[var(--text)] mb-1"
+  }, "AI is built in — no setup needed."), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "Label scanning, photo meal estimates and the Describe tab all just work. Each account gets a monthly AI allowance; if you ever hit it, it resets on the 1st of the month.")), /*#__PURE__*/React.createElement(SaveBar, {
     dirty: dirty,
     saved: saved,
     onSave: save,
