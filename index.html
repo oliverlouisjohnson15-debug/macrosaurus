@@ -208,6 +208,8 @@ input, select { color-scheme: dark; }
   .px-5 { padding-left: 1rem !important; padding-right: 1rem !important; }
   .p-5 { padding: 1rem !important; }
   .gap-3 { gap: 0.5rem !important; }
+  /* the Meal + Type row stacks so the Food/Drink toggle gets the full width and never clips */
+  .mtrow { grid-template-columns: 1fr !important; }
 }
 
 /* ---- body text sized for the pixel font (Press Start 2P runs wide) ---- */
@@ -8884,7 +8886,7 @@ function LogSheet({
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3 mb-3"
+    className: "grid grid-cols-2 gap-3 mb-3 mtrow"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Meal"
   }, /*#__PURE__*/React.createElement(Dropdown, {
