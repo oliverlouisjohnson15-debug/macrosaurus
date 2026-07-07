@@ -12555,6 +12555,30 @@ async function adminCall(action, payload) {
   if (!res.ok || j.error) throw new Error(j.error && (j.error.message || j.error) || 'Request failed (' + res.status + ')');
   return j;
 }
+// This month's AI spend split by model (admin only). Separate lightweight endpoint so it can never
+// affect the main admin actions. Returns { modelUsage: [{ model, spend_usd, calls }] }.
+async function adminUsage() {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) return {
+    modelUsage: []
+  };
+  const res = await fetch(SUPA_URL + '/functions/v1/admin-usage', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + token,
+      'apikey': SUPA_KEY
+    },
+    body: '{}'
+  });
+  return await res.json().catch(() => ({
+    modelUsage: []
+  }));
+}
+function modelLabel(m) {
+  return !m ? 'Other' : m.indexOf('haiku') !== -1 ? 'Haiku (label OCR)' : m.indexOf('sonnet') !== -1 ? 'Sonnet (estimates)' : m;
+}
 function adminFmtDate(s) {
   try {
     return s ? new Date(s).toLocaleDateString('en-GB', {
@@ -12659,6 +12683,7 @@ function AdminPanel({
   const [err, setErr] = useState('');
   const [users, setUsers] = useState([]);
   const [defaultCap, setDefaultCap] = useState(1);
+  const [modelUsage, setModelUsage] = useState([]);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(null);
   const [selLoading, setSelLoading] = useState(false);
@@ -12673,6 +12698,10 @@ function AdminPanel({
       setUsers(j.users || []);
       setDefaultCap(j.defaultCap || 1);
       setCapInput(String(j.defaultCap || 1));
+      try {
+        const m = await adminUsage();
+        setModelUsage(m.modelUsage || []);
+      } catch (e) {}
     } catch (e) {
       setErr(e.message);
     }
@@ -12775,7 +12804,19 @@ function AdminPanel({
     label: "At/over cap",
     value: overCap,
     sub: "this month"
-  })), /*#__PURE__*/React.createElement(Section, {
+  })), modelUsage.length > 0 && /*#__PURE__*/React.createElement(Section, {
+    title: "Spend by model",
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, modelUsage.map(m => /*#__PURE__*/React.createElement("div", {
+    key: m.model,
+    className: "flex items-center justify-between text-[12px]"
+  }, /*#__PURE__*/React.createElement("span", null, modelLabel(m.model)), /*#__PURE__*/React.createElement("span", {
+    className: "tnum text-[#8A8A90]"
+  }, "$", (+m.spend_usd).toFixed(3), " · ", m.calls, " call", m.calls === 1 ? '' : 's')))), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-3"
+  }, "Haiku runs the cheap label OCR; Sonnet runs meal estimates and body-fat reads. Tracked from this update, so it can sit below the historical total above.")), /*#__PURE__*/React.createElement(Section, {
     title: "Cost controls",
     className: "mt-6"
   }, /*#__PURE__*/React.createElement("div", {
