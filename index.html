@@ -10937,10 +10937,83 @@ function adminFmtWhen(s) {
     return '—';
   }
 }
+function AdminStat({
+  label,
+  value,
+  sub
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 bg-[#1E1E22]"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold tnum mt-0.5"
+  }, value), sub && /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] mt-0.5"
+  }, sub));
+}
+function AdminAudit() {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    adminCall('list_audit').then(j => setRows(j.audit || []), e => setErr(e.message));
+  }, []);
+  if (err) return /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-4",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, err);
+  if (!rows) return /*#__PURE__*/React.createElement("div", {
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement(DinoLoader, {
+    label: "Loading log"
+  }));
+  if (!rows.length) return /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mt-4"
+  }, "No admin actions logged yet.");
+  const L = {
+    view_user: 'viewed',
+    set_cap: 'set cap for',
+    set_config: 'set default cap',
+    grant_admin: 'made admin',
+    revoke_admin: 'revoked admin from',
+    suspend_user: 'suspended',
+    unsuspend_user: 'reinstated',
+    add_note: 'noted',
+    delete_note: 'deleted note for',
+    update_state: 'edited data of',
+    reset_user: 'reset data of',
+    reset_usage: 'reset usage of',
+    delete_user: 'deleted',
+    resend_confirmation: 'resent confirm to'
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in mt-1 space-y-1.5"
+  }, rows.map(r => /*#__PURE__*/React.createElement("div", {
+    key: r.id,
+    className: "pixel-box p-2.5 bg-[#1E1E22]"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px]"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-medium"
+  }, (r.admin_email || 'admin').split('@')[0]), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, L[r.action] || r.action), r.target_email && /*#__PURE__*/React.createElement(React.Fragment, null, " ", /*#__PURE__*/React.createElement("span", {
+    className: "font-medium"
+  }, r.target_email.split('@')[0])), r.meta && r.meta.cap != null && /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, " → $", Number(r.meta.cap).toFixed(2)), r.meta && r.meta.default_cap_usd != null && /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, " → $", Number(r.meta.default_cap_usd).toFixed(2))), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] mt-0.5"
+  }, adminFmtWhen(r.created_at)))));
+}
 function AdminPanel({
   onBack,
   adminEmail
 }) {
+  const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [users, setUsers] = useState([]);
@@ -10948,6 +11021,9 @@ function AdminPanel({
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(null);
   const [selLoading, setSelLoading] = useState(false);
+  const [capInput, setCapInput] = useState('');
+  const [capBusy, setCapBusy] = useState(false);
+  const [capMsg, setCapMsg] = useState('');
   async function loadList() {
     setLoading(true);
     setErr('');
@@ -10955,6 +11031,7 @@ function AdminPanel({
       const j = await adminCall('list_users');
       setUsers(j.users || []);
       setDefaultCap(j.defaultCap || 1);
+      setCapInput(String(j.defaultCap || 1));
     } catch (e) {
       setErr(e.message);
     }
@@ -10976,6 +11053,25 @@ function AdminPanel({
     }
     setSelLoading(false);
   }
+  async function saveDefaultCap() {
+    const c = Number(capInput);
+    if (!isFinite(c) || c < 0) {
+      setCapMsg('Enter a valid amount.');
+      return;
+    }
+    setCapBusy(true);
+    setCapMsg('');
+    try {
+      const j = await adminCall('set_config', {
+        defaultCap: c
+      });
+      setDefaultCap(Number(j.default_cap_usd));
+      setCapMsg('Saved. New/unlimited users default to $' + Number(j.default_cap_usd).toFixed(2) + '/mo.');
+    } catch (e) {
+      setCapMsg(e.message);
+    }
+    setCapBusy(false);
+  }
   if (sel) return /*#__PURE__*/React.createElement(AdminUserDetail, {
     detail: sel,
     adminEmail: adminEmail,
@@ -10985,6 +11081,15 @@ function AdminPanel({
     },
     reload: () => openUser(sel.user.id)
   });
+  const within = (s, n) => s && Date.now() - new Date(s).getTime() <= n * 86400000;
+  const meLower = (adminEmail || '').toLowerCase();
+  const total = users.length;
+  const unconfirmed = users.filter(u => !u.confirmed).length;
+  const signups7 = users.filter(u => within(u.created_at, 7)).length;
+  const active7 = users.filter(u => within(u.last_sign_in_at, 7)).length;
+  const totalSpend = users.reduce((a, u) => a + (u.spend_usd || 0), 0);
+  const totalCalls = users.reduce((a, u) => a + (u.calls || 0), 0);
+  const overCap = users.filter(u => u.spend_usd >= u.cap_usd && (u.email || '').toLowerCase() !== meLower).length;
   const filtered = users.filter(u => !q || (u.email || '').toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.spend_usd - a.spend_usd);
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
@@ -10993,23 +11098,72 @@ function AdminPanel({
     className: "text-[12px] text-[#8A8A90] mb-2"
   }, "← Back to menu"), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Admin",
-    title: "Users"
+    title: "Control room"
   }), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, users.length, " account", users.length === 1 ? '' : 's', " · default AI cap $", defaultCap.toFixed(2), "/mo. Every action here is logged."), /*#__PURE__*/React.createElement(TextInput, {
-    value: q,
-    onChange: e => setQ(e.target.value),
-    placeholder: "Search by email…"
-  }), err && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mt-3",
+    className: "flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl"
+  }, [['overview', 'Overview'], ['users', 'Users'], ['audit', 'Audit log']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setTab(k),
+    className: `flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
+  }, l))), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3",
     style: {
       color: 'var(--danger)'
     }
   }, err), loading ? /*#__PURE__*/React.createElement("div", {
     className: "mt-6"
   }, /*#__PURE__*/React.createElement(DinoLoader, {
-    label: "Loading users"
-  })) : /*#__PURE__*/React.createElement("div", {
+    label: "Loading"
+  })) : /*#__PURE__*/React.createElement(React.Fragment, null, tab === 'overview' && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 lg:grid-cols-4 gap-2"
+  }, /*#__PURE__*/React.createElement(AdminStat, {
+    label: "Total users",
+    value: total,
+    sub: unconfirmed ? unconfirmed + ' unconfirmed' : 'all confirmed'
+  }), /*#__PURE__*/React.createElement(AdminStat, {
+    label: "New · 7 days",
+    value: signups7,
+    sub: active7 + ' active this wk'
+  }), /*#__PURE__*/React.createElement(AdminStat, {
+    label: "AI spend · mo",
+    value: '$' + totalSpend.toFixed(2),
+    sub: totalCalls + ' call' + (totalCalls === 1 ? '' : 's')
+  }), /*#__PURE__*/React.createElement(AdminStat, {
+    label: "At/over cap",
+    value: overCap,
+    sub: "this month"
+  })), /*#__PURE__*/React.createElement(Section, {
+    title: "Cost controls",
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-2"
+  }, "Global default monthly AI cap for any user without a custom limit. Your own account is always exempt."), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: capInput,
+    onChange: e => setCapInput(e.target.value),
+    placeholder: "1.00",
+    className: "flex-1"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    disabled: capBusy,
+    onClick: saveDefaultCap
+  }, capBusy ? 'Saving…' : 'Save default')), capMsg && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, capMsg), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-3"
+  }, "Current default $", defaultCap.toFixed(2), "/mo · total spend across all users this month $", totalSpend.toFixed(2), "."))), tab === 'users' && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: q,
+    onChange: e => setQ(e.target.value),
+    placeholder: "Search by email…"
+  }), /*#__PURE__*/React.createElement("div", {
     className: "mt-4 space-y-2"
   }, filtered.map(u => /*#__PURE__*/React.createElement("button", {
     key: u.id,
@@ -11027,7 +11181,13 @@ function AdminPanel({
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "admin"), !u.confirmed && /*#__PURE__*/React.createElement("span", {
+  }, "admin"), u.banned && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] ml-1.5 px-1 rounded",
+    style: {
+      background: 'var(--danger)',
+      color: '#fff'
+    }
+  }, "suspended"), !u.confirmed && /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] ml-1.5 px-1 rounded",
     style: {
       background: 'var(--fat)',
@@ -11046,7 +11206,7 @@ function AdminPanel({
     className: "text-[10px] text-[#8A8A90]"
   }, u.calls, " call", u.calls === 1 ? '' : 's', " this mo."))))), !filtered.length && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mt-4"
-  }, "No matching users.")), selLoading && /*#__PURE__*/React.createElement("div", {
+  }, "No matching users."))), tab === 'audit' && /*#__PURE__*/React.createElement(AdminAudit, null)), selLoading && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-black/50 z-[70] flex items-center justify-center"
   }, /*#__PURE__*/React.createElement(DinoLoader, {
     label: "Opening account"
@@ -11068,6 +11228,9 @@ function AdminUserDetail({
   const [confirmKind, setConfirmKind] = useState(null);
   const [delText, setDelText] = useState('');
   const [adminRole, setAdminRole] = useState(!!detail.is_admin);
+  const [banned, setBanned] = useState(!!(detail.user && detail.user.banned));
+  const [notes, setNotes] = useState(detail.notes || []);
+  const [noteText, setNoteText] = useState('');
   const isSelf = (u.email || '').toLowerCase() === (adminEmail || '').toLowerCase();
   const prof = detail.state && detail.state.profile;
   function flash(m) {
@@ -11210,6 +11373,69 @@ function AdminUserDetail({
     }
     setBusy('');
   }
+  async function toggleBan() {
+    setBusy('ban');
+    setErr('');
+    try {
+      const j = await adminCall('set_ban', {
+        userId: u.id,
+        banned: !banned
+      });
+      setBanned(j.banned);
+      setConfirmKind(null);
+      flash(j.banned ? 'Account suspended — they can no longer sign in.' : 'Account reinstated.');
+    } catch (e) {
+      setErr(e.message);
+      setConfirmKind(null);
+    }
+    setBusy('');
+  }
+  async function addNote() {
+    const t = noteText.trim();
+    if (!t) return;
+    setBusy('note');
+    setErr('');
+    try {
+      const j = await adminCall('add_note', {
+        userId: u.id,
+        note: t
+      });
+      setNotes([j.note].concat(notes));
+      setNoteText('');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy('');
+  }
+  async function delNote(id) {
+    setErr('');
+    try {
+      await adminCall('delete_note', {
+        userId: u.id,
+        noteId: id
+      });
+      setNotes(notes.filter(n => n.id !== id));
+    } catch (e) {
+      setErr(e.message);
+    }
+  }
+  function exportData() {
+    try {
+      const blob = new Blob([JSON.stringify(detail.state || {}, null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'macrosaurus-' + (u.email || 'account') + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setErr('Export failed: ' + e.message);
+    }
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -11237,18 +11463,32 @@ function AdminUserDetail({
     k: "Confirmed",
     v: u.confirmed ? 'Yes' : 'No'
   }), /*#__PURE__*/React.createElement(Row2, {
+    k: "Status",
+    v: banned ? 'Suspended' : 'Active'
+  }), /*#__PURE__*/React.createElement(Row2, {
     k: "Joined",
     v: adminFmtDate(u.created_at)
   }), /*#__PURE__*/React.createElement(Row2, {
     k: "Last sign-in",
     v: adminFmtWhen(u.last_sign_in_at),
     last: true
-  }), !u.confirmed && /*#__PURE__*/React.createElement(Btn, {
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-3"
+  }, !u.confirmed && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
-    className: "w-full mt-3",
+    className: "flex-1",
     disabled: busy === 'resend',
     onClick: doResend
-  }, busy === 'resend' ? 'Working…' : 'Resend confirmation link')), /*#__PURE__*/React.createElement(Section, {
+  }, busy === 'resend' ? 'Working…' : 'Resend confirmation'), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "flex-1",
+    disabled: isSelf || busy === 'ban',
+    style: {
+      opacity: isSelf ? 0.5 : 1,
+      color: banned ? 'var(--good)' : 'var(--danger)'
+    },
+    onClick: () => banned ? toggleBan() : setConfirmKind('ban')
+  }, busy === 'ban' ? 'Working…' : banned ? 'Reinstate account' : 'Suspend account'))), /*#__PURE__*/React.createElement(Section, {
     title: "AI usage this month"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Spent",
@@ -11301,7 +11541,36 @@ function AdminUserDetail({
     },
     disabled: busy === 'admin',
     onClick: () => setConfirmKind('grant')
-  }, busy === 'admin' ? 'Working…' : 'Make this user an admin')), prof && /*#__PURE__*/React.createElement(Section, {
+  }, busy === 'admin' ? 'Working…' : 'Make this user an admin')), /*#__PURE__*/React.createElement(Section, {
+    title: "Support notes"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: noteText,
+    onChange: e => setNoteText(e.target.value),
+    placeholder: "Add a note (e.g. emailed re: billing)",
+    className: "flex-1"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    disabled: busy === 'note' || !noteText.trim(),
+    onClick: addNote
+  }, busy === 'note' ? '…' : 'Add')), notes.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "No notes yet.") : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-1.5"
+  }, notes.map(n => /*#__PURE__*/React.createElement("div", {
+    key: n.id,
+    className: "pixel-box p-2.5 bg-[#1E1E22]"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] whitespace-pre-wrap break-words"
+  }, n.note), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mt-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] text-[#8A8A90]"
+  }, adminFmtWhen(n.created_at)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => delNote(n.id),
+    className: "text-[10px] text-[#8A8A90] underline"
+  }, "delete")))))), prof && /*#__PURE__*/React.createElement(Section, {
     title: "Profile summary"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Goal",
@@ -11320,11 +11589,17 @@ function AdminUserDetail({
     title: "Raw data"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-2"
-  }, "The user's full stored state. Editing this changes their account — use carefully. Updated ", adminFmtWhen(detail.updated_at), "."), !editData ? /*#__PURE__*/React.createElement(Btn, {
+  }, "The user's full stored state. Editing this changes their account — use carefully. Updated ", adminFmtWhen(detail.updated_at), "."), !editData ? /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
-    className: "w-full",
+    className: "flex-1",
     onClick: () => setEditData(true)
-  }, "View / edit raw data") : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("textarea", {
+  }, "View / edit raw data"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "flex-1",
+    onClick: exportData
+  }, "Export data (JSON)")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("textarea", {
     value: jsonText,
     onChange: e => setJsonText(e.target.value),
     rows: 12,
@@ -11370,7 +11645,13 @@ function AdminUserDetail({
     style: {
       color: 'var(--danger)'
     }
-  }, "Heads up: this is your own account.")), confirmKind === 'grant' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, "Heads up: this is your own account.")), confirmKind === 'ban' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Suspend ' + u.email + '?',
+    body: "They'll be signed out and blocked from logging in until you reinstate them. Their data is kept, and this is reversible.",
+    confirmLabel: busy === 'ban' ? 'Suspending…' : 'Suspend account',
+    onConfirm: toggleBan,
+    onClose: () => setConfirmKind(null)
+  }), confirmKind === 'grant' && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Make ' + u.email + ' an admin?',
     body: "They'll be able to view and manage every user account, including AI spend limits and deletions. Only do this for people you trust.",
     confirmLabel: busy === 'admin' ? 'Working…' : 'Make admin',
