@@ -8682,10 +8682,12 @@ function SavedMealsTab({
     onClose: () => setConfirmDel(null)
   }));
 }
+// Manual entry: capture the food's nutrition on a clear basis (per 100 g, or per serving), then hand
+// off to the SAME confirm screen for the amount, so it scales exactly like a scan or a database hit.
 function ManualTab({
   onPick
 }) {
-  // Avatar-style: enter the macros for a given amount + unit (grams, ounces, or a custom unit you name).
+  const [parsed, setParsed] = useState(null);
   const [v, setV] = useState({
     name: '',
     protein: '',
@@ -8693,25 +8695,16 @@ function ManualTab({
     fat: '',
     fiber: '',
     kcal: '',
-    amount: '',
-    unit: 'g',
-    customUnit: ''
+    basis: '100g',
+    servG: '',
+    servName: ''
   });
   const set = (k, x) => setV(p => Object.assign({}, p, {
     [k]: x
   }));
   const autoKcal = (+v.protein || 0) * 4 + (+v.carbs || 0) * 4 + (+v.fat || 0) * 9;
-  function amountLabel() {
-    if (v.amount === '' || v.amount == null) return '';
-    const a = fmtCount(v.amount);
-    if (v.unit === 'custom') {
-      const n = (v.customUnit || '').trim().toLowerCase() || 'serving';
-      return `${a} ${n}${+v.amount > 1 && !/s$/i.test(n) ? 's' : ''}`;
-    }
-    return `${a} g`;
-  }
-  function add() {
-    if (!v.name) return;
+  function next() {
+    if (!v.name.trim()) return;
     const macros = {
       kcal: Math.round(+v.kcal || autoKcal),
       protein: +v.protein || 0,
@@ -8719,18 +8712,35 @@ function ManualTab({
       fat: +v.fat || 0,
       fiber: +v.fiber || 0
     };
-    const noun = v.unit === 'custom' ? (v.customUnit || '').trim().toLowerCase() || 'serving' : 'g';
-    onPick({
-      name: v.name,
+    if (v.basis === '100g') setParsed({
+      per100: true,
       source: 'custom',
-      qtyLabel: amountLabel(),
-      macros,
-      unit: v.unit === 'custom' ? 'serv' : 'g',
-      amount: +v.amount || 0,
-      unitNoun: noun
-    });
+      branded: false,
+      servingG: 0,
+      servingLabel: null,
+      initial: Object.assign({
+        name: v.name.trim()
+      }, macros)
+    });else {
+      const sn = v.servName.trim();
+      const sgv = +v.servG || 0;
+      setParsed({
+        perServing: macros,
+        source: 'custom',
+        branded: true,
+        servingG: sgv,
+        servingLabel: sn ? '1 ' + sn : sgv ? '1 serving (' + sgv + ' g)' : '1 serving',
+        initial: {
+          name: v.name.trim()
+        }
+      });
+    }
   }
-  const lbl = amountLabel();
+  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, {
+    ...parsed,
+    onAdd: onPick,
+    onCancel: () => setParsed(null)
+  });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
@@ -8738,6 +8748,36 @@ function ManualTab({
     onChange: e => set('name', e.target.value),
     placeholder: "e.g. Baked beans"
   })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "These numbers are per"), /*#__PURE__*/React.createElement("div", {
+    className: "mb-3"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: v.basis,
+    onChange: x => set('basis', x),
+    options: [{
+      v: '100g',
+      l: '100 g'
+    }, {
+      v: 'serving',
+      l: 'A serving'
+    }]
+  })), v.basis === 'serving' && /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2.5"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Serving weight (g)",
+    hint: "Optional, lets you also log by grams"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: v.servG,
+    onChange: e => set('servG', e.target.value),
+    placeholder: "e.g. 125"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Serving name",
+    hint: "e.g. pot, slice, biscuit"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: v.servName,
+    onChange: e => set('servName', e.target.value),
+    placeholder: "serving"
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Protein (g)"
@@ -8768,57 +8808,15 @@ function ManualTab({
     value: v.kcal,
     onChange: e => set('kcal', e.target.value),
     placeholder: autoKcal ? String(autoKcal) : '0'
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-2.5"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Amount"
-  }, /*#__PURE__*/React.createElement(NumInput, {
-    value: v.amount,
-    onChange: e => set('amount', e.target.value),
-    placeholder: "e.g. 100"
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Unit"
-  }, /*#__PURE__*/React.createElement(Dropdown, {
-    value: v.unit,
-    onChange: x => set('unit', x),
-    options: [{
-      v: 'g',
-      l: 'grams'
-    }, {
-      v: 'custom',
-      l: 'custom unit…'
-    }]
-  }))), v.unit === 'custom' && /*#__PURE__*/React.createElement(Field, {
-    label: "Custom unit name",
-    hint: "e.g. can, slice, scoop, shows in your log"
-  }, /*#__PURE__*/React.createElement(TextInput, {
-    value: v.customUnit,
-    onChange: e => set('customUnit', e.target.value),
-    placeholder: "can"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] tnum my-3"
-  }, "Logging ", lbl || '·', ": ", /*#__PURE__*/React.createElement("span", {
-    className: "font-bold",
-    style: {
-      color: 'var(--text)'
-    }
-  }, Math.round(+v.kcal || autoKcal), " kcal"), " · ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: PRO
-    }
-  }, +v.protein || 0, "P"), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: CARB
-    }
-  }, +v.carbs || 0, "C"), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: FAT
-    }
-  }, +v.fat || 0, "F")), /*#__PURE__*/React.createElement(Btn, {
+  }))), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
-    className: "w-full",
-    onClick: add
-  }, "Add to log"));
+    className: "w-full mt-1",
+    disabled: !v.name.trim(),
+    style: {
+      opacity: v.name.trim() ? 1 : 0.5
+    },
+    onClick: next
+  }, "Next: choose amount"));
 }
 function SearchTab({
   onPick
@@ -8954,6 +8952,34 @@ function FractionChips({
     }
   }, l)));
 }
+// --- macro maths helpers for the confirm screen (one gram / one serving bases) ---
+function _macNums(v) {
+  return {
+    kcal: +v.kcal || 0,
+    protein: +v.protein || 0,
+    carbs: +v.carbs || 0,
+    fat: +v.fat || 0,
+    fiber: +v.fiber || 0
+  };
+}
+function _macScale(m, f) {
+  return m ? {
+    kcal: m.kcal * f,
+    protein: m.protein * f,
+    carbs: m.carbs * f,
+    fat: m.fat * f,
+    fiber: m.fiber * f
+  } : null;
+}
+function _macRound(m) {
+  return {
+    kcal: Math.round(m.kcal),
+    protein: +m.protein.toFixed(1),
+    carbs: +m.carbs.toFixed(1),
+    fat: +m.fat.toFixed(1),
+    fiber: +m.fiber.toFixed(1)
+  };
+}
 function ConfirmFood({
   note,
   per100,
@@ -8968,8 +8994,8 @@ function ConfirmFood({
   onCancel,
   onRescan
 }) {
-  const perServ = !!perServing;
-  const base = perServing || {
+  const basisIsServing = !!perServing;
+  const base0 = perServing || {
     kcal: initial.kcal,
     protein: initial.protein,
     carbs: initial.carbs,
@@ -8978,71 +9004,83 @@ function ConfirmFood({
   };
   const [v, setV] = useState({
     name: initial.name || '',
-    kcal: base.kcal || '',
-    protein: base.protein || '',
-    carbs: base.carbs || '',
-    fat: base.fat || '',
-    fiber: base.fiber || ''
+    kcal: base0.kcal || '',
+    protein: base0.protein || '',
+    carbs: base0.carbs || '',
+    fat: base0.fat || '',
+    fiber: base0.fiber || ''
   });
   const set = (k, x) => setV(p => Object.assign({}, p, {
     [k]: x
   }));
   const [edit, setEdit] = useState(!!estimated);
-  const num = k => +v[k] || 0;
-  // Sanity check for database results: missing numbers, or calories that don't match the macros
-  // (a common sign of a bad database entry, e.g. 30 g fat on a lean meatball). Nudge to the label.
-  const _kc = num('kcal');
-  const _dk = num('protein') * 4 + num('carbs') * 4 + num('fat') * 9;
-  const _missing = _kc <= 0 || num('protein') <= 0 && num('carbs') <= 0 && num('fat') <= 0;
+  const sg = +servingG || 0;
+  const m = _macNums(v);
+  // AI-backup nudge for database/barcode entries: missing numbers, or calories that don't match macros.
+  const _kc = m.kcal;
+  const _dk = m.protein * 4 + m.carbs * 4 + m.fat * 9;
+  const _missing = _kc <= 0 || m.protein <= 0 && m.carbs <= 0 && m.fat <= 0;
   const _mismatch = _kc > 0 && _dk > 0 && Math.abs(_dk - _kc) / _kc > 0.3;
   const dodgy = !!onRescan && (_missing || _mismatch);
-  const gramsBasis = per100 || perServ && servingG; // can express macros per gram
-  const servingAvail = !!servingG || perServ; // the food has its own serving
-  // Serving noun: strip any leading quantity, but never let a bare weight/volume unit (e.g. "125 g")
-  // become the noun, or the amount reads "1 g" while the macros are for the whole serving.
+  // Canonical bases: perGram = macros for one gram, perServMac = macros for one serving/piece.
+  let perGram = per100 ? _macScale(m, 1 / 100) : basisIsServing && sg ? _macScale(m, 1 / sg) : null;
+  let perServMac = basisIsServing ? m : per100 && sg ? _macScale(m, sg / 100) : null;
+  if (!perGram && !perServMac) perServMac = m; // last resort: treat the base as one serving
   const servNounRaw = (servingLabel || '').trim().replace(/^[\d.]+\s*/, '').toLowerCase();
   const servNoun = !servNounRaw || /^(g|kg|mg|ml|cl|l|oz|fl oz|lb)$/.test(servNounRaw) ? 'serving' : servNounRaw;
-  const perGram = per100 ? {
-    kcal: num('kcal') / 100,
-    protein: num('protein') / 100,
-    carbs: num('carbs') / 100,
-    fat: num('fat') / 100,
-    fiber: num('fiber') / 100
-  } : perServ && servingG ? {
-    kcal: num('kcal') / servingG,
-    protein: num('protein') / servingG,
-    carbs: num('carbs') / servingG,
-    fat: num('fat') / servingG,
-    fiber: num('fiber') / servingG
-  } : null;
+  const complexNoun = /[\s(]/.test(servNoun);
+  const servNounPlural = complexNoun ? servNoun : servNoun + (/s$/.test(servNoun) ? '' : 's');
   const units = [];
-  if (gramsBasis) units.push({
-    v: 'g',
-    l: 'grams'
-  });
-  if (servingAvail) units.push({
-    v: 'serv',
-    l: servNoun
-  });
-  const defUnit = servingAvail && (branded || perServ) ? 'serv' : gramsBasis ? 'g' : 'serv';
-  const [unit, setUnit] = useState(units.some(u => u.v === defUnit) ? defUnit : units[0] ? units[0].v : 'g');
-  const [amount, setAmount] = useState(defUnit === 'g' ? String(servingG || 100) : '1');
+  if (perServMac) units.push('serv');
+  if (perGram) units.push('g');
+  const defUnit = perServMac && (branded || basisIsServing) ? 'serv' : perGram ? 'g' : 'serv';
+  const gramDefault = sg || 100;
+  const [unit, setUnit] = useState(defUnit);
+  const [amount, setAmount] = useState(defUnit === 'g' ? gramDefault : 1);
+  function chooseUnit(u) {
+    if (u === unit) return;
+    setUnit(u);
+    setAmount(u === 'g' ? gramDefault : 1);
+  }
   const a = +amount || 0;
-  const grams = unit === 'g' ? a : servingG ? a * servingG : null;
-  const final = grams != null && perGram ? {
-    kcal: Math.round(perGram.kcal * grams),
-    protein: +(perGram.protein * grams).toFixed(1),
-    carbs: +(perGram.carbs * grams).toFixed(1),
-    fat: +(perGram.fat * grams).toFixed(1),
-    fiber: +(perGram.fiber * grams).toFixed(1)
-  } : {
-    kcal: Math.round(num('kcal') * a),
-    protein: +(num('protein') * a).toFixed(1),
-    carbs: +(num('carbs') * a).toFixed(1),
-    fat: +(num('fat') * a).toFixed(1),
-    fiber: +(num('fiber') * a).toFixed(1)
-  };
-  const qtyLabel = unit === 'g' ? `${fmtCount(amount)} g` : portionPhrase(amount, servingLabel);
+  const r1 = x => Math.round(x * 100) / 100;
+  const step = unit === 'g' ? 10 : 1;
+  const stepBy = d => setAmount(String(Math.max(0, r1((+amount || 0) + d))));
+  const final = _macRound(_macScale(unit === 'g' ? perGram : perServMac, a) || {
+    kcal: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    fiber: 0
+  });
+  const qtyLabel = unit === 'g' ? fmtCount(a) + ' g' : complexNoun ? portionPhrase(a, servingLabel) : fmtCount(a) + ' ' + (a === 1 ? servNoun : servNounPlural);
+  const implausible = final.kcal > 4000;
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const chips = unit === 'g' ? [sg ? {
+    l: '1 ' + servNoun,
+    val: sg
+  } : null, {
+    l: '50 g',
+    val: 50
+  }, {
+    l: '100 g',
+    val: 100
+  }, {
+    l: '150 g',
+    val: 150
+  }].filter(Boolean) : [{
+    l: '½',
+    val: 0.5
+  }, {
+    l: '1',
+    val: 1
+  }, {
+    l: '2',
+    val: 2
+  }, {
+    l: '3',
+    val: 3
+  }];
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -9069,7 +9107,7 @@ function ConfirmFood({
       boxShadow: 'none',
       borderColor: 'var(--fat)'
     }
-  }, _missing ? 'This database entry is missing some numbers.' : "These numbers look off, the calories don't match the macros.", " For an accurate log, ", /*#__PURE__*/React.createElement("button", {
+  }, _missing ? 'This entry is missing some numbers.' : "These numbers look off, the calories don't match the macros.", " For an accurate log, ", /*#__PURE__*/React.createElement("button", {
     onClick: onRescan,
     className: "font-semibold underline",
     style: {
@@ -9080,46 +9118,86 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
     onChange: e => set('name', e.target.value)
-  })), units.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-2.5"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Amount"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "How much did you have?"), units.length > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "mb-2.5"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: unit,
+    onChange: chooseUnit,
+    options: units.map(u => ({
+      v: u,
+      l: u === 'g' ? 'Grams' : cap(servNoun)
+    }))
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => stepBy(-step),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
+    "aria-label": "Less"
+  }, "−"), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: amount,
-    onChange: e => setAmount(e.target.value)
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Unit"
-  }, /*#__PURE__*/React.createElement(Dropdown, {
-    value: unit,
-    onChange: setUnit,
-    options: units
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] tnum my-3"
-  }, "Logging ", qtyLabel || '·', ": ", /*#__PURE__*/React.createElement("span", {
-    className: "font-bold",
+    onChange: e => setAmount(e.target.value),
+    className: inputCls + ' text-center'
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => stepBy(step),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
+    "aria-label": "More"
+  }, "+"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] shrink-0 w-16 text-center"
+  }, unit === 'g' ? 'grams' : servNounPlural)), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 mt-2.5 flex-wrap"
+  }, chips.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c.l,
+    onClick: () => setAmount(String(c.val)),
+    className: `pixel-box px-3 py-1.5 text-[12px] ${Math.abs((+amount || 0) - c.val) < 0.001 ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
+    style: {
+      boxShadow: 'none'
+    }
+  }, c.l))), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 my-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-0.5"
+  }, "Logging ", qtyLabel), /*#__PURE__*/React.createElement("div", {
+    className: "tnum"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xl font-bold",
     style: {
       color: 'var(--text)'
     }
-  }, final.kcal, " kcal"), " · ", /*#__PURE__*/React.createElement("span", {
+  }, final.kcal), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "kcal"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: PRO
     }
-  }, final.protein, "P"), " ", /*#__PURE__*/React.createElement("span", {
+  }, final.protein, "g P"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: CARB
     }
-  }, final.carbs, "C"), " ", /*#__PURE__*/React.createElement("span", {
+  }, final.carbs, "g C"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: FAT
     }
-  }, final.fat, "F")), /*#__PURE__*/React.createElement("button", {
+  }, final.fat, "g F")), implausible && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-1.5",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "That is a very large amount, double-check the quantity.")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setEdit(e => !e),
     className: "text-[11px] text-[#8A8A90] mb-2"
-  }, edit ? '▲ Hide values' : '▾ Numbers look off? Edit them'), edit && /*#__PURE__*/React.createElement("div", {
+  }, edit ? '▲ Hide the numbers' : '▾ Numbers look off? Edit them'), edit && /*#__PURE__*/React.createElement("div", {
     className: "fade-in mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
-  }, perServ ? `Per ${servNoun}` : per100 ? 'Per 100 g' : 'This amount'), /*#__PURE__*/React.createElement("div", {
+  }, basisIsServing ? 'Per ' + servNoun : per100 ? 'Per 100 g' : 'Per serving'), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Protein (g)"
@@ -9157,6 +9235,10 @@ function ConfirmFood({
   }, "Not the right product, or numbers off? Scan the label instead"), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mt-1",
+    disabled: a <= 0,
+    style: {
+      opacity: a <= 0 ? 0.5 : 1
+    },
     onClick: () => onAdd({
       name: v.name || 'Food',
       source,
