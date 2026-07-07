@@ -2223,6 +2223,8 @@ function PixelBar({
   })));
 }
 const DINO_QUOTES = ['"KEEP HUNTING! YOUR GOALS ARE WITHIN REACH. DINO-MITE!"', '"EAT YOUR PROTEIN OR GO EXTINCT."', '"SMALL BITES, BIG GAINS. RAWR."', '"THE SCALE IS JUST A HIGH SCORE. BEAT IT TOMORROW."', '"STAY CONSISTENT, STAY PREHISTORIC."', '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."'];
+// Motivating (not scolding) lines when a user reports an off-plan week — keeps the dino on their side.
+const DINO_OFFPLAN = ['One off week won\'t undo you — the Macrosaurus has outlasted ice ages. Back on the hunt next cycle.', 'No extinction here. Shake it off, line up a clean week, and we\'re roaring again.', 'Even T-rex had off days (and tiny arms). Momentum\'s paused, not lost — go get the next one.', 'The Macrosaurus dusts you off: one wobble, no drama. Clean cycle next and we retune properly.', 'Head up, protein up. One honest reset and you\'re back to dino-mite.'];
 function MiniRing({
   label,
   eaten,
@@ -3898,7 +3900,8 @@ function CheckInModal({
       setResult({
         status: 'held',
         offPlan: true,
-        reason: `You said this wasn't a week you stuck to your targets, so I'm holding your macros exactly as they are — changing them off an off-plan week would just chase noise, not real progress. Your weigh-in is saved. Get a clean cycle in and your next check-in will retune properly.`
+        dinoLine: DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)],
+        reason: `Macros held — no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.`
       });
       return;
     }
@@ -3974,7 +3977,20 @@ function CheckInModal({
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2"
-  }, result.status === 'proposed' && result.changed ? 'Suggested change' : result.status === 'held' ? 'Macros held' : 'Coaching'), /*#__PURE__*/React.createElement("p", {
+  }, result.status === 'proposed' && result.changed ? 'Suggested change' : result.status === 'held' ? 'Macros held' : 'Coaching'), result.offPlan && result.dinoLine && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 mb-3 pixel-box p-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0"
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 30,
+    color: "var(--good)"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-semibold leading-snug"
+  }, result.dinoLine)), /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
   }, result.reason), result.estimate && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2 tnum"
@@ -4093,8 +4109,8 @@ function CheckInModal({
       l: 'No, off-plan'
     }]
   })), adhered === 'no' && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3 -mt-1"
-  }, "I'll log your weigh-in and keep your macros the same — no change from an off-plan week."), /*#__PURE__*/React.createElement(Btn, {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "No worries — I'll still log your weigh-in and hold your macros steady. We'll retune after a clean cycle."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: complete
