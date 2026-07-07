@@ -1426,7 +1426,7 @@ function autoClose(json) {
   for (let i = stack.length - 1; i >= 0; i--) out += stack[i] === '{' ? '}' : ']';
   return out;
 }
-const LABEL_PROMPT = 'Read this nutrition label carefully. UK labels usually have TWO columns: one PER 100 g / 100 ml, and one PER SERVING / PER PACK / PER CAN / PER BOTTLE. Read each column EXACTLY as printed, do NOT convert, scale or mix the two. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. serving_g = the size in grams (or ml) of ONE serving/pack/can a person consumes in one go, e.g. 500 for a 500 ml can, 55 for a 55 g bar, 330 for a 330 ml bottle; if no serving/pack size is stated, 0. serving_label = a short human label like "1 can (500 ml)", "1 bar (55 g)"; "" if unknown. per_serving = the numbers from the per-serving/per-pack/per-can column (all 0 if that column is not printed). per_100g = the numbers from the per-100 g/ml column (all 0 if not printed). If only one column exists, fill that one and leave the other all 0. Never scale one column into the other. IMPORTANT, missing macros: if a column shows energy/calories but the protein, carbs or fat figures are missing, blank or unreadable, then ESTIMATE those macros from the product name/type and the stated calories. Pick a realistic macro split for that SPECIFIC product (identify the product from the name/brand if you can) so that protein_g×4 + carbs_g×4 + fat_g×9 ≈ the stated kcal for that column, and set "macros_estimated": true. Only set "macros_estimated": true if you actually estimated one or more macros; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0.';
+const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the numbers printed on it. UK labels usually have a PER 100 g / 100 ml column, and sometimes also a PER SERVING / PER PORTION / PER PACK column. Read each column EXACTLY as printed. Do NOT convert, scale, invent or mix columns. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. per_100g = the per-100 g/ml column (all 0 if not printed). per_serving = the per-serving/portion/pack column (all 0 if not printed). If only one column exists, fill it and leave the other all 0; NEVER scale one column into the other. serving_g and serving_label describe ONE natural unit the person would count and log, chosen in this priority order: (1) if the pack states a piece/item COUNT and a total pack WEIGHT (for example "12 meatballs" with "340 g", or "6 fish fingers 200 g"), set serving_g to the weight of ONE piece = round(total weight divided by count) and serving_label to a singular piece name like "1 meatball" or "1 fish finger"; (2) else if a single serving or portion size is stated (for example "per 30 g", "1 pot 125 g"), use it with a label like "1 pot" or "1 serving"; (3) else if only a whole pack/can/bottle size is stated, use it with a label like "1 can"; (4) else serving_g 0 and serving_label "". Use the product photo and all pack text (piece count, total weight, "contains N portions") to work this out. IMPORTANT, missing macros: if a column shows energy/calories but a macro is missing, blank or unreadable, ESTIMATE that macro from the product name/type and the stated calories so that protein_g×4 + carbs_g×4 + fat_g×9 approximately equals the stated kcal for that column, and set "macros_estimated": true; if every macro was read directly, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD, anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent, these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
@@ -8989,6 +8989,13 @@ function ConfirmFood({
   }));
   const [edit, setEdit] = useState(!!estimated);
   const num = k => +v[k] || 0;
+  // Sanity check for database results: missing numbers, or calories that don't match the macros
+  // (a common sign of a bad database entry, e.g. 30 g fat on a lean meatball). Nudge to the label.
+  const _kc = num('kcal');
+  const _dk = num('protein') * 4 + num('carbs') * 4 + num('fat') * 9;
+  const _missing = _kc <= 0 || num('protein') <= 0 && num('carbs') <= 0 && num('fat') <= 0;
+  const _mismatch = _kc > 0 && _dk > 0 && Math.abs(_dk - _kc) / _kc > 0.3;
+  const dodgy = !!onRescan && (_missing || _mismatch);
   const gramsBasis = per100 || perServ && servingG; // can express macros per gram
   const servingAvail = !!servingG || perServ; // the food has its own serving
   // Serving noun: strip any leading quantity, but never let a bare weight/volume unit (e.g. "125 g")
@@ -9055,14 +9062,14 @@ function ConfirmFood({
     }
   }, "ESTIMATE"), note) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, note), onRescan && (num('kcal') <= 0 || num('protein') <= 0 && num('carbs') <= 0 && num('fat') <= 0) && /*#__PURE__*/React.createElement("div", {
+  }, note), dodgy && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
     style: {
       background: 'var(--surface3)',
       boxShadow: 'none',
       borderColor: 'var(--fat)'
     }
-  }, "This database entry is missing some numbers. For an accurate log, ", /*#__PURE__*/React.createElement("button", {
+  }, _missing ? 'This database entry is missing some numbers.' : "These numbers look off, the calories don't match the macros.", " For an accurate log, ", /*#__PURE__*/React.createElement("button", {
     onClick: onRescan,
     className: "font-semibold underline",
     style: {
@@ -9783,12 +9790,19 @@ function LiveScanner({
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[70] bg-black flex flex-col"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between items-center p-4 text-white"
+    className: "flex justify-between items-center px-4 pb-3 text-white",
+    style: {
+      paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)'
+    }
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
   }, "Scan barcode"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-2xl leading-none"
+    "aria-label": "Close",
+    className: "w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none",
+    style: {
+      background: 'rgba(255,255,255,0.18)'
+    }
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -9801,8 +9815,19 @@ function LiveScanner({
   }), err && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-x-6 text-center text-[#F5C542] text-sm"
   }, err)), /*#__PURE__*/React.createElement("div", {
-    className: "p-4 text-center text-white/70 text-[12px]"
-  }, "Point at the barcode. It scans on its own."));
+    className: "px-4 pt-4 text-center text-white/70 text-[12px]",
+    style: {
+      paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.25rem)'
+    }
+  }, "Point at the barcode. It scans on its own.", /*#__PURE__*/React.createElement("div", {
+    className: "mt-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-white/90 text-[13px] px-4 py-2 rounded-xl",
+    style: {
+      background: 'rgba(255,255,255,0.14)'
+    }
+  }, "Cancel"))));
 }
 // Live in-app camera capture for nutrition labels, mirrors the barcode scanner, but grabs a still
 // frame on tap and hands it to the AI. Falls back to an upload for desktop / no-camera.
@@ -9865,12 +9890,19 @@ function LabelScanner({
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[70] bg-black flex flex-col"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between items-center p-4 text-white"
+    className: "flex justify-between items-center px-4 pb-3 text-white",
+    style: {
+      paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)'
+    }
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
   }, "Scan nutrition label"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-2xl leading-none"
+    "aria-label": "Close",
+    className: "w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none",
+    style: {
+      background: 'rgba(255,255,255,0.18)'
+    }
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -9903,7 +9935,13 @@ function LabelScanner({
     onChange: e => {
       if (e.target.files[0]) onCapture(e.target.files[0]);
     }
-  }))));
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl",
+    style: {
+      background: 'rgba(255,255,255,0.14)'
+    }
+  }, "Cancel")));
 }
 function PhotoTab({
   db,
@@ -9975,7 +10013,7 @@ function PhotoTab({
           servingG: sg,
           servingLabel: est.serving_label || (sg ? `1 portion (${sg} g)` : null),
           estimated,
-          note: estimated ? 'Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat (per 100 g). Check them below and edit anything that\'s off.' : 'Read from your label (per 100 g).',
+          note: estimated ? 'Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat. Check them below and edit anything that\'s off.' : 'Read straight from your label. Pick the amount below.',
           initial: {
             name: est.name || 'Scanned food',
             kcal: Math.round(+p100.kcal || 0),
