@@ -906,11 +906,27 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return target === undefined ? defaults : target;
   }
 
+  // Self-heal calories logged clearly higher than their macros can account for (scan/entry-slip
+  // signature). Only gross mismatches (>25% AND >40 kcal over Atwater), never alcohol, so accurate
+  // labels, fibre-rich foods and sugar-free items (calories legitimately below the macro maths) stay.
+  function healMacro(m, isAlcohol) {
+    if (!m || isAlcohol) return;
+    var kcal = +m.kcal || 0;
+    var atw = (+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9;
+    if (atw > 0 && kcal > atw * 1.25 + 40) m.kcal = Math.round(atw);
+  }
+  function healMacros(s) {
+    (s.log_entries || []).forEach(function (e) { healMacro(e.computed_macros, e.is_alcohol); });
+    (s.foods || []).forEach(function (f) { healMacro(f.macros, f.is_alcohol); });
+    (s.saved_meals || []).forEach(function (sm) { (sm.items || []).forEach(function (it) { healMacro(it.macros, it.is_alcohol); }); });
+    return s;
+  }
+
   // Bring any loaded/older state up to the current shape.
   function migrate(state) {
     var s = deepDefaults(state ? JSON.parse(JSON.stringify(state)) : {}, defaultState());
     if (s.profile) s.profile = deepDefaults(s.profile, PROFILE_DEFAULTS);
-    return s;
+    return healMacros(s);
   }
 
   function defaultState() {
@@ -9070,6 +9086,28 @@ function ConfirmFood({
     [k]: x
   }));
   const [edit, setEdit] = useState(!!estimated);
+  // Calories follow the macros by default (protein*4 + carbs*4 + fat*9), so a slip can't silently
+  // inflate them, but stay editable: once you type your own calorie figure it sticks. Scanned/label
+  // values come in pre-filled and are kept unless they run clearly higher than the macros justify.
+  const [kcalTouched, setKcalTouched] = useState(false);
+  const _atw = o => Math.round((+o.protein || 0) * 4 + (+o.carbs || 0) * 4 + (+o.fat || 0) * 9);
+  const setMacro = (k, x) => setV(p => {
+    const n = Object.assign({}, p, {
+      [k]: x
+    });
+    if (!kcalTouched) n.kcal = String(_atw(n));
+    return n;
+  });
+  const setKcal = x => {
+    setKcalTouched(true);
+    set('kcal', x);
+  };
+  const applyAtwater = () => {
+    setKcalTouched(false);
+    setV(p => Object.assign({}, p, {
+      kcal: String(_atw(p))
+    }));
+  };
   const sg = +servingG || 0;
   const m = _macNums(v);
   // AI-backup nudge for database/barcode entries: missing numbers, or calories that don't match macros.
@@ -9078,6 +9116,10 @@ function ConfirmFood({
   const _missing = _kc <= 0 || m.protein <= 0 && m.carbs <= 0 && m.fat <= 0;
   const _mismatch = _kc > 0 && _dk > 0 && Math.abs(_dk - _kc) / _kc > 0.3;
   const dodgy = (!!onRescan || !!onAskAI) && (_missing || _mismatch);
+  // Calories run clearly higher than the macros can account for: the classic scan/entry-slip signature.
+  // Skipped for alcohol (7 kcal/g) and when the dodgy card already covers it with scan/AI options.
+  const atwaterK = Math.round(_dk);
+  const kcalHigh = !dodgy && source !== 'alcohol' && _dk > 0 && _kc > _dk * 1.15 + 15;
   // Canonical bases: perGram = macros for one gram, perServMac = macros for one serving/piece.
   let perGram = per100 ? _macScale(m, 1 / 100) : basisIsServing && sg ? _macScale(m, 1 / sg) : null;
   let perServMac = basisIsServing ? m : per100 && sg ? _macScale(m, sg / 100) : null;
@@ -9235,30 +9277,38 @@ function ConfirmFood({
     label: "Protein (g)"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.protein,
-    onChange: e => set('protein', e.target.value)
+    onChange: e => setMacro('protein', e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Carbs (g)"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.carbs,
-    onChange: e => set('carbs', e.target.value)
+    onChange: e => setMacro('carbs', e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Fat (g)"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.fat,
-    onChange: e => set('fat', e.target.value)
+    onChange: e => setMacro('fat', e.target.value)
   }))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Fibre (g)"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.fiber,
-    onChange: e => set('fiber', e.target.value)
+    onChange: e => setMacro('fiber', e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Calories"
+    label: "Calories",
+    hint: kcalTouched ? 'Your own figure' : 'Auto from macros'
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.kcal,
-    onChange: e => set('kcal', e.target.value)
-  })))), (onRescan || onAskAI) && !dodgy && /*#__PURE__*/React.createElement("div", {
+    onChange: e => setKcal(e.target.value)
+  }))), _dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: applyAtwater,
+    className: "text-[11px] mt-1.5",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "↺ Calculate calories from the macros (", atwaterK, " kcal)")), (onRescan || onAskAI) && !dodgy && /*#__PURE__*/React.createElement("div", {
     className: "mt-4 mb-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3 mb-2.5"
@@ -9310,8 +9360,26 @@ function ConfirmFood({
     className: "text-[11px] text-[#8A8A90]"
   }, "Not packaged, or nothing to scan")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
-  }, "›"))), /*#__PURE__*/React.createElement(Btn, {
+  }, "›"))), kcalHigh && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mt-3 mb-2",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      borderColor: 'var(--fat)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] font-semibold mb-1",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "Calories look high for these macros"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug mb-2.5"
+  }, "This shows ", Math.round(_kc), " kcal ", basisIsServing ? 'per ' + servNoun : per100 ? 'per 100 g' : 'per serving', ", but the protein, carbs and fat only add up to about ", atwaterK, " kcal. That is usually a scan or entry slip, worth a quick check before you log it."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
+    className: "w-full",
+    onClick: applyAtwater
+  }, "Use ", atwaterK, " kcal (from the macros)")), /*#__PURE__*/React.createElement(Btn, {
+    kind: kcalHigh ? 'ghost' : 'accent',
     className: "w-full mt-3",
     disabled: a <= 0,
     style: {
@@ -9326,7 +9394,7 @@ function ConfirmFood({
       amount: a,
       unitNoun: unit === 'g' ? 'g' : servNoun
     })
-  }, "Add to log"));
+  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add to log'));
 }
 function AiConfirm({
   est,
