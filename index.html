@@ -9058,31 +9058,6 @@ function ConfirmFood({
   const qtyLabel = unit === 'g' ? fmtCount(a) + ' g' : complexNoun ? portionPhrase(a, servingLabel) : fmtCount(a) + ' ' + (a === 1 ? servNoun : servNounPlural);
   const implausible = final.kcal > 4000;
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  const chips = unit === 'g' ? [sg ? {
-    l: '1 ' + servNoun,
-    val: sg
-  } : null, {
-    l: '50 g',
-    val: 50
-  }, {
-    l: '100 g',
-    val: 100
-  }, {
-    l: '150 g',
-    val: 150
-  }].filter(Boolean) : [{
-    l: '½',
-    val: 0.5
-  }, {
-    l: '1',
-    val: 1
-  }, {
-    l: '2',
-    val: 2
-  }, {
-    l: '3',
-    val: 3
-  }];
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -9150,15 +9125,6 @@ function ConfirmFood({
   }, "+"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] shrink-0 w-16 text-center"
   }, unit === 'g' ? 'grams' : servNounPlural)), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 mt-2.5 flex-wrap"
-  }, chips.map(c => /*#__PURE__*/React.createElement("button", {
-    key: c.l,
-    onClick: () => setAmount(String(c.val)),
-    className: `pixel-box px-3 py-1.5 text-[12px] ${Math.abs((+amount || 0) - c.val) < 0.001 ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
-    style: {
-      boxShadow: 'none'
-    }
-  }, c.l))), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 my-3",
     style: {
       background: 'var(--surface3)',
@@ -10027,6 +9993,21 @@ function LabelScanner({
     }
   }, "Cancel")));
 }
+// Is a label OCR result reliable enough to trust the cheap fast model, or should we escalate to the
+// strong model? We escalate when the AI estimated a macro, when numbers are missing, or when the
+// calories don't add up from the macros (a tell-tale sign of a misread on a hard-to-read label).
+function labelReadReliable(est) {
+  if (!est) return false;
+  if (est.macros_estimated) return false;
+  const cols = [est.per_100g, est.per_serving].filter(c => c && +c.kcal > 0);
+  if (!cols.length) return false;
+  return cols.every(c => {
+    const kc = +c.kcal || 0;
+    if (kc <= 0 || (+c.protein_g || 0) + (+c.carbs_g || 0) + (+c.fat_g || 0) <= 0) return false;
+    const dk = (+c.protein_g || 0) * 4 + (+c.carbs_g || 0) * 4 + (+c.fat_g || 0) * 9;
+    return Math.abs(dk - kc) / kc <= 0.20;
+  });
+}
 function PhotoTab({
   db,
   onPick
@@ -10046,13 +10027,19 @@ function PhotoTab({
     setBusy('Reading the label…');
     setErr('');
     try {
-      // Label OCR uses the STRONG model at high resolution. Reading small printed nutrition figures
-      // accurately is core to the product, so we prioritise accuracy over cost on label scans.
-      const est = await claudeVision(key, [file], LABEL_PROMPT, {
-        model: AI_MODEL,
-        maxTokens: 1500,
+      // Cost-smart OCR at high resolution: read with the cheap fast model first, and only escalate to
+      // the strong model when that read looks unreliable (calories not matching macros, values missing,
+      // or estimated). Easy labels stay cheap; harder ones automatically get the stronger reader.
+      const read = (model, mt) => claudeVision(key, [file], LABEL_PROMPT, {
+        model,
+        maxTokens: mt,
         maxImg: 1568
       });
+      let est = await read(AI_MODEL_FAST, 1200);
+      if (!labelReadReliable(est)) {
+        setBusy('Double-checking the label…');
+        est = await read(AI_MODEL, 1500);
+      }
       const sg = +est.serving_g || null;
       const ps = est.per_serving || {},
         p100 = est.per_100g || {};
