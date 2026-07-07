@@ -9078,19 +9078,21 @@ function ConfirmFood({
   }, "ESTIMATE"), note) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, note), dodgy && /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
+    className: "pixel-box p-3 mb-3",
     style: {
       background: 'var(--surface3)',
       boxShadow: 'none',
       borderColor: 'var(--fat)'
     }
-  }, _missing ? 'This entry is missing some numbers.' : "These numbers look off, the calories don't match the macros.", " For an accurate log, ", /*#__PURE__*/React.createElement("button", {
-    onClick: onRescan,
-    className: "font-semibold underline",
-    style: {
-      color: 'var(--accent)'
-    }
-  }, "scan the nutrition label"), " instead."), /*#__PURE__*/React.createElement(Field, {
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] font-semibold mb-1"
+  }, _missing ? 'Some numbers are missing' : 'These numbers look off'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug mb-2.5"
+  }, _missing ? "This came from the food database and doesn't have all the values." : "This came from the food database and the calories don't add up from the macros.", " Scan the pack's nutrition label and we'll read the real figures for you."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full",
+    onClick: onRescan
+  }, "Scan the label instead")), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
@@ -9194,13 +9196,13 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.kcal,
     onChange: e => set('kcal', e.target.value)
-  })))), onRescan && /*#__PURE__*/React.createElement("button", {
+  })))), onRescan && !dodgy && /*#__PURE__*/React.createElement("button", {
     onClick: onRescan,
     className: "w-full text-[12px] mb-2 py-1.5 text-center",
     style: {
       color: 'var(--accent)'
     }
-  }, "Not the right product, or numbers off? Scan the label instead"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Wrong product, or numbers not right? Scan the label"), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mt-1",
     disabled: a <= 0,
@@ -9944,9 +9946,11 @@ function LabelScanner({
     style: {
       paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)'
     }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "font-semibold"
-  }, "Scan nutrition label"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold leading-tight"
+  }, "Scan nutrition label"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-white/60"
+  }, "We'll read the exact numbers off the pack")), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     "aria-label": "Close",
     className: "w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none",
@@ -9976,7 +9980,7 @@ function LabelScanner({
     "aria-label": "Capture"
   }), !err && /*#__PURE__*/React.createElement("div", {
     className: "text-white/60 text-[12px]"
-  }, "Line the label up in the frame, then tap to capture."), /*#__PURE__*/React.createElement("label", {
+  }, "Line up the nutrition label, then tap to capture. It reads the exact figures."), /*#__PURE__*/React.createElement("label", {
     className: "text-white/80 text-[13px] underline cursor-pointer"
   }, "Upload a photo instead", /*#__PURE__*/React.createElement("input", {
     type: "file",
@@ -10017,13 +10021,13 @@ function PhotoTab({
   const [parsed, setParsed] = useState(null);
   const [mode, setMode] = useState(null);
   const [notFound, setNotFound] = useState(false);
+  const [rescan, setRescan] = useState(false);
   const key = db.profile.aiKey || 'builtin';
   async function onLabel(file) {
     if (!file) return;
-    if (!key) {
-      setErr('Add your AI key in Menu → Settings to scan labels.');
-      return;
-    }
+    const wasRescan = rescan;
+    setRescan(false);
+    const srcNote = wasRescan ? 'Read from your nutrition label, replacing the database numbers.' : 'Read straight from your nutrition label.';
     setBusy('Reading the label…');
     setErr('');
     try {
@@ -10056,7 +10060,7 @@ function PhotoTab({
           servingG: sg,
           servingLabel: label,
           estimated,
-          note: estimated ? 'Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat for one ' + label + '. Check them below and edit anything that\'s off.' : 'One ' + label + ' from your label. Change the amount below if you had more or less.',
+          note: estimated ? 'Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat for one ' + label + '. Check them below and edit anything that\'s off.' : srcNote + ' One ' + label + '. Change the amount below if you had more or less.',
           perServing: {
             kcal: Math.round(+ps.kcal || 0),
             protein: +ps.protein_g || 0,
@@ -10076,7 +10080,7 @@ function PhotoTab({
           servingG: sg,
           servingLabel: est.serving_label || (sg ? `1 portion (${sg} g)` : null),
           estimated,
-          note: estimated ? 'Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat. Check them below and edit anything that\'s off.' : 'Read straight from your label. Pick the amount below.',
+          note: estimated ? 'Your label showed calories but not the macros, so I\'ve estimated protein, carbs and fat. Check them below and edit anything that\'s off.' : srcNote + ' Pick the amount below.',
           initial: {
             name: est.name || 'Scanned food',
             kcal: Math.round(+p100.kcal || 0),
@@ -10134,6 +10138,7 @@ function PhotoTab({
       setMode(null);
     },
     onRescan: parsed.source === 'off' ? () => {
+      setRescan(true);
       setParsed(null);
       setMode('label');
     } : undefined
