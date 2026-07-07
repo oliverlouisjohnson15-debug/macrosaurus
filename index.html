@@ -8730,20 +8730,33 @@ function timeDefaultMealId(meals, H) {
   if (H >= 4 && H < 11) idx = 0;else if (H >= 11 && H < 16) idx = Math.min(1, n - 1);else if (H >= 16 && H < 22) idx = Math.min(2, n - 1);else idx = n - 1;
   return (meals[idx] || meals[0]).id;
 }
-// Suggest which meal the food is probably for, based on WHEN this person usually logs to each meal.
-// Builds an hour histogram per meal from the last ~90 days, scores each meal in a window around now,
-// and returns the best match; falls back to the time-of-day heuristic when history is thin.
+// The meal you last logged to this sitting (in-memory, resets on reload). Lets a burst of adds all
+// default to the same meal even if the clock would suggest another.
+let LAST_MEAL = null;
+function isWeekendISO(dateISO) {
+  const d = weekdayIdx(dateISO);
+  return d === 0 || d === 6;
+}
+// Suggest which meal the food is probably for. Priority: the meal you were just adding to (within the
+// last 45 min), then WHEN you usually log to each meal, weighting days of the same type (weekday vs
+// weekend) more heavily so a lazy-weekend-breakfast pattern is respected; then a time-of-day fallback.
 function suggestMealId(db, meals, now) {
   now = now || new Date();
   const H = now.getHours();
   const ids = new Set(meals.map(m => m.id));
+  if (LAST_MEAL && Date.now() - LAST_MEAL.t < 45 * 60 * 1000 && ids.has(LAST_MEAL.id)) return LAST_MEAL.id;
+  const weekendNow = now.getDay() === 0 || now.getDay() === 6;
   const cutoff = shiftISO(Store.todayISO(), -90);
-  const counts = {};
+  const counts = {}; // mealId -> { same:[24], other:[24] } split by matching day-type
   for (const e of db.log_entries || []) {
     if (!ids.has(e.meal_id) || e.date < cutoff) continue;
     const h = hourFromId(e.id);
     if (h == null) continue;
-    (counts[e.meal_id] || (counts[e.meal_id] = new Array(24).fill(0)))[h]++;
+    const b = counts[e.meal_id] || (counts[e.meal_id] = {
+      same: new Array(24).fill(0),
+      other: new Array(24).fill(0)
+    });
+    (isWeekendISO(e.date) === weekendNow ? b.same : b.other)[h]++;
   }
   let best = null,
     bestScore = 0;
@@ -8751,7 +8764,11 @@ function suggestMealId(db, meals, now) {
     const c = counts[m.id];
     if (!c) continue;
     let sc = 0;
-    for (let d = -2; d <= 2; d++) sc += c[(H + d + 24) % 24] * (3 - Math.abs(d));
+    for (let d = -2; d <= 2; d++) {
+      const hh = (H + d + 24) % 24,
+        w = 3 - Math.abs(d);
+      sc += c.same[hh] * w * 2 + c.other[hh] * w;
+    }
     if (sc > bestScore) {
       bestScore = sc;
       best = m.id;
@@ -13927,6 +13944,10 @@ function App() {
   }
   function addEntry(date, mealId, item) {
     const entryId = Store.uid();
+    if (date === Store.todayISO()) LAST_MEAL = {
+      id: mealId,
+      t: Date.now()
+    };
     const macros = normalizeMacros(item.macros, item.is_alcohol);
     update(d => {
       d.log_entries.push({
@@ -13983,6 +14004,10 @@ function App() {
   }
   function addMeal(date, mealId, items) {
     const ids = items.map(() => Store.uid());
+    if (date === Store.todayISO()) LAST_MEAL = {
+      id: mealId,
+      t: Date.now()
+    };
     update(d => {
       items.forEach((item, i) => d.log_entries.push({
         id: ids[i],
