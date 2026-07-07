@@ -9602,6 +9602,7 @@ function DescribeTab({
   const [result, setResult] = useState(null);
   const [ver, setVer] = useState(0);
   const [listening, setListening] = useState(false);
+  const [cam, setCam] = useState(false);
   const recRef = useRef(null);
   const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
   function addImgs(list) {
@@ -9703,6 +9704,13 @@ function DescribeTab({
   }), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mt-3"
   }, err));
+  if (cam) return /*#__PURE__*/React.createElement(MealCamera, {
+    onFiles: fs => {
+      addImgs(fs);
+      setCam(false);
+    },
+    onClose: () => setCam(false)
+  });
   if (busy) return /*#__PURE__*/React.createElement(DinoLoader, {
     label: "Working out your meal"
   });
@@ -9749,14 +9757,18 @@ function DescribeTab({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => remImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
-  }, "×")))), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("div", {
-    className: "mt-3"
-  }, /*#__PURE__*/React.createElement(PhotoButton, {
-    label: imgs.length ? 'Add another photo' : 'Add a photo (optional)',
-    multiple: true,
-    onFiles: addImgs,
-    className: "w-full"
-  })), /*#__PURE__*/React.createElement("div", {
+  }, "×")))), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCam(true),
+    className: "w-full flex items-center justify-center gap-2 mt-3 pixel-btn py-3 text-[13px] font-medium",
+    style: {
+      background: 'var(--surface3)',
+      color: 'var(--text)',
+      border: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "18",
+    height: "18"
+  }), " ", imgs.length ? 'Add another photo' : 'Take or upload a photo'), /*#__PURE__*/React.createElement("div", {
     className: "flex items-stretch gap-2 mt-3"
   }, SR && /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -10124,6 +10136,128 @@ function LabelScanner({
     className: "hidden",
     onChange: e => {
       if (e.target.files[0]) onCapture(e.target.files[0]);
+    }
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl",
+    style: {
+      background: 'rgba(255,255,255,0.14)'
+    }
+  }, "Cancel")));
+}
+// Custom in-app camera for the Estimate tab: a live viewfinder to snap a plated meal, with an
+// on-screen "upload instead" option, matching the nutrition-label scanner. Returns File(s) via onFiles.
+function MealCamera({
+  onFiles,
+  onClose
+}) {
+  const videoRef = useRef(null);
+  const [err, setErr] = useState('');
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let stream,
+      stopped = false;
+    (async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setErr('nocam');
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: {
+              ideal: 1920
+            },
+            height: {
+              ideal: 1080
+            }
+          }
+        });
+        if (stopped) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setReady(true);
+      } catch (e) {
+        setErr('blocked');
+      }
+    })();
+    return () => {
+      stopped = true;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+  function capture() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    c.toBlob(b => {
+      if (b) onFiles([new File([b], 'meal.jpg', {
+        type: 'image/jpeg'
+      })]);
+    }, 'image/jpeg', 0.9);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[70] bg-black flex flex-col"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center px-4 pb-3 text-white",
+    style: {
+      paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold leading-tight"
+  }, "Photograph your meal"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-white/60"
+  }, "Great for a plate a barcode can't capture")), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    "aria-label": "Close",
+    className: "w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none",
+    style: {
+      background: 'rgba(255,255,255,0.18)'
+    }
+  }, "×")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 relative flex items-center justify-center overflow-hidden"
+  }, /*#__PURE__*/React.createElement("video", {
+    ref: videoRef,
+    playsInline: true,
+    muted: true,
+    className: "w-full h-full object-cover"
+  }), ready && !err && /*#__PURE__*/React.createElement("div", {
+    className: "absolute rounded-2xl",
+    style: {
+      inset: '1.75rem',
+      border: '2px solid rgba(255,255,255,0.5)'
+    }
+  }), err && /*#__PURE__*/React.createElement("div", {
+    className: "absolute inset-x-8 text-center text-white/90 text-sm"
+  }, "Camera unavailable here, upload a photo of your meal instead.")), /*#__PURE__*/React.createElement("div", {
+    className: "p-5 flex flex-col items-center gap-3"
+  }, !err && /*#__PURE__*/React.createElement("button", {
+    onClick: capture,
+    disabled: !ready,
+    className: "w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40",
+    style: {
+      boxShadow: '0 0 0 4px rgba(255,255,255,0.35)'
+    },
+    "aria-label": "Capture"
+  }), !err && /*#__PURE__*/React.createElement("div", {
+    className: "text-white/60 text-[12px]"
+  }, "Fit your whole meal in the frame, then tap to capture."), /*#__PURE__*/React.createElement("label", {
+    className: "text-white/80 text-[13px] underline cursor-pointer"
+  }, "Upload a photo instead", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "image/*",
+    multiple: true,
+    className: "hidden",
+    onChange: e => {
+      const fs = Array.from(e.target.files || []);
+      if (fs.length) onFiles(fs);
     }
   })), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
