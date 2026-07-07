@@ -9061,41 +9061,46 @@ function DescribeTab({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Type or say what you had — perfect for coffees, cocktails or a named order a photo can't capture. The AI works out the macros and you confirm before it's logged."), /*#__PURE__*/React.createElement("div", {
-    className: "relative"
-  }, /*#__PURE__*/React.createElement("textarea", {
+  }, "Type or say what you had — perfect for coffees, cocktails or a named order a photo can't capture. The AI works out the macros and you confirm before it's logged."), /*#__PURE__*/React.createElement("textarea", {
     value: text,
     onChange: e => setText(e.target.value),
     rows: 4,
     className: inputCls + ' resize-y leading-relaxed',
-    style: {
-      paddingRight: SR ? 52 : undefined
-    },
     placeholder: "e.g. Starbucks grande oat milk caramel macchiato and a butter croissant"
-  }), SR && /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: toggleMic,
-    "aria-label": "Dictate",
-    className: "absolute right-2 top-2 w-9 h-9 rounded-full flex items-center justify-center transition active:scale-95",
-    style: {
-      background: listening ? FAT : 'var(--surface3)',
-      color: listening ? '#fff' : 'var(--muted)'
-    }
-  }, /*#__PURE__*/React.createElement(Icon.mic, {
-    width: "18",
-    height: "18"
-  }))), listening && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mt-1.5",
+  }), listening && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-1.5 flex items-center gap-1.5",
     style: {
       color: FAT
     }
-  }, "Listening… tap the mic again to stop."), !key && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "inline-block w-1.5 h-1.5 rounded-full animate-pulse",
+    style: {
+      background: FAT
+    }
+  }), "Listening… tap the mic again to stop."), !key && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2"
-  }, "Add your AI key in Menu → Settings to enable this."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Add your AI key in Menu → Settings to enable this."), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-stretch gap-2 mt-3"
+  }, SR && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: toggleMic,
+    "aria-label": listening ? 'Stop dictation' : 'Dictate',
+    "aria-pressed": listening,
+    title: listening ? 'Stop dictation' : 'Dictate',
+    className: "pixel-btn shrink-0 w-14 flex items-center justify-center transition active:scale-95",
+    style: {
+      background: listening ? FAT : 'var(--surface3)',
+      color: listening ? '#fff' : 'var(--text)',
+      border: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.mic, {
+    width: "20",
+    height: "20"
+  })), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
-    className: "w-full mt-3",
+    className: "flex-1",
     onClick: run
-  }, "Estimate with AI"), err && /*#__PURE__*/React.createElement("div", {
+  }, "Estimate with AI")), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mt-3 fade-in"
   }, err));
 }
