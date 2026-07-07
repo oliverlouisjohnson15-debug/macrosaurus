@@ -10869,6 +10869,120 @@ function ProfileTab({
     onClick: onFreshStart
   }, "Full setup & recalculate"));
 }
+// Change password while signed in. We re-verify the current password first (signInWithPassword)
+// so a merely-unlocked session can't silently change someone's credentials.
+function ChangePassword({
+  email
+}) {
+  const [open, setOpen] = useState(false);
+  const [cur, setCur] = useState('');
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [ok, setOk] = useState(false);
+  function reset() {
+    setCur('');
+    setPw('');
+    setPw2('');
+    setMsg('');
+    setOk(false);
+  }
+  async function save() {
+    setMsg('');
+    setOk(false);
+    if (pw.length < 6) {
+      setMsg('Your new password must be at least 6 characters.');
+      return;
+    }
+    if (pw !== pw2) {
+      setMsg("The new passwords don't match.");
+      return;
+    }
+    if (!supa) {
+      setMsg('You need to be online to change your password.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const v = await supa.auth.signInWithPassword({
+        email,
+        password: cur
+      });
+      if (v.error) throw new Error('Your current password is incorrect.');
+      const r = await supa.auth.updateUser({
+        password: pw
+      });
+      if (r.error) throw r.error;
+      setOk(true);
+      setMsg('Password updated.');
+      setCur('');
+      setPw('');
+      setPw2('');
+    } catch (e) {
+      setMsg(e.message);
+    }
+    setBusy(false);
+  }
+  return /*#__PURE__*/React.createElement(Section, {
+    title: "Password"
+  }, !open ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    onClick: () => {
+      reset();
+      setOpen(true);
+    }
+  }, "Change password") : /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Current password"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    autoComplete: "current-password",
+    className: inputCls,
+    value: cur,
+    onChange: e => setCur(e.target.value),
+    placeholder: "current password"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "New password"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    autoComplete: "new-password",
+    className: inputCls,
+    value: pw,
+    onChange: e => setPw(e.target.value),
+    placeholder: "at least 6 characters"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Confirm new password"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    autoComplete: "new-password",
+    className: inputCls,
+    value: pw2,
+    onChange: e => setPw2(e.target.value),
+    onKeyDown: e => e.key === 'Enter' && save(),
+    placeholder: "type it again"
+  })), msg && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-1 mb-1",
+    style: {
+      color: ok ? 'var(--good)' : 'var(--danger)'
+    }
+  }, msg), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "flex-1",
+    disabled: busy,
+    onClick: save
+  }, busy ? 'Saving…' : 'Update password'), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: () => {
+      setOpen(false);
+      reset();
+    }
+  }, ok ? 'Done' : 'Cancel'))));
+}
 function More({
   db,
   update,
@@ -10957,7 +11071,9 @@ function More({
     kind: "ghost",
     className: "w-full",
     onClick: onSignOut
-  }, "Sign out")), /*#__PURE__*/React.createElement(Section, {
+  }, "Sign out")), /*#__PURE__*/React.createElement(ChangePassword, {
+    email: email
+  }), /*#__PURE__*/React.createElement(Section, {
     title: "Your data"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
