@@ -9603,7 +9603,14 @@ function DescribeTab({
   const [ver, setVer] = useState(0);
   const [listening, setListening] = useState(false);
   const [cam, setCam] = useState(false);
+  const [pushText, setPushText] = useState(false);
   const recRef = useRef(null);
+  const taRef = useRef(null);
+  function addHint(w) {
+    setText(t => t.trim() ? t.trim() + ', ' + w : w);
+    setPushText(false);
+    if (taRef.current) taRef.current.focus();
+  }
   const SR = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
   function addImgs(list) {
     const arr = Array.from(list || []).map(f => ({
@@ -9657,6 +9664,14 @@ function DescribeTab({
   async function run() {
     if (!text.trim() && !imgs.length) {
       setErr('Describe what you had, or add a photo.');
+      return;
+    }
+    // Soft gate: a photo with no words is much less accurate, so nudge for a description first.
+    // If they still want to go photo-only, a second tap ("Estimate from the photo anyway") proceeds.
+    if (imgs.length && !text.trim() && !pushText) {
+      setPushText(true);
+      setErr('');
+      if (taRef.current) taRef.current.focus();
       return;
     }
     if (listening) stopMic();
@@ -9716,7 +9731,7 @@ function DescribeTab({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Type, say, or photograph what you had. Great for a coffee, a named order, or a plated meal a barcode can't capture. You confirm before it's logged."), onScan && /*#__PURE__*/React.createElement("div", {
+  }, "Type, say, or photograph what you had. A photo plus a few words is the most accurate, it catches the portion size, oils and extras a picture alone can miss. You confirm before it's logged."), onScan && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2 rounded-2xl p-3 mb-3 border border-[#262629]",
     style: {
       background: 'var(--surface3)'
@@ -9731,11 +9746,15 @@ function DescribeTab({
       color: 'var(--accent)'
     }
   }, "Scan instead")), /*#__PURE__*/React.createElement("textarea", {
+    ref: taRef,
     value: text,
-    onChange: e => setText(e.target.value),
+    onChange: e => {
+      setText(e.target.value);
+      if (e.target.value.trim()) setPushText(false);
+    },
     rows: 3,
     className: inputCls + ' resize-y leading-relaxed',
-    placeholder: "e.g. Starbucks grande oat milk caramel macchiato and a butter croissant"
+    placeholder: imgs.length ? 'Add a few words for a sharper estimate: how big it was, how it was cooked, oil or butter, sauces, the brand, and how much you ate' : 'e.g. Starbucks grande oat milk caramel macchiato and a butter croissant'
   }), listening && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5 flex items-center gap-1.5",
     style: {
@@ -9768,7 +9787,32 @@ function DescribeTab({
   }, /*#__PURE__*/React.createElement(Icon.cam, {
     width: "18",
     height: "18"
-  }), " ", imgs.length ? 'Add another photo' : 'Take or upload a photo'), /*#__PURE__*/React.createElement("div", {
+  }), " ", imgs.length ? 'Add another photo' : 'Take or upload a photo'), imgs.length > 0 && !text.trim() && /*#__PURE__*/React.createElement("div", {
+    className: "rounded-2xl p-3 mt-3",
+    style: {
+      background: pushText ? 'var(--accent-dim)' : 'var(--surface3)',
+      border: '1px solid ' + (pushText ? 'var(--fat)' : 'var(--border)')
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] font-semibold mb-1",
+    style: {
+      color: 'var(--text)'
+    }
+  }, pushText ? 'Add a few words first, it really helps' : 'A quick description makes this far more accurate'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug mb-2.5"
+  }, "A photo alone can't see portion size, cooking oils or hidden extras. Tap to add detail, or type your own:"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 flex-wrap"
+  }, ['Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Extra cheese', 'With sauce'].map(w => /*#__PURE__*/React.createElement("button", {
+    key: w,
+    type: "button",
+    onClick: () => addHint(w),
+    className: "rounded-lg px-2.5 py-1.5 text-[11px]",
+    style: {
+      background: 'var(--bg)',
+      border: '1px solid var(--border)',
+      color: 'var(--text)'
+    }
+  }, "+ ", w)))), /*#__PURE__*/React.createElement("div", {
     className: "flex items-stretch gap-2 mt-3"
   }, SR && /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -9789,7 +9833,7 @@ function DescribeTab({
     kind: "accent",
     className: "flex-1",
     onClick: run
-  }, "Estimate with AI")), err && /*#__PURE__*/React.createElement("div", {
+  }, imgs.length && !text.trim() && pushText ? 'Estimate from the photo anyway' : 'Estimate with AI')), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mt-3 fade-in"
   }, err));
 }
