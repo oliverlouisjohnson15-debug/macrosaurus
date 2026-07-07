@@ -8185,7 +8185,7 @@ function LogSheet({
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTab] = useState('recent');
   const [mealId, setMealId] = useState(target.mealId || meals[0].id);
-  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['recent', 'Recent'], ['meals', 'Meals'], ['search', 'Search'], ['describe', 'Describe'], ['photo', 'Photo'], ['manual', 'Manual']];
+  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['recent', 'Recent'], ['meals', 'Meals'], ['search', 'Search'], ['photo', 'Scan'], ['describe', 'Describe'], ['manual', 'Manual']];
   useEffect(() => {
     if (isAlc && (tab === 'search' || tab === 'photo' || tab === 'meals' || tab === 'describe')) setTab('recent');
   }, [isAlc]);
@@ -8264,7 +8264,8 @@ function LogSheet({
     onLog: items => onAddMeal(mealId, items)
   }), tab === 'describe' && /*#__PURE__*/React.createElement(DescribeTab, {
     db: db,
-    onPick: i => onAdd(mealId, i)
+    onPick: i => onAdd(mealId, i),
+    onScan: () => setTab('photo')
   }), tab === 'search' && /*#__PURE__*/React.createElement(SearchTab, {
     onPick: i => onAdd(mealId, i)
   }), tab === 'manual' && (isAlc ? /*#__PURE__*/React.createElement(AlcoholTab, {
@@ -9127,7 +9128,8 @@ function AiConfirm({
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
 function DescribeTab({
   db,
-  onPick
+  onPick,
+  onScan
 }) {
   const key = db.profile.aiKey || 'builtin';
   const [text, setText] = useState('');
@@ -9233,7 +9235,21 @@ function DescribeTab({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Type or say what you had. Perfect for coffees, cocktails or a named order a photo can't capture. The AI works out the macros and you confirm before it's logged."), /*#__PURE__*/React.createElement("textarea", {
+  }, "Type or say what you had. Perfect for coffees, cocktails or a named order a photo can't capture. The AI works out the macros and you confirm before it's logged."), onScan && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between gap-2 rounded-2xl p-3 mb-3 border border-[#262629]",
+    style: {
+      background: 'var(--surface3)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug"
+  }, "Got a barcode or nutrition label? Scanning it is more accurate."), /*#__PURE__*/React.createElement("button", {
+    onClick: onScan,
+    className: "text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border",
+    style: {
+      borderColor: 'var(--border)',
+      color: 'var(--accent)'
+    }
+  }, "Scan instead")), /*#__PURE__*/React.createElement("textarea", {
     value: text,
     onChange: e => setText(e.target.value),
     rows: 4,
@@ -9738,45 +9754,9 @@ function PhotoTab({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Uses AI. You check every estimate before it's added."), /*#__PURE__*/React.createElement("div", {
+  }, "Packaged food? Scanning the barcode or label is the most accurate way to log it. You check every estimate before it is saved."), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2.5"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => key ? setMode('label') : setErr('Add your AI key in Menu → Settings first.'),
-    className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"
-  }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "22",
-    height: "22",
-    style: {
-      color: CAL
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-medium flex items-center gap-2"
-  }, "Scan a nutrition label ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] uppercase tracking-wide text-black bg-white rounded px-1.5 py-0.5"
-  }, key ? 'AI' : 'Key')), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90]"
-  }, key ? 'Point your camera at the pack, the AI reads the macros.' : 'Add an AI key in Settings to enable.'))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => key ? setMode('meal') : setErr('Add your AI key in Menu → Settings first.'),
-    className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"
-  }, /*#__PURE__*/React.createElement(PixelGlyph, {
-    kind: "plate",
-    color: "currentColor",
-    size: 18
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-medium flex items-center gap-2"
-  }, "Estimate a meal ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] uppercase tracking-wide text-black bg-white rounded px-1.5 py-0.5"
-  }, key ? 'AI' : 'Key')), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90]"
-  }, "Add photos of your food or menu, plus notes."))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setMode('scan'),
     className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
@@ -9795,7 +9775,43 @@ function PhotoTab({
     className: "text-[10px] uppercase tracking-wide text-black bg-white rounded px-1.5 py-0.5"
   }, "Free")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
-  }, "Live camera scan, looked up in the food database.")))), busy && /*#__PURE__*/React.createElement("div", {
+  }, "Most accurate for anything packaged. Looked up in the food database, no AI needed."))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => key ? setMode('label') : setErr('AI is unavailable right now. Please try again.'),
+    className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "22",
+    height: "22",
+    style: {
+      color: CAL
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-medium flex items-center gap-2"
+  }, "Scan a nutrition label ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] uppercase tracking-wide text-black bg-white rounded px-1.5 py-0.5"
+  }, "AI")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, "No barcode? Point your camera at the label and the AI reads the exact numbers."))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => key ? setMode('meal') : setErr('AI is unavailable right now. Please try again.'),
+    className: "w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "plate",
+    color: "currentColor",
+    size: 18
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-medium flex items-center gap-2"
+  }, "Estimate a meal from a photo ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] uppercase tracking-wide text-black bg-white rounded px-1.5 py-0.5"
+  }, "AI")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, "For a plated meal or takeaway with no label. Photograph your food or menu and the AI estimates it.")))), busy && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#4A9EEB] mt-3 fade-in"
   }, busy), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mt-3 fade-in"
