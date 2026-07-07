@@ -9492,6 +9492,10 @@ function AiConfirm({
   const low = Math.round((+src.kcal_low || 0) * p),
     high = Math.round((+src.kcal_high || 0) * p);
   const implausible = final.kcal > 4000;
+  // Same guard as the scan/database confirm screen: flag when the total calories run clearly higher
+  // than the macros account for. The fix here is to tweak an item or ask the AI to redo it.
+  const atwT = Math.round(final.protein * 4 + final.carbs * 4 + final.fat * 9);
+  const kcalHigh = final.kcal > 0 && atwT > 0 && final.kcal > atwT * 1.15 + 25;
   const stepP = d => setPortion(String(Math.max(0, Math.round(((+portion || 0) + d) * 100) / 100)));
   const portionLabel = p === 1 ? 'the whole meal' : fmtCount(p) + ' of the meal';
   const qtyLabel = p === 1 ? '' : fmtCount(p) + ' portion';
@@ -9636,8 +9640,22 @@ function AiConfirm({
       opacity: busy || !fix.trim() ? 0.5 : 1
     },
     onClick: () => onRefine(fix.trim())
-  }, busy ? 'Re-estimating…' : 'Re-estimate with this')), /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
+  }, busy ? 'Re-estimating…' : 'Re-estimate with this')), kcalHigh && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-2",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      borderColor: 'var(--fat)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] font-semibold mb-1",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "Calories look high for these macros"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug"
+  }, "This totals ", final.kcal, " kcal, but the protein, carbs and fat only add up to about ", atwT, " kcal. If that is not right, tweak an item above or use \"Tell the AI what to fix\".")), /*#__PURE__*/React.createElement(Btn, {
+    kind: kcalHigh ? 'ghost' : 'accent',
     className: "w-full",
     disabled: final.kcal <= 0,
     style: {
@@ -9652,7 +9670,7 @@ function AiConfirm({
         macros: final
       });
     }
-  }, "Add to log"));
+  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add to log'));
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
