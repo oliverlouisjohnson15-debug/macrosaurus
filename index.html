@@ -10474,36 +10474,18 @@ function loadExternalScript(src, globalName) {
     if (window[globalName]) resolve();
   });
 }
-// Load a script tag once (resolve on its load event). Used to lazy-load the ZBar-WASM barcode engine
-// only when someone opens the scanner, so it never slows normal app load.
-function loadScriptOnce(src) {
-  return new Promise((resolve, reject) => {
-    let s = document.querySelector('script[data-src="' + src + '"]');
-    if (s && s.getAttribute('data-loaded') === '1') return resolve();
-    if (!s) {
-      s = document.createElement('script');
-      s.src = src;
-      s.setAttribute('data-src', src);
-      document.head.appendChild(s);
-    }
-    s.addEventListener('load', () => {
-      s.setAttribute('data-loaded', '1');
-      resolve();
-    });
-    s.addEventListener('error', () => reject(new Error('script load failed: ' + src)));
-  });
-}
 // Barcode scanning uses the standard BarcodeDetector API. Android/Chrome have it natively (fast). iOS
 // Safari does not, so we polyfill it with a WebAssembly build of ZBar (near-native and reliable for
-// EAN/UPC), loaded from the CDN only when needed. Same API either way.
-const ZBAR_WASM_LIB = 'https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.9.15/dist/index.js';
-const BARCODE_POLYFILL_LIB = 'https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill@0.9.23/dist/index.js';
+// EAN/UPC), dynamically imported from the CDN only when needed; the polyfill self-loads its WASM engine.
+// Verified decoding real EAN-13/UPC barcodes. The import() is wrapped in Function() so the build step
+// leaves it untouched, since the app ships as a classic (non-module) script.
+const BARCODE_POLYFILL_ESM = 'https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill@0.9.23/dist/main.js';
 const BARCODE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
 async function ensureBarcodeDetector() {
   if (window.BarcodeDetector) return; // native, e.g. Android Chrome
-  await loadScriptOnce(ZBAR_WASM_LIB);
-  await loadScriptOnce(BARCODE_POLYFILL_LIB);
-  if (!window.BarcodeDetector && window.barcodeDetectorPolyfill) window.BarcodeDetector = window.barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
+  const importESM = new Function('u', 'return import(u)');
+  const mod = await importESM(BARCODE_POLYFILL_ESM);
+  if (!window.BarcodeDetector && mod && mod.BarcodeDetectorPolyfill) window.BarcodeDetector = mod.BarcodeDetectorPolyfill;
 }
 function LiveScanner({
   onFound,
