@@ -4477,6 +4477,14 @@ function CheckInModal({
       accepted: true
     }));
   }
+  // Values that make the result screen readable at a glance: the rate you aimed for vs the rate you
+  // actually trended, and when the next check-in comes round.
+  const baseMac = base || {};
+  const tgtRate = p.goalType === 'maintain' ? 0 : p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0);
+  const actRate = result && result.estimate ? result.estimate.weeklyChangeKg : null;
+  const rateOnGoal = actRate == null ? null : p.goalType === 'cut' ? actRate < 0.02 : p.goalType === 'gain' ? actRate > -0.02 : Math.abs(actRate) < 0.15;
+  const fmtRate = r => Math.abs(r) < 0.02 ? 'steady' : fmtWeightDelta(r, unit, '/wk');
+  const nextCheckISO = shiftISO(today, 7);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
     onClick: onClose
@@ -4515,8 +4523,27 @@ function CheckInModal({
   }, result.dinoLine)), /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
   }, result.reason), result.estimate && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mt-2 tnum"
-  }, "Est. burn ~", result.estimate.tdee, " · trend ", result.estimate.weeklyChangeKg, " kg/wk"), coach && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 pixel-box p-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] uppercase tracking-widest text-[#8A8A90]"
+  }, "Aiming for"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] tnum font-semibold"
+  }, fmtRate(tgtRate))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] uppercase tracking-widest text-[#8A8A90]"
+  }, "You trended"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] tnum font-semibold",
+    style: {
+      color: rateOnGoal == null ? 'var(--text)' : rateOnGoal ? 'var(--good)' : 'var(--fat)'
+    }
+  }, fmtRate(actRate)))), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]"
+  }, "Estimated daily burn about ", result.estimate.tdee, " kcal, from your logged intake and weight trend.")), coach && /*#__PURE__*/React.createElement("div", {
     className: "mt-3 pixel-box p-3",
     style: {
       background: 'var(--surface3)',
@@ -4535,24 +4562,62 @@ function CheckInModal({
   }, "Couldn't reach the AI coach this time, your numbers above are all set.") : /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] leading-snug"
   }, coach.text)), result.status === 'proposed' && result.changed && !result.accepted && /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 min-[381px]:grid-cols-4 gap-2 my-3"
-  }, /*#__PURE__*/React.createElement(Mini, {
-    n: result.newTargets.kcal,
-    l: "kcal",
-    c: "var(--text)"
-  }), /*#__PURE__*/React.createElement(Mini, {
-    n: result.newTargets.protein_g + 'g',
-    l: "protein",
-    c: PRO
-  }), /*#__PURE__*/React.createElement(Mini, {
-    n: result.newTargets.carbs_g + 'g',
-    l: "carbs",
-    c: CARB
-  }), /*#__PURE__*/React.createElement(Mini, {
-    n: result.newTargets.fat_g + 'g',
-    l: "fat",
-    c: FAT
-  })), result.status === 'proposed' && result.changed && !result.accepted ? /*#__PURE__*/React.createElement("div", {
+    className: "my-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
+  }, "New daily targets"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 min-[381px]:grid-cols-4 gap-2"
+  }, [{
+    l: 'kcal',
+    now: baseMac.kcal,
+    next: result.newTargets.kcal,
+    c: 'var(--text)',
+    suf: ''
+  }, {
+    l: 'protein',
+    now: baseMac.protein_g,
+    next: result.newTargets.protein_g,
+    c: PRO,
+    suf: 'g'
+  }, {
+    l: 'carbs',
+    now: baseMac.carbs_g,
+    next: result.newTargets.carbs_g,
+    c: CARB,
+    suf: 'g'
+  }, {
+    l: 'fat',
+    now: baseMac.fat_g,
+    next: result.newTargets.fat_g,
+    c: FAT,
+    suf: 'g'
+  }].map((r, i) => {
+    const d = r.now != null ? Math.round((r.next - r.now) * 10) / 10 : null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      className: "pixel-box p-2 text-center",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[9px] uppercase tracking-widest text-[#8A8A90]"
+    }, r.l), /*#__PURE__*/React.createElement("div", {
+      className: "text-lg font-bold tnum leading-tight",
+      style: {
+        color: r.c
+      }
+    }, r.next, r.suf), d != null && d !== 0 ? /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] tnum",
+      style: {
+        color: d > 0 ? 'var(--good)' : 'var(--fat)'
+      }
+    }, d > 0 ? '+' : '', d, r.suf, " · was ", r.now, r.suf) : /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] tnum text-[#8A8A90]"
+    }, "no change"));
+  }))), !result.accepted && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"
+  }, /*#__PURE__*/React.createElement("span", null, "🗓"), /*#__PURE__*/React.createElement("span", null, "Next check-in around ", fmtShortDay(nextCheckISO), ". Keep logging and weighing daily so it can retune accurately.")), result.status === 'proposed' && result.changed && !result.accepted ? /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mt-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
