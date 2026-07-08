@@ -9957,6 +9957,11 @@ function AiConfirm({
   // removing a glass of wine you didn't drink updates it). The portion multiplier on top says how
   // much of that meal you actually ate, mirroring the scan screen's amount control.
   const hadItems = (src.items || []).length > 0;
+  // A one-food estimate (e.g. "tandoori roti") logs like a normal by-grams food: the item's grams are
+  // the editable quantity that carries straight through to the log, instead of a "× meal" multiplier.
+  const single = (src.items || []).length === 1;
+  const only = single ? items[0] : null;
+  const gStep = g => g < 25 ? 1 : g < 250 ? 5 : 10;
   const base = hadItems ? items.reduce((a, it) => ({
     kcal: a.kcal + (+it.kcal || 0),
     protein: a.protein + (+it.protein || 0),
@@ -9993,7 +9998,7 @@ function AiConfirm({
   const atwT = Math.round(final.protein * 4 + final.carbs * 4 + final.fat * 9);
   const kcalHigh = final.kcal > 0 && atwT > 0 && final.kcal > atwT * 1.15 + 25;
   const stepP = d => setPortion(String(Math.max(0, Math.round(((+portion || 0) + d) * 100) / 100)));
-  const portionLabel = p === 1 ? 'the whole meal' : fmtCount(p) + ' of the meal';
+  const portionLabel = single ? fmtCount(+(only && only.grams) || 0) + ' g' : p === 1 ? 'the whole meal' : fmtCount(p) + ' of the meal';
   const qtyLabel = p === 1 ? '' : fmtCount(p) + ' portion';
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -10017,7 +10022,25 @@ function AiConfirm({
     onChange: e => setName(e.target.value)
   })), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
-  }, "How much of this did you eat?"), /*#__PURE__*/React.createElement("div", {
+  }, "How much did you have?"), single ? /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setGrams(0, String(Math.max(0, (+only.grams || 0) - gStep(+only.grams || 0)))),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
+    "aria-label": "Less"
+  }, "−"), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: only.grams,
+    onChange: e => setGrams(0, e.target.value),
+    className: inputCls + ' text-center'
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setGrams(0, String((+only.grams || 0) + gStep(+only.grams || 0))),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
+    "aria-label": "More"
+  }, "+"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] shrink-0 w-16 text-center"
+  }, "grams")) : /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => stepP(-0.25),
@@ -10081,10 +10104,10 @@ function AiConfirm({
     }
   }, "Honest range: ", low, "–", high, " kcal. Logging your total, no sugar-coating."), src.assumptions && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
-  }, "Assumed: ", src.assumptions), hadItems && /*#__PURE__*/React.createElement("button", {
+  }, "Assumed: ", src.assumptions), hadItems && !single && /*#__PURE__*/React.createElement("button", {
     onClick: () => setEdit(e => !e),
     className: "text-[11px] text-[#8A8A90] mb-2"
-  }, edit ? '▲ Hide the breakdown' : '▾ Adjust the breakdown, item by item'), hadItems && edit && /*#__PURE__*/React.createElement("div", {
+  }, edit ? '▲ Hide the breakdown' : '▾ Adjust the breakdown, item by item'), hadItems && !single && edit && /*#__PURE__*/React.createElement("div", {
     className: "fade-in space-y-2 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] leading-snug"
@@ -10174,13 +10197,27 @@ function AiConfirm({
         fat: +it.fat || 0,
         fiber: +it.fiber || 0
       }));
-      onAdd({
-        name: name || 'Meal',
-        source: 'ai_estimate',
-        qtyLabel: qtyLabel,
-        macros: final,
-        rememberItems: remember
-      });
+      if (single) {
+        const g = +only.grams || 0;
+        onAdd({
+          name: name || only.name || 'Food',
+          source: 'ai_estimate',
+          qtyLabel: g > 0 ? fmtCount(g) + ' g' : '',
+          macros: final,
+          unit: 'g',
+          amount: g,
+          unitNoun: 'g',
+          rememberItems: remember
+        });
+      } else {
+        onAdd({
+          name: name || 'Meal',
+          source: 'ai_estimate',
+          qtyLabel: qtyLabel,
+          macros: final,
+          rememberItems: remember
+        });
+      }
     }
   }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add to log'));
 }
