@@ -4347,8 +4347,15 @@ function CheckInModal({
   const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
   const loggedDays = new Set(db.log_entries.filter(e => e.date >= cs && e.date <= today).map(e => e.date)).size;
   const weighDays = countWeighIns(db.weight_entries, cs, today);
-  const needLogs = Math.max(4, Math.ceil(cycleDays * 0.7));
-  const needWeigh = Math.max(3, Math.ceil(cycleDays * 0.5));
+  // Check-ins are recommended first thing, before you've logged (or weighed) today, so an un-actioned
+  // TODAY shouldn't count against your coverage. Judge over the days you could realistically have
+  // completed by now: drop today from the denominator until it actually has a log / weigh-in.
+  const todayLogged = db.log_entries.some(e => e.date === today);
+  const todayWeighed = db.weight_entries.some(w => w.date === today && w.scale_weight != null);
+  const logWindow = Math.max(1, cycleDays - (todayLogged ? 0 : 1));
+  const weighWindow = Math.max(1, cycleDays - (todayWeighed ? 0 : 1));
+  const needLogs = Math.max(4, Math.ceil(logWindow * 0.7));
+  const needWeigh = Math.max(3, Math.ceil(weighWindow * 0.5));
   const onTrack = loggedDays >= needLogs && weighDays >= needWeigh;
   const wkAvg = avgWeight(db.weight_entries, cs, today);
   const last = db.weight_entries[db.weight_entries.length - 1];
@@ -4467,7 +4474,7 @@ function CheckInModal({
     if (!onTrack) {
       setResult({
         status: 'held',
-        reason: `You logged food on ${loggedDays}/${cycleDays} days and weighed in on ${weighDays}/${cycleDays} this cycle. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.`
+        reason: `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.`
       });
       return;
     }
@@ -4712,12 +4719,12 @@ function CheckInModal({
   }, "Compares this cycle's average weight to the previous one, so one odd morning never throws it off."), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
   }, /*#__PURE__*/React.createElement(MiniStat, {
-    label: `Food logs (${cycleDays}-day cycle)`,
-    value: loggedDays + '/' + cycleDays,
+    label: "Food logs so far",
+    value: loggedDays + '/' + logWindow,
     ok: loggedDays >= needLogs
   }), /*#__PURE__*/React.createElement(MiniStat, {
-    label: `Weigh-ins (${cycleDays}-day cycle)`,
-    value: weighDays + '/' + cycleDays,
+    label: "Weigh-ins so far",
+    value: weighDays + '/' + weighWindow,
     ok: weighDays >= needWeigh
   })), !onTrack && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mb-3"
