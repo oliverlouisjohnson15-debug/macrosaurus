@@ -535,8 +535,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script>
-/*
+<script>/*
  * engine.js - Adaptive nutrition engine (pure, framework-free)
  * Weights in KG internally; body fat is a percent. Exposes window.Engine + Node module.exports.
  * v2: steps+training TDEE model, moderate protein, calorie cycling + carryover. See PLAN.md §3–4.
@@ -776,6 +775,50 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate };
   }
 
+  // First-cycle (no prior baseline) adjustment. Early rapid weight change is largely water and glycogen,
+  // not fat, and a short window is noisy, so instead of a full retune we give a SMALL, science-scaled
+  // nudge in the "eat more" direction when a cut runs faster than target (or trim a too-fast gain). The
+  // nudge scales with how far past target you are, is discounted for water plus the short window
+  // (keep only 25-60%, rising toward a fortnight), and is hard-capped. Normal cycle-vs-cycle adjustment
+  // (weeklyAdjust) takes over from the second check-in once a real baseline exists.
+  function earlyAdjust(opts) {
+    var profile = opts.profile;
+    var currentKcal = opts.currentTargets.kcal;
+    var minDays = opts.minDays || 5;
+    var periodDays = opts.periodDays || (opts.estimate && opts.estimate.days) || 7;
+    var unit = profile.weight_unit;
+    var goal = profile.goalType;
+    var actual = opts.estimate.weeklyChangeKg; // -ve = losing
+    var target = goal === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : goal === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0;
+    function rt(kg) { return unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(2) + ' kg'; }
+    var actualStr = actual < -0.02 ? 'losing ' + rt(actual) + '/wk' : actual > 0.02 ? 'gaining ' + rt(actual) + '/wk' : 'holding steady';
+    if (opts.adherenceDays < minDays) {
+      return { changed: false, earlyPhase: true, reason: 'Only ' + opts.adherenceDays + '/' + periodDays + ' days logged this cycle, so I\'m holding your targets. Log a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
+    }
+    // Only act on a CLEAR deviation past target (>0.25 kg/wk), and only in the "eat more" direction this
+    // early, so noisy first-week data can never over-cut you.
+    var pastTarget = 0, dir = 'unchanged';
+    if (goal === 'cut' && actual < target - 0.25) { pastTarget = Math.abs(actual) - Math.abs(target); dir = 'up'; }
+    else if (goal === 'gain' && actual > target + 0.25) { pastTarget = actual - target; dir = 'down'; }
+    var earlyCap = opts.earlyCap || 150;
+    var fullGiveBack = pastTarget * KCAL_PER_KG / 7;                 // kcal/day if the excess were all fat
+    var earlyFactor = clamp(periodDays / 14, 0.25, 0.6);            // discount water + short-window noise
+    var nudge = clamp(round(fullGiveBack * earlyFactor / 10) * 10, 0, earlyCap);
+    if (dir === 'unchanged' || nudge < 25) {
+      return { changed: false, earlyPhase: true, direction: 'unchanged', expectedKgPerWeek: round(target, 2), actualKgPerWeek: round(actual, 3),
+        reason: 'You\'re ' + actualStr + '. This early it\'s a short, noisy read and a lot of any first-fortnight change is water, not fat, so I\'m holding for now. Keep logging and weighing daily and I\'ll retune from your settled trend.', estimate: opts.estimate };
+    }
+    var signed = dir === 'up' ? nudge : -nudge;
+    var newKcal = Math.max(kcalFloor(profile), currentKcal + signed);
+    var newTargets = macrosFromKcal(newKcal, profile);
+    newTargets.estimatedTDEE = opts.estimate.tdee;
+    newTargets.source = 'adaptive-early';
+    var reason = goal === 'gain'
+      ? 'You\'re ' + actualStr + ', quicker than your ' + rt(target) + '/wk target. Some early gain is water and food weight, not muscle, so rather than a big cut I\'ve trimmed ' + nudge + ' kcal to ' + round(newKcal) + '. Keep going and I\'ll fine-tune from your settled trend next check-in. Protein stays ' + newTargets.protein_g + ' g.'
+      : 'You\'re ' + actualStr + ', quicker than your ' + rt(target) + '/wk target. A lot of an early drop is water and glycogen, not fat, so rather than a big jump I\'ve nudged you up ' + nudge + ' kcal to ' + round(newKcal) + '. Keep it up and I\'ll fine-tune from your settled trend next check-in. Protein stays ' + newTargets.protein_g + ' g.';
+    return { changed: true, earlyPhase: true, direction: dir, deltaKcal: signed, confidence: 'low', expectedKgPerWeek: round(target, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate };
+  }
+
   // ---- linear regression: returns slope, intercept, and standard error of slope ----
   function linreg(xs, ys) {
     var n = xs.length;
@@ -891,12 +934,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     KCAL_FLOOR: KCAL_FLOOR, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
-    trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, round: round,
+    trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
-})(typeof window !== 'undefined' ? window : this);
-</script>
+})(typeof window !== 'undefined' ? window : this);</script>
 <script>
 /*
  * store.js, Local-first repository (localStorage).
@@ -4246,7 +4288,7 @@ function CoachCard({
     good: weighed >= needWeigh
   }), /*#__PURE__*/React.createElement(Stat, {
     label: 'Protein hit' + (proDenom ? ' (of ' + proDenom + ')' : ''),
-    value: proDenom ? proHit + '/' + proDenom : '·',
+    value: proDenom ? proHit + '/' + proDenom : 'n/a',
     good: proDenom > 0 && proHit === proDenom
   })), proTarget > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-3 leading-snug"
@@ -4337,7 +4379,8 @@ function CheckInModal({
       newKcal: result.newTargets ? result.newTargets.kcal : base ? base.kcal : null,
       deltaKcal: result.deltaKcal || 0,
       protein_g: result.newTargets ? result.newTargets.protein_g : base ? base.protein_g : null,
-      estimatedBurn_kcal: result.estimate ? result.estimate.tdee : null,
+      estimatedBurn_kcal: result.estimate && !result.earlyPhase ? result.estimate.tdee : null,
+      phase: result.earlyPhase ? 'first cycle (early: rapid loss is largely water, targets nudged gently not fully retuned)' : 'normal adaptive cycle',
       daysLogged: loggedDays,
       daysWeighed: weighDays,
       cycleDays: cycleDays,
@@ -4431,11 +4474,49 @@ function CheckInModal({
     const byDate = {};
     db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
     const days = Object.keys(byDate);
-    if (prevAvg == null || days.length < 3) {
+    if (days.length < 3) {
       setResult({
         status: 'needdata',
         reason: 'Not enough history yet. Keep weighing in daily and logging, and your next check-in will retune from the averages.'
       });
+      return;
+    }
+    const avgKcal = days.reduce((a, k) => a + byDate[k], 0) / days.length;
+    if (prevAvg == null) {
+      // First cycle: no previous-cycle baseline to diff against. Read the trend from THIS cycle's
+      // weigh-ins (regression) and apply the gentle, water-discounted early-phase nudge, rather than
+      // bailing out with "not enough history".
+      const cw = entries.filter(w => w.date >= cs && w.date <= today && w.scale_weight != null).sort((a, b) => a.date.localeCompare(b.date));
+      if (cw.length < 3) {
+        setResult({
+          status: 'needdata',
+          reason: 'Not enough weigh-ins this cycle yet. Weigh in daily and your first adjustment will come through.'
+        });
+        return;
+      }
+      const xs = cw.map(w => daysBetween(cs, w.date));
+      const ys = cw.map(w => w.scale_weight);
+      const weeklyChangeKg = E.linreg(xs, ys).slope * 7;
+      const est = {
+        tdee: Math.round(avgKcal - weeklyChangeKg * 7700 / 7),
+        avgKcal: Math.round(avgKcal),
+        weeklyChangeKg: +weeklyChangeKg.toFixed(3),
+        days: cycleDays
+      };
+      setResult(Object.assign({
+        status: 'proposed'
+      }, E.earlyAdjust({
+        profile: withActivity(Object.assign({}, p, {
+          weightKg: curAvg
+        })),
+        currentTargets: base,
+        estimate: est,
+        adherenceDays: loggedDays,
+        weighDays: weighDays,
+        minDays: needLogs,
+        periodDays: cycleDays,
+        earlyCap: 150
+      })));
       return;
     }
     const est = E.estimateExpenditure({
@@ -4537,7 +4618,7 @@ function CheckInModal({
     }
   }, fmtRate(actRate)))), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]"
-  }, "Estimated daily burn about ", result.estimate.tdee, " kcal, from your logged intake and weight trend.")), coach && /*#__PURE__*/React.createElement("div", {
+  }, result.earlyPhase ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.' : 'Estimated daily burn about ' + result.estimate.tdee + ' kcal, from your logged intake and weight trend.')), coach && /*#__PURE__*/React.createElement("div", {
     className: "mt-3 pixel-box p-3",
     style: {
       background: 'var(--surface3)',
@@ -4991,11 +5072,13 @@ function CheckInHistory({
       style: {
         color: good == null ? 'var(--text)' : good ? 'var(--good)' : 'var(--fat)'
       }
-    }, changeKg == null ? '·' : fmtWeightDelta(changeKg, unit)), rate != null && /*#__PURE__*/React.createElement("span", {
+    }, changeKg == null ? fmtWeight(c.weightKg, unit) : fmtWeightDelta(changeKg, unit)), changeKg == null ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[11px] text-[#8A8A90]"
+    }, "baseline") : rate != null && /*#__PURE__*/React.createElement("span", {
       className: "text-[11px] text-[#8A8A90] tnum"
     }, fmtWeightDelta(rate, unit, '/wk'))), /*#__PURE__*/React.createElement("span", {
       className: "text-[11px] tnum text-[#8A8A90]"
-    }, "avg ", fmtWeight(c.weightKg, unit))), /*#__PURE__*/React.createElement("div", {
+    }, changeKg == null ? 'first check-in' : 'avg ' + fmtWeight(c.weightKg, unit))), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] mt-1.5 pt-1.5 border-t border-[#262629] flex items-center justify-between"
     }, /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
