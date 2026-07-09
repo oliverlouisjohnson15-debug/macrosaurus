@@ -9053,11 +9053,10 @@ function LogSheet({
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTab] = useState(target.alc ? 'recent' : 'food');
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
-  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
+  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
   useEffect(() => {
-    if (isAlc) {
-      if (tab !== 'recent' && tab !== 'manual') setTab('recent');
-    } else if (tab === 'recent' || tab === 'manual') setTab('food');
+    if (isAlc && tab === 'food') setTab('recent');
+    if (!isAlc && (tab === 'recent' || tab === 'manual')) setTab('food');
   }, [isAlc]);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center",
@@ -9137,7 +9136,9 @@ function LogSheet({
     onPick: i => onAdd(mealId, i)
   }), tab === 'describe' && /*#__PURE__*/React.createElement(DescribeTab, {
     db: db,
-    onPick: i => onAdd(mealId, i),
+    onPick: i => onAdd(mealId, isAlc ? Object.assign({}, i, {
+      is_alcohol: true
+    }) : i),
     onScan: () => setTab('photo')
   }), tab === 'manual' && (isAlc ? /*#__PURE__*/React.createElement(AlcoholTab, {
     onPick: i => onAdd(mealId, i)
@@ -9145,6 +9146,7 @@ function LogSheet({
     onPick: i => onAdd(mealId, i)
   })), tab === 'photo' && /*#__PURE__*/React.createElement(PhotoTab, {
     db: db,
+    asAlcohol: isAlc,
     onPick: i => onAdd(mealId, i),
     onAskAI: () => setTab('describe')
   }))));
@@ -9611,7 +9613,8 @@ function ConfirmFood({
   onAskAI,
   saved,
   barcode,
-  badgeLabel
+  badgeLabel,
+  asAlcohol
 }) {
   const basisIsServing = !!perServing;
   const base0 = perServing || {
@@ -9669,7 +9672,7 @@ function ConfirmFood({
   // Calories run clearly higher than the macros can account for: the classic scan/entry-slip signature.
   // Skipped for alcohol (7 kcal/g) and when the dodgy card already covers it with scan/AI options.
   const atwaterK = Math.round(_dk);
-  const kcalHigh = !dodgy && source !== 'alcohol' && _dk > 0 && _kc > _dk * 1.15 + 15;
+  const kcalHigh = !dodgy && source !== 'alcohol' && !asAlcohol && _dk > 0 && _kc > _dk * 1.15 + 15;
   // Canonical bases (perGram = macros for one gram, perServMac = macros for one serving/piece),
   // derived by the tested quantity module so this scaling has regression coverage.
   const {
@@ -9976,7 +9979,8 @@ function ConfirmFood({
       baseKind: per100 ? 'per100' : 'serving',
       savedServingG: sg,
       savedServingLabel: servingLabel || '',
-      barcode: barcode || null
+      barcode: barcode || null,
+      is_alcohol: !!asAlcohol
     })
   }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add to log'));
 }
@@ -11143,7 +11147,8 @@ function labelReadReliable(est) {
 function PhotoTab({
   db,
   onPick,
-  onAskAI
+  onAskAI,
+  asAlcohol
 }) {
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
@@ -11288,6 +11293,7 @@ function PhotoTab({
   }
   if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, {
     ...parsed,
+    asAlcohol: asAlcohol,
     onAdd: onPick,
     onCancel: () => {
       setParsed(null);
@@ -11426,78 +11432,227 @@ function PhotoTab({
     className: "text-[12px] text-[#F5C542] mt-3 fade-in"
   }, err));
 }
+// UK drink standards: [label, default ABV %, residual carbs g/100ml]. Calories = alcohol (7 kcal/g,
+// ethanol 0.789 g/ml) + the drink's residual carbs, so a stated ABV and measure give an accurate figure.
+const DRINK_CATS = {
+  beer: {
+    label: 'Beer / Cider',
+    styleLabel: 'Style',
+    defServe: 1,
+    styles: [['Lager', 4.5, 3.3], ['IPA / pale ale', 5.5, 3.5], ['Bitter / ale', 4.0, 3.5], ['Stout', 4.2, 3.0], ['Cider (medium)', 4.5, 7.0], ['Cider (dry)', 5.0, 2.5], ['Custom', 4.5, 3.3]],
+    servings: [['Half', 284], ['Pint', 568], ['Bottle 330', 330], ['Can 440', 440], ['Can 500', 500]]
+  },
+  wine: {
+    label: 'Wine',
+    styleLabel: 'Style',
+    defServe: 1,
+    styles: [['Red', 13, 2.5], ['White', 12.5, 2.5], ['Rosé', 12, 3.0], ['Prosecco', 11.5, 1.5], ['Champagne', 12, 1.5], ['Custom', 13, 2.5]],
+    servings: [['125ml', 125], ['175ml', 175], ['250ml', 250], ['Bottle', 750]]
+  },
+  spirit: {
+    label: 'Spirits',
+    styleLabel: 'Spirit',
+    defServe: 0,
+    styles: [['Gin', 40, 0], ['Vodka', 40, 0], ['Whisky', 40, 0], ['Rum', 40, 0], ['Tequila', 38, 0], ['Custom', 40, 0]],
+    servings: [['Single 25ml', 25], ['Double 50ml', 50], ['Large 35ml', 35]]
+  }
+};
+// [label, kcal] for a typical ~150ml mixer serving.
+const MIXERS = [['No mixer', 0], ['Cola', 63], ['Diet / slimline', 1], ['Tonic', 52], ['Slimline tonic', 4], ['Lemonade', 38], ['Soda / water', 0], ['Orange juice', 63]];
+const ETHANOL_G_PER_ML = 0.789,
+  KCAL_PER_G_ALC = 7;
 function AlcoholTab({
   onPick
 }) {
-  const PRESETS = [['Pint of lager (4%)', 180], ['Pint of cider', 210], ['175ml wine', 160], ['Single spirit + mixer', 120], ['Bottle of beer', 150], ['Custom', 0]];
-  const [name, setName] = useState('Pint of lager (4%)');
-  const [qty, setQty] = useState('1 pint');
-  const [kcal, setKcal] = useState(180);
+  const [cat, setCat] = useState('beer');
+  const [styleIdx, setStyleIdx] = useState(0);
+  const [abv, setAbv] = useState(DRINK_CATS.beer.styles[0][1]);
+  const [serveIdx, setServeIdx] = useState(DRINK_CATS.beer.defServe);
+  const [customMl, setCustomMl] = useState('');
+  const [mixerIdx, setMixerIdx] = useState(0);
+  const [count, setCount] = useState(1);
   const [manual, setManual] = useState(false);
-  const [carbPct, setCarbPct] = useState(100);
+  const [carbPct, setCarbPct] = useState(50); // alcohol calories split across BOTH carbs and fat
   const [mc, setMc] = useState({
+    protein: '',
     carbs: '',
-    fat: '',
-    protein: ''
+    fat: ''
   });
-  const autoCarbs = kcal * carbPct / 100 / 4,
-    autoFat = kcal * (100 - carbPct) / 100 / 9;
+  const [otherName, setOtherName] = useState('Drink');
+  const [otherKcal, setOtherKcal] = useState(150);
+  const D = cat === 'other' ? null : DRINK_CATS[cat];
+  function chooseCat(c) {
+    setCat(c);
+    setStyleIdx(0);
+    setCustomMl('');
+    setMixerIdx(0);
+    if (DRINK_CATS[c]) {
+      setAbv(DRINK_CATS[c].styles[0][1]);
+      setServeIdx(DRINK_CATS[c].defServe);
+    }
+  }
+  function chooseStyle(i) {
+    setStyleIdx(i);
+    const s = D.styles[i];
+    if (s[0] !== 'Custom') setAbv(s[1]);
+  }
+  const residualPer100 = D ? D.styles[styleIdx][2] : 0;
+  const serving = D ? D.servings[serveIdx] : null;
+  const ml = customMl ? +customMl : serving ? serving[1] : 0;
+  const mixerKcal = cat === 'spirit' ? MIXERS[mixerIdx][1] : 0;
+  const perDrink = cat === 'other' ? +otherKcal || 0 : Math.round(ml * (+abv / 100) * ETHANOL_G_PER_ML * KCAL_PER_G_ALC + ml * (residualPer100 / 100) * 4 + mixerKcal);
+  const n = Math.max(1, +count || 1);
+  const totalKcal = perDrink * n;
+  const autoCarbs = totalKcal * carbPct / 100 / 4,
+    autoFat = totalKcal * (100 - carbPct) / 100 / 9;
+  const styleName = D ? D.styles[styleIdx][0] : '';
+  const serveName = customMl ? customMl + 'ml' : serving ? serving[0] : '';
+  const mixerName = MIXERS[mixerIdx][0];
+  const drinkName = cat === 'other' ? otherName || 'Drink' : cat === 'spirit' ? mixerIdx > 0 ? styleName + ' & ' + mixerName.toLowerCase() : styleName : styleName + ' (' + abv + '%)';
+  const qtyLabel = (n > 1 ? n + '× ' : '') + (cat === 'other' ? 'serving' : serveName);
   function add() {
     const macros = manual ? {
-      kcal: +kcal,
-      protein: +mc.protein || 0,
-      carbs: +mc.carbs || 0,
-      fat: +mc.fat || 0,
+      kcal: totalKcal,
+      protein: (+mc.protein || 0) * n,
+      carbs: (+mc.carbs || 0) * n,
+      fat: (+mc.fat || 0) * n,
       fiber: 0
     } : {
-      kcal: +kcal,
+      kcal: totalKcal,
       protein: 0,
       carbs: +autoCarbs.toFixed(1),
       fat: +autoFat.toFixed(1),
       fiber: 0
     };
     onPick({
-      name: name,
+      name: drinkName,
       source: 'alcohol',
       is_alcohol: true,
-      qtyLabel: qty,
+      qtyLabel: qtyLabel,
       alcohol_split: manual ? null : {
         carb_pct: carbPct,
         fat_pct: 100 - carbPct
       },
-      macros
+      macros: macros,
+      amount: n,
+      unitNoun: 'drink'
     });
   }
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Alcohol calories get booked against carbs and fat so your day still balances, or enter your own macros."), /*#__PURE__*/React.createElement("div", {
+  }, "Tell me the drink and measure and I'll work out the calories from its strength. Those calories are split across your carbs and fat so your day still balances."), /*#__PURE__*/React.createElement("div", {
+    className: "mb-3"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: cat,
+    onChange: chooseCat,
+    options: [{
+      v: 'beer',
+      l: 'Beer'
+    }, {
+      v: 'wine',
+      l: 'Wine'
+    }, {
+      v: 'spirit',
+      l: 'Spirits'
+    }, {
+      v: 'other',
+      l: 'Other'
+    }]
+  })), cat === 'other' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Field, {
+    label: "Name"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: otherName,
+    onChange: e => setOtherName(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Calories (per drink)"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: otherKcal,
+    onChange: e => setOtherKcal(e.target.value)
+  }))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "col-span-2"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Drink"
+    label: D.styleLabel
   }, /*#__PURE__*/React.createElement(Dropdown, {
-    value: name,
-    onChange: v => {
-      setName(v);
-      const p = PRESETS.find(x => x[0] === v);
-      if (p && p[1]) setKcal(p[1]);
-    },
-    options: PRESETS.map(p => ({
-      v: p[0],
-      l: p[0]
+    value: String(styleIdx),
+    onChange: v => chooseStyle(+v),
+    options: D.styles.map((s, i) => ({
+      v: String(i),
+      l: s[0]
     }))
   }))), /*#__PURE__*/React.createElement(Field, {
-    label: "Serving"
-  }, /*#__PURE__*/React.createElement(TextInput, {
-    value: qty,
-    onChange: e => setQty(e.target.value)
-  }))), /*#__PURE__*/React.createElement(Field, {
-    label: "Calories"
+    label: "ABV %"
   }, /*#__PURE__*/React.createElement(NumInput, {
-    value: kcal,
-    onChange: e => setKcal(e.target.value)
-  })), /*#__PURE__*/React.createElement("div", {
+    value: abv,
+    onChange: e => setAbv(e.target.value)
+  }))), /*#__PURE__*/React.createElement(Field, {
+    label: "Measure"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 flex-wrap"
+  }, D.servings.map((s, i) => /*#__PURE__*/React.createElement("button", {
+    key: i,
+    onClick: () => {
+      setServeIdx(i);
+      setCustomMl('');
+    },
+    className: `pixel-box px-2.5 py-2 text-[11px] ${!customMl && serveIdx === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
+    style: {
+      boxShadow: 'none'
+    }
+  }, s[0]))), /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: customMl,
+    onChange: e => setCustomMl(e.target.value),
+    placeholder: "or custom ml"
+  }))), cat === 'spirit' && /*#__PURE__*/React.createElement(Field, {
+    label: "Mixer"
+  }, /*#__PURE__*/React.createElement(Dropdown, {
+    value: String(mixerIdx),
+    onChange: v => setMixerIdx(+v),
+    options: MIXERS.map((m, i) => ({
+      v: String(i),
+      l: m[0]
+    }))
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2 mt-1"
+  }, "How many?"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCount(c => Math.max(1, (+c || 1) - 1)),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
+    "aria-label": "Fewer"
+  }, "−"), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: count,
+    onChange: e => setCount(e.target.value),
+    className: inputCls + ' text-center'
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCount(c => (+c || 1) + 1),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
+    "aria-label": "More"
+  }, "+"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] shrink-0 w-16 text-center"
+  }, "drink", n > 1 ? 's' : '')), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "tnum"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xl font-bold",
+    style: {
+      color: 'var(--text)'
+    }
+  }, totalKcal), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "kcal"), n > 1 && /*#__PURE__*/React.createElement("span", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, " · ", perDrink, " each"))), /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement(Seg, {
     value: manual ? 'manual' : 'auto',
@@ -11510,7 +11665,7 @@ function AlcoholTab({
       l: 'Enter macros'
     }]
   })), !manual ? /*#__PURE__*/React.createElement(Field, {
-    label: `${carbPct}% carbs · ${100 - carbPct}% fat`
+    label: `Split: ${carbPct}% carbs · ${100 - carbPct}% fat`
   }, /*#__PURE__*/React.createElement("input", {
     type: "range",
     min: "0",
@@ -11547,8 +11702,12 @@ function AlcoholTab({
   }))), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mt-1",
+    disabled: totalKcal <= 0,
+    style: {
+      opacity: totalKcal <= 0 ? 0.5 : 1
+    },
     onClick: add
-  }, "Add drink"));
+  }, "Add ", n > 1 ? n + ' drinks' : 'drink'));
 }
 
 /* =====================================================================
