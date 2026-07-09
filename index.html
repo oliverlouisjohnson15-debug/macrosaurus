@@ -3220,7 +3220,11 @@ function LegalDoc({
   }, d.sections.map((s, i) => /*#__PURE__*/React.createElement("div", {
     key: i
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] font-semibold mb-1"
+    className: "text-sm mb-1",
+    style: {
+      color: 'var(--accent)',
+      fontSynthesis: 'none'
+    }
   }, s.h), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed whitespace-pre-line"
   }, s.p))))));
