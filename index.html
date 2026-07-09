@@ -4452,7 +4452,9 @@ function CheckInModal({
         adhered: adhered === 'yes',
         days: cycleDays,
         logged: loggedDays,
-        weighed: weighDays
+        weighed: weighDays,
+        logWindow: logWindow,
+        weighWindow: weighWindow
       }]);
     });
     if (dietBreakActive(db, today)) {
@@ -5089,7 +5091,7 @@ function CheckInHistory({
       className: "text-[11px] mt-1.5 pt-1.5 border-t border-[#262629] flex items-center justify-between"
     }, /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, hasCounts ? `Logged ${c.logged}/${c.days} · Weighed ${c.weighed}/${c.days}` : 'Compliance'), /*#__PURE__*/React.createElement("span", {
+    }, hasCounts ? `Logged ${c.logged}/${c.logWindow != null ? c.logWindow : c.days} · Weighed ${c.weighed}/${c.weighWindow != null ? c.weighWindow : c.days}` : 'Compliance'), /*#__PURE__*/React.createElement("span", {
       style: {
         color: c.onTrack ? 'var(--good)' : 'var(--fat)'
       }
