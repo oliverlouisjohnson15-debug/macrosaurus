@@ -4303,7 +4303,7 @@ function CoachCard({
     }
   }, onTrack ? '✓ Enough logged and weighed for a confident adjustment.' : `For a reliable read, aim for ${needLogs} logged days and ${needWeigh} weigh-ins this cycle.`), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, alreadyToday ? 'Your macros are up to date. Nice work.' : ready ? 'Your targets retune from cycles like this, run your check-in to apply any adjustment.' : 'Keep logging and weighing daily; your check-in unlocks on day 5.'), !alreadyToday && /*#__PURE__*/React.createElement(Btn, {
+  }, alreadyToday ? 'Your macros are up to date. Nice work.' : ready ? 'Your targets retune from cycles like this, run your check-in to apply any adjustment.' : 'Keep logging and weighing daily; your check-in unlocks on day 5.'), !alreadyToday && full && /*#__PURE__*/React.createElement(Btn, {
     kind: ready ? 'accent' : 'ghost',
     disabled: !ready,
     className: "w-full",
@@ -7221,43 +7221,23 @@ function Dashboard({
         color: 'var(--muted)'
       }
     }, "i"));
-  })()), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3 mb-4"
-  }, /*#__PURE__*/React.createElement("button", {
+  })()), /*#__PURE__*/React.createElement("button", {
     onClick: () => onQuickAdd(false),
-    className: "pixel-btn py-4 text-[11px] flex items-center justify-center gap-2",
+    className: "pixel-btn w-full py-4 text-[11px] flex items-center justify-center gap-2 mb-4",
     style: {
       background: 'var(--pro)',
       color: '#fff'
     }
-  }, "+ LOG FOOD"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setShowFight(true),
-    className: "pixel-btn py-4 text-[11px] flex items-center justify-center gap-2",
-    style: {
-      background: 'var(--carb)',
-      color: '#fff'
-    }
-  }, /*#__PURE__*/React.createElement(PixelGlyph, {
-    kind: "glove",
-    color: "#fff",
-    size: 16
-  }), " FIGHT")), /*#__PURE__*/React.createElement(BuddyCard, {
-    db: db,
-    streak: streak,
-    freezeReady: freezeAvail,
-    onOpenDex: () => setShowDex(true)
-  }), /*#__PURE__*/React.createElement(CoachCard, {
-    db: db,
-    onCheckIn: onCheckIn
-  }), /*#__PURE__*/React.createElement("div", {
+  }, "+ LOG FOOD"), /*#__PURE__*/React.createElement("div", {
     id: "checkin-card"
   }, /*#__PURE__*/React.createElement(StatusCard, {
     db: db,
     update: update,
     onCheckIn: onCheckIn,
     streak: streak
-  })), /*#__PURE__*/React.createElement(ExpenditureCard, {
-    db: db
+  })), /*#__PURE__*/React.createElement(CoachCard, {
+    db: db,
+    onCheckIn: onCheckIn
   }), /*#__PURE__*/React.createElement(DietBreakCard, {
     db: db,
     update: update
@@ -7266,7 +7246,27 @@ function Dashboard({
   }, "Progress"), /*#__PURE__*/React.createElement(ProgressPanel, {
     db: db,
     update: update
+  }), /*#__PURE__*/React.createElement(ExpenditureCard, {
+    db: db
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold mb-3 mt-6"
+  }, "Streak and game"), /*#__PURE__*/React.createElement(BuddyCard, {
+    db: db,
+    streak: streak,
+    freezeReady: freezeAvail,
+    onOpenDex: () => setShowDex(true)
   }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowFight(true),
+    className: "pixel-btn w-full py-4 text-[11px] flex items-center justify-center gap-2 mb-4",
+    style: {
+      background: 'var(--carb)',
+      color: '#fff'
+    }
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "glove",
+    color: "#fff",
+    size: 16
+  }), " FIGHT"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowStats(s => !s),
     className: "w-full pixel-box bg-[#1E1E22] py-3 mb-4 text-[10px] flex items-center justify-center gap-2"
   }, showStats ? 'HIDE STATS' : 'MORE STATS'), showStats && /*#__PURE__*/React.createElement("div", {
@@ -11579,6 +11579,8 @@ function Goals({
   const p = db.profile;
   const unit = p.weight_unit;
   const base = currentTargets(db);
+  const today = Store.todayISO();
+  const [showAdv, setShowAdv] = useState(false);
   const seedGW = kgToStLb(p.goalWeightKg || p.weightKg);
   const [g, setG] = useState({
     goalType: p.goalType,
@@ -11665,11 +11667,31 @@ function Goals({
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "What you're working towards",
     title: "Goals"
-  }), /*#__PURE__*/React.createElement(CoachCard, {
-    db: db,
-    onCheckIn: onCheckIn,
-    variant: "goals"
-  }), base && /*#__PURE__*/React.createElement(Card, {
+  }), !db.paused && (() => {
+    const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
+    const ready = daysSince >= 5,
+      due = daysSince >= 7;
+    return /*#__PURE__*/React.createElement(Card, {
+      className: "p-4 mb-5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between gap-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] uppercase tracking-widest text-[#8A8A90]"
+    }, "Check-in"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px]"
+    }, due ? 'Due now' : ready ? 'Unlocked, you can check in' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`)), /*#__PURE__*/React.createElement(Btn, {
+      kind: ready ? 'accent' : 'ghost',
+      disabled: !ready,
+      style: {
+        opacity: ready ? 1 : .5
+      },
+      onClick: onCheckIn
+    }, "Check in")), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90] mt-2"
+    }, "Your cycle stats and trends live on the dashboard."));
+  })(), base && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-5"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
@@ -11773,7 +11795,13 @@ function Goals({
     value: gwKg,
     onChange: e => setGwKg(e.target.value),
     placeholder: "kg"
-  }))), /*#__PURE__*/React.createElement(Field, {
+  }))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setShowAdv(s => !s),
+    className: "text-[11px] text-[#8A8A90] mb-2"
+  }, showAdv ? '▲ Hide advanced' : '▾ Advanced: protein and diet style'), showAdv && /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement(Field, {
     label: `Protein: ${Math.round(g.proteinGPerKgLBM * leanKg(p))} g (${g.proteinGPerKgLBM.toFixed(1)} g/kg lean mass)`,
     hint: `Set per kg of LEAN mass so body fat doesn't inflate it. Your ${g.goalType === 'gain' ? 'lean-gain' : g.goalType} default is ${E.defaultProteinPerKgLBM(g.goalType)} g/kg lean. Evidence: Helms 2014 = 2.3–3.1 g/kg lean to hold muscle in a deficit; Jeff Nippard = 1.8–2.7 g/kg bodyweight when cutting.`
   }, /*#__PURE__*/React.createElement("input", {
@@ -11803,7 +11831,7 @@ function Goals({
       v: 'higher_carb',
       l: 'Higher carb'
     }]
-  })), !confirming ? /*#__PURE__*/React.createElement(Btn, {
+  }))), !confirming ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     disabled: !changed,
