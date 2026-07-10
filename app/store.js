@@ -98,6 +98,7 @@
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
+      deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
       goals: null,
     };
   }
@@ -170,6 +171,21 @@
     var fz = {};
     [older, newer].forEach(function (s) { (((s.freezes || {}).frozen) || []).forEach(function (d) { fz[d] = 1; }); });
     out.freezes = Object.assign({}, newer.freezes, { frozen: Object.keys(fz).sort() });
+    // Deletion tombstones: union both maps (latest timestamp wins), then drop any unioned entry whose
+    // id is tombstoned. Without this a merge resurrects deleted items, since the other copy still has them.
+    var del = {};
+    [older.deleted || {}, newer.deleted || {}].forEach(function (src) {
+      for (var id in src) { if (Object.prototype.hasOwnProperty.call(src, id) && (!del[id] || src[id] > del[id])) del[id] = src[id]; }
+    });
+    var alive = function (arr) { return (arr || []).filter(function (e) { return !(e && e.id != null && del[e.id]); }); };
+    out.log_entries    = alive(out.log_entries);
+    out.weight_entries = alive(out.weight_entries);
+    out.foods          = alive(out.foods);
+    out.saved_meals    = alive(out.saved_meals);
+    // Cap tombstones to the 1000 most recent so the map can't grow without bound.
+    var dids = Object.keys(del);
+    if (dids.length > 1000) { dids.sort(function (x, y) { return del[y] - del[x]; }); var cap = {}; dids.slice(0, 1000).forEach(function (id) { cap[id] = del[id]; }); del = cap; }
+    out.deleted = del;
     out._rev = Math.max(ra, rb);
     return out;
   }

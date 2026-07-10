@@ -1480,7 +1480,7 @@ function WeighInLog({ db, update }) {
   const entries = db.weight_entries.slice().sort((a, b) => b.date.localeCompare(a.date));
   const CAP = 8;
   const shown = showAll ? entries : entries.slice(0, CAP);
-  function del(e) { update(d => { d.weight_entries = d.weight_entries.filter(x => e.id ? x.id !== e.id : x.date !== e.date); recomputeTrend(d); }); }
+  function del(e) { update(d => { if (e.id) tombstone(d, [e.id]); d.weight_entries = d.weight_entries.filter(x => e.id ? x.id !== e.id : x.date !== e.date); recomputeTrend(d); }); }
   return (
     <Card className="p-4 mb-6">
       <div className="flex items-start justify-between mb-3">
@@ -2539,15 +2539,15 @@ function FoodLog({ db, update, openLog, showToast }) {
   const remCarbs = et ? Math.max(0, Math.round(et.eff.carbs_g - tot.carbs)) : 0;
   const remFat = et ? Math.max(0, Math.round(et.eff.fat_g - tot.fat)) : 0;
   const toast = (m, a, fn) => showToast && showToast(m, a, fn);
-  const del = (e) => { update(d => { d.log_entries = d.log_entries.filter(x => x.id !== e.id); }); setMenu(null); toast('Deleted ' + e.name, 'Undo', () => update(d => d.log_entries.push(e))); };
+  const del = (e) => { update(d => { tombstone(d, [e.id]); d.log_entries = d.log_entries.filter(x => x.id !== e.id); }); setMenu(null); toast('Deleted ' + e.name, 'Undo', () => update(d => { untombstone(d, [e.id]); d.log_entries.push(e); })); };
   const dup = (e) => { update(d => d.log_entries.push(Object.assign({}, e, { id: Store.uid() }))); setMenu(null); };
   const copyEntriesTo = (entries, targetDate, targetMeal) => {
     const copies = entries.map(e => Object.assign({}, e, { id: Store.uid(), date: targetDate }, targetMeal ? { meal_id: targetMeal } : {}));
     update(d => copies.forEach(c => d.log_entries.push(c))); setCopyTo(null);
     const lbl = targetDate === today ? 'today' : targetDate === shiftISO(today, 1) ? 'tomorrow' : new Date(targetDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    toast(copies.length + (copies.length === 1 ? ' item' : ' items') + ' copied to ' + lbl, 'Undo', () => update(d => { const ids = new Set(copies.map(c => c.id)); d.log_entries = d.log_entries.filter(x => !ids.has(x.id)); }));
+    toast(copies.length + (copies.length === 1 ? ' item' : ' items') + ' copied to ' + lbl, 'Undo', () => update(d => { const idl = copies.map(c => c.id); tombstone(d, idl); const ids = new Set(idl); d.log_entries = d.log_entries.filter(x => !ids.has(x.id)); }));
   };
-  const clearMeal = (m, me) => { const removed = me.slice(); update(d => { d.log_entries = d.log_entries.filter(x => !(x.meal_id === m.id && x.date === date)); }); setMealMenu(null); toast('Cleared ' + m.name, 'Undo', () => update(d => removed.forEach(e => d.log_entries.push(e)))); };
+  const clearMeal = (m, me) => { const removed = me.slice(); update(d => { tombstone(d, removed.map(x => x.id)); d.log_entries = d.log_entries.filter(x => !(x.meal_id === m.id && x.date === date)); }); setMealMenu(null); toast('Cleared ' + m.name, 'Undo', () => update(d => { untombstone(d, removed.map(x => x.id)); removed.forEach(e => d.log_entries.push(e)); })); };
   // ---- per-day meal editing (only this date; other days + the Settings default are untouched) ----
   const renameMeal = (m, name) => { if (!name.trim()) return; update(d => { const arr = ensureDayMeals(d, date); const mm = arr.find(x => x.id === m.id); if (mm) mm.name = name.trim(); }); };
   const addDayMeal = () => update(d => { const arr = ensureDayMeals(d, date); const maxS = arr.length ? Math.max.apply(null, arr.map(x => x.sort_order)) : -1; arr.push({ id: Store.uid(), user_id: Store.USER, name: 'Meal ' + (arr.length + 1), sort_order: maxS + 1 }); });
@@ -4614,6 +4614,10 @@ function idbSet(key, val) { return _idbOpen().then(function (dbc) { return new P
 function localLoad(uid) { return idbGet('state:' + uid); }
 function localSave(uid, data) { if (uid) idbSet('state:' + uid, data); }
 function stateRev(d) { return (d && d._rev) || 0; }
+// Record deletion tombstones so the merge-based sync never resurrects a deleted item. Call inside an
+// update() draft when removing entries; untombstone on undo so re-adding the same id sticks.
+function tombstone(d, ids) { d.deleted = d.deleted || {}; var t = Date.now(); ids.forEach(function (id) { if (id != null) d.deleted[id] = t; }); }
+function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id) { if (id != null) delete d.deleted[id]; }); }
 
 // Brief egg-crack reveal of the day's provisional catch after the FIRST food log of the day.
 // Non-blocking (pointer-events pass through) and gone in under 1.5s.
@@ -4841,6 +4845,22 @@ function App() {
     return function () { window.removeEventListener('online', flush); };
   }, [session]);
 
+  // Offer a reload when a freshly deployed service worker takes over. sw.js calls skipWaiting, so a
+  // new build activates immediately; a controllerchange after we already had a controller means the
+  // running page is now on old code. We also poll for a new deploy on load and on tab refocus.
+  const [updateReady, setUpdateReady] = useState(false);
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    var hadController = !!navigator.serviceWorker.controller;
+    function onChange() { if (hadController) setUpdateReady(true); }
+    navigator.serviceWorker.addEventListener('controllerchange', onChange);
+    function check() { navigator.serviceWorker.getRegistration().then(function (r) { if (r) r.update().catch(function () {}); }, function () {}); }
+    check();
+    function onVis() { if (document.visibilityState === 'visible') check(); }
+    document.addEventListener('visibilitychange', onVis);
+    return function () { navigator.serviceWorker.removeEventListener('controllerchange', onChange); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
+
   // Handle launch intents once data is ready: home-screen shortcuts (?action=log/weigh) and Web
   // Share hand-offs (?shared=1 → pick the stashed photos out of the SW cache into the estimator).
   useEffect(() => {
@@ -4924,7 +4944,7 @@ function App() {
       supa.rpc('submit_food_correction', { p_barcode: item.barcode, p_kcal: +b.kcal || 0, p_protein: +b.protein || 0, p_carbs: +b.carbs || 0, p_fat: +b.fat || 0, p_fiber: +b.fiber || 0, p_basis: item.baseKind || 'per100', p_serving_g: +item.savedServingG || 0, p_serving_label: item.savedServingLabel || '', p_name: item.name || '', p_source: item.source || '' }).then(function () {}, function () {});
     }
     setAdding(null);
-    showToast('Added ' + item.name, 'Undo', () => update(d => { d.log_entries = d.log_entries.filter(x => x.id !== entryId); }), 'Adjust', () => setAdjusting(entryId));
+    showToast('Added ' + item.name, 'Undo', () => update(d => { tombstone(d, [entryId]); d.log_entries = d.log_entries.filter(x => x.id !== entryId); }), 'Adjust', () => setAdjusting(entryId));
   }
   function addMeal(date, mealId, items) {
     const ids = items.map(() => Store.uid());
@@ -4934,7 +4954,7 @@ function App() {
       items.forEach((item, i) => d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', computed_macros: normalizeMacros(item.macros, item.is_alcohol), sort_order: d.log_entries.length + i }));
     });
     setAdding(null);
-    showToast('Logged ' + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => { const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
+    showToast('Logged ' + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
   }
   async function signOut() { if (supa) await supa.auth.signOut(); setDb(null); setView('dashboard'); }
   function resetAll() { const prevKey = (db && db.profile && db.profile.aiKey) || ''; const f2 = Store.defaultState(); f2.aiKey = prevKey; setDb(f2); if (session) cloudSave(session.user.id, f2); setView('dashboard'); }
@@ -4958,6 +4978,13 @@ function App() {
     <div className="lg:pl-56">
       <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       <MobileHeader setView={setView} />
+      {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
+        <div className="pixel-box w-full max-w-md flex items-center gap-3 p-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--accent)' }}>
+          <PixelDino size={20} color="var(--accent)" />
+          <div className="min-w-0 flex-1 text-[12px]">A new version is ready.</div>
+          <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: '#111' }}>Reload</button>
+        </div>
+      </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}

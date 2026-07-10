@@ -99,6 +99,24 @@ test('mergeStates: scalar/derived fields come from the higher-_rev copy, edits w
   assert.strictEqual(m._rev, 2);
 });
 
+test('mergeStates: a tombstoned delete is not resurrected by the copy that still has it', () => {
+  // device A deleted entry 'a' (tombstone); device B (or the cloud) still holds 'a'.
+  const deletedOn = { _rev: 3, log_entries: [{ id: 'b', date: 'x' }], deleted: { a: 999 } };
+  const stillHas  = { _rev: 2, log_entries: [{ id: 'a', date: 'x' }, { id: 'b', date: 'x' }], deleted: {} };
+  const m = Store.mergeStates(deletedOn, stillHas);
+  assert.deepStrictEqual(m.log_entries.map(e => e.id).sort(), ['b']); // 'a' stays deleted, not resurrected
+  assert.ok(m.deleted.a);                                             // tombstone carried forward
+  const m2 = Store.mergeStates(stillHas, deletedOn);                  // order must not matter
+  assert.deepStrictEqual(m2.log_entries.map(e => e.id).sort(), ['b']);
+});
+
+test('mergeStates: tombstones only remove their own id, never other entries', () => {
+  const a = { _rev: 2, log_entries: [{ id: 'x' }], deleted: { gone: 1 } };
+  const b = { _rev: 1, log_entries: [{ id: 'y' }], deleted: {} };
+  const m = Store.mergeStates(a, b);
+  assert.deepStrictEqual(m.log_entries.map(e => e.id).sort(), ['x', 'y']); // no accidental loss
+});
+
 test('mergeStates: null-safe', () => {
   const s = { _rev: 5, log_entries: [{ id: 'a' }] };
   assert.strictEqual(Store.mergeStates(null, s), s);
