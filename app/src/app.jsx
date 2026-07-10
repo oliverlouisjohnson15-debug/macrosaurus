@@ -4332,7 +4332,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           </div>
         </div>
       </div>}
-      {guide && <WelcomeCarousel reviewing onDone={() => setGuide(false)} />}
+      {guide && <WelcomeCarousel reviewing theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
     </div>
   );
 }
@@ -4712,24 +4712,27 @@ const WELCOME_SLIDES = [
   { title: 'Weigh in, then relax', body: "A few times a week is plenty, right on the Dashboard. Macrosaurus follows your trend, not one noisy day, and adjusts weekly." },
   { title: 'Make it a habit', body: "Log each day to collect Macrodex dinos, with a playful Fight arena for your streak. Consistency, made fun." },
 ];
-function WelcomeCarousel({ onDone, reviewing }) {
+function WelcomeCarousel({ onDone, reviewing, theme }) {
   useBackClose(onDone);
   const [i, setI] = useState(0);
   const last = i === WELCOME_SLIDES.length - 1;
   const s = WELCOME_SLIDES[i];
-  return (<div className="fixed inset-0 z-[95] theme-light flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+  const dark = theme === 'dark';
+  const brand = dark ? 'var(--accent)' : 'var(--header)';   // --header is black in dark, so use accent
+  const onBrand = dark ? '#111' : '#fff';
+  return (<div className={'fixed inset-0 z-[95] ' + (dark ? 'theme-dark' : 'theme-light') + ' flex flex-col'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex justify-between items-center px-5 py-4">
-      <span className="pf text-[11px]" style={{ color: 'var(--header)' }}>MACROSAURUS</span>
+      <span className="pf text-[11px]" style={{ color: brand }}>MACROSAURUS</span>
       <button onClick={onDone} className="text-[12px] text-[#8A8A90]">{reviewing ? 'Close' : 'Skip'}</button>
     </div>
     <div className="flex-1 flex flex-col justify-center items-center text-center px-8 max-w-sm mx-auto">
-      <div className="pixel-box p-6 mb-6" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}><PixelDino size={64} color="#fff" /></div>
-      <h2 className="pf text-base mb-3 leading-relaxed" style={{ color: 'var(--header)' }}>{s.title}</h2>
+      <div className="pixel-box p-6 mb-6" style={{ background: brand, borderColor: 'var(--border)' }}><PixelDino size={64} color={onBrand} /></div>
+      <h2 className="pf text-base mb-3 leading-relaxed" style={{ color: brand }}>{s.title}</h2>
       <p className="text-[14px] leading-relaxed">{s.body}</p>
     </div>
     <div className="px-6 pb-10 max-w-sm mx-auto w-full">
-      <div className="flex justify-center gap-1.5 mb-5">{WELCOME_SLIDES.map((_, k) => <div key={k} className="h-1.5 rounded-full transition-all" style={{ width: k === i ? 18 : 6, background: k === i ? 'var(--header)' : 'var(--border)' }} />)}</div>
-      <button onClick={() => last ? onDone() : setI(i + 1)} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{last ? (reviewing ? 'DONE' : 'START TRACKING') : 'NEXT'}</button>
+      <div className="flex justify-center gap-1.5 mb-5">{WELCOME_SLIDES.map((_, k) => <div key={k} className="h-1.5 rounded-full transition-all" style={{ width: k === i ? 18 : 6, background: k === i ? brand : 'var(--border)' }} />)}</div>
+      <button onClick={() => last ? onDone() : setI(i + 1)} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: brand, color: onBrand }}>{last ? (reviewing ? 'DONE' : 'START TRACKING') : 'NEXT'}</button>
       {i > 0 && <button onClick={() => setI(i - 1)} className="w-full text-[11px] text-[#8A8A90] mt-3">Back</button>}
     </div>
   </div>);
@@ -4756,11 +4759,13 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
       <div className="text-sm font-bold">Getting started</div>
       <div className="flex items-center gap-2"><span className="text-[11px] text-[#8A8A90]">{doneCount}/{items.length}</span><button onClick={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.dismissed = true; })} className="text-[#8A8A90] text-lg leading-none" aria-label="Dismiss">×</button></div>
     </div>
-    <div className="space-y-1">
+    <div className="text-[11px] text-[#8A8A90] mb-2.5 leading-snug">Tap a task to jump straight to it. Each one ticks off on its own once you have done it.</div>
+    <div className="space-y-0.5">
       {items.map(it => (
-        <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-1.5">
+        <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
           <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.done ? '✓' : ''}</span>
-          <span className="text-[13px]" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
+          <span className="text-[13px] flex-1 min-w-0" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
+          {!it.done && <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>DO IT ›</span>}
         </button>
       ))}
     </div>
@@ -5023,7 +5028,7 @@ function App() {
       </div>}
       <Toast toast={toast} />
       {reveal && <CatchReveal c={reveal} />}
-      {showWelcome && <WelcomeCarousel onDone={() => setShowWelcome(false)} />}
+      {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
     </div>
   );
 }
