@@ -817,7 +817,7 @@ function LegalDoc({ doc, onClose }) {
   if (!doc || !LEGAL[doc]) return null;
   const d = LEGAL[doc];
   return (
-    <div className="fixed inset-0 z-[90] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
       <BackClose onClose={onClose} />
       <div className="w-full max-w-md pixel-box flex flex-col max-h-[90vh] overflow-hidden sheet-up" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
         <div className="p-5 pb-3 flex-none flex items-start justify-between" style={{ borderBottom: '2px solid var(--border)' }}>
@@ -917,7 +917,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
     setBusy(false);
   }
   return (
-    <div className="fixed inset-0 z-[70] bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
         <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Estimate body fat</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
@@ -1331,7 +1331,7 @@ function CheckInModal({ db, update, onClose, resume }) {
   const fmtRate = (r) => Math.abs(r) < 0.02 ? 'steady' : fmtWeightDelta(r, unit, '/wk');
   const nextCheckISO = shiftISO(today, 7);
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center" onClick={() => { if (!proposalShown) onClose(); }}>
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={() => { if (!proposalShown) onClose(); }}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
         <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Check-in</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
@@ -1458,7 +1458,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
     ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
     : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{isNew ? 'Add weigh-in' : 'Edit weigh-in'}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
         {isNew
@@ -1913,7 +1913,7 @@ function MacrodexModal({ db, update, streak, onClose }) {
   }
   const cr = sel ? CR_BY_ID[sel] : null; const got = cr ? dex[cr.id] : null;
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
         {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
@@ -2190,7 +2190,7 @@ function FightModal({ db, update, streak, onClose }) {
   const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
 
@@ -2462,7 +2462,7 @@ function CarryoverSheet({ et, onClose }) {
     </div>
   );
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Today's target</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
         <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Where today's {et.eff.kcal} kcal comes from.</div>
@@ -2828,7 +2828,7 @@ function applyEntryPatch(update, id, patch) {
 function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
   useBackClose(onClose);
   const [name, setName] = useState(initial || '');
-  return (<div className="fixed inset-0 z-[70] bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+  return (<div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
       <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
       {hint && <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">{hint}</div>}
@@ -2862,7 +2862,7 @@ function EditEntryModal({ entry, onSave, onClose, title, saveLabel }) {
   const label = unit === 'g' ? `${fmtCount(amount)} g` : unit === 'oz' ? `${fmtCount(amount)} oz` : `${fmtCount(amount)} ${noun}${plural}`;
   const unitWord = unit === 'g' ? 'grams' : unit === 'oz' ? 'ounces' : (noun + (/^[a-z]+$/i.test(noun) ? 's' : ''));
   function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: noun }); }
-  return (<div className="fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+  return (<div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
       <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title || 'Edit food'}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
       <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
@@ -2897,7 +2897,7 @@ function CopyToModal({ title, srcDate, meals, defaultMeal, onPick, onClose }) {
   const cells = []; for (let i = 0; i < startDow; i++) cells.push(null);
   for (let dd = 1; dd <= daysIn; dd++) cells.push(Store.isoOf(new Date(cm.y, cm.m, dd)));
   const monthName = new Date(cm.y, cm.m, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-  return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+  return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
       <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
       {meals && <div className="mb-3">
@@ -3074,7 +3074,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose }) {
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
   useEffect(() => { if (isAlc && tab === 'food') setTabRaw('recent'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw(['photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'); }, [isAlc]);
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end lg:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box sheet-up flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-5 pb-3 flex-none">
           <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
@@ -3085,10 +3085,8 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose }) {
               <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-3 mtrow">
-            <Field label="Meal"><Dropdown value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} /></Field>
-            <Field label="Type"><Seg value={isAlc ? 'alc' : 'food'} onChange={v => setIsAlc(v === 'alc')} options={[{ v: 'food', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="plate" color="currentColor" size={15} /> Food</span> }, { v: 'alc', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="drink" color="currentColor" size={15} /> Alcohol</span> }]} /></Field>
-          </div>
+          <div className="mb-3"><Field label="Meal"><Dropdown value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} /></Field></div>
+          <div className="mb-3"><Field label="Type"><Seg value={isAlc ? 'alc' : 'food'} onChange={v => setIsAlc(v === 'alc')} options={[{ v: 'food', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="plate" color="currentColor" size={15} /> Food</span> }, { v: 'alc', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="drink" color="currentColor" size={15} /> Alcohol</span> }]} /></Field></div>
           <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl">{tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
         </div>
         <div className="px-5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
@@ -4656,7 +4654,7 @@ function BottomNav({ view, setView, onAdd }) {
     </div>
   );
 }
-function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 flex flex-col items-center gap-1.5 pt-2.5" style={{ color: view === k ? 'var(--accent)' : 'rgba(255,255,255,0.6)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
+function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: view === k ? 'var(--accent)' : 'rgba(255,255,255,0.6)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
 function Sidebar({ view, setView, onAdd }) {
   return (
     <div className="hidden lg:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-[#0F0F12] border-r-[3px] border-[#262629] p-4 z-40">
@@ -4969,7 +4967,7 @@ function App() {
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} />}
       {adjusting && (() => { const en = db.log_entries.find(x => x.id === adjusting); return en ? <EditEntryModal entry={en} title="Adjust entry" onSave={(patch) => { applyEntryPatch(update, adjusting, patch); setAdjusting(null); showToast('Updated ' + patch.name); }} onClose={() => setAdjusting(null)} /> : null; })()}
-      {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end lg:items-center justify-center" onClick={() => setShared(null)}>
+      {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
         <BackClose onClose={() => setShared(null)} />
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="text-[#8A8A90] text-xl leading-none">×</button></div>
