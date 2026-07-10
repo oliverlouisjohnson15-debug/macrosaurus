@@ -1,7 +1,11 @@
 {
+  "id": "/",
   "name": "Macrosaurus",
   "short_name": "Macrosaurus",
   "description": "Adaptive UK macro & body-composition tracker with fast logging and weekly coaching.",
+  "categories": ["health", "fitness", "lifestyle"],
+  "lang": "en-GB",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -14,6 +18,7 @@
   ],
   "shortcuts": [
     { "name": "Log food", "short_name": "Log food", "url": "/?action=log", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Scan barcode", "short_name": "Scan", "url": "/?action=scan", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
     { "name": "Weigh in", "short_name": "Weigh in", "url": "/?action=weigh", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ],
   "share_target": {
