@@ -4594,7 +4594,20 @@ const SUPA_URL = 'https://wnbksotvcjqfslrttjxy.supabase.co';
 const SUPA_KEY = 'sb_publishable_IMKN6PzhKwUZQp8n1RlKaQ_t2_1iQXB';
 const supa = (typeof window !== 'undefined' && window.supabase) ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
 let _saveTimer = null;
-function cloudSave(uid, data) { if (!supa || !uid) return; clearTimeout(_saveTimer); _saveTimer = setTimeout(function () { supa.from('user_state').upsert({ user_id: uid, data, updated_at: new Date().toISOString() }).then(function (r) { if (r.error) console.warn('cloud save failed:', r.error.message); }); }, 700); }
+function cloudSave(uid, data) {
+  if (!supa || !uid) return;
+  clearTimeout(_saveTimer);
+  var snapshot = data;
+  _saveTimer = setTimeout(function () {
+    // Merge with the current cloud copy before writing, so a save can only ADD entries, never drop
+    // ones another device recorded. This makes stale-copy overwrites (silent data loss) impossible.
+    cloudLoad(uid).then(function (remote) {
+      var merged = Store.mergeStates(snapshot, remote);
+      return supa.from('user_state').upsert({ user_id: uid, data: merged, updated_at: new Date().toISOString() });
+    }).then(function (r) { if (r && r.error) console.warn('cloud save failed:', r.error.message); },
+      function (e) { console.warn('cloud save skipped (offline?):', e && e.message); });
+  }, 700);
+}
 async function cloudLoad(uid) { const r = await supa.from('user_state').select('data').eq('user_id', uid).maybeSingle(); if (r.error) throw r.error; return r.data ? r.data.data : null; }
 // ---- Local offline store (IndexedDB): a snapshot of your data so the app opens and logs with no
 // connection, then reconciles with the cloud (last-write-wins by _rev) when you're back online. ----
@@ -4809,10 +4822,15 @@ function App() {
       try {
         const remote = await cloudLoad(uid);
         if (cancelled) return;
-        if (remote && stateRev(remote) >= stateRev(local)) { setDb(Store.migrate(remote)); localSave(uid, remote); }
-        else if (local && stateRev(local) > stateRev(remote)) { cloudSave(uid, local); }
-        else if (remote) { setDb(Store.migrate(remote)); localSave(uid, remote); }
-        else if (!local) { setDb(Store.defaultState()); }
+        // Merge local + remote so neither can lose the other's entries, then converge both stores.
+        // (Replaces the old highest-_rev-wins reconcile that let a stale copy overwrite good data.)
+        const merged = Store.mergeStates(local, remote);
+        if (merged) {
+          setDb(Store.migrate(merged)); localSave(uid, merged);
+          // If we hold entries the cloud was missing, push the union up to repair a prior overwrite.
+          if (!remote || (merged.log_entries || []).length > ((remote.log_entries || []).length)
+                       || (merged.weight_entries || []).length > ((remote.weight_entries || []).length)) cloudSave(uid, merged);
+        } else { setDb(Store.defaultState()); }
       } catch (e) {
         if (!cancelled && !local) setDb(Store.defaultState()); // offline with no snapshot yet
       }

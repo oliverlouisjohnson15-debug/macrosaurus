@@ -123,6 +123,57 @@
     return defaultState();
   }
 
+  // Union two arrays by a stable key, keeping the FIRST occurrence on conflict (callers pass the
+  // authoritative array first). Anything without a key is kept as-is (never dropped).
+  function unionBy(primary, secondary, keyFn) {
+    var seen = {}, out = [], anon = 0;
+    function add(arr) {
+      (arr || []).forEach(function (e) {
+        if (e == null) return;
+        var k = keyFn(e); if (k == null) k = '__anon' + (anon++);
+        if (seen[k]) return; seen[k] = 1; out.push(e);
+      });
+    }
+    add(primary); add(secondary);
+    return out;
+  }
+
+  // Conflict-free merge of two full states. The append-only collections (food log, weigh-ins,
+  // check-ins, foods, saved meals, targets, catches, freezes, awards) are UNIONED so a save can
+  // never lose an entry the other copy has. Scalar/derived fields come from the higher-_rev state.
+  // This is the core safeguard against last-writer-wins overwriting good data with a stale copy.
+  function mergeStates(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    var ra = (a && a._rev) || 0, rb = (b && b._rev) || 0;
+    var newer = ra >= rb ? a : b, older = ra >= rb ? b : a;
+    var out = JSON.parse(JSON.stringify(newer));
+    var byId = function (e) { return e && e.id; };
+    var byDate = function (e) { return e && e.date; };
+    out.log_entries    = unionBy(newer.log_entries,    older.log_entries,    byId);
+    out.weight_entries = unionBy(newer.weight_entries, older.weight_entries, byId);
+    out.foods          = unionBy(newer.foods,          older.foods,          byId);
+    out.saved_meals    = unionBy(newer.saved_meals,    older.saved_meals,    byId);
+    out.targets        = unionBy(newer.targets,        older.targets,        byId);
+    out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
+    // date-keyed maps: union keys, newer wins on a shared date
+    out.day_meals     = Object.assign({}, older.day_meals || {},     newer.day_meals || {});
+    out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});
+    out.game_awards   = Object.assign({}, older.game_awards || {},   newer.game_awards || {});
+    // catch_log: union dates, and union the creatures caught on each shared date
+    var cl = {};
+    [older.catch_log || {}, newer.catch_log || {}].forEach(function (src) {
+      Object.keys(src).forEach(function (d) { cl[d] = unionBy(src[d], cl[d], function (c) { return c && c.id; }); });
+    });
+    out.catch_log = cl;
+    // freezes: union the forgiven dates
+    var fz = {};
+    [older, newer].forEach(function (s) { (((s.freezes || {}).frozen) || []).forEach(function (d) { fz[d] = 1; }); });
+    out.freezes = Object.assign({}, newer.freezes, { frozen: Object.keys(fz).sort() });
+    out._rev = Math.max(ra, rb);
+    return out;
+  }
+
   var Store = {
     USER: USER,
     isoOf: isoOf,
@@ -130,6 +181,7 @@
     uid: uid,
     defaultState: defaultState,
     migrate: migrate,
+    mergeStates: mergeStates,
     load: load,
     save: save,
     reset: reset,

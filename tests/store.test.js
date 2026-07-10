@@ -67,3 +67,41 @@ test('self-heal also cleans remembered foods and saved meals', () => {
   assert.strictEqual(s.foods[0].macros.kcal, 85);
   assert.strictEqual(s.saved_meals[0].items[0].macros.kcal, 85);
 });
+
+test('mergeStates: a stale copy with a newer _rev can never drop the other copy entries', () => {
+  // "good" has 3 days of food + weigh-ins; "stale" is an old copy that was re-saved (higher _rev)
+  // but only holds day 1. The merge must keep ALL of good's entries. This is the data-loss guard.
+  const good = { _rev: 100,
+    log_entries: [{ id: 'a', date: '2026-07-08' }, { id: 'b', date: '2026-07-09' }, { id: 'c', date: '2026-07-10' }],
+    weight_entries: [{ id: 'w1', date: '2026-07-08' }, { id: 'w2', date: '2026-07-09' }],
+    checkins: [{ date: '2026-07-04' }, { date: '2026-07-08' }] };
+  const stale = { _rev: 200, // newer timestamp, but content is old and thin
+    log_entries: [{ id: 'a', date: '2026-07-08' }], weight_entries: [{ id: 'w1', date: '2026-07-08' }], checkins: [{ date: '2026-07-04' }] };
+  const m = Store.mergeStates(stale, good);
+  assert.deepStrictEqual(m.log_entries.map(e => e.id).sort(), ['a', 'b', 'c']);
+  assert.deepStrictEqual(m.weight_entries.map(e => e.id).sort(), ['w1', 'w2']);
+  assert.deepStrictEqual(m.checkins.map(e => e.date).sort(), ['2026-07-04', '2026-07-08']);
+  // symmetric: order of arguments must not matter for the union
+  const m2 = Store.mergeStates(good, stale);
+  assert.deepStrictEqual(m2.log_entries.map(e => e.id).sort(), ['a', 'b', 'c']);
+});
+
+test('mergeStates: scalar/derived fields come from the higher-_rev copy, edits win on conflict', () => {
+  const older = { _rev: 1, profile: { goalType: 'cut' }, last_checkin: '2026-07-01',
+    log_entries: [{ id: 'a', date: '2026-07-08', computed_macros: { kcal: 100 } }] };
+  const newer = { _rev: 2, profile: { goalType: 'maintain' }, last_checkin: '2026-07-08',
+    log_entries: [{ id: 'a', date: '2026-07-08', computed_macros: { kcal: 250 } }, { id: 'b', date: '2026-07-09' }] };
+  const m = Store.mergeStates(older, newer);
+  assert.strictEqual(m.profile.goalType, 'maintain');     // newer wins on scalars
+  assert.strictEqual(m.last_checkin, '2026-07-08');
+  assert.strictEqual(m.log_entries.find(e => e.id === 'a').computed_macros.kcal, 250); // newer edit wins
+  assert.strictEqual(m.log_entries.length, 2);            // older's unique entries still kept
+  assert.strictEqual(m._rev, 2);
+});
+
+test('mergeStates: null-safe', () => {
+  const s = { _rev: 5, log_entries: [{ id: 'a' }] };
+  assert.strictEqual(Store.mergeStates(null, s), s);
+  assert.strictEqual(Store.mergeStates(s, null), s);
+  assert.strictEqual(Store.mergeStates(null, null), null);
+});
