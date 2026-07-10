@@ -99,6 +99,7 @@
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
       deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
+      menstrual: { enabled: false, lastStart: null, cycleLen: 28 }, // optional cycle tracking so premenstrual water weight doesn't trigger a wrong calorie cut
       goals: null,
     };
   }

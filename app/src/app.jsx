@@ -1310,6 +1310,7 @@ function CheckInModal({ db, update, onClose, resume }) {
       cycleStart: cs, today, cycleDays,
       weighDays, minDays: needLogs, periodDays: cycleDays, earlyCap: 150,
       expenditure: expenditurePrior(db, prof), checkins: db.checkins || [],
+      waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
     });
     if (dec.status === 'needdata') {
       setResult({ status: 'needdata', reason: dec.reasonCode === 'weighins'
@@ -4101,6 +4102,25 @@ function SettingsTab({ db, update }) {
         <Dropdown value={s.nudgeHour} onChange={v => sset('nudgeHour', +v)} options={[12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({ v: h, l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am') }))} />
       </Field>}
     </Section>
+    {p.sex === 'female' && (() => {
+      const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
+      const setM = (patch) => update(d => { d.menstrual = Object.assign({ enabled: false, lastStart: null, cycleLen: 28 }, d.menstrual, patch); });
+      const ph = m.enabled ? E.menstrualPhase(m, Store.todayISO()) : null;
+      return <Section title="Menstrual cycle">
+        <div className="text-[12px] text-[#8A8A90] mb-3">Optional. If you track this, Macrosaurus expects the water-weight rise in the week before your period and will not cut your calories on it, so a normal premenstrual bump on the scale does not throw off your plan.</div>
+        <RowToggle label="Track my cycle" on={!!m.enabled} onClick={() => setM({ enabled: !m.enabled })} />
+        {m.enabled && <>
+          <Field label="Last period start">
+            <input type="date" className={inputCls} value={m.lastStart || ''} max={Store.todayISO()} onChange={e => setM({ lastStart: e.target.value || null })} />
+            <button onClick={() => setM({ lastStart: Store.todayISO() })} className="text-[12px] text-[#4A9EEB] mt-1.5">My period started today</button>
+          </Field>
+          <Field label={`Average cycle length: ${m.cycleLen || 28} days`}>
+            <input type="range" min="21" max="40" step="1" value={m.cycleLen || 28} onChange={e => setM({ cycleLen: +e.target.value })} className="w-full accent-[#4A9EEB]" />
+          </Field>
+          {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase{ph.waterHigh ? '. Water weight often runs high now, so the scale may read up. Your check-in will hold rather than cut on it.' : '.'}</div>}
+        </>}
+      </Section>;
+    })()}
     <Section title="AI food logging">
       <div className="text-[13px] text-[var(--text)] mb-1">AI is built in. No setup needed.</div>
       <div className="text-[12px] text-[#8A8A90]">Label scanning, photo meal estimates and the Describe tab all just work. Each account gets a monthly AI allowance; if you ever hit it, it resets on the 1st of the month.</div>

@@ -254,6 +254,20 @@
     return { plateau: run >= minRun, cycles: run };
   }
 
+  // Menstrual-cycle phase for a date, from a logged last-period start and average cycle length.
+  // Water retention rises in the late-luteal (premenstrual) week and the first day or two of the
+  // period, when the scale reads high for non-fat reasons. Returns null unless tracking is on.
+  function menstrualPhase(cfg, dateISO) {
+    if (!cfg || !cfg.enabled || !cfg.lastStart) return null;
+    var len = clamp(Math.round(+cfg.cycleLen || 28), 21, 40);
+    var elapsed = daysBetweenISO(cfg.lastStart, dateISO);
+    if (!(elapsed >= 0)) return null;
+    var day = ((elapsed % len) + len) % len;                  // 0-indexed day of the current cycle
+    var waterHigh = (day >= len - 7) || (day <= 1);           // premenstrual week + early-period bloat
+    var phase = day <= 4 ? 'menstrual' : day <= 12 ? 'follicular' : day <= 15 ? 'ovulatory' : 'luteal';
+    return { cycleDay: day, cycleLen: len, phase: phase, waterHigh: waterHigh, daysToNext: len - day };
+  }
+
   function estimateExpenditure(opts) {
     var avgKcal = mean(opts.dailyKcal);
     var weeklyChangeKg = ((opts.trendEndKg - opts.trendStartKg) / opts.days) * 7;
@@ -311,6 +325,16 @@
     newTargets.estimatedTDEE = round(burnRef);
     newTargets.source = 'adaptive';
     var dir = cappedDelta > 0.5 ? 'up' : (cappedDelta < -0.5 ? 'down' : 'unchanged');
+
+    // Menstrual water hold: a premenstrual water rise can masquerade as a stall (or a gain), so never
+    // CUT calories on it. Hold this cycle and let the first check-in after the period read the trend
+    // cleanly. Increases (dir up) are still safe and go through as normal.
+    if (opts.waterHigh && dir === 'down') {
+      var expW = profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0;
+      return { changed: false, direction: 'unchanged', deltaKcal: 0, confidence: confidence, waterHeld: true,
+        expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(opts.estimate.weeklyChangeKg, 3), expenditure: smoothed,
+        reason: 'Part of this cycle falls in your premenstrual phase, when water weight rises and can look like a stall. Rather than cut on what\'s most likely water, I\'m holding you at ' + currentKcal + ' kcal. Your first check-in after your period reads cleaner.', estimate: opts.estimate };
+    }
 
     // ---- transparent, blunt-but-friendly explanation of the change ----
     var unit = profile.weight_unit;
@@ -372,6 +396,10 @@
     var fullGiveBack = pastTarget * KCAL_PER_KG / 7;                 // kcal/day if the excess were all fat
     var earlyFactor = clamp(periodDays / 14, 0.25, 0.6);            // discount water + short-window noise
     var nudge = clamp(round(fullGiveBack * earlyFactor / 10) * 10, 0, earlyCap);
+    if (opts.waterHigh && dir === 'down') {
+      return { changed: false, earlyPhase: true, direction: 'unchanged', waterHeld: true, expectedKgPerWeek: round(target, 2), actualKgPerWeek: round(actual, 3),
+        reason: 'You\'re ' + actualStr + ', but part of this cycle is your premenstrual phase when water weight rises, so I\'m holding rather than trimming on what\'s likely water. Your next check-in after your period reads cleaner.', estimate: opts.estimate };
+    }
     if (dir === 'unchanged' || nudge < 25) {
       return { changed: false, earlyPhase: true, direction: 'unchanged', expectedKgPerWeek: round(target, 2), actualKgPerWeek: round(actual, 3),
         reason: 'You\'re ' + actualStr + '. This early it\'s a short, noisy read and a lot of any first-fortnight change is water, not fat, so I\'m holding for now. Keep logging and weighing daily and I\'ll retune from your settled trend.', estimate: opts.estimate };
@@ -627,12 +655,12 @@
       var ys = curCycle.map(function (w) { return w.weightKg; });
       var weeklyChangeKg = theilSen(xs, ys).slope * 7;
       var est = { tdee: round(avgKcal - (weeklyChangeKg * KCAL_PER_KG) / 7), avgKcal: round(avgKcal), weeklyChangeKg: round(weeklyChangeKg, 3), days: cycleDays };
-      result = earlyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, earlyCap: opts.earlyCap || 150 });
+      result = earlyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, earlyCap: opts.earlyCap || 150, waterHigh: opts.waterHigh });
       // The early estimate is water-contaminated, so it nudges the smoothed expenditure only gently.
       if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3);
     } else {
       var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: cycleDays });
-      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure });
+      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh });
     }
     result.status = 'proposed';
     result.completeDays = completeDays;
@@ -657,7 +685,7 @@
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision,
-    isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau,
+    isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;

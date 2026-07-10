@@ -447,3 +447,32 @@ test('simulation: expenditure converges to true TDEE over 7 cycles without oscil
   // And the final target should imply roughly the desired deficit against the true burn.
   near(targets.kcal, trueTdee - 550, 200);
 });
+
+// ---- menstrual-cycle awareness ----
+test('menstrualPhase: null when off, flags the premenstrual and early-period water window', () => {
+  assert.strictEqual(E.menstrualPhase({ enabled: false, lastStart: '2026-07-01', cycleLen: 28 }, '2026-07-10'), null);
+  assert.strictEqual(E.menstrualPhase(null, '2026-07-10'), null);
+  const cfg = { enabled: true, lastStart: '2026-07-01', cycleLen: 28 };
+  assert.strictEqual(E.menstrualPhase(cfg, '2026-07-07').waterHigh, false); // day 6, follicular
+  const pre = E.menstrualPhase(cfg, '2026-07-25');                          // day 24, premenstrual week
+  assert.strictEqual(pre.waterHigh, true);
+  assert.strictEqual(pre.phase, 'luteal');
+  assert.strictEqual(E.menstrualPhase(cfg, '2026-07-01').waterHigh, true);  // day 0, early-period bloat
+  // Wraps into the next cycle correctly.
+  assert.strictEqual(E.menstrualPhase(cfg, '2026-07-29').cycleDay, 0);      // 28 days later = day 0 again
+});
+
+test('weeklyAdjust: holds instead of cutting during the water window, but still allows an increase', () => {
+  const profile = { goalType: 'cut', rateKgPerWeek: 0.5, weight_unit: 'kg', sex: 'female', age: 30, heightCm: 165, weightKg: 65 };
+  const base = { kcal: 2000, protein_g: 150, carbs_g: 180, fat_g: 60 };
+  // implied burn 2400 -> desired ~1850, so the engine normally CUTS about 150 kcal
+  const optsCut = { profile, currentTargets: base, estimate: { tdee: 2400, weeklyChangeKg: 0.05, avgKcal: 2000, days: 7, band: 50 }, adherenceDays: 7, weighDays: 7, minDays: 5, periodDays: 7 };
+  assert.strictEqual(E.weeklyAdjust(optsCut).direction, 'down');
+  const held = E.weeklyAdjust(Object.assign({}, optsCut, { waterHigh: true }));
+  assert.strictEqual(held.changed, false);
+  assert.strictEqual(held.waterHeld, true);
+  // An increase (burn 2800 -> desired 2250 > current) is safe and goes through even in the water window.
+  const up = E.weeklyAdjust({ profile, currentTargets: base, estimate: { tdee: 2800, weeklyChangeKg: -0.9, avgKcal: 2000, days: 7, band: 50 }, adherenceDays: 7, weighDays: 7, minDays: 5, periodDays: 7, waterHigh: true });
+  assert.strictEqual(up.direction, 'up');
+  assert.strictEqual(up.changed, true);
+});
