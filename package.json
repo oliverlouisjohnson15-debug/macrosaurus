@@ -1,0 +1,14 @@
+{
+  "name": "macrosaurus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Adaptive UK macro and body-composition tracker (PWA).",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@babel/core": "^8.0.1",
+    "@babel/preset-react": "^8.0.1",
+    "tailwindcss": "^3.4.1"
+  }
+}

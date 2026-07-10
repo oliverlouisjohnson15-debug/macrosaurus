@@ -1,27 +1,195 @@
-:root {
-  --bg: #09090B;
-  --surface: #161618;
-  --surface-2: #1E1E22;
-  --border: #262629;
-  --text: #FFFFFF;
-  --muted: #8A8A90;
-  --accent: #4A9EEB;
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
+/* Dark Game Boy (Pocket) is the default. Add .theme-light on <html> for Game Boy Color. */
+:root, .theme-dark {
+  --bg: #000000;             /* pure black */
+  --card: #0d0d0d;
+  --surface2: #17171a;
+  --surface3: #0a0a0a;
+  --track: #1a1a1a;
+  --border: #2c2c2e;
+  --header: #000000;         /* top bar / bottom nav */
+  --header-text: #39FF14;
+  --hero: #39FF14;           /* big kcal number */
+  --text: #ffffff;
+  --text2: #cfcfcf;
+  --muted: #9b9ba3;          /* lifted for contrast (~6:1 on card surfaces) */
+  --muted2: #7c7c84;
+  --accent: #39FF14;         /* neon green, primary action */
+  --on-accent: #05140a;
+  --accent-dim: #0f2a12;
+  --pro: #39FF14;            /* neon green */
+  --carb: #00F3FF;          /* neon cyan */
+  --fat: #FF2FD0;           /* neon magenta */
+  --cal: #39FF14;
+  --weight: #B388FF;
+  --danger: #FF5555;
+  --good: #39FF14;
+  --shadow: #000000;
 }
-html, body { background: var(--bg); }
+.theme-light {
+  --bg: #F0F0F0;
+  --card: #FFFFFF;
+  --surface2: #ececec;
+  --surface3: #FFFFFF;
+  --track: #d8d8d8;
+  --border: #1e1e1e;
+  --header: #5B4FA6;         /* purple top bar / bottom nav */
+  --header-text: #ffffff;
+  --hero: #17A398;           /* teal big kcal number */
+  --text: #1a1a1a;
+  --text2: #333333;
+  --muted: #666666;
+  --muted2: #8a8a8a;
+  --accent: #F5C518;         /* gold, primary / selected / LVL / nav-active */
+  --on-accent: #1a1a1a;
+  --accent-dim: #fff3c9;
+  --pro: #E5342A;           /* red */
+  --carb: #2E6FD4;          /* blue */
+  --fat: #F5C518;           /* gold */
+  --cal: #2E6FD4;
+  --weight: #7c3aed;
+  --danger: #E5342A;
+  --good: #17A398;
+  --shadow: #1e1e1e;
+}
+
+html, body { background: var(--bg); overflow-x: hidden; }
 body {
   color: var(--text);
   background: var(--bg);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Press Start 2P', ui-monospace, "Courier New", monospace;
+  line-height: 1.8;
+  letter-spacing: 0;
+  font-size: 12px;
 }
+input, textarea, button, select { font-family: inherit; letter-spacing: 0; }
 #root { color: var(--text); }
 * { -webkit-tap-highlight-color: transparent; }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 .tnum { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .fade-in { animation: fade .28s cubic-bezier(.2,.7,.2,1); }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .sheet-up { animation: sheet .32s cubic-bezier(.2,.8,.2,1); }
 @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
 input, select { color-scheme: dark; }
+.theme-light input, .theme-light select { color-scheme: light; }
 ::-webkit-scrollbar { width: 0; height: 0; }
-.ring-track { stroke: #262629; }
+
+/* ---- pixel font (headings, numbers, brand, nav) ---- */
+.pf { font-family: 'Press Start 2P', ui-monospace, monospace; line-height: 1.45; letter-spacing: 0; }
+
+/* ---- FIGHT easter-egg: Chrome-dino jump ---- */
+@keyframes dinojump { 0%, 100% { transform: translateY(0); } 32%, 58% { transform: translateY(-34px); } }
+.dinojump { animation: dinojump .85s cubic-bezier(.3,.7,.25,1) infinite; }
+@keyframes cactusrun { from { transform: translateX(680px); } to { transform: translateX(-28px); } }
+.cactusrun { animation: cactusrun 1.15s linear infinite; }
+.arena-fade { animation: fade .2s ease; }
+
+/* ---- Dino Fight (Punch-Out style auto-battle) ---- */
+@keyframes fbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.fbob { animation: fbob .8s ease-in-out infinite; }
+@keyframes flungeR { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(20px); } }
+.flungeR { animation: flungeR .35s ease; }
+@keyframes fbobFlip { 0%, 100% { transform: scaleX(-1) translateY(0); } 50% { transform: scaleX(-1) translateY(-3px); } }
+.fbobFlip { animation: fbobFlip .8s ease-in-out infinite; }
+@keyframes flungeLflip { 0%, 100% { transform: scaleX(-1) translateX(0); } 45% { transform: scaleX(-1) translateX(20px); } }
+.flungeLflip { animation: flungeLflip .35s ease; }
+@keyframes fpop { 0% { opacity: 0; transform: scale(.6); } 30% { opacity: 1; transform: scale(1.15) translateY(-4px); } 100% { opacity: 0; transform: scale(1) translateY(-14px); } }
+.fpop { animation: fpop .7s ease forwards; }
+
+/* ---- pixel shapes: square everything, chunky borders + hard shadow ---- */
+.rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-full { border-radius: 0 !important; }
+.pixel-box { border: 4px solid var(--border) !important; box-shadow: 4px 4px 0 0 var(--shadow); }
+.pixel-btn { border: 4px solid var(--border) !important; box-shadow: 4px 4px 0 0 var(--shadow); transition: transform .05s, box-shadow .05s; }
+.pixel-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 0 var(--shadow); }
+/* chunky macro/xp progress bar */
+.pixel-bar { border: 3px solid var(--border); height: 18px; background: var(--track); overflow: hidden; }
+.pixel-bar > i { display: block; height: 100%; box-shadow: inset -2px -2px 0 rgba(0,0,0,0.25); }
+.theme-dark .pixel-bar > i { box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35); filter: brightness(1.05); }
+/* blinking retro cursor */
+.blink { animation: blink 1.05s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ---- CRT scanline overlay ---- */
+/* sits below every modal/sheet layer (z-50+) so sheets aren't dimmed by the CRT effect */
+.scanline { pointer-events: none; position: fixed; inset: 0; background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 50%); background-size: 100% 4px; z-index: 45; }
+.theme-light .scanline { display: none; }
+/* neon glow on dark-theme accent text/icons */
+.theme-dark .neon-pro { text-shadow: 0 0 8px rgba(57,255,20,0.5); }
+.theme-dark .neon-carb { text-shadow: 0 0 8px rgba(0,243,255,0.5); }
+.theme-dark .neon-fat { text-shadow: 0 0 8px rgba(255,47,208,0.5); }
+
+/* ---- rings/charts track ---- */
+.ring-track { stroke: var(--border); }
+
+/* ================= palette remap of legacy classes ================= */
+/* neutrals */
+.bg-\[\#161618\], .bg-\[\#1e1e1e\] { background-color: var(--card) !important; }
+.bg-\[\#1E1E22\] { background-color: var(--surface2) !important; }
+.bg-\[\#0F0F12\] { background-color: var(--surface3) !important; }
+.bg-\[\#09090B\], .bg-\[\#09090B\]\/95 { background-color: var(--bg) !important; }
+.bg-\[\#262629\] { background-color: var(--surface2) !important; }
+.border-\[\#262629\] { border-color: var(--border) !important; }
+.text-\[\#8A8A90\], .text-\[\#8A8A90\]\/60, .text-\[\#8A8A90\]\/70 { color: var(--muted) !important; }
+.text-\[\#C9C9CF\] { color: var(--text2) !important; }
+.text-\[\#5A5A62\] { color: var(--muted2) !important; }
+/* accent (was blue) */
+.text-\[\#4A9EEB\] { color: var(--accent) !important; }
+.bg-\[\#4A9EEB\] { background-color: var(--accent) !important; }
+.accent-\[\#4A9EEB\] { accent-color: var(--accent) !important; }
+.bg-\[\#4A9EEB\]\/15, .bg-\[\#4A9EEB\]\/12, .bg-\[\#4A9EEB\]\/10 { background-color: var(--accent-dim) !important; }
+.bg-\[\#4A9EEB\]\/40, .border-\[\#4A9EEB\]\/40 { border-color: var(--accent) !important; }
+/* macro text classes (rare) */
+.text-\[\#34D399\] { color: var(--carb) !important; }
+.text-\[\#F5C542\] { color: var(--fat) !important; }
+.text-\[\#ff6b6b\], .text-\[\#FF5A4D\] { color: var(--danger) !important; }
+/* "white" = the active / primary neon; "black" text on it = on-accent */
+.bg-white { background-color: var(--accent) !important; }
+.text-black { color: var(--on-accent) !important; }
+.theme-light .text-white { color: var(--text) !important; }
+/* danger button */
+.bg-\[\#ff6b6b\] { background-color: var(--danger) !important; }
+
+/* ---- headings + big numbers use the pixel font (sized down to fit) ---- */
+.text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold,
+.text-xl.font-semibold, .text-2xl, .text-3xl, .text-4xl, .text-5xl {
+  font-family: 'Press Start 2P', ui-monospace, monospace !important; letter-spacing: 0;
+}
+.text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold { font-size: 12px !important; line-height: 1.6 !important; }
+.text-xl.font-semibold { font-size: 14px !important; line-height: 1.5 !important; }
+.text-2xl { font-size: 17px !important; line-height: 1.35 !important; }
+.text-3xl { font-size: 21px !important; line-height: 1.3 !important; }
+.text-4xl { font-size: 24px !important; line-height: 1.25 !important; }
+.text-5xl { font-size: 30px !important; line-height: 1.2 !important; }
+.text-xl.pf { font-size: 18px !important; }
+/* selection segments/pills: crisp pixel edge, no soft shadow layering */
+.pixel-box.flex-1, .inline-flex.pixel-box { box-shadow: 3px 3px 0 0 var(--shadow); }
+
+/* ---- body text sized for the pixel font (Press Start 2P runs wide) ---- */
+/* Sizes lifted ~1px+ for readability; break-word keeps long words inside cards on 375px. */
+.text-sm { font-size: 11.5px !important; line-height: 1.7 !important; }
+.text-base { font-size: 12px !important; line-height: 1.7 !important; }
+.text-\[13px\] { font-size: 11px !important; line-height: 1.7 !important; }
+.text-\[12px\] { font-size: 10px !important; line-height: 1.65 !important; }
+.text-\[11px\] { font-size: 9.5px !important; line-height: 1.65 !important; }
+.text-\[10px\] { font-size: 9px !important; line-height: 1.6 !important; }
+.text-sm, .text-base, .text-\[13px\], .text-\[12px\], .text-\[11px\], .text-\[10px\] { overflow-wrap: break-word; }
+p, .leading-snug, .leading-relaxed { line-height: 1.7 !important; }
+
+/* ---- minimum ~44px touch target: expands the tappable area without growing the visual ---- */
+.hit { position: relative; }
+.hit::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max(100%, 44px); height: max(100%, 44px); }
+
+/* ---- dino loading animation (AI is thinking, not crashed) ---- */
+@keyframes dinoBounce { 0%,100% { transform: translateY(0) } 30% { transform: translateY(-9px) } 55% { transform: translateY(0) } }
+@keyframes dinoShadow { 0%,100% { transform: scaleX(1); opacity: .35 } 30% { transform: scaleX(.7); opacity: .18 } 55% { transform: scaleX(1); opacity: .35 } }
+.dino-hop { display: inline-block; animation: dinoBounce .7s cubic-bezier(.3,.6,.4,1) infinite; }
+.dino-shadow { height: 4px; border-radius: 50%; background: var(--muted); animation: dinoShadow .7s cubic-bezier(.3,.6,.4,1) infinite; }
+@keyframes dinoDots { 0% { opacity: .2 } 20% { opacity: 1 } 100% { opacity: .2 } }
+.dino-dot { animation: dinoDots 1.1s infinite; }
+.dino-dot:nth-child(2) { animation-delay: .18s; }
+.dino-dot:nth-child(3) { animation-delay: .36s; }

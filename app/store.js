@@ -1,5 +1,5 @@
 /*
- * store.js — Local-first repository (localStorage).
+ * store.js, Local-first repository (localStorage).
  * This is the swap point: replace these methods with a Supabase-backed
  * implementation later and the UI does not change. See PLAN.md §7 & §9.
  * Everything is namespaced by user_id (a fixed 'local' user for now).
@@ -10,25 +10,94 @@
   var KEY = 'macrosaurus:v1';
   var USER = 'local';
 
-  function todayISO() { return new Date().toISOString().slice(0, 10); }
+  // LOCAL calendar date (not UTC) so entries land on the user's actual day.
+  function isoOf(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+  function todayISO() { return isoOf(new Date()); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  // Profile-level defaults (profile is null in defaultState, so it needs its own
+  // backfill map for deep-merge migration of nested settings).
+  var PROFILE_DEFAULTS = {
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
+    program_mode: 'collaborative',
+    proteinGPerKgLBM: 2.0,
+  };
+
+  // Recursively fill in any keys missing from `target` using `defaults`,
+  // without overwriting values the user already has. Arrays are treated as leaves.
+  function deepDefaults(target, defaults) {
+    if (Array.isArray(defaults)) return target === undefined ? defaults : target;
+    if (defaults && typeof defaults === 'object') {
+      var out = (target && typeof target === 'object' && !Array.isArray(target)) ? target : {};
+      for (var k in defaults) { if (Object.prototype.hasOwnProperty.call(defaults, k)) out[k] = deepDefaults(out[k], defaults[k]); }
+      return out;
+    }
+    return target === undefined ? defaults : target;
+  }
+
+  // Self-heal calories that were logged clearly higher than their macros can account for (the classic
+  // scan/entry-slip signature, e.g. a whole-pot calorie figure paired with a single serving of macros).
+  // We only touch gross mismatches (>25% AND >40 kcal over Atwater) and never alcohol, so accurate
+  // labels, fibre-rich foods and sugar-free items (where calories legitimately sit below the macro
+  // maths) are left alone. Snapping to protein*4 + carbs*4 + fat*9 restores a sane, consistent value.
+  function healMacro(m, isAlcohol) {
+    if (!m || isAlcohol) return;
+    var kcal = +m.kcal || 0;
+    var atw = (+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9;
+    if (atw > 0 && kcal > atw * 1.25 + 40) m.kcal = Math.round(atw);
+  }
+  function healMacros(s) {
+    (s.log_entries || []).forEach(function (e) { healMacro(e.computed_macros, e.is_alcohol); });
+    (s.foods || []).forEach(function (f) { healMacro(f.macros, f.is_alcohol); });
+    (s.saved_meals || []).forEach(function (sm) { (sm.items || []).forEach(function (it) { healMacro(it.macros, it.is_alcohol); }); });
+    return s;
+  }
+
+  // Bring any loaded/older state up to the current shape.
+  function migrate(state) {
+    var s = deepDefaults(state ? JSON.parse(JSON.stringify(state)) : {}, defaultState());
+    if (s.profile) s.profile = deepDefaults(s.profile, PROFILE_DEFAULTS);
+    return healMacros(s);
+  }
 
   function defaultState() {
     return {
       user_id: USER,
       profile: null, // set during onboarding
       meal_templates: [
-        { id: 'm_1', user_id: USER, name: 'Meal 1', sort_order: 0 },
-        { id: 'm_2', user_id: USER, name: 'Meal 2', sort_order: 1 },
-        { id: 'm_3', user_id: USER, name: 'Meal 3', sort_order: 2 },
+        { id: 'm_1', user_id: USER, name: 'Breakfast', sort_order: 0 },
+        { id: 'm_2', user_id: USER, name: 'Lunch', sort_order: 1 },
+        { id: 'm_3', user_id: USER, name: 'Dinner', sort_order: 2 },
         { id: 'm_s', user_id: USER, name: 'Snacks', sort_order: 3 },
         { id: 'm_o', user_id: USER, name: 'Other', sort_order: 4 },
       ],
+      day_meals: {},      // per-date meal lists overriding meal_templates: { 'YYYY-MM-DD': [{id,user_id,name,sort_order}] }
       foods: [],          // saved foods: favorites (is_favorite) + recents (updated_at); remembered serving
       log_entries: [],    // what was eaten, per date+meal
       weight_entries: [], // check-ins (weight + body fat)
       targets: [],        // history of targets; last is current
       day_overrides: {},  // per-date carb/fat rebalance: { 'YYYY-MM-DD': { shiftKcal } }
+      last_checkin: null, // ISO date of last completed weekly check-in (gates cadence)
+      checkins: [],       // history: [{ date, weightKg, onTrack, changed, weeklyChangeKg?, deltaKcal?, tdee? }]
+      pending_adjustment: null, // an un-actioned check-in proposal: { date, result } (survives reloads until approved/rejected)
+      expenditure: null,  // smoothed adaptive TDEE: { kcal, n, updated } (null until the first check-in learns it)
+      paused: false,      // goal paused (holiday mode)
+      diet_break: null,       // temporary maintenance phase: { start, end, returnGoal }
+      last_break_end: null,   // ISO date the last diet break ended (resets the dieting clock)
+      diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
+      saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
+      catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] }, locked so later edits never lose a caught creature
+      items: {},          // shared item inventory: { itemId: count }
+      dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
+      game_awards: {},    // idempotency keys for one-time item / milestone grants
+      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null }, // ladder + weekly boss + prestige; one ladder attempt per logged day
+      game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
+      badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
+      buddy: { stage: 0 },   // buddy high-water stage index; never falls back, naps after a broken streak
+      records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
+      freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
+      onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
       goals: null,
     };
   }
@@ -37,8 +106,7 @@
     try {
       var raw = root.localStorage.getItem(KEY);
       if (!raw) return defaultState();
-      var s = JSON.parse(raw);
-      return Object.assign(defaultState(), s);
+      return migrate(JSON.parse(raw));
     } catch (e) {
       console.warn('store.load failed, resetting', e);
       return defaultState();
@@ -57,9 +125,11 @@
 
   var Store = {
     USER: USER,
+    isoOf: isoOf,
     todayISO: todayISO,
     uid: uid,
     defaultState: defaultState,
+    migrate: migrate,
     load: load,
     save: save,
     reset: reset,
