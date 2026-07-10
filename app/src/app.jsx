@@ -2638,7 +2638,7 @@ function FoodLog({ db, update, openLog, showToast }) {
   }, [drag]);
 
   const renderEntry = (e, m, mc) => { const dragging = drag && drag.id === e.id; return (
-    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="flex items-center gap-3 py-2.5 border-t border-[#262629] mt-2 relative" style={{ borderLeft: '4px solid ' + mc, paddingLeft: 8, opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
+    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="flex items-center gap-3 py-2.5 mt-2 relative" style={{ borderTop: '1px solid var(--surface2)', borderLeft: '4px solid ' + mc, paddingLeft: 8, opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
       {drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && <div className="absolute -top-1 left-0 right-0 h-1.5 pointer-events-none" style={{ background: 'var(--accent)', boxShadow: '2px 2px 0 0 var(--shadow)' }} />}
       <div className="w-9 h-9 pixel-box flex items-center justify-center shrink-0" style={{ background: mc }}><PixelGlyph kind={foodKind(e.name, e.is_alcohol)} color="rgba(0,0,0,0.8)" size={20} /></div>
       <div className="min-w-0 flex-1">

@@ -8649,8 +8649,9 @@ function FoodLog({
       key: e.id,
       "data-entry-id": e.id,
       "data-meal-id": m.id,
-      className: "flex items-center gap-3 py-2.5 border-t border-[#262629] mt-2 relative",
+      className: "flex items-center gap-3 py-2.5 mt-2 relative",
       style: {
+        borderTop: '1px solid var(--surface2)',
         borderLeft: '4px solid ' + mc,
         paddingLeft: 8,
         opacity: dragging ? 0.45 : 1,
