@@ -3271,7 +3271,6 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       <button onClick={() => stepBy(step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
       <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">{unit === 'g' ? 'grams' : servNounPlural}</div>
     </div>
-    {unit !== 'g' && <div className="mt-2.5"><FractionChips value={a} onPick={v => setAmount(String(v))} /></div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {qtyLabel}</div>
       <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO }}>{final.protein}g P</span> · <span style={{ color: CARB }}>{final.carbs}g C</span> · <span style={{ color: FAT }}>{final.fat}g F</span></div>
@@ -3374,7 +3373,6 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
       <button onClick={() => stepP(0.25)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
       <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">× meal</div>
     </div>}
-    {!single && <div className="mt-2.5"><FractionChips value={p} onPick={v => setPortion(String(v))} /></div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {portionLabel}</div>
       <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO }}>{final.protein}g P</span> · <span style={{ color: CARB }}>{final.carbs}g C</span> · <span style={{ color: FAT }}>{final.fat}g F</span></div>
