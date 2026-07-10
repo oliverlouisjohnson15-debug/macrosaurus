@@ -2305,9 +2305,10 @@ function effectiveTarget(db, date) {
     };
   }
   // Thin wrapper: all composition maths (cycling, carryover, floor, override) lives in the engine.
-  // The carryover window starts the day AFTER the last check-in (cycleStartISO), matching the
-  // check-in cycle, and only COMPLETE logged days contribute (the engine filters).
-  const cs = cycleStartISO(db, date);
+  // The carryover window starts ON the last check-in day (inclusive), so that day's own under- or
+  // over-eat rolls into the next day instead of vanishing in the gap between cycles. (Coverage/cadence
+  // still uses cycleStartISO, which excludes the check-in morning.) Only COMPLETE logged days count.
+  const cs = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
   const eatenByDate = {};
   if (p.carryover && p.carryover.enabled) {
     db.log_entries.forEach(e => {
@@ -4229,6 +4230,82 @@ function Wizard({
     }
   }, [profile]);
   const steps = [{
+    t: 'Your look',
+    body: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
+    }, "First, pick your palette. You can change it any time in Menu, Settings."), /*#__PURE__*/React.createElement(Field, {
+      label: "Theme"
+    }, /*#__PURE__*/React.createElement(Seg, {
+      value: f.theme || 'light',
+      onChange: v => set('theme', v),
+      options: [{
+        v: 'light',
+        l: /*#__PURE__*/React.createElement("span", {
+          className: "inline-flex items-center justify-center gap-1.5"
+        }, /*#__PURE__*/React.createElement(PixelGlyph, {
+          kind: "sun",
+          color: "currentColor",
+          size: 12
+        }), " GB Color")
+      }, {
+        v: 'dark',
+        l: /*#__PURE__*/React.createElement("span", {
+          className: "inline-flex items-center justify-center gap-1.5"
+        }, /*#__PURE__*/React.createElement(PixelGlyph, {
+          kind: "moon",
+          color: "currentColor",
+          size: 12
+        }), " Dark GB")
+      }]
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-4 mt-4",
+      style: {
+        background: 'var(--card)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase text-[#8A8A90] mb-2.5"
+    }, "Preview"), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-3",
+      style: {
+        borderLeft: '4px solid var(--pro)',
+        paddingLeft: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-9 h-9 pixel-box flex items-center justify-center shrink-0",
+      style: {
+        background: 'var(--pro)'
+      }
+    }, /*#__PURE__*/React.createElement(PixelGlyph, {
+      kind: "plate",
+      color: "rgba(0,0,0,0.8)",
+      size: 18
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-bold truncate"
+    }, "Sample food"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] tnum mt-0.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-bold",
+      style: {
+        color: 'var(--pro)'
+      }
+    }, "420"), /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, " kc"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: PRO
+      }
+    }, "30P"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: CARB
+      }
+    }, "40C"), " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: FAT
+      }
+    }, "12F"))))))
+  }, {
     t: 'About you',
     body: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-3"
@@ -4278,10 +4355,9 @@ function Wizard({
       onChange: e => setInch(e.target.value)
     }), /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "in"))))
-  }, {
-    t: 'Your stats',
-    body: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Field, {
+    }, "in"))), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-3"
+    }, /*#__PURE__*/React.createElement(Field, {
       label: "Weigh-in units"
     }, /*#__PURE__*/React.createElement(Seg, {
       value: f.weight_unit,
@@ -4310,7 +4386,7 @@ function Wizard({
     }, "lb")) : /*#__PURE__*/React.createElement(NumInput, {
       value: f.weightKg,
       onChange: e => set('weightKg', e.target.value)
-    })), /*#__PURE__*/React.createElement(Field, {
+    }))), /*#__PURE__*/React.createElement(Field, {
       label: "Body fat %",
       hint: "Used to size protein to your lean mass."
     }, /*#__PURE__*/React.createElement(NumInput, {
@@ -4454,82 +4530,6 @@ function Wizard({
     }, "Protein:"), " ", f.proteinManualG ? `${preview.protein_g} g (manual)` : `${(+f.proteinGPerKgLBM || 2.2).toFixed(1)} g/kg lean mass = ${preview.protein_g} g`, ". Based on Helms 2014 (2.3–3.1 g/kg lean in a deficit) and Jeff Nippard (1.8–2.7 g/kg bodyweight cutting)."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text2)]"
     }, "Fat & carbs:"), " fat from your diet style (", f.dietStyle.replace('_', ' '), "), carbs fill the rest."), /*#__PURE__*/React.createElement("div", null, "Everything retunes automatically from your weekly check-ins."))) : /*#__PURE__*/React.createElement("div", null)
-  }, {
-    t: 'Your look',
-    body: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
-    }, "Pick your palette. You can change it any time in Menu, Settings."), /*#__PURE__*/React.createElement(Field, {
-      label: "Theme"
-    }, /*#__PURE__*/React.createElement(Seg, {
-      value: f.theme || 'light',
-      onChange: v => set('theme', v),
-      options: [{
-        v: 'light',
-        l: /*#__PURE__*/React.createElement("span", {
-          className: "inline-flex items-center justify-center gap-1.5"
-        }, /*#__PURE__*/React.createElement(PixelGlyph, {
-          kind: "sun",
-          color: "currentColor",
-          size: 12
-        }), " GB Color")
-      }, {
-        v: 'dark',
-        l: /*#__PURE__*/React.createElement("span", {
-          className: "inline-flex items-center justify-center gap-1.5"
-        }, /*#__PURE__*/React.createElement(PixelGlyph, {
-          kind: "moon",
-          color: "currentColor",
-          size: 12
-        }), " Dark GB")
-      }]
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "pixel-box p-4 mt-4",
-      style: {
-        background: 'var(--card)'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[8px] uppercase text-[#8A8A90] mb-2.5"
-    }, "Preview"), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-3",
-      style: {
-        borderLeft: '4px solid var(--pro)',
-        paddingLeft: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "w-9 h-9 pixel-box flex items-center justify-center shrink-0",
-      style: {
-        background: 'var(--pro)'
-      }
-    }, /*#__PURE__*/React.createElement(PixelGlyph, {
-      kind: "plate",
-      color: "rgba(0,0,0,0.8)",
-      size: 18
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "min-w-0"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-sm font-bold truncate"
-    }, "Sample food"), /*#__PURE__*/React.createElement("div", {
-      className: "text-[11px] tnum mt-0.5"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "font-bold",
-      style: {
-        color: 'var(--pro)'
-      }
-    }, "420"), /*#__PURE__*/React.createElement("span", {
-      className: "text-[#8A8A90]"
-    }, " kc"), " ", /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: PRO
-      }
-    }, "30P"), " ", /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: CARB
-      }
-    }, "40C"), " ", /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: FAT
-      }
-    }, "12F"))))))
   }];
   const last = step === steps.length - 1;
   // In dark theme --header is black (the top bar), so headings/progress that used it went invisible.
@@ -15287,13 +15287,7 @@ function MobileHeader({
 // users after setup, and replayable from the menu (reviewing=true just changes the button labels).
 const WELCOME_SLIDES = [{
   title: 'Welcome to Macrosaurus',
-  body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and adjusts."
-}, {
-  title: 'Your targets adapt',
-  body: "As your weight changes, so does what you burn. Each week Macrosaurus reads your trend and retunes your numbers. No guesswork."
-}, {
-  title: 'Protein is a floor',
-  body: "Aim to hit it or go over. It protects your muscle while you lose fat. Carbs and fat can flex to fit."
+  body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week."
 }, {
   title: 'Logging is quick',
   body: "Tap the plus button to add food: a photo, your voice, or a barcode. The AI does the maths, you just confirm."

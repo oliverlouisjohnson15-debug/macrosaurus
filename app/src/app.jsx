@@ -336,9 +336,10 @@ function effectiveTarget(db, date) {
     return { base, cyc: 0, carry: 0, eff: { kcal: mk, protein_g: mt.protein_g, carbs_g: mt.carbs_g, fat_g: mt.fat_g, deltaKcal: 0 }, onBreak: true };
   }
   // Thin wrapper: all composition maths (cycling, carryover, floor, override) lives in the engine.
-  // The carryover window starts the day AFTER the last check-in (cycleStartISO), matching the
-  // check-in cycle, and only COMPLETE logged days contribute (the engine filters).
-  const cs = cycleStartISO(db, date);
+  // The carryover window starts ON the last check-in day (inclusive), so that day's own under- or
+  // over-eat rolls into the next day instead of vanishing in the gap between cycles. (Coverage/cadence
+  // still uses cycleStartISO, which excludes the check-in morning.) Only COMPLETE logged days count.
+  const cs = db.last_checkin ? db.last_checkin : shiftISO(date, -6);
   const eatenByDate = {};
   if (p.carryover && p.carryover.enabled) {
     db.log_entries.forEach(e => { if (e.date >= cs && e.date < date) eatenByDate[e.date] = (eatenByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
@@ -990,6 +991,18 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
   const preview = useMemo(() => { try { return E.computeInitialTargets(profile); } catch (e) { return null; } }, [profile]);
 
   const steps = [
+    { t: 'Your look', body: (
+      <>
+        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">First, pick your palette. You can change it any time in Menu, Settings.</div>
+        <Field label="Theme"><Seg value={f.theme || 'light'} onChange={v => set('theme', v)} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> GB Color</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark GB</span> }]} /></Field>
+        <div className="pixel-box p-4 mt-4" style={{ background: 'var(--card)' }}>
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2.5">Preview</div>
+          <div className="flex items-center gap-3" style={{ borderLeft: '4px solid var(--pro)', paddingLeft: 8 }}>
+            <div className="w-9 h-9 pixel-box flex items-center justify-center shrink-0" style={{ background: 'var(--pro)' }}><PixelGlyph kind="plate" color="rgba(0,0,0,0.8)" size={18} /></div>
+            <div className="min-w-0"><div className="text-sm font-bold truncate">Sample food</div><div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: 'var(--pro)' }}>420</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO }}>30P</span> <span style={{ color: CARB }}>40C</span> <span style={{ color: FAT }}>12F</span></div></div>
+          </div>
+        </div>
+      </>) },
     { t: 'About you', body: (
       <>
         <div className="grid grid-cols-2 gap-3">
@@ -1000,15 +1013,12 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
           <div className="mb-2"><Seg value={f.height_unit} onChange={v => set('height_unit', v)} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></div>
           {f.height_unit === 'cm' ? <NumInput value={f.heightCm} onChange={e => set('heightCm', e.target.value)} /> : <div className="flex gap-2 items-center"><NumInput value={ft} onChange={e => setFt(e.target.value)} /><span className="text-[#8A8A90]">ft</span><NumInput value={inch} onChange={e => setInch(e.target.value)} /><span className="text-[#8A8A90]">in</span></div>}
         </Field>
-      </>) },
-    { t: 'Your stats', body: (
-      <>
-        <Field label="Weigh-in units">
-          <Seg value={f.weight_unit} onChange={v => set('weight_unit', v)} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} />
-        </Field>
-        <Field label="Current weight">
-          {f.weight_unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={f.weightKg} onChange={e => set('weightKg', e.target.value)} />}
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Weigh-in units"><Seg value={f.weight_unit} onChange={v => set('weight_unit', v)} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
+          <Field label="Current weight">
+            {f.weight_unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={f.weightKg} onChange={e => set('weightKg', e.target.value)} />}
+          </Field>
+        </div>
         <Field label="Body fat %" hint="Used to size protein to your lean mass."><NumInput value={f.bodyFatPct} onChange={e => set('bodyFatPct', e.target.value)} /><button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it visually →</button></Field>
       </>) },
     { t: 'Activity level', body: (
@@ -1048,18 +1058,6 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
           <div>Everything retunes automatically from your weekly check-ins.</div>
         </div>
       </Card>) : <div /> },
-    { t: 'Your look', body: (
-      <>
-        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Pick your palette. You can change it any time in Menu, Settings.</div>
-        <Field label="Theme"><Seg value={f.theme || 'light'} onChange={v => set('theme', v)} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> GB Color</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark GB</span> }]} /></Field>
-        <div className="pixel-box p-4 mt-4" style={{ background: 'var(--card)' }}>
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2.5">Preview</div>
-          <div className="flex items-center gap-3" style={{ borderLeft: '4px solid var(--pro)', paddingLeft: 8 }}>
-            <div className="w-9 h-9 pixel-box flex items-center justify-center shrink-0" style={{ background: 'var(--pro)' }}><PixelGlyph kind="plate" color="rgba(0,0,0,0.8)" size={18} /></div>
-            <div className="min-w-0"><div className="text-sm font-bold truncate">Sample food</div><div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: 'var(--pro)' }}>420</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO }}>30P</span> <span style={{ color: CARB }}>40C</span> <span style={{ color: FAT }}>12F</span></div></div>
-          </div>
-        </div>
-      </>) },
   ];
   const last = step === steps.length - 1;
   // In dark theme --header is black (the top bar), so headings/progress that used it went invisible.
@@ -4705,9 +4703,7 @@ function MobileHeader({ setView }) {
 // First-run welcome tour: a few full-screen slides teaching the core concepts. Shown once to new
 // users after setup, and replayable from the menu (reviewing=true just changes the button labels).
 const WELCOME_SLIDES = [
-  { title: 'Welcome to Macrosaurus', body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and adjusts." },
-  { title: 'Your targets adapt', body: "As your weight changes, so does what you burn. Each week Macrosaurus reads your trend and retunes your numbers. No guesswork." },
-  { title: 'Protein is a floor', body: "Aim to hit it or go over. It protects your muscle while you lose fat. Carbs and fat can flex to fit." },
+  { title: 'Welcome to Macrosaurus', body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week." },
   { title: 'Logging is quick', body: "Tap the plus button to add food: a photo, your voice, or a barcode. The AI does the maths, you just confirm." },
   { title: 'Weigh in, then relax', body: "A few times a week is plenty, right on the Dashboard. Macrosaurus follows your trend, not one noisy day, and adjusts weekly." },
   { title: 'Make it a habit', body: "Log each day to collect Macrodex dinos, with a playful Fight arena for your streak. Consistency, made fun." },
