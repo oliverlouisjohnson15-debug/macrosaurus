@@ -833,7 +833,7 @@ function LegalDoc({ doc, onClose }) {
 }
 function Auth() {
   const [mode, setMode] = useState('login');
-  const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [code, setCode] = useState('');
+  const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState(''); const [code, setCode] = useState('');
   const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false); const [legal, setLegal] = useState(null);
   async function submit() {
     if (!supa) { setMsg('Accounts need an internet connection. Open the deployed site.'); return; }
@@ -845,10 +845,14 @@ function Auth() {
       setBusy(false); return;
     }
     if (!email || !pw) { setMsg('Enter your email and a password.'); return; }
-    if (mode === 'signup' && code.trim().toLowerCase() !== BETA_INVITE_CODE) { setMsg('That invite code isn\'t right. Macrosaurus is invite-only during the beta.'); return; }
+    if (mode === 'signup') {
+      if (pw.length < 6) { setMsg('Use a password of at least 6 characters.'); return; }
+      if (pw !== pw2) { setMsg('Those passwords do not match, please retype them.'); return; }
+      if (code.trim().toLowerCase() !== BETA_INVITE_CODE) { setMsg('That invite code isn\'t right. Macrosaurus is invite-only during the beta.'); return; }
+    }
     setBusy(true); setMsg('');
     try {
-      if (mode === 'signup') { const r = await supa.auth.signUp({ email, password: pw }); if (r.error) throw r.error; if (!r.data.session) setMsg('Account created. If prompted, confirm via the email we sent, then log in.'); }
+      if (mode === 'signup') { const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; if (!r.data.session) setMsg('Account created. Check your email for a confirmation link, then log in.'); }
       else { const r = await supa.auth.signInWithPassword({ email, password: pw }); if (r.error) throw r.error; }
     } catch (e) { setMsg(e.message); }
     setBusy(false);
@@ -869,6 +873,7 @@ function Auth() {
         <div className="pixel-box bg-[#161618] p-5" style={{ borderTopColor: 'var(--header)', borderTopWidth: '7px' }}>
           <Field label="Email"><input type="email" autoComplete="email" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="you@email.com" /></Field>
           {mode !== 'forgot' && <Field label="Password"><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className={inputCls} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="at least 6 characters" /></Field>}
+          {mode === 'signup' && <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="type it again" /></Field>}
           {mode === 'signup' && <Field label="Beta invite code" hint="Macrosaurus is invite-only right now. Enter the code you were given."><input type="text" autoComplete="off" className={inputCls} value={code} onChange={e => setCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="invite code" /></Field>}
           {mode === 'forgot' && <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
           <button onClick={submit} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'PLEASE WAIT…' : (mode === 'signup' ? 'CREATE ACCOUNT' : (mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'))}</button>
@@ -964,7 +969,7 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
   const [f, setF] = useState(initial || {
     sex: 'male', age: 32, heightCm: 175, height_unit: 'cm', weightKg: 82, weight_unit: 'st_lb', bodyFatPct: 20,
     activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
-    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, aiKey: initialKey || '',
+    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, aiKey: initialKey || '', theme: 'light',
   });
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
   const [proteinTouched, setProteinTouched] = useState(false);
@@ -1043,18 +1048,32 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
           <div>Everything retunes automatically from your weekly check-ins.</div>
         </div>
       </Card>) : <div /> },
+    { t: 'Your look', body: (
+      <>
+        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Pick your palette. You can change it any time in Menu, Settings.</div>
+        <Field label="Theme"><Seg value={f.theme || 'light'} onChange={v => set('theme', v)} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> GB Color</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark GB</span> }]} /></Field>
+        <div className="pixel-box p-4 mt-4" style={{ background: 'var(--card)' }}>
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2.5">Preview</div>
+          <div className="flex items-center gap-3" style={{ borderLeft: '4px solid var(--pro)', paddingLeft: 8 }}>
+            <div className="w-9 h-9 pixel-box flex items-center justify-center shrink-0" style={{ background: 'var(--pro)' }}><PixelGlyph kind="plate" color="rgba(0,0,0,0.8)" size={18} /></div>
+            <div className="min-w-0"><div className="text-sm font-bold truncate">Sample food</div><div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: 'var(--pro)' }}>420</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO }}>30P</span> <span style={{ color: CARB }}>40C</span> <span style={{ color: FAT }}>12F</span></div></div>
+          </div>
+        </div>
+      </>) },
   ];
   const last = step === steps.length - 1;
+  // In dark theme --header is black (the top bar), so headings/progress that used it went invisible.
+  const brand = f.theme === 'dark' ? 'var(--accent)' : 'var(--header)';
   return (
-    <div className="theme-light min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className={(f.theme === 'dark' ? 'theme-dark' : 'theme-light') + ' min-h-screen'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex items-center gap-3 px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
       <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
       <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
     </div>
     <div className="max-w-md mx-auto px-6 pt-8 pb-10 fade-in">
-      <div className="flex items-center gap-1.5 mb-6">{steps.map((_, i) => <div key={i} className="h-2 flex-1 pixel-box" style={{ boxShadow: 'none', border: '2px solid var(--border)', background: i <= step ? 'var(--header)' : 'var(--track)' }} />)}</div>
+      <div className="flex items-center gap-1.5 mb-6">{steps.map((_, i) => <div key={i} className="h-2 flex-1 pixel-box" style={{ boxShadow: 'none', border: '2px solid var(--border)', background: i <= step ? brand : 'var(--track)' }} />)}</div>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Step {step + 1} of {steps.length}</div>
-      <h1 className="pf text-xl mb-6" style={{ color: 'var(--header)' }}>{steps[step].t}</h1>
+      <h1 className="pf text-xl mb-6" style={{ color: brand }}>{steps[step].t}</h1>
       {steps[step].body}
       <div className="flex gap-3 mt-6">
         {step > 0 ? <Btn kind="ghost" onClick={() => setStep(step - 1)}>Back</Btn> : (onCancel ? <Btn kind="ghost" onClick={onCancel}>Cancel</Btn> : null)}
