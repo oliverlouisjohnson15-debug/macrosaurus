@@ -4834,6 +4834,11 @@ function App() {
     const el = document.documentElement;
     el.classList.toggle('theme-light', themePref === 'light');
     el.classList.toggle('theme-dark', themePref !== 'light');
+    // Match the phone's browser/status-bar chrome to the in-app theme (the header colour), overriding
+    // the static prefers-color-scheme metas so a user who picks a theme in-app sees it edge to edge.
+    let tc = document.querySelector('meta[name="theme-color"]:not([media])');
+    if (!tc) { tc = document.createElement('meta'); tc.setAttribute('name', 'theme-color'); document.head.appendChild(tc); }
+    tc.setAttribute('content', themePref === 'light' ? '#5B4FA6' : '#000000');
     if (!document.getElementById('scanline')) { const d = document.createElement('div'); d.id = 'scanline'; d.className = 'scanline'; document.body.appendChild(d); }
   }, [themePref]);
 
