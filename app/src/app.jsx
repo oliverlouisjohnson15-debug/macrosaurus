@@ -4117,7 +4117,7 @@ function SettingsTab({ db, update }) {
           <Field label={`Average cycle length: ${m.cycleLen || 28} days`}>
             <input type="range" min="21" max="40" step="1" value={m.cycleLen || 28} onChange={e => setM({ cycleLen: +e.target.value })} className="w-full accent-[#4A9EEB]" />
           </Field>
-          {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase{ph.waterHigh ? '. Water weight often runs high now, so the scale may read up. Your check-in will hold rather than cut on it.' : '.'}</div>}
+          {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : ph.lowWater ? 'var(--good)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase.{ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.'}</div>}
         </>}
       </Section>;
     })()}

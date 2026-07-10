@@ -449,15 +449,18 @@ test('simulation: expenditure converges to true TDEE over 7 cycles without oscil
 });
 
 // ---- menstrual-cycle awareness ----
-test('menstrualPhase: null when off, flags the premenstrual and early-period water window', () => {
+test('menstrualPhase: null when off; flags the water window and the clean mid-follicular window', () => {
   assert.strictEqual(E.menstrualPhase({ enabled: false, lastStart: '2026-07-01', cycleLen: 28 }, '2026-07-10'), null);
   assert.strictEqual(E.menstrualPhase(null, '2026-07-10'), null);
   const cfg = { enabled: true, lastStart: '2026-07-01', cycleLen: 28 };
-  assert.strictEqual(E.menstrualPhase(cfg, '2026-07-07').waterHigh, false); // day 6, follicular
+  assert.strictEqual(E.menstrualPhase(cfg, '2026-07-01').waterHigh, true);  // day 0 = first day of flow, the peak
+  assert.strictEqual(E.menstrualPhase(cfg, '2026-07-03').waterHigh, true);  // day 2, still clearing high water
+  const clean = E.menstrualPhase(cfg, '2026-07-07');                        // day 6, mid-follicular nadir
+  assert.strictEqual(clean.waterHigh, false);
+  assert.strictEqual(clean.lowWater, true);
   const pre = E.menstrualPhase(cfg, '2026-07-25');                          // day 24, premenstrual week
   assert.strictEqual(pre.waterHigh, true);
   assert.strictEqual(pre.phase, 'luteal');
-  assert.strictEqual(E.menstrualPhase(cfg, '2026-07-01').waterHigh, true);  // day 0, early-period bloat
   // Wraps into the next cycle correctly.
   assert.strictEqual(E.menstrualPhase(cfg, '2026-07-29').cycleDay, 0);      // 28 days later = day 0 again
 });

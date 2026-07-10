@@ -255,17 +255,20 @@
   }
 
   // Menstrual-cycle phase for a date, from a logged last-period start and average cycle length.
-  // Water retention rises in the late-luteal (premenstrual) week and the first day or two of the
-  // period, when the scale reads high for non-fat reasons. Returns null unless tracking is on.
+  // Extracellular water rises through the luteal phase, PEAKS on the first day of flow, and clears
+  // over the next ~3-5 days (White 2011, 765 cycles); the nadir is the mid-follicular phase. So the
+  // scale reads high for non-fat reasons across the premenstrual week and the first ~3 days of the
+  // period. lowWater flags the cleanest weigh-in window (mid-follicular). Returns null unless on.
   function menstrualPhase(cfg, dateISO) {
     if (!cfg || !cfg.enabled || !cfg.lastStart) return null;
     var len = clamp(Math.round(+cfg.cycleLen || 28), 21, 40);
     var elapsed = daysBetweenISO(cfg.lastStart, dateISO);
     if (!(elapsed >= 0)) return null;
     var day = ((elapsed % len) + len) % len;                  // 0-indexed day of the current cycle
-    var waterHigh = (day >= len - 7) || (day <= 1);           // premenstrual week + early-period bloat
+    var waterHigh = (day >= len - 7) || (day <= 2);           // premenstrual week + day-1 peak and its clear-out
+    var lowWater = day >= 5 && day <= 13;                      // mid-follicular nadir: the cleanest read
     var phase = day <= 4 ? 'menstrual' : day <= 12 ? 'follicular' : day <= 15 ? 'ovulatory' : 'luteal';
-    return { cycleDay: day, cycleLen: len, phase: phase, waterHigh: waterHigh, daysToNext: len - day };
+    return { cycleDay: day, cycleLen: len, phase: phase, waterHigh: waterHigh, lowWater: lowWater, daysToNext: len - day };
   }
 
   function estimateExpenditure(opts) {
@@ -333,7 +336,7 @@
       var expW = profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0;
       return { changed: false, direction: 'unchanged', deltaKcal: 0, confidence: confidence, waterHeld: true,
         expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(opts.estimate.weeklyChangeKg, 3), expenditure: smoothed,
-        reason: 'Part of this cycle falls in your premenstrual phase, when water weight rises and can look like a stall. Rather than cut on what\'s most likely water, I\'m holding you at ' + currentKcal + ' kcal. Your first check-in after your period reads cleaner.', estimate: opts.estimate };
+        reason: 'This cycle overlaps the water-weight rise around your period (it peaks on day one of your period and can look like a stall). Rather than cut on what\'s most likely water, not fat, I\'m holding you at ' + currentKcal + ' kcal. A check-in in the week after your period reads cleanest.', estimate: opts.estimate };
     }
 
     // ---- transparent, blunt-but-friendly explanation of the change ----
@@ -398,7 +401,7 @@
     var nudge = clamp(round(fullGiveBack * earlyFactor / 10) * 10, 0, earlyCap);
     if (opts.waterHigh && dir === 'down') {
       return { changed: false, earlyPhase: true, direction: 'unchanged', waterHeld: true, expectedKgPerWeek: round(target, 2), actualKgPerWeek: round(actual, 3),
-        reason: 'You\'re ' + actualStr + ', but part of this cycle is your premenstrual phase when water weight rises, so I\'m holding rather than trimming on what\'s likely water. Your next check-in after your period reads cleaner.', estimate: opts.estimate };
+        reason: 'You\'re ' + actualStr + ', but this cycle overlaps the water-weight rise around your period, so I\'m holding rather than trimming on what\'s likely water, not fat. A check-in in the week after your period reads cleanest.', estimate: opts.estimate };
     }
     if (dir === 'unchanged' || nudge < 25) {
       return { changed: false, earlyPhase: true, direction: 'unchanged', expectedKgPerWeek: round(target, 2), actualKgPerWeek: round(actual, 3),
