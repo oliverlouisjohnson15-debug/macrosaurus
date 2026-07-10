@@ -48,8 +48,9 @@ function spliceBlock(startSig, replacement, endTag) {
   html = html.slice(0, start) + replacement + html.slice(end + endTag.length);
 }
 
-// tailwind block
-spliceBlock('<style>/*! tailwindcss', '<style>' + twCss + '</style>', '</style>');
+// tailwind block: always the first <style> in the document (older tailwind emitted a
+// /*! tailwindcss */ banner, newer minified builds do not, so match on the tag itself)
+spliceBlock('<style>', '<style>' + twCss + '</style>', '</style>');
 // custom styles block (starts with the Press Start 2P @import)
 spliceBlock("<style>@import url('https://fonts.googleapis.com", '<style>' + stylesCss + '\n</style>', '</style>');
 // engine block

@@ -1127,6 +1127,23 @@ function StatusCard({ db, update, onCheckIn, onReview, streak }) {
         : <div>{weighInputs}<Btn kind="accent" className="w-full mt-3" onClick={() => saveWeight(true)}>Weigh in & resume</Btn></div>}
     </Card>
   );
+  // Nothing to action yet (check-in not unlocked, no pending proposal): collapse to a quiet line
+  // that still keeps the daily weigh-in one tap away, rather than a full check-in card.
+  if (!ready && !pending) return (
+    <Card className="p-4 mb-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[14px] font-bold">{alreadyToday ? 'Checked in today' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`}</div>
+          <div className="text-[11px] text-[#8A8A90] mt-0.5">{todays ? 'Weighed in today · ' + fmtWeight(todays.scale_weight, unit) : 'Weigh in daily to keep your trend sharp'}</div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {streak > 0 && <div className="text-right"><div className="text-lg font-bold tnum flex items-center justify-end gap-1" style={{ color: 'var(--fat)' }}><PixelFire size={15} />{streak}</div><div className="text-[9px] text-[#8A8A90]">day streak</div></div>}
+          <Btn kind="ghost" className="text-[12px]" onClick={() => setOpen(o => !o)}>{todays ? 'Update' : 'Weigh in'}</Btn>
+        </div>
+      </div>
+      {open && <div className="mt-3">{weighInputs}<Btn kind="accent" className="w-full mt-3" onClick={() => saveWeight(false)}>Save weight</Btn></div>}
+    </Card>
+  );
   return (
     <Card className="p-5 mb-6">
       <div className="flex items-start justify-between">
@@ -2221,6 +2238,52 @@ function FightModal({ db, update, streak, onClose }) {
     </div>
   );
 }
+// Slim weight-trend teaser for the dashboard: latest weight + a sparkline, taps through to
+// the Goal tab where the full trend, weigh-in log and burn estimate live.
+function HomeWeightSpark({ db, onOpen }) {
+  const unit = db.profile.weight_unit;
+  const ws = db.weight_entries.slice(-21);
+  const pts = ws.map(w => (w.trend_weight != null ? w.trend_weight : w.scale_weight)).filter(v => v != null);
+  const last = db.weight_entries[db.weight_entries.length - 1];
+  if (!last) return null;
+  return (
+    <button onClick={onOpen} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4">
+      <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[8px]" style={{ color: 'var(--accent)' }}>Progress ›</span></div>
+      <div className="flex items-end gap-3">
+        <div className="shrink-0 leading-none"><span className="text-2xl font-bold tnum">{fmtWeight(last.scale_weight, unit)}</span></div>
+        <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--weight)" /></div>
+      </div>
+    </button>
+  );
+}
+
+// Everything gamey, collapsed to one strip: buddy + streak on the left, today's catch teaser
+// underneath, and a Fight shortcut on the right. The dex and fight open as the existing modals.
+function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight }) {
+  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const pcr = todayCr && CR_BY_ID[todayCr.id];
+  const today = Store.todayISO();
+  const fght = db.fight || {};
+  const spent = fght.lastAttemptDate === today && fght.lastBossWeek === fightWeekKey();
+  return (
+    <div className="bg-[#161618] pixel-box p-3 mb-4">
+      <div className="flex items-center gap-3">
+        <button onClick={onOpenDex} className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
+          <div style={buddy.asleep ? { filter: 'grayscale(0.85)', opacity: 0.45 } : null}><Sprite art={st.art} colors={st.colors} px={3.2} /></div>
+        </button>
+        <button onClick={onOpenDex} className="min-w-0 flex-1 text-left">
+          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1"><PixelFire size={11} />{streak} day streak</div>
+          <div className="text-[12px] font-bold truncate leading-tight">{st.name}{buddy.asleep ? ' (napping)' : ''}</div>
+          <div className="text-[10px] text-[#8A8A90] flex items-center gap-1.5 mt-0.5">Catch today: {pcr
+            ? <><span className="inline-flex"><Sprite art={pcr.art} colors={crSilhouette()} px={1.3} /></span><span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[pcr.rarity] }}>{CR_RARITY_LABEL[pcr.rarity]}{todayCr.shiny ? ' ✦' : ''}</span></>
+            : <span>???</span>}</div>
+        </button>
+        <button onClick={onOpenFight} className="pixel-btn py-2 px-3 shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--carb)', color: '#fff', opacity: spent ? 0.55 : 1 }}><PixelGlyph kind="glove" color="#fff" size={13} /><span className="pf text-[8px]">FIGHT</span></button>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast }) {
   const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
   const [span, setSpan] = useState('today');
@@ -2334,25 +2397,6 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       <PageHeader kicker={prettyDate(today)} title="Dashboard" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={() => setShowDex(true)} />
 
-      {showNudge && <div className="pixel-box p-4 mb-4 fade-in" style={{ background: 'var(--surface3)', borderTopColor: 'var(--fat)', borderTopWidth: '7px' }}>
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 mt-0.5"><PixelDino size={26} color="var(--header)" /></div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold mb-0.5">{missLog && missWeigh ? 'Log &amp; weigh-in still to do' : missLog ? 'Nothing logged yet today' : 'No weigh-in yet today'}</div>
-            <div className="text-[11px] text-[#8A8A90] leading-snug">{missLog
-              ? (freezeAvail
-                ? 'Log a meal (or weigh in) to keep your streak alive and evolve your buddy. Miss today and it spends this month’s streak freeze.'
-                : 'Log a meal or weigh in to keep your streak going. If today slips, no drama: your buddy just takes a nap and the streak count starts fresh, it keeps every evolution it earned.')
-              : 'A quick weigh-in keeps your weight trend accurate, and it counts toward your streak too.'}</div>
-          </div>
-          <button onClick={() => setNudgeDismissed(true)} className="text-[#8A8A90] text-xl leading-none shrink-0">×</button>
-        </div>
-        <div className="flex gap-2 mt-3">
-          {missLog && <button onClick={() => onQuickAdd(false)} className="pixel-btn flex-1 py-2.5 text-[11px]" style={{ background: 'var(--pro)', color: '#fff' }}>+ LOG FOOD</button>}
-          {missWeigh && <button onClick={() => { const el = document.getElementById('checkin-card'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className="pixel-btn flex-1 py-2.5 text-[11px]" style={{ background: 'var(--weight)', color: '#fff' }}>⚖ WEIGH IN</button>}
-        </div>
-      </div>}
-
       <div className="flex items-center justify-between mb-3">
         <div className="text-lg font-bold">Today's macros</div>
         <Pill value={span} onChange={setSpan} options={[{ v: 'today', l: 'Today' }, { v: 'avg', l: '7d avg' }]} />
@@ -2371,58 +2415,30 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
             {canOpen && <span className="ml-auto shrink-0 inline-flex items-center justify-center w-[15px] h-[15px] border-2 border-[#262629] text-[8px] leading-none" style={{ color: 'var(--muted)' }}>i</span>}
           </button>;
         })()}
+        {/* Today's food, folded into the hero as a slim tap-through footer to the Food log */}
+        {(() => {
+          const dayEntries = entriesOn(db, today);
+          if (!dayEntries.length) return null;
+          const totalKcal = Math.round(sumMacros(dayEntries).kcal);
+          const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
+          return <button onClick={() => setView('foodlog')} className="mt-2 pt-2 border-t border-[#262629] w-full flex items-center gap-2 text-[11px]">
+            <span className="pf text-[8px] uppercase text-[#8A8A90]">Today's food</span>
+            <span className="text-[#8A8A90]">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal}</span> kcal</span>
+            <span className="pf text-[8px] ml-auto shrink-0" style={{ color: 'var(--accent)' }}>Food log ›</span>
+          </button>;
+        })()}
       </Card>
 
-      {/* Compact TODAY summary: what's been logged so far, tap through to the Food log */}
-      {(() => {
-        const dayEntries = entriesOn(db, today);
-        if (!dayEntries.length) return null;
-        const todayMeals = mealsForDay(db, today);
-        const rows = todayMeals.map(m => { const me = dayEntries.filter(e => e.meal_id === m.id); return me.length ? { name: m.name, n: me.length, kcal: Math.round(sumMacros(me).kcal) } : null; }).filter(Boolean);
-        const orphans = dayEntries.filter(e => !todayMeals.some(m => m.id === e.meal_id));
-        if (orphans.length) rows.push({ name: 'Unsorted', n: orphans.length, kcal: Math.round(sumMacros(orphans).kcal) });
-        if (!rows.length) return null;
-        const shown = rows.slice(0, 3);
-        const totalKcal = Math.round(sumMacros(dayEntries).kcal);
-        const dots = [PRO, CARB, FAT, 'var(--accent)'];
-        return <button onClick={() => setView('foodlog')} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4">
-          <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Today's food</span><span className="pf text-[8px]" style={{ color: 'var(--accent)' }}>Food log ›</span></div>
-          {shown.map((r, i) => <div key={i} className="flex items-center gap-2.5 py-1.5 border-t border-[#262629] first:border-t-0">
-            <span className="w-2 h-2 shrink-0" style={{ background: dots[i % dots.length] }} />
-            <span className="truncate min-w-0 text-[12px]">{r.name}</span>
-            <span className="text-[10px] text-[#8A8A90] shrink-0">· {r.n}</span>
-            <span className="tnum text-[12px] font-bold ml-auto shrink-0">{r.kcal}</span>
-          </div>)}
-          {rows.length > 3 && <div className="text-[10px] text-[#8A8A90] pt-1.5 border-t border-[#262629]">+ {rows.length - 3} more meal{rows.length - 3 === 1 ? '' : 's'}</div>}
-          <div className="flex justify-between items-baseline mt-2 pt-2.5 border-t-[3px] border-[#262629]"><span className="pf text-[8px] text-[#8A8A90]">TOTAL</span><span className="tnum text-[14px] font-bold">{totalKcal} kcal</span></div>
-        </button>;
-      })()}
-
-      {/* Check-in and coaching, ONE merged surface: status, cycle progress, weigh-in and coach line */}
+      {/* Next action: check-in, weigh-in and the coach line in one adaptive surface */}
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} /></div>
 
       <DietBreakCard db={db} update={update} />
 
-      {/* Progress, the weight trend and your burn estimate together */}
-      <div className="text-lg font-bold mb-3 mt-6">Progress</div>
-      <ProgressPanel db={db} update={update} />
-      <ExpenditureCard db={db} />
+      {/* Slim weight trend, taps through to the Goal tab for the full picture and burn estimate */}
+      <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
-      {/* Streak and game, kept but out of the way of the daily essentials */}
-      <div className="text-lg font-bold mb-3 mt-6">Streak and game</div>
-      <BuddyCard db={db} streak={streak} buddy={buddy} freezeReady={freezeAvail} onOpenDex={() => setShowDex(true)} />
-      {(() => { const pcr = todayCr && CR_BY_ID[todayCr.id];
-        return <div className="text-[11px] text-[#8A8A90] mb-4 flex items-center justify-center gap-1.5">On track to catch today:{pcr
-          ? <><span className="inline-flex items-center"><Sprite art={pcr.art} colors={crSilhouette()} px={1.6} /></span><span className="pf text-[8px] uppercase" style={{ color: CR_RARITY_COLOR[pcr.rarity] }}>{CR_RARITY_LABEL[pcr.rarity]}{todayCr.shiny ? ' ✦' : ''}</span></>
-          : <span>???</span>}</div>; })()}
-      {(() => { const fght = db.fight || {}; const attemptUsed = fght.lastAttemptDate === today; const bossDone = fght.lastBossWeek === fightWeekKey(); const spent = attemptUsed && bossDone; const rank = fght.rank || 0; const cleared = rank >= FIGHT_LADDER.length;
-        const sub = spent ? 'Back tomorrow' : !attemptUsed ? (cleared ? 'Prestige ready' : 'Rung ' + (rank + 1) + '/' + FIGHT_LADDER.length) : !bossDone ? 'Boss awaits' : '';
-        return <button onClick={() => setShowFight(true)} className="pixel-btn w-full py-3 mb-4 flex items-center justify-center gap-2.5" style={{ background: 'var(--carb)', color: '#fff', opacity: spent ? 0.55 : 1 }}><PixelGlyph kind="glove" color="#fff" size={16} /><span className="pf text-[11px]">FIGHT</span>{sub && <span className="pf text-[8px] px-2 py-1" style={{ background: 'rgba(0,0,0,0.22)' }}>{sub}</span>}</button>; })()}
-
-      <button onClick={() => setShowStats(s => !s)} className="w-full pixel-box bg-[#1E1E22] py-3 mb-4 text-[10px] flex items-center justify-center gap-2">{showStats ? 'HIDE STATS' : 'MORE STATS'}</button>
-      {showStats && <div className="fade-in">
-        <ConsistencyHeatmap db={db} today={today} />
-      </div>}
+      {/* Game, collapsed to a single strip; dex and fight open as modals */}
+      <HomeGameStrip db={db} streak={streak} buddy={buddy} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} />
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showDex && <MacrodexModal db={db} update={update} streak={streak} onClose={() => setShowDex(false)} />}
@@ -3938,9 +3954,16 @@ function Goals({ db, update, showToast, onCheckIn }) {
             </div>
             <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} style={{ opacity: ready ? 1 : .5 }} onClick={onCheckIn}>Check in</Btn>
           </div>
-          <div className="text-[10px] text-[#8A8A90] mt-2">Your cycle stats and trends live on the dashboard.</div>
+          <div className="text-[10px] text-[#8A8A90] mt-2">Your full trend, weigh-in history and burn estimate are just below.</div>
         </Card>;
       })()}
+
+      {/* Progress: the full weight trend, weigh-in log, check-in history and live burn estimate.
+          Moved here from the dashboard so Home stays a quick daily glance. */}
+      <div className="text-lg font-bold mb-3">Progress</div>
+      <ProgressPanel db={db} update={update} />
+      <ExpenditureCard db={db} />
+      <div className="mb-6"><ConsistencyHeatmap db={db} today={today} /></div>
 
       {base && <Card className="p-4 mb-5">
         <div className="flex items-center justify-between">
