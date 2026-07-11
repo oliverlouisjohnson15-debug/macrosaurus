@@ -2123,7 +2123,7 @@ function FightModal({ db, update, streak, onClose }) {
   const [maxA, setMaxA] = useState(100); const [maxB, setMaxB] = useState(100);
   const [log, setLog] = useState([]); const [winner, setWinner] = useState(null); const [drops, setDrops] = useState([]);
   const [lungeA, setLungeA] = useState(false); const [lungeB, setLungeB] = useState(false);
-  const [pop, setPop] = useState(null);
+  const [pop, setPop] = useState(null); const [shake, setShake] = useState(false);
   const rewarded = useRef(false); const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -2149,8 +2149,9 @@ function FightModal({ db, update, streak, onClose }) {
         if (atk.ability === 'rage' && atkHp < atkMax * 0.35) dmg = Math.round(dmg * 1.5);
         const big = dmg >= 22;
         const hitTxt = big ? 'CRUNCH!' : (round % 3 === 0 ? 'CHOMP!' : round % 3 === 1 ? 'SMASH!' : 'THWACK!');
-        if (aAtk) { d2 = Math.max(0, d2 - dmg); setHpB(d2); setLungeA(true); const lt = setTimeout(() => setLungeA(false), 350); timers.current.push(lt); setPop({ side: 'r', text: hitTxt, id: round }); }
-        else { a = Math.max(0, a - dmg); setHpA(a); setLungeB(true); const lt = setTimeout(() => setLungeB(false), 350); timers.current.push(lt); setPop({ side: 'l', text: hitTxt, id: round }); }
+        if (big) { setShake(true); const shk = setTimeout(() => setShake(false), 320); timers.current.push(shk); }
+        if (aAtk) { d2 = Math.max(0, d2 - dmg); setHpB(d2); setLungeA(true); const lt = setTimeout(() => setLungeA(false), 350); timers.current.push(lt); setPop({ side: 'r', text: hitTxt, num: dmg, big, id: round }); }
+        else { a = Math.max(0, a - dmg); setHpA(a); setLungeB(true); const lt = setTimeout(() => setLungeB(false), 350); timers.current.push(lt); setPop({ side: 'l', text: hitTxt, num: dmg, big, id: round }); }
         const nm = aAtk ? fighter.name : opp.name;
         setLog(l => [FIGHT_HIT[rnd(FIGHT_HIT.length)].replace('{x}', nm) + (big ? '! Big one!' : '.'), ...l].slice(0, 5));
       }
@@ -2187,7 +2188,7 @@ function FightModal({ db, update, streak, onClose }) {
     </div>
   );
   const Ring = () => (
-    <div className="pixel-box relative overflow-hidden mb-3" style={{ height: 150, background: 'linear-gradient(var(--surface2), var(--surface3))' }}>
+    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 172, background: 'linear-gradient(var(--surface2), var(--surface3))' }}>
       {/* distant volcano */}
       <div className="absolute" style={{ bottom: 24, left: '42%' }}>
         <div style={{ position: 'relative', width: 60, height: 44 }}>
@@ -2200,9 +2201,12 @@ function FightModal({ db, update, streak, onClose }) {
       {/* fern silhouettes */}
       <div className="absolute" style={{ bottom: 18, left: 2, opacity: 0.5 }}><Sprite art="sprout" colors={crSilhouette()} px={3} /></div>
       <div className="absolute" style={{ bottom: 18, right: 2, opacity: 0.5 }}><Sprite art="sprout" colors={crSilhouette()} px={3} /></div>
-      <div className={'absolute bottom-6 left-6 ' + (lungeA ? 'flungeR' : 'fbob')}><Sprite art={fighter.art} colors={fighter.colors} px={6} /></div>
-      <div className={'absolute bottom-6 right-6 ' + (lungeB ? 'flungeLflip' : 'fbobFlip')}><Sprite art={opp.art} colors={opp.colors} px={6} /></div>
-      {pop && <div key={pop.id} className="absolute pf text-[13px] fpop" style={{ top: 40, [pop.side === 'r' ? 'right' : 'left']: 40, color: 'var(--fat)' }}>{pop.text}</div>}
+      <div className={'absolute bottom-6 left-6 ' + (lungeA ? 'flungeR' : 'fbob')}><Sprite art={fighter.art} colors={fighter.colors} px={7} /></div>
+      <div className={'absolute bottom-6 right-6 ' + (lungeB ? 'flungeLflip' : 'fbobFlip')}><Sprite art={opp.art} colors={opp.colors} px={7} /></div>
+      {pop && <div key={pop.id} className="absolute text-center" style={{ top: 34, [pop.side === 'r' ? 'right' : 'left']: 34 }}>
+        <div className="pf fpop" style={{ fontSize: pop.big ? 15 : 12, color: 'var(--fat)' }}>{pop.text}</div>
+        {pop.num != null && <div className="pf fdmg tnum" style={{ fontSize: pop.big ? 16 : 12, color: 'var(--danger)' }}>-{pop.num}</div>}
+      </div>}
     </div>
   );
   const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
@@ -2227,7 +2231,25 @@ function FightModal({ db, update, streak, onClose }) {
             <div className="text-center flex-1 min-w-0"><div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Sprite art={rival.art} colors={rival.colors} px={5} /></span></div><div className="text-[10px] mt-1.5 font-bold truncate">{rival.name}</div><StatLine s={rival.stats} />{rival.ability !== 'none' && <div className="text-[8px]" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}</div>
           </div>
           <div className="text-[11px] text-[#8A8A90] mb-2 text-center inline-flex items-center justify-center gap-1.5 flex-wrap w-full">{ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0} <PixelGlyph kind="trophy" color="var(--fat)" size={12} /></div>
-          {(fighter.stats.pro + fighter.stats.fib + fighter.stats.per) > 0 && <div className="text-[10px] text-[#8A8A90] text-center mb-3 leading-snug">Buddy power, last 7 days: {fighter.stats.pro} protein · {fighter.stats.per} perfect.</div>}
+          {(() => {
+            const s = fighter.stats;
+            const rows = [
+              { label: 'Protein', n: s.pro, add: s.pro * 2, unit: 'ATK', color: 'var(--pro)' },
+              { label: 'Fibre', n: s.fib, add: s.fib * 2, unit: 'DEF', color: 'var(--carb)' },
+              { label: 'Perfect', n: s.per, add: s.per * 5, unit: 'HP', color: 'var(--good)' },
+            ];
+            return <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your power, last 7 days</div>
+              <div className="space-y-1.5">
+                {rows.map(r => <div key={r.label} className="flex items-center gap-2 text-[9px]">
+                  <span className="w-16 shrink-0 text-[#8A8A90] tnum">{r.label} {r.n}/7</span>
+                  <div className="pixel-bar flex-1" style={{ height: 11, borderWidth: 2 }}><i style={{ width: (r.n / 7 * 100) + '%', background: r.color, transition: 'width .4s' }} /></div>
+                  <span className="w-12 shrink-0 text-right tnum" style={{ color: r.add > 0 ? 'var(--text)' : 'var(--muted)' }}>+{r.add} {r.unit}</span>
+                </div>)}
+              </div>
+              <div className="text-[9px] text-[#8A8A90] text-center mt-2 leading-snug">Eat well to power up your fighter.</div>
+            </div>;
+          })()}
           {ladderCleared
             ? <Btn kind="accent" className="w-full mb-2" onClick={prestige}>Prestige ↑, tougher ladder, better drops</Btn>
             : gate.can
@@ -2275,28 +2297,75 @@ function HomeWeightSpark({ db, onOpen }) {
   );
 }
 
-// Everything gamey, collapsed to one strip: buddy + streak on the left, today's catch teaser
-// underneath, and a Fight shortcut on the right. The dex and fight open as the existing modals.
-function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight }) {
+// Everything gamey, collapsed to one strip that reads as a status board: dex completion up top,
+// buddy + streak + an evolution bar in the middle, and the two daily hooks (today's catch and the
+// fight) as buttons underneath. When the streak breaks the buddy naps and the strip becomes a
+// gentle "log to wake" nudge. The dex and fight open as the existing modals.
+function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onLog }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const pcr = todayCr && CR_BY_ID[todayCr.id];
   const today = Store.todayISO();
   const fght = db.fight || {};
-  const spent = fght.lastAttemptDate === today && fght.lastBossWeek === fightWeekKey();
+  const attemptUsed = fght.lastAttemptDate === today;
+
+  // Napping: a broken streak turns the sad grey buddy into a one-tap reason to log today.
+  if (buddy.asleep) {
+    return (
+      <div className="bg-[#161618] pixel-box p-3 mb-4">
+        <div className="flex items-center gap-3">
+          <button onClick={onOpenDex} className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
+            <div style={{ filter: 'grayscale(0.85)', opacity: 0.45 }}><Sprite art={st.art} colors={st.colors} px={3.2} /></div>
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-bold truncate leading-tight">{st.name} <span className="text-[9px] text-[#8A8A90] font-normal">napping</span></div>
+            <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Log today to wake {st.name} and start a new streak.</div>
+          </div>
+          <button onClick={onLog} className="pixel-btn py-2 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} aria-label="Log a meal"><span className="pf text-[8px]">LOG</span></button>
+        </div>
+      </div>
+    );
+  }
+
+  // Dex completion, the collection at a glance.
+  const caught = Object.keys(macrodex(db)).length;
+  const dexTotal = CREATURES.length;
+  // Buddy evolution: progress of the current streak toward the next stage threshold.
+  const sIdx = buddy.stage;
+  const atMax = sIdx >= BUDDY_STAGES.length - 1;
+  const prevMin = BUDDY_STAGES[sIdx].min;
+  const nextStage = atMax ? null : BUDDY_STAGES[sIdx + 1];
+  const evo = atMax ? 1 : Math.max(0, Math.min(1, (streak - prevMin) / ((nextStage.min - prevMin) || 1)));
+  const best = Math.max(streak, (db.records && db.records.longestStreak) || 0);
+  const ladderCleared = (fght.rank || 0) >= FIGHT_LADDER.length;
+
   return (
     <div className="bg-[#161618] pixel-box p-3 mb-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onOpenDex} className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
-          <div style={buddy.asleep ? { filter: 'grayscale(0.85)', opacity: 0.45 } : null}><Sprite art={st.art} colors={st.colors} px={3.2} /></div>
-        </button>
-        <button onClick={onOpenDex} className="min-w-0 flex-1 text-left">
-          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1"><PixelFire size={11} />{streak} day streak</div>
-          <div className="text-[12px] font-bold truncate leading-tight">{st.name}{buddy.asleep ? ' (napping)' : ''}</div>
-          <div className="text-[10px] text-[#8A8A90] flex items-center gap-1.5 mt-0.5">Catch today: {pcr
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">My buddy</span>
+        <button onClick={onOpenDex} className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--good)' }}>Dex {caught}/{dexTotal} ›</button>
+      </div>
+      <button onClick={onOpenDex} className="w-full text-left flex items-center gap-3">
+        <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }}><Sprite art={st.art} colors={st.colors} px={3.4} /></div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] font-bold truncate leading-tight">{st.name}</div>
+          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1 mt-0.5"><PixelFire size={11} />{streak} day streak{best > streak ? <span className="text-[#8A8A90]"> · best {best}</span> : null}</div>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <div className="pixel-bar flex-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (evo * 100) + '%', background: 'var(--good)', transition: 'width .4s' }} /></div>
+            <span className="pf text-[7px] uppercase shrink-0 text-[#8A8A90]">{atMax ? 'Max' : (nextStage.min - streak) + 'd to ' + nextStage.name}</span>
+          </div>
+        </div>
+      </button>
+      <div className="flex gap-2 mt-3">
+        <button onClick={onOpenDex} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--surface3)' }}>
+          <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1">Catch today</div>
+          <div className="text-[10px] flex items-center justify-center gap-1.5">{pcr
             ? <><span className="inline-flex"><Sprite art={pcr.art} colors={crSilhouette()} px={1.3} /></span><span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[pcr.rarity] }}>{CR_RARITY_LABEL[pcr.rarity]}{todayCr.shiny ? ' ✦' : ''}</span></>
-            : <span>???</span>}</div>
+            : <span className="text-[#8A8A90]">???</span>}</div>
         </button>
-        <button onClick={onOpenFight} className="pixel-btn py-2 px-3 shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--carb)', color: '#fff', opacity: spent ? 0.55 : 1 }}><PixelGlyph kind="glove" color="#fff" size={13} /><span className="pf text-[8px]">FIGHT</span></button>
+        <button onClick={onOpenFight} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--carb)', color: '#fff', opacity: attemptUsed ? 0.6 : 1 }}>
+          <div className="pf text-[7px] uppercase mb-1" style={{ opacity: 0.85 }}>{ladderCleared ? 'Ladder clear' : 'Rung ' + ((fght.rank || 0) + 1) + '/' + FIGHT_LADDER.length}</div>
+          <div className="text-[10px] inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="glove" color="#fff" size={12} /><span className="pf text-[8px]">FIGHT</span></div>
+        </button>
       </div>
     </div>
   );
@@ -2456,7 +2525,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
-      <HomeGameStrip db={db} streak={streak} buddy={buddy} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} />
+      <HomeGameStrip db={db} streak={streak} buddy={buddy} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} />
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showDex && <MacrodexModal db={db} update={update} streak={streak} onClose={() => setShowDex(false)} />}

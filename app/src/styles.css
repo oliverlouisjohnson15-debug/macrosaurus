@@ -100,6 +100,12 @@ input, select { color-scheme: dark; }
 .flungeLflip { animation: flungeLflip .35s ease; }
 @keyframes fpop { 0% { opacity: 0; transform: scale(.6); } 30% { opacity: 1; transform: scale(1.15) translateY(-4px); } 100% { opacity: 0; transform: scale(1) translateY(-14px); } }
 .fpop { animation: fpop .7s ease forwards; }
+/* screen-shake on a big hit (arena juice) */
+@keyframes fshake { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-3px, 2px); } 40% { transform: translate(3px, -2px); } 60% { transform: translate(-2px, -2px); } 80% { transform: translate(2px, 2px); } }
+.fshake { animation: fshake .32s ease; }
+/* damage number floating up from a hit */
+@keyframes fdmg { 0% { opacity: 0; transform: scale(.7) translateY(2px); } 25% { opacity: 1; transform: scale(1.1) translateY(-6px); } 100% { opacity: 0; transform: scale(1) translateY(-24px); } }
+.fdmg { animation: fdmg .8s ease forwards; }
 
 /* ---- pixel shapes: square everything, chunky borders + hard shadow ---- */
 .rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-full { border-radius: 0 !important; }
