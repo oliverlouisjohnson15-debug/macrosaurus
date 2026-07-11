@@ -14556,11 +14556,23 @@ function AdminAudit() {
 }
 function AdminPanel({
   onBack,
-  adminEmail
+  adminEmail,
+  update
 }) {
   const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [devMsg, setDevMsg] = useState('');
+  // Reset the Dino Fight day-gate on your OWN account, through the normal sync path, so a fresh
+  // ladder attempt (and this week's boss) is available again for testing.
+  function resetBattle() {
+    update(d => {
+      d.fight = d.fight || {};
+      d.fight.lastAttemptDate = null;
+      d.fight.lastBossWeek = null;
+    });
+    setDevMsg("Done. Today's ladder attempt and this week's boss are available again on your account.");
+  }
   const [users, setUsers] = useState([]);
   const [defaultCap, setDefaultCap] = useState(1);
   const [modelUsage, setModelUsage] = useState([]);
@@ -14719,7 +14731,20 @@ function AdminPanel({
     }
   }, capMsg), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3"
-  }, "Current default $", defaultCap.toFixed(2), "/mo · total spend across all users this month $", totalSpend.toFixed(2), "."))), tab === 'users' && /*#__PURE__*/React.createElement("div", {
+  }, "Current default $", defaultCap.toFixed(2), "/mo · total spend across all users this month $", totalSpend.toFixed(2), ".")), /*#__PURE__*/React.createElement(Section, {
+    title: "Dev tools",
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-2"
+  }, "Reset the Dino Fight day-gate on your own account so you can test again. This clears today's ladder attempt and re-arms this week's boss, nothing else changes."), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    onClick: resetBattle
+  }, "Reset today's battle"), devMsg && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--good)'
+    }
+  }, devMsg))), tab === 'users' && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: q,
@@ -16373,7 +16398,8 @@ function App() {
     onOpenAdmin: () => setView('admin')
   }), view === 'admin' && isAdmin && /*#__PURE__*/React.createElement(AdminPanel, {
     onBack: () => setView('more'),
-    adminEmail: session.user.email
+    adminEmail: session.user.email,
+    update: update
   }), /*#__PURE__*/React.createElement(BottomNav, {
     view: view,
     setView: setView,

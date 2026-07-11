@@ -4523,9 +4523,13 @@ function AdminAudit() {
     </div>))}
   </div>);
 }
-function AdminPanel({ onBack, adminEmail }) {
+function AdminPanel({ onBack, adminEmail, update }) {
   const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true); const [err, setErr] = useState('');
+  const [devMsg, setDevMsg] = useState('');
+  // Reset the Dino Fight day-gate on your OWN account, through the normal sync path, so a fresh
+  // ladder attempt (and this week's boss) is available again for testing.
+  function resetBattle() { update(d => { d.fight = d.fight || {}; d.fight.lastAttemptDate = null; d.fight.lastBossWeek = null; }); setDevMsg("Done. Today's ladder attempt and this week's boss are available again on your account."); }
   const [users, setUsers] = useState([]); const [defaultCap, setDefaultCap] = useState(1); const [modelUsage, setModelUsage] = useState([]);
   const [q, setQ] = useState(''); const [sel, setSel] = useState(null); const [selLoading, setSelLoading] = useState(false);
   const [capInput, setCapInput] = useState(''); const [capBusy, setCapBusy] = useState(false); const [capMsg, setCapMsg] = useState('');
@@ -4573,6 +4577,11 @@ function AdminPanel({ onBack, adminEmail }) {
             <div className="flex gap-2"><TextInput value={capInput} onChange={e => setCapInput(e.target.value)} placeholder="1.00" className="flex-1" /><Btn kind="accent" disabled={capBusy} onClick={saveDefaultCap}>{capBusy ? 'Saving…' : 'Save default'}</Btn></div>
             {capMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--muted)' }}>{capMsg}</div>}
             <div className="text-[11px] text-[#8A8A90] mt-3">Current default ${defaultCap.toFixed(2)}/mo · total spend across all users this month ${totalSpend.toFixed(2)}.</div>
+          </Section>
+          <Section title="Dev tools" className="mt-6">
+            <div className="text-[12px] text-[#8A8A90] mb-2">Reset the Dino Fight day-gate on your own account so you can test again. This clears today's ladder attempt and re-arms this week's boss, nothing else changes.</div>
+            <Btn kind="accent" onClick={resetBattle}>Reset today's battle</Btn>
+            {devMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--good)' }}>{devMsg}</div>}
           </Section>
         </div>}
         {tab === 'users' && <div className="fade-in">
@@ -5152,7 +5161,7 @@ function App() {
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
-      {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} />}
+      {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} />}
