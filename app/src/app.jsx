@@ -1606,6 +1606,7 @@ function ProgressPanel({ db, update }) {
 }
 
 function ExpenditureCard({ db }) {
+  const [showMath, setShowMath] = useState(false);
   const today = Store.todayISO();
   const t = currentTargets(db);
   const kcalByDate = {};
@@ -1659,6 +1660,24 @@ function ExpenditureCard({ db }) {
         <span className="text-[11px] text-[#8A8A90]">kcal / day</span>
       </div>
       <div className="text-[11px] text-[#8A8A90] mt-0.5 tnum">most likely {est.low.toLocaleString()}–{est.high.toLocaleString()}</div>
+      {/* Tap to reveal the arithmetic behind the number, so the adaptive figure feels earned, not magic. */}
+      {(() => {
+        const adj = Math.abs(Math.round((est.weeklyChangeKg * E.KCAL_PER_KG) / 7)); // kcal/day the weight trend is worth
+        const sign = est.direction === 'up' ? '−' : '+'; // gaining => burn is below intake; losing => above
+        return <>
+          <button onClick={() => setShowMath(v => !v)} className="text-[10px] text-[#8A8A90] mt-2 inline-flex items-center gap-1" aria-expanded={showMath}>
+            <span style={{ color: 'var(--hero)' }}>how this was worked out</span>
+            <span className="tnum" style={{ display: 'inline-block', transform: showMath ? 'rotate(180deg)' : 'none' }}>⌄</span>
+          </button>
+          {showMath && <div className="fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5">
+            <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
+            {est.direction === 'flat'
+              ? <div>Your weight held steady, so your burn is roughly what you ate.</div>
+              : <div>Your weight trend moved <span className="text-[var(--text)] tnum">{fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>. At ~7,700 kcal per kg, that's about <span className="text-[var(--text)] tnum">{adj.toLocaleString()}</span> kcal a day {est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate'}.</div>}
+            <div className="pt-1 tnum">{est.avgKcal.toLocaleString()} {est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' '}≈ <span className="font-semibold" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span> kcal burned a day.</div>
+          </div>}
+        </>;
+      })()}
       {/* Weight trend on its own labelled row so it isn't mistaken for the burn figure. */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262629]">
         <span className="pf text-[8px] text-[#8A8A90]">WEIGHT TREND</span>
