@@ -1146,6 +1146,7 @@ function StatusCard({ db, update, onCheckIn, onReview, streak }) {
   const weighInputs = unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
   if (db.paused) return (
     <Card className="p-5 mb-6">
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Goal</div>
       <div className="text-2xl font-bold mb-1">Goal paused</div>
       <div className="text-[12px] text-[#8A8A90] mb-4">Tracking is on hold. When you're back, weigh in to resume and your plan picks up from that weight.</div>
       {!open ? <Btn kind="accent" className="w-full" onClick={() => setOpen(true)}>Resume goal</Btn>
@@ -1156,25 +1157,21 @@ function StatusCard({ db, update, onCheckIn, onReview, streak }) {
   // that still keeps the daily weigh-in one tap away, rather than a full check-in card.
   if (!ready && !pending) return (
     <Card className="p-4 mb-6">
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Check-in</div>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[14px] font-bold">{alreadyToday ? 'Checked in today' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`}</div>
           <div className="text-[11px] text-[#8A8A90] mt-0.5">{todays ? 'Weighed in today · ' + fmtWeight(todays.scale_weight, unit) : 'Weigh in daily to keep your trend sharp'}</div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {streak > 0 && <div className="text-right"><div className="text-lg font-bold tnum flex items-center justify-end gap-1" style={{ color: 'var(--fat)' }}><PixelFire size={15} />{streak}</div><div className="text-[9px] text-[#8A8A90]">day streak</div></div>}
-          <Btn kind="ghost" className="text-[12px]" onClick={() => setOpen(o => !o)}>{todays ? 'Update' : 'Weigh in'}</Btn>
-        </div>
+        <Btn kind="ghost" className="text-[12px] shrink-0" onClick={() => setOpen(o => !o)}>{todays ? 'Update' : 'Weigh in'}</Btn>
       </div>
       {open && <div className="mt-3">{weighInputs}<Btn kind="accent" className="w-full mt-3" onClick={() => saveWeight(false)}>Save weight</Btn></div>}
     </Card>
   );
   return (
     <Card className="p-5 mb-6">
-      <div className="flex items-start justify-between">
-        <div className="text-2xl font-bold">{alreadyToday ? 'Checked in today' : onCheckinDay ? `It's your ${DOW_FULL[cd]} check-in` : due ? 'Check-in due' : ready ? 'Check-in unlocked' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`}</div>
-        {streak > 0 && <div className="text-right shrink-0 ml-3"><div className="text-xl font-bold tnum flex items-center justify-end gap-1.5" style={{ color: 'var(--fat)' }}><PixelFire size={18} />{streak}</div><div className="text-[10px] text-[#8A8A90]">day streak</div></div>}
-      </div>
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Check-in</div>
+      <div className="text-2xl font-bold">{alreadyToday ? 'Checked in today' : onCheckinDay ? `It's your ${DOW_FULL[cd]} check-in` : due ? 'Check-in due' : ready ? 'Check-in unlocked' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`}</div>
       <div className="text-[12px] text-[#8A8A90] mb-3">{pending
         ? 'Your check-in suggested new macros and they\'re still waiting on you. Review them below.'
         : alreadyToday
@@ -4053,7 +4050,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
         return <Card className="p-4 mb-5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-widest text-[#8A8A90]">Check-in</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Check-in</div>
               <div className="text-[13px]">{due ? 'Due now' : ready ? 'Unlocked, you can check in' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
             </div>
             <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} style={{ opacity: ready ? 1 : .5 }} onClick={onCheckIn}>Check in</Btn>
@@ -4071,14 +4068,14 @@ function Goals({ db, update, showToast, onCheckIn }) {
 
       {base && <Card className="p-4 mb-5">
         <div className="flex items-center justify-between">
-          <div><div className="text-[11px] uppercase tracking-widest text-[#8A8A90]">Current plan</div><div className="text-xl font-bold tnum">{base.kcal} kcal</div></div>
+          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div><div className="text-xl font-bold tnum">{base.kcal} kcal</div></div>
           <div className="text-right text-[13px] tnum"><span style={{ color: PRO }}>P{base.protein_g}</span> <span style={{ color: CARB }}>C{base.carbs_g}</span> <span style={{ color: FAT }}>F{base.fat_g}</span></div>
         </div>
         <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>
         {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
       </Card>}
 
-      <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2 font-semibold">Goal</div>
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Goal</div>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <GoalCard active={g.goalType === 'cut'} onClick={() => pickGoal('cut')} glyph="down" title="Fat loss" sub="Lose fat" />
         <GoalCard active={g.goalType === 'maintain'} onClick={() => pickGoal('maintain')} glyph="scale" title="Maintain" sub="Hold steady" />

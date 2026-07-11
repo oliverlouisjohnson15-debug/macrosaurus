@@ -4746,6 +4746,8 @@ function StatusCard({
   if (db.paused) return /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "Goal"), /*#__PURE__*/React.createElement("div", {
     className: "text-2xl font-bold mb-1"
   }, "Goal paused"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
@@ -4763,6 +4765,8 @@ function StatusCard({
   if (!ready && !pending) return /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "Check-in"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
@@ -4770,24 +4774,11 @@ function StatusCard({
     className: "text-[14px] font-bold"
   }, alreadyToday ? 'Checked in today' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5"
-  }, todays ? 'Weighed in today · ' + fmtWeight(todays.scale_weight, unit) : 'Weigh in daily to keep your trend sharp')), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-3 shrink-0"
-  }, streak > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "text-right"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold tnum flex items-center justify-end gap-1",
-    style: {
-      color: 'var(--fat)'
-    }
-  }, /*#__PURE__*/React.createElement(PixelFire, {
-    size: 15
-  }), streak), /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] text-[#8A8A90]"
-  }, "day streak")), /*#__PURE__*/React.createElement(Btn, {
+  }, todays ? 'Weighed in today · ' + fmtWeight(todays.scale_weight, unit) : 'Weigh in daily to keep your trend sharp')), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
-    className: "text-[12px]",
+    className: "text-[12px] shrink-0",
     onClick: () => setOpen(o => !o)
-  }, todays ? 'Update' : 'Weigh in'))), open && /*#__PURE__*/React.createElement("div", {
+  }, todays ? 'Update' : 'Weigh in')), open && /*#__PURE__*/React.createElement("div", {
     className: "mt-3"
   }, weighInputs, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -4797,21 +4788,10 @@ function StatusCard({
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-start justify-between"
-  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "Check-in"), /*#__PURE__*/React.createElement("div", {
     className: "text-2xl font-bold"
-  }, alreadyToday ? 'Checked in today' : onCheckinDay ? `It's your ${DOW_FULL[cd]} check-in` : due ? 'Check-in due' : ready ? 'Check-in unlocked' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`), streak > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0 ml-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-xl font-bold tnum flex items-center justify-end gap-1.5",
-    style: {
-      color: 'var(--fat)'
-    }
-  }, /*#__PURE__*/React.createElement(PixelFire, {
-    size: 18
-  }), streak), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90]"
-  }, "day streak"))), /*#__PURE__*/React.createElement("div", {
+  }, alreadyToday ? 'Checked in today' : onCheckinDay ? `It's your ${DOW_FULL[cd]} check-in` : due ? 'Check-in due' : ready ? 'Check-in unlocked' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, pending ? 'Your check-in suggested new macros and they\'re still waiting on you. Review them below.' : alreadyToday ? 'Fresh cycle underway. Keep logging and weighing daily so the next retune reads true.' : onCheckinDay ? 'Your chosen check-in day is here and your cycle has enough days behind it. It compares this cycle\'s average weight to the last, so daily wobbles don\'t skew it.' : due ? 'Recommended cadence reached. Your check-in compares this cycle\'s average weight to the last, so daily wobbles don\'t skew it.' : ready ? `You can check in now, but waiting ${daysToReco} more day${daysToReco === 1 ? '' : 's'} (7 total) gives a steadier weight trend and a more reliable adjustment.` : `Check-ins run on a 7-day cycle (unlockable from day 5) so there are enough weigh-ins to read the trend. Weigh in daily until then.`), /*#__PURE__*/React.createElement("div", {
     className: "h-1.5 rounded-full bg-[#262629] mb-4 overflow-hidden"
@@ -13101,7 +13081,7 @@ function Goals({
     }, /*#__PURE__*/React.createElement("div", {
       className: "min-w-0"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "text-[11px] uppercase tracking-widest text-[#8A8A90]"
+      className: "pf text-[9px] uppercase text-[#8A8A90] mb-1"
     }, "Check-in"), /*#__PURE__*/React.createElement("div", {
       className: "text-[13px]"
     }, due ? 'Due now' : ready ? 'Unlocked, you can check in' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`)), /*#__PURE__*/React.createElement(Btn, {
@@ -13131,7 +13111,7 @@ function Goals({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] uppercase tracking-widest text-[#8A8A90]"
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-1"
   }, "Current plan"), /*#__PURE__*/React.createElement("div", {
     className: "text-xl font-bold tnum"
   }, base.kcal, " kcal")), /*#__PURE__*/React.createElement("div", {
@@ -13156,7 +13136,7 @@ function Goals({
       color: 'var(--fat)'
     }
   }, "This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.")), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2 font-semibold"
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
   }, "Goal"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-2 mb-4"
   }, /*#__PURE__*/React.createElement(GoalCard, {
