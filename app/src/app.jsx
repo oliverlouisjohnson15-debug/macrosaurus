@@ -4559,13 +4559,80 @@ function AdminAudit() {
   if (err) return <div className="text-[12px] mt-4" style={{ color: 'var(--danger)' }}>{err}</div>;
   if (!rows) return <div className="mt-6"><DinoLoader label="Loading log" /></div>;
   if (!rows.length) return <div className="text-[12px] text-[#8A8A90] mt-4">No admin actions logged yet.</div>;
-  const L = { view_user: 'viewed', set_cap: 'set cap for', set_config: 'set default cap', grant_admin: 'made admin', revoke_admin: 'revoked admin from', suspend_user: 'suspended', unsuspend_user: 'reinstated', add_note: 'noted', delete_note: 'deleted note for', update_state: 'edited data of', reset_user: 'reset data of', reset_usage: 'reset usage of', delete_user: 'deleted', resend_confirmation: 'resent confirm to' };
+  const L = { view_user: 'viewed', set_cap: 'set cap for', set_config: 'set default cap', grant_admin: 'made admin', revoke_admin: 'revoked admin from', suspend_user: 'suspended', unsuspend_user: 'reinstated', add_note: 'noted', delete_note: 'deleted note for', update_state: 'edited data of', reset_user: 'reset data of', reset_usage: 'reset usage of', delete_user: 'deleted', resend_confirmation: 'resent confirm to', view_ai_logs: 'browsed AI logs', view_ai_log: 'opened an AI log for', clear_ai_logs: 'cleared AI logs' };
   return (<div className="fade-in mt-1 space-y-1.5">
     {rows.map(r => (<div key={r.id} className="pixel-box p-2.5 bg-[#1E1E22]">
       <div className="text-[12px]"><span className="font-medium">{(r.admin_email || 'admin').split('@')[0]}</span> <span className="text-[#8A8A90]">{L[r.action] || r.action}</span>{r.target_email && <> <span className="font-medium">{r.target_email.split('@')[0]}</span></>}{r.meta && r.meta.cap != null && <span className="text-[#8A8A90]"> → ${Number(r.meta.cap).toFixed(2)}</span>}{r.meta && r.meta.default_cap_usd != null && <span className="text-[#8A8A90]"> → ${Number(r.meta.default_cap_usd).toFixed(2)}</span>}</div>
       <div className="text-[10px] text-[#8A8A90] mt-0.5">{adminFmtWhen(r.created_at)}</div>
     </div>))}
   </div>);
+}
+function aiFeatureLabel(f) { return f === 'meal' ? 'Meal estimate' : f === 'label' ? 'Label scan' : f === 'coach' ? 'Coach note' : f === 'other' ? 'Other' : f; }
+function aiFeatureColor(f) { return f === 'meal' ? 'var(--carb)' : f === 'label' ? 'var(--pro)' : f === 'coach' ? 'var(--good)' : 'var(--muted)'; }
+// Browse the AI proxy's request/response log so the owner can vet prompts, input images and results
+// and tune the AI features. Metadata comes back in the list; images/prompt/result load per-row on tap.
+function AdminAiLogs() {
+  const [logs, setLogs] = useState(null); const [err, setErr] = useState('');
+  const [feature, setFeature] = useState('all');
+  const [sel, setSel] = useState(null); const [selLoading, setSelLoading] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [confirmClear, setConfirmClear] = useState(false); const [clearing, setClearing] = useState(false);
+  function load() { setLogs(null); setErr(''); adminCall('list_ai_logs', { feature }).then(j => setLogs(j.logs || []), e => setErr(e.message)); }
+  useEffect(() => { load(); }, [feature]);
+  async function open(id) { setSelLoading(true); try { const j = await adminCall('get_ai_log', { logId: id }); setSel(j.log); } catch (e) { setErr(e.message); } setSelLoading(false); }
+  async function clearAll() { setClearing(true); try { await adminCall('clear_ai_logs'); setConfirmClear(false); load(); } catch (e) { setErr(e.message); } setClearing(false); }
+  const FILTERS = [['all', 'All'], ['meal', 'Meals'], ['label', 'Labels'], ['coach', 'Coach'], ['other', 'Other']];
+  return (<div className="fade-in">
+    <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Every AI request, its prompt, input images and result, from the label scanner, meal estimator and coach. Use it to vet quality and tune the prompts. Body-fat photo reads are never logged, and everything auto-clears after 30 days.</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
+    {!logs ? <div className="mt-6"><DinoLoader label="Loading logs" /></div>
+      : !logs.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No AI calls logged yet{feature !== 'all' ? ' for this filter' : ''}. They show up here as people use the AI features.</div>
+        : <div className="space-y-2">
+          {logs.map(r => (
+            <button key={r.id} onClick={() => open(r.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: aiFeatureColor(r.feature), border: '2px solid ' + aiFeatureColor(r.feature) }}>{aiFeatureLabel(r.feature)}</span>
+                <span className="text-[10px] text-[#8A8A90]">{adminFmtWhen(r.created_at)}</span>
+              </div>
+              <div className="text-[12px] truncate">{(r.email || 'unknown').split('@')[0]}{r.status === 'error' && <span className="text-[10px] ml-1.5" style={{ color: 'var(--danger)' }}>error</span>}</div>
+              <div className="text-[10px] text-[#8A8A90] tnum mt-0.5">{r.image_count > 0 ? r.image_count + ' img · ' : ''}{modelLabel(r.model)}{r.cost_usd ? ' · $' + (+r.cost_usd).toFixed(4) : ''}</div>
+            </button>
+          ))}
+          <button onClick={() => setConfirmClear(true)} className="text-[11px] text-[#8A8A90] mt-3 w-full text-center py-2">Clear all logs</button>
+        </div>}
+    {selLoading && <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center"><DinoLoader label="Opening" /></div>}
+    {sel && <AdminAiLogDetail log={sel} onClose={() => setSel(null)} onImage={setLightbox} />}
+    {lightbox && <div className="fixed inset-0 z-[95] bg-black/90 flex items-center justify-center p-4" onClick={() => setLightbox(null)}><img src={lightbox} className="max-w-full max-h-full" alt="AI input" /></div>}
+    {confirmClear && <ConfirmDialog title="Clear all AI logs?" body="This permanently deletes every logged prompt, image and result across all users. It does not touch anyone's own data or their macros." confirmLabel={clearing ? 'Clearing…' : 'Clear all'} onConfirm={clearAll} onClose={() => setConfirmClear(false)} />}
+  </div>);
+}
+function AdminAiLogDetail({ log, onClose, onImage }) {
+  useBackClose(onClose);
+  let resultDisplay = log.result || '(no result)';
+  try { resultDisplay = JSON.stringify(JSON.parse(log.result), null, 2); } catch (e) { /* not JSON, show raw */ }
+  return (
+    <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">{aiFeatureLabel(log.feature)}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="text-[11px] text-[#8A8A90] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
+        {log.images && log.images.length > 0 && <div className="mb-4">
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
+          <div className="grid grid-cols-3 gap-2">{log.images.map((src, i) => <button key={i} onClick={() => onImage(src)} className="pixel-box overflow-hidden p-0" style={{ aspectRatio: '1', boxShadow: 'none' }}><img src={src} className="w-full h-full object-cover" alt={'input ' + (i + 1)} /></button>)}</div>
+          <div className="text-[10px] text-[#8A8A90] mt-1.5">Tap to enlarge.</div>
+        </div>}
+        <div className="mb-4">
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Result</div>
+          <pre className="text-[11px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3" style={{ boxShadow: 'none' }}>{resultDisplay}</pre>
+        </div>
+        <details>
+          <summary className="pf text-[8px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent ▾</summary>
+          <pre className="text-[10px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2" style={{ boxShadow: 'none', color: '#8A8A90' }}>{log.prompt || '(none)'}</pre>
+        </details>
+        <div className="text-[10px] text-[#8A8A90] tnum mt-4 pt-3 border-t border-[#262629]">{(log.input_tokens || 0) + ' tokens in · ' + (log.output_tokens || 0) + ' out'}{log.cost_usd ? ' · $' + (+log.cost_usd).toFixed(5) : ''}</div>
+      </div>
+    </div>
+  );
 }
 function AdminPanel({ onBack, adminEmail, update }) {
   const [tab, setTab] = useState('overview');
@@ -4598,7 +4665,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
     <div className="max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <button onClick={onBack} className="text-[12px] text-[#8A8A90] mb-2">← Back to menu</button>
       <PageHeader kicker="Admin" title="Control room" />
-      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['users', 'Users'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
       {loading ? <div className="mt-6"><DinoLoader label="Loading" /></div> : <>
         {tab === 'overview' && <div className="fade-in">
@@ -4648,6 +4715,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
             {!filtered.length && <div className="text-[12px] text-[#8A8A90] mt-4">No matching users.</div>}
           </div>
         </div>}
+        {tab === 'ailogs' && <AdminAiLogs />}
         {tab === 'audit' && <AdminAudit />}
       </>}
       {selLoading && <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center"><DinoLoader label="Opening account" /></div>}
