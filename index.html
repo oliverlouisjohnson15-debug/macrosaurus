@@ -5832,30 +5832,45 @@ function ExpenditureCard({
     bmr
   });
   const unit = db.profile.weight_unit;
-  if (!est.ok) return /*#__PURE__*/React.createElement(Card, {
-    className: "p-5 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] text-[#8A8A90] mb-2"
-  }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] leading-relaxed"
-  }, "Keep logging and weighing in, I need about ", est.needWeigh, " weigh-ins and ", est.needLog, " logged days across a fortnight before I can estimate your burn honestly. So far: ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[var(--text)]"
-  }, est.weighDays), " weigh-ins, ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[var(--text)]"
-  }, est.loggedDays), " days logged."));
+  if (!est.ok) {
+    const weighGap = Math.max(0, est.needWeigh - est.weighDays),
+      logGap = Math.max(0, est.needLog - est.loggedDays);
+    return /*#__PURE__*/React.createElement(Card, {
+      className: "p-5 mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] text-[#8A8A90] mb-2"
+    }, "DAILY BURN"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] font-semibold mb-1"
+    }, "Still learning your burn"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] text-[#8A8A90] leading-relaxed mb-3"
+    }, "Once you have enough weigh-ins and logged days over a fortnight, I can work out how many calories your body actually burns a day, from what you eat versus how your weight moves."), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-2"
+    }, /*#__PURE__*/React.createElement(MiniStat, {
+      label: weighGap > 0 ? weighGap + ' more to go' : 'enough',
+      value: est.weighDays + '/' + est.needWeigh,
+      ok: weighGap === 0
+    }), /*#__PURE__*/React.createElement(MiniStat, {
+      label: logGap > 0 ? logGap + ' more to go' : 'enough',
+      value: est.loggedDays + '/' + est.needLog,
+      ok: logGap === 0
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"
+    }, /*#__PURE__*/React.createElement("div", null, "weigh-ins"), /*#__PURE__*/React.createElement("div", null, "days logged")));
+  }
   if (est.implausible) {
     const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
     return /*#__PURE__*/React.createElement(Card, {
       className: "p-5 mb-4"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "text-[9px] text-[#8A8A90] mb-2"
-    }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] text-[#8A8A90] mb-2"
+    }, "DAILY BURN"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] font-semibold mb-1"
+    }, "Still settling"), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90] leading-relaxed"
-    }, "Still settling, a sharp weight move (", est.direction === 'up' ? 'up' : 'down', " ", rate, ", likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days."));
+    }, "A sharp weight move (", est.direction === 'up' ? 'up' : 'down', " ", rate, ", most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days."));
   }
   const confColor = est.confidence === 'high' ? 'var(--good)' : est.confidence === 'medium' ? 'var(--fat)' : 'var(--muted)';
-  const dirTxt = est.direction === 'down' ? 'trending down' : est.direction === 'up' ? 'trending up' : 'holding steady';
-  const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
+  const confLabel = est.confidence === 'high' ? 'DIALLED IN' : est.confidence === 'medium' ? 'GETTING THERE' : 'STILL LEARNING';
   const fcColor = est.forecast.dir === 'hold' ? 'var(--good)' : est.forecast.dir === 'unknown' ? 'var(--muted)' : 'var(--fat)';
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4"
@@ -5863,24 +5878,35 @@ function ExpenditureCard({
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] text-[#8A8A90]"
-  }, "LIVE EXPENDITURE"), /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[7px] px-2 py-1",
+  }, "DAILY BURN"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] px-2 py-1 shrink-0",
     style: {
       color: confColor,
       border: '2px solid ' + confColor
     }
-  }, est.confidence.toUpperCase())), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-baseline gap-2 mb-1"
+  }, confLabel)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-relaxed mb-3"
+  }, "The calories your body actually burns a day, learned from your intake and how your weight moves, not a formula guess."), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-4xl tnum",
     style: {
       color: 'var(--hero)'
     }
-  }, est.tdee), /*#__PURE__*/React.createElement("span", {
+  }, est.tdee.toLocaleString()), /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] text-[#8A8A90]"
-  }, "± ", est.band, " kcal/day")), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90]"
-  }, "Range ", est.low, "-", est.high, " · ", dirTxt, " ", rate), (() => {
+  }, "kcal / day")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-0.5 tnum"
+  }, "most likely ", est.low.toLocaleString(), "–", est.high.toLocaleString()), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mt-3 pt-3 border-t border-[#262629]"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] text-[#8A8A90]"
+  }, "WEIGHT TREND"), /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] tnum font-semibold",
+    style: {
+      color: est.direction === 'flat' ? 'var(--good)' : 'var(--text)'
+    }
+  }, est.direction === 'flat' ? 'holding steady' : fmtWeightDelta(est.weeklyChangeKg, unit, '/wk'))), (() => {
     // Burn history: TDEE learned at each past check-in (persisted as ci.tdee going forward;
     // older check-ins fall back to the adaptive targets history), ending on today's live figure.
     const hist = (db.checkins || []).map(c => {
@@ -5891,19 +5917,19 @@ function ExpenditureCard({
     const pts = hist.concat([est.tdee]).slice(-12);
     if (pts.length < 2) return null;
     return /*#__PURE__*/React.createElement("div", {
-      className: "mt-3 pt-2 border-t border-[#262629]"
+      className: "mt-3 pt-3 border-t border-[#262629]"
     }, /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] text-[#8A8A90] mb-1"
-    }, "BURN TREND"), /*#__PURE__*/React.createElement(MiniSpark, {
+    }, "BURN OVER TIME"), /*#__PURE__*/React.createElement(MiniSpark, {
       points: pts,
       color: "var(--hero)"
     }));
   })(), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mt-2 pt-2 border-t border-[#262629]",
+    className: "text-[11px] mt-3 pt-3 border-t border-[#262629]",
     style: {
       color: fcColor
     }
-  }, "Next check-in: ", est.forecast.text, "."));
+  }, "Next weekly check-in: ", est.forecast.text, "."));
 }
 function DietBreakCard({
   db,
