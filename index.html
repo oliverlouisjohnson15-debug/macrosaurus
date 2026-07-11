@@ -6018,7 +6018,19 @@ const CR_ART = {
   rex: ['.....KKKKK..', '....KBBBBBK.', '....KBPBBBK.', '....KBBBBBK.', 'KK..KBBBBTK.', '.KKKBBBBBBK.', '..KBBBBBBK..', '..KBBBBBBK..', '..KBBBBBBBK.', '..KBKBBKBBK.', '..KK.KK.KK..', '............'],
   longneck: ['.......KK...', '......KBBK..', '......KBPK..', '......KBBK..', '.....KBBK...', '....KBBK....', '..KKBBKKKK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............'],
   sprout: ['.....K......', '....KLK.....', '...KLLLK....', '....KLK.....', '....KKKK....', '...KBBBBK...', '..KBPBBPBK..', '..KBBBBBBK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.'],
-  brolly: ['...AAAAAA...', '..AASAASAA..', '.ASAASAASAA.', '.....K......', '.....K.KK...', '....KBBBBK..', '....KBPBBK..', '.KK.KBBBBK..', '.KBKBBBBBK..', '..KBBBBBBK..', '..KBKBBKBK..', '..KK.KK.KK..']
+  brolly: ['...AAAAAA...', '..AASAASAA..', '.ASAASAASAA.', '.....K......', '.....K.KK...', '....KBBBBK..', '....KBPBBK..', '.KK.KBBBBK..', '.KBKBBBBBK..', '..KBBBBBBK..', '..KBKBBKBK..', '..KK.KK.KK..'],
+  // Sail-backed biped (spinosaur): a dorsal fan of spines behind the head.
+  spino: ['......KKK...', '.....KBBBK..', '..A..KBPBK..', '.AKA.KBBBK..', 'AKAKKBBBBK..', '.KBBBBBBBK..', '.KBBBBBBK...', '.KBBBBBBK...', '.KBKBBKBK...', '.KK.KK.KK...', '............', '............'],
+  // Low armoured tank (ankylosaur): head left, a heavy club tail right, spiked back.
+  anky: ['............', '............', '...AKAKA....', '..KKKKKKK...', '.KBBBBBBBK..', 'KKBPBBBBBBKK', 'KBBBBBBBBBBK', '.KBBBBBBBBK.', '..KK.KK.KK..', '............', '............', '............'],
+  // Winged flyer (pterosaur): wings spread wide, a small beaked head.
+  ptero: ['............', '.KK......KK.', '..KKK..KKK..', '...KKKKKK...', '..KBBBBBBK..', '...KBPBK.T..', '...KBBBK....', '....KKK.....', '....K.K.....', '............', '............', '............'],
+  // Crested duck-bill (parasaurolophus): a long crest swept back off the head.
+  para: ['.........KK.', '........KBK.', '.......KBK..', '......KBBK..', '.....KBPBK..', '....KBBBBK..', '..KKBBBBK...', '.KBBBBBBK...', '.KBBBBBBK...', '.KBKBBKBK...', '.KK.KK.KK...', '............'],
+  // Dome-headed head-butter (pachycephalosaur): a thick, rounded skull.
+  pachy: ['............', '....KKKK....', '...KBBBBK...', '...KBBBBK...', '...KBPBBK...', '..KKBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBKBBKK...', '..KK.KK.....', '............'],
+  // Sail-finned prowler (dimetrodon): a rounded back-sail on a low four-legged body.
+  dimetro: ['............', '...AAAAA....', '..AKKKKKA...', '.AKBBBBBKA..', 'KKBBBBBBBK..', 'KBPBBBBBBK..', '.KBBBBBBBKK.', '.KKBBBBBKK..', '..K.KKK.K...', '............', '............', '............']
 };
 function crC(B, S) {
   return {
@@ -6200,7 +6212,7 @@ const CREATURES = [
   }, {
     at: 10,
     name: 'Boulderex',
-    art: 'trike',
+    art: 'anky',
     colors: crC('#7d97aa', '#3f5d70')
   }]
 },
@@ -6217,7 +6229,7 @@ const CREATURES = [
   evo: [{
     at: 5,
     name: 'Protolith',
-    art: 'stego',
+    art: 'pachy',
     colors: crC('#d94459', '#8e2436')
   }, {
     at: 10,
@@ -6259,7 +6271,7 @@ const CREATURES = [
 }, {
   id: 'noodon',
   name: 'Noodon',
-  art: 'longneck',
+  art: 'para',
   colors: crC('#5AA0E8', '#356fb0'),
   biome: 'carb',
   rarity: 'uncommon',
@@ -6279,7 +6291,7 @@ const CREATURES = [
   evo: [{
     at: 5,
     name: 'Fatlas',
-    art: 'stego',
+    art: 'dimetro',
     colors: crC('#e6b910', '#b8890c')
   }, {
     at: 10,
@@ -6370,7 +6382,7 @@ const CREATURES = [
 {
   id: 'aurora',
   name: 'Aurora',
-  art: 'trike',
+  art: 'ptero',
   colors: crC('#7FE0E8', '#3f9ea8'),
   biome: 'mythic',
   rarity: 'mythic',
@@ -6379,7 +6391,7 @@ const CREATURES = [
 }, {
   id: 'chronos',
   name: 'Chronos',
-  art: 'rex',
+  art: 'spino',
   colors: crC('#FFD400', '#B8860B'),
   biome: 'mythic',
   rarity: 'mythic',
