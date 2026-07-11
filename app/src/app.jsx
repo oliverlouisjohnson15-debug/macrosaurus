@@ -1616,36 +1616,54 @@ function ExpenditureCard({ db }) {
   const bmr = E.mifflinBMR(withActivity(db.profile));
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: 14, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   const unit = db.profile.weight_unit;
-  if (!est.ok) return (
-    <Card className="p-5 mb-4">
-      <div className="text-[9px] text-[#8A8A90] mb-2">LIVE EXPENDITURE</div>
-      <div className="text-[12px] text-[#8A8A90] leading-relaxed">Keep logging and weighing in, I need about {est.needWeigh} weigh-ins and {est.needLog} logged days across a fortnight before I can estimate your burn honestly. So far: <span className="text-[var(--text)]">{est.weighDays}</span> weigh-ins, <span className="text-[var(--text)]">{est.loggedDays}</span> days logged.</div>
-    </Card>
-  );
+  if (!est.ok) {
+    const weighGap = Math.max(0, est.needWeigh - est.weighDays), logGap = Math.max(0, est.needLog - est.loggedDays);
+    return (
+      <Card className="p-5 mb-4">
+        <div className="pf text-[8px] text-[#8A8A90] mb-2">DAILY BURN</div>
+        <div className="text-[13px] font-semibold mb-1">Still learning your burn</div>
+        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-3">Once you have enough weigh-ins and logged days over a fortnight, I can work out how many calories your body actually burns a day, from what you eat versus how your weight moves.</div>
+        <div className="grid grid-cols-2 gap-2">
+          <MiniStat label={weighGap > 0 ? weighGap + ' more to go' : 'enough'} value={est.weighDays + '/' + est.needWeigh} ok={weighGap === 0} />
+          <MiniStat label={logGap > 0 ? logGap + ' more to go' : 'enough'} value={est.loggedDays + '/' + est.needLog} ok={logGap === 0} />
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"><div>weigh-ins</div><div>days logged</div></div>
+      </Card>
+    );
+  }
   if (est.implausible) {
     const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
     return (
       <Card className="p-5 mb-4">
-        <div className="text-[9px] text-[#8A8A90] mb-2">LIVE EXPENDITURE</div>
-        <div className="text-[12px] text-[#8A8A90] leading-relaxed">Still settling, a sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
+        <div className="pf text-[8px] text-[#8A8A90] mb-2">DAILY BURN</div>
+        <div className="text-[13px] font-semibold mb-1">Still settling</div>
+        <div className="text-[12px] text-[#8A8A90] leading-relaxed">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
       </Card>
     );
   }
   const confColor = est.confidence === 'high' ? 'var(--good)' : est.confidence === 'medium' ? 'var(--fat)' : 'var(--muted)';
-  const dirTxt = est.direction === 'down' ? 'trending down' : est.direction === 'up' ? 'trending up' : 'holding steady';
-  const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
+  const confLabel = est.confidence === 'high' ? 'DIALLED IN' : est.confidence === 'medium' ? 'GETTING THERE' : 'STILL LEARNING';
   const fcColor = est.forecast.dir === 'hold' ? 'var(--good)' : est.forecast.dir === 'unknown' ? 'var(--muted)' : 'var(--fat)';
   return (
     <Card className="p-5 mb-4">
+      {/* Header: what this is, plus how sure we are (labelled so LOW reads as confidence, not "your burn is low"). */}
       <div className="flex items-center justify-between mb-2">
-        <div className="pf text-[8px] text-[#8A8A90]">LIVE EXPENDITURE</div>
-        <span className="pf text-[7px] px-2 py-1" style={{ color: confColor, border: '2px solid ' + confColor }}>{est.confidence.toUpperCase()}</span>
+        <div className="pf text-[8px] text-[#8A8A90]">DAILY BURN</div>
+        <span className="pf text-[7px] px-2 py-1 shrink-0" style={{ color: confColor, border: '2px solid ' + confColor }}>{confLabel}</span>
       </div>
-      <div className="flex items-baseline gap-2 mb-1">
-        <span className="text-4xl tnum" style={{ color: 'var(--hero)' }}>{est.tdee}</span>
-        <span className="text-[11px] text-[#8A8A90]">± {est.band} kcal/day</span>
+      {/* Plain-English explanation of the number. */}
+      <div className="text-[11px] text-[#8A8A90] leading-relaxed mb-3">The calories your body actually burns a day, learned from your intake and how your weight moves, not a formula guess.</div>
+      {/* Hero figure with a single honest range (replaces the old duplicated "± band" and "Range" lines). */}
+      <div className="flex items-baseline gap-2">
+        <span className="text-4xl tnum" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span>
+        <span className="text-[11px] text-[#8A8A90]">kcal / day</span>
       </div>
-      <div className="text-[11px] text-[#8A8A90]">Range {est.low}-{est.high} · {dirTxt} {rate}</div>
+      <div className="text-[11px] text-[#8A8A90] mt-0.5 tnum">most likely {est.low.toLocaleString()}–{est.high.toLocaleString()}</div>
+      {/* Weight trend on its own labelled row so it isn't mistaken for the burn figure. */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262629]">
+        <span className="pf text-[8px] text-[#8A8A90]">WEIGHT TREND</span>
+        <span className="text-[12px] tnum font-semibold" style={{ color: est.direction === 'flat' ? 'var(--good)' : 'var(--text)' }}>{est.direction === 'flat' ? 'holding steady' : fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>
+      </div>
       {(() => {
         // Burn history: TDEE learned at each past check-in (persisted as ci.tdee going forward;
         // older check-ins fall back to the adaptive targets history), ending on today's live figure.
@@ -1656,12 +1674,13 @@ function ExpenditureCard({ db }) {
         }).filter(x => x != null);
         const pts = hist.concat([est.tdee]).slice(-12);
         if (pts.length < 2) return null;
-        return <div className="mt-3 pt-2 border-t border-[#262629]">
-          <div className="pf text-[8px] text-[#8A8A90] mb-1">BURN TREND</div>
+        return <div className="mt-3 pt-3 border-t border-[#262629]">
+          <div className="pf text-[8px] text-[#8A8A90] mb-1">BURN OVER TIME</div>
           <MiniSpark points={pts} color="var(--hero)" />
         </div>;
       })()}
-      <div className="text-[11px] mt-2 pt-2 border-t border-[#262629]" style={{ color: fcColor }}>Next check-in: {est.forecast.text}.</div>
+      {/* What the next weekly check-in is likely to do with your targets. */}
+      <div className="text-[11px] mt-3 pt-3 border-t border-[#262629]" style={{ color: fcColor }}>Next weekly check-in: {est.forecast.text}.</div>
     </Card>
   );
 }
