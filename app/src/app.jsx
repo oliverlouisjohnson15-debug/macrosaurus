@@ -2208,21 +2208,14 @@ function FightModal({ db, update, streak, onClose }) {
   );
   const Ring = () => (
     <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'linear-gradient(var(--surface3) 0%, var(--surface3) 61%, var(--surface2) 61%)' }}>
-      {/* distant volcano on the horizon */}
-      <div className="absolute" style={{ top: 42, right: '32%' }}>
-        <div style={{ position: 'relative', width: 46, height: 30, opacity: 0.45 }}>
-          <div style={{ position: 'absolute', bottom: 0, left: 0, width: 0, height: 0, borderLeft: '23px solid transparent', borderRight: '23px solid transparent', borderBottom: '30px solid var(--border)' }} />
-          <div style={{ position: 'absolute', top: 0, left: 17, width: 12, height: 5, background: 'var(--danger)', opacity: 0.7 }} />
-        </div>
-      </div>
       {/* horizon line where sky meets ground */}
       <div className="absolute left-0 right-0" style={{ top: '61%', height: 3, background: 'var(--border)' }} />
       {/* opponent battle platform (far, upper right) */}
-      <div className="absolute" style={{ top: 78, right: 16, width: 98, height: 15, background: 'var(--surface2)', border: '3px solid var(--border)', borderRadius: '50%' }} />
+      <div className="absolute" style={{ top: 82, right: 16, width: 98, height: 15, background: 'var(--surface2)', border: '3px solid var(--border)', borderRadius: '50%' }} />
       {/* player battle platform (near, lower left) */}
       <div className="absolute" style={{ bottom: 11, left: 12, width: 118, height: 20, background: 'var(--surface3)', border: '3px solid var(--border)', borderRadius: '50%' }} />
-      {/* opponent, smaller (further away), facing the player */}
-      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 46, right: 34 }}><Sprite art={opp.art} colors={opp.colors} px={5.5} /></div>
+      {/* opponent, smaller (further away), facing the player, feet resting on its platform */}
+      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 25, right: 34 }}><Sprite art={opp.art} colors={opp.colors} px={5.5} /></div>
       {/* player, larger (nearer) */}
       <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 22, left: 26 }}><Sprite art={fighter.art} colors={fighter.colors} px={7} /></div>
       {/* VS flash on entry */}
