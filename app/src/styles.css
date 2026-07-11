@@ -106,6 +106,18 @@ input, select { color-scheme: dark; }
 /* damage number floating up from a hit */
 @keyframes fdmg { 0% { opacity: 0; transform: scale(.7) translateY(2px); } 25% { opacity: 1; transform: scale(1.1) translateY(-6px); } 100% { opacity: 0; transform: scale(1) translateY(-24px); } }
 .fdmg { animation: fdmg .8s ease forwards; }
+/* battle intro: each fighter slides onto its platform, then a VS flashes */
+@keyframes fslideInL { from { transform: translateX(-170px); opacity: 0; } 60% { opacity: 1; } to { transform: translateX(0); opacity: 1; } }
+.fslideL { animation: fslideInL .55s cubic-bezier(.2,.85,.25,1); }
+@keyframes fslideInR { from { transform: scaleX(-1) translateX(-170px); opacity: 0; } 60% { opacity: 1; } to { transform: scaleX(-1) translateX(0); opacity: 1; } }
+.fslideR { animation: fslideInR .55s cubic-bezier(.2,.85,.25,1); }
+@keyframes fvs { 0% { opacity: 0; transform: scale(2.4); } 35% { opacity: 1; transform: scale(1); } 78% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1); } }
+.fvs { animation: fvs .9s ease forwards; }
+/* catch reveal: the egg wobbles, then the creature settles in, no abrupt pop */
+@keyframes crwobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-7deg); } 75% { transform: rotate(7deg); } }
+.crwobble { animation: crwobble .5s ease-in-out infinite; }
+@keyframes crpop { 0% { opacity: 0; transform: scale(.4) translateY(6px); } 55% { opacity: 1; transform: scale(1.12) translateY(-2px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+.crpop { animation: crpop .5s cubic-bezier(.2,.8,.2,1); }
 
 /* ---- pixel shapes: square everything, chunky borders + hard shadow ---- */
 .rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-full { border-radius: 0 !important; }

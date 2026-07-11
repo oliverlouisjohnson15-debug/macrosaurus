@@ -2128,15 +2128,17 @@ function FightModal({ db, update, streak, onClose }) {
   const [maxA, setMaxA] = useState(100); const [maxB, setMaxB] = useState(100);
   const [log, setLog] = useState([]); const [winner, setWinner] = useState(null); const [drops, setDrops] = useState([]);
   const [lungeA, setLungeA] = useState(false); const [lungeB, setLungeB] = useState(false);
-  const [pop, setPop] = useState(null); const [shake, setShake] = useState(false);
+  const [pop, setPop] = useState(null); const [shake, setShake] = useState(false); const [intro, setIntro] = useState(false);
   const rewarded = useRef(false); const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
-  function start(opponent, boss) { setOpp(opponent); setIsBoss(!!boss); setMaxA(fighter.stats.hp); setMaxB(opponent.stats.hp); setHpA(fighter.stats.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); rewarded.current = false; setPhase('fight'); }
+  // The fight opens like a monster battle: both fighters slide onto their platforms and a VS flashes,
+  // then the auto-battle begins. `intro` holds the combat loop until the entrance finishes.
+  function start(opponent, boss) { setOpp(opponent); setIsBoss(!!boss); setMaxA(fighter.stats.hp); setMaxB(opponent.stats.hp); setHpA(fighter.stats.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it); }
   function prestige() { update(d => { d.fight = d.fight || {}; d.fight.rank = 0; d.fight.prestige = (d.fight.prestige || 0) + 1; }); setPhase('select'); }
 
   useEffect(() => {
-    if (phase !== 'fight' || !opp) return;
+    if (phase !== 'fight' || !opp || intro) return;
     const my = fighter.stats, rv = opp.stats;
     let a = my.hp, d2 = rv.hp, round = 0, alive = true;
     const rnd = (n) => Math.floor(Math.random() * n);
@@ -2163,9 +2165,9 @@ function FightModal({ db, update, streak, onClose }) {
       if (a <= 0 || d2 <= 0 || round >= 32) { alive = false; const win = d2 <= 0 ? true : a <= 0 ? false : (a / my.hp) >= (d2 / rv.hp); const et = setTimeout(() => { setWinner(win ? 'you' : 'them'); setPhase('done'); }, 750); timers.current.push(et); return; }
       const t = setTimeout(step, 760); timers.current.push(t);
     };
-    const t0 = setTimeout(step, 650); timers.current.push(t0);
+    const t0 = setTimeout(step, 300); timers.current.push(t0);
     return () => { alive = false; };
-  }, [phase, opp]);
+  }, [phase, opp, intro]);
 
   useEffect(() => {
     if (phase !== 'done' || winner == null || rewarded.current) return;
@@ -2193,22 +2195,28 @@ function FightModal({ db, update, streak, onClose }) {
     </div>
   );
   const Ring = () => (
-    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 172, background: 'linear-gradient(var(--surface2), var(--surface3))' }}>
-      {/* distant volcano */}
-      <div className="absolute" style={{ bottom: 24, left: '42%' }}>
-        <div style={{ position: 'relative', width: 60, height: 44 }}>
-          <div style={{ position: 'absolute', bottom: 0, left: 0, width: 0, height: 0, borderLeft: '30px solid transparent', borderRight: '30px solid transparent', borderBottom: '44px solid var(--border)' }} />
-          <div style={{ position: 'absolute', top: -3, left: 22, width: 16, height: 6, background: 'var(--danger)' }} />
+    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'linear-gradient(var(--surface3) 0%, var(--surface3) 61%, var(--surface2) 61%)' }}>
+      {/* distant volcano on the horizon */}
+      <div className="absolute" style={{ top: 42, right: '32%' }}>
+        <div style={{ position: 'relative', width: 46, height: 30, opacity: 0.45 }}>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, width: 0, height: 0, borderLeft: '23px solid transparent', borderRight: '23px solid transparent', borderBottom: '30px solid var(--border)' }} />
+          <div style={{ position: 'absolute', top: 0, left: 17, width: 12, height: 5, background: 'var(--danger)', opacity: 0.7 }} />
         </div>
       </div>
-      {/* prehistoric ground */}
-      <div className="absolute left-0 right-0 bottom-0" style={{ height: 24, background: 'var(--surface3)', borderTop: '3px solid var(--border)' }} />
-      {/* fern silhouettes */}
-      <div className="absolute" style={{ bottom: 18, left: 2, opacity: 0.5 }}><Sprite art="sprout" colors={crSilhouette()} px={3} /></div>
-      <div className="absolute" style={{ bottom: 18, right: 2, opacity: 0.5 }}><Sprite art="sprout" colors={crSilhouette()} px={3} /></div>
-      <div className={'absolute bottom-6 left-6 ' + (lungeA ? 'flungeR' : 'fbob')}><Sprite art={fighter.art} colors={fighter.colors} px={7} /></div>
-      <div className={'absolute bottom-6 right-6 ' + (lungeB ? 'flungeLflip' : 'fbobFlip')}><Sprite art={opp.art} colors={opp.colors} px={7} /></div>
-      {pop && <div key={pop.id} className="absolute text-center" style={{ top: 34, [pop.side === 'r' ? 'right' : 'left']: 34 }}>
+      {/* horizon line where sky meets ground */}
+      <div className="absolute left-0 right-0" style={{ top: '61%', height: 3, background: 'var(--border)' }} />
+      {/* opponent battle platform (far, upper right) */}
+      <div className="absolute" style={{ top: 78, right: 16, width: 98, height: 15, background: 'var(--surface2)', border: '3px solid var(--border)', borderRadius: '50%' }} />
+      {/* player battle platform (near, lower left) */}
+      <div className="absolute" style={{ bottom: 11, left: 12, width: 118, height: 20, background: 'var(--surface3)', border: '3px solid var(--border)', borderRadius: '50%' }} />
+      {/* opponent, smaller (further away), facing the player */}
+      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 46, right: 34 }}><Sprite art={opp.art} colors={opp.colors} px={5.5} /></div>
+      {/* player, larger (nearer) */}
+      <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 22, left: 26 }}><Sprite art={fighter.art} colors={fighter.colors} px={7} /></div>
+      {/* VS flash on entry */}
+      {intro && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="pf fvs" style={{ fontSize: 26, color: 'var(--fat)', WebkitTextStroke: '1px var(--border)' }}>VS</div></div>}
+      {/* damage / hit pops */}
+      {pop && <div key={pop.id} className="absolute text-center" style={{ top: 40, [pop.side === 'r' ? 'right' : 'left']: 34 }}>
         <div className="pf fpop" style={{ fontSize: pop.big ? 15 : 12, color: 'var(--fat)' }}>{pop.text}</div>
         {pop.num != null && <div className="pf fdmg tnum" style={{ fontSize: pop.big ? 16 : 12, color: 'var(--danger)' }}>-{pop.num}</div>}
       </div>}
@@ -4747,14 +4755,25 @@ function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id)
 // Non-blocking (pointer-events pass through) and gone in under 1.5s.
 function CatchReveal({ c }) {
   const [cracked, setCracked] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setCracked(true), 500); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setCracked(true), 550); return () => clearTimeout(t); }, []);
   const cr = CR_BY_ID[c.id]; if (!cr) return null;
+  // A choreographed notification, not a random centre pop: it slides up from the bottom like a toast,
+  // the egg wobbles, then the creature settles into place.
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center pointer-events-none">
-      <div className="pixel-box p-4 flex flex-col items-center fade-in" style={{ background: 'var(--surface3)' }}>
+    <div className="fixed left-0 right-0 z-[70] flex justify-center px-4 pointer-events-none" style={{ bottom: 96 }}>
+      <div className="pixel-box px-4 py-3 flex items-center gap-3 sheet-up" style={{ background: 'var(--surface3)' }}>
         {cracked
-          ? <><div style={crFx(c.shiny, null)}><Sprite art={cr.art} colors={c.shiny ? crShiny(cr.colors) : cr.colors} px={6} /></div><div className="pf text-[9px] mt-2" style={{ color: CR_RARITY_COLOR[cr.rarity] }}>{cr.name}{c.shiny ? ' ✦' : ''}</div><div className="text-[10px] text-[#8A8A90] mt-1">Today's catch is on the line!</div></>
-          : <><div className="dino-hop"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={6} /></div><div className="text-[10px] text-[#8A8A90] mt-2">Something's hatching...</div></>}
+          ? <>
+              <div className="crpop shrink-0" style={crFx(c.shiny, null)}><Sprite art={cr.art} colors={c.shiny ? crShiny(cr.colors) : cr.colors} px={5} /></div>
+              <div className="min-w-0">
+                <div className="pf text-[8px] uppercase text-[#8A8A90] mb-0.5">Catch on the line</div>
+                <div className="pf text-[10px]" style={{ color: CR_RARITY_COLOR[cr.rarity] }}>{cr.name}{c.shiny ? ' ✦' : ''}</div>
+              </div>
+            </>
+          : <>
+              <div className="crwobble shrink-0"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={5} /></div>
+              <div className="text-[10px] text-[#8A8A90]">Something's hatching...</div>
+            </>}
       </div>
     </div>
   );
