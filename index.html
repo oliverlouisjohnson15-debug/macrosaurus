@@ -5719,8 +5719,8 @@ function CheckInHistory({
   }, "Check-ins"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3"
   }, "Each cycle: how long, weight change, and whether you were compliant."), !rows.length ? /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] py-2"
-  }, "No check-ins yet. Recommended every 7 days; the first unlocks from day 5 after setup. Complete one from the dashboard to see it here.") : /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] py-2 leading-relaxed"
+  }, "No check-ins yet. About once a week a check-in reviews how your weight moved and fine-tunes your macros, your first unlocks 5 days after setup. Each one you complete lands here.") : /*#__PURE__*/React.createElement("div", {
     className: "space-y-2.5"
   }, shown.map(({
     c,
@@ -8198,7 +8198,9 @@ function HomeGameStrip({
     }
   })), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase shrink-0 text-[#8A8A90]"
-  }, atMax ? 'Max' : nextStage.min - streak + 'd to ' + nextStage.name)))), /*#__PURE__*/React.createElement("div", {
+  }, atMax ? 'Max' : nextStage.min - streak + 'd to ' + nextStage.name)))), caught === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-snug mt-2.5"
+  }, "Every day you log and weigh in adds a prehistoric creature to your dex and grows your buddy. Keep the streak going to evolve it."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mt-3"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onOpenDex,
@@ -9322,7 +9324,19 @@ function FoodLog({
     className: "w-full text-[12px] text-[#8A8A90] mb-3 flex items-center justify-center gap-1.5 py-1.5"
   }, "⧉ Copy this day to another date…")), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
-  }, meals.map((m, mi) => {
+  }, db.log_entries.length === 0 && /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-3 fade-in",
+    style: {
+      borderTopColor: 'var(--accent)',
+      borderTopWidth: '5px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-semibold mb-1"
+  }, "Log your first item"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-relaxed"
+  }, "Tap ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#4A9EEB] font-medium"
+  }, "+ Add food"), " on any meal below, or the big ✚ button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.")), meals.map((m, mi) => {
     const me = day.filter(e => e.meal_id === m.id);
     const ms = sumMacros(me);
     const mc = [PRO, CARB, FAT, 'var(--accent)', 'var(--weight)'][mi % 5];
