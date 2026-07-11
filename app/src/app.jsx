@@ -563,8 +563,9 @@ function MiniSpark({ points, color }) {
 function HabitGrid({ days, color }) {
   return (<div className="grid grid-cols-10 gap-1">{days.map((on, i) => <div key={i} className="aspect-square rounded-[3px]" style={{ background: on ? color : 'var(--border)' }} />)}</div>);
 }
-// GitHub-style consistency heatmap: one square per day over the last 12 weeks, week-aligned into
-// columns. Intensity = how complete the day was (neither / logged or weighed / both).
+// Consistency "dig site": one pixel tile per day over the last 12 weeks, week-aligned into columns.
+// Each active day is a fossil you uncovered (a Macrodex catch), so the grid doubles as a picture of
+// how much of your collection you have earned. Tile = neither / logged or weighed / both.
 function ConsistencyHeatmap({ db, today }) {
   const WEEKS = 12, N = WEEKS * 7;
   const logSet = new Set(db.log_entries.map(e => e.date));
@@ -575,20 +576,27 @@ function ConsistencyHeatmap({ db, today }) {
   for (let i = 0; i < pad; i++) cells.push(null);
   for (let i = 0; i < N; i++) cells.push(shiftISO(start, i));
   const level = d => (logSet.has(d) ? 1 : 0) + (weighSet.has(d) ? 1 : 0);
-  const colorFor = lv => lv === 2 ? 'var(--good)' : lv === 1 ? 'var(--carb)' : 'var(--border)';
+  const colorFor = lv => lv === 2 ? 'var(--good)' : lv === 1 ? 'var(--carb)' : 'var(--track)';
   const last7 = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i)));
   const logWk = last7.filter(d => logSet.has(d)).length, weighWk = last7.filter(d => weighSet.has(d)).length;
+  const activeDays = Array.from({ length: N }, (_, i) => shiftISO(start, i)).filter(d => level(d) > 0).length;
   return (
     <Card className="p-4 mb-4">
-      <div className="font-semibold mb-0.5 text-[13px]">Consistency</div>
-      <div className="text-[11px] text-[#8A8A90] mb-3">Last {WEEKS} weeks</div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="pf text-[9px] uppercase text-[#8A8A90] inline-flex items-center gap-1.5"><PixelDino size={13} color="var(--good)" /> Consistency</span>
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">Last {WEEKS} wks</span>
+      </div>
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="text-2xl font-bold tnum" style={{ color: 'var(--good)' }}>{activeDays}</span>
+        <span className="text-[10px] text-[#8A8A90] leading-tight">active days,<br />each one hatched a catch</span>
+      </div>
       <div style={{ display: 'grid', gridTemplateRows: 'repeat(7, 1fr)', gridAutoFlow: 'column', gap: '3px' }}>
-        {cells.map((d, i) => <div key={i} title={d || ''} className="rounded-[2px]" style={{ aspectRatio: '1 / 1', background: d ? colorFor(level(d)) : 'transparent' }} />)}
+        {cells.map((d, i) => <div key={i} title={d || ''} style={{ aspectRatio: '1 / 1', background: d ? colorFor(level(d)) : 'transparent', boxShadow: d && level(d) > 0 ? 'inset -1px -1px 0 rgba(0,0,0,0.22)' : 'none' }} />)}
       </div>
       <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-3 text-[10px] text-[#8A8A90]">
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'var(--border)' }} /> none</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'var(--carb)' }} /> one</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-[2px] inline-block" style={{ background: 'var(--good)' }} /> logged &amp; weighed</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--track)' }} /> none</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--carb)' }} /> one</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--good)' }} /> logged and weighed</span>
         <span className="ml-auto tnum">This week: {logWk}/7 logged · {weighWk}/7 weighed</span>
       </div>
     </Card>
@@ -2907,8 +2915,9 @@ function applyEntryPatch(update, id, patch) {
     const x = d.log_entries.find(y => y.id === id); if (!x) return;
     x.name = patch.name; x.qty_label = patch.qty; x.computed_macros = patch.macros;
     if (patch.amount != null) x.amount = patch.amount; if (patch.unit) x.unit = patch.unit; if (patch.unit_noun) x.unit_noun = patch.unit_noun;
+    if (patch.alcohol_split !== undefined) x.alcohol_split = patch.alcohol_split;
     const key = patch.name.trim().toLowerCase(); const food = d.foods.find(y => y.name.trim().toLowerCase() === key && !!y.is_alcohol === !!x.is_alcohol);
-    if (food) { food.macros = patch.macros; food.last_qty = patch.qty || food.last_qty; food.updated_at = Date.now(); }
+    if (food) { food.macros = patch.macros; food.last_qty = patch.qty || food.last_qty; food.updated_at = Date.now(); if (patch.alcohol_split !== undefined) food.alcohol_split = patch.alcohol_split; }
   });
 }
 // Small in-app naming sheet (replaces window.prompt): prefilled text, Save/Cancel.
@@ -2948,7 +2957,12 @@ function EditEntryModal({ entry, onSave, onClose, title, saveLabel }) {
   const plural = (+amount > 1 && /^[a-z]+$/i.test(noun)) ? 's' : '';
   const label = unit === 'g' ? `${fmtCount(amount)} g` : unit === 'oz' ? `${fmtCount(amount)} oz` : `${fmtCount(amount)} ${noun}${plural}`;
   const unitWord = unit === 'g' ? 'grams' : unit === 'oz' ? 'ounces' : (noun + (/^[a-z]+$/i.test(noun) ? 's' : ''));
-  function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: noun }); }
+  // Alcohol calories carry no protein, they are split across carbs and fat. Let a logged drink's
+  // split be re-balanced after the fact with a slider, keeping the calories fixed.
+  const isAlc = !!entry.is_alcohol;
+  const [carbPct, setCarbPct] = useState(() => (m.kcal > 0 ? Math.max(0, Math.min(100, Math.round(((m.carbs || 0) * 4 / m.kcal) * 10) * 10)) : 50));
+  function setSplit(pct) { setCarbPct(pct); setBase(b => Object.assign({}, b, b.kcal > 0 ? { carbs: (b.kcal * pct / 100) / 4, fat: (b.kcal * (100 - pct) / 100) / 9 } : {})); }
+  function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: noun, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
   return (<div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
       <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title || 'Edit food'}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
@@ -2964,6 +2978,13 @@ function EditEntryModal({ entry, onSave, onClose, title, saveLabel }) {
         <div className="text-[12px] tnum"><span style={{ color: PRO }}>P{total.protein}</span> <span style={{ color: CARB }}>C{total.carbs}</span> <span style={{ color: FAT }}>F{total.fat}</span></div>
         <div className="text-lg font-bold tnum">{total.kcal}<span className="text-[10px] text-[#8A8A90]"> kcal</span></div>
       </div>
+      {isAlc && <div className="mb-3">
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Split these calories</div>
+        <Field label={`${carbPct}% carbs · ${100 - carbPct}% fat`}>
+          <input type="range" min="0" max="100" step="10" value={carbPct} onChange={e => setSplit(+e.target.value)} className="w-full accent-[#4A9EEB]" />
+          <div className="text-sm text-[#8A8A90] mt-2 tnum">= {total.carbs}g carbs · {total.fat}g fat</div>
+        </Field>
+      </div>}
       <button onClick={() => setEdit(e => !e)} className="text-[11px] text-[#8A8A90] mb-2">{edit ? '▲ Hide exact macros' : '▾ Numbers off? Edit exact macros'}</button>
       {edit && <div className="fade-in mb-2">
         <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={total.protein} onChange={e => setTotalField('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={total.carbs} onChange={e => setTotalField('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={total.fat} onChange={e => setTotalField('fat', e.target.value)} /></Field></div>
