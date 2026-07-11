@@ -712,6 +712,13 @@ function TrendCard({ db }) {
       <div className="flex gap-1 mb-3 bg-[#1E1E22] p-1 rounded-2xl text-[12px]">
         {[['weight', 'Weight'], ['bodyfat', 'Body Fat'], ['lean', 'Lean Mass']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}
       </div>
+      {valid.length === 0 ? (
+        <div className="text-center py-8 px-4">
+          <div className="flex justify-center mb-3 opacity-40"><PixelDino size={40} color="var(--weight)" /></div>
+          <div className="text-[13px] font-semibold mb-1">{tab === 'weight' ? 'No weigh-ins yet' : tab === 'bodyfat' ? 'No body-fat readings yet' : 'No lean-mass data yet'}</div>
+          <div className="text-[11px] text-[#8A8A90] leading-relaxed max-w-[16rem] mx-auto">{tab === 'weight' ? 'Add today’s weight from Home and your trend line starts building right here.' : tab === 'bodyfat' ? 'Add a body-fat % with any weigh-in and it’ll chart here over time.' : 'Log a weight and a body-fat % on the same day to see your lean mass tracked here.'}</div>
+        </div>
+      ) : <>
       <div className="flex items-end justify-between mb-1 px-0.5">
         <div><span className="text-2xl font-bold tnum">{last ? last.value : '–'}</span><span className="text-[11px] text-[#8A8A90] ml-1">{tab === 'bodyfat' ? '%' : yl}</span></div>
         {delta != null && <div className="text-right"><div className="text-[13px] font-semibold tnum" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good)' : 'var(--fat)' }}>{deltaStr}</div><div className="text-[10px] text-[#8A8A90]">{rangeLabel}</div></div>}
@@ -722,6 +729,7 @@ function TrendCard({ db }) {
         <div className="flex gap-1">{[['W', 7], ['M', 30], ['3M', 90], ['6M', 180], ['Y', 365], ['All', 'all']].map(([l, v]) => <button key={l} onClick={() => setRange(v)} className={`px-2 py-1 rounded-lg text-[11px] ${range === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}>{l}</button>)}</div>
         <div className="text-[10px] text-[#8A8A90]">{tab === 'bodyfat' ? '%' : yl}</div>
       </div>
+      </>}
     </Card>
   );
 }
@@ -1383,7 +1391,7 @@ function CheckInModal({ db, update, onClose, resume }) {
               </div>
               <div className="text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]">{result.earlyPhase
                 ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.'
-                : 'Estimated daily burn about ' + ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) + ' kcal, from your logged intake and weight trend.'}</div>
+                : 'Your body is burning about ' + ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) + ' kcal a day, worked out from your intake versus how your weight moved.'}</div>
             </div>}
             {coach && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--good)' }}>
               <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5 flex items-center gap-1.5"><PixelDino size={13} color="var(--good)" /> Coach's take</div>
@@ -1733,7 +1741,7 @@ function DietBreakCard({ db, update }) {
   return (
     <Card className="p-5 mb-4" style={{ borderTopColor: 'var(--hero)', borderTopWidth: '7px' }}>
       <div className="text-lg font-bold mb-1">Time for a diet break?</div>
-      <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">You've been cutting consistently for {status.weeks} weeks. Research (MATADOR, Byrne 2018) shows a 1–2 week maintenance break here blunts metabolic slowdown and improves fat-loss efficiency. It holds you at ~{mk} kcal, then your cut resumes automatically.</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">You've been cutting steadily for {status.weeks} weeks. Taking a week or two at maintenance (~{mk} kcal) now can ease the metabolic slowdown that long cuts cause, so fat loss picks back up when you return. Your cut resumes automatically after, nothing to remember. <span className="text-[#6A6A70]">Backed by the MATADOR trial (Byrne 2018).</span></div>
       {!ask
         ? <div className="grid grid-cols-2 gap-2">
           <Btn kind="accent" onClick={() => setAsk(true)}>Yes please</Btn>
@@ -4101,12 +4109,12 @@ function Goals({ db, update, showToast, onCheckIn }) {
         return <Card className="p-4 mb-5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Check-in</div>
-              <div className="text-[13px]">{due ? 'Due now' : ready ? 'Unlocked, you can check in' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Weekly check-in</div>
+              <div className="text-[13px]">{due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
             </div>
             <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} style={{ opacity: ready ? 1 : .5 }} onClick={onCheckIn}>Check in</Btn>
           </div>
-          <div className="text-[10px] text-[#8A8A90] mt-2">Your full trend, weigh-in history and burn estimate are just below.</div>
+          <div className="text-[10px] text-[#8A8A90] mt-2 leading-relaxed">It reads your last week of weight and food, then suggests a small macro tweak to keep you on pace. Nothing changes until you approve it.</div>
         </Card>;
       })()}
 
