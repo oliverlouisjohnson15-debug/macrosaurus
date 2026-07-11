@@ -1567,7 +1567,7 @@ function CheckInHistory({ db }) {
   return (
     <Card className="p-4 mb-6">
       <div className="font-semibold mb-0.5">Check-ins</div><div className="text-[11px] text-[#8A8A90] mb-3">Each cycle: how long, weight change, and whether you were compliant.</div>
-      {!rows.length ? <div className="text-[12px] text-[#8A8A90] py-2">No check-ins yet. Recommended every 7 days; the first unlocks from day 5 after setup. Complete one from the dashboard to see it here.</div>
+      {!rows.length ? <div className="text-[12px] text-[#8A8A90] py-2 leading-relaxed">No check-ins yet. About once a week a check-in reviews how your weight moved and fine-tunes your macros, your first unlocks 5 days after setup. Each one you complete lands here.</div>
         : <div className="space-y-2.5">{shown.map(({ c, startISO, periodDays, changeKg, rate, avgIn, wkRate }, i) => {
           const good = changeKg == null ? null : (goal === 'gain' ? changeKg > 0 : goal === 'cut' ? changeKg < 0 : Math.abs(changeKg) < 0.3);
           const hasCounts = c.logged != null && c.weighed != null && c.days != null;
@@ -2419,6 +2419,7 @@ function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onL
           </div>
         </div>
       </button>
+      {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-2.5">Every day you log and weigh in adds a prehistoric creature to your dex and grows your buddy. Keep the streak going to evolve it.</div>}
       <div className="flex gap-2 mt-3">
         <button onClick={onOpenDex} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--surface3)' }}>
           <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1">Catch today</div>
@@ -2871,6 +2872,10 @@ function FoodLog({ db, update, openLog, showToast }) {
       </div>
 
       <div className="min-w-0">
+      {db.log_entries.length === 0 && <Card className="p-4 mb-3 fade-in" style={{ borderTopColor: 'var(--accent)', borderTopWidth: '5px' }}>
+        <div className="text-[13px] font-semibold mb-1">Log your first item</div>
+        <div className="text-[11px] text-[#8A8A90] leading-relaxed">Tap <span className="text-[#4A9EEB] font-medium">+ Add food</span> on any meal below, or the big ✚ button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.</div>
+      </Card>}
       {meals.map((m, mi) => {
         const me = day.filter(e => e.meal_id === m.id); const ms = sumMacros(me);
         const mc = [PRO, CARB, FAT, 'var(--accent)', 'var(--weight)'][mi % 5];
