@@ -228,6 +228,19 @@ p, .leading-snug, .leading-relaxed { line-height: 1.7 !important; }
 .dino-dot { animation: dinoDots 1.1s infinite; }
 .dino-dot:nth-child(2) { animation-delay: .18s; }
 .dino-dot:nth-child(3) { animation-delay: .36s; }
+
+/* ---- respect the OS "reduce motion" setting ---- */
+/* Collapse animations/transitions to a single instant frame so elements snap to
+   their final state instead of shaking, bobbing, jumping or looping. Keeps the
+   app fully usable for users who get motion sick or ask for calm UI. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -4146,7 +4159,8 @@ function BodyFatPicker({
     className: "text-lg font-semibold"
   }, "Estimate body fat"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), mode === 'bands' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos."), /*#__PURE__*/React.createElement("button", {
@@ -4215,6 +4229,7 @@ function BodyFatPicker({
     className: "aspect-square rounded-2xl bg-[#1E1E22] border border-[#262629] flex flex-col items-center justify-center cursor-pointer overflow-hidden relative"
   }, imgs[s] ? /*#__PURE__*/React.createElement("img", {
     src: imgs[s].url,
+    alt: l + ' body photo',
     className: "absolute inset-0 w-full h-full object-cover"
   }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Icon.cam, {
     width: "18",
@@ -5182,6 +5197,7 @@ function CheckInModal({
     className: "text-lg font-semibold"
   }, "Check-in"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
+    "aria-label": "Close",
     className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), proposalShown && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-2"
@@ -5548,7 +5564,8 @@ function WeighInEditModal({
     className: "text-lg font-semibold"
   }, isNew ? 'Add weigh-in' : 'Edit weigh-in'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), isNew ? /*#__PURE__*/React.createElement(Field, {
     label: "Date"
   }, /*#__PURE__*/React.createElement("input", {
@@ -6985,7 +7002,8 @@ function MacrodexModal({
     className: "text-lg font-semibold"
   }, "Macrodex"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
   }, "Log a day to catch a creature, the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), /*#__PURE__*/React.createElement("div", {
@@ -7814,7 +7832,8 @@ function FightModal({
     className: "text-lg font-semibold"
   }, "Dino fight"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), phase === 'egg' && /*#__PURE__*/React.createElement("div", {
     className: "text-center py-6"
   }, /*#__PURE__*/React.createElement("div", {
@@ -8440,7 +8459,7 @@ function Dashboard({
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: prettyDate(today),
-    title: "Dashboard"
+    title: "Today"
   }), /*#__PURE__*/React.createElement(OnboardingChecklist, {
     db: db,
     update: update,
@@ -8613,7 +8632,8 @@ function CarryoverSheet({
     className: "text-lg font-semibold"
   }, "Today's target"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 leading-snug"
   }, "Where today's ", et.eff.kcal, " kcal comes from."), /*#__PURE__*/React.createElement("div", {
@@ -9187,8 +9207,9 @@ function FoodLog({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-4"
   }, /*#__PURE__*/React.createElement("button", {
+    "aria-label": "Previous day",
     onClick: () => setDate(shiftISO(date, -1)),
-    className: "text-[#8A8A90] px-3 py-2 text-lg"
+    className: "hit text-[#8A8A90] px-3 py-2 text-lg"
   }, "‹"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (!showCal) {
@@ -9210,13 +9231,15 @@ function FoodLog({
   })), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] text-[10px]"
   }, showCal ? '▲' : '▼')), /*#__PURE__*/React.createElement("button", {
+    "aria-label": "Next day",
     onClick: () => setDate(shiftISO(date, 1)),
-    className: "text-[#8A8A90] px-3 py-2 text-lg"
+    className: "hit text-[#8A8A90] px-3 py-2 text-lg"
   }, "›")), showCal && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4 fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("button", {
+    "aria-label": "Previous month",
     onClick: () => setCalMonth(c => {
       const m = c.m - 1;
       return m < 0 ? {
@@ -9227,10 +9250,11 @@ function FoodLog({
         m
       };
     }),
-    className: "text-[#8A8A90] px-2 py-1"
+    className: "hit text-[#8A8A90] px-2 py-1"
   }, "‹"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold"
   }, monthName), /*#__PURE__*/React.createElement("button", {
+    "aria-label": "Next month",
     onClick: () => setCalMonth(c => {
       const m = c.m + 1;
       return m > 11 ? {
@@ -9241,7 +9265,7 @@ function FoodLog({
         m
       };
     }),
-    className: "text-[#8A8A90] px-2 py-1"
+    className: "hit text-[#8A8A90] px-2 py-1"
   }, "›")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
@@ -9273,11 +9297,11 @@ function FoodLog({
   }), et && /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl text-[13px]"
+    className: "flex gap-1 mb-4 pixel-box bg-[#1E1E22] p-1 text-[13px]"
   }, [['consumed', 'Consumed'], ['remaining', 'Remaining'], ['balance', 'Edit balance']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setMode(k),
-    className: `flex-1 rounded-xl py-2 transition ${mode === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
+    className: `flex-1 py-2 font-bold ${mode === k ? 'bg-white text-black' : 'text-[#8A8A90]'}`
   }, l))), mode === 'balance' ? /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
@@ -9688,6 +9712,7 @@ function NameSheet({
     className: "text-lg font-semibold"
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
+    "aria-label": "Close",
     className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), hint && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-snug"
@@ -9806,6 +9831,7 @@ function EditEntryModal({
     className: "text-lg font-semibold"
   }, title || 'Edit food'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
+    "aria-label": "Close",
     className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
@@ -9965,7 +9991,8 @@ function CopyToModal({
     className: "text-lg font-semibold truncate pr-2"
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none shrink-0"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-2xl leading-none shrink-0"
   }, "×")), meals && /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -11825,9 +11852,11 @@ function DescribeTab({
     className: "relative"
   }, /*#__PURE__*/React.createElement("img", {
     src: i.url,
+    alt: "Meal photo",
     className: "w-16 h-16 object-cover rounded-xl border border-[#262629]"
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => remImg(i.id),
+    "aria-label": "Remove photo",
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, "×")))), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("button", {
     onClick: () => setCam(true),
@@ -12007,9 +12036,11 @@ function MealEstimate({
     className: "relative"
   }, /*#__PURE__*/React.createElement("img", {
     src: i.url,
+    alt: "Note photo",
     className: "w-16 h-16 object-cover rounded-xl border border-[#262629]"
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => remove(i.id),
+    "aria-label": "Remove photo",
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, "×")))), /*#__PURE__*/React.createElement(Field, {
     label: "Notes (optional)",
@@ -14238,7 +14269,8 @@ function More({
   onFreshStart,
   email,
   isAdmin,
-  onOpenAdmin
+  onOpenAdmin,
+  showToast
 }) {
   const [tab, setTab] = useState('details');
   const [guide, setGuide] = useState(false);
@@ -14272,7 +14304,7 @@ function More({
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
-      alert('Could not export: ' + (e.message || e));
+      showToast && showToast('Could not export your data. Please try again.');
     }
   }
   return /*#__PURE__*/React.createElement("div", {
@@ -14367,19 +14399,13 @@ function More({
     doc: legal,
     onClose: () => setLegal(null)
   }), delOpen && /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 z-[85] flex items-center justify-center p-4",
-    style: {
-      background: 'rgba(0,0,0,0.7)'
-    },
+    className: "fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4",
     onClick: () => {
       setDelOpen(false);
       setDelErr('');
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "w-full max-w-sm pixel-box p-5 fade-in",
-    style: {
-      background: '#0F0F12'
-    },
+    className: "bg-[#0F0F12] w-full max-w-sm pixel-box p-5 fade-in",
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-1",
@@ -14761,7 +14787,8 @@ function AdminAiLogDetail({
     className: "text-lg font-semibold"
   }, aiFeatureLabel(log.feature)), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 break-words"
   }, log.email || 'unknown', " · ", adminFmtWhen(log.created_at), " · ", modelLabel(log.model), log.status === 'error' ? ' · error' : ''), log.images && log.images.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -15543,16 +15570,10 @@ function AdminUserDetail({
     onConfirm: doReset,
     onClose: () => setConfirmKind(null)
   }), confirmKind === 'delete' && /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 z-[85] flex items-center justify-center p-4",
-    style: {
-      background: 'rgba(0,0,0,0.7)'
-    },
+    className: "fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4",
     onClick: () => setConfirmKind(null)
   }, /*#__PURE__*/React.createElement("div", {
-    className: "w-full max-w-sm pixel-box p-5 fade-in",
-    style: {
-      background: '#0F0F12'
-    },
+    className: "bg-[#0F0F12] w-full max-w-sm pixel-box p-5 fade-in",
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-1",
@@ -16646,7 +16667,8 @@ function App() {
     onFreshStart: () => setFresh(true),
     email: session.user.email,
     isAdmin: isAdmin,
-    onOpenAdmin: () => setView('admin')
+    onOpenAdmin: () => setView('admin'),
+    showToast: showToast
   }), view === 'admin' && isAdmin && /*#__PURE__*/React.createElement(AdminPanel, {
     onBack: () => setView('more'),
     adminEmail: session.user.email,
@@ -16700,7 +16722,8 @@ function App() {
     className: "text-lg font-bold"
   }, "Log shared photo", shared.files.length === 1 ? '' : 's'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShared(null),
-    className: "text-[#8A8A90] text-xl leading-none"
+    "aria-label": "Close",
+    className: "hit text-[#8A8A90] text-xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(MealEstimate, {

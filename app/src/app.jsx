@@ -942,7 +942,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
     <div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Estimate body fat</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Estimate body fat</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         {mode === 'bands' ? (<>
           <div className="text-[12px] text-[#8A8A90] mb-4">Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos.</div>
           <button onClick={() => setMode('photos')} className="w-full flex items-center gap-3 bg-[#4A9EEB]/12 border border-[#4A9EEB]/40 rounded-2xl p-3.5 mb-4 active:scale-[.99] transition">
@@ -966,7 +966,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
           <div className="text-[12px] text-[#8A8A90] mb-4">Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and <span className="text-white">never stored</span>.</div>
           <div className="grid grid-cols-3 gap-2 mb-4">{SLOTS.map(([s, l]) => (
             <label key={s} className="aspect-square rounded-2xl bg-[#1E1E22] border border-[#262629] flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
-              {imgs[s] ? <img src={imgs[s].url} className="absolute inset-0 w-full h-full object-cover" /> : <><Icon.cam width="18" height="18" style={{ color: CAL }} /><div className="text-[11px] text-[#8A8A90] mt-1">{l}</div></>}
+              {imgs[s] ? <img src={imgs[s].url} alt={l + ' body photo'} className="absolute inset-0 w-full h-full object-cover" /> : <><Icon.cam width="18" height="18" style={{ color: CAL }} /><div className="text-[11px] text-[#8A8A90] mt-1">{l}</div></>}
               <input type="file" accept="image/*" className="hidden" onChange={e => { setSlot(s, e.target.files[0]); e.target.value = ''; }} />
             </label>))}</div>
           <Btn kind="accent" className="w-full" onClick={estimate}>{busy ? 'Reading your photos…' : 'Estimate with AI'}</Btn>
@@ -1365,7 +1365,7 @@ function CheckInModal({ db, update, onClose, resume }) {
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={() => { if (!proposalShown) onClose(); }}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Check-in</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Check-in</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         {proposalShown && <div className="text-[10px] text-[#8A8A90] mb-2">This suggestion stays saved on your dashboard until you approve it or stick with your current macros.</div>}
         {result ? (
           <div className="fade-in">
@@ -1491,7 +1491,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{isNew ? 'Add weigh-in' : 'Edit weigh-in'}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{isNew ? 'Add weigh-in' : 'Edit weigh-in'}</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         {isNew
           ? <Field label="Date"><input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className={inputCls} />{dupe && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat)' }}>You already weighed in on this day, saving overwrites it.</div>}</Field>
           : <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">{fmtWeighDay(date)}</div>}
@@ -2021,7 +2021,7 @@ function MacrodexModal({ db, update, streak, onClose }) {
             {got && <div className="mt-3 text-[10px] text-[#8A8A90]">Caught <b className="text-[var(--text)]">Lv {got.count}</b>{evoNote}{got.shiny ? ' · ✦ shiny' : ''}</div>}
           </div>;
         })() : (<>
-          <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Macrodex</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+          <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Macrodex</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
           <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Log a day to catch a creature, the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore.</div>
           <div className="flex items-center gap-2 mb-3">
             <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
@@ -2278,7 +2278,7 @@ function FightModal({ db, update, streak, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
 
         {phase === 'egg' && <div className="text-center py-6">
           <div className="flex justify-center mb-3"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={7} /></div>
@@ -2546,7 +2546,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
-      <PageHeader kicker={prettyDate(today)} title="Dashboard" />
+      <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={() => setShowDex(true)} />
 
       <div className="flex items-center justify-between mb-3">
@@ -2616,7 +2616,7 @@ function CarryoverSheet({ et, onClose }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Today's target</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Today's target</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Where today's {et.eff.kcal} kcal comes from.</div>
 
         <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -2821,18 +2821,18 @@ function FoodLog({ db, update, openLog, showToast }) {
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <div className="min-w-0">
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setDate(shiftISO(date, -1))} className="text-[#8A8A90] px-3 py-2 text-lg">‹</button>
+        <button aria-label="Previous day" onClick={() => setDate(shiftISO(date, -1))} className="hit text-[#8A8A90] px-3 py-2 text-lg">‹</button>
         <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#1E1E22] border border-[#262629]">
           <span className="text-sm font-semibold">{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
           <span className="text-[#8A8A90] text-[10px]">{showCal ? '▲' : '▼'}</span>
         </button>
-        <button onClick={() => setDate(shiftISO(date, 1))} className="text-[#8A8A90] px-3 py-2 text-lg">›</button>
+        <button aria-label="Next day" onClick={() => setDate(shiftISO(date, 1))} className="hit text-[#8A8A90] px-3 py-2 text-lg">›</button>
       </div>
       {showCal && <Card className="p-4 mb-4 fade-in">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1">‹</button>
+          <button aria-label="Previous month" onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="hit text-[#8A8A90] px-2 py-1">‹</button>
           <div className="text-sm font-semibold">{monthName}</div>
-          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1">›</button>
+          <button aria-label="Next month" onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="hit text-[#8A8A90] px-2 py-1">›</button>
         </div>
         <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
         <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
@@ -2845,9 +2845,9 @@ function FoodLog({ db, update, openLog, showToast }) {
       <DailyCatch db={db} date={date} />
 
       {et && <Card className="p-5 mb-4">
-        <div className="flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl text-[13px]">
+        <div className="flex gap-1 mb-4 pixel-box bg-[#1E1E22] p-1 text-[13px]">
           {[['consumed', 'Consumed'], ['remaining', 'Remaining'], ['balance', 'Edit balance']].map(([k, l]) => (
-            <button key={k} onClick={() => setMode(k)} className={`flex-1 rounded-xl py-2 transition ${mode === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>
+            <button key={k} onClick={() => setMode(k)} className={`flex-1 py-2 font-bold ${mode === k ? 'bg-white text-black' : 'text-[#8A8A90]'}`}>{l}</button>
           ))}
         </div>
         {mode === 'balance' ? (
@@ -2987,7 +2987,7 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
   const [name, setName] = useState(initial || '');
   return (<div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
+      <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title}</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
       {hint && <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">{hint}</div>}
       <TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && name.trim()) onSave(name.trim()); }} />
       <div className="flex gap-2 mt-4">
@@ -3026,7 +3026,7 @@ function EditEntryModal({ entry, onSave, onClose, title, saveLabel }) {
   function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: noun, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
   return (<div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title || 'Edit food'}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
+      <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title || 'Edit food'}</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
       <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much did you have?</div>
       <div className="flex items-center gap-3">
@@ -3068,7 +3068,7 @@ function CopyToModal({ title, srcDate, meals, defaultMeal, onPick, onClose }) {
   const monthName = new Date(cm.y, cm.m, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
+      <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
       {meals && <div className="mb-3">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Into which meal</div>
         <div className="flex gap-1.5 flex-wrap">{meals.map(m => <button key={m.id} onClick={() => setSelMeal(m.id)} className={`pixel-box px-2.5 py-1.5 text-[11px] ${selMeal === m.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{m.name}</button>)}</div>
@@ -3634,7 +3634,7 @@ function DescribeTab({ db, onPick, onScan }) {
     </div>}
     <textarea ref={taRef} value={text} onChange={e => { setText(e.target.value); if (e.target.value.trim()) setPushText(false); }} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words for a sharper estimate: how big it was, how it was cooked, oil or butter, sauces, the brand, and how much you ate' : 'e.g. Starbucks grande oat milk caramel macchiato and a butter croissant'} />
     {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="Meal photo" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} aria-label="Remove photo" className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mt-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && !text.trim() && <div className="rounded-2xl p-3 mt-3" style={{ background: pushText ? 'var(--accent-dim)' : 'var(--surface3)', border: '1px solid ' + (pushText ? 'var(--fat)' : 'var(--border)') }}>
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--text)' }}>{pushText ? 'Add a few words first, it really helps' : 'A quick description makes this far more accurate'}</div>
@@ -3681,7 +3681,7 @@ function MealEstimate({ apiKey, onPick, onBack, initialFiles }) {
     <div className="text-[12px] text-[#8A8A90] mb-3">Add a food photo, a photo of the menu, and any notes. The AI proposes what you ate (for a restaurant it anchors to that chain's published nutrition) then you say yes or correct it.</div>
     <div className="mb-1"><PhotoButton label="Add photos" multiple onFiles={addImgs} className="w-full" /></div>
     <div className="text-[10px] text-[#8A8A90] mb-3">Add your food and/or the menu (up to 3 photos), take a new photo or choose from your library.</div>
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remove(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="Note photo" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remove(i.id)} aria-label="Remove photo" className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     <Field label="Notes (optional)" hint="Name the place or dish for the best guess, plus size, sides and sauces.">
       <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={5} className={inputCls + ' resize-y leading-relaxed'} style={{ minHeight: 120 }} placeholder="e.g. Nando's, half chicken, medium, peri chips and coleslaw, ate it all" />
     </Field>
@@ -4439,7 +4439,7 @@ function ChangePassword({ email }) {
     </div>}
   </div>);
 }
-function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin }) {
+function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, showToast }) {
   const [tab, setTab] = useState('details');
   const [guide, setGuide] = useState(false);
   const [delOpen, setDelOpen] = useState(false); const [delText, setDelText] = useState(''); const [delBusy, setDelBusy] = useState(false); const [delErr, setDelErr] = useState('');
@@ -4452,7 +4452,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
       const a = document.createElement('a'); a.href = url; a.download = 'macrosaurus-data-' + Store.todayISO() + '.json';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) { alert('Could not export: ' + (e.message || e)); }
+    } catch (e) { showToast && showToast('Could not export your data. Please try again.'); }
   }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
@@ -4489,8 +4489,8 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
       </div>}
       {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
       {legal && <LegalDoc doc={legal} onClose={() => setLegal(null)} />}
-      {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
-        <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
+      {delOpen && <div className="fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4" onClick={() => { setDelOpen(false); setDelErr(''); }}>
+        <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 fade-in" onClick={e => e.stopPropagation()}>
           <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger)' }}>Delete your account?</h2>
           <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">This permanently erases your account and all of your data, and cannot be undone. You would need to sign up again to come back. Type <span className="font-bold text-white">DELETE</span> to confirm.</div>
           <TextInput value={delText} onChange={e => setDelText(e.target.value)} placeholder="DELETE" />
@@ -4614,7 +4614,7 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
   return (
     <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">{aiFeatureLabel(log.feature)}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">{aiFeatureLabel(log.feature)}</h2><button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         <div className="text-[11px] text-[#8A8A90] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
         {log.images && log.images.length > 0 && <div className="mb-4">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
@@ -4833,8 +4833,8 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
       {confirmKind === 'revoke' && <ConfirmDialog title="Revoke admin access?" body={'This removes ' + u.email + "'s access to the admin panel. They keep their normal account."} confirmLabel={busy === 'admin' ? 'Working…' : 'Revoke access'} onConfirm={doRevoke} onClose={() => setConfirmKind(null)} />}
       {confirmKind === 'usage' && <ConfirmDialog title="Reset this month's AI usage?" body={'This sets ' + u.email + "'s AI spend back to $0 for this month, giving them their full allowance again."} confirmLabel={busy === 'usage' ? 'Resetting…' : 'Reset usage'} confirmKind="accent" onConfirm={doResetUsage} onClose={() => setConfirmKind(null)} />}
       {confirmKind === 'reset' && <ConfirmDialog title="Reset this user's data?" body={'This wipes ' + u.email + "'s profile, food log and history back to a fresh account. Their login stays. This cannot be undone."} confirmLabel={busy === 'reset' ? 'Resetting…' : 'Reset user'} onConfirm={doReset} onClose={() => setConfirmKind(null)} />}
-      {confirmKind === 'delete' && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setConfirmKind(null)}>
-        <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
+      {confirmKind === 'delete' && <div className="fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4" onClick={() => setConfirmKind(null)}>
+        <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 fade-in" onClick={e => e.stopPropagation()}>
           <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger)' }}>Delete this account?</h2>
           <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Permanently removes <span className="text-white break-all">{u.email}</span> and every trace of their data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.</div>
           <TextInput value={delText} onChange={e => setDelText(e.target.value)} placeholder="DELETE" />
@@ -5272,7 +5272,7 @@ function App() {
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
-      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
+      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} showToast={showToast} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} />}
@@ -5281,7 +5281,7 @@ function App() {
       {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
         <BackClose onClose={() => setShared(null)} />
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="text-[#8A8A90] text-xl leading-none">×</button></div>
+          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} aria-label="Close" className="hit text-[#8A8A90] text-xl leading-none">×</button></div>
           <div className="text-[12px] text-[#8A8A90] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
           <MealEstimate apiKey={db.profile.aiKey} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} />
         </div>
