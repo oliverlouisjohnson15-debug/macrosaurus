@@ -210,3 +210,31 @@ test('breakthroughCatch is a rare-or-better creature, deterministic per user and
     assert.ok(rarePlus.has(Game.breakthroughCatch('saltB', n).id));
   }
 });
+
+// ---- Egg incubation: quality-day distance, tiered hatches ----
+
+test('egg progress reports steps, ready and remaining against its tier', () => {
+  assert.deepStrictEqual(Game.eggProgress(0, 5), { steps: 0, tier: 5, ready: false, toGo: 5 });
+  assert.deepStrictEqual(Game.eggProgress(3, 5), { steps: 3, tier: 5, ready: false, toGo: 2 });
+  assert.deepStrictEqual(Game.eggProgress(5, 5), { steps: 5, tier: 5, ready: true, toGo: 0 });
+  assert.deepStrictEqual(Game.eggProgress(9, 5), { steps: 5, tier: 5, ready: true, toGo: 0 }); // steps clamp at tier
+});
+
+test('nextEggTier only ever returns a valid tier and is deterministic', () => {
+  const valid = new Set(Game.EGG_TIERS);
+  for (let n = 0; n < 40; n++) {
+    const t = Game.nextEggTier('saltA', n);
+    assert.ok(valid.has(t));
+    assert.strictEqual(t, Game.nextEggTier('saltA', n)); // stable
+  }
+});
+
+test('eggHatch draws from the tier pool and a 10-day egg can crack a legendary', () => {
+  const pool2 = new Set(['dinky', 'pebble', 'protops', 'carbo', 'fatzilla', 'sprowl']);
+  for (let n = 0; n < 20; n++) assert.ok(pool2.has(Game.eggHatch('s', 2, n).id));
+  const tenIds = new Set();
+  for (let n = 0; n < 60; n++) tenIds.add(Game.eggHatch('s', 10, n).id);
+  assert.ok([...tenIds].every(id => new Set(['veloci', 'platealon', 'triceros', 'flexor', 'rexosaur']).has(id)));
+  assert.ok(tenIds.has('rexosaur')); // the occasional legendary shows up across the run
+  assert.deepStrictEqual(Game.eggHatch('s', 5, 3), Game.eggHatch('s', 5, 3)); // deterministic
+});

@@ -128,6 +128,31 @@
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'btshiny#' + n) % 6 === 0 };
   }
 
+  // Egg incubation (a Pokemon GO style egg): a single egg always incubates, its "distance" is
+  // QUALITY days (days you logged, hit protein and landed calories), so it rewards eating well
+  // rather than just showing up. Eggs come in 2 / 5 / 10-day tiers; rarer tiers hatch rarer
+  // creatures. One hatches, the next appears, forever.
+  var EGG_TIERS = [2, 5, 10];
+  function eggProgress(qualityDaysElapsed, tier) {
+    var q = Math.max(0, qualityDaysElapsed || 0);
+    return { steps: Math.min(q, tier), tier: tier, ready: q >= tier, toGo: Math.max(0, tier - q) };
+  }
+  // The tier of the next egg to appear, weighted toward the quicker tiers. Deterministic per user + index.
+  function nextEggTier(salt, n) { var r = seedFor(salt, 'eggtier#' + n) % 100; return r < 55 ? 2 : r < 88 ? 5 : 10; }
+  // What a tier hatches into. Tiers map to rarity bands; the 10-day egg can crack a legendary.
+  var EGG_POOL = {
+    2: ['dinky', 'pebble', 'protops', 'carbo', 'fatzilla', 'sprowl'],
+    5: ['noodon', 'buttron', 'frondo', 'flexor'],
+    10: ['veloci', 'platealon', 'triceros', 'flexor'],
+  };
+  function eggHatch(salt, tier, n) {
+    var pool = (EGG_POOL[tier] || EGG_POOL[2]).slice();
+    var h = seedFor(salt, 'egg#' + tier + '#' + n);
+    if (tier >= 10 && h % 6 === 0) pool.push('rexosaur');
+    var shinyMod = tier >= 10 ? 5 : tier >= 5 ? 8 : 12; // rarer tiers shine more often
+    return { id: pool[h % pool.length], shiny: seedFor(salt, 'eggshiny#' + tier + '#' + n) % shinyMod === 0, tier: tier };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -151,6 +176,10 @@
     BREAKTHROUGH_GOAL: BREAKTHROUGH_GOAL,
     breakthroughState: breakthroughState,
     breakthroughCatch: breakthroughCatch,
+    EGG_TIERS: EGG_TIERS,
+    eggProgress: eggProgress,
+    nextEggTier: nextEggTier,
+    eggHatch: eggHatch,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;

@@ -1572,6 +1572,31 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'btshiny#' + n) % 6 === 0 };
   }
 
+  // Egg incubation (a Pokemon GO style egg): a single egg always incubates, its "distance" is
+  // QUALITY days (days you logged, hit protein and landed calories), so it rewards eating well
+  // rather than just showing up. Eggs come in 2 / 5 / 10-day tiers; rarer tiers hatch rarer
+  // creatures. One hatches, the next appears, forever.
+  var EGG_TIERS = [2, 5, 10];
+  function eggProgress(qualityDaysElapsed, tier) {
+    var q = Math.max(0, qualityDaysElapsed || 0);
+    return { steps: Math.min(q, tier), tier: tier, ready: q >= tier, toGo: Math.max(0, tier - q) };
+  }
+  // The tier of the next egg to appear, weighted toward the quicker tiers. Deterministic per user + index.
+  function nextEggTier(salt, n) { var r = seedFor(salt, 'eggtier#' + n) % 100; return r < 55 ? 2 : r < 88 ? 5 : 10; }
+  // What a tier hatches into. Tiers map to rarity bands; the 10-day egg can crack a legendary.
+  var EGG_POOL = {
+    2: ['dinky', 'pebble', 'protops', 'carbo', 'fatzilla', 'sprowl'],
+    5: ['noodon', 'buttron', 'frondo', 'flexor'],
+    10: ['veloci', 'platealon', 'triceros', 'flexor'],
+  };
+  function eggHatch(salt, tier, n) {
+    var pool = (EGG_POOL[tier] || EGG_POOL[2]).slice();
+    var h = seedFor(salt, 'egg#' + tier + '#' + n);
+    if (tier >= 10 && h % 6 === 0) pool.push('rexosaur');
+    var shinyMod = tier >= 10 ? 5 : tier >= 5 ? 8 : 12; // rarer tiers shine more often
+    return { id: pool[h % pool.length], shiny: seedFor(salt, 'eggshiny#' + tier + '#' + n) % shinyMod === 0, tier: tier };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -1595,6 +1620,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     BREAKTHROUGH_GOAL: BREAKTHROUGH_GOAL,
     breakthroughState: breakthroughState,
     breakthroughCatch: breakthroughCatch,
+    EGG_TIERS: EGG_TIERS,
+    eggProgress: eggProgress,
+    nextEggTier: nextEggTier,
+    eggHatch: eggHatch,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
@@ -6245,6 +6274,22 @@ const CR_RARITY_LABEL = {
   legendary: 'Legendary',
   mythic: 'Mythic'
 };
+// Egg tiers (quality days to hatch), colour-coded by the rarity band they crack open.
+const EGG_TIER_COLOR = {
+  2: 'var(--good)',
+  5: 'var(--carb)',
+  10: 'var(--weight)'
+};
+const EGG_TIER_LABEL = {
+  2: 'Common',
+  5: 'Uncommon+',
+  10: 'Rare+'
+};
+const EGG_TIER_EGGCOLORS = {
+  2: crC('#9FE08A', '#4f8e3a'),
+  5: crC('#7FD9E5', '#3f9aa8'),
+  10: crC('#C9A8F0', '#7a4fb0')
+};
 const BIOME_COLOR = {
   nursery: 'var(--muted)',
   protein: 'var(--pro)',
@@ -6683,6 +6728,24 @@ function perfectDaysIn(db, endISO, span) {
   }
   return n;
 }
+// A "quality" day powers egg incubation: you logged, hit your protein target and landed your
+// calories. It rewards eating well, distinct from the breakthrough which rewards just showing up.
+function isQualityDay(db, date) {
+  const q = dayQuality(db, date);
+  return !!(q && q.proteinHit && q.kcalIn);
+}
+// Quality days strictly after `afterISO` up to and including `throughISO` (an egg's "distance").
+function qualityDaysAfter(db, afterISO, throughISO) {
+  let n = 0,
+    d = shiftISO(afterISO, 1),
+    g = 0;
+  while (d <= throughISO && g < 400) {
+    if (isQualityDay(db, d)) n++;
+    d = shiftISO(d, 1);
+    g++;
+  }
+  return n;
+}
 function creatureForDay(db, date) {
   const q = dayQuality(db, date);
   if (!q) return null;
@@ -6878,6 +6941,156 @@ function BuddyCard({
     }
   }, "MACRODEX · CAUGHT ", caught, " ›"));
 }
+// Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
+// incubation) gathered in one place at the top of the dex, each showing its reward reveal on the
+// day it lands. This is what turns the dex from a static grid into the hub of the whole system.
+function DexActiveSection({
+  db,
+  today
+}) {
+  const bt = db.breakthrough;
+  const logged = new Set((db.log_entries || []).map(e => e.date)).size;
+  const btState = Game.breakthroughState(logged, bt ? bt.base : logged);
+  const eggs = db.eggs;
+  const egg = eggs && eggs.cur ? eggs.cur : null;
+  const eggProg = egg ? Game.eggProgress(qualityDaysAfter(db, egg.startDate, today), egg.tier) : null;
+  const tc = catchForDay(db, today);
+  const tcr = tc && CR_BY_ID[tc.id];
+  const btJust = bt && bt.lastDate === today;
+  const btCr = bt && bt.lastId ? CR_BY_ID[bt.lastId] : null;
+  const eggJust = eggs && eggs.lastDate === today;
+  const eggCr = eggs && eggs.lastId ? CR_BY_ID[eggs.lastId] : null;
+  const panel = 'pixel-box p-3';
+  const pStyle = {
+    background: 'var(--surface3)',
+    boxShadow: 'none'
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "Active"), /*#__PURE__*/React.createElement("div", {
+    className: panel + ' mb-2',
+    style: pStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1 shrink-0",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none',
+      borderColor: tcr ? CR_RARITY_COLOR[tcr.rarity] : 'var(--border)',
+      borderWidth: 3
+    }
+  }, tcr ? /*#__PURE__*/React.createElement("div", {
+    style: crFx(tc.shiny, null)
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: tcr.art,
+    colors: tc.shiny ? crShiny(tcr.colors) : tcr.colors,
+    px: 2.6
+  })) : /*#__PURE__*/React.createElement(Sprite, {
+    art: "egg",
+    colors: crSilhouette(),
+    px: 2.6
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase text-[#8A8A90] mb-0.5"
+  }, "Today's catch"), tcr ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] font-bold leading-tight"
+  }, tcr.name, tc.shiny ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--fat)'
+    }
+  }, " ✦") : ''), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: CR_RARITY_COLOR[tcr.rarity]
+    }
+  }, CR_RARITY_LABEL[tcr.rarity])) : /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-snug"
+  }, "Log a meal today to catch one. The macros you hit decide which.")))), /*#__PURE__*/React.createElement("div", {
+    className: panel + ' mb-2',
+    style: pStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase text-[#8A8A90]"
+  }, "Weekly breakthrough"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase tnum",
+    style: {
+      color: btState.breakthroughs > 0 ? 'var(--good)' : 'var(--muted)'
+    }
+  }, btState.breakthroughs > 0 ? btState.breakthroughs + ' earned' : btState.stamps + '/' + btState.goal)), /*#__PURE__*/React.createElement(BreakthroughMeter, {
+    state: btState,
+    size: 12
+  }), btJust && btCr ? /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mt-2 fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0",
+    style: crFx(bt.lastShiny, null)
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: btCr.art,
+    colors: bt.lastShiny ? crShiny(btCr.colors) : btCr.colors,
+    px: 2
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] leading-snug"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Breakthrough! "), /*#__PURE__*/React.createElement("b", null, btCr.name, bt.lastShiny ? ' ✦' : ''), " joined your dex.")) : /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-1.5"
+  }, "Log ", btState.toNext, " more ", btState.toNext === 1 ? 'day' : 'days', " for a guaranteed rare+ catch.")), egg && eggProg && /*#__PURE__*/React.createElement("div", {
+    className: panel,
+    style: pStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1 shrink-0",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none',
+      borderColor: EGG_TIER_COLOR[egg.tier],
+      borderWidth: 3
+    }
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: "egg",
+    colors: EGG_TIER_EGGCOLORS[egg.tier],
+    px: 2.6
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] font-bold"
+  }, egg.tier, "-day egg ", /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: EGG_TIER_COLOR[egg.tier]
+    }
+  }, EGG_TIER_LABEL[egg.tier])), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase text-[#8A8A90] tnum"
+  }, eggProg.steps, "/", eggProg.tier)), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-bar",
+    style: {
+      height: 9,
+      borderWidth: 2
+    }
+  }, /*#__PURE__*/React.createElement("i", {
+    style: {
+      width: eggProg.steps / eggProg.tier * 100 + '%',
+      background: EGG_TIER_COLOR[egg.tier],
+      transition: 'width .4s'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-1 leading-snug"
+  }, eggJust && eggCr ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Hatched!"), " ", /*#__PURE__*/React.createElement("b", null, eggCr.name, eggs.lastShiny ? ' ✦' : ''), " joined your dex.") : eggProg.toGo === 0 ? 'Ready to hatch on your next quality day.' : eggProg.toGo + ' quality ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. A quality day: hit protein and land your calories.')))));
+}
 function MacrodexModal({
   db,
   update,
@@ -7041,7 +7254,10 @@ function MacrodexModal({
     kind: "trophy",
     color: "var(--fat)",
     size: 13
-  }), " TROPHY CABINET"), invIds.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }), " TROPHY CABINET"), /*#__PURE__*/React.createElement(DexActiveSection, {
+    db: db,
+    today: today
+  }), invIds.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-4",
     style: {
       background: 'var(--surface3)',
@@ -7092,7 +7308,9 @@ function MacrodexModal({
       background: 'var(--surface2)',
       boxShadow: 'none'
     }
-  }, l))))), BIOMES.map(bm => {
+  }, l))))), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "Collection"), BIOMES.map(bm => {
     const list = CREATURES.filter(c => c.biome === bm.id);
     const done = list.filter(c => dex[c.id]).length;
     const complete = done === list.length && list.length > 0;
@@ -8103,85 +8321,106 @@ function HomeWeightSpark({
   }))));
 }
 
-// Weekly Breakthrough card: a 7-stamp meter that fills one stamp per logged day and pays out a
-// guaranteed rare-or-better catch every 7. Shows the reward reveal on the day it lands, then
-// reverts to the progress nudge. A Pokemon GO style Research Breakthrough for the log habit.
-function WeeklyBreakthroughCard({
+// Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
+// Macrodex Active section so the two surfaces stay identical.
+function BreakthroughMeter({
   state,
-  justEarned,
-  lastCr,
-  lastShiny,
-  onOpenDex
+  size = 10
 }) {
-  const filled = justEarned ? state.goal : state.stamps;
-  const rc = lastCr ? CR_RARITY_COLOR[lastCr.rarity] : 'var(--good)';
-  return /*#__PURE__*/React.createElement("button", {
-    onClick: onOpenDex,
-    className: "w-full text-left bg-[#161618] pixel-box p-3 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-2.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase text-[#8A8A90]"
-  }, "Weekly breakthrough"), state.breakthroughs > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase inline-flex items-center gap-1",
-    style: {
-      color: 'var(--good)'
-    }
-  }, state.breakthroughs, " earned ›")), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5 mb-2.5"
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1"
   }, Array.from({
     length: state.goal
   }).map((_, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     className: "flex-1 pixel-box",
     style: {
-      height: 16,
+      height: size,
       boxShadow: 'none',
       borderWidth: 2,
-      background: i < filled ? 'var(--good)' : 'var(--surface3)',
-      borderColor: i < filled ? 'var(--good)' : 'var(--border)'
+      background: i < state.stamps ? 'var(--good)' : 'var(--surface3)',
+      borderColor: i < state.stamps ? 'var(--good)' : 'var(--border)'
     }
-  }))), justEarned && lastCr ? /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2.5 fade-in"
+  })));
+}
+// Dashboard Collection card: the two always-on loops (Weekly Breakthrough + egg incubation)
+// folded into one tidy entry point. Progress-focused; the full reveals live in the Macrodex.
+function GameTracksCard({
+  btState,
+  egg,
+  eggProg,
+  onOpenDex
+}) {
+  return /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenDex,
+    className: "w-full text-left bg-[#161618] pixel-box p-3 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-3"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase text-[#8A8A90]"
+  }, "Collection"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase inline-flex items-center gap-1",
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Open ›")), /*#__PURE__*/React.createElement("div", {
+    className: egg && eggProg ? 'mb-3' : ''
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] font-bold"
+  }, "Weekly breakthrough"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase text-[#8A8A90] tnum"
+  }, btState.stamps, "/", btState.goal)), /*#__PURE__*/React.createElement(BreakthroughMeter, {
+    state: btState
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-1"
+  }, "Log ", btState.toNext, " more ", btState.toNext === 1 ? 'day' : 'days', " for a guaranteed ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--carb)'
+    }
+  }, "rare+"), " catch.")), egg && eggProg && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2.5"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-1 shrink-0",
     style: {
       background: 'var(--surface3)',
       boxShadow: 'none',
-      borderColor: rc,
+      borderColor: EGG_TIER_COLOR[egg.tier],
       borderWidth: 3
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: crFx(lastShiny, null)
   }, /*#__PURE__*/React.createElement(Sprite, {
-    art: lastCr.art,
-    colors: lastShiny ? crShiny(lastCr.colors) : lastCr.colors,
-    px: 3
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
+    art: "egg",
+    colors: EGG_TIER_EGGCOLORS[egg.tier],
+    px: 2.4
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px]",
+    className: "flex items-center justify-between mb-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] font-bold"
+  }, egg.tier, "-day egg ", /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase",
     style: {
-      color: 'var(--good)'
+      color: EGG_TIER_COLOR[egg.tier]
     }
-  }, "BREAKTHROUGH! ", /*#__PURE__*/React.createElement("span", {
-    className: "pf uppercase",
+  }, EGG_TIER_LABEL[egg.tier])), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase text-[#8A8A90] tnum"
+  }, eggProg.steps, "/", eggProg.tier)), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-bar",
     style: {
-      color: rc
+      height: 9,
+      borderWidth: 2
     }
-  }, CR_RARITY_LABEL[lastCr.rarity])), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] font-bold leading-tight"
-  }, lastCr.name, lastShiny ? /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("i", {
     style: {
-      color: 'var(--fat)'
+      width: eggProg.steps / eggProg.tier * 100 + '%',
+      background: EGG_TIER_COLOR[egg.tier],
+      transition: 'width .4s'
     }
-  }, " ✦") : '', " joined your dex"))) : /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] leading-snug"
-  }, "Log ", state.toNext, " more ", state.toNext === 1 ? 'day' : 'days', " for a guaranteed ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--carb)'
-    }
-  }, "rare or better"), " catch."));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-1"
+  }, eggProg.toGo === 0 ? 'Ready to hatch!' : eggProg.toGo + ' quality ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch.'))));
 }
 
 // Everything gamey, collapsed to one strip that reads as a status board: dex completion up top,
@@ -8524,6 +8763,58 @@ function Dashboard({
     const cr = CR_BY_ID[c.id];
     if (showToast && cr) showToast('Weekly Breakthrough! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex, plus an Incubator.');
   }, [btState.breakthroughs, bt ? bt.claimed : -1]);
+  // Egg incubation: one egg always incubates, its distance is quality days since it appeared.
+  // When it fills it hatches (a tier-scaled catch) and the next egg appears automatically.
+  const eggs = db.eggs;
+  const egg = eggs && eggs.cur ? eggs.cur : null;
+  const eggElapsed = egg ? qualityDaysAfter(db, egg.startDate, today) : 0;
+  const eggProg = egg ? Game.eggProgress(eggElapsed, egg.tier) : null;
+  useEffect(() => {
+    const salt = db.game_salt || '';
+    if (!egg) {
+      update(d => {
+        if (d.eggs && d.eggs.cur) return;
+        const n = d.eggs && d.eggs.hatched || 0;
+        d.eggs = Object.assign({
+          hatched: 0
+        }, d.eggs, {
+          cur: {
+            startDate: today,
+            tier: Game.nextEggTier(salt, n),
+            seed: n
+          }
+        });
+      });
+      return;
+    }
+    if (!eggProg || !eggProg.ready) return;
+    const n = eggs.hatched || 0;
+    const c = Game.eggHatch(salt, egg.tier, n);
+    update(d => {
+      if (!d.eggs || !d.eggs.cur || d.eggs.cur.startDate !== egg.startDate) return; // already hatched elsewhere
+      const hn = (d.eggs.hatched || 0) + 1;
+      d.eggs.hatched = hn;
+      d.eggs.lastId = c.id;
+      d.eggs.lastShiny = !!c.shiny;
+      d.eggs.lastTier = c.tier;
+      d.eggs.lastDate = today;
+      d.catch_log = d.catch_log || {};
+      const arr = d.catch_log[today] || [];
+      if (!arr.some(x => x.egg === egg.startDate)) arr.push({
+        id: c.id,
+        shiny: !!c.shiny,
+        egg: egg.startDate
+      });
+      d.catch_log[today] = arr;
+      d.eggs.cur = {
+        startDate: today,
+        tier: Game.nextEggTier(salt, hn),
+        seed: hn
+      };
+    });
+    const cr = CR_BY_ID[c.id];
+    if (showToast && cr) showToast('Your ' + egg.tier + '-day egg hatched! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.');
+  }, [!!egg, eggProg ? eggProg.steps : -1, eggProg ? eggProg.ready : false]);
   // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
   // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
   const todayCr = creatureForDay(db, today);
@@ -8696,11 +8987,10 @@ function Dashboard({
     onOpenDex: () => setShowDex(true),
     onOpenFight: () => setShowFight(true),
     onLog: () => onQuickAdd(false)
-  }), loggedTotal >= 1 && /*#__PURE__*/React.createElement(WeeklyBreakthroughCard, {
-    state: btState,
-    justEarned: !!(bt && bt.lastDate === today),
-    lastCr: bt && bt.lastId ? CR_BY_ID[bt.lastId] : null,
-    lastShiny: !!(bt && bt.lastShiny),
+  }), loggedTotal >= 1 && /*#__PURE__*/React.createElement(GameTracksCard, {
+    btState: btState,
+    egg: egg,
+    eggProg: eggProg,
     onOpenDex: () => setShowDex(true)
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"

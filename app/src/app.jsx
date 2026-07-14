@@ -1807,6 +1807,10 @@ const BIOMES = [
 const RARITY_RANK = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 };
 const CR_RARITY_COLOR = { common: 'var(--muted)', uncommon: 'var(--good)', rare: 'var(--carb)', epic: 'var(--weight)', legendary: 'var(--header)', mythic: 'var(--fat)' };
 const CR_RARITY_LABEL = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic' };
+// Egg tiers (quality days to hatch), colour-coded by the rarity band they crack open.
+const EGG_TIER_COLOR = { 2: 'var(--good)', 5: 'var(--carb)', 10: 'var(--weight)' };
+const EGG_TIER_LABEL = { 2: 'Common', 5: 'Uncommon+', 10: 'Rare+' };
+const EGG_TIER_EGGCOLORS = { 2: crC('#9FE08A', '#4f8e3a'), 5: crC('#7FD9E5', '#3f9aa8'), 10: crC('#C9A8F0', '#7a4fb0') };
 const BIOME_COLOR = { nursery: 'var(--muted)', protein: 'var(--pro)', carb: 'var(--carb)', fat: 'var(--fat)', fibre: 'var(--good)', apex: 'var(--weight)', mythic: 'var(--header)' };
 const CREATURES = [
   // The Nursery, any logged day
@@ -1883,6 +1887,11 @@ function crHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h 
 function loggedDatesSet(db) { const s = new Set(); (db.log_entries || []).forEach(e => s.add(e.date)); return s; }
 function streakEndingOn(db, dateISO) { const s = loggedDatesSet(db); let d = dateISO, n = 0; while (s.has(d) && n < 400) { n++; d = shiftISO(d, -1); } return n; }
 function perfectDaysIn(db, endISO, span) { let n = 0; for (let i = 0; i < span; i++) { const q = dayQuality(db, shiftISO(endISO, -i)); if (q && q.perfect) n++; } return n; }
+// A "quality" day powers egg incubation: you logged, hit your protein target and landed your
+// calories. It rewards eating well, distinct from the breakthrough which rewards just showing up.
+function isQualityDay(db, date) { const q = dayQuality(db, date); return !!(q && q.proteinHit && q.kcalIn); }
+// Quality days strictly after `afterISO` up to and including `throughISO` (an egg's "distance").
+function qualityDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
 function creatureForDay(db, date) {
   const q = dayQuality(db, date); if (!q) return null;
   const h = Game.seedFor(db.game_salt || '', date); // per-user roll; empty salt matches the legacy date-only hash
@@ -1974,6 +1983,63 @@ function BuddyCard({ db, streak, buddy, freezeReady, onOpenDex }) {
     </Card>
   );
 }
+// Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
+// incubation) gathered in one place at the top of the dex, each showing its reward reveal on the
+// day it lands. This is what turns the dex from a static grid into the hub of the whole system.
+function DexActiveSection({ db, today }) {
+  const bt = db.breakthrough;
+  const logged = new Set((db.log_entries || []).map(e => e.date)).size;
+  const btState = Game.breakthroughState(logged, bt ? bt.base : logged);
+  const eggs = db.eggs; const egg = eggs && eggs.cur ? eggs.cur : null;
+  const eggProg = egg ? Game.eggProgress(qualityDaysAfter(db, egg.startDate, today), egg.tier) : null;
+  const tc = catchForDay(db, today); const tcr = tc && CR_BY_ID[tc.id];
+  const btJust = bt && bt.lastDate === today; const btCr = bt && bt.lastId ? CR_BY_ID[bt.lastId] : null;
+  const eggJust = eggs && eggs.lastDate === today; const eggCr = eggs && eggs.lastId ? CR_BY_ID[eggs.lastId] : null;
+  const panel = 'pixel-box p-3';
+  const pStyle = { background: 'var(--surface3)', boxShadow: 'none' };
+  return (
+    <div className="mb-4">
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Active</div>
+      <div className={panel + ' mb-2'} style={pStyle}>
+        <div className="flex items-center gap-2.5">
+          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: tcr ? CR_RARITY_COLOR[tcr.rarity] : 'var(--border)', borderWidth: 3 }}>
+            {tcr ? <div style={crFx(tc.shiny, null)}><Sprite art={tcr.art} colors={tc.shiny ? crShiny(tcr.colors) : tcr.colors} px={2.6} /></div> : <Sprite art="egg" colors={crSilhouette()} px={2.6} />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="pf text-[7px] uppercase text-[#8A8A90] mb-0.5">Today's catch</div>
+            {tcr ? <><div className="text-[11px] font-bold leading-tight">{tcr.name}{tc.shiny ? <span style={{ color: 'var(--fat)' }}> ✦</span> : ''}</div><div className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[tcr.rarity] }}>{CR_RARITY_LABEL[tcr.rarity]}</div></>
+              : <div className="text-[10px] text-[#8A8A90] leading-snug">Log a meal today to catch one. The macros you hit decide which.</div>}
+          </div>
+        </div>
+      </div>
+      <div className={panel + ' mb-2'} style={pStyle}>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="pf text-[7px] uppercase text-[#8A8A90]">Weekly breakthrough</span>
+          <span className="pf text-[7px] uppercase tnum" style={{ color: btState.breakthroughs > 0 ? 'var(--good)' : 'var(--muted)' }}>{btState.breakthroughs > 0 ? btState.breakthroughs + ' earned' : btState.stamps + '/' + btState.goal}</span>
+        </div>
+        <BreakthroughMeter state={btState} size={12} />
+        {btJust && btCr ? <div className="flex items-center gap-2 mt-2 fade-in">
+          <div className="shrink-0" style={crFx(bt.lastShiny, null)}><Sprite art={btCr.art} colors={bt.lastShiny ? crShiny(btCr.colors) : btCr.colors} px={2} /></div>
+          <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Breakthrough! </span><b>{btCr.name}{bt.lastShiny ? ' ✦' : ''}</b> joined your dex.</div>
+        </div>
+        : <div className="text-[9px] text-[#8A8A90] mt-1.5">Log {btState.toNext} more {btState.toNext === 1 ? 'day' : 'days'} for a guaranteed rare+ catch.</div>}
+      </div>
+      {egg && eggProg && <div className={panel} style={pStyle}>
+        <div className="flex items-center gap-2.5">
+          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: EGG_TIER_COLOR[egg.tier], borderWidth: 3 }}><Sprite art="egg" colors={EGG_TIER_EGGCOLORS[egg.tier]} px={2.6} /></div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold">{egg.tier}-day egg <span className="pf text-[7px] uppercase" style={{ color: EGG_TIER_COLOR[egg.tier] }}>{EGG_TIER_LABEL[egg.tier]}</span></span>
+              <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
+            </div>
+            <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
+            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{eggJust && eggCr ? <span><span style={{ color: 'var(--good)' }}>Hatched!</span> <b>{eggCr.name}{eggs.lastShiny ? ' ✦' : ''}</b> joined your dex.</span> : eggProg.toGo === 0 ? 'Ready to hatch on your next quality day.' : eggProg.toGo + ' quality ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. A quality day: hit protein and land your calories.'}</div>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
 function MacrodexModal({ db, update, streak, onClose }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
@@ -2028,6 +2094,7 @@ function MacrodexModal({ db, update, streak, onClose }) {
             <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
           </div>
           <button onClick={() => setTrophies(true)} className="pixel-btn w-full py-2.5 mb-4 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
+          <DexActiveSection db={db} today={today} />
           {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
             <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
             {boost && (boost.lure || boost.shiny || boost.rare) && <div className="text-[9px] mb-2" style={{ color: 'var(--good)' }}>Active today:{boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : ''}{boost.rare ? ' · rare boost' : ''}{boost.shiny ? ' · shiny locked' : ''}</div>}
@@ -2044,6 +2111,7 @@ function MacrodexModal({ db, update, streak, onClose }) {
               <div className="grid grid-cols-2 gap-1.5">{[['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => <button key={v} onClick={() => useItem('lure', v)} className="pixel-box py-2 text-[10px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>{l}</button>)}</div>
             </div>}
           </div>}
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Collection</div>
           {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
             return <div key={bm.id} className="mb-4">
               <div className="flex items-center justify-between mb-2">
@@ -2361,36 +2429,47 @@ function HomeWeightSpark({ db, onOpen }) {
   );
 }
 
-// Weekly Breakthrough card: a 7-stamp meter that fills one stamp per logged day and pays out a
-// guaranteed rare-or-better catch every 7. Shows the reward reveal on the day it lands, then
-// reverts to the progress nudge. A Pokemon GO style Research Breakthrough for the log habit.
-function WeeklyBreakthroughCard({ state, justEarned, lastCr, lastShiny, onOpenDex }) {
-  const filled = justEarned ? state.goal : state.stamps;
-  const rc = lastCr ? CR_RARITY_COLOR[lastCr.rarity] : 'var(--good)';
+// Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
+// Macrodex Active section so the two surfaces stay identical.
+function BreakthroughMeter({ state, size = 10 }) {
+  return (
+    <div className="flex items-center gap-1">
+      {Array.from({ length: state.goal }).map((_, i) => (
+        <div key={i} className="flex-1 pixel-box" style={{ height: size, boxShadow: 'none', borderWidth: 2, background: i < state.stamps ? 'var(--good)' : 'var(--surface3)', borderColor: i < state.stamps ? 'var(--good)' : 'var(--border)' }} />
+      ))}
+    </div>
+  );
+}
+// Dashboard Collection card: the two always-on loops (Weekly Breakthrough + egg incubation)
+// folded into one tidy entry point. Progress-focused; the full reveals live in the Macrodex.
+function GameTracksCard({ btState, egg, eggProg, onOpenDex }) {
   return (
     <button onClick={onOpenDex} className="w-full text-left bg-[#161618] pixel-box p-3 mb-4">
-      <div className="flex items-center justify-between mb-2.5">
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">Weekly breakthrough</span>
-        {state.breakthroughs > 0 && <span className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--good)' }}>{state.breakthroughs} earned ›</span>}
+      <div className="flex items-center justify-between mb-3">
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">Collection</span>
+        <span className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--good)' }}>Open ›</span>
       </div>
-      <div className="flex items-center gap-1.5 mb-2.5">
-        {Array.from({ length: state.goal }).map((_, i) => (
-          <div key={i} className="flex-1 pixel-box" style={{ height: 16, boxShadow: 'none', borderWidth: 2, background: i < filled ? 'var(--good)' : 'var(--surface3)', borderColor: i < filled ? 'var(--good)' : 'var(--border)' }} />
-        ))}
-      </div>
-      {justEarned && lastCr ? (
-        <div className="flex items-center gap-2.5 fade-in">
-          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: rc, borderWidth: 3 }}>
-            <div style={crFx(lastShiny, null)}><Sprite art={lastCr.art} colors={lastShiny ? crShiny(lastCr.colors) : lastCr.colors} px={3} /></div>
-          </div>
-          <div className="min-w-0">
-            <div className="text-[9px]" style={{ color: 'var(--good)' }}>BREAKTHROUGH! <span className="pf uppercase" style={{ color: rc }}>{CR_RARITY_LABEL[lastCr.rarity]}</span></div>
-            <div className="text-[12px] font-bold leading-tight">{lastCr.name}{lastShiny ? <span style={{ color: 'var(--fat)' }}> ✦</span> : ''} joined your dex</div>
-          </div>
+      <div className={egg && eggProg ? 'mb-3' : ''}>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-bold">Weekly breakthrough</span>
+          <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{btState.stamps}/{btState.goal}</span>
         </div>
-      ) : (
-        <div className="text-[10px] text-[#8A8A90] leading-snug">Log {state.toNext} more {state.toNext === 1 ? 'day' : 'days'} for a guaranteed <span style={{ color: 'var(--carb)' }}>rare or better</span> catch.</div>
-      )}
+        <BreakthroughMeter state={btState} />
+        <div className="text-[9px] text-[#8A8A90] mt-1">Log {btState.toNext} more {btState.toNext === 1 ? 'day' : 'days'} for a guaranteed <span style={{ color: 'var(--carb)' }}>rare+</span> catch.</div>
+      </div>
+      {egg && eggProg && <div className="flex items-center gap-2.5">
+        <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: EGG_TIER_COLOR[egg.tier], borderWidth: 3 }}>
+          <Sprite art="egg" colors={EGG_TIER_EGGCOLORS[egg.tier]} px={2.4} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-bold">{egg.tier}-day egg <span className="pf text-[7px] uppercase" style={{ color: EGG_TIER_COLOR[egg.tier] }}>{EGG_TIER_LABEL[egg.tier]}</span></span>
+            <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
+          </div>
+          <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
+          <div className="text-[9px] text-[#8A8A90] mt-1">{eggProg.toGo === 0 ? 'Ready to hatch!' : eggProg.toGo + ' quality ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch.'}</div>
+        </div>
+      </div>}
     </button>
   );
 }
@@ -2563,6 +2642,30 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     const cr = CR_BY_ID[c.id];
     if (showToast && cr) showToast('Weekly Breakthrough! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex, plus an Incubator.');
   }, [btState.breakthroughs, bt ? bt.claimed : -1]);
+  // Egg incubation: one egg always incubates, its distance is quality days since it appeared.
+  // When it fills it hatches (a tier-scaled catch) and the next egg appears automatically.
+  const eggs = db.eggs;
+  const egg = eggs && eggs.cur ? eggs.cur : null;
+  const eggElapsed = egg ? qualityDaysAfter(db, egg.startDate, today) : 0;
+  const eggProg = egg ? Game.eggProgress(eggElapsed, egg.tier) : null;
+  useEffect(() => {
+    const salt = db.game_salt || '';
+    if (!egg) { update(d => { if (d.eggs && d.eggs.cur) return; const n = (d.eggs && d.eggs.hatched) || 0; d.eggs = Object.assign({ hatched: 0 }, d.eggs, { cur: { startDate: today, tier: Game.nextEggTier(salt, n), seed: n } }); }); return; }
+    if (!eggProg || !eggProg.ready) return;
+    const n = eggs.hatched || 0;
+    const c = Game.eggHatch(salt, egg.tier, n);
+    update(d => {
+      if (!d.eggs || !d.eggs.cur || d.eggs.cur.startDate !== egg.startDate) return; // already hatched elsewhere
+      const hn = (d.eggs.hatched || 0) + 1;
+      d.eggs.hatched = hn; d.eggs.lastId = c.id; d.eggs.lastShiny = !!c.shiny; d.eggs.lastTier = c.tier; d.eggs.lastDate = today;
+      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
+      if (!arr.some(x => x.egg === egg.startDate)) arr.push({ id: c.id, shiny: !!c.shiny, egg: egg.startDate });
+      d.catch_log[today] = arr;
+      d.eggs.cur = { startDate: today, tier: Game.nextEggTier(salt, hn), seed: hn };
+    });
+    const cr = CR_BY_ID[c.id];
+    if (showToast && cr) showToast('Your ' + egg.tier + '-day egg hatched! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.');
+  }, [!!egg, eggProg ? eggProg.steps : -1, eggProg ? eggProg.ready : false]);
   // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
   // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
   const todayCr = creatureForDay(db, today);
@@ -2648,7 +2751,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
       <HomeGameStrip db={db} streak={streak} buddy={buddy} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} />
-      {loggedTotal >= 1 && <WeeklyBreakthroughCard state={btState} justEarned={!!(bt && bt.lastDate === today)} lastCr={bt && bt.lastId ? CR_BY_ID[bt.lastId] : null} lastShiny={!!(bt && bt.lastShiny)} onOpenDex={() => setShowDex(true)} />}
+      {loggedTotal >= 1 && <GameTracksCard btState={btState} egg={egg} eggProg={eggProg} onOpenDex={() => setShowDex(true)} />}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showDex && <MacrodexModal db={db} update={update} streak={streak} onClose={() => setShowDex(false)} />}
