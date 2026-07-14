@@ -166,3 +166,47 @@ test('existing persisted state migrates with sensible gamification defaults', ()
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
   assert.strictEqual(s.catch_log['2026-07-01'][0].id, 'nugg'); // locked catches untouched
 });
+
+// ---- Weekly Breakthrough: rolling 7-stamp meter, one stamp per logged day ----
+
+test('breakthrough meter starts empty at the baseline', () => {
+  const s = Game.breakthroughState(40, 40); // existing user, base set to current count
+  assert.strictEqual(s.stamps, 0);
+  assert.strictEqual(s.breakthroughs, 0);
+  assert.strictEqual(s.toNext, 7);
+});
+
+test('breakthrough meter fills one stamp per logged day past the baseline', () => {
+  const s = Game.breakthroughState(43, 40); // 3 logged days since baseline
+  assert.strictEqual(s.stamps, 3);
+  assert.strictEqual(s.breakthroughs, 0);
+  assert.strictEqual(s.toNext, 4);
+});
+
+test('a breakthrough unlocks every 7 logged days and the meter rolls over', () => {
+  const s = Game.breakthroughState(47, 40); // 7 logged days since baseline
+  assert.strictEqual(s.breakthroughs, 1);
+  assert.strictEqual(s.stamps, 0);
+  assert.strictEqual(s.toNext, 7);
+  const s2 = Game.breakthroughState(55, 40); // 15 days -> 2 breakthroughs, 1 into the next
+  assert.strictEqual(s2.breakthroughs, 2);
+  assert.strictEqual(s2.stamps, 1);
+});
+
+test('breakthrough state is safe for a brand-new user with no baseline yet', () => {
+  const s = Game.breakthroughState(0, 0);
+  assert.strictEqual(s.stamps, 0);
+  assert.strictEqual(s.breakthroughs, 0);
+});
+
+test('breakthroughCatch is a rare-or-better creature, deterministic per user and index', () => {
+  const rarePlus = new Set(['flexor', 'veloci', 'platealon', 'triceros', 'rexosaur']);
+  const a = Game.breakthroughCatch('saltA', 1);
+  const b = Game.breakthroughCatch('saltA', 1);
+  assert.deepStrictEqual(a, b); // stable for the same user + index
+  assert.ok(rarePlus.has(a.id));
+  // different indices and users draw independently
+  for (let n = 1; n <= 12; n++) {
+    assert.ok(rarePlus.has(Game.breakthroughCatch('saltB', n).id));
+  }
+});

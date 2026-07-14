@@ -2361,6 +2361,40 @@ function HomeWeightSpark({ db, onOpen }) {
   );
 }
 
+// Weekly Breakthrough card: a 7-stamp meter that fills one stamp per logged day and pays out a
+// guaranteed rare-or-better catch every 7. Shows the reward reveal on the day it lands, then
+// reverts to the progress nudge. A Pokemon GO style Research Breakthrough for the log habit.
+function WeeklyBreakthroughCard({ state, justEarned, lastCr, lastShiny, onOpenDex }) {
+  const filled = justEarned ? state.goal : state.stamps;
+  const rc = lastCr ? CR_RARITY_COLOR[lastCr.rarity] : 'var(--good)';
+  return (
+    <button onClick={onOpenDex} className="w-full text-left bg-[#161618] pixel-box p-3 mb-4">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">Weekly breakthrough</span>
+        {state.breakthroughs > 0 && <span className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--good)' }}>{state.breakthroughs} earned ›</span>}
+      </div>
+      <div className="flex items-center gap-1.5 mb-2.5">
+        {Array.from({ length: state.goal }).map((_, i) => (
+          <div key={i} className="flex-1 pixel-box" style={{ height: 16, boxShadow: 'none', borderWidth: 2, background: i < filled ? 'var(--good)' : 'var(--surface3)', borderColor: i < filled ? 'var(--good)' : 'var(--border)' }} />
+        ))}
+      </div>
+      {justEarned && lastCr ? (
+        <div className="flex items-center gap-2.5 fade-in">
+          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: rc, borderWidth: 3 }}>
+            <div style={crFx(lastShiny, null)}><Sprite art={lastCr.art} colors={lastShiny ? crShiny(lastCr.colors) : lastCr.colors} px={3} /></div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-[9px]" style={{ color: 'var(--good)' }}>BREAKTHROUGH! <span className="pf uppercase" style={{ color: rc }}>{CR_RARITY_LABEL[lastCr.rarity]}</span></div>
+            <div className="text-[12px] font-bold leading-tight">{lastCr.name}{lastShiny ? <span style={{ color: 'var(--fat)' }}> ✦</span> : ''} joined your dex</div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-[10px] text-[#8A8A90] leading-snug">Log {state.toNext} more {state.toNext === 1 ? 'day' : 'days'} for a guaranteed <span style={{ color: 'var(--carb)' }}>rare or better</span> catch.</div>
+      )}
+    </button>
+  );
+}
+
 // Everything gamey, collapsed to one strip that reads as a status board: dex completion up top,
 // buddy + streak + an evolution bar in the middle, and the two daily hooks (today's catch and the
 // fight) as buttons underneath. When the streak breaks the buddy naps and the strip becomes a
@@ -2506,6 +2540,29 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     });
     if (showToast) showToast('A migratory Drizzlodon lands in your dex! 20 days logged this month.');
   }, [monthLogs]);
+  // Weekly Breakthrough: every 7 logged days earns a guaranteed rare+ catch plus an Incubator
+  // (a Pokemon GO style Research Breakthrough). A per-user baseline is set the first time this
+  // runs so existing history never awards a backlog of rewards at once.
+  const loggedTotal = logSet.size;
+  const bt = db.breakthrough;
+  const btState = Game.breakthroughState(loggedTotal, bt ? bt.base : loggedTotal);
+  useEffect(() => {
+    if (!bt) { update(d => { if (!d.breakthrough) d.breakthrough = { base: loggedTotal, claimed: 0, lastDate: null, lastId: null, lastShiny: false }; }); return; }
+    const target = bt.claimed + 1;
+    if (btState.breakthroughs < target) return; // not enough logged days for the next one yet
+    const c = Game.breakthroughCatch(db.game_salt || '', target);
+    update(d => {
+      if (!d.breakthrough || d.breakthrough.claimed >= target) return; // guard against a double-award
+      d.breakthrough.claimed = target;
+      d.breakthrough.lastDate = today; d.breakthrough.lastId = c.id; d.breakthrough.lastShiny = !!c.shiny;
+      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
+      if (!arr.some(x => x.breakthrough === target)) arr.push({ id: c.id, shiny: !!c.shiny, breakthrough: target });
+      d.catch_log[today] = arr;
+      d.items = d.items || {}; d.items.incubator = (d.items.incubator || 0) + 1;
+    });
+    const cr = CR_BY_ID[c.id];
+    if (showToast && cr) showToast('Weekly Breakthrough! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex, plus an Incubator.');
+  }, [btState.breakthroughs, bt ? bt.claimed : -1]);
   // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
   // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
   const todayCr = creatureForDay(db, today);
@@ -2591,6 +2648,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
       <HomeGameStrip db={db} streak={streak} buddy={buddy} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} />
+      {loggedTotal >= 1 && <WeeklyBreakthroughCard state={btState} justEarned={!!(bt && bt.lastDate === today)} lastCr={bt && bt.lastId ? CR_BY_ID[bt.lastId] : null} lastShiny={!!(bt && bt.lastShiny)} onOpenDex={() => setShowDex(true)} />}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showDex && <MacrodexModal db={db} update={update} streak={streak} onClose={() => setShowDex(false)} />}

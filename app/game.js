@@ -103,6 +103,31 @@
     return n;
   }
 
+  // Weekly Breakthrough (a Pokemon GO style Research Breakthrough): a rolling 7-stamp
+  // meter. Each logged day adds one stamp; every 7 logged days earns a Breakthrough
+  // reward. Counting starts from a per-user baseline (the logged-day count when the
+  // feature first ran) so existing history never dumps a pile of rewards at once.
+  var BREAKTHROUGH_GOAL = 7;
+  function breakthroughState(totalLoggedDays, base) {
+    var earned = Math.max(0, (totalLoggedDays || 0) - (base || 0));
+    return {
+      stamps: earned % BREAKTHROUGH_GOAL,          // 0..6, position on the current card
+      goal: BREAKTHROUGH_GOAL,
+      earnedDays: earned,                          // logged days since the baseline
+      breakthroughs: Math.floor(earned / BREAKTHROUGH_GOAL), // total breakthroughs unlocked
+      toNext: BREAKTHROUGH_GOAL - (earned % BREAKTHROUGH_GOAL), // logged days until the next one
+    };
+  }
+  // The guaranteed rare-or-better catch a Breakthrough awards. Deterministic per user and
+  // breakthrough index, with a boosted shiny chance so the reward always feels special.
+  var BREAKTHROUGH_POOL = ['flexor', 'veloci', 'platealon', 'triceros'];
+  function breakthroughCatch(salt, n) {
+    var h = seedFor(salt, 'breakthrough#' + n);
+    var pool = BREAKTHROUGH_POOL.slice();
+    if (h % 8 === 0) pool.push('rexosaur'); // an occasional legendary
+    return { id: pool[h % pool.length], shiny: seedFor(salt, 'btshiny#' + n) % 6 === 0 };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -123,6 +148,9 @@
     checkinChainLen: checkinChainLen,
     checkinInRange: checkinInRange,
     monthlyLogCount: monthlyLogCount,
+    BREAKTHROUGH_GOAL: BREAKTHROUGH_GOAL,
+    breakthroughState: breakthroughState,
+    breakthroughCatch: breakthroughCatch,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
