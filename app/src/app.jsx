@@ -2935,7 +2935,7 @@ function FoodLog({ db, update, openLog, showToast }) {
         update(d => { d.saved_meals = (d.saved_meals || []).concat([{ id: Store.uid(), name, items, created_at: Date.now() }]); });
         setNameSheet(null); toast('Saved "' + name + '", find it under Meals when logging');
       }} onClose={() => setNameSheet(null)} />}
-      {copyTo && <CopyToModal key={(copyTo.entries[0] ? copyTo.entries[0].id : '') + '|' + (copyTo.pickMeal ? 'm' : 'd') + '|' + copyTo.title} title={copyTo.title} srcDate={copyTo.srcDate} meals={copyTo.pickMeal ? meals : null} defaultMeal={copyTo.meal} onPick={(t, mealId) => copyEntriesTo(copyTo.entries, t, mealId)} onClose={() => setCopyTo(null)} />}
+      {copyTo && <CopyToModal key={(copyTo.entries[0] ? copyTo.entries[0].id : '') + '|' + (copyTo.pickMeal ? 'm' : 'd') + '|' + copyTo.title} title={copyTo.title} srcDate={copyTo.srcDate} entries={copyTo.entries} loggedDates={logSet} meals={copyTo.pickMeal ? meals : null} defaultMeal={copyTo.meal} onPick={(t, mealId) => copyEntriesTo(copyTo.entries, t, mealId)} onClose={() => setCopyTo(null)} />}
       {confirm && <ConfirmDialog title={confirm.title} body={confirm.body} confirmLabel={confirm.confirmLabel} onConfirm={confirm.onConfirm} onClose={() => setConfirm(null)} />}
       {drag && ghost && (() => {
         const W = Math.min(320, (typeof window !== 'undefined' ? window.innerWidth : 360) - 40);
@@ -3056,7 +3056,7 @@ function EditEntryModal({ entry, onSave, onClose, title, saveLabel }) {
   </div>);
 }
 
-function CopyToModal({ title, srcDate, meals, defaultMeal, onPick, onClose }) {
+function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal, onPick, onClose }) {
   useBackClose(onClose);
   const today = Store.todayISO();
   const [cm, setCm] = useState(() => { const d = new Date((srcDate || today) + 'T00:00:00'); return { y: d.getFullYear(), m: d.getMonth() }; });
@@ -3066,14 +3066,24 @@ function CopyToModal({ title, srcDate, meals, defaultMeal, onPick, onClose }) {
   const cells = []; for (let i = 0; i < startDow; i++) cells.push(null);
   for (let dd = 1; dd <= daysIn; dd++) cells.push(Store.isoOf(new Date(cm.y, cm.m, dd)));
   const monthName = new Date(cm.y, cm.m, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const logged = loggedDates || new Set();
+  // What's being copied, so the user has confidence before they pick a day.
+  const count = (entries || []).length;
+  const kcal = Math.round(sumMacros(entries || []).kcal);
+  const pick = (c) => onPick(c, meals ? selMeal : undefined);
+  // One-tap targets for the common cases, so most copies never touch the calendar.
+  const quick = [{ iso: shiftISO(today, -1), label: 'Yesterday' }, { iso: today, label: 'Today' }, { iso: shiftISO(today, 1), label: 'Tomorrow' }];
   return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
       <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
+      {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent)' }}>{kcal}</span> kcal</div>}
       {meals && <div className="mb-3">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Into which meal</div>
         <div className="flex gap-1.5 flex-wrap">{meals.map(m => <button key={m.id} onClick={() => setSelMeal(m.id)} className={`pixel-box px-2.5 py-1.5 text-[11px] ${selMeal === m.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{m.name}</button>)}</div>
       </div>}
-      <div className="text-[12px] text-[#8A8A90] mb-3">Pick the day to copy to.</div>
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Quick copy to</div>
+      <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Or pick a day</div>
       <div className="flex items-center justify-between mb-2">
         <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1">‹</button>
         <div className="text-sm font-semibold">{monthName}</div>
@@ -3081,8 +3091,9 @@ function CopyToModal({ title, srcDate, meals, defaultMeal, onPick, onClose }) {
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
       <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
-        <button key={i} onClick={() => onPick(c, meals ? selMeal : undefined)} className={`aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22]'}`} style={{ boxShadow: 'none' }}>{new Date(c + 'T00:00:00').getDate()}</button>
+        <button key={i} onClick={() => pick(c)} className={`relative aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22]'}`} style={{ boxShadow: 'none' }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--accent)' }} />}</button>
       ) : <div key={i} />)}</div>
+      <div className="flex items-center gap-1.5 mt-2 text-[10px] text-[#5A5A62]"><span className="inline-block w-1 h-1" style={{ background: 'var(--accent)' }} /> has food logged</div>
     </div>
   </div>);
 }
