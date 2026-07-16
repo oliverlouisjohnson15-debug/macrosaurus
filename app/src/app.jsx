@@ -171,13 +171,15 @@ async function extractRecipeSource(url) {
 // Turn extracted source text into a normalised recipe via the existing ai-proxy. `meta` carries the
 // platform/url/thumbnail we already know so the model doesn't have to guess them.
 async function structureRecipe(sourceText, meta) {
-  const j = await aiRequest({ model: AI_MODEL, max_tokens: 2048, messages: [{ role: 'user', content: RECIPE_PROMPT + '\n\nSOURCE TEXT:\n' + sourceText }] });
+  // 4096 (the proxy ceiling): each ingredient now carries five macro numbers, so a long recipe's JSON
+  // can exceed 2048 tokens and come back truncated/empty ("no data returned").
+  const j = await aiRequest({ model: AI_MODEL, max_tokens: 4096, messages: [{ role: 'user', content: RECIPE_PROMPT + '\n\nSOURCE TEXT:\n' + sourceText }] });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return Rcp.normalize(parseModelJSON(txt), meta || {});
 }
 // Fallback path: structure a recipe straight from screenshot(s) of the recipe (reuses claudeVision).
 async function structureRecipeFromImages(files, meta) {
-  const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached screenshot(s).', { model: AI_MODEL, maxTokens: 2048, maxImg: 1024 });
+  const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached screenshot(s).', { model: AI_MODEL, maxTokens: 4096, maxImg: 1024 });
   return Rcp.normalize(raw, meta || {});
 }
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
