@@ -514,6 +514,8 @@ const Icon = {
   mic: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0 0 12 0" /><path d="M12 17v4M9 21h6" /></svg>,
   recipe: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h9a3 3 0 0 1 3 3v15H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M9 7h6M9 11h6M9 15h4" /></svg>,
   cart: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h2l2.2 11.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20.5 8H6" /><circle cx="9" cy="20" r="1.3" /><circle cx="17" cy="20" r="1.3" /></svg>,
+  gear: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v2.2M12 19.3v2.2M4.2 7l1.9 1.1M17.9 15.9l1.9 1.1M4.2 17l1.9-1.1M17.9 8.1l1.9-1.1" strokeLinecap="round" /></svg>,
+  share: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="2.6" /><circle cx="6" cy="12" r="2.6" /><circle cx="18" cy="19" r="2.6" /><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3" /></svg>,
 };
 
 /* ---------- charts ---------- */
@@ -5133,8 +5135,8 @@ function Toast({ toast }) {
 
 const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'GOAL', Icon.goal], ['more', 'MENU', Icon.more]];
 // The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
-// header (MobileHeader) and the desktop Sidebar instead. Bottom bar: HOME, FOOD, (Add), COOK, GOAL.
-const BOTTOM_NAV = NAV_ITEMS.filter(([k]) => k !== 'more');
+// header (MobileHeader) and the desktop Sidebar instead. Bottom bar order: HOME, FOOD, (Add), GOAL, COOK.
+const BOTTOM_NAV = ['dashboard', 'foodlog', 'goals', 'recipes'].map(k => NAV_ITEMS.find(([n]) => n === k));
 function BottomNav({ view, setView, onAdd }) {
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2" style={{ height: 'calc(64px + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)', background: 'var(--header)', borderColor: 'var(--border)' }}>
@@ -5162,8 +5164,9 @@ function MobileHeader({ setView }) {
         <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
         <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
       </div>
-      <button onClick={() => setView('more')} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z" /></svg>
+      <button onClick={() => setView('more')} aria-label="Menu and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>
+        <Icon.gear width="18" height="18" />
+        <span className="pf text-[8px]">MENU</span>
       </button>
     </div>
   );
@@ -5270,6 +5273,14 @@ function RecipeCard({ recipe, onOpen }) {
     </Card>
   </button>);
 }
+// The headline how-to: sharing a Reel/Short straight into the app is the best path (no link to copy),
+// so we show this prominently on the empty state and the importer.
+function ShareTip({ className = '' }) {
+  return (<Card className={'p-3.5 ' + className} style={{ background: 'var(--surface3)' }}>
+    <div className="flex items-center gap-2 mb-1.5"><Icon.share width="16" height="16" style={{ color: 'var(--accent)' }} /><div className="text-[13px] font-bold">Best way: share it straight to Macrosaurus</div></div>
+    <div className="text-[12px] text-[#8A8A90] leading-snug">In Instagram or YouTube, tap <span className="font-semibold" style={{ color: 'var(--text)' }}>Share</span> on the Reel or Short, then pick <span className="font-semibold" style={{ color: 'var(--text)' }}>Macrosaurus</span>. It opens here and becomes a recipe automatically, nothing to copy or paste.</div>
+  </Card>);
+}
 // The import + review flow. `initialUrl` is set when arriving from a share; otherwise the user pastes
 // a link or (fallback) a caption / screenshots. Any extraction failure reveals the manual fallbacks.
 function RecipeImport({ initialUrl, onSaved, onCancel }) {
@@ -5325,8 +5336,9 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
-    <div className="text-lg font-bold mb-1">Import a recipe</div>
-    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Share a YouTube Short or Instagram Reel into Macrosaurus, or paste its link here. The AI breaks it into ingredients, steps and per-serving macros for you to check.</div>
+    <div className="text-lg font-bold mb-3">Import a recipe</div>
+    <ShareTip className="mb-4" />
+    <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Or paste a link</div>
     <Field label="Video link">
       <input value={url} onChange={e => setUrl(e.target.value)} className={inputCls} placeholder="https://www.youtube.com/shorts/... or instagram.com/reel/..." inputMode="url" autoCapitalize="off" autoCorrect="off" />
     </Field>
@@ -5507,13 +5519,18 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLog }) {
           {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#111' }}>{shoppingCount}</span>}
         </button>
       </div>
-      <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-      {!recipes.length ? <Card className="p-6 text-center">
-        <div className="mb-3 flex justify-center"><Icon.recipe width="32" height="32" style={{ color: 'var(--muted)' }} /></div>
-        <div className="text-[14px] font-semibold mb-1">No recipes yet</div>
-        <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Share a YouTube Short or Instagram Reel into Macrosaurus, or tap Import above and paste a link. We break it into ingredients, steps and macros.</div>
-      </Card>
-        : <div>{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}</div>}
+      {!recipes.length ? <>
+        <ShareTip className="mb-4" />
+        <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import from a link instead</Btn>
+        <Card className="p-6 text-center">
+          <div className="mb-3 flex justify-center"><Icon.recipe width="32" height="32" style={{ color: 'var(--muted)' }} /></div>
+          <div className="text-[14px] font-semibold mb-1">No recipes yet</div>
+          <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Send a cooking Reel or Short here and it turns into ingredients, a method and per-serving macros you can log.</div>
+        </Card>
+      </> : <>
+        <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
+        <div>{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}</div>
+      </>}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLog={onLog} />}

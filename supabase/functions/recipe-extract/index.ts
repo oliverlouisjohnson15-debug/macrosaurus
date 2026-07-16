@@ -3,8 +3,9 @@
 // keys and calls no paid API: it only fetches public pages the browser itself cannot reach (CORS).
 // verify_jwt is enabled at deploy time, so only signed-in users reach it; we additionally allow-list
 // hosts to prevent it being used as an open fetch proxy (SSRF). Every failure degrades to ok:false so
-// the client can fall back to a manual paste / screenshot flow. Contract:
-//   POST { url } -> { ok, platform, title, author, thumbnail, sourceText, note }
+// the client can fall back to a manual paste / screenshot flow, and carries a short `diag` string so
+// extraction problems are debuggable from the client. Contract:
+//   POST { url } -> { ok, platform, title, author, thumbnail, sourceText, note, diag }
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -14,9 +15,21 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const UA_BROWSER = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const UA_BOT = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)';
 const MAX_TEXT = 12000; // cap sourceText so a giant page can't blow up the AI call
 const clip = (s: string, n = MAX_TEXT) => (s || '').length > n ? (s || '').slice(0, n) : (s || '');
+
+// Decode a JSON-escaped string body (\n, \uXXXX, \/, ...) captured by a regex group.
+function unescapeJson(s: string): string { try { return JSON.parse('"' + s.replace(/\n/g, '\\n') + '"'); } catch { return s; } }
+function decodeEntities(h: string): string {
+  return (h || '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&#x27;/gi, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h2) => String.fromCodePoint(parseInt(h2, 16)));
+}
+const stripTags = (h: string) => decodeEntities((h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, '')).replace(/\n{3,}/g, '\n\n').trim();
 
 // Find the first balanced {...} object starting at/after a marker string. Ignores braces in strings.
 function jsonAfter(html: string, marker: string): any {
@@ -38,42 +51,26 @@ function jsonAfter(html: string, marker: string): any {
   return null;
 }
 
-const stripTags = (h: string) =>
-  (h || '')
-    .replace(/<br\s*\/?>(?=)/gi, '\n')
-    .replace(/<\/(p|div|li)>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-    .replace(/ /g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
 function youtubeId(u: URL): string | null {
   const host = u.hostname.replace(/^www\./, '');
   if (host === 'youtu.be') return u.pathname.slice(1).split('/')[0] || null;
   const parts = u.pathname.split('/').filter(Boolean);
   if (parts[0] === 'shorts' || parts[0] === 'embed' || parts[0] === 'live') return parts[1] || null;
-  const v = u.searchParams.get('v');
-  return v || null;
+  return u.searchParams.get('v');
 }
 
 async function extractYouTube(u: URL) {
   const id = youtubeId(u);
   if (!id) return { ok: false, platform: 'youtube', note: 'Could not read the YouTube video id from that link.' };
-  const watch = 'https://www.youtube.com/watch?v=' + id + '&hl=en&gl=US';
-  let title = '', author = '', thumbnail = '', description = '', transcript = '';
-
-  // 1) oEmbed for clean title/author/thumbnail (best effort).
+  let title = '', author = '', thumbnail = '', description = '', transcript = '', diag = '';
   try {
-    const o = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { headers: { 'user-agent': UA } });
+    const o = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id), { headers: { 'user-agent': UA_BROWSER } });
     if (o.ok) { const j = await o.json(); title = j.title || ''; author = j.author_name || ''; thumbnail = j.thumbnail_url || ''; }
   } catch { /* best effort */ }
-
-  // 2) Watch page -> player response (description + caption track), consent-cookied for the EU.
   try {
-    const r = await fetch(watch, { headers: { 'user-agent': UA, 'accept-language': 'en-US,en;q=0.9', cookie: 'CONSENT=YES+1' } });
+    const r = await fetch('https://www.youtube.com/watch?v=' + id + '&hl=en&gl=US', { headers: { 'user-agent': UA_BROWSER, 'accept-language': 'en-US,en;q=0.9', cookie: 'CONSENT=YES+1' } });
     const html = await r.text();
+    diag = 'yt status ' + r.status + ', html ' + Math.round(html.length / 1024) + 'kb';
     const pr = jsonAfter(html, 'ytInitialPlayerResponse');
     if (pr) {
       const vd = pr.videoDetails || {};
@@ -85,28 +82,16 @@ async function extractYouTube(u: URL) {
         const pick = tracks.find((t: any) => (t.languageCode || '').startsWith('en')) || tracks[0];
         if (pick?.baseUrl) {
           try {
-            const tr = await fetch(pick.baseUrl + '&fmt=json3', { headers: { 'user-agent': UA } });
-            if (tr.ok) {
-              const tj = await tr.json();
-              transcript = (tj.events || [])
-                .map((e: any) => (e.segs || []).map((s: any) => s.utf8 || '').join(''))
-                .join(' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-            }
+            const tr = await fetch(pick.baseUrl + '&fmt=json3', { headers: { 'user-agent': UA_BROWSER } });
+            if (tr.ok) { const tj = await tr.json(); transcript = (tj.events || []).map((e: any) => (e.segs || []).map((s: any) => s.utf8 || '').join('')).join(' ').replace(/\s+/g, ' ').trim(); }
           } catch { /* transcript optional */ }
         }
       }
-    }
-  } catch { /* fall through to whatever we have */ }
+    } else { diag += ', no playerResponse'; }
+  } catch (e) { diag += ' fetch err ' + (e as Error).message; }
 
-  const sourceText = clip(
-    [title && ('Title: ' + title), description && ('Description:\n' + description), transcript && ('Transcript:\n' + transcript)]
-      .filter(Boolean).join('\n\n')
-  );
-  if (!sourceText || sourceText.length < 20) {
-    return { ok: false, platform: 'youtube', title, author, thumbnail, note: 'This Short has no usable caption or description. Paste the recipe text or share a screenshot instead.' };
-  }
+  const sourceText = clip([title && ('Title: ' + title), description && ('Description:\n' + description), transcript && ('Transcript:\n' + transcript)].filter(Boolean).join('\n\n'));
+  if (!sourceText || sourceText.length < 20) return { ok: false, platform: 'youtube', title, author, thumbnail, note: 'This Short has no usable caption or description. Paste the recipe text or share a screenshot instead. (' + diag + ')', diag };
   return { ok: true, platform: 'youtube', title, author, thumbnail, sourceText };
 }
 
@@ -116,30 +101,53 @@ function instagramShortcode(u: URL): string | null {
   return i >= 0 ? (parts[i + 1] || null) : null;
 }
 
+// Pull a caption out of Instagram HTML using several strategies, most reliable first.
+function captionFromHtml(html: string): { text: string; strat: string } {
+  // 1) GraphQL caption node (present in embed + page JSON). Tolerant of escaped quotes/backslashes.
+  let m = html.match(/edge_media_to_caption[\\\s"]*:[\s\S]{0,40}?[\\"]text[\\"]*\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (m && m[1]) { const t = unescapeJson(m[1]); if (t.trim().length > 10) return { text: t, strat: 'graphql' }; }
+  // 2) A bare "caption":"..." field.
+  m = html.match(/[\\"]caption[\\"]*\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (m && m[1]) { const t = unescapeJson(m[1]); if (t.trim().length > 15) return { text: t, strat: 'caption-field' }; }
+  // 3) The rendered caption block in the /embed/captioned/ page.
+  m = html.match(/<div[^>]*class="[^"]*Caption[^"]*"[\s\S]*?<\/div>/i);
+  if (m) { const t = stripTags(m[0].replace(/<div[^>]*class="[^"]*CaptionUsername[^"]*"[\s\S]*?<\/a>/i, '')); if (t.trim().length > 15) return { text: t, strat: 'caption-div' }; }
+  // 4) og:description link-preview text (usually "N likes, M comments - user on date: "caption"").
+  m = html.match(/<meta[^>]+property="og:description"[^>]+content="([^"]*)"/i) || html.match(/<meta[^>]+content="([^"]*)"[^>]+property="og:description"/i);
+  if (m && m[1]) {
+    let t = decodeEntities(m[1]);
+    const q = t.match(/:\s*[""']([\s\S]+)[""']\s*$/); // strip the "N likes... user on date:" preamble if present
+    if (q && q[1]) t = q[1];
+    if (t.trim().length > 15) return { text: t, strat: 'og' };
+  }
+  return { text: '', strat: 'none' };
+}
+
 async function extractInstagram(u: URL) {
   const code = instagramShortcode(u);
   if (!code) return { ok: false, platform: 'instagram', note: 'Could not read the Instagram post id from that link.' };
-  let caption = '', title = '', thumbnail = '';
-  try {
-    const r = await fetch('https://www.instagram.com/reel/' + code + '/embed/captioned/', { headers: { 'user-agent': UA, 'accept-language': 'en-US,en;q=0.9' } });
-    const html = await r.text();
-    // Preferred: the caption div rendered into the embed page.
-    const m = html.match(/<div class="Caption"[\s\S]*?<div class="CaptionUsername"[\s\S]*?<\/a>([\s\S]*?)<\/div>/i);
-    if (m && m[1]) caption = stripTags(m[1]);
-    // Fallback: a JSON blob with the caption text.
-    if (!caption) {
-      const j = html.match(/"edge_media_to_caption":\s*\{\s*"edges":\s*\[\s*\{\s*"node":\s*\{\s*"text":\s*"((?:[^"\\]|\\.)*)"/);
-      if (j && j[1]) { try { caption = JSON.parse('"' + j[1] + '"'); } catch { caption = j[1]; } }
-    }
-    const t = html.match(/<img[^>]+class="EmbeddedMediaImage"[^>]+src="([^"]+)"/i);
-    if (t && t[1]) thumbnail = t[1].replace(/&amp;/g, '&');
-  } catch { /* fall through */ }
-
+  const attempts: Array<{ url: string; ua: string }> = [
+    { url: 'https://www.instagram.com/reel/' + code + '/embed/captioned/', ua: UA_BROWSER },
+    { url: 'https://www.instagram.com/p/' + code + '/embed/captioned/', ua: UA_BROWSER },
+    { url: 'https://www.instagram.com/reel/' + code + '/', ua: UA_BOT },
+  ];
+  let caption = '', thumbnail = '', diag = '';
+  for (const a of attempts) {
+    try {
+      const r = await fetch(a.url, { headers: { 'user-agent': a.ua, 'accept-language': 'en-US,en;q=0.9' }, redirect: 'follow' });
+      const html = await r.text();
+      const found = captionFromHtml(html);
+      const tag = a.url.includes('/embed/') ? 'embed' : 'page';
+      diag += (diag ? ' | ' : '') + tag + ' ' + r.status + '/' + Math.round(html.length / 1024) + 'kb/' + found.strat;
+      if (!thumbnail) { const t = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]*)"/i); if (t) thumbnail = decodeEntities(t[1]); }
+      if (found.text) { caption = found.text; break; }
+    } catch (e) { diag += (diag ? ' | ' : '') + 'err ' + (e as Error).message; }
+  }
   const sourceText = clip(caption);
   if (!sourceText || sourceText.length < 20) {
-    return { ok: false, platform: 'instagram', thumbnail, note: 'Could not read this Reel automatically (Instagram often hides captions). Paste the caption or share a screenshot instead.' };
+    return { ok: false, platform: 'instagram', thumbnail, note: 'Could not read this Reel automatically (Instagram often hides captions from apps). Paste the caption or share a screenshot instead. (' + diag + ')', diag };
   }
-  return { ok: true, platform: 'instagram', title, thumbnail, sourceText: 'Caption:\n' + sourceText };
+  return { ok: true, platform: 'instagram', thumbnail, sourceText: 'Caption:\n' + sourceText, diag };
 }
 
 Deno.serve(async (req) => {
@@ -162,6 +170,7 @@ Deno.serve(async (req) => {
 
   try {
     const out = isYT ? await extractYouTube(u) : await extractInstagram(u);
+    console.log('recipe-extract', host, (out as any).ok, (out as any).diag || '');
     return json({ ...out, source_url: raw });
   } catch (e) {
     return json({ ok: false, note: 'Could not read that link: ' + (e as Error).message, source_url: raw });
