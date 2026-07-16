@@ -28,7 +28,7 @@ test('normalize cleans AI JSON into the stored recipe shape', () => {
   const raw = {
     title: 'Chicken Wrap', servings: 2,
     ingredients: [
-      { name: 'Chicken breast', quantity: 200, unit: 'g', grams: 200 },
+      { name: 'Chicken breast', quantity: 200, unit: 'g', grams: 200, kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7 },
       { name: '', quantity: 1, unit: 'tbsp' }, // dropped: no name
     ],
     steps: ['Cook chicken', '  ', 'Assemble'],
@@ -41,12 +41,37 @@ test('normalize cleans AI JSON into the stored recipe shape', () => {
   assert.strictEqual(rec.ingredients.length, 1);          // blank-name ingredient dropped
   assert.strictEqual(rec.ingredients[0].have, false);
   assert.strictEqual(rec.ingredients[0].id, 'ing0');
+  assert.strictEqual(rec.ingredients[0].macros.kcal, 330); // per-ingredient whole-recipe macros carried
+  assert.strictEqual(rec.ingredients[0].macros.protein, 62);
   assert.deepStrictEqual(rec.steps, ['Cook chicken', 'Assemble']); // blank step trimmed away
   assert.strictEqual(rec.macros_per_serving.kcal, 370);   // derived from macros (40*4+30*4+10*9)
   assert.strictEqual(rec.macros_per_serving.protein, 40);
   assert.strictEqual(rec.macros_confidence, 'medium');
   assert.strictEqual(rec.source_platform, 'youtube');
   assert.strictEqual(rec.thumbnail, 't.jpg');
+});
+
+test('normalize fills a blank ingredient kcal from its macros', () => {
+  const rec = Recipe.normalize({ title: 'X', servings: 1, ingredients: [{ name: 'Rice', grams: 100, protein_g: 3, carbs_g: 28, fat_g: 1 }] }, {});
+  assert.strictEqual(rec.ingredients[0].macros.kcal, 3 * 4 + 28 * 4 + 1 * 9); // 133
+});
+
+test('perServingIngredients divides whole-recipe ingredient macros by servings', () => {
+  const rec = Recipe.normalize({
+    title: 'Curry', servings: 2,
+    ingredients: [
+      { name: 'Chicken', grams: 400, kcal: 660, protein_g: 124, carbs_g: 0, fat_g: 14 },
+      { name: 'Oil', grams: 20, kcal: 180, protein_g: 0, carbs_g: 0, fat_g: 20 },
+      { name: 'Water', grams: 200, kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }, // dropped: no macros
+    ],
+    macros_per_serving: { kcal: 420, protein_g: 62, carbs_g: 0, fat_g: 17 },
+  }, {});
+  const items = Recipe.perServingIngredients(rec);
+  assert.strictEqual(items.length, 2);          // zero-macro ingredient dropped from logging
+  assert.strictEqual(items[0].name, 'Chicken');
+  assert.strictEqual(items[0].grams, 200);      // 400 / 2
+  assert.strictEqual(items[0].macros.kcal, 330); // 660 / 2
+  assert.strictEqual(items[1].macros.fat, 10);   // 20 / 2
 });
 test('normalize defaults servings to at least 1 and confidence to low', () => {
   const rec = Recipe.normalize({ title: 'X', servings: 0, macros_per_serving: {} }, {});
@@ -56,19 +81,33 @@ test('normalize defaults servings to at least 1 and confidence to low', () => {
 });
 
 // ---- scaleServings ---------------------------------------------------------------------------
-test('scaleServings scales ingredient amounts but not per-serving macros', () => {
+test('scaleServings scales ingredient amounts + macros but not per-serving macros', () => {
   const base = Recipe.normalize({
     title: 'Curry', servings: 4,
-    ingredients: [{ name: 'Rice', quantity: 200, unit: 'g', grams: 200 }],
+    ingredients: [{ name: 'Rice', quantity: 200, unit: 'g', grams: 200, kcal: 720, protein_g: 16, carbs_g: 156, fat_g: 4 }],
     macros_per_serving: { kcal: 500, protein_g: 30, carbs_g: 60, fat_g: 15 },
   }, {});
   const s = Recipe.scaleServings(base, 2);
   assert.strictEqual(s.servings, 2);
   assert.strictEqual(s.ingredients[0].quantity, 100); // halved
   assert.strictEqual(s.ingredients[0].grams, 100);
+  assert.strictEqual(s.ingredients[0].macros.kcal, 360); // whole-recipe ingredient macros halved too
   assert.strictEqual(s.macros_per_serving.kcal, 500);  // per-serving unchanged
   // original object not mutated
   assert.strictEqual(base.ingredients[0].quantity, 200);
+  assert.strictEqual(base.ingredients[0].macros.kcal, 720);
+});
+
+test('fitScore flags whether a serving fits remaining macros', () => {
+  const fits = Recipe.fitScore({ kcal: 400, protein: 40 }, { kcal: 900, protein: 60 });
+  assert.strictEqual(fits.fitsKcal, true);
+  assert.strictEqual(fits.overKcal, 0);
+  assert.strictEqual(fits.proteinPer100kcal, 40); // 40*4/400 = 40%
+  assert.strictEqual(fits.label, 'fits your day');
+  const over = Recipe.fitScore({ kcal: 800 }, { kcal: 500 });
+  assert.strictEqual(over.fitsKcal, false);
+  assert.strictEqual(over.overKcal, 300);
+  assert.strictEqual(over.label, 'over your day');
 });
 
 // ---- totalMacros -----------------------------------------------------------------------------

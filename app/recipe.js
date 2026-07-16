@@ -10,6 +10,14 @@
 
   var num = function (v) { var n = +v; return isFinite(n) ? n : 0; };
   var norm = function (s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); };
+  // Ingredient macros from AI JSON (*_g keys) into the internal {kcal,protein,carbs,fat,fiber} shape.
+  // Fills kcal from Atwater when the model left it blank but gave macros.
+  function ingMacros(ing) {
+    var m = { kcal: Math.round(num(ing.kcal)), protein: +num(ing.protein_g).toFixed(1), carbs: +num(ing.carbs_g).toFixed(1), fat: +num(ing.fat_g).toFixed(1), fiber: +num(ing.fiber_g).toFixed(1) };
+    if (!m.kcal && (m.protein || m.carbs || m.fat)) m.kcal = Math.round(m.protein * 4 + m.carbs * 4 + m.fat * 9);
+    return m;
+  }
+  function scaleMacros(m, f) { m = m || {}; return { kcal: Math.round(num(m.kcal) * f), protein: +(num(m.protein) * f).toFixed(1), carbs: +(num(m.carbs) * f).toFixed(1), fat: +(num(m.fat) * f).toFixed(1), fiber: +(num(m.fiber) * f).toFixed(1) }; }
 
   // Pull the first YouTube/Instagram link out of shared text (share sheets often send "caption https://...").
   // Returns { platform, url } or null. Only these two hosts are recognised (they are what the backend supports).
@@ -42,6 +50,9 @@
         quantity: ing.quantity != null && isFinite(+ing.quantity) ? +ing.quantity : null,
         unit: String(ing.unit || '').trim(),
         grams: num(ing.grams),
+        // Per-ingredient macros for the WHOLE recipe (AI-anchored to a typical UK product). These make
+        // itemised logging possible; scaleServings scales them with the rest of the recipe.
+        macros: ingMacros(ing),
         note: String(ing.note || '').trim(),
         have: false,
       };
@@ -85,9 +96,25 @@
         return Object.assign({}, ing, {
           quantity: ing.quantity != null ? round2(ing.quantity * f) : null,
           grams: ing.grams ? Math.round(ing.grams * f) : ing.grams,
+          macros: ing.macros ? scaleMacros(ing.macros, f) : ing.macros,
         });
       }),
     });
+  }
+
+  // Ingredients scaled to ONE serving, for itemised diary logging: name, grams and macros divided by
+  // the serving count. Each carries the ingredient's resolved source so smart-food memory can reuse it.
+  function perServingIngredients(recipe) {
+    var s = Math.max(1, num(recipe.servings) || 1);
+    return (recipe.ingredients || []).map(function (ing) {
+      return {
+        id: ing.id,
+        name: ing.name,
+        grams: ing.grams ? Math.round(ing.grams / s) : 0,
+        macros: scaleMacros(ing.macros || {}, 1 / s),
+        source: (ing.resolved && ing.resolved.source) || 'recipe',
+      };
+    }).filter(function (x) { return x.name && (x.macros.kcal || x.macros.protein || x.macros.carbs || x.macros.fat); });
   }
 
   // Total macros for the whole recipe (per-serving x servings), for display.
@@ -125,14 +152,28 @@
     return out;
   }
 
+  // How well one serving fits a day's remaining macros. `remaining` = {kcal,protein,carbs,fat} left
+  // today. Returns { fitsKcal, overKcal, proteinPer100kcal, label } for ranking/badging in Discover
+  // and the "fits your day" line. High protein-per-100kcal + within remaining kcal ranks best.
+  function fitScore(macrosPerServing, remaining) {
+    var m = macrosPerServing || {}, r = remaining || {};
+    var kcal = num(m.kcal), remK = num(r.kcal);
+    var over = Math.max(0, kcal - remK);
+    var proteinDensity = kcal > 0 ? (num(m.protein) * 4 / kcal) : 0; // fraction of calories from protein
+    var label = remK <= 0 ? 'no room left' : over <= 0 ? 'fits your day' : over <= remK * 0.15 ? 'just over' : 'over your day';
+    return { fitsKcal: over <= 0, overKcal: Math.round(over), proteinPer100kcal: +(proteinDensity * 100).toFixed(0), label: label };
+  }
+
   var Recipe = {
     detectShare: detectShare,
     platformLabel: platformLabel,
     normalize: normalize,
     scaleServings: scaleServings,
     totalMacros: totalMacros,
+    perServingIngredients: perServingIngredients,
     amountLabel: amountLabel,
     newShoppingItems: newShoppingItems,
+    fitScore: fitScore,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
