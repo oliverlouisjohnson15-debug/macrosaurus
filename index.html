@@ -17797,10 +17797,59 @@ function RecipeDetail({
     }
     setBusy('');
   }
+  // On open, price every ingredient so the recipe always has numbers: free Open Food Facts first,
+  // then ONE cheap AI call for whatever OFF couldn't match. Runs once; per-ingredient overrides stay.
+  async function autoResolve() {
+    const todo = (recipe.ingredients || []).filter(i => !i.macros && i.name && i.grams > 0);
+    if (!todo.length) return;
+    setBusy('Pricing ingredients...');
+    const offRes = await Promise.all(todo.map(i => offResolvePer100(i.name).then(r => ({
+      id: i.id,
+      r: r
+    })).catch(() => ({
+      id: i.id,
+      r: null
+    }))));
+    const offOk = new Set(offRes.filter(x => x.r).map(x => x.id));
+    const remaining = todo.filter(i => !offOk.has(i.id));
+    let ai = [];
+    if (remaining.length) {
+      try {
+        ai = await aiEstimateIngredientsPer100(remaining.map(i => i.name));
+      } catch (e) {/* leave for manual */}
+    }
+    patch(r => {
+      offRes.forEach(x => {
+        if (!x.r) return;
+        const ing = r.ingredients.find(y => y.id === x.id);
+        if (!ing || ing.macros) return;
+        ing.resolved = {
+          source: 'off',
+          per100: x.r.per100,
+          product: x.r.product,
+          barcode: x.r.barcode,
+          brand: x.r.brand
+        };
+        ing.macros = Rcp.macrosFromPer100(x.r.per100, ing.grams);
+      });
+      remaining.forEach((i, k) => {
+        const e = ai[k];
+        if (!e || !e.per100.kcal) return;
+        const ing = r.ingredients.find(y => y.id === i.id);
+        if (!ing || ing.macros) return;
+        ing.resolved = {
+          source: 'ai',
+          per100: e.per100
+        };
+        ing.macros = Rcp.macrosFromPer100(e.per100, ing.grams);
+      });
+    });
+    setBusy('');
+  }
   useEffect(() => {
     if (!autoTried.current && total && resolved < total && recipe.macros_source !== 'stated') {
       autoTried.current = true;
-      resolveOff(true);
+      autoResolve();
     }
   }, []);
   function doLog(mode) {
@@ -17898,18 +17947,26 @@ function RecipeDetail({
     className: "text-[12px] text-[#8A8A90]"
   }, "Add amounts, then look ingredients up (free) or estimate with AI."), fit && rem && recipe.macros_per_serving.kcal > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
-  }, "A serving is ", Math.round(recipe.macros_per_serving.kcal), " kcal; you have ", Math.max(0, Math.round(rem.kcal)), " kcal and ", Math.max(0, Math.round(rem.protein)), " g protein left today.")), resolved < total && /*#__PURE__*/React.createElement("div", {
+  }, "A serving is ", Math.round(recipe.macros_per_serving.kcal), " kcal; you have ", Math.max(0, Math.round(rem.kcal)), " kcal and ", Math.max(0, Math.round(rem.protein)), " g protein left today.")), busy && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-4 flex items-center gap-2",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 16,
+    color: "var(--accent)"
+  }), " ", busy), !busy && resolved < total && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mb-4"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "flex-1",
     onClick: () => resolveOff(false),
     disabled: !!busy
-  }, busy === 'Looking up ingredients...' ? 'Looking up...' : 'Look up ingredients (free)'), /*#__PURE__*/React.createElement(Btn, {
+  }, "Look up ingredients (free)"), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     onClick: resolveAi,
     disabled: !!busy
-  }, busy === 'Estimating with AI...' ? '...' : 'AI')), recipe.stated_macros && recipe.macros_source !== 'stated' && /*#__PURE__*/React.createElement("button", {
+  }, "AI")), recipe.stated_macros && recipe.macros_source !== 'stated' && /*#__PURE__*/React.createElement("button", {
     onClick: useStated,
     className: "text-[12px] mb-4 -mt-2 underline",
     style: {
