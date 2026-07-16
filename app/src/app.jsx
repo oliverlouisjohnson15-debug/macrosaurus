@@ -230,7 +230,7 @@ function autoClose(json) {
 }
 const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the numbers printed on it. UK labels usually have a PER 100 g / 100 ml column, and sometimes also a PER SERVING / PER PORTION / PER PACK column. Read each column EXACTLY as printed. Do NOT convert, scale, invent or mix columns. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. per_100g = the per-100 g/ml column (all 0 if not printed). per_serving = the per-serving/portion/pack column (all 0 if not printed). If only one column exists, fill it and leave the other all 0; NEVER scale one column into the other. serving_g and serving_label describe ONE natural unit the person would count and log, chosen in this priority order: (1) if the pack states a piece/item COUNT and a total pack WEIGHT (for example "12 meatballs" with "340 g", or "6 fish fingers 200 g"), set serving_g to the weight of ONE piece = round(total weight divided by count) and serving_label to a singular piece name like "1 meatball" or "1 fish finger"; (2) else if a single serving or portion size is stated (for example "per 30 g", "1 pot 125 g"), use it with a label like "1 pot" or "1 serving"; (3) else if only a whole pack/can/bottle size is stated, use it with a label like "1 can"; (4) else serving_g 0 and serving_label "". Use the product photo and all pack text (piece count, total weight, "contains N portions") to work this out. ACCURACY IS CRITICAL: read the EXACT printed digits for every value that is visible on the label (for example if it prints "Fat 2.5g", return 2.5, not a rounded or guessed number). Look carefully at the small print. Only when a macro is genuinely absent, blank or physically unreadable should you ESTIMATE it from the product name/type and the stated calories so that protein_g×4 + carbs_g×4 + fat_g×9 approximately equals the stated kcal for that column, and set "macros_estimated": true; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0. Write the product name in British English spelling, keeping the JSON keys exactly as specified.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD, anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent, these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
-const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe from it as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [{"name": string, "quantity": number, "unit": string, "grams": number, "note": string}], "steps": [string], "macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_confidence": "low"|"medium"|"high"}. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). For each ingredient: name is the plain food (e.g. "chicken thighs", "olive oil"); quantity + unit are the amount as stated (e.g. 2 "clove", 200 "g", 1 "tbsp"), and grams is your best estimate of that ingredient\'s weight in grams for the WHOLE recipe (convert counts/spoons/cups using standard weights; 0 only if truly impossible). steps = the method as short ordered instructions. macros_per_serving = the nutrition for ONE serving: estimate the whole recipe from the ingredients (count oils, butter, sauces and cooking fats, they are calorie-dense and easy to miss) then divide by servings, so protein_g*4 + carbs_g*4 + fat_g*9 is close to kcal. ALWAYS estimate fibre from the ingredients (vegetables, wholegrains, beans, fruit carry fibre; lean meat and oils carry little); never leave it 0 when fibrous foods are present. Do not lowball or round down; err to the realistic higher end. macros_confidence reflects how complete the source text was. Write all text fields in British English spelling (fibre, yoghurt, flavour) while keeping the JSON keys exactly as specified.';
+const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe from it as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [{"name": string, "quantity": number, "unit": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "note": string}], "steps": [string], "macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_confidence": "low"|"medium"|"high"}. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). For each ingredient: name is the plain food (e.g. "chicken thighs", "olive oil"); quantity + unit are the amount as stated (e.g. 2 "clove", 200 "g", 1 "tbsp"); grams is your best estimate of that ingredient\'s weight in grams for the WHOLE recipe (convert counts/spoons/cups using standard weights; 0 only if truly impossible); and kcal/protein_g/carbs_g/fat_g/fiber_g are that ingredient\'s macros for the WHOLE recipe at that weight, anchored to a typical UK supermarket product for that food (e.g. UK semi-skimmed milk, UK back bacon), so per ingredient protein_g*4 + carbs_g*4 + fat_g*9 is close to its kcal. steps = the method as short ordered instructions. macros_per_serving = the nutrition for ONE serving: it MUST equal the sum of every ingredient\'s macros divided by servings (count oils, butter, sauces and cooking fats, they are calorie-dense and easy to miss), so protein_g*4 + carbs_g*4 + fat_g*9 is close to kcal. ALWAYS estimate fibre from the ingredients (vegetables, wholegrains, beans, fruit carry fibre; lean meat and oils carry little); never leave it 0 when fibrous foods are present. Do not lowball or round down; err to the realistic higher end. macros_confidence reflects how complete the source text was. Write all text fields in British English spelling (fibre, yoghurt, flavour) while keeping the JSON keys exactly as specified.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
@@ -5396,12 +5396,56 @@ function RecipeReview({ recipe, onSave, onCancel }) {
     <Btn kind="accent" className="w-full" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.length}>Save recipe</Btn>
   </div>);
 }
-function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLog }) {
+// Open Food Facts search-by-name, used for the per-ingredient "Match to a product" brand override.
+// Mirrors the FoodTab search but also returns the barcode (code) so a match feeds community consensus.
+async function offSearchByName(query) {
+  const url = 'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,code,nutriments,serving_size,serving_quantity';
+  const j = await (await fetch(url)).json();
+  return (j.products || []).map(p => { const n = p.nutriments || {}; const k = +n['energy-kcal_100g']; if (!p.product_name || !k) return null; return { name: p.product_name, brand: p.brands || '', code: p.code || '', per100: { kcal: Math.round(k), protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 } }; }).filter(Boolean).slice(0, 12);
+}
+// Per-ingredient brand picker: search UK products on Open Food Facts and swap in real per-100g numbers.
+function MatchProductSheet({ ingredient, onPick, onClose }) {
+  useBackClose(onClose);
+  const [q, setQ] = useState(ingredient.name || '');
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [results, setResults] = useState(null);
+  async function run() {
+    if (!q.trim()) return;
+    setBusy(true); setErr(''); setResults(null);
+    try { const r = await offSearchByName(q.trim()); setResults(r); if (!r.length) setErr('No products found. Try a simpler name.'); }
+    catch (e) { setErr('Search failed. Check your connection.'); }
+    setBusy(false);
+  }
+  useEffect(() => { run(); }, []);
+  return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold">Match to a product</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none">×</button></div>
+      <div className="text-[12px] text-[#8A8A90] mb-3">Pick your exact UK brand to swap in real label numbers for {ingredient.grams > 0 ? ingredient.grams + ' g of ' : ''}this ingredient.</div>
+      <div className="flex gap-2 mb-3">
+        <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} className={inputCls + ' flex-1'} placeholder="e.g. Warburtons wholemeal" />
+        <Btn kind="accent" onClick={run}>Search</Btn>
+      </div>
+      {busy && <div className="text-[12px] text-[#8A8A90] py-4 text-center">Searching Open Food Facts...</div>}
+      {err && <div className="text-[12px] text-[#F5C542] mb-2">{err}</div>}
+      {results && <div className="space-y-1.5">{results.map((p, i) => (
+        <button key={i} onClick={() => onPick(p)} className="w-full text-left pixel-box p-3" style={{ background: 'var(--surface3)' }}>
+          <div className="text-[13px] font-semibold truncate">{p.name}</div>
+          <div className="text-[11px] text-[#8A8A90] truncate">{p.brand ? p.brand + ' · ' : ''}{p.per100.kcal} kcal / 100 g · P{Math.round(p.per100.protein)} C{Math.round(p.per100.carbs)} F{Math.round(p.per100.fat)}</div>
+        </button>
+      ))}</div>}
+    </div>
+  </div>);
+}
+function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRecipe, onSaveMeal }) {
   useBackClose(onBack);
   const [servings, setServings] = useState(recipe.servings);
-  const [pickMeal, setPickMeal] = useState(false);
+  const [pickMeal, setPickMeal] = useState(null); // { mode } once a meal is chosen
+  const [matchIng, setMatchIng] = useState(null);  // ingredient being brand-matched
   const scaled = servings === recipe.servings ? recipe : Rcp.scaleServings(recipe, servings);
   const meals = mealsForDay(db, Store.todayISO());
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  const rem = et ? { kcal: et.eff.kcal - sumMacros(entriesOn(db, today)).kcal, protein: et.eff.protein_g - sumMacros(entriesOn(db, today)).protein, carbs: et.eff.carbs_g - sumMacros(entriesOn(db, today)).carbs, fat: et.eff.fat_g - sumMacros(entriesOn(db, today)).fat } : null;
+  const fit = rem ? Rcp.fitScore(recipe.macros_per_serving, rem) : null;
   const toggleHave = (ingId) => update(d => { const r = (d.recipes || []).find(x => x.id === recipe.id); if (!r) return; const ing = r.ingredients.find(x => x.id === ingId); if (ing) ing.have = !ing.have; });
   const missing = recipe.ingredients.filter(i => !i.have);
   function addMissingToShopping() {
@@ -5414,21 +5458,40 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLog }
     });
     showToast(added ? ('Added ' + added + ' item' + (added === 1 ? '' : 's') + ' to your shopping list') : 'Those are already on your list');
   }
-  function logServing(mealId) {
-    onLog(mealId, { name: recipe.title + ' (1 serving)', source: 'recipe', is_alcohol: false, qtyLabel: '1 serving', macros: recipe.macros_per_serving });
-    setPickMeal(false);
+  function doLog(mode) { if (meals.length > 1) setPickMeal({ mode }); else { onLogRecipe(meals[0] && meals[0].id, recipe, mode); } }
+  function logToMeal(mealId) { onLogRecipe(mealId, recipe, pickMeal.mode); setPickMeal(null); }
+  // Swap an ingredient to a specific product's per-100g numbers, then recompute per-serving macros.
+  function applyMatch(product) {
+    const ingId = matchIng.id;
+    update(d => {
+      const r = (d.recipes || []).find(x => x.id === recipe.id); if (!r) return;
+      const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return;
+      const g = ing.grams || 0, p = product.per100;
+      ing.resolved = { source: 'off', per100: p, barcode: product.code || '', product: product.name, brand: product.brand || '' };
+      if (g > 0) ing.macros = { kcal: Math.round(p.kcal * g / 100), protein: +(p.protein * g / 100).toFixed(1), carbs: +(p.carbs * g / 100).toFixed(1), fat: +(p.fat * g / 100).toFixed(1), fiber: +((p.fiber || 0) * g / 100).toFixed(1) };
+      const s = Math.max(1, r.servings || 1);
+      const tot = r.ingredients.reduce((a, x) => { const m = x.macros || {}; return { kcal: a.kcal + (+m.kcal || 0), protein: a.protein + (+m.protein || 0), carbs: a.carbs + (+m.carbs || 0), fat: a.fat + (+m.fat || 0), fiber: a.fiber + (+m.fiber || 0) }; }, { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+      r.macros_per_serving = { kcal: Math.round(tot.kcal / s), protein: +(tot.protein / s).toFixed(1), carbs: +(tot.carbs / s).toFixed(1), fat: +(tot.fat / s).toFixed(1), fiber: +(tot.fiber / s).toFixed(1) };
+      r.updated_at = Date.now();
+    });
+    setMatchIng(null); showToast('Swapped in ' + product.name);
   }
+  const fitColor = !fit ? MUTED : fit.fitsKcal ? 'var(--good)' : fit.overKcal <= (rem.kcal * 0.15) ? '#F5C542' : '#ff6b6b';
   return (<div className="fade-in">
     <div className="flex items-center justify-between mb-3">
       <button onClick={onBack} className="text-[13px] text-[#8A8A90]">‹ Recipes</button>
-      <button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button>
+      <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="text-[12px]" style={{ color: 'var(--accent)' }}>Save as meal</button><button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
     </div>
     {recipe.thumbnail && <img src={recipe.thumbnail} className="w-full h-40 object-cover rounded-2xl border border-[#262629] mb-3" alt="" />}
     <h1 className="text-xl font-bold leading-tight mb-1">{recipe.title}</h1>
     <div className="text-[12px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>}</div>
     <Card className="p-3 mb-4 mt-2">
-      <div className="flex items-center justify-between mb-2"><div className="text-[11px] text-[#8A8A90]">Macros per serving{recipe.macros_confidence ? ' · ' + recipe.macros_confidence + ' confidence' : ''}</div></div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] text-[#8A8A90]">Macros per serving{recipe.macros_confidence ? ' · ' + recipe.macros_confidence + ' confidence' : ''}</div>
+        {fit && <span className="pf text-[8px] uppercase px-2 py-1 rounded" style={{ color: fitColor, border: '1px solid ' + fitColor }}>{fit.fitsKcal ? 'fits today' : fit.overKcal + ' over'}</span>}
+      </div>
       <RecipeMacroStrip macros={recipe.macros_per_serving} per />
+      {fit && rem && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">A serving is {Math.round(recipe.macros_per_serving.kcal || 0)} kcal; you have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today.</div>}
     </Card>
     <div className="flex items-center justify-between mb-2">
       <div className="text-lg font-bold">Ingredients</div>
@@ -5439,14 +5502,14 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLog }
         <button onClick={() => setServings(s => s + 1)} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>+</button>
       </div>
     </div>
-    <div className="text-[11px] text-[#8A8A90] mb-2">Tap what you already have. The rest can go to your shopping list.</div>
+    <div className="text-[11px] text-[#8A8A90] mb-2">Tick what you have (rest goes to shopping). Tap the tag to match a UK brand for exact macros.</div>
     <div className="space-y-0.5 mb-3">
       {scaled.ingredients.map((ing) => (
-        <button key={ing.id} onClick={() => toggleHave(ing.id)} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
-          <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? '✓' : ''}</span>
-          <span className="text-[14px] flex-1 min-w-0" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{ing.name}</span>
-          <span className="text-[12px] text-[#8A8A90] shrink-0 tnum">{Rcp.amountLabel(ing)}</span>
-        </button>
+        <div key={ing.id} className="flex items-center gap-3 py-2">
+          <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? '✓' : ''}</button>
+          <button onClick={() => toggleHave(ing.id)} className="text-[14px] flex-1 min-w-0 text-left truncate" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{ing.name}{ing.resolved && ing.resolved.source === 'off' && <span className="ml-1.5 text-[10px]" style={{ color: 'var(--good)' }}>●</span>}</button>
+          <button onClick={() => setMatchIng(ing)} className="text-[11px] tnum shrink-0 px-2 py-1 rounded" style={{ color: 'var(--muted)', border: '1px solid var(--border)' }}>{Rcp.amountLabel(ing) || 'match'}</button>
+        </div>
       ))}
     </div>
     <Btn kind="ghost" className="w-full mb-5" onClick={addMissingToShopping} disabled={!missing.length}>{missing.length ? ('Add ' + missing.length + ' missing to shopping list') : 'You have everything'}</Btn>
@@ -5454,15 +5517,17 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLog }
       <ol className="space-y-2 mb-6">
         {recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}
       </ol></>}
-    <Btn kind="accent" className="w-full" onClick={() => (meals.length > 1 ? setPickMeal(true) : logServing(meals[0] && meals[0].id))}>Log a serving to today</Btn>
-    {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(false)}>
-      <BackClose onClose={() => setPickMeal(false)} />
+    <Btn kind="accent" className="w-full" onClick={() => doLog('items')}>Log a serving to today</Btn>
+    <button onClick={() => doLog('single')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log as a single item instead</button>
+    {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
+      <BackClose onClose={() => setPickMeal(null)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="text-base font-bold mb-1">Log to which meal?</div>
-        <div className="text-[12px] text-[#8A8A90] mb-3">One serving of {recipe.title} ({Math.round(recipe.macros_per_serving.kcal || 0)} kcal).</div>
-        <div className="space-y-2">{meals.map(m => <button key={m.id} onClick={() => logServing(m.id)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{m.name}</button>)}</div>
+        <div className="text-[12px] text-[#8A8A90] mb-3">One serving of {recipe.title} ({Math.round(recipe.macros_per_serving.kcal || 0)} kcal){pickMeal.mode === 'items' ? ', broken into its ingredients' : ''}.</div>
+        <div className="space-y-2">{meals.map(m => <button key={m.id} onClick={() => logToMeal(m.id)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{m.name}</button>)}</div>
       </div>
     </div>}
+    {matchIng && <MatchProductSheet ingredient={matchIng} onPick={applyMatch} onClose={() => setMatchIng(null)} />}
   </div>);
 }
 function ShoppingListView({ db, update, onBack }) {
@@ -5485,7 +5550,7 @@ function ShoppingListView({ db, update, onBack }) {
         </div>))}</div>}
   </div>);
 }
-function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLog }) {
+function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecipe, onSaveMeal }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping
   const [activeId, setActiveId] = useState(null);
   // Arriving from a share: jump straight into the importer with the shared link.
@@ -5533,7 +5598,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLog }) {
       </>}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
-    {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLog={onLog} />}
+    {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
     {screen === 'shopping' && <ShoppingListView db={db} update={update} onBack={() => setScreen('list')} />}
   </div>);
 }
@@ -5756,6 +5821,50 @@ function App() {
     setAdding(null);
     showToast('Logged ' + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
   }
+  // Macros for `grams` of one of the user's own saved smart foods (per-100g or per-serving base).
+  function macrosFromSavedFood(f, grams) {
+    if (!f || !f.saved_base || !(grams > 0)) return null;
+    const b = f.saved_base; let per100;
+    if (f.saved_kind === 'serving') { const sg = +f.saved_serving_g || 0; if (!sg) return null; per100 = { kcal: b.kcal / sg * 100, protein: b.protein / sg * 100, carbs: b.carbs / sg * 100, fat: b.fat / sg * 100, fiber: (b.fiber || 0) / sg * 100 }; }
+    else per100 = b;
+    const s = grams / 100;
+    return { kcal: Math.round(per100.kcal * s), protein: +(per100.protein * s).toFixed(1), carbs: +(per100.carbs * s).toFixed(1), fat: +(per100.fat * s).toFixed(1), fiber: +((per100.fiber || 0) * s).toFixed(1) };
+  }
+  // Log one serving of a recipe. mode 'items' writes one diary entry PER ingredient (and makes each a
+  // reusable, gram-scalable smart food, enriching the food database); mode 'single' writes one entry
+  // named after the recipe with the ingredients remembered behind it. Each ingredient prefers the
+  // user's OWN saved numbers for that food when they exist, so recipes fold into the rest of the tracker.
+  function logRecipeServing(date, mealId, recipe, mode) {
+    const raw = Rcp.perServingIngredients(recipe);
+    const items = raw.map(it => { const sc = it.grams > 0 ? savedCorrection(db, it.name) : null; const m = sc ? macrosFromSavedFood(sc, it.grams) : null; return m ? Object.assign({}, it, { macros: m }) : it; });
+    if (mode === 'single' || !items.length) {
+      addEntry(date, mealId, { name: recipe.title + ' (1 serving)', source: 'recipe', is_alcohol: false, qtyLabel: '1 serving', macros: recipe.macros_per_serving, rememberItems: items.map(it => ({ name: it.name, grams: it.grams, kcal: it.macros.kcal, protein: it.macros.protein, carbs: it.macros.carbs, fat: it.macros.fat, fiber: it.macros.fiber })) });
+      return;
+    }
+    const ids = items.map(() => Store.uid());
+    if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
+    celebrateCatch(date, items.map(it => ({ date, computed_macros: normalizeMacros(it.macros, false), is_alcohol: false })));
+    update(d => {
+      items.forEach((it, i) => {
+        const macros = normalizeMacros(it.macros, false);
+        d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: 'food', name: it.name, source: 'recipe', is_alcohol: false, qty_label: it.grams > 0 ? it.grams + ' g' : '', computed_macros: macros, sort_order: d.log_entries.length + i });
+        const rk = it.name.trim().toLowerCase(); const g = it.grams;
+        let rf = d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol);
+        if (!rf) { rf = { id: Store.uid(), name: it.name, source: 'recipe', is_alcohol: false, is_favorite: false, last_qty: g > 0 ? g + ' g' : '', macros: macros, updated_at: Date.now() }; d.foods.push(rf); }
+        else { rf.macros = macros; rf.last_qty = g > 0 ? g + ' g' : rf.last_qty; rf.updated_at = Date.now(); }
+        if (g > 0) { rf.corrected = true; rf.saved_base = { kcal: Math.round(macros.kcal / g * 100), protein: +(macros.protein / g * 100).toFixed(1), carbs: +(macros.carbs / g * 100).toFixed(1), fat: +(macros.fat / g * 100).toFixed(1), fiber: +((macros.fiber || 0) / g * 100).toFixed(1) }; rf.saved_kind = 'per100'; rf.saved_serving_g = g; rf.saved_serving_label = ''; }
+      });
+    });
+    showToast('Logged ' + items.length + ' ingredient' + (items.length === 1 ? '' : 's') + ' from ' + recipe.title, 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
+  }
+  // Save a recipe as a one-tap meal (appears in normal food search / quick-log), built from its
+  // per-serving ingredients so re-logging it itemises exactly like cooking it does.
+  function saveRecipeAsMeal(recipe) {
+    const perServ = Rcp.perServingIngredients(recipe);
+    const items = perServ.length ? perServ.map(it => ({ name: it.name, macros: it.macros, qtyLabel: it.grams > 0 ? it.grams + ' g' : '1 serving' })) : [{ name: recipe.title, macros: recipe.macros_per_serving, qtyLabel: '1 serving' }];
+    update(d => { d.saved_meals = (d.saved_meals || []).concat([{ id: Store.uid(), name: recipe.title, items: items, created_at: Date.now() }]); });
+    showToast('Saved ' + recipe.title + ' as a meal you can quick-log');
+  }
   async function signOut() { if (supa) await supa.auth.signOut(); setDb(null); setView('dashboard'); }
   function resetAll() { const prevKey = (db && db.profile && db.profile.aiKey) || ''; const f2 = Store.defaultState(); f2.aiKey = prevKey; setDb(f2); if (session) cloudSave(session.user.id, f2); setView('dashboard'); }
   async function deleteAccount() {
@@ -5787,7 +5896,7 @@ function App() {
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
-      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} onLog={(mealId, item) => addEntry(Store.todayISO(), mealId, item)} />}
+      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} onLogRecipe={(mealId, recipe, mode) => logRecipeServing(Store.todayISO(), mealId, recipe, mode)} onSaveMeal={saveRecipeAsMeal} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
