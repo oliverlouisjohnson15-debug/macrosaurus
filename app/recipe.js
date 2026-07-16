@@ -18,6 +18,21 @@
     return m;
   }
   function scaleMacros(m, f) { m = m || {}; return { kcal: Math.round(num(m.kcal) * f), protein: +(num(m.protein) * f).toFixed(1), carbs: +(num(m.carbs) * f).toFixed(1), fat: +(num(m.fat) * f).toFixed(1), fiber: +(num(m.fiber) * f).toFixed(1) }; }
+  function emptyMacros() { return { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }; }
+  // Whole-ingredient macros from a per-100g profile and a gram weight (how OFF / barcode / label /
+  // manual-per-100g resolutions become an ingredient's macros).
+  function macrosFromPer100(per100, grams) { return scaleMacros(per100, num(grams) / 100); }
+  // Per-serving macros summed from whatever ingredients are resolved (have macros). Free, no AI.
+  function computePerServing(recipe) {
+    var s = Math.max(1, num((recipe || {}).servings) || 1);
+    var t = emptyMacros(), n = 0;
+    ((recipe || {}).ingredients || []).forEach(function (ing) {
+      if (!ing || !ing.macros) return; n++;
+      t.kcal += num(ing.macros.kcal); t.protein += num(ing.macros.protein); t.carbs += num(ing.macros.carbs); t.fat += num(ing.macros.fat); t.fiber += num(ing.macros.fiber);
+    });
+    return { resolved: n, macros: { kcal: Math.round(t.kcal / s), protein: +(t.protein / s).toFixed(1), carbs: +(t.carbs / s).toFixed(1), fat: +(t.fat / s).toFixed(1), fiber: +(t.fiber / s).toFixed(1) } };
+  }
+  function resolvedCount(recipe) { return ((recipe || {}).ingredients || []).filter(function (i) { return i && i.macros; }).length; }
 
   // Pull the first YouTube/Instagram link out of shared text (share sheets often send "caption https://...").
   // Returns { platform, url } or null. Only these two hosts are recognised (they are what the backend supports).
@@ -50,32 +65,29 @@
         quantity: ing.quantity != null && isFinite(+ing.quantity) ? +ing.quantity : null,
         unit: String(ing.unit || '').trim(),
         grams: num(ing.grams),
-        // Per-ingredient macros for the WHOLE recipe (AI-anchored to a typical UK product). These make
-        // itemised logging possible; scaleServings scales them with the rest of the recipe.
-        macros: ingMacros(ing),
+        // Macros start UNRESOLVED: the app fills them per ingredient from Open Food Facts (free) or an
+        // override (barcode / label photo / manual / AI). `resolved` records where the numbers came from.
+        macros: ing.kcal != null || ing.protein_g != null ? ingMacros(ing) : null, // tolerate old/AI-macro payloads
+        resolved: null,
         note: String(ing.note || '').trim(),
         have: false,
       };
     }).filter(function (ing) { return ing.name; });
     var steps = (Array.isArray(raw.steps) ? raw.steps : []).map(function (s) { return String(s || '').trim(); }).filter(Boolean);
-    var mps = raw.macros_per_serving || {};
-    var macros = {
-      kcal: Math.round(num(mps.kcal)),
-      protein: +num(mps.protein_g).toFixed(1),
-      carbs: +num(mps.carbs_g).toFixed(1),
-      fat: +num(mps.fat_g).toFixed(1),
-      fiber: +num(mps.fiber_g).toFixed(1),
-    };
-    // Never leave calories blank when macros exist (mirrors the app's normalizeMacros guard).
-    if (!macros.kcal && (macros.protein || macros.carbs || macros.fat)) {
-      macros.kcal = Math.round(macros.protein * 4 + macros.carbs * 4 + macros.fat * 9);
-    }
+    // Per-serving macros are only taken from the source when it explicitly stated them; otherwise they
+    // stay pending and get computed for free from the resolved ingredients.
+    var st = raw.stated_macros_per_serving || raw.macros_per_serving; // macros_per_serving = back-compat
+    var hasStated = st && typeof st === 'object';
+    var macros = hasStated ? { kcal: Math.round(num(st.kcal)), protein: +num(st.protein_g != null ? st.protein_g : st.protein).toFixed(1), carbs: +num(st.carbs_g != null ? st.carbs_g : st.carbs).toFixed(1), fat: +num(st.fat_g != null ? st.fat_g : st.fat).toFixed(1), fiber: +num(st.fiber_g != null ? st.fiber_g : st.fiber).toFixed(1) } : emptyMacros();
+    if (hasStated && !macros.kcal && (macros.protein || macros.carbs || macros.fat)) macros.kcal = Math.round(macros.protein * 4 + macros.carbs * 4 + macros.fat * 9);
     return {
       title: String(raw.title || meta.title || 'Recipe').trim(),
       servings: servings,
       ingredients: ingredients,
       steps: steps,
       macros_per_serving: macros,
+      stated_macros: hasStated ? macros : null,
+      macros_source: hasStated ? 'stated' : 'pending',
       macros_confidence: ['low', 'medium', 'high'].indexOf(raw.macros_confidence) >= 0 ? raw.macros_confidence : 'low',
       source_platform: meta.platform || raw.source_platform || '',
       source_url: meta.url || '',
@@ -106,12 +118,12 @@
   // the serving count. Each carries the ingredient's resolved source so smart-food memory can reuse it.
   function perServingIngredients(recipe) {
     var s = Math.max(1, num(recipe.servings) || 1);
-    return (recipe.ingredients || []).map(function (ing) {
+    return (recipe.ingredients || []).filter(function (ing) { return ing && ing.macros; }).map(function (ing) {
       return {
         id: ing.id,
         name: ing.name,
         grams: ing.grams ? Math.round(ing.grams / s) : 0,
-        macros: scaleMacros(ing.macros || {}, 1 / s),
+        macros: scaleMacros(ing.macros, 1 / s),
         source: (ing.resolved && ing.resolved.source) || 'recipe',
       };
     }).filter(function (x) { return x.name && (x.macros.kcal || x.macros.protein || x.macros.carbs || x.macros.fat); });
@@ -171,6 +183,10 @@
     scaleServings: scaleServings,
     totalMacros: totalMacros,
     perServingIngredients: perServingIngredients,
+    macrosFromPer100: macrosFromPer100,
+    computePerServing: computePerServing,
+    resolvedCount: resolvedCount,
+    ingMacros: ingMacros,
     amountLabel: amountLabel,
     newShoppingItems: newShoppingItems,
     fitScore: fitScore,

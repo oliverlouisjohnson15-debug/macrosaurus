@@ -232,7 +232,7 @@ function autoClose(json) {
 }
 const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the numbers printed on it. UK labels usually have a PER 100 g / 100 ml column, and sometimes also a PER SERVING / PER PORTION / PER PACK column. Read each column EXACTLY as printed. Do NOT convert, scale, invent or mix columns. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. per_100g = the per-100 g/ml column (all 0 if not printed). per_serving = the per-serving/portion/pack column (all 0 if not printed). If only one column exists, fill it and leave the other all 0; NEVER scale one column into the other. serving_g and serving_label describe ONE natural unit the person would count and log, chosen in this priority order: (1) if the pack states a piece/item COUNT and a total pack WEIGHT (for example "12 meatballs" with "340 g", or "6 fish fingers 200 g"), set serving_g to the weight of ONE piece = round(total weight divided by count) and serving_label to a singular piece name like "1 meatball" or "1 fish finger"; (2) else if a single serving or portion size is stated (for example "per 30 g", "1 pot 125 g"), use it with a label like "1 pot" or "1 serving"; (3) else if only a whole pack/can/bottle size is stated, use it with a label like "1 can"; (4) else serving_g 0 and serving_label "". Use the product photo and all pack text (piece count, total weight, "contains N portions") to work this out. ACCURACY IS CRITICAL: read the EXACT printed digits for every value that is visible on the label (for example if it prints "Fat 2.5g", return 2.5, not a rounded or guessed number). Look carefully at the small print. Only when a macro is genuinely absent, blank or physically unreadable should you ESTIMATE it from the product name/type and the stated calories so that protein_g×4 + carbs_g×4 + fat_g×9 approximately equals the stated kcal for that column, and set "macros_estimated": true; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0. Write the product name in British English spelling, keeping the JSON keys exactly as specified.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD, anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent, these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
-const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe from it as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [{"name": string, "quantity": number, "unit": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "note": string}], "steps": [string], "macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_confidence": "low"|"medium"|"high"}. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). For each ingredient: name is the plain food (e.g. "chicken thighs", "olive oil"); quantity + unit are the amount as stated (e.g. 2 "clove", 200 "g", 1 "tbsp"); grams is your best estimate of that ingredient\'s weight in grams for the WHOLE recipe (convert counts/spoons/cups using standard weights; 0 only if truly impossible); and kcal/protein_g/carbs_g/fat_g/fiber_g are that ingredient\'s macros for the WHOLE recipe at that weight, anchored to a typical UK supermarket product for that food (e.g. UK semi-skimmed milk, UK back bacon), so per ingredient protein_g*4 + carbs_g*4 + fat_g*9 is close to its kcal. steps = the method as short ordered instructions. macros_per_serving = the nutrition for ONE serving: it MUST equal the sum of every ingredient\'s macros divided by servings (count oils, butter, sauces and cooking fats, they are calorie-dense and easy to miss), so protein_g*4 + carbs_g*4 + fat_g*9 is close to kcal. ALWAYS estimate fibre from the ingredients (vegetables, wholegrains, beans, fruit carry fibre; lean meat and oils carry little); never leave it 0 when fibrous foods are present. Do not lowball or round down; err to the realistic higher end. macros_confidence reflects how complete the source text was. Write all text fields in British English spelling (fibre, yoghurt, flavour) while keeping the JSON keys exactly as specified.';
+const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe from it as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Do NOT estimate per-ingredient nutrition (the app looks each ingredient up in a food database itself). Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [{"name": string, "quantity": number, "unit": string, "grams": number, "note": string}], "steps": [string], "stated_macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number} | null, "macros_confidence": "low"|"medium"|"high"}. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). For each ingredient: name is the plain food ready to look up in a food database (e.g. "chicken thighs", "olive oil", "wholemeal pitta"), with no quantity or brand in the name; quantity + unit are the amount as stated (e.g. 2 "clove", 200 "g", 1 "tbsp"); grams is your best estimate of that ingredient\'s weight in grams for the WHOLE recipe (convert counts/spoons/cups using standard weights; 0 only if truly impossible). steps = the method as short ordered instructions. stated_macros_per_serving = ONLY the per-serving nutrition explicitly stated in the source text (e.g. the caption says "480 kcal, 42g protein per serving"); if the source does not clearly state per-serving macros, return null. Do NOT invent or estimate these. macros_confidence reflects how complete the source text was. Write all text fields in British English spelling (fibre, yoghurt, flavour) while keeping the JSON keys exactly as specified.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
@@ -5366,12 +5366,12 @@ function RecipeReview({ recipe, onSave, onCancel }) {
   const setIng = (i, patch) => setD(x => { const ings = x.ingredients.slice(); ings[i] = Object.assign({}, ings[i], patch); return Object.assign({}, x, { ingredients: ings }); });
   const delIng = (i) => setD(x => ({ ...x, ingredients: x.ingredients.filter((_, k) => k !== i) }));
   const addIng = () => setD(x => ({ ...x, ingredients: x.ingredients.concat([{ id: 'ing_' + Store.uid(), name: '', quantity: null, unit: '', grams: 0, note: '', have: false }]) }));
-  const setMacro = (k, v) => setD(x => ({ ...x, macros_per_serving: Object.assign({}, x.macros_per_serving, { [k]: k === 'kcal' ? Math.round(+v || 0) : +v || 0 }) }));
+  const setGrams = (i, v) => setD(x => { const ings = x.ingredients.slice(); ings[i] = Object.assign({}, ings[i], { grams: Math.max(0, Math.round(+v || 0)), quantity: null, unit: '' }); return Object.assign({}, x, { ingredients: ings }); });
   const setSteps = (txt) => setD(x => ({ ...x, steps: txt.split('\n').map(s => s.trim()).filter(Boolean) }));
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
-    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">The AI estimated this from the video. Tweak anything before saving; macros are per serving.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Tweak the ingredients and amounts, then save. Macros get looked up per ingredient (free) on the recipe page, where you can also scan, photograph a label, or enter your own.</div>
     <Field label="Title"><input value={d.title} onChange={e => set({ title: e.target.value })} className={inputCls} /></Field>
     <Field label="Servings"><input type="number" min="1" value={d.servings} onChange={e => setServings(e.target.value)} className={inputCls + ' w-28'} /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 mt-1">Ingredients</div>
@@ -5379,7 +5379,8 @@ function RecipeReview({ recipe, onSave, onCancel }) {
       {d.ingredients.map((ing, i) => (
         <div key={ing.id} className="flex items-center gap-2">
           <input value={ing.name} onChange={e => setIng(i, { name: e.target.value })} className={inputCls + ' flex-1 py-2'} placeholder="Ingredient" />
-          <span className="text-[11px] text-[#8A8A90] w-20 shrink-0 text-right tnum">{Rcp.amountLabel(ing)}</span>
+          <input type="number" inputMode="numeric" value={ing.grams || ''} onChange={e => setGrams(i, e.target.value)} className={inputCls + ' w-16 py-2 text-right tnum'} placeholder="g" />
+          <span className="text-[11px] text-[#8A8A90]">g</span>
           <button onClick={() => delIng(i)} className="text-[#8A8A90] text-lg leading-none px-1" aria-label="Remove">×</button>
         </div>
       ))}
@@ -5388,14 +5389,7 @@ function RecipeReview({ recipe, onSave, onCancel }) {
     <Field label="Method (one step per line)">
       <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
     </Field>
-    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Macros per serving</div>
-    <div className="grid grid-cols-5 gap-2 mb-4">
-      {MACRO_KEYS.map(([k, l, c]) => (
-        <label key={k} className="block"><div className="text-[10px] mb-1" style={{ color: c }}>{l}</div>
-          <input type="number" value={Math.round(d.macros_per_serving[k] || 0)} onChange={e => setMacro(k, e.target.value)} className={inputCls + ' px-2 py-2 text-center tnum'} /></label>
-      ))}
-    </div>
-    <Btn kind="accent" className="w-full" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.length}>Save recipe</Btn>
+    <Btn kind="accent" className="w-full mt-1" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.length}>Save recipe</Btn>
   </div>);
 }
 // Open Food Facts search-by-name, used for the per-ingredient "Match to a product" brand override.
@@ -5405,122 +5399,197 @@ async function offSearchByName(query) {
   const j = await (await fetch(url)).json();
   return (j.products || []).map(p => { const n = p.nutriments || {}; const k = +n['energy-kcal_100g']; if (!p.product_name || !k) return null; return { name: p.product_name, brand: p.brands || '', code: p.code || '', per100: { kcal: Math.round(k), protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 } }; }).filter(Boolean).slice(0, 12);
 }
-// Per-ingredient brand picker: search UK products on Open Food Facts and swap in real per-100g numbers.
-function MatchProductSheet({ ingredient, onPick, onClose }) {
+// Best free Open Food Facts per-100g match for an ingredient name (top result that has calories).
+async function offResolvePer100(name) {
+  try { const r = await offSearchByName(name); const hit = r.find(x => x.per100 && x.per100.kcal > 0); return hit ? { per100: hit.per100, product: hit.name, barcode: hit.code, brand: hit.brand } : null; }
+  catch (e) { return null; }
+}
+// Typical UK per-100g macros for a list of ingredient names, in ONE cheap (Haiku) call. This is the
+// AI FALLBACK when a free Open Food Facts match isn't available or wanted; per-100g only keeps it small.
+async function aiEstimateIngredientsPer100(names) {
+  const prompt = 'For each UK recipe ingredient below, give the typical nutrition PER 100 g (or per 100 ml) of a standard UK supermarket version as used in cooking. Respond ONLY with compact JSON: {"items":[{"name": string, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}]}, one entry per ingredient in the SAME order. British English spelling. Ingredients:\n' + names.map((n, i) => (i + 1) + '. ' + n).join('\n');
+  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 1500, messages: [{ role: 'user', content: prompt }] });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  const items = parseModelJSON(txt).items || [];
+  const per = (it) => ({ kcal: Math.round(+it.kcal || 0), protein: +(+it.protein_g || 0).toFixed(1), carbs: +(+it.carbs_g || 0).toFixed(1), fat: +(+it.fat_g || 0).toFixed(1), fiber: +(+it.fiber_g || 0).toFixed(1) });
+  return names.map((n, i) => { const it = items[i] || items.find(x => Rcp._norm(x.name) === Rcp._norm(n)) || {}; return { name: n, per100: per(it) }; });
+}
+// Read a nutrition label photo into a per-100g profile (reuses the food-logging label OCR prompt).
+async function labelPer100(files) {
+  const est = await claudeVision(null, files, LABEL_PROMPT, { model: AI_MODEL_FAST, maxTokens: 800, maxImg: 1024 });
+  const p = est.per_100g || {}; let per100 = { kcal: Math.round(+p.kcal || 0), protein: +(+p.protein_g || 0).toFixed(1), carbs: +(+p.carbs_g || 0).toFixed(1), fat: +(+p.fat_g || 0).toFixed(1), fiber: +(+p.fiber_g || 0).toFixed(1) };
+  if (!per100.kcal && est.per_serving && +est.serving_g > 0) { const s = +est.serving_g, ps = est.per_serving; per100 = { kcal: Math.round((+ps.kcal || 0) / s * 100), protein: +((+ps.protein_g || 0) / s * 100).toFixed(1), carbs: +((+ps.carbs_g || 0) / s * 100).toFixed(1), fat: +((+ps.fat_g || 0) / s * 100).toFixed(1), fiber: +((+ps.fiber_g || 0) / s * 100).toFixed(1) }; }
+  return { per100, name: est.name || '' };
+}
+const Per100Line = ({ p }) => <span className="text-[11px] text-[#8A8A90] tnum">{Math.round(p.kcal)} kcal / 100 g · P{Math.round(p.protein)} C{Math.round(p.carbs)} F{Math.round(p.fat)}</span>;
+// Set one ingredient's macros by any of the food-logging methods. Default is a free Open Food Facts
+// search; label photo / manual / AI estimate are there when you have the product or want a fallback.
+// Calls onResolve(per100, { source, product, barcode }). Per-100g x the ingredient grams = its macros.
+function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
   useBackClose(onClose);
+  const [tab, setTab] = useState('search');
   const [q, setQ] = useState(ingredient.name || '');
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [results, setResults] = useState(null);
-  async function run() {
-    if (!q.trim()) return;
-    setBusy(true); setErr(''); setResults(null);
-    try { const r = await offSearchByName(q.trim()); setResults(r); if (!r.length) setErr('No products found. Try a simpler name.'); }
-    catch (e) { setErr('Search failed. Check your connection.'); }
-    setBusy(false);
-  }
-  useEffect(() => { run(); }, []);
+  const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [results, setResults] = useState(null);
+  const [imgs, setImgs] = useState([]); const [labelRes, setLabelRes] = useState(null);
+  const [man, setMan] = useState({ kcal: '', protein: '', carbs: '', fat: '', fiber: '' });
+  async function search() { if (!q.trim()) return; setBusy('search'); setErr(''); setResults(null); try { const r = await offSearchByName(q.trim()); setResults(r); if (!r.length) setErr('No products found. Try a simpler name.'); } catch (e) { setErr('Search failed.'); } setBusy(''); }
+  async function readLabel() { if (!imgs.length) { setErr('Add a photo of the label first.'); return; } setBusy('label'); setErr(''); try { const r = await labelPer100(imgs.map(i => i.file)); if (!r.per100.kcal) { setErr("Could not read the label. Try a clearer photo."); } else setLabelRes(r); } catch (e) { setErr('Label read failed: ' + e.message); } setBusy(''); }
+  async function aiEstimate() { setBusy('ai'); setErr(''); try { const r = await aiEstimateIngredientsPer100([ingredient.name]); onResolve(r[0].per100, { source: 'ai' }); } catch (e) { setErr('Estimate failed: ' + e.message); setBusy(''); } }
+  const tabs = [['search', 'Search'], ['label', 'Label'], ['manual', 'Manual'], ['ai', 'AI']];
+  const gramNote = ingredient.grams > 0 ? 'Scaled to ' + ingredient.grams + ' g in this recipe.' : 'Set an amount (g) on the ingredient to scale it.';
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
-    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold">Match to a product</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none">×</button></div>
-      <div className="text-[12px] text-[#8A8A90] mb-3">Pick your exact UK brand to swap in real label numbers for {ingredient.grams > 0 ? ingredient.grams + ' g of ' : ''}this ingredient.</div>
-      <div className="flex gap-2 mb-3">
-        <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} className={inputCls + ' flex-1'} placeholder="e.g. Warburtons wholemeal" />
-        <Btn kind="accent" onClick={run}>Search</Btn>
-      </div>
-      {busy && <div className="text-[12px] text-[#8A8A90] py-4 text-center">Searching Open Food Facts...</div>}
-      {err && <div className="text-[12px] text-[#F5C542] mb-2">{err}</div>}
-      {results && <div className="space-y-1.5">{results.map((p, i) => (
-        <button key={i} onClick={() => onPick(p)} className="w-full text-left pixel-box p-3" style={{ background: 'var(--surface3)' }}>
-          <div className="text-[13px] font-semibold truncate">{p.name}</div>
-          <div className="text-[11px] text-[#8A8A90] truncate">{p.brand ? p.brand + ' · ' : ''}{p.per100.kcal} kcal / 100 g · P{Math.round(p.per100.protein)} C{Math.round(p.per100.carbs)} F{Math.round(p.per100.fat)}</div>
-        </button>
-      ))}</div>}
+    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for {ingredient.name}</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none shrink-0">×</button></div>
+      <div className="text-[11px] text-[#8A8A90] mb-3">{gramNote}</div>
+      <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-3">{tabs.map(([k, l]) => <button key={k} onClick={() => { setTab(k); setErr(''); }} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      {tab === 'search' && <div>
+        <div className="flex gap-2 mb-3"><input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} className={inputCls + ' flex-1'} placeholder="e.g. wholemeal pitta" /><Btn kind="accent" onClick={search}>Search</Btn></div>
+        {busy === 'search' && <div className="text-[12px] text-[#8A8A90] py-3 text-center">Searching Open Food Facts...</div>}
+        {results && <div className="space-y-1.5">{results.map((p, i) => (<button key={i} onClick={() => onResolve(p.per100, { source: 'off', product: p.name, barcode: p.code, brand: p.brand })} className="w-full text-left pixel-box p-3" style={{ background: 'var(--surface3)' }}><div className="text-[13px] font-semibold truncate">{p.name}</div><div className="truncate">{p.brand ? <span className="text-[11px] text-[#8A8A90]">{p.brand} · </span> : ''}<Per100Line p={p.per100} /></div></button>))}</div>}
+      </div>}
+      {tab === 'label' && <div>
+        <div className="text-[12px] text-[#8A8A90] mb-2">Snap the nutrition label and the AI reads the per-100g numbers, same as logging a packaged food.</div>
+        <PhotoButton label="Photo of nutrition label" onFiles={list => { const f = Array.from(list || []).slice(0, 1).map(x => ({ id: Store.uid(), file: x, url: URL.createObjectURL(x) })); setImgs(f); setLabelRes(null); }} className="w-full mb-2" />
+        {imgs.length > 0 && <div className="flex items-center gap-3 mb-2"><img src={imgs[0].url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><Btn kind="accent" onClick={readLabel}>{busy === 'label' ? 'Reading...' : 'Read label'}</Btn></div>}
+        {labelRes && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)' }}><div className="text-[12px] mb-1">{labelRes.name || 'Label'} <Per100Line p={labelRes.per100} /></div><Btn kind="accent" className="w-full" onClick={() => onResolve(labelRes.per100, { source: 'label', product: labelRes.name })}>Use these numbers</Btn></div>}
+      </div>}
+      {tab === 'manual' && <div>
+        <div className="text-[12px] text-[#8A8A90] mb-2">Enter the values per 100 g / 100 ml (from a label or your own food).</div>
+        <div className="grid grid-cols-5 gap-2 mb-3">{[['kcal', 'kcal'], ['protein', 'P'], ['carbs', 'C'], ['fat', 'F'], ['fiber', 'Fibre']].map(([k, l]) => <label key={k} className="block"><div className="text-[10px] text-[#8A8A90] mb-1">{l}</div><input type="number" inputMode="decimal" value={man[k]} onChange={e => setMan(m => Object.assign({}, m, { [k]: e.target.value }))} className={inputCls + ' px-2 py-2 text-center tnum'} /></label>)}</div>
+        <Btn kind="accent" className="w-full" onClick={() => onResolve({ kcal: Math.round(+man.kcal || 0), protein: +man.protein || 0, carbs: +man.carbs || 0, fat: +man.fat || 0, fiber: +man.fiber || 0 }, { source: 'manual' })} disabled={!(+man.kcal || +man.protein || +man.carbs || +man.fat)}>Save these numbers</Btn>
+      </div>}
+      {tab === 'ai' && <div className="text-center py-2">
+        <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Let the AI estimate typical UK macros for {ingredient.name}. Use this only when the food isn't in the database.</div>
+        <Btn kind="accent" className="w-full" onClick={aiEstimate}>{busy === 'ai' ? 'Estimating...' : 'Estimate with AI'}</Btn>
+      </div>}
+      {err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}
     </div>
   </div>);
 }
 function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRecipe, onSaveMeal }) {
   useBackClose(onBack);
-  const [servings, setServings] = useState(recipe.servings);
-  const [pickMeal, setPickMeal] = useState(null); // { mode } once a meal is chosen
-  const [matchIng, setMatchIng] = useState(null);  // ingredient being brand-matched
-  const scaled = servings === recipe.servings ? recipe : Rcp.scaleServings(recipe, servings);
+  const [pickMeal, setPickMeal] = useState(null); // { mode }
+  const [setMacrosIng, setSetMacrosIng] = useState(null); // ingredient whose macros are being set
+  const [busy, setBusy] = useState('');
+  const [editSteps, setEditSteps] = useState(false);
+  const autoTried = useRef(false);
   const meals = mealsForDay(db, Store.todayISO());
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
-  const rem = et ? { kcal: et.eff.kcal - sumMacros(entriesOn(db, today)).kcal, protein: et.eff.protein_g - sumMacros(entriesOn(db, today)).protein, carbs: et.eff.carbs_g - sumMacros(entriesOn(db, today)).carbs, fat: et.eff.fat_g - sumMacros(entriesOn(db, today)).fat } : null;
+  const tot = et ? sumMacros(entriesOn(db, today)) : null;
+  const rem = et ? { kcal: et.eff.kcal - tot.kcal, protein: et.eff.protein_g - tot.protein, carbs: et.eff.carbs_g - tot.carbs, fat: et.eff.fat_g - tot.fat } : null;
   const fit = rem ? Rcp.fitScore(recipe.macros_per_serving, rem) : null;
-  const toggleHave = (ingId) => update(d => { const r = (d.recipes || []).find(x => x.id === recipe.id); if (!r) return; const ing = r.ingredients.find(x => x.id === ingId); if (ing) ing.have = !ing.have; });
+  const total = (recipe.ingredients || []).length;
+  const resolved = Rcp.resolvedCount(recipe);
   const missing = recipe.ingredients.filter(i => !i.have);
+
+  // Mutate this recipe in the store, recomputing per-serving macros from resolved ingredients.
+  function patch(fn) {
+    update(d => { const r = (d.recipes || []).find(x => x.id === recipe.id); if (!r) return; fn(r, d); const rc = Rcp.resolvedCount(r); if (rc > 0) { r.macros_per_serving = Rcp.computePerServing(r).macros; r.macros_source = 'computed'; } r.updated_at = Date.now(); });
+  }
+  const setMacros = (ingId, per100, meta) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return; ing.resolved = Object.assign({ per100: per100 }, meta); ing.macros = Rcp.macrosFromPer100(per100, ing.grams); });
+  function setGrams(ingId, g) { patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return; ing.grams = Math.max(0, Math.round(+g || 0)); if (ing.resolved && ing.resolved.per100) ing.macros = Rcp.macrosFromPer100(ing.resolved.per100, ing.grams); else if (ing.macros && !ing.resolved) ing.macros = null; }); }
+  const setName = (ingId, name) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (ing) ing.name = name.trim(); });
+  const removeIng = (ingId) => patch((r) => { r.ingredients = r.ingredients.filter(x => x.id !== ingId); });
+  const addIng = () => patch((r) => { r.ingredients = r.ingredients.concat([{ id: 'ing_' + Store.uid(), name: '', quantity: null, unit: '', grams: 0, note: '', have: false, macros: null, resolved: null }]); });
+  const toggleHave = (ingId) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (ing) ing.have = !ing.have; });
+  const setServings = (n) => patch((r) => { const s2 = Rcp.scaleServings(r, n); r.servings = s2.servings; r.ingredients = s2.ingredients; });
+  const setTitle = (t) => patch((r) => { if (t.trim()) r.title = t.trim(); });
+  const setSteps = (txt) => patch((r) => { r.steps = txt.split('\n').map(s => s.trim()).filter(Boolean); });
+  const useStated = () => patch((r) => { if (r.stated_macros) { r.macros_per_serving = r.stated_macros; r.macros_source = 'stated'; } });
+
+  // Free default: look each unresolved ingredient up on Open Food Facts (no AI). Runs once on open.
+  async function resolveOff(auto) {
+    const todo = (recipe.ingredients || []).filter(i => !i.macros && i.name && i.grams > 0);
+    if (!todo.length) { if (!auto) showToast('Every ingredient already has macros'); return; }
+    setBusy('Looking up ingredients...');
+    const found = await Promise.all(todo.map(i => offResolvePer100(i.name).then(r => ({ id: i.id, r: r })).catch(() => ({ id: i.id, r: null }))));
+    let n = 0;
+    patch((r) => { found.forEach(f => { if (!f.r) return; const ing = r.ingredients.find(x => x.id === f.id); if (!ing || ing.macros) return; ing.resolved = { source: 'off', per100: f.r.per100, product: f.r.product, barcode: f.r.barcode, brand: f.r.brand }; ing.macros = Rcp.macrosFromPer100(f.r.per100, ing.grams); n++; }); });
+    setBusy('');
+    if (!auto) showToast(n ? ('Priced ' + n + ' ingredient' + (n === 1 ? '' : 's') + ' from Open Food Facts') : 'No database matches; try label, manual or AI');
+  }
+  // Fallback: one cheap AI call estimates per-100g for every still-unresolved ingredient.
+  async function resolveAi() {
+    const todo = (recipe.ingredients || []).filter(i => !i.macros && i.name);
+    if (!todo.length) { showToast('Every ingredient already has macros'); return; }
+    setBusy('Estimating with AI...');
+    try {
+      const ests = await aiEstimateIngredientsPer100(todo.map(i => i.name));
+      patch((r) => { ests.forEach((e, k) => { const ing = r.ingredients.find(x => x.id === todo[k].id); if (!ing || ing.macros || !e.per100.kcal) return; ing.resolved = { source: 'ai', per100: e.per100 }; ing.macros = Rcp.macrosFromPer100(e.per100, ing.grams); }); });
+      showToast('Estimated the rest with AI');
+    } catch (e) { showToast('AI estimate failed: ' + e.message); }
+    setBusy('');
+  }
+  useEffect(() => { if (!autoTried.current && total && resolved < total && recipe.macros_source !== 'stated') { autoTried.current = true; resolveOff(true); } }, []);
+
+  function doLog(mode) { if (meals.length > 1) setPickMeal({ mode }); else onLogRecipe(meals[0] && meals[0].id, recipe, mode); }
+  function logToMeal(mealId) { onLogRecipe(mealId, recipe, pickMeal.mode); setPickMeal(null); }
   function addMissingToShopping() {
     const additions = missing.map(i => ({ name: i.name, qty_label: Rcp.amountLabel(i), recipe_id: recipe.id }));
     let added = 0;
-    update(d => {
-      const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions);
-      added = fresh.length;
-      d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: recipe.id, checked: false, added_at: Date.now() })));
-    });
-    showToast(added ? ('Added ' + added + ' item' + (added === 1 ? '' : 's') + ' to your shopping list') : 'Those are already on your list');
+    update(d => { const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions); added = fresh.length; d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: recipe.id, checked: false, added_at: Date.now() }))); });
+    showToast(added ? ('Added ' + added + ' to your shopping list') : 'Those are already on your list');
   }
-  function doLog(mode) { if (meals.length > 1) setPickMeal({ mode }); else { onLogRecipe(meals[0] && meals[0].id, recipe, mode); } }
-  function logToMeal(mealId) { onLogRecipe(mealId, recipe, pickMeal.mode); setPickMeal(null); }
-  // Swap an ingredient to a specific product's per-100g numbers, then recompute per-serving macros.
-  function applyMatch(product) {
-    const ingId = matchIng.id;
-    update(d => {
-      const r = (d.recipes || []).find(x => x.id === recipe.id); if (!r) return;
-      const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return;
-      const g = ing.grams || 0, p = product.per100;
-      ing.resolved = { source: 'off', per100: p, barcode: product.code || '', product: product.name, brand: product.brand || '' };
-      if (g > 0) ing.macros = { kcal: Math.round(p.kcal * g / 100), protein: +(p.protein * g / 100).toFixed(1), carbs: +(p.carbs * g / 100).toFixed(1), fat: +(p.fat * g / 100).toFixed(1), fiber: +((p.fiber || 0) * g / 100).toFixed(1) };
-      const s = Math.max(1, r.servings || 1);
-      const tot = r.ingredients.reduce((a, x) => { const m = x.macros || {}; return { kcal: a.kcal + (+m.kcal || 0), protein: a.protein + (+m.protein || 0), carbs: a.carbs + (+m.carbs || 0), fat: a.fat + (+m.fat || 0), fiber: a.fiber + (+m.fiber || 0) }; }, { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
-      r.macros_per_serving = { kcal: Math.round(tot.kcal / s), protein: +(tot.protein / s).toFixed(1), carbs: +(tot.carbs / s).toFixed(1), fat: +(tot.fat / s).toFixed(1), fiber: +(tot.fiber / s).toFixed(1) };
-      r.updated_at = Date.now();
-    });
-    setMatchIng(null); showToast('Swapped in ' + product.name);
-  }
+  const srcNote = recipe.macros_source === 'stated' ? 'as stated in the recipe' : resolved >= total && total ? 'from all ' + total + ' ingredients' : resolved > 0 ? 'from ' + resolved + ' of ' + total + ' ingredients' : 'not set yet';
   const fitColor = !fit ? MUTED : fit.fitsKcal ? 'var(--good)' : fit.overKcal <= (rem.kcal * 0.15) ? '#F5C542' : '#ff6b6b';
+  const srcDot = { off: 'var(--good)', label: 'var(--good)', barcode: 'var(--good)', manual: 'var(--accent)', ai: '#F5C542' };
   return (<div className="fade-in">
     <div className="flex items-center justify-between mb-3">
       <button onClick={onBack} className="text-[13px] text-[#8A8A90]">‹ Recipes</button>
       <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="text-[12px]" style={{ color: 'var(--accent)' }}>Save as meal</button><button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
     </div>
     {recipe.thumbnail && <img src={recipe.thumbnail} className="w-full h-40 object-cover rounded-2xl border border-[#262629] mb-3" alt="" />}
-    <h1 className="text-xl font-bold leading-tight mb-1">{recipe.title}</h1>
-    <div className="text-[12px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>}</div>
-    <Card className="p-3 mb-4 mt-2">
+    <input key={recipe.id} defaultValue={recipe.title} onBlur={e => setTitle(e.target.value)} className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none" />
+    <div className="text-[12px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>} · tap anything to make it yours</div>
+    <Card className="p-3 mb-3 mt-2">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[11px] text-[#8A8A90]">Macros per serving{recipe.macros_confidence ? ' · ' + recipe.macros_confidence + ' confidence' : ''}</div>
-        {fit && <span className="pf text-[8px] uppercase px-2 py-1 rounded" style={{ color: fitColor, border: '1px solid ' + fitColor }}>{fit.fitsKcal ? 'fits today' : fit.overKcal + ' over'}</span>}
+        <div className="text-[11px] text-[#8A8A90]">Macros per serving · {srcNote}</div>
+        {fit && recipe.macros_per_serving.kcal > 0 && <span className="pf text-[8px] uppercase px-2 py-1 rounded" style={{ color: fitColor, border: '1px solid ' + fitColor }}>{fit.fitsKcal ? 'fits today' : fit.overKcal + ' over'}</span>}
       </div>
-      <RecipeMacroStrip macros={recipe.macros_per_serving} per />
-      {fit && rem && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">A serving is {Math.round(recipe.macros_per_serving.kcal || 0)} kcal; you have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today.</div>}
+      {recipe.macros_per_serving.kcal > 0 ? <RecipeMacroStrip macros={recipe.macros_per_serving} per /> : <div className="text-[12px] text-[#8A8A90]">Add amounts, then look ingredients up (free) or estimate with AI.</div>}
+      {fit && rem && recipe.macros_per_serving.kcal > 0 && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal; you have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today.</div>}
     </Card>
+    {resolved < total && <div className="flex gap-2 mb-4">
+      <Btn kind="accent" className="flex-1" onClick={() => resolveOff(false)} disabled={!!busy}>{busy === 'Looking up ingredients...' ? 'Looking up...' : 'Look up ingredients (free)'}</Btn>
+      <Btn kind="ghost" onClick={resolveAi} disabled={!!busy}>{busy === 'Estimating with AI...' ? '...' : 'AI'}</Btn>
+    </div>}
+    {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="text-[12px] mb-4 -mt-2 underline" style={{ color: 'var(--accent)' }}>Use the recipe's stated macros instead</button>}
     <div className="flex items-center justify-between mb-2">
       <div className="text-lg font-bold">Ingredients</div>
       <div className="flex items-center gap-2 text-[12px]">
         <span className="text-[#8A8A90]">Serves</span>
-        <button onClick={() => setServings(s => Math.max(1, s - 1))} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>-</button>
-        <span className="tnum w-5 text-center font-bold">{servings}</span>
-        <button onClick={() => setServings(s => s + 1)} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>+</button>
+        <button onClick={() => setServings(Math.max(1, recipe.servings - 1))} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>-</button>
+        <span className="tnum w-5 text-center font-bold">{recipe.servings}</span>
+        <button onClick={() => setServings(recipe.servings + 1)} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>+</button>
       </div>
     </div>
-    <div className="text-[11px] text-[#8A8A90] mb-2">Tick what you have (rest goes to shopping). Tap the tag to match a UK brand for exact macros.</div>
-    <div className="space-y-0.5 mb-3">
-      {scaled.ingredients.map((ing) => (
-        <div key={ing.id} className="flex items-center gap-3 py-2">
-          <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? '✓' : ''}</button>
-          <button onClick={() => toggleHave(ing.id)} className="text-[14px] flex-1 min-w-0 text-left truncate" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{ing.name}{ing.resolved && ing.resolved.source === 'off' && <span className="ml-1.5 text-[10px]" style={{ color: 'var(--good)' }}>●</span>}</button>
-          <button onClick={() => setMatchIng(ing)} className="text-[11px] tnum shrink-0 px-2 py-1 rounded" style={{ color: 'var(--muted)', border: '1px solid var(--border)' }}>{Rcp.amountLabel(ing) || 'match'}</button>
+    <div className="text-[11px] text-[#8A8A90] mb-2">Tick what you have. Tap the macros tag to set exact numbers (search, label photo, manual or AI).</div>
+    <div className="space-y-2.5 mb-3">
+      {recipe.ingredients.map((ing) => (
+        <div key={ing.id}>
+          <div className="flex items-center gap-2.5">
+            <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? '✓' : ''}</button>
+            <input defaultValue={ing.name} onBlur={e => setName(ing.id, e.target.value)} placeholder="Ingredient" className="text-[14px] flex-1 min-w-0 bg-transparent focus:outline-none" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)' }} />
+            <input defaultValue={ing.grams || ''} onBlur={e => setGrams(ing.id, e.target.value)} type="number" inputMode="numeric" className="w-14 text-right text-[13px] tnum bg-transparent focus:outline-none text-[#8A8A90]" placeholder="g" />
+            <span className="text-[11px] text-[#8A8A90]">g</span>
+            <button onClick={() => removeIng(ing.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove">×</button>
+          </div>
+          <button onClick={() => setSetMacrosIng(ing)} className="mt-0.5 text-[11px] flex items-center gap-1.5" style={{ marginLeft: 30, color: ing.macros ? 'var(--muted)' : 'var(--accent)' }}>
+            {ing.resolved && <span style={{ color: srcDot[ing.resolved.source] || MUTED }}>●</span>}
+            {ing.macros ? <span className="tnum">{Math.round(ing.macros.kcal)} kcal · P{Math.round(ing.macros.protein)} C{Math.round(ing.macros.carbs)} F{Math.round(ing.macros.fat)}{ing.resolved && ing.resolved.product ? ' · ' + ing.resolved.product : ''}</span> : <span>Set macros ›</span>}
+          </button>
         </div>
       ))}
     </div>
+    <button onClick={addIng} className="text-[12px] mb-4" style={{ color: 'var(--accent)' }}>+ Add ingredient</button>
     <Btn kind="ghost" className="w-full mb-5" onClick={addMissingToShopping} disabled={!missing.length}>{missing.length ? ('Add ' + missing.length + ' missing to shopping list') : 'You have everything'}</Btn>
-    {(recipe.steps || []).length > 0 && <><div className="text-lg font-bold mb-2">Method</div>
-      <ol className="space-y-2 mb-6">
-        {recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}
-      </ol></>}
-    <Btn kind="accent" className="w-full" onClick={() => doLog('items')}>Log a serving to today</Btn>
-    <button onClick={() => doLog('single')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log as a single item instead</button>
+    <div className="flex items-center justify-between mb-2"><div className="text-lg font-bold">Method</div><button onClick={() => setEditSteps(v => !v)} className="text-[12px]" style={{ color: 'var(--accent)' }}>{editSteps ? 'Done' : 'Edit'}</button></div>
+    {editSteps ? <textarea defaultValue={(recipe.steps || []).join('\n')} onBlur={e => setSteps(e.target.value)} rows={Math.max(4, (recipe.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed mb-6'} placeholder="One instruction per line" />
+      : (recipe.steps || []).length > 0 ? <ol className="space-y-2 mb-6">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}</ol>
+      : <div className="text-[12px] text-[#8A8A90] mb-6">No method yet. Tap Edit to add the steps.</div>}
+    <Btn kind="accent" className="w-full" onClick={() => doLog('single')} disabled={!(recipe.macros_per_serving.kcal > 0)}>{recipe.macros_per_serving.kcal > 0 ? 'Log a serving to today' : 'Set the macros to log this'}</Btn>
+    {resolved > 0 && recipe.macros_per_serving.kcal > 0 && <button onClick={() => doLog('items')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log itemised (one diary entry per ingredient)</button>}
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
       <BackClose onClose={() => setPickMeal(null)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
@@ -5529,7 +5598,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div className="space-y-2">{meals.map(m => <button key={m.id} onClick={() => logToMeal(m.id)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{m.name}</button>)}</div>
       </div>
     </div>}
-    {matchIng && <MatchProductSheet ingredient={matchIng} onPick={applyMatch} onClose={() => setMatchIng(null)} />}
+    {setMacrosIng && <IngredientMacroSheet ingredient={recipe.ingredients.find(x => x.id === setMacrosIng.id) || setMacrosIng} onResolve={(per100, meta) => { setMacros(setMacrosIng.id, per100, meta); setSetMacrosIng(null); showToast('Set macros for ' + setMacrosIng.name); }} onClose={() => setSetMacrosIng(null)} />}
   </div>);
 }
 function ShoppingListView({ db, update, onBack }) {
