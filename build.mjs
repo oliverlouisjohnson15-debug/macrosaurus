@@ -37,6 +37,7 @@ const engineJs = read('app/engine.js').trim();
 const storeJs = read('app/store.js').trim();
 const gameJs = read('app/game.js').trim();
 const quantityJs = read('app/quantity.js').trim();
+const recipeJs = read('app/recipe.js').trim();
 
 let html = read('index.html');
 
@@ -68,6 +69,15 @@ if (html.includes('<script>\n/*\n * game.js')) {
 }
 // quantity block
 spliceBlock('<script>\n/*\n * quantity.js', '<script>\n' + quantityJs + '\n</script>', '</script>');
+// recipe block (pure recipe helpers) - splice if present, else first-time insert after quantity
+const recipeBlock = '<script>\n' + recipeJs + '\n</script>';
+if (html.includes('<script>\n/*\n * recipe.js')) {
+  spliceBlock('<script>\n/*\n * recipe.js', recipeBlock, '</script>');
+} else {
+  const qEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * quantity.js')) + '</script>'.length;
+  if (qEnd < '</script>'.length) throw new Error('quantity block end not found for recipe.js insertion');
+  html = html.slice(0, qEnd) + '\n' + recipeBlock + html.slice(qEnd);
+}
 // app block (transpiled)
 spliceBlock('<script>const {', '<script>' + transpiled + '\n</script>', '</script>');
 

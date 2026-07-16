@@ -2,6 +2,7 @@ const { useState, useEffect, useMemo, useRef } = React;
 const E = window.Engine;
 const Store = window.Store;
 const Q = window.Quantity;
+const Rcp = window.Recipe;
 const LB_PER_KG = 2.2046226218;
 const BRAND = 'Macrosaurus';
 // palette
@@ -94,6 +95,10 @@ const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutriti
 // key, so users never need to bring their own. The proxy checks the signed-in user and enforces a
 // small monthly spend cap per account. No API key is ever shipped to the browser.
 const AI_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/ai-proxy';
+// recipe-extract fetches the public text (title, description, transcript, caption) behind a shared
+// YouTube/Instagram link server-side (the browser can't, due to CORS). It holds no key and calls no
+// paid API; we then hand its text to the normal ai-proxy to structure into a recipe.
+const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/recipe-extract';
 function fileToDataURL(file) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); }); }
 // Downscale + re-encode to JPEG so requests stay small and reliable across devices.
 async function imageToB64(file, max) {
@@ -148,6 +153,33 @@ async function coachNarrative(key, payload) {
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 240, messages: [{ role: 'user', content: prompt }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
+// ---- Recipe extraction + structuring --------------------------------------------------------
+// Fetch the public text behind a shared YouTube/Instagram link via the recipe-extract Edge Function.
+// Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
+async function extractRecipeSource(url) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) throw new Error('Please sign in to import recipes.');
+  const res = await fetch(RECIPE_EXTRACT, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+    body: JSON.stringify({ url }),
+  });
+  const j = await res.json().catch(() => ({ ok: false, note: 'Could not reach the extractor.' }));
+  return j;
+}
+// Turn extracted source text into a normalised recipe via the existing ai-proxy. `meta` carries the
+// platform/url/thumbnail we already know so the model doesn't have to guess them.
+async function structureRecipe(sourceText, meta) {
+  const j = await aiRequest({ model: AI_MODEL, max_tokens: 2048, messages: [{ role: 'user', content: RECIPE_PROMPT + '\n\nSOURCE TEXT:\n' + sourceText }] });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  return Rcp.normalize(parseModelJSON(txt), meta || {});
+}
+// Fallback path: structure a recipe straight from screenshot(s) of the recipe (reuses claudeVision).
+async function structureRecipeFromImages(files, meta) {
+  const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached screenshot(s).', { model: AI_MODEL, maxTokens: 2048, maxImg: 1024 });
+  return Rcp.normalize(raw, meta || {});
+}
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
 // comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open , 
 // strict JSON.parse rejects all of these, so we clean and, as a last resort, auto-close.
@@ -198,6 +230,7 @@ function autoClose(json) {
 }
 const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the numbers printed on it. UK labels usually have a PER 100 g / 100 ml column, and sometimes also a PER SERVING / PER PORTION / PER PACK column. Read each column EXACTLY as printed. Do NOT convert, scale, invent or mix columns. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. per_100g = the per-100 g/ml column (all 0 if not printed). per_serving = the per-serving/portion/pack column (all 0 if not printed). If only one column exists, fill it and leave the other all 0; NEVER scale one column into the other. serving_g and serving_label describe ONE natural unit the person would count and log, chosen in this priority order: (1) if the pack states a piece/item COUNT and a total pack WEIGHT (for example "12 meatballs" with "340 g", or "6 fish fingers 200 g"), set serving_g to the weight of ONE piece = round(total weight divided by count) and serving_label to a singular piece name like "1 meatball" or "1 fish finger"; (2) else if a single serving or portion size is stated (for example "per 30 g", "1 pot 125 g"), use it with a label like "1 pot" or "1 serving"; (3) else if only a whole pack/can/bottle size is stated, use it with a label like "1 can"; (4) else serving_g 0 and serving_label "". Use the product photo and all pack text (piece count, total weight, "contains N portions") to work this out. ACCURACY IS CRITICAL: read the EXACT printed digits for every value that is visible on the label (for example if it prints "Fat 2.5g", return 2.5, not a rounded or guessed number). Look carefully at the small print. Only when a macro is genuinely absent, blank or physically unreadable should you ESTIMATE it from the product name/type and the stated calories so that protein_g×4 + carbs_g×4 + fat_g×9 approximately equals the stated kcal for that column, and set "macros_estimated": true; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0. Write the product name in British English spelling, keeping the JSON keys exactly as specified.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD, anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent, these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
+const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe from it as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [{"name": string, "quantity": number, "unit": string, "grams": number, "note": string}], "steps": [string], "macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_confidence": "low"|"medium"|"high"}. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). For each ingredient: name is the plain food (e.g. "chicken thighs", "olive oil"); quantity + unit are the amount as stated (e.g. 2 "clove", 200 "g", 1 "tbsp"), and grams is your best estimate of that ingredient\'s weight in grams for the WHOLE recipe (convert counts/spoons/cups using standard weights; 0 only if truly impossible). steps = the method as short ordered instructions. macros_per_serving = the nutrition for ONE serving: estimate the whole recipe from the ingredients (count oils, butter, sauces and cooking fats, they are calorie-dense and easy to miss) then divide by servings, so protein_g*4 + carbs_g*4 + fat_g*9 is close to kcal. ALWAYS estimate fibre from the ingredients (vegetables, wholegrains, beans, fruit carry fibre; lean meat and oils carry little); never leave it 0 when fibrous foods are present. Do not lowball or round down; err to the realistic higher end. macros_confidence reflects how complete the source text was. Write all text fields in British English spelling (fibre, yoghurt, flavour) while keeping the JSON keys exactly as specified.';
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
@@ -479,6 +512,8 @@ const Icon = {
   star: (a) => <svg {...a} viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.4 4.1 1.2 6-5.4-3-5.4 3 1.2-6L3.4 9.3l6-.7z" /></svg>,
   chevron: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6l6 6-6 6" /></svg>,
   mic: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0 0 12 0" /><path d="M12 17v4M9 21h6" /></svg>,
+  recipe: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h9a3 3 0 0 1 3 3v15H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M9 7h6M9 11h6M9 15h4" /></svg>,
+  cart: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h2l2.2 11.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20.5 8H6" /><circle cx="9" cy="20" r="1.3" /><circle cx="17" cy="20" r="1.3" /></svg>,
 };
 
 /* ---------- charts ---------- */
@@ -5096,13 +5131,16 @@ function Toast({ toast }) {
   );
 }
 
-const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['goals', 'GOAL', Icon.goal], ['more', 'MENU', Icon.more]];
+const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'GOAL', Icon.goal], ['more', 'MENU', Icon.more]];
+// The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
+// header (MobileHeader) and the desktop Sidebar instead. Bottom bar: HOME, FOOD, (Add), COOK, GOAL.
+const BOTTOM_NAV = NAV_ITEMS.filter(([k]) => k !== 'more');
 function BottomNav({ view, setView, onAdd }) {
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2" style={{ height: 'calc(64px + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)', background: 'var(--header)', borderColor: 'var(--border)' }}>
-      {NAV_ITEMS.slice(0, 2).map(([k, l, Ic]) => <NavBtn key={k} k={k} l={l} Ic={Ic} view={view} setView={setView} />)}
+      {BOTTOM_NAV.slice(0, 2).map(([k, l, Ic]) => <NavBtn key={k} k={k} l={l} Ic={Ic} view={view} setView={setView} />)}
       <div className="flex-1 flex justify-center"><button onClick={onAdd} className="w-[68px] h-[68px] pixel-btn flex items-center justify-center -mt-[72px]" style={{ background: '#fff', color: '#111' }}><Icon.plus width="32" height="32" /></button></div>
-      {NAV_ITEMS.slice(2).map(([k, l, Ic]) => <NavBtn key={k} k={k} l={l} Ic={Ic} view={view} setView={setView} />)}
+      {BOTTOM_NAV.slice(2).map(([k, l, Ic]) => <NavBtn key={k} k={k} l={l} Ic={Ic} view={view} setView={setView} />)}
     </div>
   );
 }
@@ -5198,6 +5236,290 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     </div>
   </Card>);
 }
+
+/* ========================== Recipes module ==========================
+   Share a YouTube Short / Instagram Reel (or paste a link/caption) -> the recipe-extract Edge
+   Function pulls the public text -> ai-proxy structures it into ingredients + steps + per-serving
+   macros -> save it, tick what you have (the rest rolls up into a shopping list), and log a cooked
+   serving straight into the food diary via the same addEntry path everything else uses. */
+const MACRO_KEYS = [['kcal', 'kcal', CAL], ['protein', 'P', PRO], ['carbs', 'C', CARB], ['fat', 'F', FAT], ['fiber', 'Fibre', 'var(--good)']];
+function RecipeMacroStrip({ macros, per }) {
+  return (<div className="flex flex-wrap gap-x-4 gap-y-1">
+    {MACRO_KEYS.map(([k, l, c]) => (
+      <div key={k} className="flex items-baseline gap-1">
+        <span className="tnum text-[13px] font-bold" style={{ color: c }}>{Math.round(macros[k] || 0)}{k === 'kcal' ? '' : 'g'}</span>
+        <span className="text-[10px] text-[#8A8A90]">{l}</span>
+      </div>
+    ))}
+    {per && <span className="text-[10px] text-[#8A8A90] self-center">/ serving</span>}
+  </div>);
+}
+function RecipeCard({ recipe, onOpen }) {
+  const m = recipe.macros_per_serving || {};
+  return (<button onClick={onOpen} className="w-full text-left mb-3 active:opacity-70 transition-opacity">
+    <Card className="p-3 flex gap-3 items-center">
+      <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'var(--surface3)' }}>
+        {recipe.thumbnail ? <img src={recipe.thumbnail} className="w-full h-full object-cover" alt="" /> : <Icon.recipe width="24" height="24" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[14px] font-semibold truncate">{recipe.title}</div>
+        <div className="text-[11px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)} · serves {recipe.servings}</div>
+        <div className="flex items-center gap-3 text-[11px]"><span className="tnum font-bold" style={{ color: CAL }}>{Math.round(m.kcal || 0)}</span><span className="text-[#8A8A90]">kcal/serving</span></div>
+      </div>
+      <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
+    </Card>
+  </button>);
+}
+// The import + review flow. `initialUrl` is set when arriving from a share; otherwise the user pastes
+// a link or (fallback) a caption / screenshots. Any extraction failure reveals the manual fallbacks.
+function RecipeImport({ initialUrl, onSaved, onCancel }) {
+  useBackClose(onCancel);
+  const [url, setUrl] = useState(initialUrl || '');
+  const [caption, setCaption] = useState('');
+  const [imgs, setImgs] = useState([]); // { id, file, url }
+  const [showFallback, setShowFallback] = useState(false);
+  const [busy, setBusy] = useState(''); const [err, setErr] = useState('');
+  const [draft, setDraft] = useState(null);
+  const ran = useRef(false);
+  function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, 3)); }
+  function removeImg(id) { setImgs(x => x.filter(f => f.id !== id)); }
+
+  async function fromLink(u) {
+    setErr(''); setBusy('Reading the video...');
+    try {
+      const src = await extractRecipeSource(u);
+      const meta = { platform: src.platform || (Rcp.detectShare(u) || {}).platform || '', url: u, title: src.title || '', thumbnail: src.thumbnail || '' };
+      if (!src.ok || !src.sourceText) {
+        setShowFallback(true);
+        setErr(src.note || 'Could not read that link automatically. Paste the caption or add a screenshot below.');
+        setBusy(''); return;
+      }
+      setBusy('Building the recipe...');
+      const rec = await structureRecipe(src.sourceText, meta);
+      setDraft(rec);
+    } catch (e) { setErr(e.message || 'Import failed.'); setShowFallback(true); }
+    setBusy('');
+  }
+  async function fromCaption() {
+    if (!caption.trim()) { setErr('Paste the recipe caption or text first.'); return; }
+    setErr(''); setBusy('Building the recipe...');
+    try {
+      const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
+      setDraft(await structureRecipe(caption.trim(), meta));
+    } catch (e) { setErr(e.message || 'Import failed.'); }
+    setBusy('');
+  }
+  async function fromImages() {
+    if (!imgs.length) { setErr('Add at least one screenshot of the recipe.'); return; }
+    setErr(''); setBusy('Reading the screenshots...');
+    try {
+      const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
+      setDraft(await structureRecipeFromImages(imgs.map(i => i.file), meta));
+    } catch (e) { setErr(e.message || 'Import failed.'); }
+    setBusy('');
+  }
+  // Auto-run once when opened straight from a share.
+  useEffect(() => { if (initialUrl && !ran.current) { ran.current = true; fromLink(initialUrl); } }, [initialUrl]);
+
+  if (draft) return <RecipeReview recipe={draft} onSave={onSaved} onCancel={() => setDraft(null)} />;
+  if (busy) return <DinoLoader label={busy} />;
+  return (<div className="fade-in">
+    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
+    <div className="text-lg font-bold mb-1">Import a recipe</div>
+    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Share a YouTube Short or Instagram Reel into Macrosaurus, or paste its link here. The AI breaks it into ingredients, steps and per-serving macros for you to check.</div>
+    <Field label="Video link">
+      <input value={url} onChange={e => setUrl(e.target.value)} className={inputCls} placeholder="https://www.youtube.com/shorts/... or instagram.com/reel/..." inputMode="url" autoCapitalize="off" autoCorrect="off" />
+    </Field>
+    <Btn kind="accent" className="w-full" onClick={() => url.trim() ? fromLink(url.trim()) : setErr('Paste a YouTube or Instagram link first.')}>Get recipe from link</Btn>
+    <button onClick={() => setShowFallback(v => !v)} className="w-full text-[12px] text-[#8A8A90] mt-4 underline">{showFallback ? 'Hide' : 'Link not working? Paste the caption or add a screenshot'}</button>
+    {showFallback && <div className="mt-3 fade-in">
+      <Field label="Paste caption / recipe text" hint="The description or caption under the video usually has the full recipe.">
+        <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={5} className={inputCls + ' resize-y leading-relaxed'} placeholder="Paste the recipe text here" />
+      </Field>
+      <Btn kind="ghost" className="w-full mb-4" onClick={fromCaption}>Build from pasted text</Btn>
+      <div className="mb-1"><PhotoButton label="Add recipe screenshots" multiple onFiles={addImgs} className="w-full" /></div>
+      {imgs.length > 0 && <div className="flex gap-2 flex-wrap my-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
+      {imgs.length > 0 && <Btn kind="ghost" className="w-full" onClick={fromImages}>Build from screenshots</Btn>}
+    </div>}
+    {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in leading-snug">{err}</div>}
+  </div>);
+}
+// Editable review before saving: title, servings (rescales amounts), ingredients, steps, per-serving macros.
+function RecipeReview({ recipe, onSave, onCancel }) {
+  const [d, setD] = useState(recipe);
+  const set = (patch) => setD(x => Object.assign({}, x, patch));
+  const setServings = (n) => { const s = Math.max(1, Math.round(+n) || 1); setD(x => Rcp.scaleServings(x, s)); };
+  const setIng = (i, patch) => setD(x => { const ings = x.ingredients.slice(); ings[i] = Object.assign({}, ings[i], patch); return Object.assign({}, x, { ingredients: ings }); });
+  const delIng = (i) => setD(x => ({ ...x, ingredients: x.ingredients.filter((_, k) => k !== i) }));
+  const addIng = () => setD(x => ({ ...x, ingredients: x.ingredients.concat([{ id: 'ing_' + Store.uid(), name: '', quantity: null, unit: '', grams: 0, note: '', have: false }]) }));
+  const setMacro = (k, v) => setD(x => ({ ...x, macros_per_serving: Object.assign({}, x.macros_per_serving, { [k]: k === 'kcal' ? Math.round(+v || 0) : +v || 0 }) }));
+  const setSteps = (txt) => setD(x => ({ ...x, steps: txt.split('\n').map(s => s.trim()).filter(Boolean) }));
+  return (<div className="fade-in">
+    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
+    <div className="text-lg font-bold mb-1">Check the recipe</div>
+    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">The AI estimated this from the video. Tweak anything before saving; macros are per serving.</div>
+    <Field label="Title"><input value={d.title} onChange={e => set({ title: e.target.value })} className={inputCls} /></Field>
+    <Field label="Servings"><input type="number" min="1" value={d.servings} onChange={e => setServings(e.target.value)} className={inputCls + ' w-28'} /></Field>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 mt-1">Ingredients</div>
+    <div className="space-y-2 mb-2">
+      {d.ingredients.map((ing, i) => (
+        <div key={ing.id} className="flex items-center gap-2">
+          <input value={ing.name} onChange={e => setIng(i, { name: e.target.value })} className={inputCls + ' flex-1 py-2'} placeholder="Ingredient" />
+          <span className="text-[11px] text-[#8A8A90] w-20 shrink-0 text-right tnum">{Rcp.amountLabel(ing)}</span>
+          <button onClick={() => delIng(i)} className="text-[#8A8A90] text-lg leading-none px-1" aria-label="Remove">×</button>
+        </div>
+      ))}
+    </div>
+    <button onClick={addIng} className="text-[12px] mb-4" style={{ color: 'var(--accent)' }}>+ Add ingredient</button>
+    <Field label="Method (one step per line)">
+      <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
+    </Field>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Macros per serving</div>
+    <div className="grid grid-cols-5 gap-2 mb-4">
+      {MACRO_KEYS.map(([k, l, c]) => (
+        <label key={k} className="block"><div className="text-[10px] mb-1" style={{ color: c }}>{l}</div>
+          <input type="number" value={Math.round(d.macros_per_serving[k] || 0)} onChange={e => setMacro(k, e.target.value)} className={inputCls + ' px-2 py-2 text-center tnum'} /></label>
+      ))}
+    </div>
+    <Btn kind="accent" className="w-full" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.length}>Save recipe</Btn>
+  </div>);
+}
+function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLog }) {
+  useBackClose(onBack);
+  const [servings, setServings] = useState(recipe.servings);
+  const [pickMeal, setPickMeal] = useState(false);
+  const scaled = servings === recipe.servings ? recipe : Rcp.scaleServings(recipe, servings);
+  const meals = mealsForDay(db, Store.todayISO());
+  const toggleHave = (ingId) => update(d => { const r = (d.recipes || []).find(x => x.id === recipe.id); if (!r) return; const ing = r.ingredients.find(x => x.id === ingId); if (ing) ing.have = !ing.have; });
+  const missing = recipe.ingredients.filter(i => !i.have);
+  function addMissingToShopping() {
+    const additions = missing.map(i => ({ name: i.name, qty_label: Rcp.amountLabel(i), recipe_id: recipe.id }));
+    let added = 0;
+    update(d => {
+      const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions);
+      added = fresh.length;
+      d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: recipe.id, checked: false, added_at: Date.now() })));
+    });
+    showToast(added ? ('Added ' + added + ' item' + (added === 1 ? '' : 's') + ' to your shopping list') : 'Those are already on your list');
+  }
+  function logServing(mealId) {
+    onLog(mealId, { name: recipe.title + ' (1 serving)', source: 'recipe', is_alcohol: false, qtyLabel: '1 serving', macros: recipe.macros_per_serving });
+    setPickMeal(false);
+  }
+  return (<div className="fade-in">
+    <div className="flex items-center justify-between mb-3">
+      <button onClick={onBack} className="text-[13px] text-[#8A8A90]">‹ Recipes</button>
+      <button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button>
+    </div>
+    {recipe.thumbnail && <img src={recipe.thumbnail} className="w-full h-40 object-cover rounded-2xl border border-[#262629] mb-3" alt="" />}
+    <h1 className="text-xl font-bold leading-tight mb-1">{recipe.title}</h1>
+    <div className="text-[12px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>}</div>
+    <Card className="p-3 mb-4 mt-2">
+      <div className="flex items-center justify-between mb-2"><div className="text-[11px] text-[#8A8A90]">Macros per serving{recipe.macros_confidence ? ' · ' + recipe.macros_confidence + ' confidence' : ''}</div></div>
+      <RecipeMacroStrip macros={recipe.macros_per_serving} per />
+    </Card>
+    <div className="flex items-center justify-between mb-2">
+      <div className="text-lg font-bold">Ingredients</div>
+      <div className="flex items-center gap-2 text-[12px]">
+        <span className="text-[#8A8A90]">Serves</span>
+        <button onClick={() => setServings(s => Math.max(1, s - 1))} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>-</button>
+        <span className="tnum w-5 text-center font-bold">{servings}</span>
+        <button onClick={() => setServings(s => s + 1)} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>+</button>
+      </div>
+    </div>
+    <div className="text-[11px] text-[#8A8A90] mb-2">Tap what you already have. The rest can go to your shopping list.</div>
+    <div className="space-y-0.5 mb-3">
+      {scaled.ingredients.map((ing) => (
+        <button key={ing.id} onClick={() => toggleHave(ing.id)} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
+          <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? '✓' : ''}</span>
+          <span className="text-[14px] flex-1 min-w-0" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{ing.name}</span>
+          <span className="text-[12px] text-[#8A8A90] shrink-0 tnum">{Rcp.amountLabel(ing)}</span>
+        </button>
+      ))}
+    </div>
+    <Btn kind="ghost" className="w-full mb-5" onClick={addMissingToShopping} disabled={!missing.length}>{missing.length ? ('Add ' + missing.length + ' missing to shopping list') : 'You have everything'}</Btn>
+    {(recipe.steps || []).length > 0 && <><div className="text-lg font-bold mb-2">Method</div>
+      <ol className="space-y-2 mb-6">
+        {recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}
+      </ol></>}
+    <Btn kind="accent" className="w-full" onClick={() => (meals.length > 1 ? setPickMeal(true) : logServing(meals[0] && meals[0].id))}>Log a serving to today</Btn>
+    {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(false)}>
+      <BackClose onClose={() => setPickMeal(false)} />
+      <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="text-base font-bold mb-1">Log to which meal?</div>
+        <div className="text-[12px] text-[#8A8A90] mb-3">One serving of {recipe.title} ({Math.round(recipe.macros_per_serving.kcal || 0)} kcal).</div>
+        <div className="space-y-2">{meals.map(m => <button key={m.id} onClick={() => logServing(m.id)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{m.name}</button>)}</div>
+      </div>
+    </div>}
+  </div>);
+}
+function ShoppingListView({ db, update, onBack }) {
+  useBackClose(onBack);
+  const list = (db.shopping_list || []).slice().sort((a, b) => (a.checked === b.checked ? (b.added_at || 0) - (a.added_at || 0) : a.checked ? 1 : -1));
+  const toggle = (id) => update(d => { const it = (d.shopping_list || []).find(x => x.id === id); if (it) it.checked = !it.checked; });
+  const removeItem = (id) => update(d => { tombstone(d, [id]); d.shopping_list = (d.shopping_list || []).filter(x => x.id !== id); });
+  const clearChecked = () => update(d => { const ids = (d.shopping_list || []).filter(x => x.checked).map(x => x.id); tombstone(d, ids); d.shopping_list = (d.shopping_list || []).filter(x => !x.checked); });
+  const checkedCount = list.filter(x => x.checked).length;
+  return (<div className="fade-in">
+    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
+    <div className="flex items-center justify-between mb-3"><h1 className="text-xl font-bold">Shopping list</h1>{checkedCount > 0 && <button onClick={clearChecked} className="text-[12px] text-[#8A8A90] underline">Clear ticked</button>}</div>
+    {!list.length ? <Card className="p-6 text-center"><div className="text-[13px] font-semibold mb-1">Nothing to buy yet</div><div className="text-[12px] text-[#8A8A90]">Open a recipe and add its missing ingredients to build your list.</div></Card>
+      : <div className="space-y-0.5">{list.map(it => (
+        <div key={it.id} className="flex items-center gap-3 py-2">
+          <button onClick={() => toggle(it.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.checked ? '✓' : ''}</button>
+          <button onClick={() => toggle(it.id)} className="flex-1 min-w-0 text-left text-[14px]" style={{ color: it.checked ? 'var(--muted)' : 'var(--text)', textDecoration: it.checked ? 'line-through' : 'none' }}>{it.name}</button>
+          {it.qty_label && <span className="text-[12px] text-[#8A8A90] tnum shrink-0">{it.qty_label}</span>}
+          <button onClick={() => removeItem(it.id)} className="text-[#8A8A90] text-lg leading-none px-1" aria-label="Remove">×</button>
+        </div>))}</div>}
+  </div>);
+}
+function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLog }) {
+  const [screen, setScreen] = useState('list'); // list | import | detail | shopping
+  const [activeId, setActiveId] = useState(null);
+  // Arriving from a share: jump straight into the importer with the shared link.
+  useEffect(() => { if (importUrl) { setScreen('import'); } }, [importUrl]);
+  const recipes = (db.recipes || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  const active = recipes.find(r => r.id === activeId);
+  // If the open recipe vanishes (deleted, or its id no longer resolves), fall back to the list.
+  useEffect(() => { if (screen === 'detail' && !active) setScreen('list'); }, [screen, active]);
+  const shoppingCount = (db.shopping_list || []).filter(x => !x.checked).length;
+  function saveRecipe(rec) {
+    const id = Store.uid();
+    update(d => { d.recipes = (d.recipes || []).concat([Object.assign({}, rec, { id, user_id: Store.USER, created_at: Date.now(), updated_at: Date.now() })]); });
+    onConsumeImport && onConsumeImport();
+    setActiveId(id); setScreen('detail');
+    showToast('Saved ' + rec.title);
+  }
+  function deleteRecipe(id) {
+    const r = recipes.find(x => x.id === id);
+    update(d => { tombstone(d, [id]); d.recipes = (d.recipes || []).filter(x => x.id !== id); });
+    setScreen('list'); setActiveId(null);
+    showToast('Deleted ' + (r ? r.title : 'recipe'), 'Undo', () => update(d => { if (r) { untombstone(d, [id]); d.recipes = (d.recipes || []).concat([r]); } }));
+  }
+  function cancelImport() { onConsumeImport && onConsumeImport(); setScreen('list'); }
+
+  return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
+    {screen === 'list' && <>
+      <div className="flex items-center justify-between mb-5">
+        <PageHeader kicker="Cook" title="Recipes" />
+        <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
+          <Icon.cart width="20" height="20" />
+          {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#111' }}>{shoppingCount}</span>}
+        </button>
+      </div>
+      <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
+      {!recipes.length ? <Card className="p-6 text-center">
+        <div className="mb-3 flex justify-center"><Icon.recipe width="32" height="32" style={{ color: 'var(--muted)' }} /></div>
+        <div className="text-[14px] font-semibold mb-1">No recipes yet</div>
+        <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Share a YouTube Short or Instagram Reel into Macrosaurus, or tap Import above and paste a link. We break it into ingredients, steps and macros.</div>
+      </Card>
+        : <div>{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}</div>}
+    </>}
+    {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
+    {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLog={onLog} />}
+    {screen === 'shopping' && <ShoppingListView db={db} update={update} onBack={() => setScreen('list')} />}
+  </div>);
+}
 function App() {
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
@@ -5210,6 +5532,7 @@ function App() {
   const [checkingIn, setCheckingIn] = useState(false); // true = fresh check-in, 'review' = reopen the pending proposal
   const [adjusting, setAdjusting] = useState(null);    // log-entry id being tweaked from the post-log "Adjust" toast action
   const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
+  const [recipeImport, setRecipeImport] = useState(null); // a shared YouTube/Instagram link to import as a recipe
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const entryHandled = useRef(false);
@@ -5337,7 +5660,11 @@ function App() {
         const files = [];
         for (let i = 0; i < (meta.count || 0); i++) { const r = await cache.match('/shared-file-' + i); if (r) { const b = await r.blob(); files.push(new File([b], 'shared-' + i + '.jpg', { type: b.type || 'image/jpeg' })); } }
         await Promise.all((await cache.keys()).map(k => cache.delete(k)));
-        if (files.length) setShared({ files: files, text: meta.text || '' });
+        // A shared YouTube/Instagram link (no photos) means "import this as a recipe": jump to the
+        // Recipes module and open the importer with the link. Photos still go to the meal estimator.
+        const recShare = files.length ? null : (Rcp && Rcp.detectShare(meta.text || ''));
+        if (recShare) { setRecipeImport(recShare.url); setView('recipes'); }
+        else if (files.length) setShared({ files: files, text: meta.text || '' });
         else if (meta.text && firstMeal) setAdding({ date: Store.todayISO(), mealId: firstMeal });
       } catch (e) { /* ignore */ }
     })();
@@ -5443,6 +5770,7 @@ function App() {
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
+      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} onLog={(mealId, item) => addEntry(Store.todayISO(), mealId, item)} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
