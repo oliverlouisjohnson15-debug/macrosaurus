@@ -3195,6 +3195,43 @@ const Icon = {
     cx: "17",
     cy: "20",
     r: "1.3"
+  })),
+  gear: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "12",
+    cy: "12",
+    r: "3.2"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M12 2.5v2.2M12 19.3v2.2M4.2 7l1.9 1.1M17.9 15.9l1.9 1.1M4.2 17l1.9-1.1M17.9 8.1l1.9-1.1",
+    strokeLinecap: "round"
+  })),
+  share: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "18",
+    cy: "5",
+    r: "2.6"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "6",
+    cy: "12",
+    r: "2.6"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "18",
+    cy: "19",
+    r: "2.6"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3"
   }))
 };
 
@@ -16504,8 +16541,8 @@ function Toast({
 }
 const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'GOAL', Icon.goal], ['more', 'MENU', Icon.more]];
 // The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
-// header (MobileHeader) and the desktop Sidebar instead. Bottom bar: HOME, FOOD, (Add), COOK, GOAL.
-const BOTTOM_NAV = NAV_ITEMS.filter(([k]) => k !== 'more');
+// header (MobileHeader) and the desktop Sidebar instead. Bottom bar order: HOME, FOOD, (Add), GOAL, COOK.
+const BOTTOM_NAV = ['dashboard', 'foodlog', 'goals', 'recipes'].map(k => NAV_ITEMS.find(([n]) => n === k));
 function BottomNav({
   view,
   setView,
@@ -16637,23 +16674,19 @@ function MobileHeader({
     }
   }, "MACROSAURUS")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setView('more'),
-    className: "pixel-box w-9 h-9 flex items-center justify-center",
+    "aria-label": "Menu and settings",
+    className: "pixel-box flex items-center gap-1.5 h-9 px-2.5",
     style: {
       background: '#111',
-      borderColor: '#000'
+      borderColor: '#000',
+      color: '#fff'
     }
-  }, /*#__PURE__*/React.createElement("svg", {
-    viewBox: "0 0 24 24",
+  }, /*#__PURE__*/React.createElement(Icon.gear, {
     width: "18",
-    height: "18",
-    fill: "#fff"
-  }, /*#__PURE__*/React.createElement("circle", {
-    cx: "12",
-    cy: "8",
-    r: "4"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"
-  }))));
+    height: "18"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px]"
+  }, "MENU")));
 }
 
 // First-run welcome tour: a few full-screen slides teaching the core concepts. Shown once to new
@@ -16894,6 +16927,40 @@ function RecipeCard({
     }
   })));
 }
+// The headline how-to: sharing a Reel/Short straight into the app is the best path (no link to copy),
+// so we show this prominently on the empty state and the importer.
+function ShareTip({
+  className = ''
+}) {
+  return /*#__PURE__*/React.createElement(Card, {
+    className: 'p-3.5 ' + className,
+    style: {
+      background: 'var(--surface3)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-1.5"
+  }, /*#__PURE__*/React.createElement(Icon.share, {
+    width: "16",
+    height: "16",
+    style: {
+      color: 'var(--accent)'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold"
+  }, "Best way: share it straight to Macrosaurus")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] leading-snug"
+  }, "In Instagram or YouTube, tap ", /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold",
+    style: {
+      color: 'var(--text)'
+    }
+  }, "Share"), " on the Reel or Short, then pick ", /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold",
+    style: {
+      color: 'var(--text)'
+    }
+  }, "Macrosaurus"), ". It opens here and becomes a recipe automatically, nothing to copy or paste."));
+}
 // The import + review flow. `initialUrl` is set when arriving from a share; otherwise the user pastes
 // a link or (fallback) a caption / screenshots. Any extraction failure reveals the manual fallbacks.
 function RecipeImport({
@@ -17006,10 +17073,12 @@ function RecipeImport({
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] mb-3"
   }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold mb-1"
-  }, "Import a recipe"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-4 leading-snug"
-  }, "Share a YouTube Short or Instagram Reel into Macrosaurus, or paste its link here. The AI breaks it into ingredients, steps and per-serving macros for you to check."), /*#__PURE__*/React.createElement(Field, {
+    className: "text-lg font-bold mb-3"
+  }, "Import a recipe"), /*#__PURE__*/React.createElement(ShareTip, {
+    className: "mb-4"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] uppercase pf text-[#8A8A90] mb-2"
+  }, "Or paste a link"), /*#__PURE__*/React.createElement(Field, {
     label: "Video link"
   }, /*#__PURE__*/React.createElement("input", {
     value: url,
@@ -17523,11 +17592,13 @@ function Recipes({
       background: 'var(--accent)',
       color: '#111'
     }
-  }, shoppingCount))), /*#__PURE__*/React.createElement(Btn, {
+  }, shoppingCount))), !recipes.length ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(ShareTip, {
+    className: "mb-4"
+  }), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-5",
     onClick: () => setScreen('import')
-  }, "Import a recipe from a video"), !recipes.length ? /*#__PURE__*/React.createElement(Card, {
+  }, "Import from a link instead"), /*#__PURE__*/React.createElement(Card, {
     className: "p-6 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mb-3 flex justify-center"
@@ -17541,14 +17612,18 @@ function Recipes({
     className: "text-[14px] font-semibold mb-1"
   }, "No recipes yet"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto"
-  }, "Share a YouTube Short or Instagram Reel into Macrosaurus, or tap Import above and paste a link. We break it into ingredients, steps and macros.")) : /*#__PURE__*/React.createElement("div", null, recipes.map(r => /*#__PURE__*/React.createElement(RecipeCard, {
+  }, "Send a cooking Reel or Short here and it turns into ingredients, a method and per-serving macros you can log."))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full mb-5",
+    onClick: () => setScreen('import')
+  }, "Import a recipe from a video"), /*#__PURE__*/React.createElement("div", null, recipes.map(r => /*#__PURE__*/React.createElement(RecipeCard, {
     key: r.id,
     recipe: r,
     onOpen: () => {
       setActiveId(r.id);
       setScreen('detail');
     }
-  })))), screen === 'import' && /*#__PURE__*/React.createElement(RecipeImport, {
+  }))))), screen === 'import' && /*#__PURE__*/React.createElement(RecipeImport, {
     initialUrl: importUrl || '',
     onSaved: saveRecipe,
     onCancel: cancelImport
