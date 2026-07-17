@@ -6147,6 +6147,35 @@ function ShoppingListView({ db, update, onBack }) {
         </div>))}</div>}
   </div>);
 }
+// The Cook game layer: cooking recipes climbs a Chef level, so the gamification spans the recipe hub
+// and reinforces the two moats (fun + recipes). Progression only for now; a Chef-exclusive Macrodex
+// catch at a milestone is the planned payoff.
+const CHEF_TIERS = [1, 5, 15, 40, 100];
+const CHEF_LEVELS = ['Fresh apron', 'Home cook', 'Line cook', 'Sous chef', 'Head chef', 'Macrosaurus chef'];
+function chefLevel(cooked) { return Game.badgeTier(cooked || 0, CHEF_TIERS); }
+function ChefCard({ db }) {
+  const cooked = (db.cook_stats && db.cook_stats.cooked) || 0;
+  const imported = (db.recipes || []).filter(r => r.source_url).length;
+  const bt = chefLevel(cooked);
+  const name = CHEF_LEVELS[Math.min(bt.level, CHEF_LEVELS.length - 1)];
+  const nextName = CHEF_LEVELS[Math.min(bt.level + 1, CHEF_LEVELS.length - 1)];
+  const toGo = bt.next != null ? bt.next - cooked : 0;
+  return (
+    <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--card)' }}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="min-w-0">
+          <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90]">Chef · Lvl {bt.level}</div>
+          <div className="text-sm font-bold truncate">{name}</div>
+        </div>
+        <div className="text-right shrink-0 pl-3"><div className="text-lg font-bold tnum leading-none" style={{ color: 'var(--accent)' }}>{cooked}</div><div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">cooked{imported ? ' · ' + imported + ' added' : ''}</div></div>
+      </div>
+      {bt.next != null ? <>
+        <div className="pixel-bar mb-1.5"><i style={{ width: Math.round((bt.progress || 0) * 100) + '%', background: 'var(--accent)' }} /></div>
+        <div className="text-[10px] text-[#8A8A90] leading-snug">{toGo} more cook{toGo === 1 ? '' : 's'} to <b style={{ color: 'var(--text)' }}>{nextName}</b>. Every recipe you cook feeds your buddy and keeps your streak alive.</div>
+      </> : <div className="text-[10px] text-[#8A8A90] leading-snug">Top of the kitchen, {cooked} recipes cooked. Keep them coming to feed the whole dex.</div>}
+    </div>
+  );
+}
 // Format the original creator's credit: Instagram handles get an @, YouTube channels shown as-is.
 function creditName(pub) {
   const a = String(pub.source_author || '').trim();
@@ -6528,6 +6557,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </button>
         </div>
       </div>
+      <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
         <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
@@ -6725,6 +6755,16 @@ function App() {
   // Expose premium state globally so deep, non-billing components (e.g. the body-fat trend teaser)
   // can gate an upsell without threading the flag through every parent. Read at render time.
   useEffect(() => { window.MISPREMIUM = isPremium; }, [isPremium]);
+  // Celebrate climbing a Chef level (the Cook game layer). Ref-guarded so it only fires on a real rise.
+  const chefLvlRef = useRef(null);
+  useEffect(() => {
+    const lvl = chefLevel((db.cook_stats && db.cook_stats.cooked) || 0).level;
+    if (chefLvlRef.current != null && lvl > chefLvlRef.current) {
+      showToast('Chef level up - you reached ' + CHEF_LEVELS[Math.min(lvl, CHEF_LEVELS.length - 1)] + '!');
+      try { window.MTRACK && MTRACK('chef_levelup', { level: lvl }); } catch (_) {}
+    }
+    chefLvlRef.current = lvl;
+  }, [db.cook_stats && db.cook_stats.cooked]);
   // Returning from Stripe Checkout / the billing portal (?sub=success|cancel|portal).
   useEffect(() => {
     const s = new URLSearchParams(window.location.search).get('sub');
@@ -6924,6 +6964,7 @@ function App() {
     const items = raw.map(it => { const sc = it.grams > 0 ? savedCorrection(db, it.name) : null; const m = sc ? macrosFromSavedFood(sc, it.grams) : null; const base = m || it.macros; return Object.assign({}, it, { grams: it.grams ? Math.round(it.grams * p) : it.grams, macros: Rcp.scaleMacros(base, p) }); });
     if (mode === 'single' || !items.length) {
       addEntry(date, mealId, { name: recipe.title + ' (' + pLabel + ')', source: 'recipe', is_alcohol: false, qtyLabel: pLabel, macros: Rcp.scaleMacros(recipe.macros_per_serving, p), rememberItems: items.map(it => ({ name: it.name, grams: it.grams, kcal: it.macros.kcal, protein: it.macros.protein, carbs: it.macros.carbs, fat: it.macros.fat, fiber: it.macros.fiber })) });
+      update(d => { d.cook_stats = d.cook_stats || {}; d.cook_stats.cooked = (d.cook_stats.cooked || 0) + 1; d.cook_stats.last = date; });
       return;
     }
     const ids = items.map(() => Store.uid());
@@ -6939,6 +6980,7 @@ function App() {
         else { rf.macros = macros; rf.last_qty = g > 0 ? g + ' g' : rf.last_qty; rf.updated_at = Date.now(); }
         if (g > 0) { rf.corrected = true; rf.saved_base = { kcal: Math.round(macros.kcal / g * 100), protein: +(macros.protein / g * 100).toFixed(1), carbs: +(macros.carbs / g * 100).toFixed(1), fat: +(macros.fat / g * 100).toFixed(1), fiber: +((macros.fiber || 0) / g * 100).toFixed(1) }; rf.saved_kind = 'per100'; rf.saved_serving_g = g; rf.saved_serving_label = ''; }
       });
+      d.cook_stats = d.cook_stats || {}; d.cook_stats.cooked = (d.cook_stats.cooked || 0) + 1; d.cook_stats.last = date;
     });
     window.MTRACK && MTRACK('food_logged', { count: items.length, source: 'recipe' });
     showToast('Logged ' + items.length + ' ingredient' + (items.length === 1 ? '' : 's') + ' from ' + recipe.title, 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
