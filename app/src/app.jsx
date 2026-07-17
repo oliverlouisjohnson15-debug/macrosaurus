@@ -5741,6 +5741,11 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div className="text-base font-bold mb-1">Log {recipe.title}</div>
         <div className="text-[12px] text-[#8A8A90] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((recipe.macros_per_serving.kcal || 0) * portion)} kcal · P{Math.round((recipe.macros_per_serving.protein || 0) * portion)}{pickMeal.mode === 'items' ? ' · itemised' : ''}</div>
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much</div>
+        {(() => { const fp = rem && Rcp.fitPortion(recipe.macros_per_serving, rem); return fp ? (
+          <button onClick={() => setPortion(fp)} className="w-full pixel-box px-3 py-2.5 mb-2 text-left text-[12px] flex items-center justify-between" style={{ background: portion === fp ? 'var(--accent)' : 'var(--surface3)', color: portion === fp ? '#111' : 'var(--text)' }}>
+            <span className="font-bold">Fit my day · {fp}×</span>
+            <span className="tnum">{Math.round((recipe.macros_per_serving.kcal || 0) * fp)} kcal · P{Math.round((recipe.macros_per_serving.protein || 0) * fp)}</span>
+          </button>) : null; })()}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           {[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--accent)' : 'var(--surface3)', color: portion === pp ? '#111' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}
           <input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" />

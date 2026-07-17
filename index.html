@@ -1946,6 +1946,15 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return null;
   }
 
+  // The serving multiple that best fits the day's remaining calories, in 0.25 steps (min 0.25, cap 4),
+  // for "make it fit my day". Returns null when there is nothing to fit or the recipe is unpriced.
+  function fitPortion(macrosPerServing, remaining) {
+    var perK = num((macrosPerServing || {}).kcal), remK = num((remaining || {}).kcal);
+    if (!(perK > 0) || !(remK > 0)) return null;
+    var p = Math.floor((remK / perK) / 0.25) * 0.25;   // floor so the suggestion never overshoots
+    return Math.max(0.25, Math.min(4, p));
+  }
+
   // How one serving fits a day's remaining macros, for the "fits today" badge + Discover ranking.
   function fitScore(macrosPerServing, remaining) {
     var m = macrosPerServing || {}, r = remaining || {};
@@ -1962,7 +1971,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
-    macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros,
+    macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
@@ -18561,7 +18570,21 @@ function RecipeDetail({
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, portion === 1 ? '1 serving' : portion + ' servings', " · ", Math.round((recipe.macros_per_serving.kcal || 0) * portion), " kcal · P", Math.round((recipe.macros_per_serving.protein || 0) * portion), pickMeal.mode === 'items' ? ' · itemised' : ''), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
-  }, "How much"), /*#__PURE__*/React.createElement("div", {
+  }, "How much"), (() => {
+    const fp = rem && Rcp.fitPortion(recipe.macros_per_serving, rem);
+    return fp ? /*#__PURE__*/React.createElement("button", {
+      onClick: () => setPortion(fp),
+      className: "w-full pixel-box px-3 py-2.5 mb-2 text-left text-[12px] flex items-center justify-between",
+      style: {
+        background: portion === fp ? 'var(--accent)' : 'var(--surface3)',
+        color: portion === fp ? '#111' : 'var(--text)'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-bold"
+    }, "Fit my day · ", fp, "×"), /*#__PURE__*/React.createElement("span", {
+      className: "tnum"
+    }, Math.round((recipe.macros_per_serving.kcal || 0) * fp), " kcal · P", Math.round((recipe.macros_per_serving.protein || 0) * fp))) : null;
+  })(), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-4 flex-wrap"
   }, [0.5, 1, 1.5, 2].map(pp => /*#__PURE__*/React.createElement("button", {
     key: pp,

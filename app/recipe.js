@@ -255,6 +255,15 @@
     return null;
   }
 
+  // The serving multiple that best fits the day's remaining calories, in 0.25 steps (min 0.25, cap 4),
+  // for "make it fit my day". Returns null when there is nothing to fit or the recipe is unpriced.
+  function fitPortion(macrosPerServing, remaining) {
+    var perK = num((macrosPerServing || {}).kcal), remK = num((remaining || {}).kcal);
+    if (!(perK > 0) || !(remK > 0)) return null;
+    var p = Math.floor((remK / perK) / 0.25) * 0.25;   // floor so the suggestion never overshoots
+    return Math.max(0.25, Math.min(4, p));
+  }
+
   // How one serving fits a day's remaining macros, for the "fits today" badge + Discover ranking.
   function fitScore(macrosPerServing, remaining) {
     var m = macrosPerServing || {}, r = remaining || {};
@@ -271,7 +280,7 @@
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
-    macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros,
+    macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;

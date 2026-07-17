@@ -170,6 +170,15 @@ test('fitScore flags fit vs over remaining macros', () => {
   assert.strictEqual(over.overKcal, 300);
 });
 
+// ---- fitPortion ------------------------------------------------------------------------------
+test('fitPortion suggests the serving multiple that fits remaining calories', () => {
+  assert.strictEqual(Recipe.fitPortion({ kcal: 500 }, { kcal: 750 }), 1.5);   // 1.5 servings fits
+  assert.strictEqual(Recipe.fitPortion({ kcal: 800 }, { kcal: 300 }), 0.25);  // floors 0.375 down, min a quarter
+  assert.strictEqual(Recipe.fitPortion({ kcal: 400 }, { kcal: 4000 }), 4);    // cap at 4
+  assert.strictEqual(Recipe.fitPortion({ kcal: 0 }, { kcal: 500 }), null);    // unpriced
+  assert.strictEqual(Recipe.fitPortion({ kcal: 500 }, { kcal: 0 }), null);    // no room
+});
+
 // ---- newShoppingItems ------------------------------------------------------------------------
 test('newShoppingItems skips names already unchecked and dedupes', () => {
   const fresh = Recipe.newShoppingItems([{ name: 'Rice', checked: false }, { name: 'Salt', checked: true }], [{ name: 'rice' }, { name: 'Salt' }, { name: 'Chicken' }, { name: 'chicken' }]);
