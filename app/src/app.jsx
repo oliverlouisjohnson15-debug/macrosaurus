@@ -2801,7 +2801,32 @@ function LeftoversStrip({ db, onOpenRecipe }) {
     </div>
   </div>);
 }
-function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe }) {
+// Free-tier upsell card: contextual, trial-forward, and dismissable (re-shows after 7 days so it
+// nudges without nagging). One per surface only, to stay on the honest-coaching side of the line.
+// Opens the existing paywall via the global MPAYWALL, so it works from any screen without prop-drilling.
+function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className = '' }) {
+  const dm = (db.profile && db.profile.nudgesDismissed) || {};
+  const until = dm[trackKey];
+  if (until && (Date.now() - until) < 7 * 864e5) return null;
+  const open = () => {
+    try { window.MPAYWALL && window.MPAYWALL({ type: reason || 'manual' }); } catch (_) {}
+    try { window.MTRACK && window.MTRACK('paywall_view', { reason: trackKey }); } catch (_) {}
+  };
+  const dismiss = (e) => {
+    e.stopPropagation();
+    update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [trackKey]: Date.now() }); });
+  };
+  return (
+    <div onClick={open} className={'pixel-box p-3.5 relative cursor-pointer active:opacity-90 ' + className} style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
+      <div className="pf text-[8px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent)' }}>Macrosaurus Premium</div>
+      <div className="text-sm font-bold mb-1 pr-6">{headline}</div>
+      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{blurb}</div>
+      <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Try Premium free ›</div>
+      <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5" aria-label="Not now">×</button>
+    </div>
+  );
+}
+function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
   const [span, setSpan] = useState('today');
   const [showStats, setShowStats] = useState(false);
@@ -2993,6 +3018,17 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
           </button>;
         })()}
       </Card>
+
+      {!isPremium && (() => {
+        const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+        return freeLeft <= 3
+          ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
+              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
+              blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
+          : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
+              headline="Log a meal in one snap"
+              blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
+      })()}
 
       {onOpenRecipe && <LeftoversStrip db={db} onOpenRecipe={onOpenRecipe} />}
       {onOpenRecipe && <CookGapStrip db={db} onOpenRecipe={onOpenRecipe} />}
@@ -3662,7 +3698,7 @@ function suggestMealId(db, meals, now) {
 // The tab you last logged from, remembered for the session so repeat logging (e.g. barcode after
 // barcode) doesn't reset to the Food tab every time.
 let LAST_LOG_TAB = null;
-function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose }) {
+function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPremium, aiCalls }) {
   useBackClose(onClose);
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.alc ? 'recent' : (['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
@@ -3689,6 +3725,13 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose }) {
           <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl">{tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
         </div>
         <div className="px-5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+          {!isPremium && (tab === 'photo' || tab === 'describe') && (() => {
+            const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+            return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: left > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-2 px-3 py-2 pixel-box flex items-center justify-between gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
+              <span className="text-[11px]" style={{ color: 'var(--text)' }}>{left > 0 ? (left + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
+              <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Go unlimited ›</span>
+            </button>;
+          })()}
           {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} />}
           {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} />}
           {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onScan={() => setTab('photo')} />}
@@ -4916,9 +4959,9 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
         ) : (
           <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
             <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent)' }}>Free plan</div>
-            <div className="text-sm font-semibold mb-1">Go Premium for unlimited AI</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month. Premium unlocks unlimited AI logging and body-fat scans.</div>
-            <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SEE PREMIUM</button>
+            <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
+            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
+            <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
           </div>
         )}
 
@@ -6815,14 +6858,14 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: '#111' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
-      {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} />}
+      {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} />}
       {adjusting && (() => { const en = db.log_entries.find(x => x.id === adjusting); return en ? <EditEntryModal entry={en} title="Adjust entry" onSave={(patch) => { applyEntryPatch(update, adjusting, patch); setAdjusting(null); showToast('Updated ' + patch.name); }} onClose={() => setAdjusting(null)} /> : null; })()}
       {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
