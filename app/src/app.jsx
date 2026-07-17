@@ -861,6 +861,15 @@ function TrendCard({ db }) {
       <div className="flex gap-1 mb-3 bg-[#1E1E22] p-1 rounded-2xl text-[12px]">
         {[['weight', 'Weight'], ['bodyfat', 'Body Fat'], ['lean', 'Lean Mass']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}
       </div>
+      {tab === 'bodyfat' && window.MISPREMIUM === false && (
+        <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-bold">Body-fat from a photo</div>
+            <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.</div>
+          </div>
+          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Try free ›</span>
+        </button>
+      )}
       {valid.length === 0 ? (
         <div className="text-center py-8 px-4">
           <div className="flex justify-center mb-3 opacity-40"><PixelDino size={40} color="var(--weight)" /></div>
@@ -6603,6 +6612,9 @@ function App() {
     window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; setPaywall({ reason: reason }); window.MTRACK && MTRACK('paywall_view', { reason: reason }); };
     return function () { try { delete window.MPAYWALL; } catch (_) {} };
   }, []);
+  // Expose premium state globally so deep, non-billing components (e.g. the body-fat trend teaser)
+  // can gate an upsell without threading the flag through every parent. Read at render time.
+  useEffect(() => { window.MISPREMIUM = isPremium; }, [isPremium]);
   // Returning from Stripe Checkout / the billing portal (?sub=success|cancel|portal).
   useEffect(() => {
     const s = new URLSearchParams(window.location.search).get('sub');

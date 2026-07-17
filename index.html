@@ -4254,7 +4254,31 @@ function TrendCard({
     key: k,
     onClick: () => setTab(k),
     className: `flex-1 rounded-xl py-2 transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`
-  }, l))), valid.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, l))), tab === 'bodyfat' && window.MISPREMIUM === false && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      try {
+        window.MPAYWALL && window.MPAYWALL({
+          type: 'premium_required'
+        });
+      } catch (_) {}
+    },
+    className: "w-full text-left pixel-box p-3 mb-3 flex items-center gap-2",
+    style: {
+      background: 'var(--accent-dim)',
+      borderColor: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] font-bold"
+  }, "Body-fat from a photo"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-snug mt-0.5"
+  }, "Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.")), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Try free ›")), valid.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "text-center py-8 px-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center mb-3 opacity-40"
@@ -20949,6 +20973,11 @@ function App() {
       } catch (_) {}
     };
   }, []);
+  // Expose premium state globally so deep, non-billing components (e.g. the body-fat trend teaser)
+  // can gate an upsell without threading the flag through every parent. Read at render time.
+  useEffect(() => {
+    window.MISPREMIUM = isPremium;
+  }, [isPremium]);
   // Returning from Stripe Checkout / the billing portal (?sub=success|cancel|portal).
   useEffect(() => {
     const s = new URLSearchParams(window.location.search).get('sub');
