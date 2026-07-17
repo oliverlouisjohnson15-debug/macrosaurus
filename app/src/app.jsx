@@ -2658,7 +2658,46 @@ function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onL
   );
 }
 
-function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast }) {
+// Dashboard strip: recipes from your library that fit what's left of today's macros. The wedge -
+// the tracker's remaining-macro signal driving what to cook. Hidden when the day is basically done
+// or nothing in your library fits. Ranked by protein density among the recipes that fit the calories.
+function CookGapStrip({ db, onOpenRecipe }) {
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  if (!et) return null;
+  const tot = sumMacros(entriesOn(db, today));
+  const rem = { kcal: et.eff.kcal - tot.kcal, protein: et.eff.protein_g - tot.protein, carbs: et.eff.carbs_g - tot.carbs, fat: et.eff.fat_g - tot.fat };
+  if (rem.kcal < 150) return null; // day essentially done - nothing useful to suggest
+  const fitting = (db.recipes || [])
+    .filter(r => r.macros_per_serving && r.macros_per_serving.kcal > 0)
+    .map(r => ({ r, fit: Rcp.fitScore(r.macros_per_serving, rem) }))
+    .filter(x => x.fit.fitsKcal)
+    .sort((a, b) => (b.fit.proteinPer100kcal - a.fit.proteinPer100kcal) || (b.r.macros_per_serving.kcal - a.r.macros_per_serving.kcal))
+    .slice(0, 6);
+  if (!fitting.length) return null;
+  return (<div className="mb-4">
+    <div className="flex items-baseline justify-between mb-2">
+      <div className="text-lg font-bold">Cook for your gap</div>
+      <div className="text-[11px] text-[#8A8A90] tnum">{Math.max(0, Math.round(rem.kcal))} kcal · {Math.max(0, Math.round(rem.protein))}g protein left</div>
+    </div>
+    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+      {fitting.map(({ r, fit }) => { const img = r.photo || r.thumbnail; return (
+        <button key={r.id} onClick={() => onOpenRecipe(r.id)} className="shrink-0 w-[150px] text-left active:opacity-90">
+          <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
+            <div className="relative w-full" style={{ aspectRatio: '16 / 10', background: 'var(--surface3)' }}>
+              {img ? <img src={img} className="w-full h-full object-cover" alt="" loading="lazy" /> : <div className="w-full h-full flex items-center justify-center"><Icon.recipe width="26" height="26" style={{ color: 'var(--muted)' }} /></div>}
+              <div className="absolute top-1.5 left-1.5 pf text-[7px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>fits</div>
+            </div>
+            <div className="p-2">
+              <div className="text-[12px] font-bold leading-tight" style={clamp2}>{r.title}</div>
+              <div className="text-[10px] text-[#8A8A90] mt-1 tnum"><span className="font-bold" style={{ color: CAL }}>{Math.round(r.macros_per_serving.kcal)}</span> kcal · <span className="font-bold" style={{ color: PRO }}>{Math.round(r.macros_per_serving.protein)}g</span> P</div>
+            </div>
+          </div>
+        </button>); })}
+    </div>
+  </div>);
+}
+function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe }) {
   const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
   const [span, setSpan] = useState('today');
   const [showStats, setShowStats] = useState(false);
@@ -2849,6 +2888,8 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
           </button>;
         })()}
       </Card>
+
+      {onOpenRecipe && <CookGapStrip db={db} onOpenRecipe={onOpenRecipe} />}
 
       {/* Next action: check-in, weigh-in and the coach line in one adaptive surface */}
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} /></div>
@@ -5851,13 +5892,15 @@ function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
     </div>}
   </div>);
 }
-function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecipe, onSaveMeal }) {
+function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onSaveMeal }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover
   const [activeId, setActiveId] = useState(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'fav' | a collection name
   // Arriving from a share: jump straight into the importer with the shared link.
   useEffect(() => { if (importUrl) { setScreen('import'); } }, [importUrl]);
+  // Arriving from the dashboard gap strip: jump straight to that recipe's detail.
+  useEffect(() => { if (openRecipeId) { setActiveId(openRecipeId); setScreen('detail'); onConsumeOpen && onConsumeOpen(); } }, [openRecipeId]);
   const allRecipes = (db.recipes || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
   const collections = Array.from(new Set(allRecipes.flatMap(r => r.collections || []))).sort();
   const ql = q.trim().toLowerCase();
@@ -5962,6 +6005,7 @@ function App() {
   const [adjusting, setAdjusting] = useState(null);    // log-entry id being tweaked from the post-log "Adjust" toast action
   const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
   const [recipeImport, setRecipeImport] = useState(null); // a shared YouTube/Instagram link to import as a recipe
+  const [openRecipeId, setOpenRecipeId] = useState(null); // a recipe to open straight to detail (from the dashboard gap strip)
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const entryHandled = useRef(false);
@@ -6243,9 +6287,9 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: '#111' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
-      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onSaveMeal={saveRecipeAsMeal} />}
+      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onSaveMeal={saveRecipeAsMeal} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
