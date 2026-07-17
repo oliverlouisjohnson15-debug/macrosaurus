@@ -259,3 +259,42 @@ test('mergeStates unions recipes/shopping_list and honours tombstones', () => {
   assert.deepStrictEqual(m.recipes.map(r => r.id).sort(), ['r2']);
   assert.deepStrictEqual(m.shopping_list.map(s => s.id).sort(), ['s1', 's2']);
 });
+
+// ---- taxonomy: tags, badges, filters ---------------------------------------------------------
+test('normalize attaches validated tags with derived effort + high-protein', () => {
+  const r = Recipe.normalize({
+    title: 'Thai Chicken Bowl', servings: 2,
+    ingredients: ['200 g chicken breast', '1 tbsp soy sauce', '100 g rice'],
+    steps: ['a', 'b', 'c'],
+    stated_macros_per_serving: { kcal: 400, protein_g: 45, carbs_g: 30, fat_g: 8 },
+    tags: { meal: 'DINNER', cuisine: 'thai', main: 'chicken', effort: 'bogus', diet: ['gluten-free', 'nonsense'] },
+  }, {});
+  assert.strictEqual(r.tags.meal, 'dinner');           // case-normalised
+  assert.strictEqual(r.tags.cuisine, 'thai');
+  assert.strictEqual(r.tags.effort, 'quick');           // bogus dropped -> derived from 3 steps
+  assert.ok(r.tags.diet.includes('gluten-free'));
+  assert.ok(!r.tags.diet.includes('nonsense'));         // invalid value dropped
+  assert.ok(r.tags.diet.includes('high-protein'));      // 45g*4/400 = 0.45 >= 0.4 derived
+});
+
+test('normTags drops unknown facet values to empty/other-safe', () => {
+  const t = Recipe.normTags({ meal: 'brunch', cuisine: 'martian', main: 'unicorn', effort: '', diet: [] }, [], { kcal: 300, protein: 5 });
+  assert.strictEqual(t.meal, '');
+  assert.strictEqual(t.cuisine, '');
+  assert.strictEqual(t.main, '');
+  assert.deepStrictEqual(t.diet, []);                    // low protein -> not derived
+});
+
+test('badges reflect live per-serving macros', () => {
+  assert.deepStrictEqual(Recipe.badges({ macros_per_serving: { kcal: 350, protein: 40, fiber: 9 } }).map(b => b.key).sort(), ['high-fibre', 'high-protein', 'low-cal']);
+  assert.deepStrictEqual(Recipe.badges({ macros_per_serving: { kcal: 700, protein: 10, fiber: 2 } }), []);
+});
+
+test('matchesFilters ANDs facets and uses live badges', () => {
+  const r = { tags: { meal: 'dinner', cuisine: 'thai', main: 'chicken', effort: 'quick', diet: ['gluten-free'] }, macros_per_serving: { kcal: 380, protein: 42 } };
+  assert.ok(Recipe.matchesFilters(r, { meal: 'dinner', cuisine: 'thai' }));
+  assert.ok(Recipe.matchesFilters(r, { badge: 'high-protein' }));      // 42*4/380 >= 0.4
+  assert.ok(Recipe.matchesFilters(r, {}));                              // no filters -> pass
+  assert.ok(!Recipe.matchesFilters(r, { meal: 'breakfast' }));
+  assert.ok(!Recipe.matchesFilters(r, { diet: 'vegan' }));
+});

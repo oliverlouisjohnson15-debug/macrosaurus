@@ -326,7 +326,20 @@ function autoClose(json) {
 }
 const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the numbers printed on it. UK labels usually have a PER 100 g / 100 ml column, and sometimes also a PER SERVING / PER PORTION / PER PACK column. Read each column EXACTLY as printed. Do NOT convert, scale, invent or mix columns. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. per_100g = the per-100 g/ml column (all 0 if not printed). per_serving = the per-serving/portion/pack column (all 0 if not printed). If only one column exists, fill it and leave the other all 0; NEVER scale one column into the other. serving_g and serving_label describe ONE natural unit the person would count and log, chosen in this priority order: (1) if the pack states a piece/item COUNT and a total pack WEIGHT (for example "12 meatballs" with "340 g", or "6 fish fingers 200 g"), set serving_g to the weight of ONE piece = round(total weight divided by count) and serving_label to a singular piece name like "1 meatball" or "1 fish finger"; (2) else if a single serving or portion size is stated (for example "per 30 g", "1 pot 125 g"), use it with a label like "1 pot" or "1 serving"; (3) else if only a whole pack/can/bottle size is stated, use it with a label like "1 can"; (4) else serving_g 0 and serving_label "". Use the product photo and all pack text (piece count, total weight, "contains N portions") to work this out. ACCURACY IS CRITICAL: read the EXACT printed digits for every value that is visible on the label (for example if it prints "Fat 2.5g", return 2.5, not a rounded or guessed number). Look carefully at the small print. Only when a macro is genuinely absent, blank or physically unreadable should you ESTIMATE it from the product name/type and the stated calories so that protein_g×4 + carbs_g×4 + fat_g×9 approximately equals the stated kcal for that column, and set "macros_estimated": true; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0. Write the product name in British English spelling, keeping the JSON keys exactly as specified.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD, anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent, these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
-const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Do NOT estimate nutrition (a nutrition database does that from the ingredient lines). Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [string], "steps": [string], "stated_macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number} | null, "macros_confidence": "low"|"medium"|"high"}. ingredients = an array of plain ingredient LINES, each written like a shopping/recipe list item: the AMOUNT then the FOOD, ready to look up in a nutrition database, for example "150 g cottage cheese", "1 tbsp olive oil", "2 cloves garlic", "1 wholemeal pitta", "200 g chicken breast". Prefer metric weights (g/ml) and give your best weight when the source is vague, but keep natural counts for whole items (eggs, cloves, slices, pittas). Every line MUST include both an amount and the food, and MUST NOT include brand names or nutrition. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). steps = the method as short ordered instructions. stated_macros_per_serving = ONLY the per-serving nutrition the source EXPLICITLY states (e.g. the caption says "480 kcal, 42g protein per serving"); if it does not clearly state per-serving macros, return null, do not estimate. macros_confidence reflects how complete the source text was. Write all text in British English spelling (fibre, yoghurt, flavour), keeping the JSON keys exactly as specified.';
+const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Do NOT estimate nutrition (a nutrition database does that from the ingredient lines). Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [string], "steps": [string], "stated_macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number} | null, "macros_confidence": "low"|"medium"|"high", "tags": {"meal": string, "cuisine": string, "main": string, "effort": string, "diet": [string]}}. ingredients = an array of plain ingredient LINES, each written like a shopping/recipe list item: the AMOUNT then the FOOD, ready to look up in a nutrition database, for example "150 g cottage cheese", "1 tbsp olive oil", "2 cloves garlic", "1 wholemeal pitta", "200 g chicken breast". Prefer metric weights (g/ml) and give your best weight when the source is vague, but keep natural counts for whole items (eggs, cloves, slices, pittas). Every line MUST include both an amount and the food, and MUST NOT include brand names or nutrition. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). steps = the method as short ordered instructions. stated_macros_per_serving = ONLY the per-serving nutrition the source EXPLICITLY states (e.g. the caption says "480 kcal, 42g protein per serving"); if it does not clearly state per-serving macros, return null, do not estimate. macros_confidence reflects how complete the source text was. tags = classify the dish for browsing, using ONLY these values: meal is one of breakfast, lunch, dinner, snack, dessert, drink (or "" if genuinely unclear); cuisine is one of british, italian, indian, chinese, thai, mexican, japanese, mediterranean, middle-eastern, american, french, korean, vietnamese, greek, spanish, caribbean, or other; main is the primary protein or base ingredient, one of chicken, beef, pork, lamb, fish, seafood, eggs, tofu, beans, veg, cheese, or other; effort is quick (roughly 15 minutes or under, few steps), standard, or project (long or involved); diet is an array of any that clearly apply from high-protein, vegetarian, vegan, pescatarian, gluten-free, dairy-free (empty array if none clearly apply). Write all text in British English spelling (fibre, yoghurt, flavour), keeping the JSON keys exactly as specified.';
+// Backfill classifier for recipes imported before tagging existed: title + ingredient lines are
+// enough to bucket a dish, so this is one cheap fast-model call, no re-extraction of the video.
+const TAG_PROMPT = 'You classify a UK recipe for a macro-tracking app\'s browse filters. Respond ONLY with compact JSON {"meal": string, "cuisine": string, "main": string, "effort": string, "diet": [string]} using ONLY these values: meal one of breakfast, lunch, dinner, snack, dessert, drink (or "" if unclear); cuisine one of british, italian, indian, chinese, thai, mexican, japanese, mediterranean, middle-eastern, american, french, korean, vietnamese, greek, spanish, caribbean, other; main (primary protein or base) one of chicken, beef, pork, lamb, fish, seafood, eggs, tofu, beans, veg, cheese, other; effort one of quick, standard, project; diet an array from high-protein, vegetarian, vegan, pescatarian, gluten-free, dairy-free (empty if none). Judge only from what is given.';
+// Tag one existing recipe from its title + ingredients. Returns a validated tags object (never throws).
+async function tagRecipe(recipe) {
+  try {
+    const lines = (recipe.ingredients || []).map(i => Rcp.lineOf(i)).filter(Boolean).slice(0, 40);
+    const prompt = TAG_PROMPT + '\n\nTitle: ' + (recipe.title || '') + '\nIngredients:\n' + lines.join('\n');
+    const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 200, messages: [{ role: 'user', content: prompt }] });
+    const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+    return Rcp.normTags(parseModelJSON(txt), recipe.steps, recipe.macros_per_serving);
+  } catch (e) { return null; }
+}
 const BF_PROMPT = 'You are a physique coach giving a brutally honest but respectful body-fat estimate from photos. Judge only what you can see: visible abdominal definition, vascularity, muscle separation, waist and love-handle fat, back and side profile. Do not flatter; give the realistic figure. Respond ONLY with compact JSON: {"bodyfat_percent": number, "confidence": "low"|"medium"|"high", "note": string}. note is ONE short, honest, constructive sentence.';
 
 /* ---------- data helpers ---------- */
@@ -613,6 +626,7 @@ const Icon = {
   gear: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v2.2M12 19.3v2.2M4.2 7l1.9 1.1M17.9 15.9l1.9 1.1M4.2 17l1.9-1.1M17.9 8.1l1.9-1.1" strokeLinecap="round" /></svg>,
   share: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="2.6" /><circle cx="6" cy="12" r="2.6" /><circle cx="18" cy="19" r="2.6" /><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3" /></svg>,
   compass: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></svg>,
+  sliders: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h11M18 6h2M4 12h2M9 12h11M4 18h7M14 18h6" /><circle cx="16" cy="6" r="1.8" /><circle cx="7" cy="12" r="1.8" /><circle cx="12" cy="18" r="1.8" /></svg>,
   calendar: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17M8 3v4M16 3v4" /></svg>,
 };
 
@@ -2700,45 +2714,75 @@ function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onL
   );
 }
 
-// Dashboard strip: recipes from your library that fit what's left of today's macros. The wedge -
-// the tracker's remaining-macro signal driving what to cook. Hidden when the day is basically done
-// or nothing in your library fits. Ranked by protein density among the recipes that fit the calories.
-function CookGapStrip({ db, onOpenRecipe }) {
-  const today = Store.todayISO();
-  const et = effectiveTarget(db, today);
-  if (!et) return null;
-  const tot = sumMacros(entriesOn(db, today));
-  const rem = { kcal: et.eff.kcal - tot.kcal, protein: et.eff.protein_g - tot.protein, carbs: et.eff.carbs_g - tot.carbs, fat: et.eff.fat_g - tot.fat };
-  if (rem.kcal < 150) return null; // day essentially done - nothing useful to suggest
-  const fitting = (db.recipes || [])
-    .filter(r => r.macros_per_serving && r.macros_per_serving.kcal > 0)
-    .map(r => ({ r, fit: Rcp.fitScore(r.macros_per_serving, rem) }))
-    .filter(x => x.fit.fitsKcal)
-    .sort((a, b) => (b.fit.proteinPer100kcal - a.fit.proteinPer100kcal) || (b.r.macros_per_serving.kcal - a.r.macros_per_serving.kcal))
-    .slice(0, 6);
-  if (!fitting.length) return null;
+// One mini-card in a scrolling rail. `tag` is an optional corner label (e.g. "fits").
+function RecipeMini({ r, onOpen, tag }) {
+  const img = r.photo || r.thumbnail;
+  return (<button onClick={onOpen} className="shrink-0 w-[150px] text-left active:opacity-90">
+    <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
+      <div className="relative w-full" style={{ aspectRatio: '16 / 10', background: 'var(--surface3)' }}>
+        <RecipeImg src={img} iconSize={26} />
+        {tag && <div className="absolute top-1.5 left-1.5 pf text-[7px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>{tag}</div>}
+      </div>
+      <div className="p-2">
+        <div className="text-[12px] font-bold leading-tight" style={clamp2}>{r.title}</div>
+        <div className="text-[10px] text-[#8A8A90] mt-1 tnum"><span className="font-bold" style={{ color: CAL }}>{Math.round(r.macros_per_serving.kcal)}</span> kcal · <span className="font-bold" style={{ color: PRO }}>{Math.round(r.macros_per_serving.protein)}g</span> P</div>
+      </div>
+    </div>
+  </button>);
+}
+function RecipeRail({ title, meta, tag, items, onOpenRecipe }) {
+  if (!items || !items.length) return null;
   return (<div className="mb-4">
     <div className="flex items-baseline justify-between flex-wrap gap-x-3 mb-2">
-      <div className="text-lg font-bold">Cook for your gap</div>
-      <div className="text-[11px] text-[#8A8A90] tnum whitespace-nowrap">{Math.max(0, Math.round(rem.kcal))} kcal · {Math.max(0, Math.round(rem.protein))}g protein left</div>
+      <div className="text-lg font-bold">{title}</div>
+      {meta && <div className="text-[11px] text-[#8A8A90] tnum whitespace-nowrap">{meta}</div>}
     </div>
     <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-      {fitting.map(({ r, fit }) => { const img = r.photo || r.thumbnail; return (
-        <button key={r.id} onClick={() => onOpenRecipe(r.id)} className="shrink-0 w-[150px] text-left active:opacity-90">
-          <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
-            <div className="relative w-full" style={{ aspectRatio: '16 / 10', background: 'var(--surface3)' }}>
-              <RecipeImg src={img} iconSize={26} />
-              <div className="absolute top-1.5 left-1.5 pf text-[7px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>fits</div>
-            </div>
-            <div className="p-2">
-              <div className="text-[12px] font-bold leading-tight" style={clamp2}>{r.title}</div>
-              <div className="text-[10px] text-[#8A8A90] mt-1 tnum"><span className="font-bold" style={{ color: CAL }}>{Math.round(r.macros_per_serving.kcal)}</span> kcal · <span className="font-bold" style={{ color: PRO }}>{Math.round(r.macros_per_serving.protein)}g</span> P</div>
-            </div>
-          </div>
-        </button>); })}
+      {items.map(r => <RecipeMini key={r.id} r={r} tag={tag} onOpen={() => onOpenRecipe(r.id)} />)}
     </div>
   </div>);
 }
+// Turn the library into a few purposeful, labelled rails instead of one random-feeling strip. The
+// tracker's edge is the top rail: recipes that fit what's LEFT of today's macros, protein-ranked.
+// The rest are time-of-day aware and use the auto-tags. Recipes are deduped across rails so each is
+// a fresh reason to tap. Rails need >=2 cards to earn their caption; empty facets simply don't show.
+function buildRecipeRails(db) {
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  const priced = (db.recipes || []).filter(r => r.macros_per_serving && r.macros_per_serving.kcal > 0);
+  if (priced.length < 2) return [];
+  const used = new Set();
+  const take = (arr, n) => { const out = []; for (const r of arr) { if (used.has(r.id)) continue; out.push(r); used.add(r.id); if (out.length >= (n || 8)) break; } return out; };
+  const density = r => { const m = r.macros_per_serving; return m.kcal > 0 ? m.protein * 4 / m.kcal : 0; };
+  const rails = [];
+  if (et) {
+    const tot = sumMacros(entriesOn(db, today));
+    const rem = { kcal: et.eff.kcal - tot.kcal, protein: et.eff.protein_g - tot.protein, carbs: et.eff.carbs_g - tot.carbs, fat: et.eff.fat_g - tot.fat };
+    if (rem.kcal >= 150) {
+      const fits = priced.map(r => ({ r, fit: Rcp.fitScore(r.macros_per_serving, rem) })).filter(x => x.fit.fitsKcal)
+        .sort((a, b) => (b.fit.proteinPer100kcal - a.fit.proteinPer100kcal) || (b.r.macros_per_serving.kcal - a.r.macros_per_serving.kcal)).map(x => x.r);
+      const items = take(fits, 8);
+      if (items.length >= 2) rails.push({ key: 'fits', title: 'Cook for your gap', tag: 'fits', meta: Math.max(0, Math.round(rem.kcal)) + ' kcal · ' + Math.max(0, Math.round(rem.protein)) + 'g protein left', items });
+    }
+  }
+  const hr = new Date().getHours();
+  if (hr < 11) { const items = take(priced.filter(r => (r.tags || {}).meal === 'breakfast'), 8); if (items.length >= 2) rails.push({ key: 'breakfast', title: 'Breakfast ideas', items }); }
+  else if (hr >= 16) { const items = take(priced.filter(r => (r.tags || {}).effort === 'quick' && ((r.tags || {}).meal === 'dinner' || !(r.tags || {}).meal)), 8); if (items.length >= 2) rails.push({ key: 'quick', title: 'Quick tonight', items }); }
+  const hp = take(priced.filter(r => density(r) >= 0.4).sort((a, b) => density(b) - density(a)), 8);
+  if (hp.length >= 2) rails.push({ key: 'protein', title: 'High protein', items: hp });
+  const counts = {}; priced.forEach(r => { const c = (r.tags || {}).cuisine; if (c && c !== 'other') counts[c] = (counts[c] || 0) + 1; });
+  const topC = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).find(c => counts[c] >= 2);
+  if (topC) { const items = take(priced.filter(r => (r.tags || {}).cuisine === topC), 8); if (items.length >= 2) rails.push({ key: 'cuisine', title: 'More ' + Rcp.taxLabel(topC), items }); }
+  if (!rails.length) { const items = take(priced.slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0)), 8); if (items.length) rails.push({ key: 'recent', title: 'Your recipes', items }); }
+  return rails;
+}
+function RecipeRails({ db, onOpenRecipe, limit }) {
+  const rails = buildRecipeRails(db).slice(0, limit || 4);
+  if (!rails.length) return null;
+  return <>{rails.map(rl => <RecipeRail key={rl.key} title={rl.title} meta={rl.meta} tag={rl.tag} items={rl.items} onOpenRecipe={onOpenRecipe} />)}</>;
+}
+// Dashboard keeps it tight: the top two rails only (fits-your-gap + one more).
+function CookGapStrip({ db, onOpenRecipe }) { return <RecipeRails db={db} onOpenRecipe={onOpenRecipe} limit={2} />; }
 // Dashboard strip: batch-cooked meals with servings still going spare, so leftovers get used (and
 // logged) before you cook something new. Taps through to the recipe to log a serving.
 function LeftoversStrip({ db, onOpenRecipe }) {
@@ -5537,9 +5581,23 @@ function RecipeImg({ src, iconSize = 34 }) {
 }
 // Ids we've already tried to repair this session, so a dead source can't trigger repeat fetches.
 const thumbFixTried = new Set();
+// Same idea for tag backfill: classify each legacy recipe at most once per session.
+const tagFixTried = new Set();
+// The chips under a card: auto-tags (meal/cuisine) for browsing + live macro badges (high protein
+// etc). Capped so a card stays calm; the high-protein badge is emphasised as the tracker's signal.
+function recipeChips(recipe) {
+  const t = recipe.tags || {}, out = [];
+  const badges = Rcp.badges(recipe);
+  if (badges.some(b => b.key === 'high-protein')) out.push({ label: 'High protein', hero: true });
+  if (t.meal) out.push({ label: Rcp.taxLabel(t.meal) });
+  if (t.cuisine && t.cuisine !== 'other') out.push({ label: Rcp.taxLabel(t.cuisine) });
+  if (out.length < 3 && t.effort === 'quick') out.push({ label: 'Quick' });
+  return out.slice(0, 3);
+}
 function RecipeCard({ recipe, onOpen, onFav }) {
   const m = recipe.macros_per_serving || {};
   const img = recipe.photo || recipe.thumbnail;
+  const chips = recipeChips(recipe);
   return (<div onClick={onOpen} className="cursor-pointer active:opacity-90 transition-opacity">
     <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
       <div className="relative w-full" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
@@ -5551,6 +5609,9 @@ function RecipeCard({ recipe, onOpen, onFav }) {
         <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: m.kcal > 0 ? 'var(--text)' : 'var(--muted)' }}>{m.kcal > 0 ? Math.round(m.kcal) + ' kcal' : 'Tap to price'}</div>
         {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
       </div>
+      {chips.length > 0 && <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+        {chips.map((c, i) => <span key={i} className="pf text-[7px] uppercase px-1.5 py-1 leading-none" style={c.hero ? { background: 'var(--accent)', color: 'var(--on-accent)' } : { background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{c.label}</span>)}
+      </div>}
       <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
         <span>{Rcp.platformLabel(recipe.source_platform)}</span><span>·</span><span>serves {recipe.servings}</span>
         {m.protein > 0 && <><span>·</span><span className="tnum font-semibold" style={{ color: PRO }}>{Math.round(m.protein)}g protein</span></>}
@@ -6150,11 +6211,52 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
     </div>}
   </div>);
 }
+// Faceted filter + sort sheet for the recipe library. Only shows facet values that actually exist in
+// the user's recipes, so at 5 recipes it's tiny and at 500 it's rich, no dead options either way.
+function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClose }) {
+  const present = k => { const s = new Set(); (db.recipes || []).forEach(r => { const v = (r.tags || {})[k]; if (v) s.add(v); }); return Rcp.TAX[k].filter(x => s.has(x)); };
+  const diets = (() => { const s = new Set(); (db.recipes || []).forEach(r => (((r.tags || {}).diet) || []).forEach(d => s.add(d))); return Rcp.TAX.diet.filter(x => s.has(x)); })();
+  const Group = ({ label, k, values }) => values.length ? (<div className="mb-4">
+    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">{label}</div>
+    <div className="flex flex-wrap gap-2">
+      {values.map(v => { const on = facets[k] === v; return <button key={v} onClick={() => setFacet(k, v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}
+    </div>
+  </div>) : null;
+  const sorts = [['recent', 'Recent'], ['protein', 'Most protein'], ['kcal', 'Fewest calories'], ['quick', 'Quickest']];
+  return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <BackClose onClose={onClose} />
+    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="text-xl leading-none text-[#8A8A90]" aria-label="Close">×</button></div>
+      <div className="mb-4">
+        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Show</div>
+        <div className="flex flex-wrap gap-2"><button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button></div>
+      </div>
+      <Group label="Meal" k="meal" values={present('meal')} />
+      <Group label="Cuisine" k="cuisine" values={present('cuisine')} />
+      <Group label="Main ingredient" k="main" values={present('main')} />
+      <Group label="Effort" k="effort" values={present('effort')} />
+      {diets.length > 0 && <div className="mb-4">
+        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Diet</div>
+        <div className="flex flex-wrap gap-2">{diets.map(v => { const on = facets.diet === v; return <button key={v} onClick={() => setFacet('diet', v)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{Rcp.taxLabel(v)}</button>; })}</div>
+      </div>}
+      <div className="mb-5">
+        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Sort by</div>
+        <div className="flex flex-wrap gap-2">{sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: sort === k ? 'var(--accent)' : 'var(--surface3)', color: sort === k ? 'var(--on-accent)' : 'var(--text)', fontWeight: sort === k ? 700 : 400 }}>{l}</button>)}</div>
+      </div>
+      <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={onClear}>Clear all</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Show recipes</Btn></div>
+    </div>
+  </div>);
+}
 function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onLogOn, onSaveMeal }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover | plan
   const [activeId, setActiveId] = useState(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'fav' | a collection name
+  const [facets, setFacets] = useState({}); // { meal, cuisine, main, effort, diet, badge } - taxonomy filters
+  const [sort, setSort] = useState('recent'); // recent | protein | kcal | quick
+  const [showFilters, setShowFilters] = useState(false);
+  const facetCount = Object.values(facets).filter(Boolean).length;
+  const setFacet = (k, v) => setFacets(f => { const n = Object.assign({}, f); if (n[k] === v) delete n[k]; else n[k] = v; return n; });
   // Arriving from a share: jump straight into the importer with the shared link.
   useEffect(() => { if (importUrl) { setScreen('import'); } }, [importUrl]);
   // Arriving from the dashboard gap strip: jump straight to that recipe's detail.
@@ -6162,12 +6264,21 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
   const allRecipes = (db.recipes || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
   const collections = Array.from(new Set(allRecipes.flatMap(r => r.collections || []))).sort();
   const ql = q.trim().toLowerCase();
+  // Search now also matches the auto-tags, so typing "thai" or "high protein" just works.
+  const tagText = r => { const t = r.tags || {}; return [t.meal, t.cuisine, t.main, t.effort].concat(t.diet || []).filter(Boolean).join(' '); };
   const recipes = allRecipes.filter(r => {
     if (filter === 'fav' && !r.favorite) return false;
     if (filter !== 'all' && filter !== 'fav' && !((r.collections || []).includes(filter))) return false;
+    if (facetCount && !Rcp.matchesFilters(r, facets)) return false;
     if (!ql) return true;
-    return (r.title || '').toLowerCase().includes(ql) || (r.ingredients || []).some(i => (Rcp.lineOf(i) || '').toLowerCase().includes(ql));
+    return (r.title || '').toLowerCase().includes(ql) || tagText(r).includes(ql) || (r.ingredients || []).some(i => (Rcp.lineOf(i) || '').toLowerCase().includes(ql));
   });
+  const density = r => { const m = r.macros_per_serving || {}; return m.kcal > 0 ? m.protein * 4 / m.kcal : 0; };
+  if (sort === 'protein') recipes.sort((a, b) => density(b) - density(a));
+  else if (sort === 'kcal') recipes.sort((a, b) => ((a.macros_per_serving || {}).kcal || 1e9) - ((b.macros_per_serving || {}).kcal || 1e9));
+  else if (sort === 'quick') recipes.sort((a, b) => (((a.tags || {}).effort === 'quick') ? 0 : 1) - (((b.tags || {}).effort === 'quick') ? 0 : 1));
+  // Rails only headline the browse home: plain "All", no search, no facets. Filtering shows the flat grid.
+  const showRails = filter === 'all' && !ql && !facetCount;
   const toggleFav = (id) => update(d => { const r = (d.recipes || []).find(x => x.id === id); if (r) r.favorite = !r.favorite; });
   // One-time repair: recipes imported before thumbnails were inlined still point at expiring
   // Instagram CDN links. Quietly re-extract each one's art and store it as a data URL. A few at a
@@ -6184,6 +6295,21 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           const dataUrl = await inlineThumb(src);
           if (!stop && dataUrl) update(d => { const t = (d.recipes || []).find(x => x.id === r.id); if (t) { t.thumbnail = dataUrl; t.updated_at = Date.now(); } });
         } catch (e) { /* leave the placeholder; retried next session */ }
+      }
+    })();
+    return () => { stop = true; };
+  }, []);
+  // One-time tag backfill: recipes imported before the taxonomy existed have no tags. Classify each
+  // from its title + ingredients (cheap fast-model call), a few per session. Once per recipe per session.
+  useEffect(() => {
+    const untagged = (db.recipes || []).filter(r => !(r.tags && r.tags.meal) && !tagFixTried.has(r.id));
+    if (!untagged.length) return;
+    let stop = false;
+    (async () => {
+      for (const r of untagged.slice(0, 6)) {
+        tagFixTried.add(r.id);
+        const tags = await tagRecipe(r);
+        if (!stop && tags) update(d => { const t = (d.recipes || []).find(x => x.id === r.id); if (t) { t.tags = tags; t.updated_at = Date.now(); } });
       }
     })();
     return () => { stop = true; };
@@ -6256,15 +6382,24 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         </Card>
       </> : <>
         <Btn kind="accent" className="w-full mb-4" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <TextInput placeholder="Search your recipes and ingredients…" value={q} onChange={e => setQ(e.target.value)} />
+        <div className="flex gap-2 items-stretch">
+          <div className="flex-1 min-w-0"><TextInput placeholder="Search recipes, ingredients or tags…" value={q} onChange={e => setQ(e.target.value)} /></div>
+          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: facetCount ? 'var(--accent)' : 'var(--surface3)', color: facetCount ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
+        </div>
         <div className="flex gap-2 overflow-x-auto pb-1 my-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
           {[['all', 'All'], ['fav', '★ Favourites']].concat(collections.map(c => [c, c])).map(([k, l]) => (
             <button key={k} onClick={() => setFilter(k)} className="pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0" style={{ background: filter === k ? 'var(--accent)' : 'var(--surface3)', color: filter === k ? '#111' : 'var(--text)', fontWeight: filter === k ? 700 : 400 }}>{l}</button>
           ))}
         </div>
-        {recipes.length ? <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} onFav={() => toggleFav(r.id)} />)}</div>
-          : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. Try a different search or filter.</div>}
+        {showRails
+          ? <div className="mt-1"><RecipeRails db={db} onOpenRecipe={id => { setActiveId(id); setScreen('detail'); }} limit={4} /></div>
+          : recipes.length ? <>
+            {(facetCount || sort !== 'recent') && <div className="text-[11px] text-[#8A8A90] mb-2 tnum">{recipes.length} recipe{recipes.length === 1 ? '' : 's'}{sort !== 'recent' ? ' · ' + ({ protein: 'most protein', kcal: 'fewest calories', quick: 'quickest' })[sort] : ''}</div>}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} onFav={() => toggleFav(r.id)} />)}</div>
+          </>
+          : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent)' }}>Clear filters</button></div>}
       </>}
+      {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} onClear={() => { setFacets({}); setSort('recent'); }} onClose={() => setShowFilters(false)} />}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}

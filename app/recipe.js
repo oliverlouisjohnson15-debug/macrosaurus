@@ -156,6 +156,7 @@
       source_platform: meta.platform || raw.source_platform || '',
       source_url: meta.url || '',
       thumbnail: meta.thumbnail || '',
+      tags: normTags(raw.tags, steps, macros),
     };
   }
 
@@ -287,8 +288,63 @@
     return { fitsKcal: over <= 0, overKcal: Math.round(over), proteinPer100kcal: +(proteinDensity * 100).toFixed(0), label: label };
   }
 
+  // ---- Taxonomy: how recipes are found at scale ----------------------------------------------
+  // A controlled vocabulary (not free text) so filters stay clean with thousands of recipes. The AI
+  // structurer maps each recipe onto these values at import; normTags validates so a bad value can
+  // never leak into a facet. Kept here (pure) so the prompt, the filters and the tests share one list.
+  var TAX = {
+    meal: ['breakfast', 'lunch', 'dinner', 'snack', 'dessert', 'drink'],
+    cuisine: ['british', 'italian', 'indian', 'chinese', 'thai', 'mexican', 'japanese', 'mediterranean', 'middle-eastern', 'american', 'french', 'korean', 'vietnamese', 'greek', 'spanish', 'caribbean', 'other'],
+    main: ['chicken', 'beef', 'pork', 'lamb', 'fish', 'seafood', 'eggs', 'tofu', 'beans', 'veg', 'cheese', 'other'],
+    effort: ['quick', 'standard', 'project'],
+    diet: ['high-protein', 'vegetarian', 'vegan', 'pescatarian', 'gluten-free', 'dairy-free'],
+  };
+  var TAX_LABEL = {
+    'middle-eastern': 'Middle-Eastern', 'high-protein': 'High protein', 'gluten-free': 'Gluten-free',
+    'dairy-free': 'Dairy-free', quick: 'Quick', standard: 'Standard', project: 'Project',
+  };
+  function taxLabel(v) { v = String(v || ''); return TAX_LABEL[v] || (v ? v.charAt(0).toUpperCase() + v.slice(1) : ''); }
+  function inList(v, list) { v = norm(v); return list.indexOf(v) >= 0 ? v : ''; }
+  // Validate + enrich AI tags. `steps`/`macros` let us fill effort (from method length) and derive
+  // the high-protein diet flag from the numbers, so tags are useful even when the source was thin.
+  function normTags(raw, steps, macros) {
+    raw = raw || {};
+    var meal = inList(raw.meal, TAX.meal);
+    var cuisine = inList(raw.cuisine, TAX.cuisine);
+    var main = inList(raw.main, TAX.main);
+    var effort = inList(raw.effort, TAX.effort);
+    if (!effort) { var n = (steps || []).length; effort = n > 0 ? (n <= 4 ? 'quick' : n <= 8 ? 'standard' : 'project') : ''; }
+    var diet = (Array.isArray(raw.diet) ? raw.diet : []).map(function (d) { return inList(d, TAX.diet); }).filter(Boolean);
+    if (macros && num(macros.kcal) > 0 && (num(macros.protein) * 4 / num(macros.kcal)) >= 0.4 && diet.indexOf('high-protein') < 0) diet.push('high-protein');
+    var seen = {}, uniqDiet = [];
+    diet.forEach(function (d) { if (!seen[d]) { seen[d] = 1; uniqDiet.push(d); } });
+    return { meal: meal, cuisine: cuisine, main: main, effort: effort, diet: uniqDiet };
+  }
+  // Derived macro badges, computed LIVE from current per-serving macros (so they're right even after
+  // macros resolve post-import). These are the tracker's edge over a plain recipe app.
+  function badges(recipe) {
+    var m = (recipe && recipe.macros_per_serving) || {}, out = [];
+    var kcal = num(m.kcal);
+    if (kcal > 0 && (num(m.protein) * 4 / kcal) >= 0.4) out.push({ key: 'high-protein', label: 'High protein' });
+    if (kcal > 0 && kcal < 400) out.push({ key: 'low-cal', label: 'Low cal' });
+    if (num(m.fiber) >= 8) out.push({ key: 'high-fibre', label: 'High fibre' });
+    return out;
+  }
+  // One recipe against a set of active facet filters. Missing facets pass. `badge` uses live macros.
+  function matchesFilters(recipe, f) {
+    f = f || {}; var t = (recipe && recipe.tags) || {};
+    if (f.meal && t.meal !== f.meal) return false;
+    if (f.cuisine && t.cuisine !== f.cuisine) return false;
+    if (f.main && t.main !== f.main) return false;
+    if (f.effort && t.effort !== f.effort) return false;
+    if (f.diet && (t.diet || []).indexOf(f.diet) < 0) return false;
+    if (f.badge && !badges(recipe).some(function (b) { return b.key === f.badge; })) return false;
+    return true;
+  }
+
   var Recipe = {
     detectShare: detectShare, platformLabel: platformLabel, normalize: normalize,
+    TAX: TAX, taxLabel: taxLabel, normTags: normTags, badges: badges, matchesFilters: matchesFilters,
     lineOf: lineOf, nameFromLine: nameFromLine, gramsFromLine: gramsFromLine, portionGrams: portionGrams,
     gramsForLine: gramsForLine, stapleMacros: stapleMacros, bestOffMatch: bestOffMatch,
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
