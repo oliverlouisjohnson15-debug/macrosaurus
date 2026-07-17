@@ -124,6 +124,15 @@ test('newShoppingItems skips names already unchecked and dedupes', () => {
   assert.deepStrictEqual(fresh.map(x => x.name), ['Salt', 'Chicken']);
 });
 
+// ---- macroSanity -----------------------------------------------------------------------------
+test('macroSanity flags implausible per-serving macros', () => {
+  assert.strictEqual(Recipe.macroSanity({ macros_per_serving: { kcal: 0 } }), null);            // not priced yet
+  assert.strictEqual(Recipe.macroSanity({ macros_per_serving: { kcal: 520, protein: 40, carbs: 45, fat: 18 } }), null); // fine
+  assert.ok(Recipe.macroSanity({ macros_per_serving: { kcal: 40 } }));                            // too low
+  assert.ok(Recipe.macroSanity({ macros_per_serving: { kcal: 2200 } }));                          // too high
+  assert.ok(Recipe.macroSanity({ macros_per_serving: { kcal: 300, protein: 60, carbs: 60, fat: 30 } })); // kcal vs macros mismatch (~750)
+});
+
 // ---- store wiring ----------------------------------------------------------------------------
 test('migrate backfills recipes + shopping_list', () => {
   const s = Store.migrate({ profile: { goalType: 'cut' } });
