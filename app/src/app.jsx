@@ -117,8 +117,13 @@ async function imageToB64(file, max) {
     const d = await fileToDataURL(file); return { b64: d.split(',')[1], mime: d.substring(5, d.indexOf(';')) };
   }
 }
+// ---- Premium / billing (client) -------------------------------------------------------------
+const FREE_AI_MONTHLY = 10;          // free-tier AI actions per month (mirrors app_config.free_ai_monthly)
+const PRICE_MONTHLY_LABEL = '£4.99';
+const PRICE_ANNUAL_LABEL = '£39.99';
+
 // Send a message request to Claude via our server-side proxy. The proxy attaches the real API key,
-// verifies the signed-in user and enforces the per-account monthly spend cap. Returns the raw
+// verifies the signed-in user and enforces the free/premium AI tiers. Returns the raw
 // Anthropic message JSON (same shape as calling the API directly).
 async function aiRequest(body) {
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
@@ -130,7 +135,15 @@ async function aiRequest(body) {
     body: JSON.stringify(body),
   });
   const j = await res.json();
-  if (j.type === 'error' || j.error) throw new Error((j.error && j.error.message) || 'AI error');
+  if (j.type === 'error' || j.error) {
+    const e = j.error || {};
+    // Route free-limit / premium-only / fair-use errors to the paywall (opener registered by App).
+    // Still throw so the calling flow stops cleanly.
+    if (e.type === 'free_limit' || e.type === 'premium_required' || e.type === 'budget_exceeded') {
+      try { window.MPAYWALL && window.MPAYWALL(e); } catch (_) {}
+    }
+    const err = new Error(e.message || 'AI error'); err.aiError = e; throw err;
+  }
   return j;
 }
 // Call the AI with any number of images + a text prompt; expect one JSON object back.
@@ -4793,8 +4806,11 @@ function ChangePassword({ email }) {
     </div>}
   </div>);
 }
-function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin }) {
+function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage }) {
   const [tab, setTab] = useState('details');
+  const daysLeft = (iso) => { if (!iso) return ''; const d = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000); return d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'ends soon'; };
+  const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return ''; } };
+  const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
   const [guide, setGuide] = useState(false);
   const [delOpen, setDelOpen] = useState(false); const [delText, setDelText] = useState(''); const [delBusy, setDelBusy] = useState(false); const [delErr, setDelErr] = useState('');
   const [resetOpen, setResetOpen] = useState(false); const [legal, setLegal] = useState(null);
@@ -4823,6 +4839,25 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1">Signed in as</div>
           <div className="text-sm font-semibold break-all">{email || 'your account'}</div>
         </div>
+
+        {isPremium ? (
+          <div className="pixel-box p-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[11px] uppercase tracking-widest pf" style={{ color: 'var(--accent)' }}>Premium</div>
+              {sub && sub.status === 'trialing' && sub.trial_end && <div className="text-[10px] text-[#8A8A90]">Trial: {daysLeft(sub.trial_end)}</div>}
+            </div>
+            <div className="text-sm font-semibold mb-1">{sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium active'}{sub && sub.plan ? ' · ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : ''}</div>
+            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{sub && sub.cancel_at_period_end ? 'Cancels at the end of the current period.' : (sub && sub.current_period_end ? 'Renews ' + fmtDate(sub.current_period_end) + '.' : 'Unlimited AI logging and body-fat scans.')}</div>
+            <button onClick={onManage} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>MANAGE SUBSCRIPTION</button>
+          </div>
+        ) : (
+          <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
+            <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent)' }}>Free plan</div>
+            <div className="text-sm font-semibold mb-1">Go Premium for unlimited AI</div>
+            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month. Premium unlocks unlimited AI logging and body-fat scans.</div>
+            <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SEE PREMIUM</button>
+          </div>
+        )}
 
         {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
         <ChangePassword email={email} />
@@ -6115,6 +6150,64 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     {screen === 'plan' && <PlannerView db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onOpenRecipe={(id) => { setActiveId(id); setScreen('detail'); }} onLogOn={onLogOn} />}
   </div>);
 }
+// Premium upsell sheet. Opened manually (menu) or automatically when the AI proxy returns a
+// free-limit / premium-only error. Checkout runs entirely server-side (billing edge function),
+// so no Stripe code or keys live in the app; we just redirect to the returned Checkout URL.
+function Paywall({ reason, onCheckout, onClose }) {
+  const [plan, setPlan] = useState('annual');
+  const [busy, setBusy] = useState(false);
+  const headline = reason === 'premium_required' ? 'Body-fat scans are Premium'
+    : reason === 'free_limit' ? "You've used your free AI logs"
+    : 'Unlock Macrosaurus Premium';
+  const blurb = reason === 'free_limit'
+    ? `That's your ${FREE_AI_MONTHLY} free AI logs for this month. Go Premium for unlimited AI logging.`
+    : reason === 'premium_required'
+    ? 'AI body-fat estimates from a progress photo are a Premium feature.'
+    : 'More AI, more insight, same honest coaching.';
+  const benefits = [
+    ['Unlimited AI logging', 'Snap a meal, scan a label, or describe it, with no monthly limit'],
+    ['Body-fat photo scans', 'Estimate your body fat from a progress photo'],
+    ['Everything in Free', 'Barcode, database, manual entry, the adaptive engine and the whole game'],
+  ];
+  async function go() { setBusy(true); try { await onCheckout(plan); } catch (_) {} setBusy(false); }
+  return (
+    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="p-5 overflow-y-auto">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] uppercase tracking-widest pf" style={{ color: 'var(--accent)' }}>Macrosaurus Premium</div>
+            <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
+          </div>
+          <h2 className="text-xl font-bold mb-1">{headline}</h2>
+          <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4">{blurb}</div>
+          <div className="space-y-2.5 mb-4">
+            {benefits.map(([t, d], i) => (
+              <div key={i} className="flex gap-2.5 items-start">
+                <div className="mt-0.5 shrink-0 font-bold" style={{ color: 'var(--good)' }}>✓</div>
+                <div><div className="text-[13px] font-semibold">{t}</div><div className="text-[11px] text-[#8A8A90] leading-snug">{d}</div></div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mb-3">
+            {[['annual', PRICE_ANNUAL_LABEL, '/year', 'Save 33%'], ['monthly', PRICE_MONTHLY_LABEL, '/month', '']].map(([k, price, per, tag]) => (
+              <button key={k} onClick={() => setPlan(k)} className="flex-1 pixel-box p-3 text-left transition active:scale-[.99]"
+                style={{ background: plan === k ? 'var(--accent-dim)' : 'var(--card)', borderColor: plan === k ? 'var(--accent)' : 'var(--surface2)' }}>
+                <div className="flex items-baseline gap-1"><span className="text-lg font-bold">{price}</span><span className="text-[10px] text-[#8A8A90]">{per}</span></div>
+                {tag ? <div className="text-[9px] pf mt-1" style={{ color: 'var(--accent)' }}>{tag}</div> : <div className="text-[9px] mt-1 text-[#8A8A90]">Billed monthly</div>}
+              </button>
+            ))}
+          </div>
+          <button onClick={go} disabled={busy} className="w-full pixel-btn py-3 text-[12px] pf disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+            {busy ? 'STARTING…' : 'START 7-DAY FREE TRIAL'}
+          </button>
+          <div className="text-[10px] text-[#8A8A90] text-center mt-2 leading-relaxed">
+            7 days free, then {plan === 'annual' ? PRICE_ANNUAL_LABEL + '/year' : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 function App() {
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
@@ -6134,6 +6227,10 @@ function App() {
   const entryHandled = useRef(false);
   const [reveal, setReveal] = useState(null);
   const revealTimer = useRef(null);
+  const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
+  const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
+  const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
+  const isPremium = !!sub && (sub.status === 'active' || sub.status === 'trialing');
   function showToast(msg, actionLabel, onAction, action2Label, onAction2) {
     clearTimeout(toastTimer.current);
     setToast({
@@ -6187,6 +6284,53 @@ function App() {
       .then(function (r) { if (!cancelled) setIsAdmin(!!(r && r.data)); }, function () { if (!cancelled) setIsAdmin(false); });
     return function () { cancelled = true; };
   }, [session]);
+  // Subscription status + this month's AI usage (drives the paywall, premium badge and free meter).
+  // The webhook writes the subscription row; the user may read only their own (RLS).
+  useEffect(() => {
+    if (!session || !supa) { setSub(null); setAiCalls(0); return; }
+    let cancelled = false; const uid = session.user.id; const period = new Date().toISOString().slice(0, 7);
+    const load = () => Promise.all([
+      supa.from('subscriptions').select('status, plan, trial_end, current_period_end, cancel_at_period_end').eq('user_id', uid).maybeSingle(),
+      supa.from('ai_usage').select('calls').eq('user_id', uid).eq('period', period).maybeSingle(),
+    ]).then(function (res) { if (cancelled) return; setSub((res[0] && res[0].data) || null); setAiCalls(Number((res[1] && res[1].data && res[1].data.calls) || 0)); }, function () {});
+    load();
+    window.MREFRESH_SUB = load; // so the checkout-return handler can re-fetch once the webhook lands
+    return function () { cancelled = true; try { if (window.MREFRESH_SUB === load) delete window.MREFRESH_SUB; } catch (_) {} };
+  }, [session]);
+  // Let aiRequest (a top-level helper) open the paywall when the proxy reports a limit/premium error.
+  useEffect(() => {
+    window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; setPaywall({ reason: reason }); window.MTRACK && MTRACK('paywall_view', { reason: reason }); };
+    return function () { try { delete window.MPAYWALL; } catch (_) {} };
+  }, []);
+  // Returning from Stripe Checkout / the billing portal (?sub=success|cancel|portal).
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get('sub');
+    if (!s) return;
+    try { const u = new URL(window.location.href); u.searchParams.delete('sub'); window.history.replaceState({}, '', u.pathname + u.search + u.hash); } catch (_) {}
+    if (s === 'success') { showToast('Welcome to Premium! Your subscription is active.'); window.MTRACK && MTRACK('checkout_success'); }
+    else if (s === 'cancel') showToast('Checkout canceled, no charge was made.');
+    const refresh = function () { window.MREFRESH_SUB && window.MREFRESH_SUB(); };
+    refresh(); setTimeout(refresh, 2500); setTimeout(refresh, 6000); // the webhook may land a moment after redirect
+  }, []);
+  // Start a subscription Checkout, or open the Stripe billing portal. Both return a hosted URL we
+  // redirect to; the secret key never touches the client.
+  async function startCheckout(plan) {
+    window.MTRACK && MTRACK('checkout_start', { plan: plan });
+    try {
+      const r = await supa.functions.invoke('billing', { body: { action: 'checkout', plan: plan, origin: window.location.origin } });
+      const url = r && r.data && r.data.url;
+      if (url) { window.location.href = url; return; }
+    } catch (_) {}
+    showToast('Could not start checkout. Please try again.');
+  }
+  async function openPortal() {
+    try {
+      const r = await supa.functions.invoke('billing', { body: { action: 'portal', origin: window.location.origin } });
+      const url = r && r.data && r.data.url;
+      if (url) { window.location.href = url; return; }
+    } catch (_) {}
+    showToast('Could not open billing. Please try again.');
+  }
   useEffect(() => {
     if (!session) return; let cancelled = false; const uid = session.user.id;
     (async function () {
@@ -6417,7 +6561,7 @@ function App() {
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
-      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
+      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} />}
@@ -6431,6 +6575,7 @@ function App() {
           <MealEstimate apiKey={db.profile.aiKey} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} />
         </div>
       </div>}
+      {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       <Toast toast={toast} />
       {reveal && <CatchReveal c={reveal} />}
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
