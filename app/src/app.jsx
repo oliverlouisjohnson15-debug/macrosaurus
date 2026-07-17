@@ -246,6 +246,7 @@ async function browsePublicRecipes(opts) {
   const r = await supa.rpc('browse_recipes', {
     p_kcal_max: opts.kcalMax != null ? opts.kcalMax : null, p_min_protein: opts.minProtein || 0, p_limit: opts.limit || 60,
     p_meal: opts.meal || null, p_cuisine: opts.cuisine || null, p_creator: opts.creator || null, p_search: (opts.search && opts.search.trim()) || null,
+    p_main: opts.main || null, p_effort: opts.effort || null,
   });
   if (r.error) throw new Error(r.error.message);
   return r.data || [];
@@ -5952,7 +5953,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const setIngMacros = (ingId, macros, meta) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return; ing.macros = { kcal: Math.round(+macros.kcal || 0), protein: +(+macros.protein || 0).toFixed(1), carbs: +(+macros.carbs || 0).toFixed(1), fat: +(+macros.fat || 0).toFixed(1), fiber: +(+macros.fiber || 0).toFixed(1) }; ing.resolved = Object.assign({ source: 'manual' }, meta || {}); r.macros_source = 'computed'; });
   async function addPhoto(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; try { const im = await imageToB64(f, 720); patch((r) => { r.photo = 'data:' + im.mime + ';base64,' + im.b64; }); showToast('Photo added'); } catch (err) { showToast('Could not add that photo'); } }
   const toggleFav = () => patch((r) => { r.favorite = !r.favorite; });
-  const shareOn = !!(db.profile && db.profile.shareRecipes === true);
+  const shareOn = !(db.profile && db.profile.shareRecipes === false); // shared by default; opt-out only
   // Toggle whether this recipe joins the shared Discover pool. When sharing is on, push the change
   // straight away so the pool reflects it (browse hides anything flagged private).
   const togglePrivate = () => patch((r) => { r.private = !r.private; if (shareOn && r.source_url) submitPublicRecipe(r); });
@@ -6195,7 +6196,9 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
       const opts = { search: q };
       if (pick === 'today') opts.kcalMax = remKcal || null;
       else if (pick === 'protein') opts.minProtein = 25;
-      else if (pick && pick !== 'all') opts.meal = pick;
+      else if (pick === 'quick') opts.effort = 'quick';
+      else if (pick === 'breakfast') opts.meal = 'breakfast';
+      else if (pick && pick.indexOf('m:') === 0) opts.main = pick.slice(2);
       setItems(await browsePublicRecipes(opts));
     } catch (e) { setErr('Could not load recipes just now.'); setItems([]); }
     setBusy(false);
@@ -6224,7 +6227,9 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
     </div>);
   }
 
-  const pills = [...(remKcal > 0 ? [['today', 'For today']] : []), ['protein', 'High protein'], ['all', 'All']].concat(Rcp.TAX.meal.map(m => [m, Rcp.taxLabel(m)]));
+  // Lead with the axes that actually help you decide what to cook (Mob-style): fit, protein, speed,
+  // breakfast (the one distinct meal), then main ingredient. Lunch/dinner are tied together as "everything else".
+  const pills = [...(remKcal > 0 ? [['today', 'For today']] : []), ['protein', 'High protein'], ['quick', 'Quick'], ['breakfast', 'Breakfast'], ['m:chicken', 'Chicken'], ['m:beef', 'Beef'], ['m:fish', 'Fish'], ['m:veg', 'Veggie'], ['all', 'All']];
   const pm = preview ? { kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, fiber: preview.fiber } : null;
   const chipStyle = on => ({ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 });
   const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
@@ -6235,8 +6240,8 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
       {pills.map(([k, l]) => <button key={k} onClick={() => setPick(k)} className={chipCls} style={chipStyle(pick === k)}>{l}</button>)}
     </div>
     {consent === undefined && <Card className="p-3 mb-3 mt-1" style={{ background: 'var(--surface3)' }}>
-      <div className="text-[12px] leading-snug mb-2"><span className="font-bold">Add your imports to the library?</span> They join the shared hub for everyone, credited to the original creator, never to you.</div>
-      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Thanks - your imports help everyone'); }}>Share mine</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep private</Btn></div>
+      <div className="text-[12px] leading-snug mb-2"><span className="font-bold">Recipes you import join the library.</span> Shared with everyone, credited to the original creator, never to you. You can keep any recipe private.</div>
+      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Great - your imports help everyone'); }}>Sounds good</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep mine private</Btn></div>
     </Card>}
     {busy ? <DinoLoader label="Finding recipes" />
       : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
@@ -6426,7 +6431,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
   // Seed the shared library from recipes imported before sharing was on: once consent is granted,
   // push the user's priced, non-private recipes up (credited to the original creator), once each per session.
   useEffect(() => {
-    if (!(db.profile && db.profile.shareRecipes === true)) return;
+    if (db.profile && db.profile.shareRecipes === false) return; // shared by default (opt-out only)
     (db.recipes || [])
       .filter(r => !r.private && r.source_url && (r.macros_per_serving || {}).kcal > 0 && !sharedThisSession.has(r.id))
       .slice(0, 25)
@@ -6461,7 +6466,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           const src = await extractRecipeSource(r.source_url);
           if (!stop && src && src.author) update(d => {
             const t = (d.recipes || []).find(x => x.id === r.id);
-            if (t) { t.source_author = String(src.author).trim(); t.updated_at = Date.now(); if (d.profile && d.profile.shareRecipes === true && !t.private) submitPublicRecipe(t); }
+            if (t) { t.source_author = String(src.author).trim(); t.updated_at = Date.now(); if (!(d.profile && d.profile.shareRecipes === false) && !t.private) submitPublicRecipe(t); }
           });
         } catch (_) { /* creator not recoverable - leave blank */ }
       }
@@ -6480,7 +6485,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     setActiveId(id); setScreen('detail');
     showToast('Saved ' + rec.title);
     // Contribute to the shared library if the user has opted in and it is not marked private.
-    if (db.profile && db.profile.shareRecipes === true && !saved.private) submitPublicRecipe(saved);
+    if (!(db.profile && db.profile.shareRecipes === false) && !saved.private) submitPublicRecipe(saved);
   }
   // Save a copy of a Discover recipe into the user's own collection. It is already priced, so keep
   // the stated per-serving macros. Mark it as a copy so it is not re-submitted as if it were ours.
