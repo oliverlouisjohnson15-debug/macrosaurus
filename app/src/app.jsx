@@ -6150,24 +6150,29 @@ function creditName(pub) {
   if (!a) return Rcp.platformLabel(pub.source_platform);
   return (pub.source_platform === 'instagram' && !a.startsWith('@')) ? '@' + a : a;
 }
+// Image-forward, reel-shaped (portrait) card - Instagram covers are portrait, so this frames them
+// naturally. Everything sits on the image: title + protein + creator on a scrim, kcal badge on top.
 function PublicRecipeCard({ pub, onOpen }) {
-  return (<button onClick={onOpen} className="text-left w-full active:opacity-90">
-    <div className="pixel-box overflow-hidden h-full flex flex-col" style={{ background: 'var(--card)' }}>
-      <div className="relative w-full" style={{ aspectRatio: '1 / 1', background: 'var(--surface3)' }}>
-        <RecipeImg src={pub.thumbnail} iconSize={30} />
-        <div className="absolute inset-x-0 bottom-0 pt-8 px-2.5 pb-2" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.82))' }}>
-          <div className="font-bold text-[13px] leading-tight" style={{ ...clamp2, color: '#fff' }}>{pub.title}</div>
+  return (<button onClick={onOpen} className="text-left w-full active:opacity-95">
+    <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
+      <div className="relative w-full" style={{ aspectRatio: '3 / 4', background: 'var(--surface3)' }}>
+        <RecipeImg src={pub.thumbnail} iconSize={34} />
+        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[10px] font-bold tnum" style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}>{Math.round(pub.kcal)} kcal</div>
+        <div className="absolute inset-x-0 bottom-0 pt-10 px-2.5 pb-2" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.9))' }}>
+          <div className="font-bold text-[13px] leading-tight mb-1" style={{ ...clamp2, color: '#fff' }}>{pub.title}</div>
+          <div className="flex items-center gap-1.5 text-[10px] min-w-0">
+            <span className="tnum font-bold shrink-0" style={{ color: '#7CFF9B' }}>{Math.round(pub.protein)}g protein</span>
+            {pub.source_author ? <span className="truncate" style={{ color: 'rgba(255,255,255,0.72)' }}>· {creditName(pub)}</span> : null}
+          </div>
         </div>
-        <div className="absolute top-1.5 right-1.5 pixel-box px-1.5 py-0.5 text-[10px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(pub.kcal)}</div>
-      </div>
-      <div className="p-2.5">
-        <div className="flex items-center gap-1.5 text-[11px]"><span className="tnum font-bold" style={{ color: PRO }}>{Math.round(pub.protein)}g</span><span className="text-[#8A8A90]">protein · serves {pub.servings}</span></div>
-        <div className="text-[10px] mt-1 truncate" style={{ color: pub.source_author ? 'var(--accent)' : 'var(--muted)' }}>{pub.source_author ? 'via ' + creditName(pub) : Rcp.platformLabel(pub.source_platform)}{pub.votes > 1 ? ' · ' + pub.votes + ' cooks' : ''}</div>
       </div>
     </div>
   </button>);
 }
-function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
+// The global recipe hub: a Mob-style library of every recipe the community has imported, credited to
+// the original creator. Browsing it is the paid feature (free users get a blurred taste + upsell);
+// importing and cooking your own is always free. Rendered as a tab, so no header/back of its own.
+function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, onGoMine }) {
   const consent = db.profile ? db.profile.shareRecipes : undefined;
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
@@ -6178,8 +6183,10 @@ function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
   const [q, setQ] = useState('');
   const [items, setItems] = useState(null);
   const [creators, setCreators] = useState([]);
+  const [teaser, setTeaser] = useState([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [preview, setPreview] = useState(null);
+  const openPaywall = () => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} };
   async function load() {
     setBusy(true); setErr('');
     try {
@@ -6190,22 +6197,36 @@ function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
     } catch (e) { setErr('Could not load recipes just now.'); setItems([]); }
     setBusy(false);
   }
-  useEffect(() => { browseRecipeCreators().then(setCreators, () => {}); }, []);
-  useEffect(() => { load(); }, [sort, meal, creator]);
-  useEffect(() => { const t = setTimeout(load, 350); return () => clearTimeout(t); }, [q]);
+  // Free users still get a blurred taste of what is inside, so the lock sells itself.
+  useEffect(() => { if (!isPremium) browsePublicRecipes({ limit: 6 }).then(setTeaser, () => {}); }, [isPremium]);
+  useEffect(() => { if (isPremium) browseRecipeCreators().then(setCreators, () => {}); }, [isPremium]);
+  useEffect(() => { if (isPremium) load(); }, [isPremium, sort, meal, creator]);
+  useEffect(() => { if (!isPremium) return; const t = setTimeout(load, 350); return () => clearTimeout(t); }, [q]);
+
+  if (!isPremium) {
+    return (<div className="fade-in">
+      <div className="pixel-box overflow-hidden mb-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
+        <div className="p-4">
+          <div className="pf text-[8px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent)' }}>Macrosaurus Premium</div>
+          <div className="text-lg font-bold mb-1.5 leading-tight">Every recipe, from everyone</div>
+          <div className="text-[12px] text-[#8A8A90] leading-snug mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator. Filter by meal, cuisine or creator and find tonight's cook in seconds.</div>
+          <button onClick={openPaywall} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>TRY PREMIUM FREE</button>
+          <div className="text-[10px] text-center text-[#8A8A90] mt-2">7 days free, then cancel anytime</div>
+        </div>
+      </div>
+      {teaser.length > 0 && <div className="relative mb-4" onClick={openPaywall}>
+        <div className="grid grid-cols-2 gap-3" style={{ filter: 'blur(3px)', opacity: 0.85, pointerEvents: 'none' }}>{teaser.slice(0, 4).map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => {}} />)}</div>
+        <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}>🔒 Unlock the library</span></div>
+      </div>}
+      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug">Free forever: import and cook your own recipes. <span style={{ color: 'var(--accent)' }}>My recipes ›</span></button>
+    </div>);
+  }
+
   const sorts = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
   const pm = preview ? { kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, fiber: preview.fiber } : null;
   const chipStyle = on => ({ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 });
   const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
   return (<div className="fade-in">
-    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
-    <PageHeader kicker="Cook" title="Browse" />
-    <div className="text-[12px] text-[#8A8A90] mb-3 -mt-2">Every recipe the community has imported from Instagram and YouTube, credited to the original creator. Find something to cook, save it, log it.</div>
-    {consent === undefined && <Card className="p-3.5 mb-4" style={{ background: 'var(--surface3)' }}>
-      <div className="text-[13px] font-bold mb-1">Add your imports to the library?</div>
-      <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Recipes you import can join the shared library for everyone, always credited to the original creator, never to you. Keep any single recipe private any time.</div>
-      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Thanks - your imports help everyone'); }}>Share mine</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep private</Btn></div>
-    </Card>}
     <TextInput placeholder="Search recipes or creators…" value={q} onChange={e => setQ(e.target.value)} />
     <div className="flex gap-2 overflow-x-auto pb-1 mt-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
       {sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className={chipCls} style={chipStyle(sort === k)}>{l}</button>)}
@@ -6220,10 +6241,14 @@ function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
         ? <button onClick={() => setCreator('')} className={chipCls} style={chipStyle(true)}>✕ {creator.startsWith('@') ? creator : '@' + creator}</button>
         : creators.map(c => <button key={c.source_author} onClick={() => setCreator(c.source_author)} className={chipCls} style={chipStyle(false)}>{(c.source_author.startsWith('@') ? c.source_author : '@' + c.source_author) + ' · ' + c.n}</button>)}
     </div>}
+    {consent === undefined && <Card className="p-3 mb-3 mt-1" style={{ background: 'var(--surface3)' }}>
+      <div className="text-[12px] leading-snug mb-2"><span className="font-bold">Add your imports to the library?</span> They join the shared hub for everyone, credited to the original creator, never to you.</div>
+      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Thanks - your imports help everyone'); }}>Share mine</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep private</Btn></div>
+    </Card>}
     {busy ? <DinoLoader label="Finding recipes" />
       : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
       : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
-      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{(q || meal || creator) ? 'No recipes match' : 'Nothing here yet'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{(q || meal || creator) ? 'Try a different search, meal or creator.' : 'The library fills up as people import and share recipes. Import a few of your own and turn on sharing to help seed it.'}</div></Card>}
+      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{(q || meal || creator) ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{(q || meal || creator) ? 'Try a different search, meal or creator.' : 'Be one of the first: '}{!(q || meal || creator) && <button onClick={onImport} style={{ color: 'var(--accent)' }}>import a recipe</button>}{!(q || meal || creator) ? ' and it joins the hub for everyone.' : ''}</div></Card>}
     {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
       <BackClose onClose={() => setPreview(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
@@ -6352,7 +6377,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
     </div>
   </div>);
 }
-function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onLogOn, onSaveMeal }) {
+function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onLogOn, onSaveMeal, isPremium }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover | plan
   const [activeId, setActiveId] = useState(null);
   const [q, setQ] = useState('');
@@ -6360,6 +6385,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
   const [facets, setFacets] = useState({}); // { meal, cuisine, main, effort, diet, badge } - taxonomy filters
   const [sort, setSort] = useState('recent'); // recent | protein | kcal | quick
   const [showFilters, setShowFilters] = useState(false);
+  const [hubTab, setHubTab] = useState('discover'); // discover (the community hub) | mine (your own recipes)
   const facetCount = Object.values(facets).filter(Boolean).length;
   const setFacet = (k, v) => setFacets(f => { const n = Object.assign({}, f); if (n[k] === v) delete n[k]; else n[k] = v; return n; });
   // Arriving from a share: jump straight into the importer with the shared link.
@@ -6448,8 +6474,8 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     const rec = Rcp.normalize({
       title: pub.title, servings: pub.servings, ingredients: pub.ingredients || [], steps: pub.steps || [],
       stated_macros_per_serving: { kcal: pub.kcal, protein_g: pub.protein, carbs_g: pub.carbs, fat_g: pub.fat, fiber_g: pub.fiber },
-      source_platform: pub.source_platform,
-    }, { platform: pub.source_platform, url: pub.source_url });
+      source_platform: pub.source_platform, tags: { meal: pub.meal, cuisine: pub.cuisine, main: pub.main, effort: pub.effort },
+    }, { platform: pub.source_platform, url: pub.source_url, author: pub.source_author || '', thumbnail: pub.thumbnail || '' });
     rec.private = true; // a saved copy stays private - the original submitter already seeded it
     const id = Store.uid();
     update(d => { d.recipes = (d.recipes || []).concat([Object.assign({}, rec, { id, user_id: Store.USER, created_at: Date.now(), updated_at: Date.now() })]); });
@@ -6471,14 +6497,11 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
 
   return (<div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
     {screen === 'list' && <>
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4">
         <PageHeader kicker="Cook" title="Recipes" />
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
             <Icon.calendar width="19" height="19" />
-          </button>
-          <button onClick={() => setScreen('discover')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Discover recipes">
-            <Icon.compass width="20" height="20" />
           </button>
           <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
             <Icon.cart width="20" height="20" />
@@ -6486,14 +6509,16 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </button>
         </div>
       </div>
-      {!allRecipes.length ? <>
+      {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
+      <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+        <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
+        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>My recipes</button>
+      </div>
+      {hubTab === 'discover'
+        ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
+        : !allRecipes.length ? <>
+        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
         <ShareTip className="mb-4" />
-        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import from a link instead</Btn>
-        <button onClick={() => setScreen('discover')} className="w-full pixel-box mb-5 p-3 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--surface3)' }}>
-          <Icon.compass width="20" height="20" style={{ color: 'var(--accent)' }} />
-          <div className="min-w-0 flex-1"><div className="text-[13px] font-bold">Browse everyone's recipes</div><div className="text-[11px] text-[#8A8A90] leading-snug">See what the community has imported while you build your own</div></div>
-          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Browse ›</span>
-        </button>
         <Card className="p-6 text-center">
           <div className="mb-3 flex justify-center"><Icon.recipe width="32" height="32" style={{ color: 'var(--muted)' }} /></div>
           <div className="text-[14px] font-semibold mb-1">No recipes yet</div>
@@ -6501,14 +6526,8 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         </Card>
       </> : <>
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <button onClick={() => setScreen('discover')} className="w-full pixel-box mb-4 p-3 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--surface3)' }}>
-          <Icon.compass width="20" height="20" style={{ color: 'var(--accent)' }} />
-          <div className="min-w-0 flex-1"><div className="text-[13px] font-bold">Browse everyone's recipes</div><div className="text-[11px] text-[#8A8A90] leading-snug">Instagram &amp; YouTube recipes the community imported, credited to creators</div></div>
-          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Browse ›</span>
-        </button>
-        <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Your recipes</div>
         <div className="flex gap-2 items-stretch">
-          <div className="flex-1 min-w-0"><TextInput placeholder="Search recipes, ingredients or tags…" value={q} onChange={e => setQ(e.target.value)} /></div>
+          <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
           <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: facetCount ? 'var(--accent)' : 'var(--surface3)', color: facetCount ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 my-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
@@ -6529,7 +6548,6 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
     {screen === 'shopping' && <ShoppingListView db={db} update={update} onBack={() => setScreen('list')} />}
-    {screen === 'discover' && <DiscoverView db={db} onBack={() => setScreen('list')} onSaveCopy={saveCopyFromPublic} onConsent={setShareConsent} showToast={showToast} />}
     {screen === 'plan' && <PlannerView db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onOpenRecipe={(id) => { setActiveId(id); setScreen('detail'); }} onLogOn={onLogOn} />}
   </div>);
 }
@@ -6945,7 +6963,7 @@ function App() {
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
-      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} />}
+      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
