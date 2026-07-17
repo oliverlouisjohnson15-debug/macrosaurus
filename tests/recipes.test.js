@@ -40,6 +40,33 @@ test('gramsFromLine converts leading mass/volume amounts, else 0', () => {
   assert.strictEqual(Recipe.gramsFromLine('salt'), 0);
 });
 
+// ---- portionGrams / gramsForLine -------------------------------------------------------------
+test('portionGrams converts standard cooking portions to grams', () => {
+  assert.strictEqual(Recipe.portionGrams('1 tbsp olive oil'), 15);
+  assert.strictEqual(Recipe.portionGrams('2 cloves garlic'), 10);
+  assert.strictEqual(Recipe.portionGrams('1/2 tsp salt'), 3);      // round(2.5)
+  assert.strictEqual(Recipe.portionGrams('1 can chopped tomatoes'), 400);
+  assert.strictEqual(Recipe.portionGrams('150 g cottage cheese'), 0); // g handled elsewhere
+  assert.strictEqual(Recipe.portionGrams('salt to taste'), 0);
+});
+test('gramsForLine prefers explicit mass, else a known portion', () => {
+  assert.strictEqual(Recipe.gramsForLine('150 g cottage cheese'), 150);
+  assert.strictEqual(Recipe.gramsForLine('1 tbsp olive oil'), 15);
+  assert.strictEqual(Recipe.gramsForLine('a handful of spinach'), 0); // no leading number
+});
+
+// ---- stapleMacros ----------------------------------------------------------------------------
+test('stapleMacros prices pure staples from the built-in table', () => {
+  const oil = Recipe.stapleMacros('1 tbsp olive oil', 15);
+  assert.strictEqual(oil.kcal, 133);   // 884 * 0.15
+  assert.strictEqual(oil.fat, 15);
+  const butter = Recipe.stapleMacros('50 g butter', 50);
+  assert.strictEqual(butter.kcal, 359);
+  assert.strictEqual(Recipe.stapleMacros('boiled potatoes', 200), null); // "oil" not a token of "boiled"
+  assert.strictEqual(Recipe.stapleMacros('1 tbsp olive oil', 0), null);  // no grams -> no price
+  assert.strictEqual(Recipe.stapleMacros('200 g chicken', 200), null);   // not a staple
+});
+
 // ---- bestOffMatch ----------------------------------------------------------------------------
 test('bestOffMatch picks a confident, generic match and rejects weak ones', () => {
   const cheese = Recipe.bestOffMatch('cottage cheese', [
