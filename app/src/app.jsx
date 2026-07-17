@@ -962,8 +962,18 @@ function Auth() {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState(''); const [code, setCode] = useState('');
   const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false); const [legal, setLegal] = useState(null);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+  async function resendConfirm() {
+    if (!supa) { setMsg('Accounts need an internet connection. Open the deployed site.'); return; }
+    if (!email) { setMsg('Enter your email above and we\'ll send the confirmation link again.'); return; }
+    setBusy(true); setMsg('');
+    try { const r = await supa.auth.resend({ type: 'signup', email, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; setMsg('Confirmation email sent again to ' + email + '. It can take a minute to arrive, so check your spam folder too.'); }
+    catch (e) { setMsg(e.message); }
+    setBusy(false);
+  }
   async function submit() {
     if (!supa) { setMsg('Accounts need an internet connection. Open the deployed site.'); return; }
+    setNeedsConfirm(false);
     if (mode === 'forgot') {
       if (!email) { setMsg('Enter your email and we\'ll send a reset link.'); return; }
       setBusy(true); setMsg('');
@@ -979,9 +989,9 @@ function Auth() {
     }
     setBusy(true); setMsg('');
     try {
-      if (mode === 'signup') { const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; if (!r.data.session) setMsg('Account created. Check your email for a confirmation link, then log in.'); }
+      if (mode === 'signup') { const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; if (!r.data.session) { setNeedsConfirm(true); setMsg('Account created. Check your email for a confirmation link, then log in.'); } }
       else { const r = await supa.auth.signInWithPassword({ email, password: pw }); if (r.error) throw r.error; }
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { if (/confirm/i.test(e.message || '')) setNeedsConfirm(true); setMsg(e.message); }
     setBusy(false);
   }
   return (
@@ -1004,12 +1014,13 @@ function Auth() {
           {mode === 'signup' && <Field label="Beta invite code" hint="Macrosaurus is invite-only right now. Enter the code you were given."><input type="text" autoComplete="off" className={inputCls} value={code} onChange={e => setCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="invite code" /></Field>}
           {mode === 'forgot' && <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
           <button onClick={submit} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'PLEASE WAIT…' : (mode === 'signup' ? 'CREATE ACCOUNT' : (mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'))}</button>
-          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); }} className="w-full text-[11px] mt-3 text-center" style={{ color: 'var(--header)' }}>Forgot your password?</button>}
+          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); }} className="w-full text-[11px] mt-3 text-center" style={{ color: 'var(--header)' }}>Forgot your password?</button>}
           {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: 'var(--danger)' }}>{msg}</div>}
+          {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
         </div>
         {mode === 'forgot'
-          ? <button onClick={() => { setMode('login'); setMsg(''); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">← Back to log in</button>
-          : <button onClick={() => { setMode(mode === 'signup' ? 'login' : 'signup'); setMsg(''); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">
+          ? <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">← Back to log in</button>
+          : <button onClick={() => { setMode(mode === 'signup' ? 'login' : 'signup'); setMsg(''); setNeedsConfirm(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">
             {mode === 'signup' ? <>Already have an account? <span className="font-semibold" style={{ color: 'var(--header)' }}>Log in</span></> : <>New here? <span className="font-semibold" style={{ color: 'var(--header)' }}>Create an account</span></>}
           </button>}
         <div className="text-[10px] text-[#8A8A90] text-center mt-8 leading-relaxed px-2">
