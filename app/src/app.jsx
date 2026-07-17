@@ -5474,6 +5474,72 @@ function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
     </div>
   </div>);
 }
+// Full-screen, step-by-step cooking view: big type, screen kept awake, per-step timer when a duration
+// is mentioned, an ingredients drawer, and a finish step that hands off to logging. The moment a saved
+// recipe becomes a cooked meal.
+function CookMode({ recipe, onClose, onLogDone }) {
+  useBackClose(onClose);
+  const steps = (recipe.steps || []);
+  const [i, setI] = useState(0);
+  const [showIng, setShowIng] = useState(false);
+  const [checked, setChecked] = useState({});
+  const [timer, setTimer] = useState(null); // { left, total, on }
+  // Keep the screen awake while cooking (re-acquire when returning to the tab).
+  useEffect(() => {
+    let lock, dead = false;
+    const acquire = async () => { try { if (navigator.wakeLock && !dead) lock = await navigator.wakeLock.request('screen'); } catch (e) { /* unsupported */ } };
+    acquire();
+    const onVis = () => { if (document.visibilityState === 'visible') acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { dead = true; document.removeEventListener('visibilitychange', onVis); try { lock && lock.release(); } catch (e) {} };
+  }, []);
+  useEffect(() => {
+    if (!timer || !timer.on) return;
+    if (timer.left <= 0) { try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch (e) {} return; }
+    const t = setTimeout(() => setTimer(x => (x && x.on) ? Object.assign({}, x, { left: x.left - 1 }) : x), 1000);
+    return () => clearTimeout(t);
+  }, [timer]);
+  if (!steps.length) return null;
+  const last = i >= steps.length - 1;
+  const durMin = (() => { const m = String(steps[i] || '').match(/(\d+)\s*(?:to|-|–)?\s*\d*\s*min/i); return m ? +m[1] : 0; })();
+  const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  const startTimer = () => setTimer({ left: durMin * 60, total: durMin * 60, on: true });
+  return (<div className="fixed inset-0 z-[95] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <button onClick={() => setShowIng(true)} className="pixel-box px-3 py-1.5 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}><Icon.recipe width="14" height="14" /> Ingredients</button>
+      <div className="pf text-[10px] text-[#8A8A90]">STEP {i + 1} / {steps.length}</div>
+      <button onClick={onClose} className="text-2xl leading-none text-[#8A8A90]" aria-label="Close">×</button>
+    </div>
+    <div className="h-1 mx-5 mb-2 rounded-full" style={{ background: 'var(--surface3)' }}><div className="h-1 rounded-full" style={{ width: ((i + 1) / steps.length * 100) + '%', background: 'var(--accent)' }} /></div>
+    <div className="flex-1 overflow-y-auto px-6 flex flex-col justify-center">
+      <div className="max-w-lg mx-auto w-full">
+        <div className="pf text-[11px] mb-4" style={{ color: 'var(--accent)' }}>STEP {i + 1}</div>
+        <div className="font-bold leading-snug" style={{ fontSize: 'clamp(1.4rem, 5vw, 2rem)' }}>{steps[i]}</div>
+        {durMin > 0 && <div className="mt-6">
+          {(!timer) ? <button onClick={startTimer} className="pixel-btn px-4 py-3 text-[14px] font-bold" style={{ background: 'var(--accent)', color: '#111' }}>Start {durMin} min timer</button>
+            : <div className="flex items-center gap-3"><div className="tnum text-3xl font-bold" style={{ color: timer.left <= 0 ? 'var(--good)' : 'var(--text)' }}>{timer.left <= 0 ? 'Done!' : mmss(timer.left)}</div>
+              <button onClick={() => setTimer(x => x && Object.assign({}, x, { on: !x.on }))} className="pixel-box px-3 py-2 text-[13px]" style={{ background: 'var(--surface3)' }}>{timer.on && timer.left > 0 ? 'Pause' : 'Resume'}</button>
+              <button onClick={() => setTimer(null)} className="text-[13px] text-[#8A8A90] underline">Clear</button></div>}
+        </div>}
+      </div>
+    </div>
+    <div className="flex items-center gap-3 px-5 pt-3 pb-6" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+      <button onClick={() => { setTimer(null); setI(x => Math.max(0, x - 1)); }} disabled={i === 0} className="pixel-box px-4 py-3 text-[14px] disabled:opacity-40" style={{ background: 'var(--surface3)' }}>Back</button>
+      {last ? <Btn kind="accent" className="flex-1" onClick={() => { onClose(); onLogDone(); }}>Done - log what you cooked</Btn>
+        : <Btn kind="accent" className="flex-1" onClick={() => { setTimer(null); setI(x => Math.min(steps.length - 1, x + 1)); }}>Next step</Btn>}
+    </div>
+    {showIng && <div className="absolute inset-0 z-10 bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowIng(false)}>
+      <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="text-xl leading-none text-[#8A8A90]">×</button></div>
+        <div className="space-y-0.5">{recipe.ingredients.map(ing => (
+          <button key={ing.id} onClick={() => setChecked(c => Object.assign({}, c, { [ing.id]: !c[ing.id] }))} className="w-full flex items-center gap-3 text-left py-2">
+            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: '#fff' }}>{checked[ing.id] ? '✓' : ''}</span>
+            <span className="text-[14px]" style={{ color: checked[ing.id] ? 'var(--muted)' : 'var(--text)', textDecoration: checked[ing.id] ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</span>
+          </button>))}</div>
+      </div>
+    </div>}
+  </div>);
+}
 function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRecipe, onSaveMeal }) {
   useBackClose(onBack);
   const [pickMeal, setPickMeal] = useState(null);
@@ -5482,6 +5548,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const [busy, setBusy] = useState('');
   const [editIng, setEditIng] = useState(false);
   const [editSteps, setEditSteps] = useState(false);
+  const [cooking, setCooking] = useState(false);
   const autoTried = useRef(false);
   const meals = mealsForDay(db, Store.todayISO());
   const today = Store.todayISO();
@@ -5569,6 +5636,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <Btn kind={hasMacros ? 'ghost' : 'accent'} className="flex-1" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</Btn>
       </div>}
     {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="text-[12px] mb-4 underline" style={{ color: 'var(--accent)' }}>Use the recipe's stated macros instead</button>}
+    {(recipe.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-4 flex items-center justify-center gap-2" onClick={() => setCooking(true)}><Icon.recipe width="18" height="18" /> Start cooking</Btn>}
     <div className="flex items-center justify-between mb-2 mt-2">
       <div className="flex items-center gap-3"><div className="text-lg font-bold">Ingredients</div><button onClick={() => setEditIng(v => !v)} className="pf text-[9px] uppercase px-2 py-1 rounded" style={{ color: editIng ? '#111' : 'var(--accent)', background: editIng ? 'var(--accent)' : 'transparent', border: '1px solid var(--accent)' }}>{editIng ? 'Done' : 'Edit'}</button></div>
       <div className="flex items-center gap-2 text-[12px]">
@@ -5630,6 +5698,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
     </div>}
     {macrosIng && <IngredientMacroSheet ingredient={recipe.ingredients.find(x => x.id === macrosIng.id) || macrosIng} onResolve={(macros, meta) => { setIngMacros(macrosIng.id, macros, meta); setMacrosIng(null); showToast('Set macros for ' + (macrosIng.name || 'ingredient')); }} onClose={() => setMacrosIng(null)} />}
+    {cooking && <CookMode recipe={recipe} onClose={() => setCooking(false)} onLogDone={() => doLog('single')} />}
   </div>);
 }
 
