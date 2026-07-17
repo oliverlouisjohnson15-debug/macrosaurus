@@ -218,21 +218,32 @@ async function browsePublicRecipes(opts) {
   if (r.error) throw new Error(r.error.message);
   return r.data || [];
 }
-// Analyse a recipe's ingredient lines into macros: the nutrition database first, AI fallback if it is
-// not configured or errors, so a recipe always gets numbers. Returns { source, per_ingredient }.
+// Analyse a recipe's ingredient lines into macros. Free Open Food Facts first: every line with a
+// weight and a confident name match is priced per-100g x grams at no token cost. Only the lines OFF
+// cannot resolve (portion units like "1 tbsp", or no good match) go to AI, in one batched call. So a
+// typical recipe is priced for free, AI is the fallback, and a recipe always ends up with numbers.
+// Returns { source: 'off'|'mixed'|'ai'|'none', per_ingredient } aligned by index (source per item).
 async function analyzeRecipe(title, lines) {
   const clean = (lines || []).map(s => String(s || '').trim()).filter(Boolean);
   if (!clean.length) return { source: 'none', per_ingredient: [] };
-  try {
-    const sess = supa ? (await supa.auth.getSession()).data.session : null;
-    const token = sess && sess.access_token;
-    if (token) {
-      const res = await fetch(NUTRITION_ANALYZE, { method: 'POST', headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY }, body: JSON.stringify({ title: title || 'Recipe', ingredients: clean }) });
-      const j = await res.json().catch(() => ({ ok: false }));
-      if (j && j.ok && Array.isArray(j.per_ingredient) && j.per_ingredient.some(p => p && p.macros && p.macros.kcal)) return { source: 'edamam', per_ingredient: j.per_ingredient };
-    }
-  } catch (e) { /* fall through to AI */ }
-  return await aiAnalyzeLines(clean);
+  const per = new Array(clean.length).fill(null);
+  await Promise.all(clean.map(async (line, i) => {
+    const grams = Rcp.gramsFromLine(line), name = Rcp.nameFromLine(line);
+    if (!(grams > 0) || !name) return;
+    try {
+      const best = Rcp.bestOffMatch(name, await offSearchByName(name));
+      if (best) per[i] = { line, weight: grams, macros: Rcp.macrosFromPer100(best.per100, grams), source: 'off' };
+    } catch (e) { /* fall to AI */ }
+  }));
+  const missIdx = clean.map((_, i) => i).filter(i => !per[i]);
+  if (missIdx.length) {
+    try {
+      const ai = await aiAnalyzeLines(missIdx.map(i => clean[i]));
+      (ai.per_ingredient || []).forEach((p, k) => { const i = missIdx[k], m = p && p.macros; if (m && (m.kcal || m.protein || m.carbs || m.fat)) per[i] = { line: clean[i], weight: +p.weight || Rcp.gramsFromLine(clean[i]) || 0, macros: m, source: 'ai' }; });
+    } catch (e) { /* leave unresolved; user can retry or set manually */ }
+  }
+  const usedOff = per.some(p => p && p.source === 'off'), usedAi = per.some(p => p && p.source === 'ai');
+  return { source: usedOff && usedAi ? 'mixed' : usedOff ? 'off' : usedAi ? 'ai' : 'none', per_ingredient: per.map(p => p || { macros: null }) };
 }
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
 // comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open , 
@@ -5324,7 +5335,7 @@ function RecipeCard({ recipe, onOpen, onFav }) {
         <div className="absolute inset-x-0 bottom-0 pt-8 px-3 pb-2.5" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.78))' }}>
           <div className="text-white font-bold text-[15px] leading-tight" style={clamp2}>{recipe.title}</div>
         </div>
-        {m.kcal > 0 && <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(m.kcal)} kcal</div>}
+        <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: m.kcal > 0 ? 'var(--text)' : 'var(--muted)' }}>{m.kcal > 0 ? Math.round(m.kcal) + ' kcal' : 'Tap to price'}</div>
         {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
       </div>
       <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
@@ -5419,26 +5430,18 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
 // Editable review before saving: title, servings (rescales amounts), ingredients, steps, per-serving macros.
 function RecipeReview({ recipe, onSave, onCancel }) {
   const [d, setD] = useState(recipe);
-  const [pricing, setPricing] = useState(false);
-  const pricedRef = useRef(false);
   const set = (patch) => setD(x => Object.assign({}, x, patch));
   const setLine = (i, v) => setD(x => { const ings = x.ingredients.slice(); ings[i] = Object.assign({}, ings[i], { line: v, name: Rcp.nameFromLine(v) }); return Object.assign({}, x, { ingredients: ings }); });
   const delIng = (i) => setD(x => ({ ...x, ingredients: x.ingredients.filter((_, k) => k !== i) }));
   const addIng = () => setD(x => ({ ...x, ingredients: x.ingredients.concat([{ id: 'ing_' + Store.uid(), line: '', name: '', grams: 0, macros: null, resolved: null, have: false }]) }));
   const setSteps = (txt) => setD(x => ({ ...x, steps: txt.split('\n').map(s => s.trim()).filter(Boolean) }));
-  // Show the recipe instantly, then work out the macros in the background so import feels fast.
-  useEffect(() => {
-    if (pricedRef.current) return; pricedRef.current = true;
-    if (recipe.macros_source === 'stated' || Rcp.resolvedCount(recipe) >= (recipe.ingredients || []).length) return;
-    (async () => { setPricing(true); try { const result = await analyzeRecipe(recipe.title, (recipe.ingredients || []).map(i => Rcp.lineOf(i))); setD(x => Rcp.applyAnalysis(x, result)); } catch (e) { /* detail can retry */ } setPricing(false); })();
-  }, []);
+  const priced = d.macros_per_serving.kcal > 0;
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
-    <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save.</div>
-    {pricing ? <div className="text-[12px] mb-3 flex items-center gap-2" style={{ color: 'var(--accent)' }}><PixelDino size={16} color="var(--accent)" /> Working out the macros...</div>
-      : d.macros_per_serving.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Macros per serving</div><RecipeMacroStrip macros={d.macros_per_serving} per /></Card>}
-    {!pricing && (() => { const s = Rcp.macroSanity(d); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg}</div> : null; })()}
+    <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your Cook library, you can work out the macros or cook it whenever.</div>
+    {priced && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Macros per serving</div><RecipeMacroStrip macros={d.macros_per_serving} per /></Card>}
+    {priced && (() => { const s = Rcp.macroSanity(d); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg}</div> : null; })()}
     <Field label="Title"><input value={d.title} onChange={e => set({ title: e.target.value })} className={inputCls} /></Field>
     <Field label="Servings"><input type="number" min="1" value={d.servings} onChange={e => set({ servings: Math.max(1, Math.round(+e.target.value) || 1) })} className={inputCls + ' w-28'} /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 mt-1">Ingredients</div>
@@ -5454,7 +5457,7 @@ function RecipeReview({ recipe, onSave, onCancel }) {
     <Field label="Method (one step per line)">
       <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
     </Field>
-    <Btn kind="accent" className="w-full mt-1" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.some(x => Rcp.lineOf(x).trim())}>Save recipe</Btn>
+    <Btn kind="accent" className="w-full mt-1" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.some(x => Rcp.lineOf(x).trim())}>Save to my recipes</Btn>
   </div>);
 }
 // Open Food Facts search-by-name, for the per-ingredient brand override. Returns per-100g options.
@@ -5622,7 +5625,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       (result.per_ingredient || []).forEach((p, i) => {
         const ing = r.ingredients[i]; if (!ing) return;
         const m = p && p.macros;
-        if (m && (m.kcal || m.protein || m.carbs || m.fat)) { ing.macros = { kcal: Math.round(m.kcal), protein: +(+m.protein || 0).toFixed(1), carbs: +(+m.carbs || 0).toFixed(1), fat: +(+m.fat || 0).toFixed(1), fiber: +(+m.fiber || 0).toFixed(1) }; ing.grams = +p.weight || ing.grams || 0; ing.resolved = { source: result.source }; }
+        if (m && (m.kcal || m.protein || m.carbs || m.fat)) { ing.macros = { kcal: Math.round(m.kcal), protein: +(+m.protein || 0).toFixed(1), carbs: +(+m.carbs || 0).toFixed(1), fat: +(+m.fat || 0).toFixed(1), fiber: +(+m.fiber || 0).toFixed(1) }; ing.grams = +p.weight || ing.grams || 0; ing.resolved = { source: p.source || result.source }; }
       });
       if (Rcp.resolvedCount(r) > 0) r.macros_source = result.source === 'edamam' ? 'analysed' : result.source;
     });
@@ -5639,7 +5642,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     update(d => { const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions); added = fresh.length; d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: recipe.id, checked: false, added_at: Date.now() }))); });
     showToast(added ? ('Added ' + added + ' to your shopping list') : 'Those are already on your list');
   }
-  const srcLabel = { stated: 'as stated in the recipe', analysed: 'from a nutrition database', ai: 'AI estimate', computed: 'from your ingredients', pending: 'not worked out yet' };
+  const srcLabel = { stated: 'as stated in the recipe', analysed: 'from a nutrition database', off: 'from Open Food Facts', mixed: 'Open Food Facts + AI', ai: 'AI estimate', computed: 'from your ingredients', pending: 'not worked out yet' };
   const srcNote = srcLabel[recipe.macros_source] || (resolved > 0 ? 'from ' + resolved + ' of ' + total + ' ingredients' : 'not worked out yet');
   const fitColor = !fit ? MUTED : fit.fitsKcal ? 'var(--good)' : fit.overKcal <= (rem.kcal * 0.15) ? '#F5C542' : '#ff6b6b';
   const srcDot = { edamam: 'var(--good)', analysed: 'var(--good)', off: 'var(--good)', ai: '#F5C542', manual: 'var(--accent)', legacy: MUTED };

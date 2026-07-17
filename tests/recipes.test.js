@@ -29,6 +29,31 @@ test('lineOf rebuilds a line from legacy name/grams fields', () => {
   assert.strictEqual(Recipe.lineOf({ name: 'garlic', quantity: 2, unit: 'cloves' }), '2 cloves garlic');
 });
 
+// ---- gramsFromLine ---------------------------------------------------------------------------
+test('gramsFromLine converts leading mass/volume amounts, else 0', () => {
+  assert.strictEqual(Recipe.gramsFromLine('150 g cottage cheese'), 150);
+  assert.strictEqual(Recipe.gramsFromLine('1.5 kg chicken'), 1500);
+  assert.strictEqual(Recipe.gramsFromLine('200 ml milk'), 200);
+  assert.strictEqual(Recipe.gramsFromLine('0.5 l stock'), 500);
+  assert.strictEqual(Recipe.gramsFromLine('1 tbsp olive oil'), 0);   // portion unit -> AI
+  assert.strictEqual(Recipe.gramsFromLine('2 cloves garlic'), 0);
+  assert.strictEqual(Recipe.gramsFromLine('salt'), 0);
+});
+
+// ---- bestOffMatch ----------------------------------------------------------------------------
+test('bestOffMatch picks a confident, generic match and rejects weak ones', () => {
+  const cheese = Recipe.bestOffMatch('cottage cheese', [
+    { name: 'Cheddar cheese', per100: { kcal: 400 } },
+    { name: 'Cottage Cheese', per100: { kcal: 98 } },
+    { name: 'Cottage cheese light', brand: 'Brand', per100: { kcal: 72 } },
+  ]);
+  assert.strictEqual(cheese.name, 'Cottage Cheese');            // full overlap, shortest, no brand
+  // two-token names need BOTH tokens, so olive oil is not satisfied by sunflower oil
+  assert.strictEqual(Recipe.bestOffMatch('olive oil', [{ name: 'Sunflower oil', per100: { kcal: 900 } }]), null);
+  assert.strictEqual(Recipe.bestOffMatch('chicken', [{ name: 'Chicken breast fillets', per100: { kcal: 106 } }]).name, 'Chicken breast fillets');
+  assert.strictEqual(Recipe.bestOffMatch('quinoa', []), null);
+});
+
 // ---- normalize -------------------------------------------------------------------------------
 test('normalize turns string ingredient lines into unresolved ingredients', () => {
   const rec = Recipe.normalize({

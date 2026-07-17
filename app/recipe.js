@@ -37,6 +37,34 @@
     return s || String(line || '').trim();
   }
 
+  // Grams implied by an ingredient line's leading amount, for free Open Food Facts pricing
+  // (per-100g x grams). Only mass/volume units convert; portion words (tbsp, clove) return 0 so
+  // those lines route to the AI fallback, which handles unit-to-gram guessing. ml/l treated as ~1g/ml.
+  function gramsFromLine(line) {
+    var m = String(line || '').trim().match(/^(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛⅜⅝⅞])\s*(kg|g|ml|l)\b/i);
+    if (!m) return 0;
+    var amt = parseAmt(m[1].replace(/\s+/g, '')), unit = m[2].toLowerCase();
+    return Math.round((unit === 'kg' || unit === 'l') ? amt * 1000 : amt);
+  }
+  // Pick the best Open Food Facts result for an ingredient name, or null if none is a confident match
+  // (so the AI fallback takes it). Requires most/all name tokens to appear in the product name, then
+  // prefers the highest overlap, shortest (most generic) name, and own-brand over branded packs.
+  function bestOffMatch(name, products) {
+    var tokens = norm(name).split(' ').filter(function (t) { return t.length > 2; });
+    if (!tokens.length) tokens = norm(name).split(' ').filter(Boolean);
+    if (!tokens.length || !products || !products.length) return null;
+    var need = tokens.length <= 2 ? tokens.length : tokens.length - 1;
+    var best = null, bestScore = -1;
+    products.forEach(function (p) {
+      var pn = norm(p && p.name);
+      var overlap = tokens.filter(function (t) { return pn.indexOf(t) >= 0; }).length;
+      if (overlap < need) return;
+      var score = (overlap / tokens.length) * 100 - pn.split(' ').length - (p.brand ? 1 : 0);
+      if (score > bestScore) { bestScore = score; best = p; }
+    });
+    return best;
+  }
+
   // Pull the first YouTube/Instagram link out of shared text. Returns { platform, url } or null.
   function detectShare(text) {
     var m = String(text || '').match(/https?:\/\/[^\s"'<>]+/g);
@@ -90,7 +118,7 @@
     var ingredients = (recipe.ingredients || []).map(function (ing, i) {
       var p = per[i], m = p && p.macros;
       if (m && (num(m.kcal) || num(m.protein) || num(m.carbs) || num(m.fat))) {
-        return Object.assign({}, ing, { macros: cleanMacros(m), grams: num(p.weight) || ing.grams || 0, resolved: { source: source } });
+        return Object.assign({}, ing, { macros: cleanMacros(m), grams: num(p.weight) || ing.grams || 0, resolved: { source: (p && p.source) || source } });
       }
       return ing;
     });
@@ -189,7 +217,7 @@
 
   var Recipe = {
     detectShare: detectShare, platformLabel: platformLabel, normalize: normalize,
-    lineOf: lineOf, nameFromLine: nameFromLine,
+    lineOf: lineOf, nameFromLine: nameFromLine, gramsFromLine: gramsFromLine, bestOffMatch: bestOffMatch,
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
