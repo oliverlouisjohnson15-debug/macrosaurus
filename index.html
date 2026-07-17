@@ -18161,6 +18161,8 @@ const thumbFixTried = new Set();
 const tagFixTried = new Set();
 // Recipes already pushed to the shared library this session (seeds the pool from pre-consent imports).
 const sharedThisSession = new Set();
+// Recipes we've re-extracted this session to recover the original creator (for pre-creator-capture imports).
+const authorFixTried = new Set();
 // The chips under a card: auto-tags (meal/cuisine) for browsing + live macro badges (high protein
 // etc). Capped so a card stays calm; the high-protein badge is emphasised as the tracker's signal.
 function recipeChips(recipe) {
@@ -19780,7 +19782,8 @@ function ShoppingListView({
 function creditName(pub) {
   const a = String(pub.source_author || '').trim();
   if (!a) return Rcp.platformLabel(pub.source_platform);
-  return pub.source_platform === 'instagram' && !a.startsWith('@') ? '@' + a : a;
+  // Handles (no spaces) get an @; real display names ("Emily English") are shown as-is.
+  return pub.source_platform === 'instagram' && !a.startsWith('@') && !/\s/.test(a) ? '@' + a : a;
 }
 // Image-forward, reel-shaped (portrait) card - Instagram covers are portrait, so this frames them
 // naturally. Everything sits on the image: title + protein + creator on a scrim, kcal badge on top.
@@ -20624,6 +20627,33 @@ function Recipes({
             t.updated_at = Date.now();
           }
         });
+      }
+    })();
+    return () => {
+      stop = true;
+    };
+  }, []);
+  // Creator backfill: recipes imported before creator-capture existed have no source_author. Re-extract
+  // the original creator from the source link and, if sharing is on, re-share so the pool gets credited
+  // too. A few per session; Instagram sometimes hides it, in which case we just leave it blank.
+  useEffect(() => {
+    const need = (db.recipes || []).filter(r => r.source_url && !(r.source_author || '').trim() && !authorFixTried.has(r.id));
+    if (!need.length) return;
+    let stop = false;
+    (async () => {
+      for (const r of need.slice(0, 6)) {
+        authorFixTried.add(r.id);
+        try {
+          const src = await extractRecipeSource(r.source_url);
+          if (!stop && src && src.author) update(d => {
+            const t = (d.recipes || []).find(x => x.id === r.id);
+            if (t) {
+              t.source_author = String(src.author).trim();
+              t.updated_at = Date.now();
+              if (d.profile && d.profile.shareRecipes === true && !t.private) submitPublicRecipe(t);
+            }
+          });
+        } catch (_) {/* creator not recoverable - leave blank */}
       }
     })();
     return () => {
