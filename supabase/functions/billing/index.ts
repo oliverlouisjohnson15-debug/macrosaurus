@@ -8,7 +8,9 @@ const DEFAULT_ORIGIN = 'https://macrosaurus.com';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
+  // supabase-js functions.invoke adds x-client-info / x-supabase-api-version, so they must be allowed
+  // through the preflight or the browser blocks the request.
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-api-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 const json = (body: unknown, status = 200) =>
