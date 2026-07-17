@@ -15945,6 +15945,211 @@ function adminFmtWhen(s) {
     return 'unknown';
   }
 }
+
+// Admin billing/tiers endpoint (raw fetch like adminCall, so no CORS preflight headers needed).
+async function adminBilling(action, payload) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) throw new Error('Not signed in.');
+  const res = await fetch(SUPA_URL + '/functions/v1/admin-billing', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + token,
+      'apikey': SUPA_KEY
+    },
+    body: JSON.stringify(Object.assign({
+      action
+    }, payload || {}))
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error(j.error && (j.error.message || j.error) || 'Request failed (' + res.status + ')');
+  return j;
+}
+// Global free/premium tier controls: enforcement toggle + the free AI count and premium ceiling.
+function AdminTiers() {
+  const [cfg, setCfg] = useState(null);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [free, setFree] = useState('');
+  const [pcap, setPcap] = useState('');
+  useEffect(() => {
+    adminBilling('get_config').then(c => {
+      setCfg(c);
+      setFree(String(c.free_ai_monthly));
+      setPcap(String(c.premium_cap_usd));
+    }, e => setErr(e.message));
+  }, []);
+  async function toggleEnforce() {
+    setBusy(true);
+    setErr('');
+    setMsg('');
+    try {
+      const c = await adminBilling('set_config', {
+        enforceTiers: !cfg.enforce_tiers
+      });
+      setCfg(c);
+      setMsg(c.enforce_tiers ? 'Tiering ON: free users are limited, premium is unlimited.' : 'Tiering OFF: everyone uses the legacy AI cap.');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy(false);
+  }
+  async function saveNums() {
+    const f = Number(free),
+      p = Number(pcap);
+    if (!isFinite(f) || f < 0 || !isFinite(p) || p < 0) {
+      setErr('Enter valid numbers.');
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    setMsg('');
+    try {
+      const c = await adminBilling('set_config', {
+        freeAiMonthly: f,
+        premiumCap: p
+      });
+      setCfg(c);
+      setFree(String(c.free_ai_monthly));
+      setPcap(String(c.premium_cap_usd));
+      setMsg('Saved.');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy(false);
+  }
+  if (!cfg) return /*#__PURE__*/React.createElement(Section, {
+    title: "Premium & tiers",
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, err || 'Loading…'));
+  return /*#__PURE__*/React.createElement(Section, {
+    title: "Premium & tiers",
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between gap-3 pixel-box p-3 bg-[#1E1E22] mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-semibold"
+  }, "Enforce free / premium tiers"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug"
+  }, "On: free users get ", cfg.free_ai_monthly, " AI logs/month and body-fat is premium-only; premium is unlimited (fair-use $", cfg.premium_cap_usd.toFixed(2), "). Off: legacy cap for all. You are always exempt.")), /*#__PURE__*/React.createElement("button", {
+    onClick: toggleEnforce,
+    disabled: busy,
+    className: "shrink-0 pixel-btn px-4 py-2 text-[11px] pf disabled:opacity-50",
+    style: {
+      background: cfg.enforce_tiers ? 'var(--good)' : 'var(--surface2)',
+      color: cfg.enforce_tiers ? '#05140a' : 'var(--text)'
+    }
+  }, cfg.enforce_tiers ? 'ON' : 'OFF')), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2 mb-2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-1"
+  }, "Free AI logs / month"), /*#__PURE__*/React.createElement(TextInput, {
+    value: free,
+    onChange: e => setFree(e.target.value),
+    placeholder: "10"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-1"
+  }, "Premium ceiling ($/mo)"), /*#__PURE__*/React.createElement(TextInput, {
+    value: pcap,
+    onChange: e => setPcap(e.target.value),
+    placeholder: "3.00"
+  }))), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    disabled: busy,
+    onClick: saveNums
+  }, busy ? 'Saving…' : 'Save tier limits'), msg && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--good)'
+    }
+  }, msg), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, err));
+}
+// Per-user complimentary Premium grant/revoke (shown inside a user's detail).
+function AdminUserPremium({
+  userId
+}) {
+  const [state, setState] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const load = () => adminBilling('get_premium', {
+    userId
+  }).then(setState, e => setErr(e.message));
+  useEffect(() => {
+    setState(null);
+    setMsg('');
+    setErr('');
+    load();
+  }, [userId]);
+  async function toggle(make) {
+    setBusy(true);
+    setErr('');
+    setMsg('');
+    try {
+      await adminBilling('set_premium', {
+        userId,
+        premium: make
+      });
+      await load();
+      setMsg(make ? 'Premium granted (complimentary).' : 'Premium revoked.');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy(false);
+  }
+  const premium = !!(state && state.premium);
+  const comp = !!(state && state.comp);
+  const status = state && state.subscription && state.subscription.status;
+  const label = !state ? '…' : premium ? comp ? 'Premium (complimentary)' : status === 'trialing' ? 'Premium (trial)' : 'Premium (Stripe)' : status === 'canceled' ? 'Free (was subscribed)' : 'Free';
+  return /*#__PURE__*/React.createElement(Section, {
+    title: "Subscription"
+  }, /*#__PURE__*/React.createElement(Row2, {
+    k: "Plan",
+    v: label,
+    last: true
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mt-3 mb-2"
+  }, "Grant complimentary Premium (no charge, no Stripe) or revoke it. A paid Stripe subscription is managed by the customer and re-syncs automatically."), premium ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    style: {
+      color: 'var(--danger)'
+    },
+    disabled: busy,
+    onClick: () => toggle(false)
+  }, busy ? 'Working…' : 'Revoke Premium') : /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      borderColor: 'var(--border)'
+    },
+    disabled: busy,
+    onClick: () => toggle(true)
+  }, busy ? 'Working…' : 'Grant Premium (free)'), msg && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--good)'
+    }
+  }, msg), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-2",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, err));
+}
 function AdminStat({
   label,
   value,
@@ -16392,7 +16597,7 @@ function AdminPanel({
     }
   }, capMsg), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3"
-  }, "Current default $", defaultCap.toFixed(2), "/mo · total spend across all users this month $", totalSpend.toFixed(2), ".")), /*#__PURE__*/React.createElement(Section, {
+  }, "Current default $", defaultCap.toFixed(2), "/mo · total spend across all users this month $", totalSpend.toFixed(2), ".")), /*#__PURE__*/React.createElement(AdminTiers, null), /*#__PURE__*/React.createElement(Section, {
     title: "Dev tools",
     className: "mt-6"
   }, /*#__PURE__*/React.createElement("div", {
@@ -16790,7 +16995,9 @@ function AdminUserDetail({
     className: "w-full mt-2",
     disabled: busy === 'usage',
     onClick: () => setConfirmKind('usage')
-  }, "Reset this month's usage to $0")), /*#__PURE__*/React.createElement(Section, {
+  }, "Reset this month's usage to $0")), /*#__PURE__*/React.createElement(AdminUserPremium, {
+    userId: u.id
+  }), /*#__PURE__*/React.createElement(Section, {
     title: "Access"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Role",

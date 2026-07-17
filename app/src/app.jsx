@@ -4939,6 +4939,73 @@ function modelLabel(m) { return !m ? 'Other' : (m.indexOf('haiku') !== -1 ? 'Hai
 function adminFmtDate(s) { try { return s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'unknown'; } catch (e) { return 'unknown'; } }
 function adminFmtWhen(s) { try { return s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'never'; } catch (e) { return 'unknown'; } }
 
+// Admin billing/tiers endpoint (raw fetch like adminCall, so no CORS preflight headers needed).
+async function adminBilling(action, payload) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token; if (!token) throw new Error('Not signed in.');
+  const res = await fetch(SUPA_URL + '/functions/v1/admin-billing', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+    body: JSON.stringify(Object.assign({ action }, payload || {})),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error((j.error && (j.error.message || j.error)) || ('Request failed (' + res.status + ')'));
+  return j;
+}
+// Global free/premium tier controls: enforcement toggle + the free AI count and premium ceiling.
+function AdminTiers() {
+  const [cfg, setCfg] = useState(null); const [err, setErr] = useState(''); const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false);
+  const [free, setFree] = useState(''); const [pcap, setPcap] = useState('');
+  useEffect(() => { adminBilling('get_config').then(c => { setCfg(c); setFree(String(c.free_ai_monthly)); setPcap(String(c.premium_cap_usd)); }, e => setErr(e.message)); }, []);
+  async function toggleEnforce() {
+    setBusy(true); setErr(''); setMsg('');
+    try { const c = await adminBilling('set_config', { enforceTiers: !cfg.enforce_tiers }); setCfg(c); setMsg(c.enforce_tiers ? 'Tiering ON: free users are limited, premium is unlimited.' : 'Tiering OFF: everyone uses the legacy AI cap.'); }
+    catch (e) { setErr(e.message); } setBusy(false);
+  }
+  async function saveNums() {
+    const f = Number(free), p = Number(pcap);
+    if (!isFinite(f) || f < 0 || !isFinite(p) || p < 0) { setErr('Enter valid numbers.'); return; }
+    setBusy(true); setErr(''); setMsg('');
+    try { const c = await adminBilling('set_config', { freeAiMonthly: f, premiumCap: p }); setCfg(c); setFree(String(c.free_ai_monthly)); setPcap(String(c.premium_cap_usd)); setMsg('Saved.'); }
+    catch (e) { setErr(e.message); } setBusy(false);
+  }
+  if (!cfg) return <Section title="Premium & tiers" className="mt-6"><div className="text-[12px] text-[#8A8A90]">{err || 'Loading…'}</div></Section>;
+  return (
+    <Section title="Premium & tiers" className="mt-6">
+      <div className="flex items-center justify-between gap-3 pixel-box p-3 bg-[#1E1E22] mb-3">
+        <div className="min-w-0"><div className="text-[13px] font-semibold">Enforce free / premium tiers</div><div className="text-[11px] text-[#8A8A90] leading-snug">On: free users get {cfg.free_ai_monthly} AI logs/month and body-fat is premium-only; premium is unlimited (fair-use ${cfg.premium_cap_usd.toFixed(2)}). Off: legacy cap for all. You are always exempt.</div></div>
+        <button onClick={toggleEnforce} disabled={busy} className="shrink-0 pixel-btn px-4 py-2 text-[11px] pf disabled:opacity-50" style={{ background: cfg.enforce_tiers ? 'var(--good)' : 'var(--surface2)', color: cfg.enforce_tiers ? '#05140a' : 'var(--text)' }}>{cfg.enforce_tiers ? 'ON' : 'OFF'}</button>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <div><div className="text-[11px] text-[#8A8A90] mb-1">Free AI logs / month</div><TextInput value={free} onChange={e => setFree(e.target.value)} placeholder="10" /></div>
+        <div><div className="text-[11px] text-[#8A8A90] mb-1">Premium ceiling ($/mo)</div><TextInput value={pcap} onChange={e => setPcap(e.target.value)} placeholder="3.00" /></div>
+      </div>
+      <Btn kind="accent" disabled={busy} onClick={saveNums}>{busy ? 'Saving…' : 'Save tier limits'}</Btn>
+      {msg && <div className="text-[11px] mt-2" style={{ color: 'var(--good)' }}>{msg}</div>}
+      {err && <div className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>{err}</div>}
+    </Section>
+  );
+}
+// Per-user complimentary Premium grant/revoke (shown inside a user's detail).
+function AdminUserPremium({ userId }) {
+  const [state, setState] = useState(null); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('');
+  const load = () => adminBilling('get_premium', { userId }).then(setState, e => setErr(e.message));
+  useEffect(() => { setState(null); setMsg(''); setErr(''); load(); }, [userId]);
+  async function toggle(make) { setBusy(true); setErr(''); setMsg(''); try { await adminBilling('set_premium', { userId, premium: make }); await load(); setMsg(make ? 'Premium granted (complimentary).' : 'Premium revoked.'); } catch (e) { setErr(e.message); } setBusy(false); }
+  const premium = !!(state && state.premium); const comp = !!(state && state.comp);
+  const status = state && state.subscription && state.subscription.status;
+  const label = !state ? '…' : premium ? (comp ? 'Premium (complimentary)' : status === 'trialing' ? 'Premium (trial)' : 'Premium (Stripe)') : (status === 'canceled' ? 'Free (was subscribed)' : 'Free');
+  return (
+    <Section title="Subscription">
+      <Row2 k="Plan" v={label} last />
+      <div className="text-[12px] text-[#8A8A90] mt-3 mb-2">Grant complimentary Premium (no charge, no Stripe) or revoke it. A paid Stripe subscription is managed by the customer and re-syncs automatically.</div>
+      {premium
+        ? <Btn kind="ghost" className="w-full" style={{ color: 'var(--danger)' }} disabled={busy} onClick={() => toggle(false)}>{busy ? 'Working…' : 'Revoke Premium'}</Btn>
+        : <Btn kind="ghost" className="w-full" style={{ background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--border)' }} disabled={busy} onClick={() => toggle(true)}>{busy ? 'Working…' : 'Grant Premium (free)'}</Btn>}
+      {msg && <div className="text-[11px] mt-2" style={{ color: 'var(--good)' }}>{msg}</div>}
+      {err && <div className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>{err}</div>}
+    </Section>
+  );
+}
 function AdminStat({ label, value, sub }) {
   return (<div className="pixel-box p-3 bg-[#1E1E22]"><div className="text-[11px] text-[#8A8A90]">{label}</div><div className="text-xl font-bold tnum mt-0.5">{value}</div>{sub && <div className="text-[10px] text-[#8A8A90] mt-0.5">{sub}</div>}</div>);
 }
@@ -5078,6 +5145,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
             {capMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--muted)' }}>{capMsg}</div>}
             <div className="text-[11px] text-[#8A8A90] mt-3">Current default ${defaultCap.toFixed(2)}/mo · total spend across all users this month ${totalSpend.toFixed(2)}.</div>
           </Section>
+          <AdminTiers />
           <Section title="Dev tools" className="mt-6">
             <div className="text-[12px] text-[#8A8A90] mb-2">Reset the Dino Fight day-gate on your own account so you can test again. This clears today's ladder attempt and re-arms this week's boss, nothing else changes.</div>
             <Btn kind="accent" onClick={resetBattle}>Reset today's battle</Btn>
@@ -5168,6 +5236,8 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
         </div>
         {detail.spend_usd > 0 && <Btn kind="ghost" className="w-full mt-2" disabled={busy === 'usage'} onClick={() => setConfirmKind('usage')}>Reset this month's usage to $0</Btn>}
       </Section>
+
+      <AdminUserPremium userId={u.id} />
 
       <Section title="Access">
         <Row2 k="Role" v={adminRole ? 'Admin' : 'User'} last />
