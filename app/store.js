@@ -149,6 +149,17 @@
   function mergeStates(a, b) {
     if (!a) return b || null;
     if (!b) return a;
+    // Reset watermark. "Reset all data" stamps the fresh, empty baseline with _wipe = t (and _rev = t).
+    // Any copy whose entries all predate t (both its _rev and _wipe are < t) is a pre-reset snapshot:
+    // its entries must NOT be unioned back in, or the union below would silently undo the reset (the
+    // exact bug where a wiped log/engine reappears after closing and reopening the app). The post-reset
+    // baseline, and any edit descended from it, carries _wipe forward and wins wholesale.
+    var wipe = Math.max((a._wipe || 0), (b._wipe || 0));
+    if (wipe) {
+      var preWipe = function (s) { return (s._wipe || 0) < wipe && (s._rev || 0) < wipe; };
+      if (preWipe(a)) return b;
+      if (preWipe(b)) return a;
+    }
     var ra = (a && a._rev) || 0, rb = (b && b._rev) || 0;
     var newer = ra >= rb ? a : b, older = ra >= rb ? b : a;
     var out = JSON.parse(JSON.stringify(newer));
@@ -194,6 +205,7 @@
     if (dids.length > 1000) { dids.sort(function (x, y) { return del[y] - del[x]; }); var cap = {}; dids.slice(0, 1000).forEach(function (id) { cap[id] = del[id]; }); del = cap; }
     out.deleted = del;
     out._rev = Math.max(ra, rb);
+    out._wipe = wipe; // carry the reset watermark forward so it keeps protecting later merges
     return out;
   }
 

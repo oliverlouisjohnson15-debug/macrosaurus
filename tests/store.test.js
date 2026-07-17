@@ -117,6 +117,41 @@ test('mergeStates: tombstones only remove their own id, never other entries', ()
   assert.deepStrictEqual(m.log_entries.map(e => e.id).sort(), ['x', 'y']); // no accidental loss
 });
 
+test('mergeStates: a reset wipes old entries the union-merge would otherwise keep', () => {
+  // The classic "I pressed Reset but my data and engine came back on reopen" bug. The old copy has a
+  // full log + learned expenditure and a HIGHER content _rev; the reset baseline is empty but carries
+  // a _wipe watermark. The merge must NOT union the old entries or engine state back in.
+  const old = { _rev: 100,
+    log_entries: [{ id: 'a', date: '2026-07-08' }, { id: 'b', date: '2026-07-09' }],
+    weight_entries: [{ id: 'w1', date: '2026-07-08' }],
+    checkins: [{ date: '2026-07-04' }], expenditure: { kcal: 2650, n: 4 } };
+  const t = old._rev + 1000;
+  const reset = Store.defaultState(); reset._rev = t; reset._wipe = t; // empty baseline, watermarked
+  const m = Store.mergeStates(old, reset);
+  assert.deepStrictEqual(m.log_entries, []);
+  assert.deepStrictEqual(m.weight_entries, []);
+  assert.deepStrictEqual(m.checkins, []);
+  assert.strictEqual(m.expenditure, null);        // the adaptive engine is wiped too
+  assert.strictEqual(m._wipe, t);                 // watermark carried forward
+  const m2 = Store.mergeStates(reset, old);       // order must not matter (pre-write vs load merge)
+  assert.deepStrictEqual(m2.log_entries, []);
+  assert.strictEqual(m2.expenditure, null);
+});
+
+test('mergeStates: data logged AFTER a reset is kept, and two post-reset copies still union', () => {
+  const t = 500;
+  const base = Store.defaultState(); base._rev = t; base._wipe = t;
+  // Device A logs a meal after the reset; device B logs a different one, both descend from the wipe.
+  const a = JSON.parse(JSON.stringify(base)); a._rev = t + 10; a.log_entries = [{ id: 'x', date: '2026-07-18' }];
+  const b = JSON.parse(JSON.stringify(base)); b._rev = t + 20; b.log_entries = [{ id: 'y', date: '2026-07-18' }];
+  const m = Store.mergeStates(a, b);
+  assert.deepStrictEqual(m.log_entries.map(e => e.id).sort(), ['x', 'y']); // fresh entries survive & union
+  // But a stale pre-reset copy still can't drag old data back in against a post-reset copy.
+  const stale = { _rev: t - 50, log_entries: [{ id: 'old', date: '2026-07-01' }] };
+  const m2 = Store.mergeStates(a, stale);
+  assert.deepStrictEqual(m2.log_entries.map(e => e.id), ['x']);
+});
+
 test('mergeStates: null-safe', () => {
   const s = { _rev: 5, log_entries: [{ id: 'a' }] };
   assert.strictEqual(Store.mergeStates(null, s), s);

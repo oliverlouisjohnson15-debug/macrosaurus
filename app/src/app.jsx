@@ -6201,7 +6201,7 @@ function App() {
     showToast('Saved ' + recipe.title + ' as a meal you can quick-log');
   }
   async function signOut() { if (supa) await supa.auth.signOut(); setDb(null); setView('dashboard'); }
-  function resetAll() { const prevKey = (db && db.profile && db.profile.aiKey) || ''; const f2 = Store.defaultState(); f2.aiKey = prevKey; setDb(f2); if (session) cloudSave(session.user.id, f2); setView('dashboard'); }
+  function resetAll() { const prevKey = (db && db.profile && db.profile.aiKey) || ''; const f2 = Store.defaultState(); f2.aiKey = prevKey; const t = Date.now(); f2._wipe = t; f2._rev = t; setDb(f2); if (session) { localSave(session.user.id, f2); cloudSave(session.user.id, f2); } setView('dashboard'); }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
     // Server-side function verifies the caller's own JWT, then deletes their data + auth record.
