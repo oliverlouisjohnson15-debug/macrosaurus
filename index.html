@@ -2271,10 +2271,10 @@ async function extractRecipeSource(url) {
 // Turn extracted source text into a normalised recipe via the existing ai-proxy. `meta` carries the
 // platform/url/thumbnail we already know so the model doesn't have to guess them.
 async function structureRecipe(sourceText, meta) {
-  // 4096 (the proxy ceiling): each ingredient now carries five macro numbers, so a long recipe's JSON
-  // can exceed 2048 tokens and come back truncated/empty ("no data returned").
+  // Fast model: parsing a written recipe into lines + steps is straightforward, and the user reviews
+  // it, so speed matters more than the big model here. 4096 tokens to avoid truncation on long recipes.
   const j = await aiRequest({
-    model: AI_MODEL,
+    model: AI_MODEL_FAST,
     max_tokens: 4096,
     messages: [{
       role: 'user',
@@ -2287,7 +2287,7 @@ async function structureRecipe(sourceText, meta) {
 // Fallback path: structure a recipe straight from screenshot(s) of the recipe (reuses claudeVision).
 async function structureRecipeFromImages(files, meta) {
   const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached screenshot(s).', {
-    model: AI_MODEL,
+    model: AI_MODEL_FAST,
     maxTokens: 4096,
     maxImg: 1024
   });
@@ -17122,17 +17122,6 @@ function RecipeImport({
   function removeImg(id) {
     setImgs(x => x.filter(f => f.id !== id));
   }
-
-  // Work out the macros before showing the review, so the recipe lands already priced (never empty).
-  async function priceDraft(rec) {
-    setBusy('Working out the macros...');
-    try {
-      const result = await analyzeRecipe(rec.title, (rec.ingredients || []).map(i => Rcp.lineOf(i)));
-      rec = Rcp.applyAnalysis(rec, result);
-    } catch (e) {/* review can re-run it */}
-    setBusy('');
-    setDraft(rec);
-  }
   async function fromLink(u) {
     setErr('');
     setBusy('Reading the video...');
@@ -17151,12 +17140,12 @@ function RecipeImport({
         return;
       }
       setBusy('Building the recipe...');
-      await priceDraft(await structureRecipe(src.sourceText, meta));
+      setDraft(await structureRecipe(src.sourceText, meta)); // review prices the macros in the background
     } catch (e) {
       setErr(e.message || 'Import failed.');
       setShowFallback(true);
-      setBusy('');
     }
+    setBusy('');
   }
   async function fromCaption() {
     if (!caption.trim()) {
@@ -17171,11 +17160,11 @@ function RecipeImport({
         url: url.trim(),
         title: ''
       };
-      await priceDraft(await structureRecipe(caption.trim(), meta));
+      setDraft(await structureRecipe(caption.trim(), meta));
     } catch (e) {
       setErr(e.message || 'Import failed.');
-      setBusy('');
     }
+    setBusy('');
   }
   async function fromImages() {
     if (!imgs.length) {
@@ -17190,11 +17179,11 @@ function RecipeImport({
         url: url.trim(),
         title: ''
       };
-      await priceDraft(await structureRecipeFromImages(imgs.map(i => i.file), meta));
+      setDraft(await structureRecipeFromImages(imgs.map(i => i.file), meta));
     } catch (e) {
       setErr(e.message || 'Import failed.');
-      setBusy('');
     }
+    setBusy('');
   }
   // Auto-run once when opened straight from a share.
   useEffect(() => {
@@ -17287,6 +17276,8 @@ function RecipeReview({
   onCancel
 }) {
   const [d, setD] = useState(recipe);
+  const [pricing, setPricing] = useState(false);
+  const pricedRef = useRef(false);
   const set = patch => setD(x => Object.assign({}, x, patch));
   const setLine = (i, v) => setD(x => {
     const ings = x.ingredients.slice();
@@ -17318,6 +17309,20 @@ function RecipeReview({
     ...x,
     steps: txt.split('\n').map(s => s.trim()).filter(Boolean)
   }));
+  // Show the recipe instantly, then work out the macros in the background so import feels fast.
+  useEffect(() => {
+    if (pricedRef.current) return;
+    pricedRef.current = true;
+    if (recipe.macros_source === 'stated' || Rcp.resolvedCount(recipe) >= (recipe.ingredients || []).length) return;
+    (async () => {
+      setPricing(true);
+      try {
+        const result = await analyzeRecipe(recipe.title, (recipe.ingredients || []).map(i => Rcp.lineOf(i)));
+        setD(x => Rcp.applyAnalysis(x, result));
+      } catch (e) {/* detail can retry */}
+      setPricing(false);
+    })();
+  }, []);
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -17327,14 +17332,22 @@ function RecipeReview({
     className: "text-lg font-bold mb-1"
   }, "Check the recipe"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-snug"
-  }, "Got ", d.ingredients.length, " ingredient", d.ingredients.length === 1 ? '' : 's', d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : '', d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : '', ". Each ingredient is one line, amount first. Fix anything, then save."), d.macros_per_serving.kcal > 0 && /*#__PURE__*/React.createElement(Card, {
+  }, "Got ", d.ingredients.length, " ingredient", d.ingredients.length === 1 ? '' : 's', d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : '', d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : '', ". Each ingredient is one line, amount first. Fix anything, then save."), pricing ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3 flex items-center gap-2",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 16,
+    color: "var(--accent)"
+  }), " Working out the macros...") : d.macros_per_serving.kcal > 0 && /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
   }, "Macros per serving"), /*#__PURE__*/React.createElement(RecipeMacroStrip, {
     macros: d.macros_per_serving,
     per: true
-  })), (() => {
+  })), !pricing && (() => {
     const s = Rcp.macroSanity(d);
     return s ? /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 mb-3 text-[12px] leading-snug",
@@ -17606,6 +17619,7 @@ function RecipeDetail({
   const [portion, setPortion] = useState(1);
   const [macrosIng, setMacrosIng] = useState(null);
   const [busy, setBusy] = useState('');
+  const [editIng, setEditIng] = useState(false);
   const [editSteps, setEditSteps] = useState(false);
   const autoTried = useRef(false);
   const meals = mealsForDay(db, Store.todayISO());
@@ -17875,8 +17889,18 @@ function RecipeDetail({
   }, "Use the recipe's stated macros instead"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-2 mt-2"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold"
-  }, "Ingredients"), /*#__PURE__*/React.createElement("div", {
+  }, "Ingredients"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditIng(v => !v),
+    className: "pf text-[9px] uppercase px-2 py-1 rounded",
+    style: {
+      color: editIng ? '#111' : 'var(--accent)',
+      background: editIng ? 'var(--accent)' : 'transparent',
+      border: '1px solid var(--accent)'
+    }
+  }, editIng ? 'Done' : 'Edit')), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 text-[12px]"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
@@ -17894,9 +17918,37 @@ function RecipeDetail({
     style: {
       background: 'var(--surface3)'
     }
-  }, "+"))), /*#__PURE__*/React.createElement("div", {
+  }, "+"))), editIng ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
-  }, "One line each, amount first. Tick what you have; tap the macros to fix a number."), resolved > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Edit each line, amount first (e.g. \"150 g cottage cheese\"), then tap Done."), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-2"
+  }, recipe.ingredients.map(ing => /*#__PURE__*/React.createElement("div", {
+    key: ing.id,
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    key: Rcp.lineOf(ing),
+    defaultValue: Rcp.lineOf(ing),
+    onBlur: e => setLine(ing.id, e.target.value),
+    placeholder: "e.g. 150 g cottage cheese",
+    className: inputCls + ' flex-1 py-2 text-[14px]'
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeIng(ing.id),
+    className: "text-[#8A8A90] text-xl leading-none px-1 shrink-0",
+    "aria-label": "Remove"
+  }, "×")))), /*#__PURE__*/React.createElement("button", {
+    onClick: addIng,
+    className: "text-[12px] mb-2",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "+ Add ingredient"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "w-full mb-4",
+    onClick: () => analyze(false),
+    disabled: !!busy
+  }, "Re-work out the macros")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-2"
+  }, "Tick what you have. Tap a macro line to fix its numbers, or Edit to change the ingredients."), resolved > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -17911,38 +17963,31 @@ function RecipeDetail({
       color: 'var(--accent)'
     }
   }, "●"), " your number")), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-2.5 mb-3"
+    className: "space-y-2.5 mb-4"
   }, recipe.ingredients.map(ing => /*#__PURE__*/React.createElement("div", {
-    key: ing.id
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2.5"
+    key: ing.id,
+    className: "flex items-start gap-2.5"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => toggleHave(ing.id),
-    className: "w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]",
+    className: "w-5 h-5 mt-0.5 rounded flex items-center justify-center shrink-0 text-[11px]",
     style: {
       border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'),
       background: ing.have ? 'var(--good)' : 'transparent',
       color: '#fff'
     }
-  }, ing.have ? '✓' : ''), /*#__PURE__*/React.createElement("input", {
-    key: Rcp.lineOf(ing),
-    defaultValue: Rcp.lineOf(ing),
-    onBlur: e => setLine(ing.id, e.target.value),
-    placeholder: "e.g. 150 g cottage cheese",
-    className: "text-[14px] flex-1 min-w-0 bg-transparent focus:outline-none",
+  }, ing.have ? '✓' : ''), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => toggleHave(ing.id),
+    className: "block w-full text-left text-[14px]",
     style: {
       color: ing.have ? 'var(--muted)' : 'var(--text)',
       textDecoration: ing.have ? 'line-through' : 'none'
     }
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => removeIng(ing.id),
-    className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0",
-    "aria-label": "Remove"
-  }, "×")), /*#__PURE__*/React.createElement("button", {
+  }, Rcp.lineOf(ing)), /*#__PURE__*/React.createElement("button", {
     onClick: () => setMacrosIng(ing),
-    className: "mt-0.5 text-[11px] flex items-center gap-1.5",
+    className: "text-[11px] flex items-center gap-1.5 mt-0.5",
     style: {
-      marginLeft: 30,
       color: ing.macros ? 'var(--muted)' : 'var(--accent)'
     }
   }, ing.resolved && /*#__PURE__*/React.createElement("span", {
@@ -17951,13 +17996,7 @@ function RecipeDetail({
     }
   }, "●"), ing.macros ? /*#__PURE__*/React.createElement("span", {
     className: "tnum"
-  }, Math.round(ing.macros.kcal), " kcal · P", Math.round(ing.macros.protein), " C", Math.round(ing.macros.carbs), " F", Math.round(ing.macros.fat)) : /*#__PURE__*/React.createElement("span", null, "Set macros ›"))))), /*#__PURE__*/React.createElement("button", {
-    onClick: addIng,
-    className: "text-[12px] mb-4",
-    style: {
-      color: 'var(--accent)'
-    }
-  }, "+ Add ingredient"), /*#__PURE__*/React.createElement(Btn, {
+  }, Math.round(ing.macros.kcal), " kcal · P", Math.round(ing.macros.protein), " C", Math.round(ing.macros.carbs), " F", Math.round(ing.macros.fat), " · edit") : /*#__PURE__*/React.createElement("span", null, "Set macros ›"))))))), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full mb-5",
     onClick: addMissingToShopping,
