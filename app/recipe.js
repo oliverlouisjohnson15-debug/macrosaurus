@@ -121,6 +121,33 @@
     return { resolved: n, macros: { kcal: Math.round(t.kcal / s), protein: round1(t.protein / s), carbs: round1(t.carbs / s), fat: round1(t.fat / s), fiber: round1(t.fiber / s) } };
   }
   function resolvedCount(recipe) { return ((recipe || {}).ingredients || []).filter(function (i) { return i && i.macros; }).length; }
+
+  // Scale the leading amount in an ingredient line by a factor (for "make more/fewer servings").
+  // Handles integers, decimals, simple "3/4" fractions and common unicode fractions; leaves the line
+  // unchanged if it has no leading number (e.g. "salt to taste").
+  var FRAC = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
+  function parseAmt(s) { if (FRAC[s] != null) return FRAC[s]; if (s.indexOf('/') >= 0) { var p = s.split('/'); return num(p[0]) / (num(p[1]) || 1); } return num(s); }
+  function fmtAmt(n) { n = Math.round(n * 100) / 100; return String(n); }
+  function scaleLine(line, f) {
+    line = String(line || '');
+    if (!(f > 0) || f === 1) return line;
+    var m = line.match(/^(\s*)(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛⅜⅝⅞])/);
+    if (!m) return line;
+    return m[1] + fmtAmt(parseAmt(m[2].replace(/\s+/g, '')) * f) + line.slice(m[0].length);
+  }
+  // Rescale a recipe to a new serving count: scale the ingredient amounts (line text, grams, macros)
+  // so the per-serving macros stay the same. This is "cook for N", not just changing the divisor.
+  function scaleServings(recipe, newServings) {
+    var target = Math.max(1, Math.round(num(newServings)) || 1);
+    var base = Math.max(1, num((recipe || {}).servings) || 1);
+    var f = target / base;
+    var ings = ((recipe || {}).ingredients || []).map(function (ing) {
+      return Object.assign({}, ing, { line: scaleLine(lineOf(ing), f), grams: ing.grams ? Math.round(ing.grams * f) : ing.grams, macros: ing.macros ? scaleMacros(ing.macros, f) : ing.macros });
+    });
+    return Object.assign({}, recipe, { servings: target, ingredients: ings });
+  }
+  // Scale a per-serving macro set by a portion multiplier (0.5, 1.5, ...), for logging a part-serving.
+  function scaleMacros(m, f) { m = m || {}; return { kcal: Math.round(num(m.kcal) * f), protein: round1(num(m.protein) * f), carbs: round1(num(m.carbs) * f), fat: round1(num(m.fat) * f), fiber: round1(num(m.fiber) * f) }; }
   function macrosFromPer100(per100, grams) { var f = num(grams) / 100; per100 = per100 || {}; return { kcal: Math.round(num(per100.kcal) * f), protein: round1(num(per100.protein) * f), carbs: round1(num(per100.carbs) * f), fat: round1(num(per100.fat) * f), fiber: round1(num(per100.fiber) * f) }; }
 
   // Ingredients scaled to ONE serving for itemised diary logging.
@@ -166,7 +193,7 @@
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
-    macroSanity: macroSanity,
+    macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
