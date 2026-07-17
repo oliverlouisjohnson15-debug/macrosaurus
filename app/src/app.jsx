@@ -5289,10 +5289,10 @@ function RecipeMacroStrip({ macros, per }) {
   </div>);
 }
 const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' };
-function RecipeCard({ recipe, onOpen }) {
+function RecipeCard({ recipe, onOpen, onFav }) {
   const m = recipe.macros_per_serving || {};
   const img = recipe.photo || recipe.thumbnail;
-  return (<button onClick={onOpen} className="w-full text-left active:opacity-90 transition-opacity">
+  return (<div onClick={onOpen} className="cursor-pointer active:opacity-90 transition-opacity">
     <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
       <div className="relative w-full" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
         {img ? <img src={img} className="w-full h-full object-cover" alt="" loading="lazy" />
@@ -5301,13 +5301,14 @@ function RecipeCard({ recipe, onOpen }) {
           <div className="text-white font-bold text-[15px] leading-tight" style={clamp2}>{recipe.title}</div>
         </div>
         {m.kcal > 0 && <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(m.kcal)} kcal</div>}
+        {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
       </div>
       <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
         <span>{Rcp.platformLabel(recipe.source_platform)}</span><span>·</span><span>serves {recipe.servings}</span>
         {m.protein > 0 && <><span>·</span><span className="tnum font-semibold" style={{ color: PRO }}>{Math.round(m.protein)}g protein</span></>}
       </div>
     </div>
-  </button>);
+  </div>);
 }
 // The headline how-to: sharing a Reel/Short straight into the app is the best path (no link to copy),
 // so we show this prominently on the empty state and the importer.
@@ -5549,6 +5550,8 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const [editIng, setEditIng] = useState(false);
   const [editSteps, setEditSteps] = useState(false);
   const [cooking, setCooking] = useState(false);
+  const [showColl, setShowColl] = useState(false);
+  const [newColl, setNewColl] = useState('');
   const autoTried = useRef(false);
   const meals = mealsForDay(db, Store.todayISO());
   const today = Store.todayISO();
@@ -5575,6 +5578,9 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const useStated = () => patch((r) => { if (r.stated_macros) { r.macros_per_serving = r.stated_macros; r.macros_source = 'stated'; } });
   const setIngMacros = (ingId, macros, meta) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return; ing.macros = { kcal: Math.round(+macros.kcal || 0), protein: +(+macros.protein || 0).toFixed(1), carbs: +(+macros.carbs || 0).toFixed(1), fat: +(+macros.fat || 0).toFixed(1), fiber: +(+macros.fiber || 0).toFixed(1) }; ing.resolved = Object.assign({ source: 'manual' }, meta || {}); r.macros_source = 'computed'; });
   async function addPhoto(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; try { const im = await imageToB64(f, 720); patch((r) => { r.photo = 'data:' + im.mime + ';base64,' + im.b64; }); showToast('Photo added'); } catch (err) { showToast('Could not add that photo'); } }
+  const toggleFav = () => patch((r) => { r.favorite = !r.favorite; });
+  const toggleColl = (name) => patch((r) => { const s = new Set(r.collections || []); s.has(name) ? s.delete(name) : s.add(name); r.collections = Array.from(s); });
+  const allCollections = Array.from(new Set((db.recipes || []).flatMap(r => r.collections || []))).sort();
 
   // Price the recipe from its ingredient lines: nutrition database first, AI fallback. Always numbers.
   async function analyze(auto) {
@@ -5618,10 +5624,15 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       {(recipe.photo || recipe.thumbnail) ? <img src={recipe.photo || recipe.thumbnail} className="w-full h-full object-cover" alt="" />
         : <div className="w-full h-full flex items-center justify-center"><Icon.recipe width="40" height="40" style={{ color: 'var(--muted)' }} /></div>}
       {hasMacros && <div className="absolute top-2 right-2 pixel-box px-2.5 py-1 text-[12px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(recipe.macros_per_serving.kcal)} kcal / serving</div>}
+      <button onClick={toggleFav} aria-label="Favourite" className="absolute top-2 left-2 w-9 h-9 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="18" height="18" fill="currentColor" /></button>
       <label className="absolute bottom-2 right-2 pixel-box px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.cam width="14" height="14" /> {recipe.photo ? 'Change' : 'Photo'}<input type="file" accept="image/*" className="hidden" onChange={addPhoto} /></label>
     </div>
     <input key={recipe.id} defaultValue={recipe.title} onBlur={e => setTitle(e.target.value)} className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none" />
-    <div className="text-[12px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>} · tap anything to make it yours</div>
+    <div className="text-[12px] text-[#8A8A90] mb-2">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>} · tap anything to make it yours</div>
+    <div className="flex flex-wrap items-center gap-2 mb-1">
+      {(recipe.collections || []).map(c => <span key={c} className="pixel-box px-2 py-1 text-[11px]" style={{ background: 'var(--surface3)' }}>{c}</span>)}
+      <button onClick={() => setShowColl(true)} className="text-[11px]" style={{ color: 'var(--accent)' }}>{(recipe.collections || []).length ? '+ collection' : '+ Add to a collection'}</button>
+    </div>
     <Card className="p-3 mb-3 mt-2">
       <div className="flex items-center justify-between mb-2">
         <div className="text-[11px] text-[#8A8A90]">Macros per serving · {srcNote}</div>
@@ -5699,6 +5710,18 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     </div>}
     {macrosIng && <IngredientMacroSheet ingredient={recipe.ingredients.find(x => x.id === macrosIng.id) || macrosIng} onResolve={(macros, meta) => { setIngMacros(macrosIng.id, macros, meta); setMacrosIng(null); showToast('Set macros for ' + (macrosIng.name || 'ingredient')); }} onClose={() => setMacrosIng(null)} />}
     {cooking && <CookMode recipe={recipe} onClose={() => setCooking(false)} onLogDone={() => doLog('single')} />}
+    {showColl && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowColl(false)}>
+      <BackClose onClose={() => setShowColl(false)} />
+      <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Collections</div><button onClick={() => setShowColl(false)} className="text-xl leading-none text-[#8A8A90]">×</button></div>
+        <div className="text-[12px] text-[#8A8A90] mb-3">Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways).</div>
+        <div className="space-y-1.5 mb-4">{allCollections.map(c => { const on = (recipe.collections || []).includes(c); return (
+          <button key={c} onClick={() => toggleColl(c)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>
+            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'), background: on ? 'var(--good)' : 'transparent', color: '#fff' }}>{on ? '✓' : ''}</span>{c}
+          </button>); })}</div>
+        <div className="flex gap-2"><input value={newColl} onChange={e => setNewColl(e.target.value)} className={inputCls + ' flex-1'} placeholder="New collection" /><Btn kind="accent" onClick={() => { const n = newColl.trim(); if (n) { toggleColl(n); setNewColl(''); } }}>Add</Btn></div>
+      </div>
+    </div>}
   </div>);
 }
 
@@ -5725,10 +5748,21 @@ function ShoppingListView({ db, update, onBack }) {
 function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecipe, onSaveMeal }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping
   const [activeId, setActiveId] = useState(null);
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState('all'); // 'all' | 'fav' | a collection name
   // Arriving from a share: jump straight into the importer with the shared link.
   useEffect(() => { if (importUrl) { setScreen('import'); } }, [importUrl]);
-  const recipes = (db.recipes || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-  const active = recipes.find(r => r.id === activeId);
+  const allRecipes = (db.recipes || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  const collections = Array.from(new Set(allRecipes.flatMap(r => r.collections || []))).sort();
+  const ql = q.trim().toLowerCase();
+  const recipes = allRecipes.filter(r => {
+    if (filter === 'fav' && !r.favorite) return false;
+    if (filter !== 'all' && filter !== 'fav' && !((r.collections || []).includes(filter))) return false;
+    if (!ql) return true;
+    return (r.title || '').toLowerCase().includes(ql) || (r.ingredients || []).some(i => (Rcp.lineOf(i) || '').toLowerCase().includes(ql));
+  });
+  const toggleFav = (id) => update(d => { const r = (d.recipes || []).find(x => x.id === id); if (r) r.favorite = !r.favorite; });
+  const active = allRecipes.find(r => r.id === activeId);
   // If the open recipe vanishes (deleted, or its id no longer resolves), fall back to the list.
   useEffect(() => { if (screen === 'detail' && !active) setScreen('list'); }, [screen, active]);
   const shoppingCount = (db.shopping_list || []).filter(x => !x.checked).length;
@@ -5740,7 +5774,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecip
     showToast('Saved ' + rec.title);
   }
   function deleteRecipe(id) {
-    const r = recipes.find(x => x.id === id);
+    const r = allRecipes.find(x => x.id === id);
     update(d => { tombstone(d, [id]); d.recipes = (d.recipes || []).filter(x => x.id !== id); });
     setScreen('list'); setActiveId(null);
     showToast('Deleted ' + (r ? r.title : 'recipe'), 'Undo', () => update(d => { if (r) { untombstone(d, [id]); d.recipes = (d.recipes || []).concat([r]); } }));
@@ -5756,7 +5790,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecip
           {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#111' }}>{shoppingCount}</span>}
         </button>
       </div>
-      {!recipes.length ? <>
+      {!allRecipes.length ? <>
         <ShareTip className="mb-4" />
         <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import from a link instead</Btn>
         <Card className="p-6 text-center">
@@ -5765,8 +5799,15 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecip
           <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Send a cooking Reel or Short here and it turns into ingredients, a method and per-serving macros you can log.</div>
         </Card>
       </> : <>
-        <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}</div>
+        <Btn kind="accent" className="w-full mb-4" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
+        <TextInput placeholder="Search your recipes and ingredients…" value={q} onChange={e => setQ(e.target.value)} />
+        <div className="flex gap-2 overflow-x-auto pb-1 my-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+          {[['all', 'All'], ['fav', '★ Favourites']].concat(collections.map(c => [c, c])).map(([k, l]) => (
+            <button key={k} onClick={() => setFilter(k)} className="pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0" style={{ background: filter === k ? 'var(--accent)' : 'var(--surface3)', color: filter === k ? '#111' : 'var(--text)', fontWeight: filter === k ? 700 : 400 }}>{l}</button>
+          ))}
+        </div>
+        {recipes.length ? <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} onFav={() => toggleFav(r.id)} />)}</div>
+          : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. Try a different search or filter.</div>}
       </>}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
