@@ -896,7 +896,7 @@ const LEGAL = {
   privacy: {
     title: "Privacy Policy",
     sections: [
-      { h: "Who we are", p: "Macrosaurus (\"we\", \"us\") provides an adaptive nutrition and body-composition tracking app. We are the data controller for the personal information described here. For any question or request, contact oliverlouisjohnson15@gmail.com." },
+      { h: "Who we are", p: "Macrosaurus (\"we\", \"us\") provides an adaptive nutrition and body-composition tracking app. We are the data controller for the personal information described here. For any question or request, contact olly@macrosaurus.com." },
       { h: "Information we collect", p: "Your account details (email, and a password handled securely by our authentication provider); the profile and health inputs you enter (sex, age, height, weight, body fat, activity level and goals); your logs (food, drinks, weigh-ins and check-ins); any photos you choose to submit for AI estimation; records of your AI usage (call counts and cost); basic technical data needed to run the app; and privacy-friendly usage analytics and crash reports (which app actions you take and any errors, tied to your account id but never your food names, photos or health values)." },
       { h: "Why we use it, and our legal bases", p: "To provide the service and calculate your targets (performance of our contract with you). To process health-related information such as weight and body fat (your explicit consent, which you give by entering it and can withdraw at any time by deleting it or your account). To keep the service secure and to improve it (our legitimate interests). And to handle billing where a paid plan applies." },
       { h: "AI features", p: "When you use photo or text estimation, the content you submit is sent to our AI provider, Anthropic, to generate an estimate that is returned to you. Photos are not stored by us after processing, and your inputs are not used to train AI models. Anthropic processes this data under its own API terms." },
@@ -926,7 +926,7 @@ const LEGAL = {
       { h: "Termination", p: "You can delete your account at any time. We may suspend or end access if these terms are breached." },
       { h: "Changes", p: "We may update these terms and will note the date at the top. Continuing to use the app means you accept the changes." },
       { h: "Governing law", p: "These terms are governed by the laws of England and Wales, and the courts of England and Wales have jurisdiction." },
-      { h: "Contact", p: "oliverlouisjohnson15@gmail.com" },
+      { h: "Contact", p: "olly@macrosaurus.com" },
     ],
   },
   health: {
