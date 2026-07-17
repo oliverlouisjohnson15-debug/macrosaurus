@@ -184,6 +184,18 @@ async function extractRecipeSource(url) {
   const j = await res.json().catch(() => ({ ok: false, note: 'Could not reach the extractor.' }));
   return j;
 }
+// Instagram (and increasingly YouTube) thumbnail links are signed and expire, so the extractor also
+// sends the image bytes (thumb_b64). Inline them as a compact data URL, the same way user photos are
+// stored, so recipe art never rots when the CDN link dies. Returns '' when no bytes came back.
+async function inlineThumb(src) {
+  try {
+    if (!src || !src.thumb_b64) return '';
+    const bin = atob(src.thumb_b64); const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const im = await imageToB64(new Blob([arr], { type: src.thumb_mime || 'image/jpeg' }), 640);
+    return 'data:' + im.mime + ';base64,' + im.b64;
+  } catch (e) { return ''; }
+}
 // Turn extracted source text into a normalised recipe via the existing ai-proxy. `meta` carries the
 // platform/url/thumbnail we already know so the model doesn't have to guess them.
 async function structureRecipe(sourceText, meta) {
@@ -1997,11 +2009,15 @@ const ITEM_ORDER = ['lure', 'golden_steak', 'incubator', 'honest_rex', 'medal', 
 function DinoLoader({ label }) {
   const cr = CR_BY_ID['carbo'] || CREATURES[1];
   const text = String(label || 'Working').replace(/[.…\s]+$/, '');
+  // Safety net: if a fetch hangs, say so instead of hopping forever with no way out.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 10000); return () => clearTimeout(t); }, []);
   return (
     <div className="flex flex-col items-center justify-center py-10 fade-in">
       <div className="dino-hop"><Sprite art={cr.art} colors={cr.colors} px={7} /></div>
       <div className="dino-shadow mt-1.5" style={{ width: 36 }} />
       <div className="text-[12px] text-[#8A8A90] mt-4">{text}<span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div>
+      {slow && <div className="text-[11px] text-[#8A8A90] mt-3 text-center px-8 leading-relaxed fade-in">Taking longer than usual. Check your connection, or go back and try again.</div>}
     </div>
   );
 }
@@ -2702,16 +2718,16 @@ function CookGapStrip({ db, onOpenRecipe }) {
     .slice(0, 6);
   if (!fitting.length) return null;
   return (<div className="mb-4">
-    <div className="flex items-baseline justify-between mb-2">
+    <div className="flex items-baseline justify-between flex-wrap gap-x-3 mb-2">
       <div className="text-lg font-bold">Cook for your gap</div>
-      <div className="text-[11px] text-[#8A8A90] tnum">{Math.max(0, Math.round(rem.kcal))} kcal · {Math.max(0, Math.round(rem.protein))}g protein left</div>
+      <div className="text-[11px] text-[#8A8A90] tnum whitespace-nowrap">{Math.max(0, Math.round(rem.kcal))} kcal · {Math.max(0, Math.round(rem.protein))}g protein left</div>
     </div>
     <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
       {fitting.map(({ r, fit }) => { const img = r.photo || r.thumbnail; return (
         <button key={r.id} onClick={() => onOpenRecipe(r.id)} className="shrink-0 w-[150px] text-left active:opacity-90">
           <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
             <div className="relative w-full" style={{ aspectRatio: '16 / 10', background: 'var(--surface3)' }}>
-              {img ? <img src={img} className="w-full h-full object-cover" alt="" loading="lazy" /> : <div className="w-full h-full flex items-center justify-center"><Icon.recipe width="26" height="26" style={{ color: 'var(--muted)' }} /></div>}
+              <RecipeImg src={img} iconSize={26} />
               <div className="absolute top-1.5 left-1.5 pf text-[7px] uppercase px-1.5 py-0.5 rounded" style={{ background: 'var(--good)', color: '#111' }}>fits</div>
             </div>
             <div className="p-2">
@@ -2901,7 +2917,8 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       <PageHeader kicker={prettyDate(today)} title="Dashboard" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={() => setShowDex(true)} />
 
-      <div className="flex items-center justify-between mb-3">
+      {/* flex-wrap: on narrow phones the pixel font is wide, so the pill drops below rather than colliding */}
+      <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 mb-3">
         <div className="text-lg font-bold">Today's macros</div>
         <Pill value={span} onChange={setSpan} options={[{ v: 'today', l: 'Today' }, { v: 'avg', l: '7d avg' }]} />
       </div>
@@ -3146,15 +3163,16 @@ function FoodLog({ db, update, openLog, showToast }) {
   }, [drag]);
 
   const renderEntry = (e, m, mc) => { const dragging = drag && drag.id === e.id; return (
-    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="flex items-center gap-3 py-2.5 mt-2 relative" style={{ borderTop: '1px solid var(--surface2)', borderLeft: '4px solid ' + mc, paddingLeft: 8, opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
+    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="flex items-center gap-2 py-2.5 mt-2 relative" style={{ borderTop: '1px solid var(--surface2)', borderLeft: '4px solid ' + mc, paddingLeft: 8, opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
       {drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && <div className="absolute -top-1 left-0 right-0 h-1.5 pointer-events-none" style={{ background: 'var(--accent)', boxShadow: '2px 2px 0 0 var(--shadow)' }} />}
       <div className="w-9 h-9 pixel-box flex items-center justify-center shrink-0" style={{ background: mc }}><PixelGlyph kind={foodKind(e.name, e.is_alcohol)} color="rgba(0,0,0,0.8)" size={20} /></div>
       <div className="min-w-0 flex-1">
         <div className="text-sm truncate">{e.name}</div>
         <div className="flex items-center gap-1 text-[11px] tnum mt-0.5" style={{ color: 'var(--text2)' }}><PixelGlyph kind="scale" color="var(--muted)" size={11} />{e.qty_label || '1 portion'}</div>
-        <div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: mc }}>{Math.round(e.computed_macros.kcal)}</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO }}>{e.computed_macros.protein}P</span> <span style={{ color: CARB }}>{e.computed_macros.carbs}C</span> <span style={{ color: FAT }}>{e.computed_macros.fat}F</span></div>
+        {/* whitespace-nowrap: the macro line stays one line on phones instead of orphaning "0.8F" */}
+        <div className="text-[11px] tnum mt-0.5 whitespace-nowrap overflow-hidden"><span className="font-bold" style={{ color: mc }}>{Math.round(e.computed_macros.kcal)}</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO }}>{e.computed_macros.protein}P</span> <span style={{ color: CARB }}>{e.computed_macros.carbs}C</span> <span style={{ color: FAT }}>{e.computed_macros.fat}F</span></div>
       </div>
-      <button onPointerDown={(ev) => startDrag(ev, e, mc)} className="shrink-0 px-2 py-2 cursor-grab select-none flex items-center justify-center" style={{ touchAction: 'none', color: (dragging || arming === e.id) ? 'var(--accent)' : 'var(--muted)', transform: arming === e.id ? 'scale(1.35)' : 'none', transition: 'transform .16s ease' }} title="Press and hold to drag"><PixelGrip /></button>
+      <button onPointerDown={(ev) => startDrag(ev, e, mc)} className="hit shrink-0 px-2 py-2 cursor-grab select-none flex items-center justify-center" style={{ touchAction: 'none', color: (dragging || arming === e.id) ? 'var(--accent)' : 'var(--muted)', transform: arming === e.id ? 'scale(1.35)' : 'none', transition: 'transform .16s ease' }} title="Press and hold to drag"><PixelGrip /></button>
       <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu === e.id ? null : e.id); }} className="hit px-2 text-[#8A8A90] shrink-0" aria-label="Entry options">⋯</button>
       {menu === e.id && (<div className="absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl" onClick={ev => ev.stopPropagation()}>
         <button onClick={() => { setEditing(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Edit</button>
@@ -3202,7 +3220,8 @@ function FoodLog({ db, update, openLog, showToast }) {
 
       {et && <Card className="p-5 mb-4">
         <div className="flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl text-[13px]">
-          {[['consumed', 'Consumed'], ['remaining', 'Remaining'], ['balance', 'Edit balance']].map(([k, l]) => (
+          {/* 'Balance', not 'Edit balance': the longer label wraps inside its segment on phones */}
+          {[['consumed', 'Consumed'], ['remaining', 'Remaining'], ['balance', 'Balance']].map(([k, l]) => (
             <button key={k} onClick={() => setMode(k)} className={`flex-1 rounded-xl py-2 transition ${mode === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>
           ))}
         </div>
@@ -5508,16 +5527,26 @@ function RecipeMacroStrip({ macros, per }) {
   </div>);
 }
 const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' };
+// Recipe art with a graceful pixel fallback: recipes imported before thumbnails were inlined can
+// hold expired CDN links, so a failed load swaps to the placeholder instead of a broken grey block.
+function RecipeImg({ src, iconSize = 34 }) {
+  const [dead, setDead] = useState(false);
+  useEffect(() => { setDead(false); }, [src]);
+  if (!src || dead) return <div className="w-full h-full flex items-center justify-center"><Icon.recipe width={iconSize} height={iconSize} style={{ color: 'var(--muted)' }} /></div>;
+  return <img src={src} className="w-full h-full object-cover" alt="" loading="lazy" onError={() => setDead(true)} />;
+}
+// Ids we've already tried to repair this session, so a dead source can't trigger repeat fetches.
+const thumbFixTried = new Set();
 function RecipeCard({ recipe, onOpen, onFav }) {
   const m = recipe.macros_per_serving || {};
   const img = recipe.photo || recipe.thumbnail;
   return (<div onClick={onOpen} className="cursor-pointer active:opacity-90 transition-opacity">
     <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
       <div className="relative w-full" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
-        {img ? <img src={img} className="w-full h-full object-cover" alt="" loading="lazy" />
-          : <div className="w-full h-full flex items-center justify-center"><Icon.recipe width="34" height="34" style={{ color: 'var(--muted)' }} /></div>}
+        <RecipeImg src={img} iconSize={34} />
         <div className="absolute inset-x-0 bottom-0 pt-8 px-3 pb-2.5" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.78))' }}>
-          <div className="text-white font-bold text-[15px] leading-tight" style={clamp2}>{recipe.title}</div>
+          {/* explicit #fff: the .theme-light .text-white remap would paint this dark on the dark scrim */}
+          <div className="font-bold text-[15px] leading-tight" style={{ ...clamp2, color: '#fff' }}>{recipe.title}</div>
         </div>
         <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: m.kcal > 0 ? 'var(--text)' : 'var(--muted)' }}>{m.kcal > 0 ? Math.round(m.kcal) + ' kcal' : 'Tap to price'}</div>
         {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
@@ -5555,7 +5584,8 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
     setErr(''); setBusy('Reading the video...');
     try {
       const src = await extractRecipeSource(u);
-      const meta = { platform: src.platform || (Rcp.detectShare(u) || {}).platform || '', url: u, title: src.title || '', thumbnail: src.thumbnail || '' };
+      // Prefer inlined thumbnail bytes over the (expiring) CDN link; fall back to the URL if absent.
+      const meta = { platform: src.platform || (Rcp.detectShare(u) || {}).platform || '', url: u, title: src.title || '', thumbnail: (await inlineThumb(src)) || src.thumbnail || '' };
       if (!src.ok || !src.sourceText) {
         setShowFallback(true);
         setErr(src.note || 'Could not read that link automatically. Paste the caption or add a screenshot below.');
@@ -5841,13 +5871,17 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="text-[12px]" style={{ color: 'var(--accent)' }}>Save as meal</button><button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
     </div>
     <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
-      {(recipe.photo || recipe.thumbnail) ? <img src={recipe.photo || recipe.thumbnail} className="w-full h-full object-cover" alt="" />
-        : <div className="w-full h-full flex items-center justify-center"><Icon.recipe width="40" height="40" style={{ color: 'var(--muted)' }} /></div>}
+      <RecipeImg src={recipe.photo || recipe.thumbnail} iconSize={40} />
       {hasMacros && <div className="absolute top-2 right-2 pixel-box px-2.5 py-1 text-[12px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(recipe.macros_per_serving.kcal)} kcal / serving</div>}
       <button onClick={toggleFav} aria-label="Favourite" className="absolute top-2 left-2 w-9 h-9 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="18" height="18" fill="currentColor" /></button>
       <label className="absolute bottom-2 right-2 pixel-box px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.cam width="14" height="14" /> {recipe.photo ? 'Change' : 'Photo'}<input type="file" accept="image/*" className="hidden" onChange={addPhoto} /></label>
     </div>
-    <input key={recipe.id} defaultValue={recipe.title} onBlur={e => setTitle(e.target.value)} className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none" />
+    {/* textarea, not input: long titles wrap instead of clipping at the card edge; auto-grows to fit */}
+    <textarea key={recipe.id} defaultValue={recipe.title} rows={1}
+      ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+      onInput={e => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
+      onBlur={e => setTitle(e.target.value)}
+      className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none resize-none overflow-hidden" />
     <div className="text-[12px] text-[#8A8A90] mb-2">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>} · tap anything to make it yours</div>
     <div className="flex flex-wrap items-center gap-2 mb-1">
       {(recipe.collections || []).map(c => <span key={c} className="pixel-box px-2 py-1 text-[11px]" style={{ background: 'var(--surface3)' }}>{c}</span>)}
@@ -6135,6 +6169,25 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     return (r.title || '').toLowerCase().includes(ql) || (r.ingredients || []).some(i => (Rcp.lineOf(i) || '').toLowerCase().includes(ql));
   });
   const toggleFav = (id) => update(d => { const r = (d.recipes || []).find(x => x.id === id); if (r) r.favorite = !r.favorite; });
+  // One-time repair: recipes imported before thumbnails were inlined still point at expiring
+  // Instagram CDN links. Quietly re-extract each one's art and store it as a data URL. A few at a
+  // time, once per session per recipe; failures just keep the placeholder.
+  useEffect(() => {
+    const stale = (db.recipes || []).filter(r => !r.photo && r.source_url && /^https?:\/\//.test(r.thumbnail || '') && /(cdninstagram\.com|fbcdn\.net)\//.test(r.thumbnail) && !thumbFixTried.has(r.id));
+    if (!stale.length) return;
+    let stop = false;
+    (async () => {
+      for (const r of stale.slice(0, 4)) {
+        thumbFixTried.add(r.id);
+        try {
+          const src = await extractRecipeSource(r.source_url);
+          const dataUrl = await inlineThumb(src);
+          if (!stop && dataUrl) update(d => { const t = (d.recipes || []).find(x => x.id === r.id); if (t) { t.thumbnail = dataUrl; t.updated_at = Date.now(); } });
+        } catch (e) { /* leave the placeholder; retried next session */ }
+      }
+    })();
+    return () => { stop = true; };
+  }, []);
   const active = allRecipes.find(r => r.id === activeId);
   // If the open recipe vanishes (deleted, or its id no longer resolves), fall back to the list.
   useEffect(() => { if (screen === 'detail' && !active) setScreen('list'); }, [screen, active]);

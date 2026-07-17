@@ -41,7 +41,7 @@
   --text: #1a1a1a;
   --text2: #333333;
   --muted: #666666;
-  --muted2: #8a8a8a;
+  --muted2: #757575;         /* lifted from #8a8a8a: 4.5:1 on white, so small hints stay readable in sunlight */
   --accent: #F5C518;         /* gold, primary / selected / LVL / nav-active */
   --on-accent: #1a1a1a;
   --accent-dim: #fff3c9;
