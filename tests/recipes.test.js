@@ -190,6 +190,14 @@ test('planMacros sums a day of planned recipes by portion', () => {
   assert.strictEqual(m.protein, 55); // 40 + 15
 });
 
+// ---- batchLeft -------------------------------------------------------------------------------
+test('batchLeft reports servings still available from a batch cook', () => {
+  assert.strictEqual(Recipe.batchLeft({ batch: { left: 3 } }), 3);
+  assert.strictEqual(Recipe.batchLeft({ batch: { left: -1 } }), 0);
+  assert.strictEqual(Recipe.batchLeft({}), 0);
+  assert.strictEqual(Recipe.batchLeft(null), 0);
+});
+
 // ---- newShoppingItems ------------------------------------------------------------------------
 test('newShoppingItems skips names already unchecked and dedupes', () => {
   const fresh = Recipe.newShoppingItems([{ name: 'Rice', checked: false }, { name: 'Salt', checked: true }], [{ name: 'rice' }, { name: 'Salt' }, { name: 'Chicken' }, { name: 'chicken' }]);

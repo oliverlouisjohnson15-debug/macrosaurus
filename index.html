@@ -1929,6 +1929,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }).filter(function (x) { return x.name && (x.macros.kcal || x.macros.protein || x.macros.carbs || x.macros.fat); });
   }
 
+  // Servings still available from a batch cook (0 when none), for the leftovers surfaces.
+  function batchLeft(recipe) { var b = (recipe || {}).batch; return b ? Math.max(0, num(b.left)) : 0; }
+
   // Summed macros for a day's planned recipes (per-serving x portion each), for the meal planner.
   function planMacros(entries, recipeById) {
     var t = emptyMacros();
@@ -1986,7 +1989,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
     macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
-    planMacros: planMacros,
+    planMacros: planMacros, batchLeft: batchLeft,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
@@ -9311,6 +9314,45 @@ function CookGapStrip({
     }, Math.round(r.macros_per_serving.protein), "g"), " P"))));
   })));
 }
+// Dashboard strip: batch-cooked meals with servings still going spare, so leftovers get used (and
+// logged) before you cook something new. Taps through to the recipe to log a serving.
+function LeftoversStrip({
+  db,
+  onOpenRecipe
+}) {
+  const left = (db.recipes || []).filter(r => Rcp.batchLeft(r) > 0);
+  if (!left.length) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold mb-2"
+  }, "Leftovers to use up"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, left.map(r => /*#__PURE__*/React.createElement("button", {
+    key: r.id,
+    onClick: () => onOpenRecipe(r.id),
+    className: "w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left",
+    style: {
+      background: 'var(--card)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase px-1.5 py-1 rounded shrink-0",
+    style: {
+      background: 'var(--good)',
+      color: '#111'
+    }
+  }, Rcp.batchLeft(r), " left"), /*#__PURE__*/React.createElement("span", {
+    className: "flex-1 min-w-0 text-[14px] truncate"
+  }, r.title), r.macros_per_serving && r.macros_per_serving.kcal > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "text-[11px] text-[#8A8A90] tnum shrink-0"
+  }, Math.round(r.macros_per_serving.kcal), " kcal"), /*#__PURE__*/React.createElement(Icon.chevron, {
+    width: "15",
+    height: "15",
+    style: {
+      color: 'var(--muted)'
+    }
+  })))));
+}
 function Dashboard({
   db,
   update,
@@ -9681,7 +9723,10 @@ function Dashboard({
         color: 'var(--accent)'
       }
     }, "Food log ›"));
-  })()), onOpenRecipe && /*#__PURE__*/React.createElement(CookGapStrip, {
+  })()), onOpenRecipe && /*#__PURE__*/React.createElement(LeftoversStrip, {
+    db: db,
+    onOpenRecipe: onOpenRecipe
+  }), onOpenRecipe && /*#__PURE__*/React.createElement(CookGapStrip, {
     db: db,
     onOpenRecipe: onOpenRecipe
   }), /*#__PURE__*/React.createElement("div", {
@@ -18314,14 +18359,22 @@ function RecipeDetail({
       analyze(true);
     }
   }, []);
-  function doLog(mode) {
+  function doLog(mode, opts) {
     setPortion(1);
-    setPickMeal({
+    setPickMeal(Object.assign({
       mode
-    });
+    }, opts));
   }
   function logToMeal(mealId) {
     onLogRecipe(mealId, recipe, pickMeal.mode, portion);
+    if (pickMeal.batch) patch(r => {
+      r.batch = {
+        left: Math.max(0, (r.servings || 1) - portion),
+        cooked_at: Date.now()
+      };
+    });else if (pickMeal.leftover) patch(r => {
+      if (r.batch) r.batch.left = Math.max(0, (r.batch.left || 0) - portion);
+    });
     setPickMeal(null);
   }
   function addMissingToShopping() {
@@ -18667,7 +18720,26 @@ function RecipeDetail({
     className: "text-[14px] leading-relaxed"
   }, s)))) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-6"
-  }, "No method yet. Tap Edit to add the steps."), /*#__PURE__*/React.createElement(Btn, {
+  }, "No method yet. Tap Edit to add the steps."), Rcp.batchLeft(recipe) > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3 flex items-center gap-3",
+    style: {
+      background: 'var(--surface3)',
+      borderColor: 'var(--good)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold"
+  }, Rcp.batchLeft(recipe), " serving", Rcp.batchLeft(recipe) === 1 ? '' : 's', " of leftovers"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, "Batch cooked. Log one when you eat it.")), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "shrink-0",
+    onClick: () => doLog('single', {
+      leftover: true
+    }),
+    disabled: !hasMacros
+  }, "Log one")), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: () => doLog('single'),
@@ -18675,7 +18747,12 @@ function RecipeDetail({
   }, hasMacros ? 'Log a serving to today' : 'Work out the macros to log this'), resolved > 0 && hasMacros && /*#__PURE__*/React.createElement("button", {
     onClick: () => doLog('items'),
     className: "w-full text-[12px] text-[#8A8A90] mt-3 underline"
-  }, "Log itemised (one diary entry per ingredient)"), shareOn && recipe.source_url && /*#__PURE__*/React.createElement("button", {
+  }, "Log itemised (one diary entry per ingredient)"), hasMacros && Rcp.batchLeft(recipe) === 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => doLog('single', {
+      batch: true
+    }),
+    className: "w-full text-[12px] text-[#8A8A90] mt-3 underline"
+  }, "Batch cooking? Log a serving and keep the rest as leftovers"), shareOn && recipe.source_url && /*#__PURE__*/React.createElement("button", {
     onClick: togglePrivate,
     className: "w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4"
   }, /*#__PURE__*/React.createElement("span", {
@@ -18700,7 +18777,13 @@ function RecipeDetail({
     className: "text-base font-bold mb-1"
   }, "Log ", recipe.title), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, portion === 1 ? '1 serving' : portion + ' servings', " · ", Math.round((recipe.macros_per_serving.kcal || 0) * portion), " kcal · P", Math.round((recipe.macros_per_serving.protein || 0) * portion), pickMeal.mode === 'items' ? ' · itemised' : ''), /*#__PURE__*/React.createElement("div", {
+  }, portion === 1 ? '1 serving' : portion + ' servings', " · ", Math.round((recipe.macros_per_serving.kcal || 0) * portion), " kcal · P", Math.round((recipe.macros_per_serving.protein || 0) * portion), pickMeal.mode === 'items' ? ' · itemised' : ''), pickMeal.batch && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
+    style: {
+      background: 'var(--surface3)',
+      color: 'var(--muted)'
+    }
+  }, "Logs this serving now; the other ", Math.max(0, (recipe.servings || 1) - portion), " become leftovers you can log on later days."), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
   }, "How much"), (() => {
     const fp = rem && Rcp.fitPortion(recipe.macros_per_serving, rem);

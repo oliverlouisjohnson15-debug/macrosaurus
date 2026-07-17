@@ -2698,6 +2698,24 @@ function CookGapStrip({ db, onOpenRecipe }) {
     </div>
   </div>);
 }
+// Dashboard strip: batch-cooked meals with servings still going spare, so leftovers get used (and
+// logged) before you cook something new. Taps through to the recipe to log a serving.
+function LeftoversStrip({ db, onOpenRecipe }) {
+  const left = (db.recipes || []).filter(r => Rcp.batchLeft(r) > 0);
+  if (!left.length) return null;
+  return (<div className="mb-4">
+    <div className="text-lg font-bold mb-2">Leftovers to use up</div>
+    <div className="space-y-2">
+      {left.map(r => (
+        <button key={r.id} onClick={() => onOpenRecipe(r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--card)' }}>
+          <span className="pf text-[8px] uppercase px-1.5 py-1 rounded shrink-0" style={{ background: 'var(--good)', color: '#111' }}>{Rcp.batchLeft(r)} left</span>
+          <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
+          {r.macros_per_serving && r.macros_per_serving.kcal > 0 && <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>}
+          <Icon.chevron width="15" height="15" style={{ color: 'var(--muted)' }} />
+        </button>))}
+    </div>
+  </div>);
+}
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe }) {
   const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
   const [span, setSpan] = useState('today');
@@ -2890,6 +2908,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         })()}
       </Card>
 
+      {onOpenRecipe && <LeftoversStrip db={db} onOpenRecipe={onOpenRecipe} />}
       {onOpenRecipe && <CookGapStrip db={db} onOpenRecipe={onOpenRecipe} />}
 
       {/* Next action: check-in, weigh-in and the coach line in one adaptive surface */}
@@ -5682,8 +5701,13 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   }
   useEffect(() => { if (!autoTried.current && total && resolved < total && recipe.macros_source !== 'stated') { autoTried.current = true; analyze(true); } }, []);
 
-  function doLog(mode) { setPortion(1); setPickMeal({ mode }); }
-  function logToMeal(mealId) { onLogRecipe(mealId, recipe, pickMeal.mode, portion); setPickMeal(null); }
+  function doLog(mode, opts) { setPortion(1); setPickMeal(Object.assign({ mode }, opts)); }
+  function logToMeal(mealId) {
+    onLogRecipe(mealId, recipe, pickMeal.mode, portion);
+    if (pickMeal.batch) patch(r => { r.batch = { left: Math.max(0, (r.servings || 1) - portion), cooked_at: Date.now() }; });
+    else if (pickMeal.leftover) patch(r => { if (r.batch) r.batch.left = Math.max(0, (r.batch.left || 0) - portion); });
+    setPickMeal(null);
+  }
   function addMissingToShopping() {
     const additions = missing.map(i => ({ name: i.name || Rcp.nameFromLine(i.line), qty_label: Rcp.lineOf(i), recipe_id: recipe.id }));
     let added = 0;
@@ -5771,8 +5795,13 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     {editSteps ? <textarea defaultValue={(recipe.steps || []).join('\n')} onBlur={e => setSteps(e.target.value)} rows={Math.max(4, (recipe.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed mb-6'} placeholder="One instruction per line" />
       : (recipe.steps || []).length > 0 ? <ol className="space-y-2 mb-6">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}</ol>
       : <div className="text-[12px] text-[#8A8A90] mb-6">No method yet. Tap Edit to add the steps.</div>}
+    {Rcp.batchLeft(recipe) > 0 && <div className="pixel-box p-3 mb-3 flex items-center gap-3" style={{ background: 'var(--surface3)', borderColor: 'var(--good)' }}>
+      <div className="flex-1 min-w-0"><div className="text-[13px] font-bold">{Rcp.batchLeft(recipe)} serving{Rcp.batchLeft(recipe) === 1 ? '' : 's'} of leftovers</div><div className="text-[11px] text-[#8A8A90]">Batch cooked. Log one when you eat it.</div></div>
+      <Btn kind="accent" className="shrink-0" onClick={() => doLog('single', { leftover: true })} disabled={!hasMacros}>Log one</Btn>
+    </div>}
     <Btn kind="accent" className="w-full" onClick={() => doLog('single')} disabled={!hasMacros}>{hasMacros ? 'Log a serving to today' : 'Work out the macros to log this'}</Btn>
     {resolved > 0 && hasMacros && <button onClick={() => doLog('items')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log itemised (one diary entry per ingredient)</button>}
+    {hasMacros && Rcp.batchLeft(recipe) === 0 && <button onClick={() => doLog('single', { batch: true })} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Batch cooking? Log a serving and keep the rest as leftovers</button>}
     {shareOn && recipe.source_url && <button onClick={togglePrivate} className="w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4">
       <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: '#111' }}>{recipe.private ? '✓' : ''}</span>
       Keep this recipe private (off Discover)
@@ -5782,6 +5811,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="text-base font-bold mb-1">Log {recipe.title}</div>
         <div className="text-[12px] text-[#8A8A90] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((recipe.macros_per_serving.kcal || 0) * portion)} kcal · P{Math.round((recipe.macros_per_serving.protein || 0) * portion)}{pickMeal.mode === 'items' ? ' · itemised' : ''}</div>
+        {pickMeal.batch && <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>Logs this serving now; the other {Math.max(0, (recipe.servings || 1) - portion)} become leftovers you can log on later days.</div>}
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much</div>
         {(() => { const fp = rem && Rcp.fitPortion(recipe.macros_per_serving, rem); return fp ? (
           <button onClick={() => setPortion(fp)} className="w-full pixel-box px-3 py-2.5 mb-2 text-left text-[12px] flex items-center justify-between" style={{ background: portion === fp ? 'var(--accent)' : 'var(--surface3)', color: portion === fp ? '#111' : 'var(--text)' }}>
