@@ -5326,6 +5326,12 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, 3)); }
   function removeImg(id) { setImgs(x => x.filter(f => f.id !== id)); }
 
+  // Work out the macros before showing the review, so the recipe lands already priced (never empty).
+  async function priceDraft(rec) {
+    setBusy('Working out the macros...');
+    try { const result = await analyzeRecipe(rec.title, (rec.ingredients || []).map(i => Rcp.lineOf(i))); rec = Rcp.applyAnalysis(rec, result); } catch (e) { /* review can re-run it */ }
+    setBusy(''); setDraft(rec);
+  }
   async function fromLink(u) {
     setErr(''); setBusy('Reading the video...');
     try {
@@ -5337,28 +5343,24 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
         setBusy(''); return;
       }
       setBusy('Building the recipe...');
-      const rec = await structureRecipe(src.sourceText, meta);
-      setDraft(rec);
-    } catch (e) { setErr(e.message || 'Import failed.'); setShowFallback(true); }
-    setBusy('');
+      await priceDraft(await structureRecipe(src.sourceText, meta));
+    } catch (e) { setErr(e.message || 'Import failed.'); setShowFallback(true); setBusy(''); }
   }
   async function fromCaption() {
     if (!caption.trim()) { setErr('Paste the recipe caption or text first.'); return; }
     setErr(''); setBusy('Building the recipe...');
     try {
       const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
-      setDraft(await structureRecipe(caption.trim(), meta));
-    } catch (e) { setErr(e.message || 'Import failed.'); }
-    setBusy('');
+      await priceDraft(await structureRecipe(caption.trim(), meta));
+    } catch (e) { setErr(e.message || 'Import failed.'); setBusy(''); }
   }
   async function fromImages() {
     if (!imgs.length) { setErr('Add at least one screenshot of the recipe.'); return; }
     setErr(''); setBusy('Reading the screenshots...');
     try {
       const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
-      setDraft(await structureRecipeFromImages(imgs.map(i => i.file), meta));
-    } catch (e) { setErr(e.message || 'Import failed.'); }
-    setBusy('');
+      await priceDraft(await structureRecipeFromImages(imgs.map(i => i.file), meta));
+    } catch (e) { setErr(e.message || 'Import failed.'); setBusy(''); }
   }
   // Auto-run once when opened straight from a share.
   useEffect(() => { if (initialUrl && !ran.current) { ran.current = true; fromLink(initialUrl); } }, [initialUrl]);
@@ -5398,7 +5400,9 @@ function RecipeReview({ recipe, onSave, onCancel }) {
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
-    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Each ingredient is one line, amount first (e.g. "150 g cottage cheese"). Fix anything, then save. Macros are worked out from these lines on the recipe page.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save.</div>
+    {d.macros_per_serving.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Macros per serving</div><RecipeMacroStrip macros={d.macros_per_serving} per /></Card>}
+    {(() => { const s = Rcp.macroSanity(d); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg}</div> : null; })()}
     <Field label="Title"><input value={d.title} onChange={e => set({ title: e.target.value })} className={inputCls} /></Field>
     <Field label="Servings"><input type="number" min="1" value={d.servings} onChange={e => set({ servings: Math.max(1, Math.round(+e.target.value) || 1) })} className={inputCls + ' w-28'} /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 mt-1">Ingredients</div>
@@ -5540,6 +5544,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       {hasMacros ? <RecipeMacroStrip macros={recipe.macros_per_serving} per /> : <div className="text-[12px] text-[#8A8A90]">Tap “Work out the macros” below.</div>}
       {fit && rem && hasMacros && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal; you have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today.</div>}
     </Card>
+    {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
     {busy ? <div className="text-[12px] mb-4 flex items-center gap-2" style={{ color: 'var(--accent)' }}><PixelDino size={16} color="var(--accent)" /> {busy}</div>
       : <div className="flex gap-2 mb-3">
         <Btn kind={hasMacros ? 'ghost' : 'accent'} className="flex-1" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</Btn>
@@ -5555,6 +5560,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
     </div>
     <div className="text-[11px] text-[#8A8A90] mb-2">One line each, amount first. Tick what you have; tap the macros to fix a number.</div>
+    {resolved > 0 && <div className="text-[10px] text-[#8A8A90] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1"><span><span style={{ color: 'var(--good)' }}>●</span> database</span><span><span style={{ color: '#F5C542' }}>●</span> AI estimate</span><span><span style={{ color: 'var(--accent)' }}>●</span> your number</span></div>}
     <div className="space-y-2.5 mb-3">
       {recipe.ingredients.map((ing) => (
         <div key={ing.id}>

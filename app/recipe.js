@@ -139,6 +139,18 @@
     return out;
   }
 
+  // A light plausibility check on a recipe's per-serving macros, so a bad parse never logs silently.
+  // Returns null when fine, else { msg } describing what looks off. Only runs once macros exist.
+  function macroSanity(recipe) {
+    var m = (recipe || {}).macros_per_serving || {}, kcal = num(m.kcal);
+    if (!kcal) return null;
+    if (kcal < 80) return { msg: 'That is very low for a serving. Check the ingredient amounts.' };
+    if (kcal > 1600) return { msg: 'That is very high for a serving. Check the servings count is right.' };
+    var atw = num(m.protein) * 4 + num(m.carbs) * 4 + num(m.fat) * 9;
+    if (atw > 0 && Math.abs(kcal - atw) > kcal * 0.3 + 50) return { msg: 'The calories and the macros do not add up. Re-check a value.' };
+    return null;
+  }
+
   // How one serving fits a day's remaining macros, for the "fits today" badge + Discover ranking.
   function fitScore(macrosPerServing, remaining) {
     var m = macrosPerServing || {}, r = remaining || {};
@@ -154,6 +166,7 @@
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
+    macroSanity: macroSanity,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
