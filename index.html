@@ -4319,7 +4319,7 @@ function ResetPassword({
 // ---- Legal documents -------------------------------------------------------
 // Plain-English UK-oriented drafts. Owner should have these reviewed by a solicitor before charging,
 // and fill in the registered legal entity, address and (if applicable) ICO registration.
-const LEGAL_UPDATED = "7 July 2026";
+const LEGAL_UPDATED = "17 July 2026";
 const LEGAL = {
   privacy: {
     title: "Privacy Policy",
@@ -4328,7 +4328,7 @@ const LEGAL = {
       p: "Macrosaurus (\"we\", \"us\") provides an adaptive nutrition and body-composition tracking app. We are the data controller for the personal information described here. For any question or request, contact oliverlouisjohnson15@gmail.com."
     }, {
       h: "Information we collect",
-      p: "Your account details (email, and a password handled securely by our authentication provider); the profile and health inputs you enter (sex, age, height, weight, body fat, activity level and goals); your logs (food, drinks, weigh-ins and check-ins); any photos you choose to submit for AI estimation; records of your AI usage (call counts and cost); and the basic technical data needed to run the app."
+      p: "Your account details (email, and a password handled securely by our authentication provider); the profile and health inputs you enter (sex, age, height, weight, body fat, activity level and goals); your logs (food, drinks, weigh-ins and check-ins); any photos you choose to submit for AI estimation; records of your AI usage (call counts and cost); basic technical data needed to run the app; and privacy-friendly usage analytics and crash reports (which app actions you take and any errors, tied to your account id but never your food names, photos or health values)."
     }, {
       h: "Why we use it, and our legal bases",
       p: "To provide the service and calculate your targets (performance of our contract with you). To process health-related information such as weight and body fat (your explicit consent, which you give by entering it and can withdraw at any time by deleting it or your account). To keep the service secure and to improve it (our legitimate interests). And to handle billing where a paid plan applies."
@@ -4337,7 +4337,7 @@ const LEGAL = {
       p: "When you use photo or text estimation, the content you submit is sent to our AI provider, Anthropic, to generate an estimate that is returned to you. Photos are not stored by us after processing, and your inputs are not used to train AI models. Anthropic processes this data under its own API terms."
     }, {
       h: "Who we share it with",
-      p: "We use trusted providers to run the app: Supabase (database and sign-in), Vercel (hosting), Anthropic (AI estimates) and Open Food Facts (food lookups). They process data only to provide their service to us. We do not sell your data and we do not use it for advertising."
+      p: "We use trusted providers to run the app: Supabase (database and sign-in), Vercel (hosting), Anthropic (AI estimates), Open Food Facts (food lookups), Sentry (error monitoring, so we can fix crashes) and PostHog, hosted in the EU, for privacy-friendly, cookieless product analytics. Our analytics record only actions like signing up or logging a meal, never your food names, photos or health values. They process data only to provide their service to us. We do not sell your data and we do not use it for advertising."
     }, {
       h: "Storage, security and retention",
       p: "Your data is stored in our cloud database, protected in transit and behind per-user access controls, and kept for as long as your account is active. You can export a full copy or permanently delete everything at any time from Menu, Account."
@@ -4346,7 +4346,7 @@ const LEGAL = {
       p: "Under UK data protection law you can access, correct, export, restrict, object to or erase your personal data, and withdraw consent. Use the export and delete tools in the app, or contact us. You also have the right to complain to the Information Commissioner's Office (ico.org.uk)."
     }, {
       h: "Cookies and local storage",
-      p: "We use only essential local storage, to keep you signed in and to work offline. There is no advertising and no third-party tracking."
+      p: "We use only essential local storage, to keep you signed in and to work offline. Our product analytics are cookieless and set no advertising or cross-site tracking cookies."
     }, {
       h: "Children",
       p: "Macrosaurus is not intended for anyone under 18."
