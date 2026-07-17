@@ -19855,12 +19855,11 @@ function RecipeHub({
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
   const remKcal = et ? Math.max(0, Math.round(et.eff.kcal - sumMacros(entriesOn(db, today)).kcal)) : 0;
-  const [sort, setSort] = useState(remKcal > 0 ? 'fits' : 'all'); // fits | protein | all
-  const [meal, setMeal] = useState('');
-  const [creator, setCreator] = useState('');
+  // One filter axis, Mob-style: a single row of pills. "For today" = fits your remaining macros,
+  // "High protein", then meal categories. Search also matches creators, so there's no separate creator row.
+  const [pick, setPick] = useState(remKcal > 0 ? 'today' : 'all'); // today | protein | all | <meal>
   const [q, setQ] = useState('');
   const [items, setItems] = useState(null);
-  const [creators, setCreators] = useState([]);
   const [teaser, setTeaser] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -19877,11 +19876,9 @@ function RecipeHub({
     setErr('');
     try {
       const opts = {
-        search: q,
-        meal: meal || null,
-        creator: creator || null
+        search: q
       };
-      if (sort === 'fits') opts.kcalMax = remKcal || null;else if (sort === 'protein') opts.minProtein = 25;
+      if (pick === 'today') opts.kcalMax = remKcal || null;else if (pick === 'protein') opts.minProtein = 25;else if (pick && pick !== 'all') opts.meal = pick;
       setItems(await browsePublicRecipes(opts));
     } catch (e) {
       setErr('Could not load recipes just now.');
@@ -19896,11 +19893,8 @@ function RecipeHub({
     }).then(setTeaser, () => {});
   }, [isPremium]);
   useEffect(() => {
-    if (isPremium) browseRecipeCreators().then(setCreators, () => {});
-  }, [isPremium]);
-  useEffect(() => {
     if (isPremium) load();
-  }, [isPremium, sort, meal, creator]);
+  }, [isPremium, pick]);
   useEffect(() => {
     if (!isPremium) return;
     const t = setTimeout(load, 350);
@@ -19966,7 +19960,7 @@ function RecipeHub({
       }
     }, "My recipes ›")));
   }
-  const sorts = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
+  const pills = [...(remKcal > 0 ? [['today', 'For today']] : []), ['protein', 'High protein'], ['all', 'All']].concat(Rcp.TAX.meal.map(m => [m, Rcp.taxLabel(m)]));
   const pm = preview ? {
     kcal: preview.kcal,
     protein: preview.protein,
@@ -19980,6 +19974,7 @@ function RecipeHub({
     fontWeight: on ? 700 : 400
   });
   const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
+  const filtered = q.trim() || pick && pick !== 'today' && pick !== 'all';
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement(TextInput, {
@@ -19987,46 +19982,16 @@ function RecipeHub({
     value: q,
     onChange: e => setQ(e.target.value)
   }), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 overflow-x-auto pb-1 mt-3 -mx-1 px-1",
+    className: "flex gap-2 overflow-x-auto pb-1 mt-3 mb-1 -mx-1 px-1",
     style: {
       scrollbarWidth: 'none'
     }
-  }, sorts.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+  }, pills.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
-    onClick: () => setSort(k),
+    onClick: () => setPick(k),
     className: chipCls,
-    style: chipStyle(sort === k)
-  }, l))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 overflow-x-auto pb-1 mt-1.5 -mx-1 px-1",
-    style: {
-      scrollbarWidth: 'none'
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setMeal(''),
-    className: chipCls,
-    style: chipStyle(!meal)
-  }, "All meals"), Rcp.TAX.meal.map(mm => /*#__PURE__*/React.createElement("button", {
-    key: mm,
-    onClick: () => setMeal(meal === mm ? '' : mm),
-    className: chipCls,
-    style: chipStyle(meal === mm)
-  }, Rcp.taxLabel(mm)))), (creators.length > 0 || creator) && /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 overflow-x-auto pb-1 mt-1.5 mb-3 -mx-1 px-1 items-center",
-    style: {
-      scrollbarWidth: 'none'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase text-[#8A8A90] shrink-0 pr-1"
-  }, "Creators"), creator ? /*#__PURE__*/React.createElement("button", {
-    onClick: () => setCreator(''),
-    className: chipCls,
-    style: chipStyle(true)
-  }, "✕ ", creator.startsWith('@') ? creator : '@' + creator) : creators.map(c => /*#__PURE__*/React.createElement("button", {
-    key: c.source_author,
-    onClick: () => setCreator(c.source_author),
-    className: chipCls,
-    style: chipStyle(false)
-  }, (c.source_author.startsWith('@') ? c.source_author : '@' + c.source_author) + ' · ' + c.n))), consent === undefined && /*#__PURE__*/React.createElement(Card, {
+    style: chipStyle(pick === k)
+  }, l))), consent === undefined && /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-3 mt-1",
     style: {
       background: 'var(--surface3)'
@@ -20061,14 +20026,14 @@ function RecipeHub({
     className: "p-6 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[14px] font-semibold mb-1"
-  }, q || meal || creator ? 'No recipes match' : 'The library is just getting started'), /*#__PURE__*/React.createElement("div", {
+  }, filtered ? 'No recipes match' : 'The library is just getting started'), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto"
-  }, q || meal || creator ? 'Try a different search, meal or creator.' : 'Be one of the first: ', !(q || meal || creator) && /*#__PURE__*/React.createElement("button", {
+  }, filtered ? 'Try a different search or category.' : 'Be one of the first: ', !filtered && /*#__PURE__*/React.createElement("button", {
     onClick: onImport,
     style: {
       color: 'var(--accent)'
     }
-  }, "import a recipe"), !(q || meal || creator) ? ' and it joins the hub for everyone.' : '')), preview && /*#__PURE__*/React.createElement("div", {
+  }, "import a recipe"), !filtered ? ' and it joins the hub for everyone.' : '')), preview && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center",
     onClick: () => setPreview(null)
   }, /*#__PURE__*/React.createElement(BackClose, {

@@ -6180,12 +6180,11 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
   const remKcal = et ? Math.max(0, Math.round(et.eff.kcal - sumMacros(entriesOn(db, today)).kcal)) : 0;
-  const [sort, setSort] = useState(remKcal > 0 ? 'fits' : 'all'); // fits | protein | all
-  const [meal, setMeal] = useState('');
-  const [creator, setCreator] = useState('');
+  // One filter axis, Mob-style: a single row of pills. "For today" = fits your remaining macros,
+  // "High protein", then meal categories. Search also matches creators, so there's no separate creator row.
+  const [pick, setPick] = useState(remKcal > 0 ? 'today' : 'all'); // today | protein | all | <meal>
   const [q, setQ] = useState('');
   const [items, setItems] = useState(null);
-  const [creators, setCreators] = useState([]);
   const [teaser, setTeaser] = useState([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [preview, setPreview] = useState(null);
@@ -6193,17 +6192,17 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
   async function load() {
     setBusy(true); setErr('');
     try {
-      const opts = { search: q, meal: meal || null, creator: creator || null };
-      if (sort === 'fits') opts.kcalMax = remKcal || null;
-      else if (sort === 'protein') opts.minProtein = 25;
+      const opts = { search: q };
+      if (pick === 'today') opts.kcalMax = remKcal || null;
+      else if (pick === 'protein') opts.minProtein = 25;
+      else if (pick && pick !== 'all') opts.meal = pick;
       setItems(await browsePublicRecipes(opts));
     } catch (e) { setErr('Could not load recipes just now.'); setItems([]); }
     setBusy(false);
   }
   // Free users still get a blurred taste of what is inside, so the lock sells itself.
   useEffect(() => { if (!isPremium) browsePublicRecipes({ limit: 6 }).then(setTeaser, () => {}); }, [isPremium]);
-  useEffect(() => { if (isPremium) browseRecipeCreators().then(setCreators, () => {}); }, [isPremium]);
-  useEffect(() => { if (isPremium) load(); }, [isPremium, sort, meal, creator]);
+  useEffect(() => { if (isPremium) load(); }, [isPremium, pick]);
   useEffect(() => { if (!isPremium) return; const t = setTimeout(load, 350); return () => clearTimeout(t); }, [q]);
 
   if (!isPremium) {
@@ -6225,25 +6224,16 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
     </div>);
   }
 
-  const sorts = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
+  const pills = [...(remKcal > 0 ? [['today', 'For today']] : []), ['protein', 'High protein'], ['all', 'All']].concat(Rcp.TAX.meal.map(m => [m, Rcp.taxLabel(m)]));
   const pm = preview ? { kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, fiber: preview.fiber } : null;
   const chipStyle = on => ({ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 });
   const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
+  const filtered = q.trim() || (pick && pick !== 'today' && pick !== 'all');
   return (<div className="fade-in">
     <TextInput placeholder="Search recipes or creators…" value={q} onChange={e => setQ(e.target.value)} />
-    <div className="flex gap-2 overflow-x-auto pb-1 mt-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-      {sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className={chipCls} style={chipStyle(sort === k)}>{l}</button>)}
+    <div className="flex gap-2 overflow-x-auto pb-1 mt-3 mb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+      {pills.map(([k, l]) => <button key={k} onClick={() => setPick(k)} className={chipCls} style={chipStyle(pick === k)}>{l}</button>)}
     </div>
-    <div className="flex gap-2 overflow-x-auto pb-1 mt-1.5 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-      <button onClick={() => setMeal('')} className={chipCls} style={chipStyle(!meal)}>All meals</button>
-      {Rcp.TAX.meal.map(mm => <button key={mm} onClick={() => setMeal(meal === mm ? '' : mm)} className={chipCls} style={chipStyle(meal === mm)}>{Rcp.taxLabel(mm)}</button>)}
-    </div>
-    {(creators.length > 0 || creator) && <div className="flex gap-2 overflow-x-auto pb-1 mt-1.5 mb-3 -mx-1 px-1 items-center" style={{ scrollbarWidth: 'none' }}>
-      <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0 pr-1">Creators</span>
-      {creator
-        ? <button onClick={() => setCreator('')} className={chipCls} style={chipStyle(true)}>✕ {creator.startsWith('@') ? creator : '@' + creator}</button>
-        : creators.map(c => <button key={c.source_author} onClick={() => setCreator(c.source_author)} className={chipCls} style={chipStyle(false)}>{(c.source_author.startsWith('@') ? c.source_author : '@' + c.source_author) + ' · ' + c.n}</button>)}
-    </div>}
     {consent === undefined && <Card className="p-3 mb-3 mt-1" style={{ background: 'var(--surface3)' }}>
       <div className="text-[12px] leading-snug mb-2"><span className="font-bold">Add your imports to the library?</span> They join the shared hub for everyone, credited to the original creator, never to you.</div>
       <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Thanks - your imports help everyone'); }}>Share mine</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep private</Btn></div>
@@ -6251,7 +6241,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
     {busy ? <DinoLoader label="Finding recipes" />
       : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
       : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
-      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{(q || meal || creator) ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{(q || meal || creator) ? 'Try a different search, meal or creator.' : 'Be one of the first: '}{!(q || meal || creator) && <button onClick={onImport} style={{ color: 'var(--accent)' }}>import a recipe</button>}{!(q || meal || creator) ? ' and it joins the hub for everyone.' : ''}</div></Card>}
+      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--accent)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
     {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
       <BackClose onClose={() => setPreview(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
