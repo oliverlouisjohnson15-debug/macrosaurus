@@ -6758,13 +6758,14 @@ function App() {
   // Celebrate climbing a Chef level (the Cook game layer). Ref-guarded so it only fires on a real rise.
   const chefLvlRef = useRef(null);
   useEffect(() => {
+    if (!db) return;
     const lvl = chefLevel((db.cook_stats && db.cook_stats.cooked) || 0).level;
     if (chefLvlRef.current != null && lvl > chefLvlRef.current) {
       showToast('Chef level up - you reached ' + CHEF_LEVELS[Math.min(lvl, CHEF_LEVELS.length - 1)] + '!');
       try { window.MTRACK && MTRACK('chef_levelup', { level: lvl }); } catch (_) {}
     }
     chefLvlRef.current = lvl;
-  }, [db.cook_stats && db.cook_stats.cooked]);
+  }, [db && db.cook_stats && db.cook_stats.cooked]);
   // Returning from Stripe Checkout / the billing portal (?sub=success|cancel|portal).
   useEffect(() => {
     const s = new URLSearchParams(window.location.search).get('sub');
