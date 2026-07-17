@@ -1800,6 +1800,33 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { resolved: n, macros: { kcal: Math.round(t.kcal / s), protein: round1(t.protein / s), carbs: round1(t.carbs / s), fat: round1(t.fat / s), fiber: round1(t.fiber / s) } };
   }
   function resolvedCount(recipe) { return ((recipe || {}).ingredients || []).filter(function (i) { return i && i.macros; }).length; }
+
+  // Scale the leading amount in an ingredient line by a factor (for "make more/fewer servings").
+  // Handles integers, decimals, simple "3/4" fractions and common unicode fractions; leaves the line
+  // unchanged if it has no leading number (e.g. "salt to taste").
+  var FRAC = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
+  function parseAmt(s) { if (FRAC[s] != null) return FRAC[s]; if (s.indexOf('/') >= 0) { var p = s.split('/'); return num(p[0]) / (num(p[1]) || 1); } return num(s); }
+  function fmtAmt(n) { n = Math.round(n * 100) / 100; return String(n); }
+  function scaleLine(line, f) {
+    line = String(line || '');
+    if (!(f > 0) || f === 1) return line;
+    var m = line.match(/^(\s*)(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛⅜⅝⅞])/);
+    if (!m) return line;
+    return m[1] + fmtAmt(parseAmt(m[2].replace(/\s+/g, '')) * f) + line.slice(m[0].length);
+  }
+  // Rescale a recipe to a new serving count: scale the ingredient amounts (line text, grams, macros)
+  // so the per-serving macros stay the same. This is "cook for N", not just changing the divisor.
+  function scaleServings(recipe, newServings) {
+    var target = Math.max(1, Math.round(num(newServings)) || 1);
+    var base = Math.max(1, num((recipe || {}).servings) || 1);
+    var f = target / base;
+    var ings = ((recipe || {}).ingredients || []).map(function (ing) {
+      return Object.assign({}, ing, { line: scaleLine(lineOf(ing), f), grams: ing.grams ? Math.round(ing.grams * f) : ing.grams, macros: ing.macros ? scaleMacros(ing.macros, f) : ing.macros });
+    });
+    return Object.assign({}, recipe, { servings: target, ingredients: ings });
+  }
+  // Scale a per-serving macro set by a portion multiplier (0.5, 1.5, ...), for logging a part-serving.
+  function scaleMacros(m, f) { m = m || {}; return { kcal: Math.round(num(m.kcal) * f), protein: round1(num(m.protein) * f), carbs: round1(num(m.carbs) * f), fat: round1(num(m.fat) * f), fiber: round1(num(m.fiber) * f) }; }
   function macrosFromPer100(per100, grams) { var f = num(grams) / 100; per100 = per100 || {}; return { kcal: Math.round(num(per100.kcal) * f), protein: round1(num(per100.protein) * f), carbs: round1(num(per100.carbs) * f), fat: round1(num(per100.fat) * f), fiber: round1(num(per100.fiber) * f) }; }
 
   // Ingredients scaled to ONE serving for itemised diary logging.
@@ -1845,7 +1872,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
-    macroSanity: macroSanity,
+    macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
@@ -17576,6 +17603,7 @@ function RecipeDetail({
 }) {
   useBackClose(onBack);
   const [pickMeal, setPickMeal] = useState(null);
+  const [portion, setPortion] = useState(1);
   const [macrosIng, setMacrosIng] = useState(null);
   const [busy, setBusy] = useState('');
   const [editSteps, setEditSteps] = useState(false);
@@ -17632,7 +17660,9 @@ function RecipeDetail({
     if (ing) ing.have = !ing.have;
   });
   const setServings = n => patch(r => {
-    r.servings = Math.max(1, n);
+    const s2 = Rcp.scaleServings(r, Math.max(1, n));
+    r.servings = s2.servings;
+    r.ingredients = s2.ingredients;
   });
   const setTitle = t => patch(r => {
     if (t.trim()) r.title = t.trim();
@@ -17706,12 +17736,13 @@ function RecipeDetail({
     }
   }, []);
   function doLog(mode) {
-    if (meals.length > 1) setPickMeal({
+    setPortion(1);
+    setPickMeal({
       mode
-    });else onLogRecipe(meals[0] && meals[0].id, recipe, mode);
+    });
   }
   function logToMeal(mealId) {
-    onLogRecipe(mealId, recipe, pickMeal.mode);
+    onLogRecipe(mealId, recipe, pickMeal.mode, portion);
     setPickMeal(null);
   }
   function addMissingToShopping() {
@@ -17894,6 +17925,7 @@ function RecipeDetail({
       color: '#fff'
     }
   }, ing.have ? '✓' : ''), /*#__PURE__*/React.createElement("input", {
+    key: Rcp.lineOf(ing),
     defaultValue: Rcp.lineOf(ing),
     onBlur: e => setLine(ing.id, e.target.value),
     placeholder: "e.g. 150 g cottage cheese",
@@ -17981,9 +18013,32 @@ function RecipeDetail({
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-base font-bold mb-1"
-  }, "Log to which meal?"), /*#__PURE__*/React.createElement("div", {
+  }, "Log ", recipe.title), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "One serving of ", recipe.title, " (", Math.round(recipe.macros_per_serving.kcal || 0), " kcal)", pickMeal.mode === 'items' ? ', broken into its ingredients' : '', "."), /*#__PURE__*/React.createElement("div", {
+  }, portion === 1 ? '1 serving' : portion + ' servings', " · ", Math.round((recipe.macros_per_serving.kcal || 0) * portion), " kcal · P", Math.round((recipe.macros_per_serving.protein || 0) * portion), pickMeal.mode === 'items' ? ' · itemised' : ''), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "How much"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-4 flex-wrap"
+  }, [0.5, 1, 1.5, 2].map(pp => /*#__PURE__*/React.createElement("button", {
+    key: pp,
+    onClick: () => setPortion(pp),
+    className: "pixel-box px-3 py-2 text-[13px]",
+    style: {
+      background: portion === pp ? 'var(--accent)' : 'var(--surface3)',
+      color: portion === pp ? '#111' : 'var(--text)',
+      fontWeight: portion === pp ? 700 : 400
+    }
+  }, pp === 1 ? '1' : pp, "×")), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    step: "0.25",
+    min: "0.25",
+    value: portion,
+    onChange: e => setPortion(Math.max(0.25, +e.target.value || 1)),
+    className: inputCls + ' w-20 py-2 text-center tnum',
+    "aria-label": "Custom portion"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "To which meal"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
   }, meals.map(m => /*#__PURE__*/React.createElement("button", {
     key: m.id,
@@ -18690,22 +18745,26 @@ function App() {
   // reusable, gram-scalable smart food, enriching the food database); mode 'single' writes one entry
   // named after the recipe with the ingredients remembered behind it. Each ingredient prefers the
   // user's OWN saved numbers for that food when they exist, so recipes fold into the rest of the tracker.
-  function logRecipeServing(date, mealId, recipe, mode) {
+  function logRecipeServing(date, mealId, recipe, mode, portion) {
+    const p = portion > 0 ? portion : 1;
+    const pLabel = p === 1 ? '1 serving' : (Number.isInteger(p) ? p : p) + ' servings';
     const raw = Rcp.perServingIngredients(recipe);
     const items = raw.map(it => {
       const sc = it.grams > 0 ? savedCorrection(db, it.name) : null;
       const m = sc ? macrosFromSavedFood(sc, it.grams) : null;
-      return m ? Object.assign({}, it, {
-        macros: m
-      }) : it;
+      const base = m || it.macros;
+      return Object.assign({}, it, {
+        grams: it.grams ? Math.round(it.grams * p) : it.grams,
+        macros: Rcp.scaleMacros(base, p)
+      });
     });
     if (mode === 'single' || !items.length) {
       addEntry(date, mealId, {
-        name: recipe.title + ' (1 serving)',
+        name: recipe.title + ' (' + pLabel + ')',
         source: 'recipe',
         is_alcohol: false,
-        qtyLabel: '1 serving',
-        macros: recipe.macros_per_serving,
+        qtyLabel: pLabel,
+        macros: Rcp.scaleMacros(recipe.macros_per_serving, p),
         rememberItems: items.map(it => ({
           name: it.name,
           grams: it.grams,
@@ -18907,7 +18966,7 @@ function App() {
     showToast: showToast,
     importUrl: recipeImport,
     onConsumeImport: () => setRecipeImport(null),
-    onLogRecipe: (mealId, recipe, mode) => logRecipeServing(Store.todayISO(), mealId, recipe, mode),
+    onLogRecipe: (mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion),
     onSaveMeal: saveRecipeAsMeal
   }), view === 'goals' && /*#__PURE__*/React.createElement(Goals, {
     db: db,

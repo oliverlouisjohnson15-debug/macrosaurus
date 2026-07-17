@@ -5466,6 +5466,7 @@ function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
 function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRecipe, onSaveMeal }) {
   useBackClose(onBack);
   const [pickMeal, setPickMeal] = useState(null);
+  const [portion, setPortion] = useState(1);
   const [macrosIng, setMacrosIng] = useState(null);
   const [busy, setBusy] = useState('');
   const [editSteps, setEditSteps] = useState(false);
@@ -5489,7 +5490,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const removeIng = (ingId) => patch((r) => { r.ingredients = r.ingredients.filter(x => x.id !== ingId); });
   const addIng = () => patch((r) => { r.ingredients = r.ingredients.concat([{ id: 'ing_' + Store.uid(), line: '', name: '', grams: 0, macros: null, resolved: null, have: false }]); });
   const toggleHave = (ingId) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (ing) ing.have = !ing.have; });
-  const setServings = (n) => patch((r) => { r.servings = Math.max(1, n); });
+  const setServings = (n) => patch((r) => { const s2 = Rcp.scaleServings(r, Math.max(1, n)); r.servings = s2.servings; r.ingredients = s2.ingredients; });
   const setTitle = (t) => patch((r) => { if (t.trim()) r.title = t.trim(); });
   const setSteps = (txt) => patch((r) => { r.steps = txt.split('\n').map(s => s.trim()).filter(Boolean); });
   const useStated = () => patch((r) => { if (r.stated_macros) { r.macros_per_serving = r.stated_macros; r.macros_source = 'stated'; } });
@@ -5516,8 +5517,8 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   }
   useEffect(() => { if (!autoTried.current && total && resolved < total && recipe.macros_source !== 'stated') { autoTried.current = true; analyze(true); } }, []);
 
-  function doLog(mode) { if (meals.length > 1) setPickMeal({ mode }); else onLogRecipe(meals[0] && meals[0].id, recipe, mode); }
-  function logToMeal(mealId) { onLogRecipe(mealId, recipe, pickMeal.mode); setPickMeal(null); }
+  function doLog(mode) { setPortion(1); setPickMeal({ mode }); }
+  function logToMeal(mealId) { onLogRecipe(mealId, recipe, pickMeal.mode, portion); setPickMeal(null); }
   function addMissingToShopping() {
     const additions = missing.map(i => ({ name: i.name || Rcp.nameFromLine(i.line), qty_label: Rcp.lineOf(i), recipe_id: recipe.id }));
     let added = 0;
@@ -5566,7 +5567,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div key={ing.id}>
           <div className="flex items-center gap-2.5">
             <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? '✓' : ''}</button>
-            <input defaultValue={Rcp.lineOf(ing)} onBlur={e => setLine(ing.id, e.target.value)} placeholder="e.g. 150 g cottage cheese" className="text-[14px] flex-1 min-w-0 bg-transparent focus:outline-none" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }} />
+            <input key={Rcp.lineOf(ing)} defaultValue={Rcp.lineOf(ing)} onBlur={e => setLine(ing.id, e.target.value)} placeholder="e.g. 150 g cottage cheese" className="text-[14px] flex-1 min-w-0 bg-transparent focus:outline-none" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }} />
             <button onClick={() => removeIng(ing.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove">×</button>
           </div>
           <button onClick={() => setMacrosIng(ing)} className="mt-0.5 text-[11px] flex items-center gap-1.5" style={{ marginLeft: 30, color: ing.macros ? 'var(--muted)' : 'var(--accent)' }}>
@@ -5587,8 +5588,14 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
       <BackClose onClose={() => setPickMeal(null)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="text-base font-bold mb-1">Log to which meal?</div>
-        <div className="text-[12px] text-[#8A8A90] mb-3">One serving of {recipe.title} ({Math.round(recipe.macros_per_serving.kcal || 0)} kcal){pickMeal.mode === 'items' ? ', broken into its ingredients' : ''}.</div>
+        <div className="text-base font-bold mb-1">Log {recipe.title}</div>
+        <div className="text-[12px] text-[#8A8A90] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((recipe.macros_per_serving.kcal || 0) * portion)} kcal · P{Math.round((recipe.macros_per_serving.protein || 0) * portion)}{pickMeal.mode === 'items' ? ' · itemised' : ''}</div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much</div>
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          {[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--accent)' : 'var(--surface3)', color: portion === pp ? '#111' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}
+          <input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" />
+        </div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">To which meal</div>
         <div className="space-y-2">{meals.map(m => <button key={m.id} onClick={() => logToMeal(m.id)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{m.name}</button>)}</div>
       </div>
     </div>}
@@ -5900,11 +5907,13 @@ function App() {
   // reusable, gram-scalable smart food, enriching the food database); mode 'single' writes one entry
   // named after the recipe with the ingredients remembered behind it. Each ingredient prefers the
   // user's OWN saved numbers for that food when they exist, so recipes fold into the rest of the tracker.
-  function logRecipeServing(date, mealId, recipe, mode) {
+  function logRecipeServing(date, mealId, recipe, mode, portion) {
+    const p = portion > 0 ? portion : 1;
+    const pLabel = (p === 1 ? '1 serving' : (Number.isInteger(p) ? p : p) + ' servings');
     const raw = Rcp.perServingIngredients(recipe);
-    const items = raw.map(it => { const sc = it.grams > 0 ? savedCorrection(db, it.name) : null; const m = sc ? macrosFromSavedFood(sc, it.grams) : null; return m ? Object.assign({}, it, { macros: m }) : it; });
+    const items = raw.map(it => { const sc = it.grams > 0 ? savedCorrection(db, it.name) : null; const m = sc ? macrosFromSavedFood(sc, it.grams) : null; const base = m || it.macros; return Object.assign({}, it, { grams: it.grams ? Math.round(it.grams * p) : it.grams, macros: Rcp.scaleMacros(base, p) }); });
     if (mode === 'single' || !items.length) {
-      addEntry(date, mealId, { name: recipe.title + ' (1 serving)', source: 'recipe', is_alcohol: false, qtyLabel: '1 serving', macros: recipe.macros_per_serving, rememberItems: items.map(it => ({ name: it.name, grams: it.grams, kcal: it.macros.kcal, protein: it.macros.protein, carbs: it.macros.carbs, fat: it.macros.fat, fiber: it.macros.fiber })) });
+      addEntry(date, mealId, { name: recipe.title + ' (' + pLabel + ')', source: 'recipe', is_alcohol: false, qtyLabel: pLabel, macros: Rcp.scaleMacros(recipe.macros_per_serving, p), rememberItems: items.map(it => ({ name: it.name, grams: it.grams, kcal: it.macros.kcal, protein: it.macros.protein, carbs: it.macros.carbs, fat: it.macros.fat, fiber: it.macros.fiber })) });
       return;
     }
     const ids = items.map(() => Store.uid());
@@ -5962,7 +5971,7 @@ function App() {
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
-      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} onLogRecipe={(mealId, recipe, mode) => logRecipeServing(Store.todayISO(), mealId, recipe, mode)} onSaveMeal={saveRecipeAsMeal} />}
+      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onSaveMeal={saveRecipeAsMeal} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}

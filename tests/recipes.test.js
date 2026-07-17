@@ -133,6 +133,32 @@ test('macroSanity flags implausible per-serving macros', () => {
   assert.ok(Recipe.macroSanity({ macros_per_serving: { kcal: 300, protein: 60, carbs: 60, fat: 30 } })); // kcal vs macros mismatch (~750)
 });
 
+// ---- scaleLine / scaleServings ---------------------------------------------------------------
+test('scaleLine scales the leading amount in a line', () => {
+  assert.strictEqual(Recipe.scaleLine('150 g cottage cheese', 2), '300 g cottage cheese');
+  assert.strictEqual(Recipe.scaleLine('1 tbsp olive oil', 2), '2 tbsp olive oil');
+  assert.strictEqual(Recipe.scaleLine('2 cloves garlic', 0.5), '1 cloves garlic');
+  assert.strictEqual(Recipe.scaleLine('1/2 onion', 2), '1 onion');
+  assert.strictEqual(Recipe.scaleLine('salt to taste', 2), 'salt to taste'); // no leading number
+});
+test('scaleServings scales amounts + macros, keeping per-serving the same', () => {
+  let rec = Recipe.applyAnalysis(
+    Recipe.normalize({ title: 'X', servings: 2, ingredients: ['200 g rice', '1 tbsp oil'] }, {}),
+    { source: 'edamam', per_ingredient: [{ weight: 200, macros: { kcal: 260, protein: 5, carbs: 57, fat: 1, fiber: 1 } }, { weight: 14, macros: { kcal: 120, protein: 0, carbs: 0, fat: 14, fiber: 0 } }] }
+  );
+  const perServBefore = rec.macros_per_serving.kcal; // (260+120)/2 = 190
+  const s = Recipe.scaleServings(rec, 4);
+  assert.strictEqual(s.servings, 4);
+  assert.strictEqual(s.ingredients[0].line, '400 g rice');
+  assert.strictEqual(s.ingredients[0].macros.kcal, 520); // doubled
+  assert.strictEqual(Recipe.computePerServing(s).macros.kcal, perServBefore); // 190, unchanged
+});
+test('scaleMacros multiplies a macro set by a portion', () => {
+  const m = Recipe.scaleMacros({ kcal: 400, protein: 40, carbs: 30, fat: 12, fiber: 5 }, 1.5);
+  assert.strictEqual(m.kcal, 600);
+  assert.strictEqual(m.protein, 60);
+});
+
 // ---- store wiring ----------------------------------------------------------------------------
 test('migrate backfills recipes + shopping_list', () => {
   const s = Store.migrate({ profile: { goalType: 'cut' } });
