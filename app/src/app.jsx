@@ -6151,28 +6151,31 @@ function ShoppingListView({ db, update, onBack }) {
 // and reinforces the two moats (fun + recipes). Progression only for now; a Chef-exclusive Macrodex
 // catch at a milestone is the planned payoff.
 const CHEF_TIERS = [1, 5, 15, 40, 100];
-const CHEF_LEVELS = ['Fresh apron', 'Home cook', 'Line cook', 'Sous chef', 'Head chef', 'Macrosaurus chef'];
-function chefLevel(cooked) { return Game.badgeTier(cooked || 0, CHEF_TIERS); }
+const CONTRIB_LEVELS = ['Getting started', 'Contributor', 'Regular', 'Curator', 'Cookbook builder', 'Community legend'];
+function chefLevel(n) { return Game.badgeTier(n || 0, CHEF_TIERS); }
+// Recipes you've added to the shared library (priced + not private) - the behaviour that grows the
+// community cookbook the whole app runs on. Uploading is the reward, not cooking.
+function sharedCount(db) { return ((db && db.recipes) || []).filter(r => r.source_url && !r.private && (r.macros_per_serving || {}).kcal > 0).length; }
 function ChefCard({ db }) {
+  const shared = sharedCount(db);
   const cooked = (db.cook_stats && db.cook_stats.cooked) || 0;
-  const imported = (db.recipes || []).filter(r => r.source_url).length;
-  const bt = chefLevel(cooked);
-  const name = CHEF_LEVELS[Math.min(bt.level, CHEF_LEVELS.length - 1)];
-  const nextName = CHEF_LEVELS[Math.min(bt.level + 1, CHEF_LEVELS.length - 1)];
-  const toGo = bt.next != null ? bt.next - cooked : 0;
+  const bt = chefLevel(shared);
+  const name = CONTRIB_LEVELS[Math.min(bt.level, CONTRIB_LEVELS.length - 1)];
+  const nextName = CONTRIB_LEVELS[Math.min(bt.level + 1, CONTRIB_LEVELS.length - 1)];
+  const toGo = bt.next != null ? bt.next - shared : 0;
   return (
     <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--card)' }}>
       <div className="flex items-center justify-between mb-2">
         <div className="min-w-0">
-          <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90]">Chef · Lvl {bt.level}</div>
+          <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90]">Community cookbook · Lvl {bt.level}</div>
           <div className="text-sm font-bold truncate">{name}</div>
         </div>
-        <div className="text-right shrink-0 pl-3"><div className="text-lg font-bold tnum leading-none" style={{ color: 'var(--accent)' }}>{cooked}</div><div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">cooked{imported ? ' · ' + imported + ' added' : ''}</div></div>
+        <div className="text-right shrink-0 pl-3"><div className="text-lg font-bold tnum leading-none" style={{ color: 'var(--accent)' }}>{shared}</div><div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">shared{cooked ? ' · ' + cooked + ' cooked' : ''}</div></div>
       </div>
       {bt.next != null ? <>
         <div className="pixel-bar mb-1.5"><i style={{ width: Math.round((bt.progress || 0) * 100) + '%', background: 'var(--accent)' }} /></div>
-        <div className="text-[10px] text-[#8A8A90] leading-snug">{toGo} more cook{toGo === 1 ? '' : 's'} to <b style={{ color: 'var(--text)' }}>{nextName}</b>. Every recipe you cook feeds your buddy and keeps your streak alive.</div>
-      </> : <div className="text-[10px] text-[#8A8A90] leading-snug">Top of the kitchen, {cooked} recipes cooked. Keep them coming to feed the whole dex.</div>}
+        <div className="text-[10px] text-[#8A8A90] leading-snug">{toGo} more to <b style={{ color: 'var(--text)' }}>{nextName}</b>. Every recipe you import joins the shared library, credited to the original creator, and helps everyone cook. Keep any recipe private anytime.</div>
+      </> : <div className="text-[10px] text-[#8A8A90] leading-snug">You've given {shared} recipes to the community{cooked ? ', cooked ' + cooked : ''}. Legend. Every import still helps everyone cook.</div>}
     </div>
   );
 }
@@ -6759,13 +6762,13 @@ function App() {
   const chefLvlRef = useRef(null);
   useEffect(() => {
     if (!db) return;
-    const lvl = chefLevel((db.cook_stats && db.cook_stats.cooked) || 0).level;
+    const lvl = chefLevel(sharedCount(db)).level;
     if (chefLvlRef.current != null && lvl > chefLvlRef.current) {
-      showToast('Chef level up - you reached ' + CHEF_LEVELS[Math.min(lvl, CHEF_LEVELS.length - 1)] + '!');
-      try { window.MTRACK && MTRACK('chef_levelup', { level: lvl }); } catch (_) {}
+      showToast('You reached ' + CONTRIB_LEVELS[Math.min(lvl, CONTRIB_LEVELS.length - 1)] + ' in the community cookbook!');
+      try { window.MTRACK && MTRACK('cookbook_levelup', { level: lvl }); } catch (_) {}
     }
     chefLvlRef.current = lvl;
-  }, [db && db.cook_stats && db.cook_stats.cooked]);
+  }, [db && sharedCount(db)]);
   // Returning from Stripe Checkout / the billing portal (?sub=success|cancel|portal).
   useEffect(() => {
     const s = new URLSearchParams(window.location.search).get('sub');
