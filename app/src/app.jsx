@@ -989,7 +989,7 @@ function Auth() {
     }
     setBusy(true); setMsg('');
     try {
-      if (mode === 'signup') { const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; if (!r.data.session) { setNeedsConfirm(true); setMsg('Account created. Check your email for a confirmation link, then log in.'); } }
+      if (mode === 'signup') { const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; window.MTRACK && MTRACK('signup'); if (!r.data.session) { setNeedsConfirm(true); setMsg('Account created. Check your email for a confirmation link, then log in.'); } }
       else { const r = await supa.auth.signInWithPassword({ email, password: pw }); if (r.error) throw r.error; }
     } catch (e) { if (/confirm/i.test(e.message || '')) setNeedsConfirm(true); setMsg(e.message); }
     setBusy(false);
@@ -1428,6 +1428,7 @@ function CheckInModal({ db, update, onClose, resume }) {
         if (honestOver && !d.game_awards['honest_rex']) { d.game_awards['honest_rex'] = true; d.items.honest_rex = (d.items.honest_rex || 0) + 1; }
       }
     });
+    window.MTRACK && MTRACK('checkin_completed', { on_track: !!onTrack, adhered: adhered === 'yes' });
     if (bonus) setBonusCatch(bonus);
     if (dietBreakActive(db, today)) { setResult({ status: 'held', reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.` }); return; }
     if (adhered === 'no') { setResult({ status: 'held', offPlan: true, dinoLine: DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)], reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.` }); return; }
@@ -6173,8 +6174,8 @@ function App() {
 
   useEffect(() => {
     if (!supa) { setSession(null); return; }
-    supa.auth.getSession().then(function (r) { setSession(r.data.session || null); });
-    const sub = supa.auth.onAuthStateChange(function (e, s) { if (e === 'PASSWORD_RECOVERY') setRecovering(true); setSession(s || null); if (!s) setDb(null); });
+    supa.auth.getSession().then(function (r) { const ss = r.data.session || null; setSession(ss); if (ss && ss.user) window.MIDENTIFY && MIDENTIFY(ss.user.id); });
+    const sub = supa.auth.onAuthStateChange(function (e, s) { if (e === 'PASSWORD_RECOVERY') setRecovering(true); setSession(s || null); if (!s) setDb(null); if (s && s.user) { window.MIDENTIFY && MIDENTIFY(s.user.id); } else { window.MRESET && MRESET(); } });
     return function () { sub.data.subscription.unsubscribe(); };
   }, []);
   // Am I an admin? A user may read only their own admins row (RLS), so this just decides whether to
@@ -6322,6 +6323,7 @@ function App() {
       supa.rpc('submit_food_correction', { p_barcode: item.barcode, p_kcal: +b.kcal || 0, p_protein: +b.protein || 0, p_carbs: +b.carbs || 0, p_fat: +b.fat || 0, p_fiber: +b.fiber || 0, p_basis: item.baseKind || 'per100', p_serving_g: +item.savedServingG || 0, p_serving_label: item.savedServingLabel || '', p_name: item.name || '', p_source: item.source || '' }).then(function () {}, function () {});
     }
     setAdding(null);
+    window.MTRACK && MTRACK('food_logged', { count: 1, source: item.source || 'manual' });
     showToast('Added ' + item.name, 'Undo', () => update(d => { tombstone(d, [entryId]); d.log_entries = d.log_entries.filter(x => x.id !== entryId); }), 'Adjust', () => setAdjusting(entryId));
   }
   function addMeal(date, mealId, items) {
@@ -6332,6 +6334,7 @@ function App() {
       items.forEach((item, i) => d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', computed_macros: normalizeMacros(item.macros, item.is_alcohol), sort_order: d.log_entries.length + i }));
     });
     setAdding(null);
+    window.MTRACK && MTRACK('food_logged', { count: items.length, source: 'meal' });
     showToast('Logged ' + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
   }
   // Macros for `grams` of one of the user's own saved smart foods (per-100g or per-serving base).
@@ -6370,6 +6373,7 @@ function App() {
         if (g > 0) { rf.corrected = true; rf.saved_base = { kcal: Math.round(macros.kcal / g * 100), protein: +(macros.protein / g * 100).toFixed(1), carbs: +(macros.carbs / g * 100).toFixed(1), fat: +(macros.fat / g * 100).toFixed(1), fiber: +((macros.fiber || 0) / g * 100).toFixed(1) }; rf.saved_kind = 'per100'; rf.saved_serving_g = g; rf.saved_serving_label = ''; }
       });
     });
+    window.MTRACK && MTRACK('food_logged', { count: items.length, source: 'recipe' });
     showToast('Logged ' + items.length + ' ingredient' + (items.length === 1 ? '' : 's') + ' from ' + recipe.title, 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
   }
   // Save a recipe as a one-tap meal (appears in normal food search / quick-log), built from its
