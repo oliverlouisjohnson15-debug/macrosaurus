@@ -179,6 +179,17 @@ test('fitPortion suggests the serving multiple that fits remaining calories', ()
   assert.strictEqual(Recipe.fitPortion({ kcal: 500 }, { kcal: 0 }), null);    // no room
 });
 
+// ---- planMacros ------------------------------------------------------------------------------
+test('planMacros sums a day of planned recipes by portion', () => {
+  const byId = {
+    r1: { macros_per_serving: { kcal: 400, protein: 40, carbs: 30, fat: 12, fiber: 5 } },
+    r2: { macros_per_serving: { kcal: 600, protein: 30, carbs: 60, fat: 20, fiber: 8 } },
+  };
+  const m = Recipe.planMacros([{ recipe_id: 'r1', portion: 1 }, { recipe_id: 'r2', portion: 0.5 }, { recipe_id: 'missing' }], byId);
+  assert.strictEqual(m.kcal, 700);   // 400 + 300
+  assert.strictEqual(m.protein, 55); // 40 + 15
+});
+
 // ---- newShoppingItems ------------------------------------------------------------------------
 test('newShoppingItems skips names already unchecked and dedupes', () => {
   const fresh = Recipe.newShoppingItems([{ name: 'Rice', checked: false }, { name: 'Salt', checked: true }], [{ name: 'rice' }, { name: 'Salt' }, { name: 'Chicken' }, { name: 'chicken' }]);
@@ -221,10 +232,17 @@ test('scaleMacros multiplies a macro set by a portion', () => {
 });
 
 // ---- store wiring ----------------------------------------------------------------------------
-test('migrate backfills recipes + shopping_list', () => {
+test('migrate backfills recipes + shopping_list + meal_plan', () => {
   const s = Store.migrate({ profile: { goalType: 'cut' } });
   assert.ok(Array.isArray(s.recipes));
   assert.ok(Array.isArray(s.shopping_list));
+  assert.ok(Array.isArray(s.meal_plan));
+});
+test('mergeStates unions meal_plan and honours its tombstones', () => {
+  const a = Object.assign(Store.defaultState(), { _rev: 2, meal_plan: [{ id: 'p1', date: '2026-01-01', recipe_id: 'r1' }] });
+  const b = Object.assign(Store.defaultState(), { _rev: 1, meal_plan: [{ id: 'p2', date: '2026-01-02', recipe_id: 'r2' }], deleted: { p1: Date.now() } });
+  const m = Store.mergeStates(a, b);
+  assert.deepStrictEqual(m.meal_plan.map(p => p.id).sort(), ['p2']);
 });
 test('mergeStates unions recipes/shopping_list and honours tombstones', () => {
   const a = Object.assign(Store.defaultState(), { _rev: 2, recipes: [{ id: 'r1', title: 'A' }], shopping_list: [{ id: 's1', name: 'Rice' }] });

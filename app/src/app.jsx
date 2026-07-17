@@ -588,6 +588,7 @@ const Icon = {
   gear: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v2.2M12 19.3v2.2M4.2 7l1.9 1.1M17.9 15.9l1.9 1.1M4.2 17l1.9-1.1M17.9 8.1l1.9-1.1" strokeLinecap="round" /></svg>,
   share: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="2.6" /><circle cx="6" cy="12" r="2.6" /><circle cx="18" cy="19" r="2.6" /><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3" /></svg>,
   compass: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></svg>,
+  calendar: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17M8 3v4M16 3v4" /></svg>,
 };
 
 /* ---------- charts ---------- */
@@ -5892,8 +5893,84 @@ function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
     </div>}
   </div>);
 }
-function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onSaveMeal }) {
-  const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover
+// Weekly meal planner: drop recipes onto days, see planned macros vs your target, build one shopping
+// list for the week, and log a planned meal to the diary when you cook it. Ties recipes -> shopping
+// -> diary and gives the adaptive engine a forward view of intake.
+function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
+  useBackClose(onBack);
+  const today = Store.todayISO();
+  const [weekStart, setWeekStart] = useState(today);
+  const [pick, setPick] = useState(null); // date being planned
+  const days = Array.from({ length: 7 }, (_, i) => shiftISO(weekStart, i));
+  const byId = {}; (db.recipes || []).forEach(r => { byId[r.id] = r; });
+  const priced = (db.recipes || []).filter(r => r.macros_per_serving && r.macros_per_serving.kcal > 0).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  const planFor = (d) => (db.meal_plan || []).filter(p => p.date === d);
+  const addToPlan = (date, recipeId) => { update(d => { d.meal_plan = (d.meal_plan || []).concat([{ id: Store.uid(), date, recipe_id: recipeId, portion: 1, cooked: false, added_at: Date.now() }]); }); setPick(null); showToast('Added to ' + dayLabel(date)); };
+  const removeFromPlan = (id) => update(d => { tombstone(d, [id]); d.meal_plan = (d.meal_plan || []).filter(p => p.id !== id); });
+  const logPlanned = (p) => { const r = byId[p.recipe_id]; if (!r) return; onLogOn(p.date, r, p.portion || 1); update(d => { const e = (d.meal_plan || []).find(x => x.id === p.id); if (e) e.cooked = true; }); showToast('Logged ' + r.title + ' to ' + dayLabel(p.date)); };
+  function dayLabel(d) { return d === today ? 'today' : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' }); }
+  function addWeekToShopping() {
+    const additions = [];
+    days.forEach(d => planFor(d).forEach(p => { const r = byId[p.recipe_id]; if (!r) return; (r.ingredients || []).filter(i => !i.have).forEach(i => additions.push({ name: i.name || Rcp.nameFromLine(i.line), qty_label: Rcp.lineOf(i), recipe_id: r.id })); }));
+    let added = 0;
+    update(d => { const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions); added = fresh.length; d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: a.recipe_id, checked: false, added_at: Date.now() }))); });
+    showToast(added ? ('Added ' + added + ' to your shopping list') : 'Those are already on your list');
+  }
+  const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
+  return (<div className="fade-in">
+    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
+    <div className="flex items-center justify-between mb-3">
+      <PageHeader kicker="Cook" title="Meal plan" />
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button onClick={() => setWeekStart(shiftISO(weekStart, -7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Previous week">‹</button>
+        <button onClick={() => setWeekStart(today)} className="pixel-box px-2.5 h-9 text-[11px] flex items-center" style={{ background: 'var(--surface3)' }}>This week</button>
+        <button onClick={() => setWeekStart(shiftISO(weekStart, 7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Next week">›</button>
+      </div>
+    </div>
+    {plannedCount > 0 && <Btn kind="ghost" className="w-full mb-4 flex items-center justify-center gap-2" onClick={addWeekToShopping}><Icon.cart width="16" height="16" /> Add this week's ingredients to shopping</Btn>}
+    <div className="space-y-3">
+      {days.map(d => {
+        const entries = planFor(d);
+        const et = effectiveTarget(db, d);
+        const planned = Rcp.planMacros(entries, byId);
+        const targetK = et ? Math.round(et.eff.kcal) : 0;
+        const isToday = d === today;
+        return (<Card key={d} className="p-3.5" style={isToday ? { borderColor: 'var(--accent)' } : null}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[13px] font-bold">{new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}{isToday ? ' · today' : ''}</div>
+            {entries.length > 0 && targetK > 0 && <div className="text-[11px] tnum" style={{ color: planned.kcal > targetK * 1.05 ? '#ff6b6b' : 'var(--muted)' }}>{planned.kcal} / {targetK} kcal</div>}
+          </div>
+          {entries.length > 0 && <div className="space-y-1.5 mb-2">
+            {entries.map(p => { const r = byId[p.recipe_id]; if (!r) return null; const mk = Math.round((r.macros_per_serving.kcal || 0) * (p.portion || 1)); return (
+              <div key={p.id} className="flex items-center gap-2">
+                <button onClick={() => onOpenRecipe(r.id)} className="flex-1 min-w-0 text-left flex items-center gap-2">
+                  <span className="text-[13px] truncate" style={{ textDecoration: p.cooked ? 'line-through' : 'none', color: p.cooked ? 'var(--muted)' : 'var(--text)' }}>{r.title}</span>
+                  <span className="text-[10px] text-[#8A8A90] tnum shrink-0">{mk} kcal</span>
+                </button>
+                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[8px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent)', border: '1px solid var(--accent)' }}>Log</button>}
+                <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove">×</button>
+              </div>); })}
+          </div>}
+          <button onClick={() => setPick(d)} className="text-[12px]" style={{ color: 'var(--accent)' }}>+ Add a recipe</button>
+        </Card>);
+      })}
+    </div>
+    {pick && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPick(null)}>
+      <BackClose onClose={() => setPick(null)} />
+      <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Add to {new Date(pick + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })}</div><button onClick={() => setPick(null)} className="text-xl leading-none text-[#8A8A90]">×</button></div>
+        {priced.length ? <div className="space-y-1.5">{priced.map(r => (
+          <button key={r.id} onClick={() => addToPlan(pick, r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--surface3)' }}>
+            <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
+            <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>
+          </button>))}</div>
+          : <div className="text-[13px] text-[#8A8A90] text-center py-6">No priced recipes yet. Import a recipe and work out its macros first.</div>}
+      </div>
+    </div>}
+  </div>);
+}
+function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onLogOn, onSaveMeal }) {
+  const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover | plan
   const [activeId, setActiveId] = useState(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'fav' | a collection name
@@ -5957,6 +6034,9 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
       <div className="flex items-center justify-between mb-5">
         <PageHeader kicker="Cook" title="Recipes" />
         <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
+            <Icon.calendar width="19" height="19" />
+          </button>
           <button onClick={() => setScreen('discover')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Discover recipes">
             <Icon.compass width="20" height="20" />
           </button>
@@ -5990,6 +6070,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
     {screen === 'shopping' && <ShoppingListView db={db} update={update} onBack={() => setScreen('list')} />}
     {screen === 'discover' && <DiscoverView db={db} onBack={() => setScreen('list')} onSaveCopy={saveCopyFromPublic} onConsent={setShareConsent} showToast={showToast} />}
+    {screen === 'plan' && <PlannerView db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onOpenRecipe={(id) => { setActiveId(id); setScreen('detail'); }} onLogOn={onLogOn} />}
   </div>);
 }
 function App() {
@@ -6289,7 +6370,7 @@ function App() {
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
-      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onSaveMeal={saveRecipeAsMeal} />}
+      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}

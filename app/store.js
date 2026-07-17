@@ -89,6 +89,7 @@
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
       recipes: [],        // saved recipes decomposed from a shared video/link: { id, user_id, title, source_platform, source_url, thumbnail, servings, ingredients:[{id,name,quantity,unit,grams,have}], steps:[], macros_per_serving:{kcal,protein,carbs,fat,fiber}, macros_confidence, created_at, updated_at }
       shopping_list: [],  // rolled-up things to buy: { id, name, qty_label, recipe_id, checked, added_at }
+      meal_plan: [],      // planned recipes on a calendar: { id, date, recipe_id, portion, cooked, added_at }
       catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] }, locked so later edits never lose a caught creature
       items: {},          // shared item inventory: { itemId: count }
       dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
@@ -171,6 +172,7 @@
     out.saved_meals    = unionBy(newer.saved_meals,    older.saved_meals,    byId);
     out.recipes        = unionBy(newer.recipes,        older.recipes,        byId);
     out.shopping_list  = unionBy(newer.shopping_list,  older.shopping_list,  byId);
+    out.meal_plan      = unionBy(newer.meal_plan,      older.meal_plan,      byId);
     out.targets        = unionBy(newer.targets,        older.targets,        byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
     // date-keyed maps: union keys, newer wins on a shared date
@@ -200,6 +202,7 @@
     out.saved_meals    = alive(out.saved_meals);
     out.recipes        = alive(out.recipes);
     out.shopping_list  = alive(out.shopping_list);
+    out.meal_plan      = alive(out.meal_plan);
     // Cap tombstones to the 1000 most recent so the map can't grow without bound.
     var dids = Object.keys(del);
     if (dids.length > 1000) { dids.sort(function (x, y) { return del[y] - del[x]; }); var cap = {}; dids.slice(0, 1000).forEach(function (id) { cap[id] = del[id]; }); del = cap; }

@@ -235,6 +235,17 @@
     }).filter(function (x) { return x.name && (x.macros.kcal || x.macros.protein || x.macros.carbs || x.macros.fat); });
   }
 
+  // Summed macros for a day's planned recipes (per-serving x portion each), for the meal planner.
+  function planMacros(entries, recipeById) {
+    var t = emptyMacros();
+    (entries || []).forEach(function (e) {
+      var r = recipeById[e && e.recipe_id]; if (!r || !r.macros_per_serving) return;
+      var p = num(e.portion) || 1, m = r.macros_per_serving;
+      t.kcal += num(m.kcal) * p; t.protein += num(m.protein) * p; t.carbs += num(m.carbs) * p; t.fat += num(m.fat) * p; t.fiber += num(m.fiber) * p;
+    });
+    return cleanMacros(t);
+  }
+
   // Which of `additions` are new to the shopping list (not already present, unchecked, by name).
   function newShoppingItems(existing, additions) {
     var have = {}; (existing || []).forEach(function (it) { if (it && !it.checked) have[norm(it.name)] = 1; });
@@ -281,6 +292,7 @@
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
     macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
+    planMacros: planMacros,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
