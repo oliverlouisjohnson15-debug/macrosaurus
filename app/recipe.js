@@ -38,13 +38,62 @@
   }
 
   // Grams implied by an ingredient line's leading amount, for free Open Food Facts pricing
-  // (per-100g x grams). Only mass/volume units convert; portion words (tbsp, clove) return 0 so
-  // those lines route to the AI fallback, which handles unit-to-gram guessing. ml/l treated as ~1g/ml.
+  // (per-100g x grams). Only mass/volume units convert here; portion words are handled by
+  // portionGrams. ml/l treated as ~1g/ml.
   function gramsFromLine(line) {
     var m = String(line || '').trim().match(/^(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛⅜⅝⅞])\s*(kg|g|ml|l)\b/i);
     if (!m) return 0;
     var amt = parseAmt(m[1].replace(/\s+/g, '')), unit = m[2].toLowerCase();
     return Math.round((unit === 'kg' || unit === 'l') ? amt * 1000 : amt);
+  }
+  // Standard grams for common cooking portions, so "1 tbsp oil" or "2 cloves garlic" can be priced
+  // without AI. These are typical averages (UK kitchen); precise enough for macro estimates.
+  var PORTION_G = {
+    tsp: 5, teaspoon: 5, tbsp: 15, tbs: 15, tablespoon: 15, dsp: 10, cup: 240, cups: 240,
+    clove: 5, cloves: 5, pinch: 0.5, dash: 0.5, handful: 30, knob: 15, sprig: 2, sprigs: 2,
+    can: 400, cans: 400, tin: 400, tins: 400, scoop: 30, scoops: 30, ball: 125, balls: 125, rasher: 25, rashers: 25,
+  };
+  // Grams from a portion-word amount ("1 tbsp", "2 cloves"), or 0 if the line has no such unit.
+  function portionGrams(line) {
+    var m = String(line || '').trim().match(/^(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛⅜⅝⅞])\s*([a-z]+)\b/i);
+    if (!m) return 0;
+    var per = PORTION_G[m[2].toLowerCase()];
+    return per ? Math.round(parseAmt(m[1].replace(/\s+/g, '')) * per) : 0;
+  }
+  // Best grams estimate for a line: explicit mass/volume first, then a known portion word.
+  function gramsForLine(line) { return gramsFromLine(line) || portionGrams(line); }
+
+  // Per-100g macros for pure kitchen staples whose composition is stable and where an Open Food Facts
+  // search would return noisy branded packs. Matched by whole-word tokens (so "oil" never matches
+  // "boiled"), most specific first. Returns null when the line is not a known staple or has no grams.
+  var STAPLES = [
+    { k: ['olive', 'oil'], p: { kcal: 884, protein: 0, carbs: 0, fat: 100, fiber: 0 } },
+    { k: ['coconut', 'oil'], p: { kcal: 892, protein: 0, carbs: 0, fat: 99, fiber: 0 } },
+    { k: ['sesame', 'oil'], p: { kcal: 884, protein: 0, carbs: 0, fat: 100, fiber: 0 } },
+    { k: ['sunflower', 'oil'], p: { kcal: 884, protein: 0, carbs: 0, fat: 100, fiber: 0 } },
+    { k: ['vegetable', 'oil'], p: { kcal: 884, protein: 0, carbs: 0, fat: 100, fiber: 0 } },
+    { k: ['rapeseed', 'oil'], p: { kcal: 884, protein: 0, carbs: 0, fat: 100, fiber: 0 } },
+    { k: ['oil'], p: { kcal: 884, protein: 0, carbs: 0, fat: 100, fiber: 0 } },
+    { k: ['butter'], p: { kcal: 717, protein: 0.9, carbs: 0.1, fat: 81, fiber: 0 } },
+    { k: ['ghee'], p: { kcal: 900, protein: 0, carbs: 0, fat: 100, fiber: 0 } },
+    { k: ['honey'], p: { kcal: 304, protein: 0.3, carbs: 82, fat: 0, fiber: 0.2 } },
+    { k: ['maple', 'syrup'], p: { kcal: 260, protein: 0, carbs: 67, fat: 0, fiber: 0 } },
+    { k: ['icing', 'sugar'], p: { kcal: 400, protein: 0, carbs: 100, fat: 0, fiber: 0 } },
+    { k: ['brown', 'sugar'], p: { kcal: 380, protein: 0, carbs: 98, fat: 0, fiber: 0 } },
+    { k: ['sugar'], p: { kcal: 400, protein: 0, carbs: 100, fat: 0, fiber: 0 } },
+    { k: ['plain', 'flour'], p: { kcal: 341, protein: 10, carbs: 76, fat: 1.2, fiber: 3.1 } },
+    { k: ['flour'], p: { kcal: 341, protein: 10, carbs: 76, fat: 1.2, fiber: 3.1 } },
+    { k: ['soy', 'sauce'], p: { kcal: 60, protein: 8, carbs: 6, fat: 0, fiber: 0.8 } },
+    { k: ['water'], p: { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 } },
+    { k: ['salt'], p: { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 } },
+  ];
+  function stapleMacros(line, grams) {
+    if (!(num(grams) > 0)) return null;
+    var toks = {}; norm(nameFromLine(line)).split(' ').forEach(function (t) { if (t) toks[t] = 1; });
+    for (var i = 0; i < STAPLES.length; i++) {
+      if (STAPLES[i].k.every(function (t) { return toks[t]; })) return macrosFromPer100(STAPLES[i].p, grams);
+    }
+    return null;
   }
   // Pick the best Open Food Facts result for an ingredient name, or null if none is a confident match
   // (so the AI fallback takes it). Requires most/all name tokens to appear in the product name, then
@@ -217,7 +266,8 @@
 
   var Recipe = {
     detectShare: detectShare, platformLabel: platformLabel, normalize: normalize,
-    lineOf: lineOf, nameFromLine: nameFromLine, gramsFromLine: gramsFromLine, bestOffMatch: bestOffMatch,
+    lineOf: lineOf, nameFromLine: nameFromLine, gramsFromLine: gramsFromLine, portionGrams: portionGrams,
+    gramsForLine: gramsForLine, stapleMacros: stapleMacros, bestOffMatch: bestOffMatch,
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,

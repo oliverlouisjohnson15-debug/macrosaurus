@@ -218,17 +218,22 @@ async function browsePublicRecipes(opts) {
   if (r.error) throw new Error(r.error.message);
   return r.data || [];
 }
-// Analyse a recipe's ingredient lines into macros. Free Open Food Facts first: every line with a
-// weight and a confident name match is priced per-100g x grams at no token cost. Only the lines OFF
-// cannot resolve (portion units like "1 tbsp", or no good match) go to AI, in one batched call. So a
-// typical recipe is priced for free, AI is the fallback, and a recipe always ends up with numbers.
-// Returns { source: 'off'|'mixed'|'ai'|'none', per_ingredient } aligned by index (source per item).
+// Analyse a recipe's ingredient lines into macros, cheapest source first, so a typical recipe prices
+// for free and AI is a genuine fallback. Per line, in order:
+//   1. Standard measures: "1 tbsp"/"2 cloves" -> grams (Rcp.gramsForLine), and pure staples
+//      (oil, butter, sugar, flour...) priced from a built-in table. No network, no AI.
+//   2. Open Food Facts: a confident name match, priced per-100g x grams.
+//   3. AI: whatever is left, in one batched call.
+// Returns { source: 'table'|'off'|'ai'|'mixed'|'none', per_ingredient } aligned by index (source per item).
 async function analyzeRecipe(title, lines) {
   const clean = (lines || []).map(s => String(s || '').trim()).filter(Boolean);
   if (!clean.length) return { source: 'none', per_ingredient: [] };
   const per = new Array(clean.length).fill(null);
   await Promise.all(clean.map(async (line, i) => {
-    const grams = Rcp.gramsFromLine(line), name = Rcp.nameFromLine(line);
+    const grams = Rcp.gramsForLine(line);
+    const staple = Rcp.stapleMacros(line, grams);
+    if (staple) { per[i] = { line, weight: grams, macros: staple, source: 'table' }; return; }
+    const name = Rcp.nameFromLine(line);
     if (!(grams > 0) || !name) return;
     try {
       const best = Rcp.bestOffMatch(name, await offSearchByName(name));
@@ -239,11 +244,12 @@ async function analyzeRecipe(title, lines) {
   if (missIdx.length) {
     try {
       const ai = await aiAnalyzeLines(missIdx.map(i => clean[i]));
-      (ai.per_ingredient || []).forEach((p, k) => { const i = missIdx[k], m = p && p.macros; if (m && (m.kcal || m.protein || m.carbs || m.fat)) per[i] = { line: clean[i], weight: +p.weight || Rcp.gramsFromLine(clean[i]) || 0, macros: m, source: 'ai' }; });
+      (ai.per_ingredient || []).forEach((p, k) => { const i = missIdx[k], m = p && p.macros; if (m && (m.kcal || m.protein || m.carbs || m.fat)) per[i] = { line: clean[i], weight: +p.weight || Rcp.gramsForLine(clean[i]) || 0, macros: m, source: 'ai' }; });
     } catch (e) { /* leave unresolved; user can retry or set manually */ }
   }
-  const usedOff = per.some(p => p && p.source === 'off'), usedAi = per.some(p => p && p.source === 'ai');
-  return { source: usedOff && usedAi ? 'mixed' : usedOff ? 'off' : usedAi ? 'ai' : 'none', per_ingredient: per.map(p => p || { macros: null }) };
+  const kinds = {}; per.forEach(p => { if (p && p.source) kinds[p.source] = 1; });
+  const list = Object.keys(kinds);
+  return { source: list.length > 1 ? 'mixed' : list[0] || 'none', per_ingredient: per.map(p => p || { macros: null }) };
 }
 // Robustly parse the single JSON object the AI returns. LLMs occasionally add a trailing
 // comma before a ] or }, wrap the JSON in ``` fences, or (if truncated) leave brackets open , 
@@ -5642,10 +5648,10 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     update(d => { const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions); added = fresh.length; d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: recipe.id, checked: false, added_at: Date.now() }))); });
     showToast(added ? ('Added ' + added + ' to your shopping list') : 'Those are already on your list');
   }
-  const srcLabel = { stated: 'as stated in the recipe', analysed: 'from a nutrition database', off: 'from Open Food Facts', mixed: 'Open Food Facts + AI', ai: 'AI estimate', computed: 'from your ingredients', pending: 'not worked out yet' };
+  const srcLabel = { stated: 'as stated in the recipe', analysed: 'from a nutrition database', table: 'from standard measures', off: 'from Open Food Facts', mixed: 'standard measures, Open Food Facts and AI', ai: 'AI estimate', computed: 'from your ingredients', pending: 'not worked out yet' };
   const srcNote = srcLabel[recipe.macros_source] || (resolved > 0 ? 'from ' + resolved + ' of ' + total + ' ingredients' : 'not worked out yet');
   const fitColor = !fit ? MUTED : fit.fitsKcal ? 'var(--good)' : fit.overKcal <= (rem.kcal * 0.15) ? '#F5C542' : '#ff6b6b';
-  const srcDot = { edamam: 'var(--good)', analysed: 'var(--good)', off: 'var(--good)', ai: '#F5C542', manual: 'var(--accent)', legacy: MUTED };
+  const srcDot = { edamam: 'var(--good)', analysed: 'var(--good)', table: 'var(--good)', off: 'var(--good)', ai: '#F5C542', manual: 'var(--accent)', legacy: MUTED };
   return (<div className="fade-in">
     <div className="flex items-center justify-between mb-3">
       <button onClick={onBack} className="text-[13px] text-[#8A8A90]">‹ Recipes</button>
