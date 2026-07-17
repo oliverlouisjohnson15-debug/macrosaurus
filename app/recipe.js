@@ -154,6 +154,7 @@
       macros_source: hasStated ? 'stated' : 'pending',
       macros_confidence: ['low', 'medium', 'high'].indexOf(raw.macros_confidence) >= 0 ? raw.macros_confidence : 'low',
       source_platform: meta.platform || raw.source_platform || '',
+      source_author: String(meta.author || raw.source_author || '').trim(),
       source_url: meta.url || '',
       thumbnail: meta.thumbnail || '',
       tags: normTags(raw.tags, steps, macros),

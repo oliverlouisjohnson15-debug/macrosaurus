@@ -24,7 +24,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.-mt-1{margin-top:-.25rem}.-mt-2{margin-top:-.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[15px\]{height:15px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[15px\]{width:15px}.w-\[68px\]{width:68px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-2xl,.shadow-xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:items-center{align-items:center}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.-mt-1{margin-top:-.25rem}.-mt-2{margin-top:-.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[15px\]{height:15px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[15px\]{width:15px}.w-\[68px\]{width:68px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-2xl,.shadow-xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:items-center{align-items:center}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -1858,6 +1858,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       macros_source: hasStated ? 'stated' : 'pending',
       macros_confidence: ['low', 'medium', 'high'].indexOf(raw.macros_confidence) >= 0 ? raw.macros_confidence : 'low',
       source_platform: meta.platform || raw.source_platform || '',
+      source_author: String(meta.author || raw.source_author || '').trim(),
       source_url: meta.url || '',
       thumbnail: meta.thumbnail || '',
       tags: normTags(raw.tags, steps, macros),
@@ -2553,6 +2554,7 @@ async function submitPublicRecipe(recipe) {
     if (!(m.kcal > 0)) return;
     const sess = (await supa.auth.getSession()).data.session;
     if (!sess) return;
+    const t = recipe.tags || {};
     await supa.rpc('submit_public_recipe', {
       p_source_url: recipe.source_url,
       p_source_platform: recipe.source_platform || '',
@@ -2565,20 +2567,40 @@ async function submitPublicRecipe(recipe) {
       p_carbs: m.carbs || 0,
       p_fat: m.fat || 0,
       p_fiber: m.fiber || 0,
-      p_private: !!recipe.private
+      p_private: !!recipe.private,
+      // Credit the original creator, carry the (inlined) thumbnail, and the taxonomy so the finder can filter.
+      p_source_author: recipe.source_author || '',
+      p_thumbnail: recipe.thumbnail || '',
+      p_meal: t.meal || '',
+      p_cuisine: t.cuisine || '',
+      p_main: t.main || '',
+      p_effort: t.effort || ''
     });
   } catch (e) {/* fire and forget */}
 }
-// Browse the shared pool, anonymised + ranked by protein density, optionally filtered to fit the day.
+// Browse the shared pool: creator-credited, image-rich, protein-ranked, filterable by fit/meal/cuisine/creator/search.
 async function browsePublicRecipes(opts) {
   opts = opts || {};
   if (!supa) return [];
   const r = await supa.rpc('browse_recipes', {
     p_kcal_max: opts.kcalMax != null ? opts.kcalMax : null,
     p_min_protein: opts.minProtein || 0,
-    p_limit: opts.limit || 40
+    p_limit: opts.limit || 60,
+    p_meal: opts.meal || null,
+    p_cuisine: opts.cuisine || null,
+    p_creator: opts.creator || null,
+    p_search: opts.search && opts.search.trim() || null
   });
   if (r.error) throw new Error(r.error.message);
+  return r.data || [];
+}
+// The creators in the shared pool, most recipes first, for the "filter by creator" row.
+async function browseRecipeCreators() {
+  if (!supa) return [];
+  const r = await supa.rpc('browse_recipe_creators', {
+    p_limit: 40
+  });
+  if (r.error) return [];
   return r.data || [];
 }
 // Analyse a recipe's ingredient lines into macros, cheapest source first, so a typical recipe prices
@@ -6263,7 +6285,15 @@ function CheckInModal({
     }, "Start a 7-day diet break"));
   })(), !result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", null, "🗓"), /*#__PURE__*/React.createElement("span", null, "Next check-in around ", fmtShortDay(nextCheckISO), ". Keep logging and weighing daily so it can retune accurately.")), result.status === 'proposed' && result.changed && !result.accepted ? /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "🗓"), /*#__PURE__*/React.createElement("span", null, "Next check-in around ", fmtShortDay(nextCheckISO), ". Keep logging and weighing daily so it can retune accurately.")), window.MISPREMIUM === false && /*#__PURE__*/React.createElement(PremiumNudge, {
+    db: db,
+    update: update,
+    className: "mt-3",
+    reason: "manual",
+    trackKey: "checkin_premium",
+    headline: "You showed up this week",
+    blurb: "Premium adds body-fat photo tracking and unlimited AI logging, so every check-in has more to work with. 7 days free."
+  }), result.status === 'proposed' && result.changed && !result.accepted ? /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mt-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -18129,6 +18159,8 @@ function RecipeImg({
 const thumbFixTried = new Set();
 // Same idea for tag backfill: classify each legacy recipe at most once per session.
 const tagFixTried = new Set();
+// Recipes already pushed to the shared library this session (seeds the pool from pre-consent imports).
+const sharedThisSession = new Set();
 // The chips under a card: auto-tags (meal/cuisine) for browsing + live macro badges (high protein
 // etc). Capped so a card stays calm; the high-protein badge is emphasised as the tracker's signal.
 function recipeChips(recipe) {
@@ -18300,6 +18332,7 @@ function RecipeImport({
         platform: src.platform || (Rcp.detectShare(u) || {}).platform || '',
         url: u,
         title: src.title || '',
+        author: src.author || '',
         thumbnail: (await inlineThumb(src)) || src.thumbnail || ''
       };
       if (!src.ok || !src.sourceText) {
@@ -19743,6 +19776,12 @@ function ShoppingListView({
     "aria-label": "Remove"
   }, "×")))));
 }
+// Format the original creator's credit: Instagram handles get an @, YouTube channels shown as-is.
+function creditName(pub) {
+  const a = String(pub.source_author || '').trim();
+  if (!a) return Rcp.platformLabel(pub.source_platform);
+  return pub.source_platform === 'instagram' && !a.startsWith('@') ? '@' + a : a;
+}
 function PublicRecipeCard({
   pub,
   onOpen
@@ -19756,40 +19795,48 @@ function PublicRecipeCard({
       background: 'var(--card)'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-center py-6",
+    className: "relative w-full",
     style: {
+      aspectRatio: '1 / 1',
       background: 'var(--surface3)'
     }
-  }, /*#__PURE__*/React.createElement(Icon.recipe, {
-    width: "30",
-    height: "30",
+  }, /*#__PURE__*/React.createElement(RecipeImg, {
+    src: pub.thumbnail,
+    iconSize: 30
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "absolute inset-x-0 bottom-0 pt-8 px-2.5 pb-2",
     style: {
-      color: 'var(--muted)'
+      background: 'linear-gradient(transparent, rgba(0,0,0,0.82))'
     }
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "p-3 flex-1 flex flex-col"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[14px] font-bold leading-tight",
-    style: clamp2
-  }, pub.title), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 mt-2 text-[11px]"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "tnum font-bold",
+    className: "font-bold text-[13px] leading-tight",
     style: {
-      color: CAL
+      ...clamp2,
+      color: '#fff'
     }
-  }, Math.round(pub.kcal)), /*#__PURE__*/React.createElement("span", {
-    className: "text-[#8A8A90]"
-  }, "kcal"), /*#__PURE__*/React.createElement("span", {
+  }, pub.title)), /*#__PURE__*/React.createElement("div", {
+    className: "absolute top-1.5 right-1.5 pixel-box px-1.5 py-0.5 text-[10px] font-bold tnum",
+    style: {
+      background: 'var(--bg)',
+      color: 'var(--text)'
+    }
+  }, Math.round(pub.kcal))), /*#__PURE__*/React.createElement("div", {
+    className: "p-2.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1.5 text-[11px]"
+  }, /*#__PURE__*/React.createElement("span", {
     className: "tnum font-bold",
     style: {
       color: PRO
     }
   }, Math.round(pub.protein), "g"), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, "protein")), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] mt-1"
-  }, Rcp.platformLabel(pub.source_platform), pub.votes > 1 ? ' · saved by ' + pub.votes : ''))));
+  }, "protein · serves ", pub.servings)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] mt-1 truncate",
+    style: {
+      color: pub.source_author ? 'var(--accent)' : 'var(--muted)'
+    }
+  }, pub.source_author ? 'via ' + creditName(pub) : Rcp.platformLabel(pub.source_platform), pub.votes > 1 ? ' · ' + pub.votes + ' cooks' : ''))));
 }
 function DiscoverView({
   db,
@@ -19802,31 +19849,43 @@ function DiscoverView({
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
   const remKcal = et ? Math.max(0, Math.round(et.eff.kcal - sumMacros(entriesOn(db, today)).kcal)) : 0;
-  const [filter, setFilter] = useState(remKcal > 0 ? 'fits' : 'all');
+  const [sort, setSort] = useState(remKcal > 0 ? 'fits' : 'all'); // fits | protein | all
+  const [meal, setMeal] = useState('');
+  const [creator, setCreator] = useState('');
+  const [q, setQ] = useState('');
   const [items, setItems] = useState(null);
+  const [creators, setCreators] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [preview, setPreview] = useState(null);
-  async function load(f) {
+  async function load() {
     setBusy(true);
     setErr('');
     try {
-      const opts = f === 'fits' ? {
-        kcalMax: remKcal || null
-      } : f === 'protein' ? {
-        minProtein: 25
-      } : {};
+      const opts = {
+        search: q,
+        meal: meal || null,
+        creator: creator || null
+      };
+      if (sort === 'fits') opts.kcalMax = remKcal || null;else if (sort === 'protein') opts.minProtein = 25;
       setItems(await browsePublicRecipes(opts));
     } catch (e) {
-      setErr('Could not load Discover just now.');
+      setErr('Could not load recipes just now.');
       setItems([]);
     }
     setBusy(false);
   }
   useEffect(() => {
-    load(filter);
-  }, [filter]);
-  const chips = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
+    browseRecipeCreators().then(setCreators, () => {});
+  }, []);
+  useEffect(() => {
+    load();
+  }, [sort, meal, creator]);
+  useEffect(() => {
+    const t = setTimeout(load, 350);
+    return () => clearTimeout(t);
+  }, [q]);
+  const sorts = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
   const pm = preview ? {
     kcal: preview.kcal,
     protein: preview.protein,
@@ -19834,6 +19893,12 @@ function DiscoverView({
     fat: preview.fat,
     fiber: preview.fiber
   } : null;
+  const chipStyle = on => ({
+    background: on ? 'var(--accent)' : 'var(--surface3)',
+    color: on ? 'var(--on-accent)' : 'var(--text)',
+    fontWeight: on ? 700 : 400
+  });
+  const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -19841,50 +19906,80 @@ function DiscoverView({
     className: "text-[13px] text-[#8A8A90] mb-3"
   }, "‹ Recipes"), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Cook",
-    title: "Discover"
+    title: "Browse"
   }), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-4 -mt-2"
-  }, "Recipes the community imported, ranked by protein and what fits your day. Anonymous, credited to the original video."), consent === undefined && /*#__PURE__*/React.createElement(Card, {
+    className: "text-[12px] text-[#8A8A90] mb-3 -mt-2"
+  }, "Every recipe the community has imported from Instagram and YouTube, credited to the original creator. Find something to cook, save it, log it."), consent === undefined && /*#__PURE__*/React.createElement(Card, {
     className: "p-3.5 mb-4",
     style: {
       background: 'var(--surface3)'
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-bold mb-1"
-  }, "Share your recipes here too?"), /*#__PURE__*/React.createElement("div", {
+  }, "Add your imports to the library?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-snug"
-  }, "Your imported recipes can join Discover for others - anonymised, and credited to the original video, never to you. You can keep any single recipe private."), /*#__PURE__*/React.createElement("div", {
+  }, "Recipes you import can join the shared library for everyone, always credited to the original creator, never to you. Keep any single recipe private any time."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "flex-1",
     onClick: () => {
       onConsent(true);
-      showToast('Thanks - your recipes help others too');
+      showToast('Thanks - your imports help everyone');
     }
   }, "Share mine"), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     onClick: () => onConsent(false)
-  }, "Keep private"))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 overflow-x-auto pb-1 mb-4 -mx-1 px-1",
+  }, "Keep private"))), /*#__PURE__*/React.createElement(TextInput, {
+    placeholder: "Search recipes or creators…",
+    value: q,
+    onChange: e => setQ(e.target.value)
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 overflow-x-auto pb-1 mt-3 -mx-1 px-1",
     style: {
       scrollbarWidth: 'none'
     }
-  }, chips.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+  }, sorts.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
-    onClick: () => setFilter(k),
-    className: "pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0",
+    onClick: () => setSort(k),
+    className: chipCls,
+    style: chipStyle(sort === k)
+  }, l))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 overflow-x-auto pb-1 mt-1.5 -mx-1 px-1",
     style: {
-      background: filter === k ? 'var(--accent)' : 'var(--surface3)',
-      color: filter === k ? '#111' : 'var(--text)',
-      fontWeight: filter === k ? 700 : 400
+      scrollbarWidth: 'none'
     }
-  }, l))), busy ? /*#__PURE__*/React.createElement(DinoLoader, {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setMeal(''),
+    className: chipCls,
+    style: chipStyle(!meal)
+  }, "All meals"), Rcp.TAX.meal.map(mm => /*#__PURE__*/React.createElement("button", {
+    key: mm,
+    onClick: () => setMeal(meal === mm ? '' : mm),
+    className: chipCls,
+    style: chipStyle(meal === mm)
+  }, Rcp.taxLabel(mm)))), (creators.length > 0 || creator) && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 overflow-x-auto pb-1 mt-1.5 mb-3 -mx-1 px-1 items-center",
+    style: {
+      scrollbarWidth: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] shrink-0 pr-1"
+  }, "Creators"), creator ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCreator(''),
+    className: chipCls,
+    style: chipStyle(true)
+  }, "✕ ", creator.startsWith('@') ? creator : '@' + creator) : creators.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c.source_author,
+    onClick: () => setCreator(c.source_author),
+    className: chipCls,
+    style: chipStyle(false)
+  }, (c.source_author.startsWith('@') ? c.source_author : '@' + c.source_author) + ' · ' + c.n))), busy ? /*#__PURE__*/React.createElement(DinoLoader, {
     label: "Finding recipes"
   }) : err ? /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[13px] text-[#F5C542] py-8"
   }, err) : items && items.length ? /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-4"
+    className: "grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1"
   }, items.map((p, i) => /*#__PURE__*/React.createElement(PublicRecipeCard, {
     key: i,
     pub: p,
@@ -19893,9 +19988,9 @@ function DiscoverView({
     className: "p-6 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[14px] font-semibold mb-1"
-  }, "Nothing here yet"), /*#__PURE__*/React.createElement("div", {
+  }, q || meal || creator ? 'No recipes match' : 'Nothing here yet'), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto"
-  }, "Discover fills up as people import and share recipes. Import a few of your own and turn on sharing to help seed it.")), preview && /*#__PURE__*/React.createElement("div", {
+  }, q || meal || creator ? 'Try a different search, meal or creator.' : 'The library fills up as people import and share recipes. Import a few of your own and turn on sharing to help seed it.')), preview && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center",
     onClick: () => setPreview(null)
   }, /*#__PURE__*/React.createElement(BackClose, {
@@ -19907,13 +20002,27 @@ function DiscoverView({
     },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-start justify-between gap-3 mb-2"
+    className: "relative w-full mb-3 pixel-box overflow-hidden",
+    style: {
+      aspectRatio: '16 / 9',
+      background: 'var(--surface3)'
+    }
+  }, /*#__PURE__*/React.createElement(RecipeImg, {
+    src: preview.thumbnail,
+    iconSize: 40
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start justify-between gap-3 mb-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold leading-tight"
   }, preview.title), /*#__PURE__*/React.createElement("button", {
     onClick: () => setPreview(null),
     className: "text-xl leading-none text-[#8A8A90] shrink-0"
-  }, "×")), /*#__PURE__*/React.createElement(Card, {
+  }, "×")), preview.source_author ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-2",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "via ", creditName(preview)) : null, /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
@@ -20412,6 +20521,15 @@ function Recipes({
       stop = true;
     };
   }, []);
+  // Seed the shared library from recipes imported before sharing was on: once consent is granted,
+  // push the user's priced, non-private recipes up (credited to the original creator), once each per session.
+  useEffect(() => {
+    if (!(db.profile && db.profile.shareRecipes === true)) return;
+    (db.recipes || []).filter(r => !r.private && r.source_url && (r.macros_per_serving || {}).kcal > 0 && !sharedThisSession.has(r.id)).slice(0, 25).forEach(r => {
+      sharedThisSession.add(r.id);
+      submitPublicRecipe(r);
+    });
+  }, [db.profile && db.profile.shareRecipes, (db.recipes || []).length]);
   // One-time tag backfill: recipes imported before the taxonomy existed have no tags. Classify each
   // from its title + ingredients (cheap fast-model call), a few per session. Once per recipe per session.
   useEffect(() => {
@@ -20571,9 +20689,32 @@ function Recipes({
     className: "mb-4"
   }), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
-    className: "w-full mb-5",
+    className: "w-full mb-3",
     onClick: () => setScreen('import')
-  }, "Import from a link instead"), /*#__PURE__*/React.createElement(Card, {
+  }, "Import from a link instead"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setScreen('discover'),
+    className: "w-full pixel-box mb-5 p-3 flex items-center gap-3 text-left active:opacity-90",
+    style: {
+      background: 'var(--surface3)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.compass, {
+    width: "20",
+    height: "20",
+    style: {
+      color: 'var(--accent)'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold"
+  }, "Browse everyone's recipes"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug"
+  }, "See what the community has imported while you build your own")), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Browse ›")), /*#__PURE__*/React.createElement(Card, {
     className: "p-6 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mb-3 flex justify-center"
@@ -20589,9 +20730,34 @@ function Recipes({
     className: "text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto"
   }, "Send a cooking Reel or Short here and it turns into ingredients, a method and per-serving macros you can log."))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
-    className: "w-full mb-4",
+    className: "w-full mb-3",
     onClick: () => setScreen('import')
-  }, "Import a recipe from a video"), /*#__PURE__*/React.createElement("div", {
+  }, "Import a recipe from a video"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setScreen('discover'),
+    className: "w-full pixel-box mb-4 p-3 flex items-center gap-3 text-left active:opacity-90",
+    style: {
+      background: 'var(--surface3)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.compass, {
+    width: "20",
+    height: "20",
+    style: {
+      color: 'var(--accent)'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold"
+  }, "Browse everyone's recipes"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug"
+  }, "Instagram & YouTube recipes the community imported, credited to creators")), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Browse ›")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] uppercase pf text-[#8A8A90] mb-2"
+  }, "Your recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 items-stretch"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex-1 min-w-0"

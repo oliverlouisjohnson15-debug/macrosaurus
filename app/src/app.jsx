@@ -228,19 +228,33 @@ async function submitPublicRecipe(recipe) {
     if (!supa || !recipe || !recipe.source_url) return;
     const m = recipe.macros_per_serving || {}; if (!(m.kcal > 0)) return;
     const sess = (await supa.auth.getSession()).data.session; if (!sess) return;
+    const t = recipe.tags || {};
     await supa.rpc('submit_public_recipe', {
       p_source_url: recipe.source_url, p_source_platform: recipe.source_platform || '', p_title: recipe.title || 'Recipe', p_servings: recipe.servings || 1,
       p_ingredients: (recipe.ingredients || []).map(i => Rcp.lineOf(i)), p_steps: recipe.steps || [],
       p_kcal: m.kcal || 0, p_protein: m.protein || 0, p_carbs: m.carbs || 0, p_fat: m.fat || 0, p_fiber: m.fiber || 0, p_private: !!recipe.private,
+      // Credit the original creator, carry the (inlined) thumbnail, and the taxonomy so the finder can filter.
+      p_source_author: recipe.source_author || '', p_thumbnail: recipe.thumbnail || '',
+      p_meal: t.meal || '', p_cuisine: t.cuisine || '', p_main: t.main || '', p_effort: t.effort || '',
     });
   } catch (e) { /* fire and forget */ }
 }
-// Browse the shared pool, anonymised + ranked by protein density, optionally filtered to fit the day.
+// Browse the shared pool: creator-credited, image-rich, protein-ranked, filterable by fit/meal/cuisine/creator/search.
 async function browsePublicRecipes(opts) {
   opts = opts || {};
   if (!supa) return [];
-  const r = await supa.rpc('browse_recipes', { p_kcal_max: opts.kcalMax != null ? opts.kcalMax : null, p_min_protein: opts.minProtein || 0, p_limit: opts.limit || 40 });
+  const r = await supa.rpc('browse_recipes', {
+    p_kcal_max: opts.kcalMax != null ? opts.kcalMax : null, p_min_protein: opts.minProtein || 0, p_limit: opts.limit || 60,
+    p_meal: opts.meal || null, p_cuisine: opts.cuisine || null, p_creator: opts.creator || null, p_search: (opts.search && opts.search.trim()) || null,
+  });
   if (r.error) throw new Error(r.error.message);
+  return r.data || [];
+}
+// The creators in the shared pool, most recipes first, for the "filter by creator" row.
+async function browseRecipeCreators() {
+  if (!supa) return [];
+  const r = await supa.rpc('browse_recipe_creators', { p_limit: 40 });
+  if (r.error) return [];
   return r.data || [];
 }
 // Analyse a recipe's ingredient lines into macros, cheapest source first, so a typical recipe prices
@@ -1596,6 +1610,7 @@ function CheckInModal({ db, update, onClose, resume }) {
               </div>;
             })()}
             {!result.accepted && <div className="text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"><span>🗓</span><span>Next check-in around {fmtShortDay(nextCheckISO)}. Keep logging and weighing daily so it can retune accurately.</span></div>}
+            {window.MISPREMIUM === false && <PremiumNudge db={db} update={update} className="mt-3" reason="manual" trackKey="checkin_premium" headline="You showed up this week" blurb="Premium adds body-fat photo tracking and unlimited AI logging, so every check-in has more to work with. 7 days free." />}
             {result.status === 'proposed' && result.changed && !result.accepted
               ? <div className="flex gap-2 mt-2"><Btn kind="accent" className="flex-1" onClick={approve}>Approve new macros</Btn><Btn kind="ghost" onClick={reject}>Stick to current</Btn></div>
               : <Btn kind="accent" className="w-full mt-2" onClick={onClose}>Done</Btn>}
@@ -5635,6 +5650,8 @@ function RecipeImg({ src, iconSize = 34 }) {
 const thumbFixTried = new Set();
 // Same idea for tag backfill: classify each legacy recipe at most once per session.
 const tagFixTried = new Set();
+// Recipes already pushed to the shared library this session (seeds the pool from pre-consent imports).
+const sharedThisSession = new Set();
 // The chips under a card: auto-tags (meal/cuisine) for browsing + live macro badges (high protein
 // etc). Capped so a card stays calm; the high-protein badge is emphasised as the tracker's signal.
 function recipeChips(recipe) {
@@ -5698,7 +5715,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
     try {
       const src = await extractRecipeSource(u);
       // Prefer inlined thumbnail bytes over the (expiring) CDN link; fall back to the URL if absent.
-      const meta = { platform: src.platform || (Rcp.detectShare(u) || {}).platform || '', url: u, title: src.title || '', thumbnail: (await inlineThumb(src)) || src.thumbnail || '' };
+      const meta = { platform: src.platform || (Rcp.detectShare(u) || {}).platform || '', url: u, title: src.title || '', author: src.author || '', thumbnail: (await inlineThumb(src)) || src.thumbnail || '' };
       if (!src.ok || !src.sourceText) {
         setShowFallback(true);
         setErr(src.note || 'Could not read that link automatically. Paste the caption or add a screenshot below.');
@@ -6127,14 +6144,25 @@ function ShoppingListView({ db, update, onBack }) {
         </div>))}</div>}
   </div>);
 }
+// Format the original creator's credit: Instagram handles get an @, YouTube channels shown as-is.
+function creditName(pub) {
+  const a = String(pub.source_author || '').trim();
+  if (!a) return Rcp.platformLabel(pub.source_platform);
+  return (pub.source_platform === 'instagram' && !a.startsWith('@')) ? '@' + a : a;
+}
 function PublicRecipeCard({ pub, onOpen }) {
   return (<button onClick={onOpen} className="text-left w-full active:opacity-90">
     <div className="pixel-box overflow-hidden h-full flex flex-col" style={{ background: 'var(--card)' }}>
-      <div className="flex items-center justify-center py-6" style={{ background: 'var(--surface3)' }}><Icon.recipe width="30" height="30" style={{ color: 'var(--muted)' }} /></div>
-      <div className="p-3 flex-1 flex flex-col">
-        <div className="text-[14px] font-bold leading-tight" style={clamp2}>{pub.title}</div>
-        <div className="flex items-center gap-2 mt-2 text-[11px]"><span className="tnum font-bold" style={{ color: CAL }}>{Math.round(pub.kcal)}</span><span className="text-[#8A8A90]">kcal</span><span className="tnum font-bold" style={{ color: PRO }}>{Math.round(pub.protein)}g</span><span className="text-[#8A8A90]">protein</span></div>
-        <div className="text-[10px] text-[#8A8A90] mt-1">{Rcp.platformLabel(pub.source_platform)}{pub.votes > 1 ? ' · saved by ' + pub.votes : ''}</div>
+      <div className="relative w-full" style={{ aspectRatio: '1 / 1', background: 'var(--surface3)' }}>
+        <RecipeImg src={pub.thumbnail} iconSize={30} />
+        <div className="absolute inset-x-0 bottom-0 pt-8 px-2.5 pb-2" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.82))' }}>
+          <div className="font-bold text-[13px] leading-tight" style={{ ...clamp2, color: '#fff' }}>{pub.title}</div>
+        </div>
+        <div className="absolute top-1.5 right-1.5 pixel-box px-1.5 py-0.5 text-[10px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(pub.kcal)}</div>
+      </div>
+      <div className="p-2.5">
+        <div className="flex items-center gap-1.5 text-[11px]"><span className="tnum font-bold" style={{ color: PRO }}>{Math.round(pub.protein)}g</span><span className="text-[#8A8A90]">protein · serves {pub.servings}</span></div>
+        <div className="text-[10px] mt-1 truncate" style={{ color: pub.source_author ? 'var(--accent)' : 'var(--muted)' }}>{pub.source_author ? 'via ' + creditName(pub) : Rcp.platformLabel(pub.source_platform)}{pub.votes > 1 ? ' · ' + pub.votes + ' cooks' : ''}</div>
       </div>
     </div>
   </button>);
@@ -6144,39 +6172,64 @@ function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
   const remKcal = et ? Math.max(0, Math.round(et.eff.kcal - sumMacros(entriesOn(db, today)).kcal)) : 0;
-  const [filter, setFilter] = useState(remKcal > 0 ? 'fits' : 'all');
+  const [sort, setSort] = useState(remKcal > 0 ? 'fits' : 'all'); // fits | protein | all
+  const [meal, setMeal] = useState('');
+  const [creator, setCreator] = useState('');
+  const [q, setQ] = useState('');
   const [items, setItems] = useState(null);
+  const [creators, setCreators] = useState([]);
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [preview, setPreview] = useState(null);
-  async function load(f) {
+  async function load() {
     setBusy(true); setErr('');
-    try { const opts = f === 'fits' ? { kcalMax: remKcal || null } : f === 'protein' ? { minProtein: 25 } : {}; setItems(await browsePublicRecipes(opts)); }
-    catch (e) { setErr('Could not load Discover just now.'); setItems([]); }
+    try {
+      const opts = { search: q, meal: meal || null, creator: creator || null };
+      if (sort === 'fits') opts.kcalMax = remKcal || null;
+      else if (sort === 'protein') opts.minProtein = 25;
+      setItems(await browsePublicRecipes(opts));
+    } catch (e) { setErr('Could not load recipes just now.'); setItems([]); }
     setBusy(false);
   }
-  useEffect(() => { load(filter); }, [filter]);
-  const chips = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
+  useEffect(() => { browseRecipeCreators().then(setCreators, () => {}); }, []);
+  useEffect(() => { load(); }, [sort, meal, creator]);
+  useEffect(() => { const t = setTimeout(load, 350); return () => clearTimeout(t); }, [q]);
+  const sorts = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
   const pm = preview ? { kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, fiber: preview.fiber } : null;
+  const chipStyle = on => ({ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 });
+  const chipCls = 'pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0';
   return (<div className="fade-in">
     <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
-    <PageHeader kicker="Cook" title="Discover" />
-    <div className="text-[12px] text-[#8A8A90] mb-4 -mt-2">Recipes the community imported, ranked by protein and what fits your day. Anonymous, credited to the original video.</div>
+    <PageHeader kicker="Cook" title="Browse" />
+    <div className="text-[12px] text-[#8A8A90] mb-3 -mt-2">Every recipe the community has imported from Instagram and YouTube, credited to the original creator. Find something to cook, save it, log it.</div>
     {consent === undefined && <Card className="p-3.5 mb-4" style={{ background: 'var(--surface3)' }}>
-      <div className="text-[13px] font-bold mb-1">Share your recipes here too?</div>
-      <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Your imported recipes can join Discover for others - anonymised, and credited to the original video, never to you. You can keep any single recipe private.</div>
-      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Thanks - your recipes help others too'); }}>Share mine</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep private</Btn></div>
+      <div className="text-[13px] font-bold mb-1">Add your imports to the library?</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Recipes you import can join the shared library for everyone, always credited to the original creator, never to you. Keep any single recipe private any time.</div>
+      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Thanks - your imports help everyone'); }}>Share mine</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep private</Btn></div>
     </Card>}
-    <div className="flex gap-2 overflow-x-auto pb-1 mb-4 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-      {chips.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className="pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0" style={{ background: filter === k ? 'var(--accent)' : 'var(--surface3)', color: filter === k ? '#111' : 'var(--text)', fontWeight: filter === k ? 700 : 400 }}>{l}</button>)}
+    <TextInput placeholder="Search recipes or creators…" value={q} onChange={e => setQ(e.target.value)} />
+    <div className="flex gap-2 overflow-x-auto pb-1 mt-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+      {sorts.map(([k, l]) => <button key={k} onClick={() => setSort(k)} className={chipCls} style={chipStyle(sort === k)}>{l}</button>)}
     </div>
+    <div className="flex gap-2 overflow-x-auto pb-1 mt-1.5 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+      <button onClick={() => setMeal('')} className={chipCls} style={chipStyle(!meal)}>All meals</button>
+      {Rcp.TAX.meal.map(mm => <button key={mm} onClick={() => setMeal(meal === mm ? '' : mm)} className={chipCls} style={chipStyle(meal === mm)}>{Rcp.taxLabel(mm)}</button>)}
+    </div>
+    {(creators.length > 0 || creator) && <div className="flex gap-2 overflow-x-auto pb-1 mt-1.5 mb-3 -mx-1 px-1 items-center" style={{ scrollbarWidth: 'none' }}>
+      <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0 pr-1">Creators</span>
+      {creator
+        ? <button onClick={() => setCreator('')} className={chipCls} style={chipStyle(true)}>✕ {creator.startsWith('@') ? creator : '@' + creator}</button>
+        : creators.map(c => <button key={c.source_author} onClick={() => setCreator(c.source_author)} className={chipCls} style={chipStyle(false)}>{(c.source_author.startsWith('@') ? c.source_author : '@' + c.source_author) + ' · ' + c.n}</button>)}
+    </div>}
     {busy ? <DinoLoader label="Finding recipes" />
       : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
-      : items && items.length ? <div className="grid grid-cols-2 gap-4">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
-      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">Nothing here yet</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Discover fills up as people import and share recipes. Import a few of your own and turn on sharing to help seed it.</div></Card>}
+      : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
+      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{(q || meal || creator) ? 'No recipes match' : 'Nothing here yet'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{(q || meal || creator) ? 'Try a different search, meal or creator.' : 'The library fills up as people import and share recipes. Import a few of your own and turn on sharing to help seed it.'}</div></Card>}
     {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
       <BackClose onClose={() => setPreview(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3 mb-2"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
+        <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={preview.thumbnail} iconSize={40} /></div>
+        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
+        {preview.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent)' }}>via {creditName(preview)}</div> : null}
         <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
         <div className="text-[13px] font-bold mb-1">Ingredients</div>
         <ul className="space-y-1 mb-3 text-[13px]">{(preview.ingredients || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
@@ -6351,6 +6404,15 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     })();
     return () => { stop = true; };
   }, []);
+  // Seed the shared library from recipes imported before sharing was on: once consent is granted,
+  // push the user's priced, non-private recipes up (credited to the original creator), once each per session.
+  useEffect(() => {
+    if (!(db.profile && db.profile.shareRecipes === true)) return;
+    (db.recipes || [])
+      .filter(r => !r.private && r.source_url && (r.macros_per_serving || {}).kcal > 0 && !sharedThisSession.has(r.id))
+      .slice(0, 25)
+      .forEach(r => { sharedThisSession.add(r.id); submitPublicRecipe(r); });
+  }, [db.profile && db.profile.shareRecipes, (db.recipes || []).length]);
   // One-time tag backfill: recipes imported before the taxonomy existed have no tags. Classify each
   // from its title + ingredients (cheap fast-model call), a few per session. Once per recipe per session.
   useEffect(() => {
@@ -6426,14 +6488,25 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
       </div>
       {!allRecipes.length ? <>
         <ShareTip className="mb-4" />
-        <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import from a link instead</Btn>
+        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import from a link instead</Btn>
+        <button onClick={() => setScreen('discover')} className="w-full pixel-box mb-5 p-3 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--surface3)' }}>
+          <Icon.compass width="20" height="20" style={{ color: 'var(--accent)' }} />
+          <div className="min-w-0 flex-1"><div className="text-[13px] font-bold">Browse everyone's recipes</div><div className="text-[11px] text-[#8A8A90] leading-snug">See what the community has imported while you build your own</div></div>
+          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Browse ›</span>
+        </button>
         <Card className="p-6 text-center">
           <div className="mb-3 flex justify-center"><Icon.recipe width="32" height="32" style={{ color: 'var(--muted)' }} /></div>
           <div className="text-[14px] font-semibold mb-1">No recipes yet</div>
           <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Send a cooking Reel or Short here and it turns into ingredients, a method and per-serving macros you can log.</div>
         </Card>
       </> : <>
-        <Btn kind="accent" className="w-full mb-4" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
+        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
+        <button onClick={() => setScreen('discover')} className="w-full pixel-box mb-4 p-3 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--surface3)' }}>
+          <Icon.compass width="20" height="20" style={{ color: 'var(--accent)' }} />
+          <div className="min-w-0 flex-1"><div className="text-[13px] font-bold">Browse everyone's recipes</div><div className="text-[11px] text-[#8A8A90] leading-snug">Instagram &amp; YouTube recipes the community imported, credited to creators</div></div>
+          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Browse ›</span>
+        </button>
+        <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Your recipes</div>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search recipes, ingredients or tags…" value={q} onChange={e => setQ(e.target.value)} /></div>
           <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: facetCount ? 'var(--accent)' : 'var(--surface3)', color: facetCount ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
