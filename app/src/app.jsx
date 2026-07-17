@@ -195,6 +195,29 @@ async function aiAnalyzeLines(lines) {
   const items = parseModelJSON(txt).items || [];
   return { source: 'ai', per_ingredient: lines.map((line, i) => { const it = items[i] || {}; return { line, weight: +it.grams || 0, macros: { kcal: Math.round(+it.kcal || 0), protein: +(+it.protein_g || 0).toFixed(1), carbs: +(+it.carbs_g || 0).toFixed(1), fat: +(+it.fat_g || 0).toFixed(1), fiber: +(+it.fiber_g || 0).toFixed(1) } }; }) };
 }
+// ---- Shared recipe library (Discover) --------------------------------------------------------
+// Contribute a recipe to the anonymised shared pool (fire-and-forget). Only priced, attributable
+// recipes; no photos or user data leave the account. Called on save when the user has opted in.
+async function submitPublicRecipe(recipe) {
+  try {
+    if (!supa || !recipe || !recipe.source_url) return;
+    const m = recipe.macros_per_serving || {}; if (!(m.kcal > 0)) return;
+    const sess = (await supa.auth.getSession()).data.session; if (!sess) return;
+    await supa.rpc('submit_public_recipe', {
+      p_source_url: recipe.source_url, p_source_platform: recipe.source_platform || '', p_title: recipe.title || 'Recipe', p_servings: recipe.servings || 1,
+      p_ingredients: (recipe.ingredients || []).map(i => Rcp.lineOf(i)), p_steps: recipe.steps || [],
+      p_kcal: m.kcal || 0, p_protein: m.protein || 0, p_carbs: m.carbs || 0, p_fat: m.fat || 0, p_fiber: m.fiber || 0, p_private: !!recipe.private,
+    });
+  } catch (e) { /* fire and forget */ }
+}
+// Browse the shared pool, anonymised + ranked by protein density, optionally filtered to fit the day.
+async function browsePublicRecipes(opts) {
+  opts = opts || {};
+  if (!supa) return [];
+  const r = await supa.rpc('browse_recipes', { p_kcal_max: opts.kcalMax != null ? opts.kcalMax : null, p_min_protein: opts.minProtein || 0, p_limit: opts.limit || 40 });
+  if (r.error) throw new Error(r.error.message);
+  return r.data || [];
+}
 // Analyse a recipe's ingredient lines into macros: the nutrition database first, AI fallback if it is
 // not configured or errors, so a recipe always gets numbers. Returns { source, per_ingredient }.
 async function analyzeRecipe(title, lines) {
@@ -547,6 +570,7 @@ const Icon = {
   cart: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4h2l2.2 11.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20.5 8H6" /><circle cx="9" cy="20" r="1.3" /><circle cx="17" cy="20" r="1.3" /></svg>,
   gear: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v2.2M12 19.3v2.2M4.2 7l1.9 1.1M17.9 15.9l1.9 1.1M4.2 17l1.9-1.1M17.9 8.1l1.9-1.1" strokeLinecap="round" /></svg>,
   share: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="2.6" /><circle cx="6" cy="12" r="2.6" /><circle cx="18" cy="19" r="2.6" /><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3" /></svg>,
+  compass: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></svg>,
 };
 
 /* ---------- charts ---------- */
@@ -5579,6 +5603,10 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const setIngMacros = (ingId, macros, meta) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return; ing.macros = { kcal: Math.round(+macros.kcal || 0), protein: +(+macros.protein || 0).toFixed(1), carbs: +(+macros.carbs || 0).toFixed(1), fat: +(+macros.fat || 0).toFixed(1), fiber: +(+macros.fiber || 0).toFixed(1) }; ing.resolved = Object.assign({ source: 'manual' }, meta || {}); r.macros_source = 'computed'; });
   async function addPhoto(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; try { const im = await imageToB64(f, 720); patch((r) => { r.photo = 'data:' + im.mime + ';base64,' + im.b64; }); showToast('Photo added'); } catch (err) { showToast('Could not add that photo'); } }
   const toggleFav = () => patch((r) => { r.favorite = !r.favorite; });
+  const shareOn = !!(db.profile && db.profile.shareRecipes === true);
+  // Toggle whether this recipe joins the shared Discover pool. When sharing is on, push the change
+  // straight away so the pool reflects it (browse hides anything flagged private).
+  const togglePrivate = () => patch((r) => { r.private = !r.private; if (shareOn && r.source_url) submitPublicRecipe(r); });
   const toggleColl = (name) => patch((r) => { const s = new Set(r.collections || []); s.has(name) ? s.delete(name) : s.add(name); r.collections = Array.from(s); });
   const allCollections = Array.from(new Set((db.recipes || []).flatMap(r => r.collections || []))).sort();
 
@@ -5694,6 +5722,10 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       : <div className="text-[12px] text-[#8A8A90] mb-6">No method yet. Tap Edit to add the steps.</div>}
     <Btn kind="accent" className="w-full" onClick={() => doLog('single')} disabled={!hasMacros}>{hasMacros ? 'Log a serving to today' : 'Work out the macros to log this'}</Btn>
     {resolved > 0 && hasMacros && <button onClick={() => doLog('items')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log itemised (one diary entry per ingredient)</button>}
+    {shareOn && recipe.source_url && <button onClick={togglePrivate} className="w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4">
+      <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: '#111' }}>{recipe.private ? '✓' : ''}</span>
+      Keep this recipe private (off Discover)
+    </button>}
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
       <BackClose onClose={() => setPickMeal(null)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
@@ -5745,8 +5777,68 @@ function ShoppingListView({ db, update, onBack }) {
         </div>))}</div>}
   </div>);
 }
+function PublicRecipeCard({ pub, onOpen }) {
+  return (<button onClick={onOpen} className="text-left w-full active:opacity-90">
+    <div className="pixel-box overflow-hidden h-full flex flex-col" style={{ background: 'var(--card)' }}>
+      <div className="flex items-center justify-center py-6" style={{ background: 'var(--surface3)' }}><Icon.recipe width="30" height="30" style={{ color: 'var(--muted)' }} /></div>
+      <div className="p-3 flex-1 flex flex-col">
+        <div className="text-[14px] font-bold leading-tight" style={clamp2}>{pub.title}</div>
+        <div className="flex items-center gap-2 mt-2 text-[11px]"><span className="tnum font-bold" style={{ color: CAL }}>{Math.round(pub.kcal)}</span><span className="text-[#8A8A90]">kcal</span><span className="tnum font-bold" style={{ color: PRO }}>{Math.round(pub.protein)}g</span><span className="text-[#8A8A90]">protein</span></div>
+        <div className="text-[10px] text-[#8A8A90] mt-1">{Rcp.platformLabel(pub.source_platform)}{pub.votes > 1 ? ' · saved by ' + pub.votes : ''}</div>
+      </div>
+    </div>
+  </button>);
+}
+function DiscoverView({ db, onBack, onSaveCopy, onConsent, showToast }) {
+  const consent = db.profile ? db.profile.shareRecipes : undefined;
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  const remKcal = et ? Math.max(0, Math.round(et.eff.kcal - sumMacros(entriesOn(db, today)).kcal)) : 0;
+  const [filter, setFilter] = useState(remKcal > 0 ? 'fits' : 'all');
+  const [items, setItems] = useState(null);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [preview, setPreview] = useState(null);
+  async function load(f) {
+    setBusy(true); setErr('');
+    try { const opts = f === 'fits' ? { kcalMax: remKcal || null } : f === 'protein' ? { minProtein: 25 } : {}; setItems(await browsePublicRecipes(opts)); }
+    catch (e) { setErr('Could not load Discover just now.'); setItems([]); }
+    setBusy(false);
+  }
+  useEffect(() => { load(filter); }, [filter]);
+  const chips = [['fits', remKcal > 0 ? 'Fits today · ' + remKcal + ' kcal' : 'Fits today'], ['protein', 'High protein'], ['all', 'All']];
+  const pm = preview ? { kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, fiber: preview.fiber } : null;
+  return (<div className="fade-in">
+    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
+    <PageHeader kicker="Cook" title="Discover" />
+    <div className="text-[12px] text-[#8A8A90] mb-4 -mt-2">Recipes the community imported, ranked by protein and what fits your day. Anonymous, credited to the original video.</div>
+    {consent === undefined && <Card className="p-3.5 mb-4" style={{ background: 'var(--surface3)' }}>
+      <div className="text-[13px] font-bold mb-1">Share your recipes here too?</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Your imported recipes can join Discover for others - anonymised, and credited to the original video, never to you. You can keep any single recipe private.</div>
+      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onConsent(true); showToast('Thanks - your recipes help others too'); }}>Share mine</Btn><Btn kind="ghost" onClick={() => onConsent(false)}>Keep private</Btn></div>
+    </Card>}
+    <div className="flex gap-2 overflow-x-auto pb-1 mb-4 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+      {chips.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className="pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0" style={{ background: filter === k ? 'var(--accent)' : 'var(--surface3)', color: filter === k ? '#111' : 'var(--text)', fontWeight: filter === k ? 700 : 400 }}>{l}</button>)}
+    </div>
+    {busy ? <DinoLoader label="Finding recipes" />
+      : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
+      : items && items.length ? <div className="grid grid-cols-2 gap-4">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
+      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">Nothing here yet</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Discover fills up as people import and share recipes. Import a few of your own and turn on sharing to help seed it.</div></Card>}
+    {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
+      <BackClose onClose={() => setPreview(null)} />
+      <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-2"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
+        <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
+        <div className="text-[13px] font-bold mb-1">Ingredients</div>
+        <ul className="space-y-1 mb-3 text-[13px]">{(preview.ingredients || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
+        {(preview.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{preview.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[9px] mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
+        <Btn kind="accent" className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to my recipes</Btn>
+        {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
+      </div>
+    </div>}
+  </div>);
+}
 function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecipe, onSaveMeal }) {
-  const [screen, setScreen] = useState('list'); // list | import | detail | shopping
+  const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover
   const [activeId, setActiveId] = useState(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'fav' | a collection name
@@ -5768,10 +5860,32 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecip
   const shoppingCount = (db.shopping_list || []).filter(x => !x.checked).length;
   function saveRecipe(rec) {
     const id = Store.uid();
-    update(d => { d.recipes = (d.recipes || []).concat([Object.assign({}, rec, { id, user_id: Store.USER, created_at: Date.now(), updated_at: Date.now() })]); });
+    const saved = Object.assign({}, rec, { id, user_id: Store.USER, created_at: Date.now(), updated_at: Date.now() });
+    update(d => { d.recipes = (d.recipes || []).concat([saved]); });
     onConsumeImport && onConsumeImport();
     setActiveId(id); setScreen('detail');
     showToast('Saved ' + rec.title);
+    // Contribute to the shared library if the user has opted in and it is not marked private.
+    if (db.profile && db.profile.shareRecipes === true && !saved.private) submitPublicRecipe(saved);
+  }
+  // Save a copy of a Discover recipe into the user's own collection. It is already priced, so keep
+  // the stated per-serving macros. Mark it as a copy so it is not re-submitted as if it were ours.
+  function saveCopyFromPublic(pub) {
+    const rec = Rcp.normalize({
+      title: pub.title, servings: pub.servings, ingredients: pub.ingredients || [], steps: pub.steps || [],
+      stated_macros_per_serving: { kcal: pub.kcal, protein_g: pub.protein, carbs_g: pub.carbs, fat_g: pub.fat, fiber_g: pub.fiber },
+      source_platform: pub.source_platform,
+    }, { platform: pub.source_platform, url: pub.source_url });
+    rec.private = true; // a saved copy stays private - the original submitter already seeded it
+    const id = Store.uid();
+    update(d => { d.recipes = (d.recipes || []).concat([Object.assign({}, rec, { id, user_id: Store.USER, created_at: Date.now(), updated_at: Date.now() })]); });
+    setActiveId(id); setScreen('detail');
+    showToast('Saved ' + rec.title);
+  }
+  // Record the one-time sharing choice. Turning it on backfills the pool with existing priced recipes.
+  function setShareConsent(on) {
+    update(d => { d.profile = d.profile || {}; d.profile.shareRecipes = !!on; });
+    if (on) (db.recipes || []).forEach(r => { if (!r.private) submitPublicRecipe(r); });
   }
   function deleteRecipe(id) {
     const r = allRecipes.find(x => x.id === id);
@@ -5785,10 +5899,15 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecip
     {screen === 'list' && <>
       <div className="flex items-center justify-between mb-5">
         <PageHeader kicker="Cook" title="Recipes" />
-        <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
-          <Icon.cart width="20" height="20" />
-          {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#111' }}>{shoppingCount}</span>}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setScreen('discover')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Discover recipes">
+            <Icon.compass width="20" height="20" />
+          </button>
+          <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
+            <Icon.cart width="20" height="20" />
+            {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#111' }}>{shoppingCount}</span>}
+          </button>
+        </div>
       </div>
       {!allRecipes.length ? <>
         <ShareTip className="mb-4" />
@@ -5813,6 +5932,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecip
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
     {screen === 'shopping' && <ShoppingListView db={db} update={update} onBack={() => setScreen('list')} />}
+    {screen === 'discover' && <DiscoverView db={db} onBack={() => setScreen('list')} onSaveCopy={saveCopyFromPublic} onConsent={setShareConsent} showToast={showToast} />}
   </div>);
 }
 function App() {
