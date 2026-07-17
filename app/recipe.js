@@ -235,6 +235,9 @@
     }).filter(function (x) { return x.name && (x.macros.kcal || x.macros.protein || x.macros.carbs || x.macros.fat); });
   }
 
+  // Servings still available from a batch cook (0 when none), for the leftovers surfaces.
+  function batchLeft(recipe) { var b = (recipe || {}).batch; return b ? Math.max(0, num(b.left)) : 0; }
+
   // Summed macros for a day's planned recipes (per-serving x portion each), for the meal planner.
   function planMacros(entries, recipeById) {
     var t = emptyMacros();
@@ -292,7 +295,7 @@
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
     macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
-    planMacros: planMacros,
+    planMacros: planMacros, batchLeft: batchLeft,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
