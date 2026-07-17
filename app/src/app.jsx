@@ -5288,20 +5288,25 @@ function RecipeMacroStrip({ macros, per }) {
     {per && <span className="text-[10px] text-[#8A8A90] self-center">/ serving</span>}
   </div>);
 }
+const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' };
 function RecipeCard({ recipe, onOpen }) {
   const m = recipe.macros_per_serving || {};
-  return (<button onClick={onOpen} className="w-full text-left mb-3 active:opacity-70 transition-opacity">
-    <Card className="p-3 flex gap-3 items-center">
-      <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'var(--surface3)' }}>
-        {recipe.thumbnail ? <img src={recipe.thumbnail} className="w-full h-full object-cover" alt="" /> : <Icon.recipe width="24" height="24" />}
+  const img = recipe.photo || recipe.thumbnail;
+  return (<button onClick={onOpen} className="w-full text-left active:opacity-90 transition-opacity">
+    <div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
+      <div className="relative w-full" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
+        {img ? <img src={img} className="w-full h-full object-cover" alt="" loading="lazy" />
+          : <div className="w-full h-full flex items-center justify-center"><Icon.recipe width="34" height="34" style={{ color: 'var(--muted)' }} /></div>}
+        <div className="absolute inset-x-0 bottom-0 pt-8 px-3 pb-2.5" style={{ background: 'linear-gradient(transparent, rgba(0,0,0,0.78))' }}>
+          <div className="text-white font-bold text-[15px] leading-tight" style={clamp2}>{recipe.title}</div>
+        </div>
+        {m.kcal > 0 && <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(m.kcal)} kcal</div>}
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-[14px] font-semibold truncate">{recipe.title}</div>
-        <div className="text-[11px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)} · serves {recipe.servings}</div>
-        <div className="flex items-center gap-3 text-[11px]"><span className="tnum font-bold" style={{ color: CAL }}>{Math.round(m.kcal || 0)}</span><span className="text-[#8A8A90]">kcal/serving</span></div>
+      <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
+        <span>{Rcp.platformLabel(recipe.source_platform)}</span><span>·</span><span>serves {recipe.servings}</span>
+        {m.protein > 0 && <><span>·</span><span className="tnum font-semibold" style={{ color: PRO }}>{Math.round(m.protein)}g protein</span></>}
       </div>
-      <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
-    </Card>
+    </div>
   </button>);
 }
 // The headline how-to: sharing a Reel/Short straight into the app is the best path (no link to copy),
@@ -5502,6 +5507,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const setSteps = (txt) => patch((r) => { r.steps = txt.split('\n').map(s => s.trim()).filter(Boolean); });
   const useStated = () => patch((r) => { if (r.stated_macros) { r.macros_per_serving = r.stated_macros; r.macros_source = 'stated'; } });
   const setIngMacros = (ingId, macros, meta) => patch((r) => { const ing = r.ingredients.find(x => x.id === ingId); if (!ing) return; ing.macros = { kcal: Math.round(+macros.kcal || 0), protein: +(+macros.protein || 0).toFixed(1), carbs: +(+macros.carbs || 0).toFixed(1), fat: +(+macros.fat || 0).toFixed(1), fiber: +(+macros.fiber || 0).toFixed(1) }; ing.resolved = Object.assign({ source: 'manual' }, meta || {}); r.macros_source = 'computed'; });
+  async function addPhoto(e) { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; try { const im = await imageToB64(f, 720); patch((r) => { r.photo = 'data:' + im.mime + ';base64,' + im.b64; }); showToast('Photo added'); } catch (err) { showToast('Could not add that photo'); } }
 
   // Price the recipe from its ingredient lines: nutrition database first, AI fallback. Always numbers.
   async function analyze(auto) {
@@ -5541,7 +5547,12 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <button onClick={onBack} className="text-[13px] text-[#8A8A90]">‹ Recipes</button>
       <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="text-[12px]" style={{ color: 'var(--accent)' }}>Save as meal</button><button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
     </div>
-    {recipe.thumbnail && <img src={recipe.thumbnail} className="w-full h-40 object-cover rounded-2xl border border-[#262629] mb-3" alt="" />}
+    <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
+      {(recipe.photo || recipe.thumbnail) ? <img src={recipe.photo || recipe.thumbnail} className="w-full h-full object-cover" alt="" />
+        : <div className="w-full h-full flex items-center justify-center"><Icon.recipe width="40" height="40" style={{ color: 'var(--muted)' }} /></div>}
+      {hasMacros && <div className="absolute top-2 right-2 pixel-box px-2.5 py-1 text-[12px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(recipe.macros_per_serving.kcal)} kcal / serving</div>}
+      <label className="absolute bottom-2 right-2 pixel-box px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.cam width="14" height="14" /> {recipe.photo ? 'Change' : 'Photo'}<input type="file" accept="image/*" className="hidden" onChange={addPhoto} /></label>
+    </div>
     <input key={recipe.id} defaultValue={recipe.title} onBlur={e => setTitle(e.target.value)} className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none" />
     <div className="text-[12px] text-[#8A8A90] mb-1">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>} · tap anything to make it yours</div>
     <Card className="p-3 mb-3 mt-2">
@@ -5686,7 +5697,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, onLogRecip
         </Card>
       </> : <>
         <Btn kind="accent" className="w-full mb-5" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <div>{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} />)}</div>
       </>}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
