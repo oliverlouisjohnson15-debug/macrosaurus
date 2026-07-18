@@ -235,6 +235,17 @@
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'btshiny#' + n) % 6 === 0 };
   }
 
+  // Monthly Expedition (a rotating collection set, like a spotlight event): each calendar month
+  // features one creature to chase, the same for everyone, caught by reaching a quality-day goal
+  // that month. A fresh monthly hook and a guaranteed route to a creature you might not land otherwise.
+  var EXPEDITION_POOL = ['veloci', 'platealon', 'triceros', 'flexor', 'noodon', 'buttron', 'frondo', 'rexosaur', 'aurora'];
+  function monthlyFeatured(monthYm) { return EXPEDITION_POOL[seedFor('expedition', monthYm) % EXPEDITION_POOL.length]; }
+  var EXPEDITION_GOAL = 12;
+  function expeditionState(qualityDaysThisMonth) {
+    var got = Math.max(0, qualityDaysThisMonth || 0);
+    return { goal: EXPEDITION_GOAL, days: Math.min(got, EXPEDITION_GOAL), ready: got >= EXPEDITION_GOAL, toGo: Math.max(0, EXPEDITION_GOAL - got) };
+  }
+
   // Egg incubation (a Pokemon GO style egg): a single egg always incubates, its "distance" is
   // QUALITY days (days you logged, hit protein and landed calories), so it rewards eating well
   // rather than just showing up. Eggs come in 2 / 5 / 10-day tiers; rarer tiers hatch rarer
@@ -290,6 +301,10 @@
     fightAtkMult: fightAtkMult,
     stanceMult: stanceMult,
     SPECIAL_ATK: SPECIAL_ATK,
+    EXPEDITION_POOL: EXPEDITION_POOL,
+    EXPEDITION_GOAL: EXPEDITION_GOAL,
+    monthlyFeatured: monthlyFeatured,
+    expeditionState: expeditionState,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,

@@ -1712,6 +1712,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'btshiny#' + n) % 6 === 0 };
   }
 
+  // Monthly Expedition (a rotating collection set, like a spotlight event): each calendar month
+  // features one creature to chase, the same for everyone, caught by reaching a quality-day goal
+  // that month. A fresh monthly hook and a guaranteed route to a creature you might not land otherwise.
+  var EXPEDITION_POOL = ['veloci', 'platealon', 'triceros', 'flexor', 'noodon', 'buttron', 'frondo', 'rexosaur', 'aurora'];
+  function monthlyFeatured(monthYm) { return EXPEDITION_POOL[seedFor('expedition', monthYm) % EXPEDITION_POOL.length]; }
+  var EXPEDITION_GOAL = 12;
+  function expeditionState(qualityDaysThisMonth) {
+    var got = Math.max(0, qualityDaysThisMonth || 0);
+    return { goal: EXPEDITION_GOAL, days: Math.min(got, EXPEDITION_GOAL), ready: got >= EXPEDITION_GOAL, toGo: Math.max(0, EXPEDITION_GOAL - got) };
+  }
+
   // Egg incubation (a Pokemon GO style egg): a single egg always incubates, its "distance" is
   // QUALITY days (days you logged, hit protein and landed calories), so it rewards eating well
   // rather than just showing up. Eggs come in 2 / 5 / 10-day tiers; rarer tiers hatch rarer
@@ -1767,6 +1778,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     fightAtkMult: fightAtkMult,
     stanceMult: stanceMult,
     SPECIAL_ATK: SPECIAL_ATK,
+    EXPEDITION_POOL: EXPEDITION_POOL,
+    EXPEDITION_GOAL: EXPEDITION_GOAL,
+    monthlyFeatured: monthlyFeatured,
+    expeditionState: expeditionState,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,
@@ -8320,6 +8335,12 @@ function DexActiveSection({
   const btCr = bt && bt.lastId ? CR_BY_ID[bt.lastId] : null;
   const eggJust = eggs && eggs.lastDate === today;
   const eggCr = eggs && eggs.lastId ? CR_BY_ID[eggs.lastId] : null;
+  // Monthly Expedition: the featured creature to chase this month.
+  const expMonth = today.slice(0, 7);
+  const expCr = CR_BY_ID[Game.monthlyFeatured(expMonth)];
+  const expDone = !!(db.game_awards || {})['expedition:' + expMonth];
+  const expQ = Array.from(new Set((db.log_entries || []).map(e => e.date))).filter(d => d.slice(0, 7) === expMonth && isQualityDay(db, d)).length;
+  const expSt = Game.expeditionState(expQ);
   const panel = 'pixel-box p-3';
   const pStyle = {
     background: 'var(--surface3)',
@@ -8401,7 +8422,61 @@ function DexActiveSection({
     }
   }, "Breakthrough! "), /*#__PURE__*/React.createElement("b", null, btCr.name, bt.lastShiny ? ' ✦' : ''), " joined your dex.")) : /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mt-1.5"
-  }, "Log ", btState.toNext, " more ", btState.toNext === 1 ? 'day' : 'days', " for a guaranteed rare+ catch.")), egg && eggProg && /*#__PURE__*/React.createElement("div", {
+  }, "Log ", btState.toNext, " more ", btState.toNext === 1 ? 'day' : 'days', " for a guaranteed rare+ catch.")), expCr && /*#__PURE__*/React.createElement("div", {
+    className: panel + ' mb-2',
+    style: pStyle
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1 shrink-0",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none',
+      borderColor: CR_RARITY_COLOR[expCr.rarity],
+      borderWidth: 3
+    }
+  }, expDone ? /*#__PURE__*/React.createElement(Sprite, {
+    art: expCr.art,
+    colors: expCr.colors,
+    px: 2.6
+  }) : /*#__PURE__*/React.createElement(Sprite, {
+    art: expCr.art,
+    colors: crSilhouette(),
+    px: 2.6
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-0.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase text-[#8A8A90]"
+  }, "This month’s expedition"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: CR_RARITY_COLOR[expCr.rarity]
+    }
+  }, CR_RARITY_LABEL[expCr.rarity])), expDone ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] leading-snug"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--good)'
+    }
+  }, "Caught!"), " ", /*#__PURE__*/React.createElement("b", null, expCr.name), " joined your dex this month.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] font-bold leading-tight"
+  }, expCr.name), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-bar mt-1",
+    style: {
+      height: 9,
+      borderWidth: 2
+    }
+  }, /*#__PURE__*/React.createElement("i", {
+    style: {
+      width: expSt.days / expSt.goal * 100 + '%',
+      background: 'var(--weight)',
+      transition: 'width .4s'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-1 leading-snug"
+  }, expSt.toGo, " quality ", expSt.toGo === 1 ? 'day' : 'days', " this month to catch it. A quality day: hit protein and land your calories."))))), egg && eggProg && /*#__PURE__*/React.createElement("div", {
     className: panel,
     style: pStyle
   }, /*#__PURE__*/React.createElement("div", {
@@ -10731,6 +10806,28 @@ function Dashboard({
     });
     if (showToast) showToast('A migratory Drizzlodon lands in your dex! 20 days logged this month.');
   }, [monthLogs]);
+  // Monthly Expedition: a featured creature caught by reaching a quality-day goal this month.
+  const monthQualityDays = Array.from(logSet).filter(d => d.slice(0, 7) === monthYm && isQualityDay(db, d)).length;
+  const expeditionId = Game.monthlyFeatured(monthYm);
+  const expedition = Game.expeditionState(monthQualityDays);
+  useEffect(() => {
+    if (!expedition.ready || (db.game_awards || {})['expedition:' + monthYm]) return;
+    const shiny = Game.seedFor(db.game_salt || '', 'exp#' + monthYm) % 5 === 0;
+    update(d => {
+      d.game_awards = d.game_awards || {};
+      if (d.game_awards['expedition:' + monthYm]) return;
+      d.game_awards['expedition:' + monthYm] = true;
+      d.catch_log = d.catch_log || {};
+      const arr = d.catch_log[today] || [];
+      arr.push({
+        id: expeditionId,
+        shiny: shiny,
+        expedition: monthYm
+      });
+      d.catch_log[today] = arr;
+    });
+    if (showToast) showToast('Monthly Expedition complete! ' + ((CR_BY_ID[expeditionId] || {}).name || 'A rare creature') + ' joins your dex.');
+  }, [expedition.ready, monthYm]);
   // Weekly Breakthrough: every 7 logged days earns a guaranteed rare+ catch plus an Incubator
   // (a Pokemon GO style Research Breakthrough). A per-user baseline is set the first time this
   // runs so existing history never awards a backlog of rewards at once.

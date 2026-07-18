@@ -2325,6 +2325,12 @@ function DexActiveSection({ db, today }) {
   const tc = catchForDay(db, today); const tcr = tc && CR_BY_ID[tc.id];
   const btJust = bt && bt.lastDate === today; const btCr = bt && bt.lastId ? CR_BY_ID[bt.lastId] : null;
   const eggJust = eggs && eggs.lastDate === today; const eggCr = eggs && eggs.lastId ? CR_BY_ID[eggs.lastId] : null;
+  // Monthly Expedition: the featured creature to chase this month.
+  const expMonth = today.slice(0, 7);
+  const expCr = CR_BY_ID[Game.monthlyFeatured(expMonth)];
+  const expDone = !!(db.game_awards || {})['expedition:' + expMonth];
+  const expQ = Array.from(new Set((db.log_entries || []).map(e => e.date))).filter(d => d.slice(0, 7) === expMonth && isQualityDay(db, d)).length;
+  const expSt = Game.expeditionState(expQ);
   const panel = 'pixel-box p-3';
   const pStyle = { background: 'var(--surface3)', boxShadow: 'none' };
   return (
@@ -2354,6 +2360,26 @@ function DexActiveSection({ db, today }) {
         </div>
         : <div className="text-[9px] text-[#8A8A90] mt-1.5">Log {btState.toNext} more {btState.toNext === 1 ? 'day' : 'days'} for a guaranteed rare+ catch.</div>}
       </div>
+      {expCr && <div className={panel + ' mb-2'} style={pStyle}>
+        <div className="flex items-center gap-2.5">
+          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: CR_RARITY_COLOR[expCr.rarity], borderWidth: 3 }}>
+            {expDone ? <Sprite art={expCr.art} colors={expCr.colors} px={2.6} /> : <Sprite art={expCr.art} colors={crSilhouette()} px={2.6} />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="pf text-[7px] uppercase text-[#8A8A90]">This month’s expedition</span>
+              <span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[expCr.rarity] }}>{CR_RARITY_LABEL[expCr.rarity]}</span>
+            </div>
+            {expDone
+              ? <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Caught!</span> <b>{expCr.name}</b> joined your dex this month.</div>
+              : <>
+                <div className="text-[10px] font-bold leading-tight">{expCr.name}</div>
+                <div className="pixel-bar mt-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (expSt.days / expSt.goal * 100) + '%', background: 'var(--weight)', transition: 'width .4s' }} /></div>
+                <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{expSt.toGo} quality {expSt.toGo === 1 ? 'day' : 'days'} this month to catch it. A quality day: hit protein and land your calories.</div>
+              </>}
+          </div>
+        </div>
+      </div>}
       {egg && eggProg && <div className={panel} style={pStyle}>
         <div className="flex items-center gap-2.5">
           <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: EGG_TIER_COLOR[egg.tier], borderWidth: 3 }}><Sprite art="egg" colors={EGG_TIER_EGGCOLORS[egg.tier]} px={2.6} /></div>
@@ -3245,6 +3271,23 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     });
     if (showToast) showToast('A migratory Drizzlodon lands in your dex! 20 days logged this month.');
   }, [monthLogs]);
+  // Monthly Expedition: a featured creature caught by reaching a quality-day goal this month.
+  const monthQualityDays = Array.from(logSet).filter(d => d.slice(0, 7) === monthYm && isQualityDay(db, d)).length;
+  const expeditionId = Game.monthlyFeatured(monthYm);
+  const expedition = Game.expeditionState(monthQualityDays);
+  useEffect(() => {
+    if (!expedition.ready || (db.game_awards || {})['expedition:' + monthYm]) return;
+    const shiny = Game.seedFor(db.game_salt || '', 'exp#' + monthYm) % 5 === 0;
+    update(d => {
+      d.game_awards = d.game_awards || {};
+      if (d.game_awards['expedition:' + monthYm]) return;
+      d.game_awards['expedition:' + monthYm] = true;
+      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
+      arr.push({ id: expeditionId, shiny: shiny, expedition: monthYm });
+      d.catch_log[today] = arr;
+    });
+    if (showToast) showToast('Monthly Expedition complete! ' + ((CR_BY_ID[expeditionId] || {}).name || 'A rare creature') + ' joins your dex.');
+  }, [expedition.ready, monthYm]);
   // Weekly Breakthrough: every 7 logged days earns a guaranteed rare+ catch plus an Incubator
   // (a Pokemon GO style Research Breakthrough). A per-user baseline is set the first time this
   // runs so existing history never awards a backlog of rewards at once.

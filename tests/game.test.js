@@ -370,3 +370,23 @@ test('stanceMult trades attack and defence, steady is neutral', () => {
   assert.deepStrictEqual(Game.stanceMult('bogus'), { atk: 1, def: 1 }); // safe default
   assert.strictEqual(typeof Game.SPECIAL_ATK, 'number');
 });
+
+// ---- monthly expedition (a rotating collection set) ----
+
+test('monthlyFeatured is deterministic per month and always in the pool', () => {
+  assert.strictEqual(Game.monthlyFeatured('2026-07'), Game.monthlyFeatured('2026-07'));
+  for (let m = 1; m <= 12; m++) {
+    const ym = '2026-' + String(m).padStart(2, '0');
+    assert.ok(Game.EXPEDITION_POOL.includes(Game.monthlyFeatured(ym)), 'off-pool for ' + ym);
+  }
+  // the feature rotates across the year, not one creature every month
+  const picks = new Set(Array.from({ length: 12 }, (_, i) => Game.monthlyFeatured('2026-' + String(i + 1).padStart(2, '0'))));
+  assert.ok(picks.size >= 3);
+});
+
+test('expeditionState tracks the quality-day goal and caps progress', () => {
+  assert.deepStrictEqual(Game.expeditionState(0), { goal: 12, days: 0, ready: false, toGo: 12 });
+  assert.deepStrictEqual(Game.expeditionState(5), { goal: 12, days: 5, ready: false, toGo: 7 });
+  assert.deepStrictEqual(Game.expeditionState(12), { goal: 12, days: 12, ready: true, toGo: 0 });
+  assert.deepStrictEqual(Game.expeditionState(20), { goal: 12, days: 12, ready: true, toGo: 0 });
+});

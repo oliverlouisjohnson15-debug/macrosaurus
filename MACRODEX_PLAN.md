@@ -256,8 +256,11 @@ resolution, leaderboard scoring) lives in a **pure, unit-tested `app/game.js`** 
   tactical agency — all pure stat modifiers so the proven auto-battle loop can never deadlock,
   and all unit-tested. *A per-round timed-strike could still be added later as a preview-first
   enhancement.*
-- **Phase 3 — Collection depth.** Monthly sets, biome-completion rewards, cosmetics earned by
-  bond/fights, breeding/eggs.
+- **Phase 3 — Collection depth. ✅ *(shipped)*** A **Monthly Expedition** — a featured creature
+  that rotates each calendar month (same for everyone, deterministic), caught by hitting a
+  quality-day goal that month: a fresh monthly chase and a guaranteed route to a rare, surfaced
+  in the dex. Biome-completion medals already existed. *Optional later: breeding/fusion and
+  bond/fight cosmetics — a bigger mechanic, best post-launch.*
 - **Phase 4 — Weekly League.** Supabase table + view + RLS + edge-function recompute; opt-in
   UI; the boards; anti-cheat + privacy.
 - **Phase 5 — Social & polish.** Gifting/parties (co-op accountability), behaviour-triggered
