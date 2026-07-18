@@ -2280,8 +2280,11 @@ function buddyProfile(db, streak, buddy, level) {
     bond, level: lvl, species, evoStage, form, evoInfo,
     mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
     needs: Game.buddyNeeds(loggedToday, todayQ, streak),
+    craving: Game.buddyCraving(todayQ),
   };
 }
+// What the buddy is craving, in words, framing the day's macro gap as a thing to feed it.
+const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fibre', fuel: 'more fuel' };
 
 function BuddyCard({ db, streak, buddy, freezeReady, onOpenDex }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
@@ -2553,6 +2556,9 @@ function rivalStats(rival, rank, prestige) {
   return { hp: Math.round((80 + rank * 12) * sc), atk: Math.round((9 + rival.power * 3 + rank) * sc), def: Math.round((3 + rival.power * 2) * sc), ability: rival.ability || 'none' };
 }
 const FIGHT_HIT = ['{x} chomps down', '{x} swings its tail', '{x} rakes with its claws', '{x} headbutts hard', '{x} lets out a roar', '{x} snaps its jaws', '{x} gores with its horns', '{x} stomps in'];
+// Macro types for the fight: label + colour + the macro that feeds them.
+const TYPE_META = { power: ['Power', 'var(--pro)', 'protein'], guard: ['Guard', 'var(--fat)', 'fats'], swift: ['Swift', 'var(--carb)', 'carbs'], renew: ['Renew', 'var(--good)', 'fibre'], balanced: ['Balanced', 'var(--muted)', 'a balance'] };
+function TypeChip({ t }) { const m = TYPE_META[t] || TYPE_META.balanced; return <span className="pf text-[7px] uppercase px-1 py-0.5 rounded" style={{ color: m[1], background: 'color-mix(in srgb, ' + m[1] + ' 16%, transparent)' }}>{m[0]}</span>; }
 
 function FightModal({ db, update, streak, onClose }) {
   useBackClose(onClose);
@@ -2566,14 +2572,24 @@ function FightModal({ db, update, streak, onClose }) {
   const fForm = fSpecies ? buddyForm(fSpecies, (db.buddy && db.buddy.evoStage) || 0, 0) : null;
   const vis = (si > 0 && fForm) ? fForm : b;
   const fighter = { name: vis.name, art: vis.art, colors: vis.colors, stats: buddyStats(db, streak, si) };
+  // Fight 2.0: macros are types. The buddy fights as its habitat; the week's eating is its loadout.
+  const buddyType = Game.typeForBiome(fSpecies && fSpecies.biome);
+  const loadout = Game.weeklyLoadout(fighter.stats.pro, fighter.stats.fib, fighter.stats.per);
+  const weekKey = fightWeekKey();
+  const weakness = Game.bossWeakness(weekKey);            // type/macro that turns the boss fight
+  const weakMacro = Game.TYPE_MACRO[weakness];
+  let weakDays = 0;
+  for (let i = 0; i < 7; i++) { const q = dayQuality(db, shiftISO(today, -i)); if (q) { const hit = weakMacro === 'protein' ? q.proteinHit : weakMacro === 'fat' ? q.fatHit : weakMacro === 'carbs' ? q.carbHit : q.fiberHit; if (hit) weakDays++; } }
+  const weaknessExploited = buddyType === weakness || weakDays >= 4;
+  const rivalMult = Game.typeMult(buddyType, Game.typeForName(FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)].name));
   // Ladder gating: one attempt per day, and only on a day with food logged. Weekly boss unchanged.
   const loggedToday = (db.log_entries || []).some(e => e.date === today);
   const gate = Game.fightGate(fight.lastAttemptDate, loggedToday, today);
   const ladderCleared = (fight.rank || 0) >= FIGHT_LADDER.length;
   const rivalBase = FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)];
-  const rival = Object.assign({}, rivalBase, { stats: rivalStats(rivalBase, fight.rank || 0, fight.prestige || 0) });
+  const rival = Object.assign({}, rivalBase, { type: Game.typeForName(rivalBase.name), stats: rivalStats(rivalBase, fight.rank || 0, fight.prestige || 0) });
   const weekBoss = bossForWeek();
-  const boss = Object.assign({}, weekBoss, { stats: rivalStats(weekBoss, FIGHT_LADDER.length, fight.prestige || 0) });
+  const boss = Object.assign({}, weekBoss, { type: Game.typeForName(weekBoss.name), stats: rivalStats(weekBoss, FIGHT_LADDER.length, fight.prestige || 0) });
   const bossReady = fight.lastBossWeek !== fightWeekKey();
 
   const [phase, setPhase] = useState(si === 0 ? 'egg' : 'select');
@@ -2584,16 +2600,24 @@ function FightModal({ db, update, streak, onClose }) {
   const [lungeA, setLungeA] = useState(false); const [lungeB, setLungeB] = useState(false);
   const [pop, setPop] = useState(null); const [shake, setShake] = useState(false); const [intro, setIntro] = useState(false);
   const rewarded = useRef(false); const timers = useRef([]);
+  const effRef = useRef(null);          // buddy's effective stats for the current fight (type/weakness applied)
+  const [lastMult, setLastMult] = useState(1);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   // The fight opens like a monster battle: both fighters slide onto their platforms and a VS flashes,
-  // then the auto-battle begins. `intro` holds the combat loop until the entrance finishes.
-  function start(opponent, boss) { setOpp(opponent); setIsBoss(!!boss); setMaxA(fighter.stats.hp); setMaxB(opponent.stats.hp); setHpA(fighter.stats.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it); }
+  // then the auto-battle begins. `intro` holds the combat loop until the entrance finishes. The buddy's
+  // attack is scaled by the type matchup (and the boss-weakness bonus when exploited) before the bout.
+  function start(opponent, boss) {
+    const mult = Game.fightAtkMult(buddyType, opponent.type, !!boss, weaknessExploited);
+    const eff = Object.assign({}, fighter.stats, { atk: Math.max(1, Math.round(fighter.stats.atk * mult)) });
+    effRef.current = eff; setLastMult(mult);
+    setOpp(opponent); setIsBoss(!!boss); setMaxA(eff.hp); setMaxB(opponent.stats.hp); setHpA(eff.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it);
+  }
   function prestige() { update(d => { d.fight = d.fight || {}; d.fight.rank = 0; d.fight.prestige = (d.fight.prestige || 0) + 1; }); setPhase('select'); }
 
   useEffect(() => {
     if (phase !== 'fight' || !opp || intro) return;
-    const my = fighter.stats, rv = opp.stats;
+    const my = effRef.current || fighter.stats, rv = opp.stats;
     let a = my.hp, d2 = rv.hp, round = 0, alive = true;
     const rnd = (n) => Math.floor(Math.random() * n);
     const step = () => {
@@ -2686,9 +2710,9 @@ function FightModal({ db, update, streak, onClose }) {
         {phase === 'select' && <div className="fade-in">
           {(fight.prestige || 0) > 0 && <div className="text-center pf text-[8px] uppercase mb-2" style={{ color: 'var(--fat)' }}>Prestige {fight.prestige} · elite ladder</div>}
           <div className="flex items-center justify-between gap-2 p-3 mb-2 pixel-box" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="text-center flex-1 min-w-0"><div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><Sprite art={fighter.art} colors={fighter.colors} px={5} /></div><div className="text-[10px] mt-1.5 font-bold truncate">{fighter.name}</div><StatLine s={fighter.stats} /></div>
+            <div className="text-center flex-1 min-w-0"><div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><Sprite art={fighter.art} colors={fighter.colors} px={5} /></div><div className="text-[10px] mt-1.5 font-bold truncate">{fighter.name}</div><div className="mb-0.5"><TypeChip t={buddyType} /></div><StatLine s={fighter.stats} /></div>
             <div className="pf text-[12px] text-[#8A8A90] self-center">VS</div>
-            <div className="text-center flex-1 min-w-0"><div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Sprite art={rival.art} colors={rival.colors} px={5} /></span></div><div className="text-[10px] mt-1.5 font-bold truncate">{rival.name}</div><StatLine s={rival.stats} />{rival.ability !== 'none' && <div className="text-[8px]" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}</div>
+            <div className="text-center flex-1 min-w-0"><div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Sprite art={rival.art} colors={rival.colors} px={5} /></span></div><div className="text-[10px] mt-1.5 font-bold truncate">{rival.name}</div><div className="mb-0.5"><TypeChip t={rival.type} /></div><StatLine s={rival.stats} />{rival.ability !== 'none' && <div className="text-[8px]" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}</div>
           </div>
           <div className="text-[11px] text-[#8A8A90] mb-2 text-center inline-flex items-center justify-center gap-1.5 flex-wrap w-full">{ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0} <PixelGlyph kind="trophy" color="var(--fat)" size={12} /></div>
           {(() => {
@@ -2699,7 +2723,7 @@ function FightModal({ db, update, streak, onClose }) {
               { label: 'Perfect', n: s.per, add: s.per * 5, unit: 'HP', color: 'var(--good)' },
             ];
             return <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your power, last 7 days</div>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2 flex items-center justify-between"><span>This week's loadout</span><span style={{ color: TYPE_META[buddyType][1] }}>fed by {TYPE_META[buddyType][2]}</span></div>
               <div className="space-y-1.5">
                 {rows.map(r => <div key={r.label} className="flex items-center gap-2 text-[9px]">
                   <span className="w-16 shrink-0 text-[#8A8A90] tnum">{r.label} {r.n}/7</span>
@@ -2710,11 +2734,18 @@ function FightModal({ db, update, streak, onClose }) {
               <div className="text-[9px] text-[#8A8A90] text-center mt-2 leading-snug">Eat well to power up your fighter.</div>
             </div>;
           })()}
+          {!ladderCleared && rivalMult !== 1 && <div className="text-[9px] text-center mb-1.5" style={{ color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)' }}>{rivalMult > 1 ? `Your ${TYPE_META[buddyType][0]} type is super-effective here (+25% attack)` : `${rival.name} resists your type (−20% attack)`}</div>}
           {ladderCleared
             ? <Btn kind="accent" className="w-full mb-2" onClick={prestige}>Prestige ↑, tougher ladder, better drops</Btn>
             : gate.can
               ? <Btn kind="accent" className="w-full mb-2" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, false); }}>Fight {rival.name} (1 attempt today)</Btn>
               : <div className="pixel-box p-3 mb-2 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s ladder attempt is used. Your rival rests, a fresh attempt lands tomorrow.' : 'Log a meal today to earn your ladder attempt, a fed buddy fights best.'}</div>}
+          {bossReady && <div className="pixel-box p-2.5 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', border: '2px solid ' + (weaknessExploited ? 'var(--good)' : 'var(--border)') }}>
+            <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1 flex items-center justify-between"><span>{boss.name} · weak to</span><TypeChip t={weakness} /></div>
+            <div className="text-[10px] leading-snug">{weaknessExploited
+              ? <span style={{ color: 'var(--good)' }}>Weakness exploited: your buddy strikes at +35% this week. Take it down!</span>
+              : <span className="text-[#8A8A90]">Raise a {TYPE_META[weakness][0]} buddy, or eat {TYPE_META[weakness][2]}, {weakDays}/4 days hit this week.</span>}</div>
+          </div>}
           {bossReady
             ? <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, true)}><PixelGlyph kind="glove" color="currentColor" size={14} /> Weekly Boss: {boss.name}</Btn>
             : <div className="text-[11px] text-[#8A8A90] text-center mt-1">Weekly boss beaten, a new challenger arrives next week.</div>}
@@ -2914,6 +2945,9 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
           <div className="pixel-bar" style={{ height: 6, borderWidth: 2 }}><i style={{ width: Math.round(profile.needs[k] * 100) + '%', background: NEED_META[k][1], transition: 'width .4s' }} /></div>
         </div>
       ))}</div> : null}
+      {profile ? (profile.craving
+        ? <button onClick={onLog} className="w-full mt-2 text-[9px] text-center leading-snug" style={{ color: 'var(--fat)' }}>Craving {CRAVE_LABEL[profile.craving] || 'a good meal'}, log a meal to feed {name} ›</button>
+        : <div className="w-full mt-2 text-[9px] text-center" style={{ color: 'var(--good)' }}>Well fed today ✓</div>) : null}
       {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-2.5">Every day you log and weigh in adds a prehistoric creature to your dex. Feed your buddy well and it bonds, grows and evolves.</div>}
       <div className="flex gap-2 mt-3">
         <button onClick={onOpenDex} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--surface3)' }}>

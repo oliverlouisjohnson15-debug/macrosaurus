@@ -96,6 +96,45 @@
     return n;
   }
 
+  // FEED LOOP: what the buddy is craving = the first macro target not yet met today, in priority
+  // order. Turns the day's macro gap into a thing to feed it. null once it is well fed.
+  function buddyCraving(todayQ) {
+    if (!todayQ) return 'firstmeal';
+    if (!todayQ.proteinHit) return 'protein';
+    if (!todayQ.fiberHit) return 'fibre';
+    if (!todayQ.kcalIn) return 'fuel';
+    return null;
+  }
+
+  // ---- Fight 2.0: macros are types, with a matchup triangle and a weekly boss weakness ----
+  // Types cycle power > guard > swift > renew > power; balanced is neutral both ways.
+  var FIGHT_TYPES = ['power', 'guard', 'swift', 'renew'];
+  var TYPE_BEATS = { power: 'guard', guard: 'swift', swift: 'renew', renew: 'power' };
+  var BIOME_TYPE = { protein: 'power', fat: 'guard', carb: 'swift', fibre: 'renew', apex: 'balanced', nursery: 'balanced', mythic: 'balanced' };
+  var TYPE_MACRO = { power: 'protein', guard: 'fat', swift: 'carbs', renew: 'fibre' };
+  function typeForBiome(biome) { return BIOME_TYPE[biome] || 'balanced'; }
+  function typeMult(atk, def) {
+    if (!atk || !def || atk === 'balanced' || def === 'balanced') return 1;
+    if (TYPE_BEATS[atk] === def) return 1.25;   // super-effective
+    if (TYPE_BEATS[def] === atk) return 0.8;    // resisted
+    return 1;
+  }
+  // A rival/boss's type, deterministic from its name so it is stable week to week.
+  function typeForName(name) { return FIGHT_TYPES[hash(String(name || '')) % FIGHT_TYPES.length]; }
+  // The weekly boss's weakness = the type you should field / the macro you should eat to exploit it.
+  function bossWeakness(weekKey) { return FIGHT_TYPES[seedFor('boss', weekKey) % FIGHT_TYPES.length]; }
+  // Your week's loadout: protein days -> Power, fibre days -> Heal, perfect days -> Special (capped).
+  function weeklyLoadout(proteinDays, fibreDays, perfectDays) {
+    return { power: Math.min(3, proteinDays || 0), heal: Math.min(3, fibreDays || 0), special: Math.min(1, perfectDays || 0) };
+  }
+  // Attack multiplier your buddy fights at: the type matchup, plus a boss-weakness bonus when you
+  // field the beating type OR ate the weakness macro enough days this week.
+  function fightAtkMult(buddyType, oppType, isBoss, weaknessExploited) {
+    var m = typeMult(buddyType, oppType);
+    if (isBoss && weaknessExploited) m *= 1.35;
+    return Math.round(m * 100) / 100;
+  }
+
   // NEEDS: three 0..1 meters topped up by eating well. Fed = logged today, Nourished =
   // today's macro balance, Energy = current streak toward a full week.
   function buddyNeeds(loggedToday, todayQ, streak) {
@@ -229,6 +268,15 @@
     buddyMood: buddyMood,
     buddyNeeds: buddyNeeds,
     buddyEvoStage: buddyEvoStage,
+    buddyCraving: buddyCraving,
+    FIGHT_TYPES: FIGHT_TYPES,
+    TYPE_MACRO: TYPE_MACRO,
+    typeForBiome: typeForBiome,
+    typeForName: typeForName,
+    typeMult: typeMult,
+    bossWeakness: bossWeakness,
+    weeklyLoadout: weeklyLoadout,
+    fightAtkMult: fightAtkMult,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,

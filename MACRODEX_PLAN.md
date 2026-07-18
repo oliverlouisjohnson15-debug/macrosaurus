@@ -246,10 +246,13 @@ resolution, leaderboard scoring) lives in a **pure, unit-tested `app/game.js`** 
   at render time (volume from a top-left light, off the same art); give the four
   template-sharing creatures their own silhouettes. **Next in 0:** promote `buddy` to a
   persistent named entity + migration.
-- **Phase 1 — The Bond.** Hatch/name flow, bond + mood + needs meters, the feed loop, buddy
-  dialogue, bond-gated evolution (with day/night branch). This is the USP made real.
-- **Phase 2 — Fight 2.0.** Types, moveset, one-tap agency, macro loadout, boss
-  weaknesses/phases, fight-as-diagnostic. Balance in `app/game.js` with tests.
+- **Phase 1 — The Bond. ✅ *(shipped)*** Hatch/name flow, bond + mood + needs meters, the
+  feed-your-buddy loop (craving prompt framing logging as feeding), and bond-gated evolution
+  along the species line. *Still to do: day/night evolution branch.*
+- **Phase 2 — Fight 2.0. ◑ *(core shipped)*** Macros as types with a matchup triangle, the
+  week's eating as a loadout, and a weekly boss weakness that rewards eating the right macro,
+  all pure and unit-tested in `app/game.js`. *Still to do: one-tap move agency and boss phases
+  (deferred — they need live playtesting).*
 - **Phase 3 — Collection depth.** Monthly sets, biome-completion rewards, cosmetics earned by
   bond/fights, breeding/eggs.
 - **Phase 4 — Weekly League.** Supabase table + view + RLS + edge-function recompute; opt-in

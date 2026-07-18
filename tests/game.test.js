@@ -311,3 +311,40 @@ test('buddyEvoStage: a species with no evo line never evolves', () => {
   assert.strictEqual(Game.buddyEvoStage(100, 4, [], []), 0);
   assert.strictEqual(Game.buddyEvoStage(100, 4, undefined, undefined), 0);
 });
+
+// ---- feed loop + Fight 2.0 (macro types, weakness, loadout) ----
+
+test('buddyCraving names the first unmet macro, else null when well fed', () => {
+  assert.strictEqual(Game.buddyCraving(null), 'firstmeal');
+  assert.strictEqual(Game.buddyCraving({ proteinHit: false, fiberHit: false, kcalIn: false }), 'protein');
+  assert.strictEqual(Game.buddyCraving({ proteinHit: true, fiberHit: false, kcalIn: false }), 'fibre');
+  assert.strictEqual(Game.buddyCraving({ proteinHit: true, fiberHit: true, kcalIn: false }), 'fuel');
+  assert.strictEqual(Game.buddyCraving({ proteinHit: true, fiberHit: true, kcalIn: true }), null);
+});
+
+test('type matchup: super-effective, resisted, neutral and balanced', () => {
+  assert.strictEqual(Game.typeMult('power', 'guard'), 1.25); // power beats guard
+  assert.strictEqual(Game.typeMult('guard', 'power'), 0.8);  // and is resisted the other way
+  assert.strictEqual(Game.typeMult('power', 'swift'), 1);    // unrelated
+  assert.strictEqual(Game.typeMult('balanced', 'power'), 1); // balanced is neutral
+  assert.strictEqual(Game.typeForBiome('protein'), 'power');
+  assert.strictEqual(Game.typeForBiome('apex'), 'balanced');
+});
+
+test('boss weakness is deterministic per week and maps to a macro', () => {
+  assert.strictEqual(Game.bossWeakness('2026-30'), Game.bossWeakness('2026-30'));
+  assert.ok(Game.FIGHT_TYPES.includes(Game.bossWeakness('2026-30')));
+  assert.ok(['protein', 'fat', 'carbs', 'fibre'].includes(Game.TYPE_MACRO[Game.bossWeakness('2026-30')]));
+});
+
+test('weeklyLoadout caps charges from the week of eating', () => {
+  assert.deepStrictEqual(Game.weeklyLoadout(2, 1, 0), { power: 2, heal: 1, special: 0 });
+  assert.deepStrictEqual(Game.weeklyLoadout(9, 9, 9), { power: 3, heal: 3, special: 1 });
+});
+
+test('fightAtkMult stacks the boss-weakness bonus only when exploited', () => {
+  assert.strictEqual(Game.fightAtkMult('power', 'guard', false, false), 1.25); // ladder, super-effective
+  assert.strictEqual(Game.fightAtkMult('power', 'swift', true, false), 1);     // boss, not exploited
+  assert.strictEqual(Game.fightAtkMult('power', 'swift', true, true), 1.35);   // boss weakness hit
+  assert.strictEqual(Game.fightAtkMult('power', 'guard', true, true), Math.round(1.25 * 1.35 * 100) / 100);
+});
