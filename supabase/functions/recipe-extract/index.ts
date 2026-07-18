@@ -198,6 +198,25 @@ async function extractTikTok(u0: URL) {
   return { ok: true, platform: 'tiktok', title, author, thumbnail, sourceText, diag };
 }
 
+// Fetch the cover/thumbnail bytes server-side and base64 them, so the client can (a) inline them as
+// durable recipe art (CDN links expire) and (b) hand the cover to the vision model when the caption
+// has no usable recipe text: the ingredient list is very often overlaid on a Reel/TikTok cover.
+async function fetchThumbBytes(url: string): Promise<{ b64: string; mime: string } | null> {
+  if (!url) return null;
+  try {
+    const r = await fetch(url, { headers: { 'user-agent': UA_BROWSER } });
+    if (!r.ok) return null;
+    const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
+    if (!mime.startsWith('image/')) return null;
+    const buf = new Uint8Array(await r.arrayBuffer());
+    if (!buf.length || buf.length > 2_500_000) return null; // skip empties / oversized covers
+    let bin = '';
+    const CH = 0x8000;
+    for (let i = 0; i < buf.length; i += CH) bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + CH)));
+    return { b64: btoa(bin), mime };
+  } catch { return null; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ ok: false, note: 'Method not allowed' }, 405);
@@ -219,7 +238,13 @@ Deno.serve(async (req) => {
 
   try {
     const out = isYT ? await extractYouTube(u) : isIG ? await extractInstagram(u) : await extractTikTok(u);
-    console.log('recipe-extract', host, (out as any).ok, (out as any).diag || '');
+    // Attach cover bytes whenever we have a thumbnail URL (on success AND failure): the client inlines
+    // them for durable art, and falls back to reading the cover with vision when the caption was thin.
+    if ((out as any).thumbnail && !(out as any).thumb_b64) {
+      const tb = await fetchThumbBytes((out as any).thumbnail);
+      if (tb) { (out as any).thumb_b64 = tb.b64; (out as any).thumb_mime = tb.mime; }
+    }
+    console.log('recipe-extract', host, (out as any).ok, (out as any).thumb_b64 ? 'thumb' : 'no-thumb', (out as any).diag || '');
     return json({ ...out, source_url: raw });
   } catch (e) {
     return json({ ok: false, note: 'Could not read that link: ' + (e as Error).message, source_url: raw });

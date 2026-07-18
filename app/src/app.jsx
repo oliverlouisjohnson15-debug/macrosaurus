@@ -196,6 +196,16 @@ async function inlineThumb(src) {
     return 'data:' + im.mime + ';base64,' + im.b64;
   } catch (e) { return ''; }
 }
+// Full-resolution cover blob from the extractor's bytes, for the vision fallback (inlineThumb caps at
+// 640px for durable art; on-screen ingredient text reads better from the original). Null if no bytes.
+function coverBlobFromSrc(src) {
+  try {
+    if (!src || !src.thumb_b64) return null;
+    const bin = atob(src.thumb_b64); const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: src.thumb_mime || 'image/jpeg' });
+  } catch (e) { return null; }
+}
 // Turn extracted source text into a normalised recipe via the existing ai-proxy. `meta` carries the
 // platform/url/thumbnail we already know so the model doesn't have to guess them.
 async function structureRecipe(sourceText, meta) {
@@ -205,9 +215,14 @@ async function structureRecipe(sourceText, meta) {
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return Rcp.normalize(parseModelJSON(txt), meta || {});
 }
-// Fallback path: structure a recipe straight from screenshot(s) of the recipe (reuses claudeVision).
-async function structureRecipeFromImages(files, meta) {
-  const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached screenshot(s).', { model: AI_MODEL_FAST, maxTokens: 4096, maxImg: 1024 });
+// Vision path: structure a recipe straight from image(s): a shared video's cover frame or the user's
+// screenshots (reuses claudeVision). `hint` is any caption/title text we did manage to read, used as a
+// weak hint while the image stays the source of truth for ingredients.
+async function structureRecipeFromImages(files, meta, hint) {
+  const ctx = hint && String(hint).trim()
+    ? '\n\nThe post caption/title (a hint only, trust the image for ingredients):\n' + String(hint).trim()
+    : '';
+  const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached image(s) (a video cover frame or screenshot); read any on-screen text carefully. If the image genuinely shows no recipe, return empty ingredients.' + ctx, { model: AI_MODEL_FAST, maxTokens: 4096, maxImg: 1024 });
   return Rcp.normalize(raw, meta || {});
 }
 // ---- Nutrition analysis (ingredient lines -> macros) ----------------------------------------
@@ -5720,6 +5735,16 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
       // Prefer inlined thumbnail bytes over the (expiring) CDN link; fall back to the URL if absent.
       const meta = { platform: src.platform || (Rcp.detectShare(u) || {}).platform || '', url: u, title: src.title || '', author: src.author || '', thumbnail: (await inlineThumb(src)) || src.thumbnail || '' };
       if (!src.ok || !src.sourceText) {
+        // No usable caption text. Before falling back to manual entry, try reading the recipe straight
+        // off the video's cover frame; Reels/TikToks very often overlay the ingredient list on it.
+        const coverBlob = coverBlobFromSrc(src);
+        if (coverBlob) {
+          setBusy('Reading the recipe from the video...');
+          try {
+            const draft = await structureRecipeFromImages([coverBlob], meta, [src.title, src.sourceText].filter(Boolean).join('\n'));
+            if (draft && Array.isArray(draft.ingredients) && draft.ingredients.length) { setDraft(draft); setBusy(''); return; }
+          } catch (e) { /* fall through to the manual fallback below */ }
+        }
         setShowFallback(true);
         setErr(src.note || 'Could not read that link automatically. Paste the caption or add a screenshot below.');
         setBusy(''); return;
