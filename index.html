@@ -7162,7 +7162,15 @@ const CR_ART = {
   // Dome-headed head-butter (pachycephalosaur): a thick, rounded skull.
   pachy: ['............', '....KKKK....', '...KBBBBK...', '...KBBBBK...', '...KBPBBK...', '..KKBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBKBBKK...', '..KK.KK.....', '............'],
   // Sail-finned prowler (dimetrodon): a rounded back-sail on a low four-legged body.
-  dimetro: ['............', '...AAAAA....', '..AKKKKKA...', '.AKBBBBBKA..', 'KKBBBBBBBK..', 'KBPBBBBBBK..', '.KBBBBBBBKK.', '.KKBBBBBKK..', '..K.KKK.K...', '............', '............', '............']
+  dimetro: ['............', '...AAAAA....', '..AKKKKKA...', '.AKBBBBBKA..', 'KKBBBBBBBK..', 'KBPBBBBBBK..', '.KBBBBBBBKK.', '.KKBBBBBKK..', '..K.KKK.K...', '............', '............', '............'],
+  // Rounded stony boulder-beast: hunched, low, with cracked scutes (S) in the shell.
+  boulder: ['............', '...KKKKKK...', '..KBBBBBBK..', '.KBBBBBBBBK.', 'KBBPBBBBBBK.', 'KBBBBBSBBBK.', 'KBSBBBBBBBK.', 'KBBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............'],
+  // Round-bodied glutton: small head, big belly patch (T), stubby legs.
+  blob: ['....KKK.....', '...KBBBK....', '...KBPBK....', '..KBBBBBK...', '.KBBBBBBBK..', 'KBBBBBBBBBK.', 'KBBBTTTBBBK.', 'KBBTTTTTBBK.', 'KBBBTTTBBBK.', '.KBBBBBBBK..', '.KBK.K.KBK..', '.KK.....KK..'],
+  // Leafy long-neck: a broad frond (L) sprouting off the head, tall neck, plump body.
+  leafneck: ['....LL......', '...LLLL.....', '.....KKK....', '....KBBBK...', '....KBPBK...', '.....KBBK...', '.....KBBK...', '...KKBBKKK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.'],
+  // Smooth-domed tank: a rounded armour dome (A) instead of spikes, low wide body.
+  domeback: ['............', '....AAAA....', '..KKAAAAKK..', '.KBBBBBBBBK.', 'KBBBBBBBBBBK', 'KBPBBBBBBBBK', 'KBBBBBBBBBBK', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............', '............']
 };
 function crC(B, S) {
   return {
@@ -7372,7 +7380,7 @@ const CREATURES = [
 }, {
   id: 'pebble',
   name: 'Pebble',
-  art: 'hatch',
+  art: 'boulder',
   colors: crC('#9FB8C9', '#5f7d90'),
   biome: 'nursery',
   rarity: 'common',
@@ -7456,7 +7464,7 @@ const CREATURES = [
 {
   id: 'fatzilla',
   name: 'Fatzilla',
-  art: 'saur',
+  art: 'blob',
   colors: crC('#F5C518', '#c99a10'),
   biome: 'fat',
   rarity: 'common',
@@ -7476,7 +7484,7 @@ const CREATURES = [
 }, {
   id: 'buttron',
   name: 'Buttron',
-  art: 'stego',
+  art: 'domeback',
   colors: crC('#F0C838', '#b8901c'),
   biome: 'fat',
   rarity: 'uncommon',
@@ -7507,7 +7515,7 @@ const CREATURES = [
 }, {
   id: 'frondo',
   name: 'Frondo',
-  art: 'longneck',
+  art: 'leafneck',
   colors: crC('#66C24F', '#357f28'),
   biome: 'fibre',
   rarity: 'uncommon',
@@ -8634,7 +8642,7 @@ const FIGHT_LADDER = [{
   ability: 'none'
 }, {
   name: 'Pebble',
-  art: 'hatch',
+  art: 'boulder',
   colors: crC('#9FB8C9', '#5f7d90'),
   power: 1,
   ability: 'none'
@@ -8652,7 +8660,7 @@ const FIGHT_LADDER = [{
   ability: 'heal'
 }, {
   name: 'Fatzilla',
-  art: 'saur',
+  art: 'blob',
   colors: crC('#F5C518', '#c99a10'),
   power: 3,
   ability: 'rage'

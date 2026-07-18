@@ -1986,6 +1986,14 @@ const CR_ART = {
   pachy: ['............', '....KKKK....', '...KBBBBK...', '...KBBBBK...', '...KBPBBK...', '..KKBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBKBBKK...', '..KK.KK.....', '............'],
   // Sail-finned prowler (dimetrodon): a rounded back-sail on a low four-legged body.
   dimetro: ['............', '...AAAAA....', '..AKKKKKA...', '.AKBBBBBKA..', 'KKBBBBBBBK..', 'KBPBBBBBBK..', '.KBBBBBBBKK.', '.KKBBBBBKK..', '..K.KKK.K...', '............', '............', '............'],
+  // Rounded stony boulder-beast: hunched, low, with cracked scutes (S) in the shell.
+  boulder: ['............', '...KKKKKK...', '..KBBBBBBK..', '.KBBBBBBBBK.', 'KBBPBBBBBBK.', 'KBBBBBSBBBK.', 'KBSBBBBBBBK.', 'KBBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............'],
+  // Round-bodied glutton: small head, big belly patch (T), stubby legs.
+  blob: ['....KKK.....', '...KBBBK....', '...KBPBK....', '..KBBBBBK...', '.KBBBBBBBK..', 'KBBBBBBBBBK.', 'KBBBTTTBBBK.', 'KBBTTTTTBBK.', 'KBBBTTTBBBK.', '.KBBBBBBBK..', '.KBK.K.KBK..', '.KK.....KK..'],
+  // Leafy long-neck: a broad frond (L) sprouting off the head, tall neck, plump body.
+  leafneck: ['....LL......', '...LLLL.....', '.....KKK....', '....KBBBK...', '....KBPBK...', '.....KBBK...', '.....KBBK...', '...KKBBKKK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.'],
+  // Smooth-domed tank: a rounded armour dome (A) instead of spikes, low wide body.
+  domeback: ['............', '....AAAA....', '..KKAAAAKK..', '.KBBBBBBBBK.', 'KBBBBBBBBBBK', 'KBPBBBBBBBBK', 'KBBBBBBBBBBK', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............', '............'],
 };
 function crC(B, S) { return { K: '#241f2b', B: B, S: S, H: '#ffffff', W: '#ffffff', P: '#241f2b', A: S, T: '#fff6d5', L: '#54b53f' }; }
 function crShiny(c) { return Object.assign({}, c, { B: '#FFD400', S: '#B8860B', H: '#FFF6C0', A: '#B8860B' }); }
@@ -2041,7 +2049,7 @@ const CREATURES = [
   // The Nursery, any logged day
   { id: 'nugg', name: 'Nugg', art: 'egg', colors: crC('#EAD9A0', '#C77D3A'), biome: 'nursery', rarity: 'common', cond: 'Log any food on any day.', lore: 'A speckled egg kept warm by good habits. Nobody knows what hatches from it, and that is rather the point. Feed it enough days and it makes up its own mind.', evo: [{ at: 5, name: 'Nuggle', art: 'hatch', colors: crC('#EAD9A0', '#C77D3A') }, { at: 10, name: 'Nuggosaur', art: 'saur', colors: crC('#E6C878', '#b8862f') }] },
   { id: 'dinky', name: 'Dinky', art: 'hatch', colors: crC('#7FD46B', '#3f8e2f'), biome: 'nursery', rarity: 'common', cond: 'Log any food on any day.', lore: 'A curious hatchling that follows you home the very first day you log. Fiercely loyal, faintly clumsy, and convinced it invented breakfast.', evo: [{ at: 5, name: 'Dinko', art: 'saur', colors: crC('#6cc258', '#2f7a24') }, { at: 10, name: 'Dinorush', art: 'raptor', colors: crC('#57b043', '#245e1a') }] },
-  { id: 'pebble', name: 'Pebble', art: 'hatch', colors: crC('#9FB8C9', '#5f7d90'), biome: 'nursery', rarity: 'common', cond: 'Log any food on any day.', lore: 'Sleepy and stony-skinned, Pebble naps through most of the day and still somehow evolves. A patron saint of the slow-but-consistent.', evo: [{ at: 5, name: 'Cobble', art: 'saur', colors: crC('#8da7ba', '#4f6d80') }, { at: 10, name: 'Boulderex', art: 'anky', colors: crC('#7d97aa', '#3f5d70') }] },
+  { id: 'pebble', name: 'Pebble', art: 'boulder', colors: crC('#9FB8C9', '#5f7d90'), biome: 'nursery', rarity: 'common', cond: 'Log any food on any day.', lore: 'Sleepy and stony-skinned, Pebble naps through most of the day and still somehow evolves. A patron saint of the slow-but-consistent.', evo: [{ at: 5, name: 'Cobble', art: 'saur', colors: crC('#8da7ba', '#4f6d80') }, { at: 10, name: 'Boulderex', art: 'anky', colors: crC('#7d97aa', '#3f5d70') }] },
   // Protein Peaks
   { id: 'protops', name: 'Protops', art: 'longneck', colors: crC('#E5556B', '#a83145'), biome: 'protein', rarity: 'common', cond: 'Hit your protein target.', lore: 'Grows a neck-length taller for every gram of protein you land. A devout believer in the second helping of chicken.', evo: [{ at: 5, name: 'Protolith', art: 'pachy', colors: crC('#d94459', '#8e2436') }, { at: 10, name: 'Proterex', art: 'rex', colors: crC('#c23a4d', '#71202e') }] },
   { id: 'flexor', name: 'Flexor', art: 'raptor', colors: crC('#F0655F', '#a83a34'), biome: 'protein', rarity: 'rare', cond: 'Hit protein AND land your calories.', lore: 'A swaggering raptor that only struts out when protein and calories both land on the same day. It does not know what a rest day is.' },
@@ -2049,11 +2057,11 @@ const CREATURES = [
   { id: 'carbo', name: 'Carbo', art: 'saur', colors: crC('#4A90E2', '#2f66b0'), biome: 'carb', rarity: 'common', cond: 'Land your carb target.', lore: 'Bounds across the canyon on slow-release energy, powered by oats and good intentions. Naps at 3pm like clockwork.', evo: [{ at: 5, name: 'Carbon', art: 'longneck', colors: crC('#3f82d4', '#265a9e') }, { at: 10, name: 'Carbozon', art: 'rex', colors: crC('#356fbf', '#1e4a86') }] },
   { id: 'noodon', name: 'Noodon', art: 'para', colors: crC('#5AA0E8', '#356fb0'), biome: 'carb', rarity: 'uncommon', cond: 'Carbs on point with fibre in range.', lore: 'A gentle long-neck woven from whole grains and good noodles. Surprisingly wise; will not be rushed.' },
   // Fat Flats
-  { id: 'fatzilla', name: 'Fatzilla', art: 'saur', colors: crC('#F5C518', '#c99a10'), biome: 'fat', rarity: 'common', cond: 'Hit your healthy fats.', lore: 'Radiates a warm, oily glow and insists that avocados are, technically, a personality trait. Difficult to argue with.', evo: [{ at: 5, name: 'Fatlas', art: 'dimetro', colors: crC('#e6b910', '#b8890c') }, { at: 10, name: 'Fatalisk', art: 'rex', colors: crC('#d4a810', '#9e7a08') }] },
-  { id: 'buttron', name: 'Buttron', art: 'stego', colors: crC('#F0C838', '#b8901c'), biome: 'fat', rarity: 'uncommon', cond: 'Fats on point and calories in range.', lore: 'Plated in golden scutes of grass-fed calm. Moves slowly, thinks richly, spreads easily.' },
+  { id: 'fatzilla', name: 'Fatzilla', art: 'blob', colors: crC('#F5C518', '#c99a10'), biome: 'fat', rarity: 'common', cond: 'Hit your healthy fats.', lore: 'Radiates a warm, oily glow and insists that avocados are, technically, a personality trait. Difficult to argue with.', evo: [{ at: 5, name: 'Fatlas', art: 'dimetro', colors: crC('#e6b910', '#b8890c') }, { at: 10, name: 'Fatalisk', art: 'rex', colors: crC('#d4a810', '#9e7a08') }] },
+  { id: 'buttron', name: 'Buttron', art: 'domeback', colors: crC('#F0C838', '#b8901c'), biome: 'fat', rarity: 'uncommon', cond: 'Fats on point and calories in range.', lore: 'Plated in golden scutes of grass-fed calm. Moves slowly, thinks richly, spreads easily.' },
   // Fibre Forest
   { id: 'sprowl', name: 'Sprowl', art: 'sprout', colors: crC('#5FBF4A', '#2f7a24'), biome: 'fibre', rarity: 'common', cond: 'Reach your fibre goal.', lore: 'Sprouts a fresh leaf for every serving of veg and photosynthesises a mild, leafy smugness. Beloved by your gut bacteria.', evo: [{ at: 5, name: 'Sprowler', art: 'longneck', colors: crC('#54b03f', '#276a1e') }, { at: 10, name: 'Frondzilla', art: 'stego', colors: crC('#49a034', '#1f5a18') }] },
-  { id: 'frondo', name: 'Frondo', art: 'longneck', colors: crC('#66C24F', '#357f28'), biome: 'fibre', rarity: 'uncommon', cond: 'Fibre goal plus a protein hit.', lore: 'A leafy long-neck that only trusts you once you have eaten your greens AND your protein. Keeps a tidy compost heap.' },
+  { id: 'frondo', name: 'Frondo', art: 'leafneck', colors: crC('#66C24F', '#357f28'), biome: 'fibre', rarity: 'uncommon', cond: 'Fibre goal plus a protein hit.', lore: 'A leafy long-neck that only trusts you once you have eaten your greens AND your protein. Keeps a tidy compost heap.' },
   // Apex Ridge, perfect days
   { id: 'veloci', name: 'Veloci', art: 'raptor', colors: crC('#B06BE0', '#7a3fb0'), biome: 'apex', rarity: 'rare', cond: 'Nail a perfect macro day.', lore: 'Fast, precise and unforgiving. Appears only when every macro lands in range, and vanishes the moment you get sloppy.' },
   { id: 'platealon', name: 'Platealon', art: 'stego', colors: crC('#2FB0A0', '#1e7a70'), biome: 'apex', rarity: 'rare', cond: 'A perfect, balanced day.', lore: 'Its back-plates only align when protein, carbs and fats sit in perfect harmony. A living spirit level for your diet.' },
@@ -2426,10 +2434,10 @@ function DailyCatch({ db, date }) {
 /* ---- Auto-battle: your buddy (stats from your recent eating) vs a rival ladder + rotating weekly boss ---- */
 const FIGHT_LADDER = [
   { name: 'Dinky', art: 'hatch', colors: crC('#7FD46B', '#3f8e2f'), power: 1, ability: 'none' },
-  { name: 'Pebble', art: 'hatch', colors: crC('#9FB8C9', '#5f7d90'), power: 1, ability: 'none' },
+  { name: 'Pebble', art: 'boulder', colors: crC('#9FB8C9', '#5f7d90'), power: 1, ability: 'none' },
   { name: 'Carbo', art: 'saur', colors: crC('#4A90E2', '#2f66b0'), power: 2, ability: 'dodge' },
   { name: 'Sprowl', art: 'sprout', colors: crC('#5FBF4A', '#2f7a24'), power: 2, ability: 'heal' },
-  { name: 'Fatzilla', art: 'saur', colors: crC('#F5C518', '#c99a10'), power: 3, ability: 'rage' },
+  { name: 'Fatzilla', art: 'blob', colors: crC('#F5C518', '#c99a10'), power: 3, ability: 'rage' },
   { name: 'Protops', art: 'longneck', colors: crC('#E5556B', '#a83145'), power: 3, ability: 'dodge' },
   { name: 'Triceros', art: 'trike', colors: crC('#E0975B', '#a8642f'), power: 4, ability: 'heal' },
   { name: 'Platealon', art: 'stego', colors: crC('#2FB0A0', '#1e7a70'), power: 4, ability: 'rage' },
