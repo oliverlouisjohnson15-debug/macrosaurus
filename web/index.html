@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Macrosaurus, the macro tracker that adapts (and is actually fun)</title>
 <meta name="description" content="Science-based macro targets that adapt to your body every week. Log food in seconds with AI, cook recipes tuned to your macros, and collect dinosaurs as you go. Free to start.">
+<link rel="canonical" href="https://macrosaurus.com/">
+<meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#5B4FA6">
@@ -22,6 +24,19 @@
 <meta name="twitter:description" content="Science-based macro targets that adapt every week, AI food logging, macro-tuned recipes, and a game that keeps you coming back.">
 <meta name="twitter:image" content="https://macrosaurus.com/og.png">
 <style>html,body{margin:0;padding:0;background:#F0F0F0;}</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type":"Question","name":"Is it really free?","acceptedAnswer":{"@type":"Answer","text":"Yes. Core tracking, the adaptive engine, weekly check-ins, and the entire game are free forever. Premium adds unlimited AI logging, the full recipe library, and body-fat scans."}},
+    {"@type":"Question","name":"Is it actually science-based?","acceptedAnswer":{"@type":"Answer","text":"Yes. Your targets adapt each week from your real trend weight using research-backed methods, and you can always see exactly why they changed. No black box, no mystery numbers."}},
+    {"@type":"Question","name":"How is it different from other trackers?","acceptedAnswer":{"@type":"Answer","text":"You still get the clever adaptive science and quick AI logging you'd expect, plus two things most trackers skip: a recipe module that works out the macros of real meals, and a game that genuinely makes you want to log. And it's built for the UK, your units and your supermarket, not just the States."}},
+    {"@type":"Question","name":"Can I import recipes from TikTok or Instagram?","acceptedAnswer":{"@type":"Answer","text":"Yes. Share a cooking video straight to Macrosaurus from the TikTok or Instagram share sheet, or paste the link. We pull out the ingredients and method, work the macros out to the gram, and save it to your library sorted by what fits your day — so you never have to pause and rewind a 30-second video again."}},
+    {"@type":"Question","name":"Do I have to weigh my food?","acceptedAnswer":{"@type":"Answer","text":"No. Scan a barcode, snap the label, or photograph the plate and let AI estimate it. Weighing is optional if you want extra precision."}}
+  ]
+}
+</script>
 </head>
 <body>
 <style>
@@ -284,7 +299,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 .foot-col{display:flex; flex-direction:column; gap:10px;}
 .foot-col b{font-family:var(--pix); font-size:9px; color:var(--ink); letter-spacing:.5px; margin-bottom:4px;}
 .foot-col a{color:var(--muted); text-decoration:none; font-size:13px;} .foot-col a:hover{color:var(--purple);}
-.foot-base{margin-top:34px; font-size:12px; color:#8a8a90; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; border-top:2px solid var(--track); padding-top:20px;}
+.foot-base{margin-top:34px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; border-top:2px solid var(--track); padding-top:20px;}
 
 /* scroll reveal */
 .reveal{opacity:0; transform:translateY(16px); transition:opacity .55s ease, transform .55s ease;}
@@ -328,7 +343,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div class="hero-note"><span class="blink" style="color:var(--teal)">&#9646;</span> Free forever plan &#183; <b>7-day Premium trial</b> &#183; Cancel anytime</div>
       </div>
 
-      <div class="phone-col">
+      <div class="phone-col" aria-hidden="true">
         <div class="phone">
           <div class="scr">
             <div class="scr-top"><span>TODAY</span><span class="lv">LV.12 &#9889;24</span></div>
@@ -349,7 +364,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
   </header>
 
   <!-- TICKER -->
-  <div class="ticker">
+  <div class="ticker" aria-hidden="true">
     <div class="ticker-in">
       <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
       <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
@@ -364,7 +379,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
     <div class="rows">
       <!-- AI LOGGING -->
       <div class="row reveal" id="logging">
-        <div class="row-media">
+        <div class="row-media" aria-hidden="true">
           <div class="ai-flow">
             <div class="ai-photo"><canvas data-meal="chickrice"></canvas></div>
             <div class="ai-arrow">&#9660; AI READS IT</div>
@@ -385,7 +400,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 
       <!-- RECIPES -->
       <div class="row rev reveal" id="recipes">
-        <div class="row-media">
+        <div class="row-media" aria-hidden="true">
           <div class="import-bar"><span class="ib-ico">&#9654;</span><span class="ib-txt">Shared from TikTok / Instagram</span><span class="ib-go">GET RECIPE</span></div>
           <div class="reels">
             <div class="reel r1"><canvas data-meal="chickrice"></canvas><span class="kb">52g P</span><span class="rlbl">High-protein<br>chicken bowl</span></div>
@@ -404,7 +419,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 
       <!-- MACRODEX -->
       <div class="row reveal" id="macrodex">
-        <div class="row-media">
+        <div class="row-media" aria-hidden="true">
           <div class="dexgrid">
             <div class="crt lit">&#129429;</div><div class="crt lit">&#129430;</div><div class="crt gold">&#128018;</div><div class="crt lit">&#129445;</div>
             <div class="crt lit">&#128010;</div><div class="crt empty">?</div><div class="crt lit">&#129433;</div><div class="crt empty">?</div>
