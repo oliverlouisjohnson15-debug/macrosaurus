@@ -66,21 +66,23 @@ function PixelGlyph({ kind, color, size }) {
 // compatibility but ignored (the mascot carries its own fixed palette so it reads on any
 // background: the dark nav chip, the header box, and light screens alike).
 const DINO_ART = [
-  '..........KKK.',
-  '.........KBBBK',
-  '.........KBEBK',
-  '.........KBBBK',
-  '.......KKKBBBK',
-  '.....KKBBBBBBK',
-  '....KBBBBBBBBK',
-  '.KKKBBBBBBBBK.',
-  'KBBBBBBBHHBK..',
-  'KKBBBBBHHBBK..',
-  '..KBBK.KBBK...',
-  '..KBK..KBBK...',
-  '..KK...KKK....',
+  '..........LLLLL.',
+  '..........BBBBBB',
+  '..........BBPBBB',
+  '..........BBBB..',
+  'L.........DBBB..',
+  'BL.......DBBBB..',
+  'BBLD.D.DDBBBBB..',
+  'BBBLLLLLLLBBBB..',
+  '.BBBBBBBBBBBBB..',
+  '..BBBBBBBBBBBL..',
+  '..BBBBBBBBBBB...',
+  '..BBBBBBBBBB....',
+  '..BBB..BBBB.....',
+  '..BBB..BBB......',
+  '..DDD..BDDD.....',
 ];
-const DINO_COLORS = { K: '#1b1622', B: '#55C24A', S: '#2E8B3B', H: '#9EE88C', E: '#ffffff' };
+const DINO_COLORS = { L: '#7BD957', B: '#46B94A', D: '#2C8C3E', P: '#123A1C' };
 function PixelDino({ size, className }) {
   const px = size || 24, w = DINO_ART[0].length, h = DINO_ART.length, rects = [];
   DINO_ART.forEach((row, y) => row.split('').forEach((ch, x) => { const c = DINO_COLORS[ch]; if (ch !== '.' && c) rects.push(<rect key={x + '_' + y} x={x} y={y} width="1.03" height="1.03" fill={c} />); }));
