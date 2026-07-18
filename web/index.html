@@ -32,7 +32,7 @@
     {"@type":"Question","name":"Is it really free?","acceptedAnswer":{"@type":"Answer","text":"Yes. Core tracking, the adaptive engine, weekly check-ins, and the entire game are free forever. Premium adds unlimited AI logging, the full recipe library, and body-fat scans."}},
     {"@type":"Question","name":"Is it actually science-based?","acceptedAnswer":{"@type":"Answer","text":"Yes. Your targets adapt each week from your real trend weight using research-backed methods, and you can always see exactly why they changed. No black box, no mystery numbers."}},
     {"@type":"Question","name":"How is it different from other trackers?","acceptedAnswer":{"@type":"Answer","text":"You still get the clever adaptive science and quick AI logging you'd expect, plus two things most trackers skip: a recipe module that works out the macros of real meals, and a game that genuinely makes you want to log. And it's built for the UK, your units and your supermarket, not just the States."}},
-    {"@type":"Question","name":"Can I import recipes from Instagram or YouTube?","acceptedAnswer":{"@type":"Answer","text":"Yes. Share a cooking Reel or Short straight to Macrosaurus from Instagram or YouTube, or paste the link. We pull out the ingredients and method, work the macros out to the gram, and save it to your library sorted by what fits your day — so you never have to pause and rewind a 30-second video again. (TikTok isn't supported yet.)"}},
+    {"@type":"Question","name":"Can I import recipes from TikTok, Instagram or YouTube?","acceptedAnswer":{"@type":"Answer","text":"Yes. Share a cooking video straight to Macrosaurus from TikTok, Instagram or YouTube, or paste the link. We pull out the ingredients and method, work the macros out to the gram, and save it to your library sorted by what fits your day — so you never have to pause and rewind a 30-second video again."}},
     {"@type":"Question","name":"Do I have to weigh my food?","acceptedAnswer":{"@type":"Answer","text":"No. Scan a barcode, snap the label, or photograph the plate and let AI estimate it. Weighing is optional if you want extra precision."}}
   ]
 }
@@ -401,7 +401,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <!-- RECIPES -->
       <div class="row rev reveal" id="recipes">
         <div class="row-media" aria-hidden="true">
-          <div class="import-bar"><span class="ib-ico">&#9654;</span><span class="ib-txt">Shared from Instagram / YouTube</span><span class="ib-go">GET RECIPE</span></div>
+          <div class="import-bar"><span class="ib-ico">&#9654;</span><span class="ib-txt">Shared from TikTok / Instagram / YouTube</span><span class="ib-go">GET RECIPE</span></div>
           <div class="reels">
             <div class="reel r1"><canvas data-meal="chickrice"></canvas><span class="kb">52g P</span><span class="rlbl">High-protein<br>chicken bowl</span></div>
             <div class="reel r3"><canvas data-meal="burrito"></canvas><span class="kb">38g P</span><span class="rlbl">Steak<br>burrito</span></div>
@@ -412,8 +412,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div>
           <span class="kt" style="color:var(--gold)">SOCIAL RECIPE IMPORT</span>
           <h3>Turn any food video into a recipe.</h3>
-          <p>See a recipe you like on Instagram or YouTube? Share the Reel or Short straight to Macrosaurus, or paste the link. We pull out the full recipe so you're not scrubbing a 30-second video, cost every macro to the gram, and slot it into your library sorted by what fits your day. Cook it, log it in a tap, feed your streak.</p>
-          <div class="chips"><span class="chip">Share from Reels &amp; Shorts</span><span class="chip">Macros to the gram</span></div>
+          <p>See a recipe you like on TikTok, Instagram or YouTube? Share the video straight to Macrosaurus, or paste the link. We pull out the full recipe so you're not scrubbing a 30-second video, cost every macro to the gram, and slot it into your library sorted by what fits your day. Cook it, log it in a tap, feed your streak.</p>
+          <div class="chips"><span class="chip">Share from TikTok, Reels &amp; Shorts</span><span class="chip">Macros to the gram</span></div>
         </div>
       </div>
 
@@ -465,7 +465,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           <tbody>
             <tr><td class="feat-name">Targets that adapt to you weekly</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Fixed or manual</td></tr>
             <tr><td class="feat-name">AI photo, voice &amp; text logging</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Mostly manual search</td></tr>
-            <tr><td class="feat-name">Import recipes from a Reel or Short</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
+            <tr><td class="feat-name">Import recipes from a TikTok, Reel or Short</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
             <tr><td class="feat-name">Macro-tuned recipe library</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
             <tr><td class="feat-name">Actually fun to open (game layer)</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
             <tr><td class="feat-name">Shows why your targets changed</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Often a black box</td></tr>
@@ -537,8 +537,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div class="ans">You still get the clever adaptive science and quick AI logging you'd expect, plus two things most trackers skip: a recipe module that works out the macros of real meals, and a game that genuinely makes you want to log. And it's built for the UK, your units and your supermarket, not just the States.</div>
       </details>
       <details class="qa">
-        <summary>Can I import recipes from Instagram or YouTube?<span class="plus">+</span></summary>
-        <div class="ans">Yes. Share a cooking Reel or Short straight to Macrosaurus from Instagram or YouTube, or paste the link. We pull out the ingredients and method, work the macros out to the gram, and save it to your library sorted by what fits your day &mdash; so you never have to pause and rewind a 30-second video again. (TikTok isn&rsquo;t supported yet.)</div>
+        <summary>Can I import recipes from TikTok, Instagram or YouTube?<span class="plus">+</span></summary>
+        <div class="ans">Yes. Share a cooking video straight to Macrosaurus from TikTok, Instagram or YouTube, or paste the link. We pull out the ingredients and method, work the macros out to the gram, and save it to your library sorted by what fits your day &mdash; so you never have to pause and rewind a 30-second video again.</div>
       </details>
       <details class="qa">
         <summary>Do I have to weigh my food?<span class="plus">+</span></summary>

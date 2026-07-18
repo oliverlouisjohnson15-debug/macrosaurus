@@ -7,12 +7,21 @@ const Recipe = require('../app/recipe.js');
 const Store = require('../app/store.js');
 
 // ---- detectShare -----------------------------------------------------------------------------
-test('detectShare finds YouTube/Instagram links in shared text', () => {
+test('detectShare finds YouTube/Instagram/TikTok links in shared text', () => {
   assert.deepStrictEqual(Recipe.detectShare('nice wrap https://www.youtube.com/shorts/abc go'), { platform: 'youtube', url: 'https://www.youtube.com/shorts/abc' });
   assert.strictEqual(Recipe.detectShare('https://youtu.be/xY').platform, 'youtube');
   assert.strictEqual(Recipe.detectShare('look https://www.instagram.com/reel/CxYz/').platform, 'instagram');
+  assert.strictEqual(Recipe.detectShare('recipe https://www.tiktok.com/@chef/video/7123456789 yum').platform, 'tiktok');
+  assert.strictEqual(Recipe.detectShare('quick one https://vm.tiktok.com/ZMabc123/').platform, 'tiktok');
+  assert.strictEqual(Recipe.detectShare('https://vt.tiktok.com/ZSxyz/').platform, 'tiktok');
   assert.strictEqual(Recipe.detectShare('just notes'), null);
   assert.strictEqual(Recipe.detectShare('https://example.com/recipe'), null);
+});
+test('platformLabel maps known platforms', () => {
+  assert.strictEqual(Recipe.platformLabel('tiktok'), 'TikTok');
+  assert.strictEqual(Recipe.platformLabel('youtube'), 'YouTube');
+  assert.strictEqual(Recipe.platformLabel('instagram'), 'Instagram');
+  assert.strictEqual(Recipe.platformLabel('whatever'), 'Link');
 });
 
 // ---- lineOf / nameFromLine -------------------------------------------------------------------

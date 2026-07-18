@@ -1818,7 +1818,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return best;
   }
 
-  // Pull the first YouTube/Instagram link out of shared text. Returns { platform, url } or null.
+  // Pull the first YouTube/Instagram/TikTok link out of shared text. Returns { platform, url } or null.
   function detectShare(text) {
     var m = String(text || '').match(/https?:\/\/[^\s"'<>]+/g);
     if (!m) return null;
@@ -1827,10 +1827,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { continue; }
       if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtu.be') return { platform: 'youtube', url: url };
       if (host === 'instagram.com') return { platform: 'instagram', url: url };
+      if (host === 'tiktok.com' || host === 'm.tiktok.com' || host === 'vm.tiktok.com' || host === 'vt.tiktok.com') return { platform: 'tiktok', url: url };
     }
     return null;
   }
-  function platformLabel(p) { return p === 'youtube' ? 'YouTube' : p === 'instagram' ? 'Instagram' : 'Link'; }
+  function platformLabel(p) { return p === 'youtube' ? 'YouTube' : p === 'instagram' ? 'Instagram' : p === 'tiktok' ? 'TikTok' : 'Link'; }
 
   // Clean the raw AI JSON into the stored recipe shape. Ingredients arrive as strings (lines); we also
   // tolerate legacy object ingredients. Per-serving macros are only taken from the source when it
@@ -2321,7 +2322,7 @@ const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutriti
 // small monthly spend cap per account. No API key is ever shipped to the browser.
 const AI_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/ai-proxy';
 // recipe-extract fetches the public text (title, description, transcript, caption) behind a shared
-// YouTube/Instagram link server-side (the browser can't, due to CORS). It holds no key and calls no
+// YouTube/Instagram/TikTok link server-side (the browser can't, due to CORS). It holds no key and calls no
 // paid API; we then hand its text to the normal ai-proxy to structure into a recipe.
 const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/recipe-extract';
 // nutrition-analyze turns ingredient LINES into per-ingredient + total macros via a real nutrition
@@ -2446,7 +2447,7 @@ async function coachNarrative(key, payload) {
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
-// Fetch the public text behind a shared YouTube/Instagram link via the recipe-extract Edge Function.
+// Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
 // Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
 async function extractRecipeSource(url) {
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
@@ -18099,7 +18100,7 @@ function OnboardingChecklist({
 }
 
 /* ========================== Recipes module ==========================
-   Share a YouTube Short / Instagram Reel (or paste a link/caption) -> the recipe-extract Edge
+   Share a YouTube Short / Instagram Reel / TikTok (or paste a link/caption) -> the recipe-extract Edge
    Function pulls the public text -> ai-proxy structures it into ingredients + steps + per-serving
    macros -> save it, tick what you have (the rest rolls up into a shopping list), and log a cooked
    serving straight into the food diary via the same addEntry path everything else uses. */
@@ -18287,12 +18288,12 @@ function ShareTip({
     className: "text-[13px] font-bold"
   }, "Best way: share it straight to Macrosaurus")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-snug"
-  }, "In Instagram or YouTube, tap ", /*#__PURE__*/React.createElement("span", {
+  }, "In Instagram, TikTok or YouTube, tap ", /*#__PURE__*/React.createElement("span", {
     className: "font-semibold",
     style: {
       color: 'var(--text)'
     }
-  }, "Share"), " on the Reel or Short, then pick ", /*#__PURE__*/React.createElement("span", {
+  }, "Share"), " on the Reel, video or Short, then pick ", /*#__PURE__*/React.createElement("span", {
     className: "font-semibold",
     style: {
       color: 'var(--text)'

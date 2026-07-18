@@ -114,7 +114,7 @@
     return best;
   }
 
-  // Pull the first YouTube/Instagram link out of shared text. Returns { platform, url } or null.
+  // Pull the first YouTube/Instagram/TikTok link out of shared text. Returns { platform, url } or null.
   function detectShare(text) {
     var m = String(text || '').match(/https?:\/\/[^\s"'<>]+/g);
     if (!m) return null;
@@ -123,10 +123,11 @@
       try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { continue; }
       if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtu.be') return { platform: 'youtube', url: url };
       if (host === 'instagram.com') return { platform: 'instagram', url: url };
+      if (host === 'tiktok.com' || host === 'm.tiktok.com' || host === 'vm.tiktok.com' || host === 'vt.tiktok.com') return { platform: 'tiktok', url: url };
     }
     return null;
   }
-  function platformLabel(p) { return p === 'youtube' ? 'YouTube' : p === 'instagram' ? 'Instagram' : 'Link'; }
+  function platformLabel(p) { return p === 'youtube' ? 'YouTube' : p === 'instagram' ? 'Instagram' : p === 'tiktok' ? 'TikTok' : 'Link'; }
 
   // Clean the raw AI JSON into the stored recipe shape. Ingredients arrive as strings (lines); we also
   // tolerate legacy object ingredients. Per-serving macros are only taken from the source when it

@@ -1,4 +1,4 @@
-// recipe-extract - fetch the public text behind a shared YouTube Short or Instagram Reel so the
+// recipe-extract - fetch the public text behind a shared YouTube Short, Instagram Reel or TikTok so the
 // client can hand it to the AI structurer (via the existing ai-proxy). This function holds NO API
 // keys and calls no paid API: it only fetches public pages the browser itself cannot reach (CORS).
 // verify_jwt is enabled at deploy time, so only signed-in users reach it; we additionally allow-list
@@ -150,6 +150,54 @@ async function extractInstagram(u: URL) {
   return { ok: true, platform: 'instagram', thumbnail, sourceText: 'Caption:\n' + sourceText, diag };
 }
 
+// TikTok has no captions API we can reach, but its public oEmbed returns the video caption in
+// `title` (plus author + thumbnail); the video page's og:description / embedded "desc" is the
+// fallback. Short share links (vm./vt.tiktok.com) 30x-redirect to the canonical video URL, so we
+// resolve those first and re-check the host, so a short link can't redirect us off TikTok (SSRF).
+function isTikTokHost(h: string): boolean {
+  h = h.replace(/^www\./, '');
+  return h === 'tiktok.com' || h === 'm.tiktok.com' || h === 'vm.tiktok.com' || h === 'vt.tiktok.com';
+}
+async function tiktokCanonical(u: URL): Promise<URL> {
+  const h = u.hostname.replace(/^www\./, '');
+  if (h !== 'vm.tiktok.com' && h !== 'vt.tiktok.com') return u;
+  try {
+    const r = await fetch(u.toString(), { headers: { 'user-agent': UA_BROWSER }, redirect: 'follow' });
+    try { await r.body?.cancel(); } catch { /* ignore */ }
+    try { const cu = new URL(r.url); if (isTikTokHost(cu.hostname) && cu.hostname.replace(/^www\./, '') !== u.hostname.replace(/^www\./, '')) return cu; } catch { /* keep original */ }
+  } catch { /* keep original */ }
+  return u;
+}
+async function extractTikTok(u0: URL) {
+  const u = await tiktokCanonical(u0);
+  const canon = u.toString().split('?')[0].split('#')[0];
+  let title = '', author = '', thumbnail = '', caption = '', diag = '';
+  try {
+    const o = await fetch('https://www.tiktok.com/oembed?url=' + encodeURIComponent(canon), { headers: { 'user-agent': UA_BROWSER } });
+    diag = 'oembed ' + o.status;
+    if (o.ok) { const j = await o.json(); title = j.title || ''; author = j.author_name || ''; thumbnail = j.thumbnail_url || ''; if (j.title) caption = j.title; }
+  } catch (e) { diag += ' oembed-err ' + (e as Error).message; }
+  if (!caption || caption.length < 20) {
+    try {
+      const r = await fetch(u.toString(), { headers: { 'user-agent': UA_BROWSER, 'accept-language': 'en-US,en;q=0.9' }, redirect: 'follow' });
+      const html = await r.text();
+      diag += ' | page ' + r.status + '/' + Math.round(html.length / 1024) + 'kb';
+      if (!thumbnail) { const t = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]*)"/i); if (t) thumbnail = decodeEntities(t[1]); }
+      const m = html.match(/"desc"\s*:\s*"((?:\\.|[^"\\])*)"/);
+      if (m && m[1]) { const t = unescapeJson(m[1]); if (t.trim().length > caption.length) caption = t; }
+      if (!caption || caption.length < 20) {
+        const og = html.match(/<meta[^>]+property="og:description"[^>]+content="([^"]*)"/i) || html.match(/<meta[^>]+content="([^"]*)"[^>]+property="og:description"/i);
+        if (og && og[1]) { const t = decodeEntities(og[1]).trim(); if (t.length > 15) caption = t; }
+      }
+    } catch (e) { diag += ' page-err ' + (e as Error).message; }
+  }
+  const sourceText = clip(caption ? ('Caption:\n' + caption) : '');
+  if (!sourceText || sourceText.length < 20) {
+    return { ok: false, platform: 'tiktok', title, author, thumbnail, note: 'Could not read this TikTok automatically (its caption may be too short or hidden). Paste the caption or share a screenshot instead. (' + diag + ')', diag };
+  }
+  return { ok: true, platform: 'tiktok', title, author, thumbnail, sourceText, diag };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ ok: false, note: 'Method not allowed' }, 405);
@@ -166,10 +214,11 @@ Deno.serve(async (req) => {
   const host = u.hostname.replace(/^www\./, '');
   const isYT = host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtu.be';
   const isIG = host === 'instagram.com';
-  if (!isYT && !isIG) return json({ ok: false, note: 'Share a YouTube or Instagram link. Other sites are not supported yet.' }, 400);
+  const isTT = isTikTokHost(host);
+  if (!isYT && !isIG && !isTT) return json({ ok: false, note: 'Share a YouTube, Instagram or TikTok link. Other sites are not supported yet.' }, 400);
 
   try {
-    const out = isYT ? await extractYouTube(u) : await extractInstagram(u);
+    const out = isYT ? await extractYouTube(u) : isIG ? await extractInstagram(u) : await extractTikTok(u);
     console.log('recipe-extract', host, (out as any).ok, (out as any).diag || '');
     return json({ ...out, source_url: raw });
   } catch (e) {
