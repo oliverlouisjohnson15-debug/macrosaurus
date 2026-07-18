@@ -2913,54 +2913,69 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
   const NEED_META = { hunger: ['Fed', 'var(--good)'], nourish: ['Fuel', 'var(--carb)'], energy: ['Energy', 'var(--fat)'] };
 
   return (
-    <div className="bg-[#161618] pixel-box p-3 mb-4">
-      <div className="flex items-center justify-between mb-2.5">
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">My buddy</span>
-        <button onClick={onOpenDex} className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--good)' }}>Dex {caught}/{dexTotal} ›</button>
-      </div>
-      <button onClick={onOpenDex} className="w-full text-left flex items-center gap-3">
-        <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }}><div style={crFx(false, disp.aura)}><Sprite art={disp.art} colors={disp.colors} px={3.4} /></div></div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[12px] font-bold truncate leading-tight">{name}</span>
-            {profile && profile.name ? <span className="pf text-[7px] uppercase text-[#8A8A90] shrink-0 truncate">{disp.name}</span> : null}
-            <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onName && onName(); }}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onName && onName(); } }}
-              className="text-[10px] text-[#8A8A90] shrink-0 leading-none px-0.5" aria-label={profile && profile.name ? 'Rename buddy' : 'Name your buddy'}>✎</span>
-          </div>
-          {mm ? <div className="text-[9px] leading-snug mt-0.5"><span className="pf uppercase text-[7px]" style={{ color: mm.color }}>{mm.label}</span> <span className="text-[#8A8A90]">{moodLn}</span></div> : null}
-          <div className="text-[9px] text-[#8A8A90] flex items-center gap-2 mt-0.5">
-            <span className="inline-flex items-center gap-1"><PixelFire size={11} />{streak}d{best > streak ? <span> · best {best}</span> : null}</span>
+    <div className="mb-4">
+      {/* Hero: the buddy is the centrepiece, name and mood carry the personality */}
+      <div className="bg-[#161618] pixel-box p-4 mb-2.5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="pf text-[8px] uppercase text-[#8A8A90]">My buddy</span>
+          <span className="pf text-[9px] text-[#8A8A90] inline-flex items-center gap-2">
+            <span className="inline-flex items-center gap-1" title={`${streak} day streak${best > streak ? ', best ' + best : ''}`}><PixelFire size={11} />{streak}</span>
             {hearts ? <span className="inline-flex items-center gap-px" title={`Bond ${profile.bond.hearts}/${profile.bond.maxHearts}`}>{hearts}</span> : null}
+          </span>
+        </div>
+        <div className="flex items-center gap-3.5">
+          <button onClick={onOpenDex} className="pixel-box p-2 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
+            <div style={crFx(false, disp.aura)}><Sprite art={disp.art} colors={disp.colors} px={4.8} /></div>
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[18px] font-bold leading-none truncate">{name}</span>
+              <span role="button" tabIndex={0} onClick={() => onName && onName()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onName && onName(); }}
+                className="text-[11px] text-[#8A8A90] shrink-0 leading-none" aria-label={profile && profile.name ? 'Rename buddy' : 'Name your buddy'}>✎</span>
+            </div>
+            <div className="pf text-[8px] uppercase text-[#8A8A90] mt-1 truncate">{profile && profile.name ? disp.name + ' · ' : ''}Lv {profile ? profile.level : 0}</div>
+            {mm ? <div className="text-[12px] leading-snug mt-2"><span style={{ color: mm.color }}>●</span> <span>{moodLn}</span></div> : null}
           </div>
-          {ev ? <div className="mt-1.5 flex items-center gap-1.5" title={ev.atMax ? ('Level ' + ev.level + ' quality days') : ('Evolves to ' + ev.nextName + ' at ' + ev.levelNeed + ' quality days and ' + ev.heartsNeed + ' hearts')}>
-            <div className="pixel-bar flex-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (ev.progress * 100) + '%', background: ev.ready ? 'var(--fat)' : 'var(--good)', transition: 'width .4s' }} /></div>
-            <span className="pf text-[7px] uppercase shrink-0 text-[#8A8A90]">{ev.atMax ? ('Lv ' + ev.level) : ev.ready ? 'Evolving!' : ('→ ' + ev.nextName)}</span>
-          </div> : null}
         </div>
-      </button>
-      {profile ? <div className="flex gap-2 mt-2.5">{['hunger', 'nourish', 'energy'].map(k => (
-        <div key={k} className="flex-1">
-          <div className="pf text-[6.5px] uppercase text-[#8A8A90] mb-0.5">{NEED_META[k][0]}</div>
-          <div className="pixel-bar" style={{ height: 6, borderWidth: 2 }}><i style={{ width: Math.round(profile.needs[k] * 100) + '%', background: NEED_META[k][1], transition: 'width .4s' }} /></div>
+        {ev ? <div className="mt-3.5" title={ev.atMax ? ('Level ' + ev.level + ' quality days') : ('Evolves to ' + ev.nextName + ' at ' + ev.levelNeed + ' quality days and ' + ev.heartsNeed + ' hearts')}>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="pf text-[8px] uppercase text-[#8A8A90]">{ev.atMax ? 'Fully evolved' : ev.ready ? 'Ready to evolve!' : 'Evolving to ' + ev.nextName}</span>
+            <span className="pf text-[8px] text-[#8A8A90] shrink-0">{ev.atMax ? ('Lv ' + ev.level) : (Math.min(ev.level, ev.levelNeed) + '/' + ev.levelNeed + ' days · ♥' + Math.min(ev.hearts, ev.heartsNeed))}</span>
+          </div>
+          <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (ev.progress * 100) + '%', background: ev.ready ? 'var(--fat)' : 'var(--good)', transition: 'width .4s' }} /></div>
+        </div> : null}
+        {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-3">Feed your buddy well each day and it bonds, grows and evolves. Every log also adds a creature to your dex.</div>}
+      </div>
+
+      {/* Care: the day's needs, framed as feeding, with one clear action */}
+      {profile ? <div className="bg-[#161618] pixel-box p-3.5 mb-2.5">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="pf text-[8px] uppercase text-[#8A8A90]">Today's care</span>
+          <span className="pf text-[8px] uppercase" style={{ color: profile.craving ? 'var(--fat)' : 'var(--good)' }}>{profile.craving ? 'Craving ' + (CRAVE_LABEL[profile.craving] || 'a meal') : 'Well fed ✓'}</span>
         </div>
-      ))}</div> : null}
-      {profile ? (profile.craving
-        ? <button onClick={onLog} className="w-full mt-2 text-[9px] text-center leading-snug" style={{ color: 'var(--fat)' }}>Craving {CRAVE_LABEL[profile.craving] || 'a good meal'}, log a meal to feed {name} ›</button>
-        : <div className="w-full mt-2 text-[9px] text-center" style={{ color: 'var(--good)' }}>Well fed today ✓</div>) : null}
-      {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-2.5">Every day you log and weigh in adds a prehistoric creature to your dex. Feed your buddy well and it bonds, grows and evolves.</div>}
-      <div className="flex gap-2 mt-3">
-        <button onClick={onOpenDex} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--surface3)' }}>
-          <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1">Catch today</div>
+        <div className="flex gap-2.5">{['hunger', 'nourish', 'energy'].map(k => (
+          <div key={k} className="flex-1">
+            <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1">{NEED_META[k][0]}</div>
+            <div className="pixel-bar" style={{ height: 8, borderWidth: 2 }}><i style={{ width: Math.round(profile.needs[k] * 100) + '%', background: NEED_META[k][1], transition: 'width .4s' }} /></div>
+          </div>
+        ))}</div>
+        {profile.craving ? <button onClick={onLog} className="pixel-btn w-full py-2.5 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[9px]">Log a meal to feed {name}</span></button> : null}
+      </div> : null}
+
+      {/* Actions: the two daily hooks as clean tiles */}
+      <div className="flex gap-2.5">
+        <button onClick={onOpenDex} className="pixel-btn flex-1 py-2.5 px-2" style={{ background: 'var(--surface3)' }}>
+          <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1.5">Catch today</div>
           <div className="text-[10px] flex items-center justify-center gap-1.5">{pcr
-            ? <><span className="inline-flex"><Sprite art={pcr.art} colors={crSilhouette()} px={1.3} /></span><span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[pcr.rarity] }}>{CR_RARITY_LABEL[pcr.rarity]}{todayCr.shiny ? ' ✦' : ''}</span></>
+            ? <><span className="inline-flex"><Sprite art={pcr.art} colors={crSilhouette()} px={1.5} /></span><span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[pcr.rarity] }}>{CR_RARITY_LABEL[pcr.rarity]}{todayCr.shiny ? ' ✦' : ''}</span></>
             : <span className="text-[#8A8A90]">???</span>}</div>
         </button>
-        <button onClick={onOpenFight} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--carb)', color: '#fff', opacity: attemptUsed ? 0.6 : 1 }}>
-          <div className="pf text-[7px] uppercase mb-1" style={{ opacity: 0.85 }}>{ladderCleared ? 'Ladder clear' : 'Rung ' + ((fght.rank || 0) + 1) + '/' + FIGHT_LADDER.length}</div>
-          <div className="text-[10px] inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="glove" color="#fff" size={12} /><span className="pf text-[8px]">FIGHT</span></div>
+        <button onClick={onOpenFight} className="pixel-btn flex-1 py-2.5 px-2" style={{ background: 'var(--carb)', color: '#fff', opacity: attemptUsed ? 0.7 : 1 }}>
+          <div className="pf text-[7px] uppercase mb-1.5" style={{ opacity: 0.85 }}>{ladderCleared ? 'Ladder clear' : 'Rung ' + ((fght.rank || 0) + 1) + '/' + FIGHT_LADDER.length}</div>
+          <div className="text-[10px] inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="glove" color="#fff" size={12} /><span className="pf text-[8px]">BATTLE</span></div>
         </button>
       </div>
+      <button onClick={onOpenDex} className="w-full text-center pf text-[8px] uppercase text-[#8A8A90] mt-3">Macrodex · {caught}/{dexTotal} caught ›</button>
     </div>
   );
 }
