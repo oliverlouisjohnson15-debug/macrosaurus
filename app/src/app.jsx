@@ -61,13 +61,11 @@ function PixelGlyph({ kind, color, size }) {
   g.forEach((row, y) => row.split('').forEach((c, x) => { if (c === '#') rects.push(<rect key={x + '_' + y} x={x} y={y} width="1" height="1" />); }));
   return <svg viewBox={`0 0 ${w} ${h}`} width={size || 20} height={size || 20} fill={color} style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges' }}>{rects}</svg>;
 }
-// The Macrosaurus mascot: a front-facing triceratops (two brow horns, a frill, stout body, legs).
-const DINO_GRID = ['..#..........', '.####........', '######.......', '#############', '.###########.', '.###########.', '.##.##.##.##.', '.##.##.##.##.'];
-function PixelDino({ color, size, className }) {
-  const W = DINO_GRID[0].length, H = DINO_GRID.length, px = size || 24;
-  const rects = [];
-  DINO_GRID.forEach((row, y) => row.split('').forEach((c, x) => { if (c === '#') rects.push(<rect key={x + '_' + y} x={x} y={y} width="1" height="1" />); }));
-  return <svg viewBox={`0 0 ${W} ${H}`} width={px} height={px * H / W} fill={color || 'currentColor'} className={className} style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges' }}>{rects}</svg>;
+// The Macrosaurus mascot is the dinosaur emoji, our brand through-line across the app.
+// `color` is accepted for call-site compatibility but ignored (emoji renders in full colour).
+function PixelDino({ size, className }) {
+  const px = size || 24;
+  return <span role="img" aria-label="Macrosaurus" className={className} style={{ fontSize: px + 'px', lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🦖</span>;
 }
 // Pixel flame, outer glow (fat/orange), inner core (accent). Replaces the 🔥 emoji.
 const FIRE_OUTER = ['...#...', '..###..', '.#.###.', '.#####.', '#####.#', '#######', '#######', '.#####.', '..###..'];
