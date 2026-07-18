@@ -1968,10 +1968,10 @@ const CR_ART = {
   hatch: ['............', '....KKKK....', '...KBBBBK...', '..KBPBBPBK..', '..KBBBBBBK..', '..KBBHHBBK..', '..KBBBBBBK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............'],
   saur: ['........KK..', '.......KBBK.', '......KBBBK.', '......KBPBK.', 'KK...KBBBBK.', 'KBK.KBBBBBK.', 'KBBKBBBBBK..', '.KBBBBBBK...', '.KBBBBBBK...', '.KBBBBBBBK..', '.KBKBBKBBK..', '.KK.KK.KKK..'],
   raptor: ['.........KK.', '........KBBK', '......KKKBBK', '.....KBPBBK.', 'KK..KBBBBBK.', '.KKKBBBBBK..', '..KBBBBBK...', '..KBBBBBBK..', '..KBBKKBBK..', '.KBK..KBBK..', '.KK....KK...', '............'],
-  stego: ['............', '...A.A.A....', '..AKAKAKA.KK', '.AKBBBBBAKPK', 'KKBBBBBBBBBK', '.KBBBBBBBBBK', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............', '............', '............'],
-  trike: ['............', '..T......T..', '..KT....TK..', '.KKKKKKKKKK.', '.KBBBBBBBBK.', 'KKBBBBPBBBKK', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............', '............'],
-  rex: ['.....KKKKK..', '....KBBBBBK.', '....KBPBBBK.', '....KBBBBBK.', 'KK..KBBBBTK.', '.KKKBBBBBBK.', '..KBBBBBBK..', '..KBBBBBBK..', '..KBBBBBBBK.', '..KBKBBKBBK.', '..KK.KK.KK..', '............'],
-  longneck: ['.......KK...', '......KBBK..', '......KBPK..', '......KBBK..', '.....KBBK...', '....KBBK....', '..KKBBKKKK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............'],
+  stego: ['..............', '.....A.A.A....', '....KAKAKAK...', '..KKBBBBBBKK..', '.KPBBBBBBBBBK.', '.KKBBBBBBBBBK.', '..KBBBBBBBBK..', '..KBBBBBBBK...', '..KBKBKBK.....', '..KK.K.K......', '..............', '..............'],
+  trike: ['..............', '..............', '.KK...........', 'KPBK..KKKKK...', 'KBBKKKBBBBBK..', '.KBBBBBBBBBK..', '.KBBBBBBBBBBK.', '.KBBBBBBBBBBK.', '.KBKBBKKBBKBK.', '.KK.KK.KK.KK..', '..............', '..............'],
+  rex: ['...KKKK......', '..KBBBBK.....', '..KBPBBK.....', '.KKBBBBK.....', 'KBBBBBBKK....', '.KBBBBBBBKK..', '.KBBBBBBBBBK.', '.KBBBBBBBBK..', '.KBKBBKBK....', '.KK.KK.K.....', '.............', '.............'],
+  longneck: ['...KK.........', '..KBBK........', '..KBPK........', '..KBBK........', '..KBBKK.......', '.KBBBBK.......', '.KBBBBKKKK....', 'KKBBBBBBBBKK..', '.KBBBBBBBBBBK.', '.KBBBBBBBBBBK.', '.KBKBBKKBBKBK.', '.KK.KK.KK.KK..'],
   sprout: ['.....K......', '....KLK.....', '...KLLLK....', '....KLK.....', '....KKKK....', '...KBBBBK...', '..KBPBBPBK..', '..KBBBBBBK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.'],
   brolly: ['...AAAAAA...', '..AASAASAA..', '.ASAASAASAA.', '.....K......', '.....K.KK...', '....KBBBBK..', '....KBPBBK..', '.KK.KBBBBK..', '.KBKBBBBBK..', '..KBBBBBBK..', '..KBKBBKBK..', '..KK.KK.KK..'],
   // Sail-backed biped (spinosaur): a dorsal fan of spines behind the head.
@@ -1979,9 +1979,9 @@ const CR_ART = {
   // Low armoured tank (ankylosaur): head left, a heavy club tail right, spiked back.
   anky: ['............', '............', '...AKAKA....', '..KKKKKKK...', '.KBBBBBBBK..', 'KKBPBBBBBBKK', 'KBBBBBBBBBBK', '.KBBBBBBBBK.', '..KK.KK.KK..', '............', '............', '............'],
   // Winged flyer (pterosaur): wings spread wide, a small beaked head.
-  ptero: ['............', '.KK......KK.', '..KKK..KKK..', '...KKKKKK...', '..KBBBBBBK..', '...KBPBK.T..', '...KBBBK....', '....KKK.....', '....K.K.....', '............', '............', '............'],
+  ptero: ['KK..........KK', '.KKK......KKK.', '..KBKK..KKBK..', 'KKKBBKKKKBBK..', 'KBBPBBBBBBBK..', '.KKBBBBBBBBK..', '...KKKBBBKK...', '.....KBBK.....', '.....K.K......', '.....K.K......', '..............', '..............'],
   // Crested duck-bill (parasaurolophus): a long crest swept back off the head.
-  para: ['.........KK.', '........KBK.', '.......KBK..', '......KBBK..', '.....KBPBK..', '....KBBBBK..', '..KKBBBBK...', '.KBBBBBBK...', '.KBBBBBBK...', '.KBKBBKBK...', '.KK.KK.KK...', '............'],
+  para: ['....KK.......', '...KBBK......', '...KBPK......', '...KBBK......', '..KBBBK......', '..KBBBKK.....', '.KBBBBBBKK...', '.KBBBBBBBBK..', '.KBBBBBBBBK..', '.KBKBBKBBK...', '.KK.KK.KK....', '.............'],
   // Dome-headed head-butter (pachycephalosaur): a thick, rounded skull.
   pachy: ['............', '....KKKK....', '...KBBBBK...', '...KBBBBK...', '...KBPBBK...', '..KKBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBKBBKK...', '..KK.KK.....', '............'],
   // Sail-finned prowler (dimetrodon): a rounded back-sail on a low four-legged body.
