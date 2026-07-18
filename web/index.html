@@ -160,7 +160,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 .ai-chips .cp{background:var(--red);} .ai-chips .cc{background:var(--blue);} .ai-chips .cf{background:var(--gold); color:var(--ink);}
 
 /* recipe reels (no creators) */
-.reels{display:grid; grid-template-columns:repeat(3,1fr); gap:11px;}
+.reels{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
 .reel{aspect-ratio:3/4; border:3px solid var(--ink); position:relative; overflow:hidden; display:flex; align-items:flex-end; padding:9px;}
 .reel .rlbl{font-family:var(--pix); font-size:7px; line-height:1.7; position:relative; z-index:1; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.7);}
 .reel .kb{position:absolute; top:7px; right:7px; font-family:var(--pix); font-size:6.5px; color:var(--ink); background:var(--gold); border:2px solid var(--ink); padding:3px 4px; z-index:2;}
@@ -358,7 +358,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           </div>
         </div>
         <div>
-          <span class="kt" style="color:var(--red)">AI FOOD LOGGING</span>
+          <span class="kt" style="color:var(--teal)">AI FOOD LOGGING</span>
           <h3>Log a whole meal in one photo.</h3>
           <p>Snap your plate, say it, or type it. The AI reads the food and fills in your macros in a moment. So quick you'll actually keep it up.</p>
           <div class="chips"><span class="chip">Photo &#183; voice &#183; text</span><span class="chip">Barcode + label scan</span></div>
@@ -370,9 +370,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div class="row-media">
           <div class="reels">
             <div class="reel r1"><canvas data-meal="chickrice"></canvas><span class="kb">52g P</span><span class="rlbl">High-protein<br>chicken bowl</span></div>
-            <div class="reel r2"><canvas data-meal="pasta"></canvas><span class="kb">420 kcal</span><span class="rlbl">Creamy<br>tuna pasta</span></div>
             <div class="reel r3"><canvas data-meal="burrito"></canvas><span class="kb">38g P</span><span class="rlbl">Steak<br>burrito</span></div>
-            <div class="reel r4"><canvas data-meal="oats"></canvas><span class="kb">12g fib</span><span class="rlbl">Protein<br>oats</span></div>
             <div class="reel r5"><canvas data-meal="salmon"></canvas><span class="kb">390 kcal</span><span class="rlbl">Teriyaki<br>salmon</span></div>
             <div class="reel r6"><canvas data-meal="burger"></canvas><span class="kb">44g P</span><span class="rlbl">Smash<br>burger</span></div>
           </div>
