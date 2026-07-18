@@ -162,7 +162,7 @@ test('existing persisted state migrates with sensible gamification defaults', ()
   assert.strictEqual(s.fight.lastAttemptDate, null);   // new gate field backfilled
   assert.strictEqual(s.game_salt, null);               // minted lazily on first run
   assert.deepStrictEqual(s.badges, { checkins: 0, inRange: 0 });
-  assert.deepStrictEqual(s.buddy, { stage: 0 });
+  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null });
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
   assert.strictEqual(s.catch_log['2026-07-01'][0].id, 'nugg'); // locked catches untouched
 });
@@ -237,4 +237,60 @@ test('eggHatch draws from the tier pool and a 10-day egg can crack a legendary',
   assert.ok([...tenIds].every(id => new Set(['veloci', 'platealon', 'triceros', 'flexor', 'rexosaur']).has(id)));
   assert.ok(tenIds.has('rexosaur')); // the occasional legendary shows up across the run
   assert.deepStrictEqual(Game.eggHatch('s', 5, 3), Game.eggHatch('s', 5, 3)); // deterministic
+});
+
+// ---- buddy bond / mood / needs (the companion layer) ----
+
+const PERFECT = { logged: true, proteinHit: true, carbHit: true, fatHit: true, kcalIn: true, fiberHit: true, perfect: true };
+const LOGGED_ONLY = { logged: true, proteinHit: false, carbHit: false, fatHit: false, kcalIn: false, fiberHit: false, perfect: false };
+const PROTEIN_KCAL = { logged: true, proteinHit: true, carbHit: false, fatHit: false, kcalIn: true, fiberHit: false, perfect: false };
+
+test('buddyBond: no history is a cold start', () => {
+  const b = Game.buddyBond([]);
+  assert.strictEqual(b.score, 0);
+  assert.strictEqual(b.hearts, 0);
+  assert.strictEqual(b.maxHearts, 4);
+});
+
+test('buddyBond: a month of perfect days maxes the bond', () => {
+  const b = Game.buddyBond(Array(30).fill(PERFECT));
+  assert.strictEqual(b.score, 100);
+  assert.strictEqual(b.hearts, 4);
+  assert.strictEqual(b.toNext, 0);
+});
+
+test('buddyBond: showing up but eating poorly earns some warmth, not all', () => {
+  const b = Game.buddyBond(Array(10).fill(LOGGED_ONLY)); // 1 of 4 pts/day => score 25
+  assert.strictEqual(b.score, 25);
+  assert.strictEqual(b.hearts, 1);
+});
+
+test('buddyBond: missed days (null) cool the bond', () => {
+  const half = [].concat(Array(15).fill(PERFECT), Array(15).fill(null));
+  const b = Game.buddyBond(half); // 15*4 / (30*4) => 50
+  assert.strictEqual(b.score, 50);
+  assert.strictEqual(b.hearts, 2);
+});
+
+test('buddyBond: only the trailing window counts', () => {
+  const b = Game.buddyBond([].concat(Array(40).fill(null), Array(30).fill(PERFECT)));
+  assert.strictEqual(b.score, 100); // the 40 old misses fall outside the 30-day window
+});
+
+test('buddyMood: reads nap, lapse and today\'s eating', () => {
+  assert.strictEqual(Game.buddyMood(true, true, PERFECT), 'asleep');
+  assert.strictEqual(Game.buddyMood(false, false, null), 'sluggish');
+  assert.strictEqual(Game.buddyMood(false, true, PERFECT), 'thriving');
+  assert.strictEqual(Game.buddyMood(false, true, PROTEIN_KCAL), 'content');
+  assert.strictEqual(Game.buddyMood(false, true, LOGGED_ONLY), 'peckish');
+});
+
+test('buddyNeeds: fed, nourished and energy track behaviour', () => {
+  const full = Game.buddyNeeds(true, PERFECT, 7);
+  assert.strictEqual(full.hunger, 1);
+  assert.strictEqual(full.nourish, 1);
+  assert.strictEqual(full.energy, 1);
+  const none = Game.buddyNeeds(false, null, 0);
+  assert.ok(none.hunger < 0.2 && none.nourish === 0 && none.energy === 0);
+  assert.strictEqual(Game.buddyNeeds(true, PROTEIN_KCAL, 3).nourish, 2 / 5);
 });

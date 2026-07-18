@@ -50,6 +50,50 @@
     return { stage: hw, cur: cur, asleep: asleep, wakeIn: asleep ? WAKE_DAYS - (streak || 0) : 0, ratchet: cur > (hwStage || 0) };
   }
 
+  // ---- Buddy as a companion: bond, mood and needs (the Tamagotchi layer) ----
+  // BOND is relationship warmth over a trailing window: recent good eating raises it,
+  // neglect lets it cool. It takes one "quality" object per elapsed day in the window
+  // (or null for a day with no log). Effort elsewhere is never wasted (the dex persists);
+  // the bond itself can cool, which is what makes the buddy feel alive without punishing.
+  var BOND_WINDOW = 30;
+  var BOND_HEARTS = [15, 40, 65, 88];   // score needed for hearts 1..4 (of 4)
+  function dayBondPoints(q) {
+    if (!q || !q.logged) return 0;
+    var p = 1;                          // showed up and logged
+    if (q.proteinHit) p += 1;
+    if (q.fiberHit) p += 0.5;
+    if (q.perfect) p += 1.5;
+    return p;                           // 0..4 points for one day
+  }
+  function buddyBond(recentQ) {
+    var win = (recentQ || []).slice(-BOND_WINDOW);
+    if (!win.length) return { score: 0, hearts: 0, maxHearts: BOND_HEARTS.length, toNext: BOND_HEARTS[0] };
+    var got = 0; for (var i = 0; i < win.length; i++) got += dayBondPoints(win[i]);
+    var score = Math.max(0, Math.min(100, Math.round(got / (win.length * 4) * 100)));
+    var hearts = 0; BOND_HEARTS.forEach(function (t) { if (score >= t) hearts++; });
+    var next = hearts < BOND_HEARTS.length ? BOND_HEARTS[hearts] : null;
+    return { score: score, hearts: hearts, maxHearts: BOND_HEARTS.length, toNext: next == null ? 0 : next - score };
+  }
+  // MOOD: one word for how the buddy is right now, from the nap state and today's eating.
+  function buddyMood(asleep, loggedToday, todayQ) {
+    if (asleep) return 'asleep';
+    if (!loggedToday) return 'sluggish';
+    if (todayQ && todayQ.perfect) return 'thriving';
+    if (todayQ && todayQ.proteinHit && todayQ.kcalIn) return 'content';
+    return 'peckish';
+  }
+  // NEEDS: three 0..1 meters topped up by eating well. Fed = logged today, Nourished =
+  // today's macro balance, Energy = current streak toward a full week.
+  function buddyNeeds(loggedToday, todayQ, streak) {
+    var flags = todayQ ? [todayQ.proteinHit, todayQ.carbHit, todayQ.fatHit, todayQ.kcalIn, todayQ.fiberHit] : [];
+    var hit = 0; flags.forEach(function (f) { if (f) hit++; });
+    return {
+      hunger: loggedToday ? 1 : 0.12,
+      nourish: todayQ ? hit / 5 : (loggedToday ? 0.1 : 0),
+      energy: Math.max(0, Math.min(1, (streak || 0) / 7)),
+    };
+  }
+
   // Badge tracks (Avatar-style): 5 tiers, level = tiers already reached.
   var BADGE_TIERS = [1, 3, 6, 12, 24];
   function badgeTier(count, tiers) {
@@ -165,6 +209,11 @@
     WAKE_DAYS: WAKE_DAYS,
     stageIndex: stageIndex,
     buddyView: buddyView,
+    BOND_WINDOW: BOND_WINDOW,
+    dayBondPoints: dayBondPoints,
+    buddyBond: buddyBond,
+    buddyMood: buddyMood,
+    buddyNeeds: buddyNeeds,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,

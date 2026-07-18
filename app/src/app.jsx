@@ -2196,6 +2196,49 @@ const BUDDY_STAGES = [
 const computeStreak = Game.computeStreak;
 const freezeReady = Game.freezeReady;
 
+// --- The buddy as an individual you raise: personality, mood voice, and a view model ---
+const PERSONALITIES = [
+  { key: 'plucky', label: 'Plucky', blurb: 'never backs down' },
+  { key: 'steady', label: 'Steady', blurb: 'slow and certain' },
+  { key: 'greedy', label: 'Greedy', blurb: 'lives for mealtime' },
+  { key: 'gentle', label: 'Gentle', blurb: 'a soft-hearted soul' },
+  { key: 'brave', label: 'Brave', blurb: 'first into the pit' },
+  { key: 'dozy', label: 'Dozy', blurb: 'napping at any hour' },
+];
+function personalityFor(seed) { return PERSONALITIES[crHash(String(seed || 'egg')) % PERSONALITIES.length]; }
+// Mood is how the buddy reads right now; the line is a stable-per-day flavour string. Warm,
+// never scolding, so a lapse is an invitation to feed it rather than a telling-off.
+const MOOD_META = {
+  thriving: { label: 'Thriving', color: 'var(--good)', lines: ['Firing on all cylinders.', 'Best it has felt in ages.', 'Practically glowing after that.'] },
+  content: { label: 'Content', color: 'var(--carb)', lines: ['Fed and happy.', 'A good, steady day.', 'Quietly pleased with you.'] },
+  peckish: { label: 'Peckish', color: 'var(--fat)', lines: ['Could do with more protein.', 'Still a little hungry.', 'Decent start, feed it up.'] },
+  sluggish: { label: 'Sluggish', color: 'var(--weight)', lines: ['Waiting on today’s first meal.', 'A bit low, nothing logged yet.', 'Perks right up when you log.'] },
+  asleep: { label: 'Napping', color: 'var(--muted)', lines: ['Fast asleep. Log to wake it.', 'Curled up, dreaming of snacks.'] },
+};
+function moodLine(mood, seed) { const m = MOOD_META[mood] || MOOD_META.content; return m.lines[crHash(String(seed) + mood) % m.lines.length]; }
+// Live view model for the buddy: given name, personality, days-together, and the bond / mood /
+// needs derived from how you have actually been eating. Pure read over db (no writes).
+function buddyProfile(db, streak, buddy) {
+  const today = Store.todayISO();
+  const b = db.buddy || {};
+  const dates = (db.log_entries || []).map(e => e.date).sort();
+  const firstLog = dates[0] || null;
+  const hatchedISO = b.hatchedISO || firstLog || today;
+  // Trailing bond window, starting no earlier than the first log so newcomers aren't diluted.
+  const start = firstLog && Game.daysBetween(firstLog, today) < Game.BOND_WINDOW ? firstLog : shiftISO(today, -(Game.BOND_WINDOW - 1));
+  const recentQ = []; for (let d = start, g = 0; d <= today && g < Game.BOND_WINDOW + 1; d = shiftISO(d, 1), g++) recentQ.push(dayQuality(db, d));
+  const loggedToday = entriesOn(db, today).length > 0;
+  const todayQ = dayQuality(db, today);
+  return {
+    name: b.name || '',
+    personality: PERSONALITIES.find(p => p.key === b.personality) || null,
+    daysTogether: Math.max(1, Game.daysBetween(hatchedISO, today) + 1),
+    bond: Game.buddyBond(recentQ),
+    mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
+    needs: Game.buddyNeeds(loggedToday, todayQ, streak),
+  };
+}
+
 function BuddyCard({ db, streak, buddy, freezeReady, onOpenDex }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const dex = macrodex(db); const caught = Object.keys(dex).length;
@@ -2712,10 +2755,40 @@ function GameTracksCard({ btState, egg, eggProg, onOpenDex }) {
 }
 
 // Everything gamey, collapsed to one strip that reads as a status board: dex completion up top,
+// Hatch-and-name: turn the generic buddy into an individual. Shown from the home strip; on an
+// account with no name yet it reads as "hatching", afterwards as a rename.
+function NameBuddyModal({ db, update, buddy, onClose }) {
+  useBackClose(onClose);
+  const b = db.buddy || {};
+  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const pers = PERSONALITIES.find(p => p.key === b.personality) || PERSONALITIES[0];
+  const [name, setName] = useState(b.name || '');
+  function save() {
+    const nm = name.trim().slice(0, 16); if (!nm) return;
+    update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; });
+    onClose();
+  }
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex flex-col items-center text-center mb-4">
+          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><Sprite art={st.art} colors={st.colors} px={5} /></div>
+          <div className="pf text-[8px] uppercase text-[#8A8A90]">Your buddy · {pers.label}</div>
+          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1)}. Give it a name, it’s yours to raise.</div>
+        </div>
+        <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
+          className={inputCls + ' text-center'} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
+        <button onClick={save} disabled={!name.trim()} className="pixel-btn w-full py-3 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: name.trim() ? 1 : 0.5 }}>
+          <span className="pf text-[10px]">{b.name ? 'RENAME' : 'HATCH'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
 // buddy + streak + an evolution bar in the middle, and the two daily hooks (today's catch and the
 // fight) as buttons underneath. When the streak breaks the buddy naps and the strip becomes a
 // gentle "log to wake" nudge. The dex and fight open as the existing modals.
-function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onLog }) {
+function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenFight, onLog, onName }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const pcr = todayCr && CR_BY_ID[todayCr.id];
   const today = Store.todayISO();
@@ -2731,8 +2804,8 @@ function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onL
             <div style={{ filter: 'grayscale(0.85)', opacity: 0.45 }}><Sprite art={st.art} colors={st.colors} px={3.2} /></div>
           </button>
           <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-bold truncate leading-tight">{st.name} <span className="text-[9px] text-[#8A8A90] font-normal">napping</span></div>
-            <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Log today to wake {st.name} and start a new streak.</div>
+            <div className="text-[12px] font-bold truncate leading-tight">{(profile && profile.name) || st.name} <span className="text-[9px] text-[#8A8A90] font-normal">napping</span></div>
+            <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Log today to wake {(profile && profile.name) || st.name} and start a new streak.</div>
           </div>
           <button onClick={onLog} className="pixel-btn py-2 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} aria-label="Log a meal"><span className="pf text-[8px]">LOG</span></button>
         </div>
@@ -2752,6 +2825,15 @@ function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onL
   const best = Math.max(streak, (db.records && db.records.longestStreak) || 0);
   const ladderCleared = (fght.rank || 0) >= FIGHT_LADDER.length;
 
+  // Companion layer: given name, mood voice, bond hearts and the three need meters.
+  const name = (profile && profile.name) || st.name;
+  const mm = profile ? (MOOD_META[profile.mood] || MOOD_META.content) : null;
+  const moodLn = profile ? moodLine(profile.mood, today) : '';
+  const hearts = profile ? Array.from({ length: profile.bond.maxHearts }).map((_, i) => (
+    <span key={i} style={{ fontSize: 9, lineHeight: 1, color: i < profile.bond.hearts ? '#e0607a' : 'var(--surface3)' }}>♥</span>
+  )) : null;
+  const NEED_META = { hunger: ['Fed', 'var(--good)'], nourish: ['Fuel', 'var(--carb)'], energy: ['Energy', 'var(--fat)'] };
+
   return (
     <div className="bg-[#161618] pixel-box p-3 mb-4">
       <div className="flex items-center justify-between mb-2.5">
@@ -2761,14 +2843,30 @@ function HomeGameStrip({ db, streak, buddy, todayCr, onOpenDex, onOpenFight, onL
       <button onClick={onOpenDex} className="w-full text-left flex items-center gap-3">
         <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }}><Sprite art={st.art} colors={st.colors} px={3.4} /></div>
         <div className="min-w-0 flex-1">
-          <div className="text-[12px] font-bold truncate leading-tight">{st.name}</div>
-          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1 mt-0.5"><PixelFire size={11} />{streak} day streak{best > streak ? <span className="text-[#8A8A90]"> · best {best}</span> : null}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px] font-bold truncate leading-tight">{name}</span>
+            {profile && profile.name ? <span className="pf text-[7px] uppercase text-[#8A8A90] shrink-0 truncate">{st.name}</span> : null}
+            <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onName && onName(); }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onName && onName(); } }}
+              className="text-[10px] text-[#8A8A90] shrink-0 leading-none px-0.5" aria-label={profile && profile.name ? 'Rename buddy' : 'Name your buddy'}>✎</span>
+          </div>
+          {mm ? <div className="text-[9px] leading-snug mt-0.5"><span className="pf uppercase text-[7px]" style={{ color: mm.color }}>{mm.label}</span> <span className="text-[#8A8A90]">{moodLn}</span></div> : null}
+          <div className="text-[9px] text-[#8A8A90] flex items-center gap-2 mt-0.5">
+            <span className="inline-flex items-center gap-1"><PixelFire size={11} />{streak}d{best > streak ? <span> · best {best}</span> : null}</span>
+            {hearts ? <span className="inline-flex items-center gap-px" title={`Bond ${profile.bond.hearts}/${profile.bond.maxHearts}`}>{hearts}</span> : null}
+          </div>
           <div className="mt-1.5 flex items-center gap-1.5">
             <div className="pixel-bar flex-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (evo * 100) + '%', background: 'var(--good)', transition: 'width .4s' }} /></div>
             <span className="pf text-[7px] uppercase shrink-0 text-[#8A8A90]">{atMax ? 'Max' : (nextStage.min - streak) + 'd to ' + nextStage.name}</span>
           </div>
         </div>
       </button>
+      {profile ? <div className="flex gap-2 mt-2.5">{['hunger', 'nourish', 'energy'].map(k => (
+        <div key={k} className="flex-1">
+          <div className="pf text-[6.5px] uppercase text-[#8A8A90] mb-0.5">{NEED_META[k][0]}</div>
+          <div className="pixel-bar" style={{ height: 6, borderWidth: 2 }}><i style={{ width: Math.round(profile.needs[k] * 100) + '%', background: NEED_META[k][1], transition: 'width .4s' }} /></div>
+        </div>
+      ))}</div> : null}
       {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-2.5">Every day you log and weigh in adds a prehistoric creature to your dex and grows your buddy. Keep the streak going to evolve it.</div>}
       <div className="flex gap-2 mt-3">
         <button onClick={onOpenDex} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--surface3)' }}>
@@ -2905,6 +3003,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const [showCarry, setShowCarry] = useState(false);
   const [showDex, setShowDex] = useState(false);
   const [showFight, setShowFight] = useState(false);
+  const [showName, setShowName] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
@@ -2953,6 +3052,19 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       if (streak > (d.records.longestStreak || 0)) d.records.longestStreak = streak;
     });
   }, [streak]);
+  // Seed the buddy's identity once: when it hatched (first log day) and a stable personality.
+  // Additive and idempotent, so returning accounts get an individual without losing anything.
+  useEffect(() => {
+    const b = db.buddy || {};
+    if (b.hatchedISO && b.personality) return;
+    const dates = (db.log_entries || []).map(e => e.date).sort();
+    const firstLog = dates[0] || today;
+    update(d => {
+      d.buddy = d.buddy || { stage: 0 };
+      if (!d.buddy.hatchedISO) d.buddy.hatchedISO = firstLog;
+      if (!d.buddy.personality) d.buddy.personality = personalityFor(d.game_salt || firstLog || 'egg').key;
+    });
+  }, [db.buddy, db.log_entries]);
   // Migratory visitor: 20 logged days inside the calendar month lands Drizzlodon (once per month).
   const monthYm = today.slice(0, 7);
   const monthLogs = Game.monthlyLogCount(Array.from(logSet), monthYm);
@@ -3114,12 +3226,13 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
-      <HomeGameStrip db={db} streak={streak} buddy={buddy} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} />
+      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={buddyProfile(db, streak, buddy)} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} />
       {loggedTotal >= 1 && <GameTracksCard btState={btState} egg={egg} eggProg={eggProg} onOpenDex={() => setShowDex(true)} />}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showDex && <MacrodexModal db={db} update={update} streak={streak} onClose={() => setShowDex(false)} />}
       {showFight && <FightModal db={db} update={update} streak={streak} onClose={() => setShowFight(false)} />}
+      {showName && <NameBuddyModal db={db} update={update} buddy={buddy} onClose={() => setShowName(false)} />}
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
     </div>
   );
