@@ -88,7 +88,8 @@
       diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
       recipes: [],        // saved recipes decomposed from a shared video/link: { id, user_id, title, source_platform, source_url, thumbnail, servings, ingredients:[{id,name,quantity,unit,grams,have}], steps:[], macros_per_serving:{kcal,protein,carbs,fat,fiber}, macros_confidence, created_at, updated_at }
-      shopping_list: [],  // rolled-up things to buy: { id, name, qty_label, recipe_id, checked, added_at }
+      shopping_list: [],  // rolled-up things to buy: { id, name, qtys:{unit:amount}, qty_label, category, recipe_ids:[], checked, manual, added_at }
+      pantry: [],         // normalised names the user "always has", skipped when adding recipe ingredients to the list
       meal_plan: [],      // planned recipes on a calendar: { id, date, recipe_id, portion, cooked, added_at }
       catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] }, locked so later edits never lose a caught creature
       items: {},          // shared item inventory: { itemId: count }
@@ -172,6 +173,7 @@
     out.saved_meals    = unionBy(newer.saved_meals,    older.saved_meals,    byId);
     out.recipes        = unionBy(newer.recipes,        older.recipes,        byId);
     out.shopping_list  = unionBy(newer.shopping_list,  older.shopping_list,  byId);
+    out.pantry         = Array.from(new Set([].concat(older.pantry || [], newer.pantry || [])));
     out.meal_plan      = unionBy(newer.meal_plan,      older.meal_plan,      byId);
     out.targets        = unionBy(newer.targets,        older.targets,        byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);

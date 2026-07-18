@@ -260,6 +260,115 @@
     return out;
   }
 
+  // ---- Shopping list: quantity combining + aisle categories ------------------------------------
+  // Map a measurement word to a canonical unit. Mass normalises to g, volume to ml, so amounts can be
+  // summed across recipes; portion words (tbsp, clove...) keep their own unit; anything else is a count.
+  var UNIT_WORDS = {
+    g: 'g', gram: 'g', grams: 'g', kg: 'kg', ml: 'ml', l: 'l', litre: 'l', liter: 'l',
+    tbsp: 'tbsp', tbs: 'tbsp', tablespoon: 'tbsp', tsp: 'tsp', teaspoon: 'tsp', dsp: 'dsp',
+    cup: 'cup', cups: 'cup', clove: 'clove', cloves: 'clove', slice: 'slice', slices: 'slice',
+    can: 'can', cans: 'can', tin: 'tin', tins: 'tin', jar: 'jar', jars: 'jar', pinch: 'pinch',
+    dash: 'dash', handful: 'handful', scoop: 'scoop', scoops: 'scoop', ball: 'ball', balls: 'ball',
+    rasher: 'rasher', rashers: 'rasher', sprig: 'sprig', sprigs: 'sprig', stick: 'stick', sticks: 'stick',
+    bunch: 'bunch', head: 'head', heads: 'head', packet: 'packet', pack: 'packet', sachet: 'sachet',
+    punnet: 'punnet', bottle: 'bottle', knob: 'knob',
+  };
+  // Parse the leading "amount [unit]" from an ingredient line into { n, unit }, or null if none. Bare
+  // counts and unrecognised words (e.g. "1 wholemeal pitta") become the count unit 'x'.
+  function parseQtyToken(line) {
+    var s = String(line || '').trim();
+    var m = s.match(/^(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛⅜⅝⅞])\s*([a-zA-Z]+)?\b/);
+    if (!m) return null;
+    var n = parseAmt(m[1].replace(/\s+/g, ''));
+    if (!(n > 0)) return null;
+    var unit = UNIT_WORDS[(m[2] || '').toLowerCase()] || '';
+    if (unit === 'kg') { n *= 1000; unit = 'g'; }
+    else if (unit === 'l') { n *= 1000; unit = 'ml'; }
+    if (!unit) unit = 'x';
+    return { n: n, unit: unit };
+  }
+  function addQty(qtys, token) { qtys = qtys || {}; if (token) qtys[token.unit] = (qtys[token.unit] || 0) + token.n; return qtys; }
+  var QTY_ORDER = ['x', 'g', 'ml', 'tbsp', 'tsp', 'dsp', 'cup', 'clove', 'slice', 'can', 'tin', 'jar', 'handful', 'pinch', 'dash', 'scoop', 'ball', 'rasher', 'sprig', 'stick', 'bunch', 'head', 'packet', 'sachet', 'punnet', 'bottle', 'knob'];
+  var PLURAL_UNITS = { clove: 1, slice: 1, can: 1, tin: 1, jar: 1, scoop: 1, ball: 1, rasher: 1, sprig: 1, stick: 1, head: 1, bottle: 1, packet: 1, punnet: 1, bunch: 1 };
+  // Render a combined { unit: amount } map as a short label ("400 g", "2 tbsp", "3", "200 g + 1").
+  function fmtQty(qtys) {
+    if (!qtys) return '';
+    var keys = Object.keys(qtys).filter(function (u) { return qtys[u]; }).sort(function (a, b) {
+      var ia = QTY_ORDER.indexOf(a), ib = QTY_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    return keys.map(function (u) {
+      var n = Math.round(qtys[u] * 100) / 100;
+      if (u === 'g') return n >= 1000 ? (Math.round(n / 100) / 10) + ' kg' : n + ' g';
+      if (u === 'ml') return n >= 1000 ? (Math.round(n / 100) / 10) + ' l' : n + ' ml';
+      if (u === 'x') return String(n);
+      return n + ' ' + u + (n !== 1 && PLURAL_UNITS[u] ? 's' : '');
+    }).join(' + ');
+  }
+
+  // Aisle categories, checked in priority order (most specific first) by substring on the food name.
+  var CATEGORY_ORDER = ['Produce', 'Meat & fish', 'Dairy & eggs', 'Bakery', 'Rice, pasta & grains', 'Tins, jars & packets', 'Frozen', 'Store cupboard', 'Drinks', 'Household', 'Other'];
+  var CATEGORY_KEYWORDS = [
+    ['Meat & fish', ['chicken', 'beef', 'pork', 'lamb', 'mince', 'steak', 'bacon', 'sausage', 'turkey', 'ham', 'gammon', 'chorizo', 'salmon', 'tuna', 'cod', 'haddock', 'prawn', 'shrimp', 'fish', 'fillet', 'thigh', 'drumstick', 'breast', 'mackerel', 'sardine', 'anchovy']],
+    ['Dairy & eggs', ['milk', 'cheese', 'yoghurt', 'yogurt', 'butter', 'egg', 'cream', 'feta', 'mozzarella', 'cheddar', 'parmesan', 'halloumi', 'quark', 'mascarpone', 'ghee', 'custard']],
+    ['Bakery', ['bread', 'pitta', 'pita', 'wrap', 'tortilla', 'bagel', 'bun', 'roll', 'naan', 'baguette', 'croissant', 'brioche', 'muffin', 'crumpet', 'flatbread']],
+    ['Rice, pasta & grains', ['rice', 'pasta', 'noodle', 'spaghetti', 'penne', 'macaroni', 'couscous', 'quinoa', 'oats', 'oat', 'porridge', 'bulgur', 'barley', 'polenta', 'risotto']],
+    ['Frozen', ['frozen', 'ice cream']],
+    ['Tins, jars & packets', ['tinned', 'canned', 'chickpea', 'lentil', 'kidney bean', 'black bean', 'passata', 'chopped tomato', 'tomato puree', 'coconut milk', 'stock', 'broth', 'olives', 'sweetcorn', 'baked bean', 'butter bean', 'cannellini']],
+    ['Produce', ['onion', 'garlic', 'tomato', 'pepper', 'spinach', 'lettuce', 'carrot', 'potato', 'avocado', 'lemon', 'lime', 'banana', 'apple', 'orange', 'mango', 'berry', 'berries', 'strawberr', 'blueberr', 'raspberr', 'broccoli', 'courgette', 'zucchini', 'cucumber', 'mushroom', 'coriander', 'cilantro', 'basil', 'parsley', 'mint', 'ginger', 'chilli', 'chili', 'kale', 'cabbage', 'celery', 'leek', 'spring onion', 'shallot', 'sweet potato', 'squash', 'aubergine', 'eggplant', 'beetroot', 'rocket', 'arugula', 'salad', 'pea', 'cauliflower', 'asparagus', 'green bean', 'grape', 'pear', 'peach', 'fruit', 'veg', 'herb']],
+    ['Store cupboard', ['oil', 'salt', 'pepper', 'sugar', 'honey', 'vinegar', 'soy sauce', 'soy', 'fish sauce', 'spice', 'cumin', 'paprika', 'cinnamon', 'turmeric', 'curry', 'stock cube', 'baking', 'vanilla', 'mustard', 'ketchup', 'mayo', 'mayonnaise', 'peanut butter', 'tahini', 'nut', 'seed', 'syrup', 'cocoa', 'chocolate', 'flour', 'cornflour', 'yeast', 'oregano', 'thyme', 'rosemary', 'sriracha', 'harissa', 'pesto', 'jam', 'sesame', 'raisin', 'sultana', 'date', 'bouillon']],
+    ['Drinks', ['water', 'juice', 'squash', 'cola', 'lemonade', 'sparkling', 'coffee', 'tea', 'wine', 'beer', 'kombucha', 'oat milk', 'almond milk', 'soya milk']],
+    ['Household', ['bin bag', 'bin liner', 'foil', 'clingfilm', 'cling film', 'kitchen roll', 'washing up', 'detergent', 'soap', 'sponge', 'toilet', 'tissue', 'battery', 'cleaner', 'baking paper', 'parchment', 'napkin']],
+  ];
+  function shoppingCategory(name) {
+    var s = norm(name);
+    for (var i = 0; i < CATEGORY_KEYWORDS.length; i++) {
+      var kws = CATEGORY_KEYWORDS[i][1];
+      for (var j = 0; j < kws.length; j++) { if (s.indexOf(kws[j]) >= 0) return CATEGORY_KEYWORDS[i][0]; }
+    }
+    return 'Other';
+  }
+
+  // Add ingredient lines to a shopping list, COMBINING quantities into an existing unchecked item of the
+  // same name (this is what stops two recipes' chicken from silently overwriting each other) and skipping
+  // anything in the pantry. `additions` are { line, recipe_id }. Returns { list, added }. Pure: never
+  // mutates the input list or its items (clones any item it merges into), so it is store/immer-safe.
+  function addToShoppingList(list, additions, opts) {
+    opts = opts || {};
+    var uid = opts.uid || function () { return 'sl' + Math.round((opts.now || 0)); };
+    var pantry = opts.pantry || {};
+    var now = opts.now || 0;
+    var out = (list || []).slice();
+    var added = 0;
+    (additions || []).forEach(function (a) {
+      var line = String((a && (a.line || a.name)) || '').trim();
+      if (!line) return;
+      var nm = nameFromLine(line) || line;
+      var key = norm(nm);
+      if (!key || pantry[key]) return;
+      var token = parseQtyToken(line);
+      var idx = -1;
+      for (var i = 0; i < out.length; i++) { if (out[i] && !out[i].checked && norm(out[i].name) === key) { idx = i; break; } }
+      if (idx >= 0) {
+        var ex = out[idx];
+        var qtys = ex.qtys ? Object.assign({}, ex.qtys) : (ex.qty_label ? addQty({}, parseQtyToken(ex.qty_label)) : {});
+        addQty(qtys, token);
+        var rids = (ex.recipe_ids || []).slice();
+        if (a.recipe_id && rids.indexOf(a.recipe_id) < 0) rids.push(a.recipe_id);
+        out[idx] = Object.assign({}, ex, { qtys: qtys, qty_label: fmtQty(qtys), recipe_ids: rids });
+        added++;
+      } else {
+        var q = addQty({}, token);
+        out.push({
+          id: uid(), name: nm, qtys: q, qty_label: fmtQty(q), category: shoppingCategory(nm),
+          recipe_ids: a.recipe_id ? [a.recipe_id] : [], recipe_id: a.recipe_id || null,
+          manual: !!opts.manual, checked: false, added_at: now,
+        });
+        added++;
+      }
+    });
+    return { list: out, added: added };
+  }
+
   // A light plausibility check on a recipe's per-serving macros, so a bad parse never logs silently.
   // Returns null when fine, else { msg } describing what looks off. Only runs once macros exist.
   function macroSanity(recipe) {
@@ -352,6 +461,8 @@
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
+    parseQtyToken: parseQtyToken, addQty: addQty, fmtQty: fmtQty, shoppingCategory: shoppingCategory,
+    addToShoppingList: addToShoppingList, CATEGORY_ORDER: CATEGORY_ORDER,
     macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
     planMacros: planMacros, batchLeft: batchLeft,
     _norm: norm,

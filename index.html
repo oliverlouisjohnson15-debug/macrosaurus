@@ -24,7 +24,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[15px\]{height:15px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[15px\]{width:15px}.w-\[68px\]{width:68px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-2xl,.shadow-xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:items-center{align-items:center}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[15px\]{height:15px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[15px\]{width:15px}.w-\[68px\]{width:68px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-2xl,.shadow-xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:items-center{align-items:center}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -1331,7 +1331,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       diet_break_snooze: null,// ISO date until which the diet-break offer is hidden ("Not now")
       saved_meals: [],    // named multi-item meals for one-tap logging: { id, name, items:[...], created_at }
       recipes: [],        // saved recipes decomposed from a shared video/link: { id, user_id, title, source_platform, source_url, thumbnail, servings, ingredients:[{id,name,quantity,unit,grams,have}], steps:[], macros_per_serving:{kcal,protein,carbs,fat,fiber}, macros_confidence, created_at, updated_at }
-      shopping_list: [],  // rolled-up things to buy: { id, name, qty_label, recipe_id, checked, added_at }
+      shopping_list: [],  // rolled-up things to buy: { id, name, qtys:{unit:amount}, qty_label, category, recipe_ids:[], checked, manual, added_at }
+      pantry: [],         // normalised names the user "always has", skipped when adding recipe ingredients to the list
       meal_plan: [],      // planned recipes on a calendar: { id, date, recipe_id, portion, cooked, added_at }
       catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] }, locked so later edits never lose a caught creature
       items: {},          // shared item inventory: { itemId: count }
@@ -1415,6 +1416,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     out.saved_meals    = unionBy(newer.saved_meals,    older.saved_meals,    byId);
     out.recipes        = unionBy(newer.recipes,        older.recipes,        byId);
     out.shopping_list  = unionBy(newer.shopping_list,  older.shopping_list,  byId);
+    out.pantry         = Array.from(new Set([].concat(older.pantry || [], newer.pantry || [])));
     out.meal_plan      = unionBy(newer.meal_plan,      older.meal_plan,      byId);
     out.targets        = unionBy(newer.targets,        older.targets,        byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
@@ -1964,6 +1966,115 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return out;
   }
 
+  // ---- Shopping list: quantity combining + aisle categories ------------------------------------
+  // Map a measurement word to a canonical unit. Mass normalises to g, volume to ml, so amounts can be
+  // summed across recipes; portion words (tbsp, clove...) keep their own unit; anything else is a count.
+  var UNIT_WORDS = {
+    g: 'g', gram: 'g', grams: 'g', kg: 'kg', ml: 'ml', l: 'l', litre: 'l', liter: 'l',
+    tbsp: 'tbsp', tbs: 'tbsp', tablespoon: 'tbsp', tsp: 'tsp', teaspoon: 'tsp', dsp: 'dsp',
+    cup: 'cup', cups: 'cup', clove: 'clove', cloves: 'clove', slice: 'slice', slices: 'slice',
+    can: 'can', cans: 'can', tin: 'tin', tins: 'tin', jar: 'jar', jars: 'jar', pinch: 'pinch',
+    dash: 'dash', handful: 'handful', scoop: 'scoop', scoops: 'scoop', ball: 'ball', balls: 'ball',
+    rasher: 'rasher', rashers: 'rasher', sprig: 'sprig', sprigs: 'sprig', stick: 'stick', sticks: 'stick',
+    bunch: 'bunch', head: 'head', heads: 'head', packet: 'packet', pack: 'packet', sachet: 'sachet',
+    punnet: 'punnet', bottle: 'bottle', knob: 'knob',
+  };
+  // Parse the leading "amount [unit]" from an ingredient line into { n, unit }, or null if none. Bare
+  // counts and unrecognised words (e.g. "1 wholemeal pitta") become the count unit 'x'.
+  function parseQtyToken(line) {
+    var s = String(line || '').trim();
+    var m = s.match(/^(\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[½¼¾⅓⅔⅛⅜⅝⅞])\s*([a-zA-Z]+)?\b/);
+    if (!m) return null;
+    var n = parseAmt(m[1].replace(/\s+/g, ''));
+    if (!(n > 0)) return null;
+    var unit = UNIT_WORDS[(m[2] || '').toLowerCase()] || '';
+    if (unit === 'kg') { n *= 1000; unit = 'g'; }
+    else if (unit === 'l') { n *= 1000; unit = 'ml'; }
+    if (!unit) unit = 'x';
+    return { n: n, unit: unit };
+  }
+  function addQty(qtys, token) { qtys = qtys || {}; if (token) qtys[token.unit] = (qtys[token.unit] || 0) + token.n; return qtys; }
+  var QTY_ORDER = ['x', 'g', 'ml', 'tbsp', 'tsp', 'dsp', 'cup', 'clove', 'slice', 'can', 'tin', 'jar', 'handful', 'pinch', 'dash', 'scoop', 'ball', 'rasher', 'sprig', 'stick', 'bunch', 'head', 'packet', 'sachet', 'punnet', 'bottle', 'knob'];
+  var PLURAL_UNITS = { clove: 1, slice: 1, can: 1, tin: 1, jar: 1, scoop: 1, ball: 1, rasher: 1, sprig: 1, stick: 1, head: 1, bottle: 1, packet: 1, punnet: 1, bunch: 1 };
+  // Render a combined { unit: amount } map as a short label ("400 g", "2 tbsp", "3", "200 g + 1").
+  function fmtQty(qtys) {
+    if (!qtys) return '';
+    var keys = Object.keys(qtys).filter(function (u) { return qtys[u]; }).sort(function (a, b) {
+      var ia = QTY_ORDER.indexOf(a), ib = QTY_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    return keys.map(function (u) {
+      var n = Math.round(qtys[u] * 100) / 100;
+      if (u === 'g') return n >= 1000 ? (Math.round(n / 100) / 10) + ' kg' : n + ' g';
+      if (u === 'ml') return n >= 1000 ? (Math.round(n / 100) / 10) + ' l' : n + ' ml';
+      if (u === 'x') return String(n);
+      return n + ' ' + u + (n !== 1 && PLURAL_UNITS[u] ? 's' : '');
+    }).join(' + ');
+  }
+
+  // Aisle categories, checked in priority order (most specific first) by substring on the food name.
+  var CATEGORY_ORDER = ['Produce', 'Meat & fish', 'Dairy & eggs', 'Bakery', 'Rice, pasta & grains', 'Tins, jars & packets', 'Frozen', 'Store cupboard', 'Drinks', 'Household', 'Other'];
+  var CATEGORY_KEYWORDS = [
+    ['Meat & fish', ['chicken', 'beef', 'pork', 'lamb', 'mince', 'steak', 'bacon', 'sausage', 'turkey', 'ham', 'gammon', 'chorizo', 'salmon', 'tuna', 'cod', 'haddock', 'prawn', 'shrimp', 'fish', 'fillet', 'thigh', 'drumstick', 'breast', 'mackerel', 'sardine', 'anchovy']],
+    ['Dairy & eggs', ['milk', 'cheese', 'yoghurt', 'yogurt', 'butter', 'egg', 'cream', 'feta', 'mozzarella', 'cheddar', 'parmesan', 'halloumi', 'quark', 'mascarpone', 'ghee', 'custard']],
+    ['Bakery', ['bread', 'pitta', 'pita', 'wrap', 'tortilla', 'bagel', 'bun', 'roll', 'naan', 'baguette', 'croissant', 'brioche', 'muffin', 'crumpet', 'flatbread']],
+    ['Rice, pasta & grains', ['rice', 'pasta', 'noodle', 'spaghetti', 'penne', 'macaroni', 'couscous', 'quinoa', 'oats', 'oat', 'porridge', 'bulgur', 'barley', 'polenta', 'risotto']],
+    ['Frozen', ['frozen', 'ice cream']],
+    ['Tins, jars & packets', ['tinned', 'canned', 'chickpea', 'lentil', 'kidney bean', 'black bean', 'passata', 'chopped tomato', 'tomato puree', 'coconut milk', 'stock', 'broth', 'olives', 'sweetcorn', 'baked bean', 'butter bean', 'cannellini']],
+    ['Produce', ['onion', 'garlic', 'tomato', 'pepper', 'spinach', 'lettuce', 'carrot', 'potato', 'avocado', 'lemon', 'lime', 'banana', 'apple', 'orange', 'mango', 'berry', 'berries', 'strawberr', 'blueberr', 'raspberr', 'broccoli', 'courgette', 'zucchini', 'cucumber', 'mushroom', 'coriander', 'cilantro', 'basil', 'parsley', 'mint', 'ginger', 'chilli', 'chili', 'kale', 'cabbage', 'celery', 'leek', 'spring onion', 'shallot', 'sweet potato', 'squash', 'aubergine', 'eggplant', 'beetroot', 'rocket', 'arugula', 'salad', 'pea', 'cauliflower', 'asparagus', 'green bean', 'grape', 'pear', 'peach', 'fruit', 'veg', 'herb']],
+    ['Store cupboard', ['oil', 'salt', 'pepper', 'sugar', 'honey', 'vinegar', 'soy sauce', 'soy', 'fish sauce', 'spice', 'cumin', 'paprika', 'cinnamon', 'turmeric', 'curry', 'stock cube', 'baking', 'vanilla', 'mustard', 'ketchup', 'mayo', 'mayonnaise', 'peanut butter', 'tahini', 'nut', 'seed', 'syrup', 'cocoa', 'chocolate', 'flour', 'cornflour', 'yeast', 'oregano', 'thyme', 'rosemary', 'sriracha', 'harissa', 'pesto', 'jam', 'sesame', 'raisin', 'sultana', 'date', 'bouillon']],
+    ['Drinks', ['water', 'juice', 'squash', 'cola', 'lemonade', 'sparkling', 'coffee', 'tea', 'wine', 'beer', 'kombucha', 'oat milk', 'almond milk', 'soya milk']],
+    ['Household', ['bin bag', 'bin liner', 'foil', 'clingfilm', 'cling film', 'kitchen roll', 'washing up', 'detergent', 'soap', 'sponge', 'toilet', 'tissue', 'battery', 'cleaner', 'baking paper', 'parchment', 'napkin']],
+  ];
+  function shoppingCategory(name) {
+    var s = norm(name);
+    for (var i = 0; i < CATEGORY_KEYWORDS.length; i++) {
+      var kws = CATEGORY_KEYWORDS[i][1];
+      for (var j = 0; j < kws.length; j++) { if (s.indexOf(kws[j]) >= 0) return CATEGORY_KEYWORDS[i][0]; }
+    }
+    return 'Other';
+  }
+
+  // Add ingredient lines to a shopping list, COMBINING quantities into an existing unchecked item of the
+  // same name (this is what stops two recipes' chicken from silently overwriting each other) and skipping
+  // anything in the pantry. `additions` are { line, recipe_id }. Returns { list, added }. Pure: never
+  // mutates the input list or its items (clones any item it merges into), so it is store/immer-safe.
+  function addToShoppingList(list, additions, opts) {
+    opts = opts || {};
+    var uid = opts.uid || function () { return 'sl' + Math.round((opts.now || 0)); };
+    var pantry = opts.pantry || {};
+    var now = opts.now || 0;
+    var out = (list || []).slice();
+    var added = 0;
+    (additions || []).forEach(function (a) {
+      var line = String((a && (a.line || a.name)) || '').trim();
+      if (!line) return;
+      var nm = nameFromLine(line) || line;
+      var key = norm(nm);
+      if (!key || pantry[key]) return;
+      var token = parseQtyToken(line);
+      var idx = -1;
+      for (var i = 0; i < out.length; i++) { if (out[i] && !out[i].checked && norm(out[i].name) === key) { idx = i; break; } }
+      if (idx >= 0) {
+        var ex = out[idx];
+        var qtys = ex.qtys ? Object.assign({}, ex.qtys) : (ex.qty_label ? addQty({}, parseQtyToken(ex.qty_label)) : {});
+        addQty(qtys, token);
+        var rids = (ex.recipe_ids || []).slice();
+        if (a.recipe_id && rids.indexOf(a.recipe_id) < 0) rids.push(a.recipe_id);
+        out[idx] = Object.assign({}, ex, { qtys: qtys, qty_label: fmtQty(qtys), recipe_ids: rids });
+        added++;
+      } else {
+        var q = addQty({}, token);
+        out.push({
+          id: uid(), name: nm, qtys: q, qty_label: fmtQty(q), category: shoppingCategory(nm),
+          recipe_ids: a.recipe_id ? [a.recipe_id] : [], recipe_id: a.recipe_id || null,
+          manual: !!opts.manual, checked: false, added_at: now,
+        });
+        added++;
+      }
+    });
+    return { list: out, added: added };
+  }
+
   // A light plausibility check on a recipe's per-serving macros, so a bad parse never logs silently.
   // Returns null when fine, else { msg } describing what looks off. Only runs once macros exist.
   function macroSanity(recipe) {
@@ -2056,6 +2167,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     applyAnalysis: applyAnalysis, setIngredientMacros: setIngredientMacros,
     computePerServing: computePerServing, resolvedCount: resolvedCount, macrosFromPer100: macrosFromPer100,
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
+    parseQtyToken: parseQtyToken, addQty: addQty, fmtQty: fmtQty, shoppingCategory: shoppingCategory,
+    addToShoppingList: addToShoppingList, CATEGORY_ORDER: CATEGORY_ORDER,
     macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
     planMacros: planMacros, batchLeft: batchLeft,
     _norm: norm,
@@ -19225,24 +19338,24 @@ function RecipeDetail({
   }
   function addMissingToShopping() {
     const additions = missing.map(i => ({
-      name: i.name || Rcp.nameFromLine(i.line),
-      qty_label: Rcp.lineOf(i),
+      line: Rcp.lineOf(i),
       recipe_id: recipe.id
     }));
     let added = 0;
     update(d => {
-      const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions);
-      added = fresh.length;
-      d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({
-        id: Store.uid(),
-        name: a.name,
-        qty_label: a.qty_label,
-        recipe_id: recipe.id,
-        checked: false,
-        added_at: Date.now()
-      })));
+      const pantry = {};
+      (d.pantry || []).forEach(n => {
+        pantry[n] = 1;
+      });
+      const res = Rcp.addToShoppingList(d.shopping_list || [], additions, {
+        uid: Store.uid,
+        pantry,
+        now: Date.now()
+      });
+      added = res.added;
+      d.shopping_list = res.list;
     });
-    showToast(added ? 'Added ' + added + ' to your shopping list' : 'Those are already on your list');
+    showToast(added ? 'Added ' + added + ' to your shopping list' : 'Already on your list or in your pantry');
   }
   const srcLabel = {
     stated: 'as stated in the recipe',
@@ -19749,10 +19862,33 @@ function RecipeDetail({
 function ShoppingListView({
   db,
   update,
+  showToast,
   onBack
 }) {
   useBackClose(onBack);
-  const list = (db.shopping_list || []).slice().sort((a, b) => a.checked === b.checked ? (b.added_at || 0) - (a.added_at || 0) : a.checked ? 1 : -1);
+  const toast = m => {
+    if (showToast) showToast(m);
+  };
+  const [add, setAdd] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editVal, setEditVal] = useState('');
+  const [showPantry, setShowPantry] = useState(false);
+  const rtitle = {};
+  (db.recipes || []).forEach(r => {
+    rtitle[r.id] = r.title;
+  });
+  const listAll = db.shopping_list || [];
+  const pantry = db.pantry || [];
+  const unchecked = listAll.filter(x => !x.checked);
+  const checked = listAll.filter(x => x.checked).sort((a, b) => (b.added_at || 0) - (a.added_at || 0));
+  const groups = {};
+  unchecked.forEach(it => {
+    const c = it.category || 'Other';
+    (groups[c] = groups[c] || []).push(it);
+  });
+  Object.keys(groups).forEach(c => groups[c].sort((a, b) => (b.added_at || 0) - (a.added_at || 0)));
+  const known = Rcp.CATEGORY_ORDER || [];
+  const cats = known.filter(c => groups[c]).concat(Object.keys(groups).filter(c => known.indexOf(c) < 0));
   const toggle = id => update(d => {
     const it = (d.shopping_list || []).find(x => x.id === id);
     if (it) it.checked = !it.checked;
@@ -19766,32 +19902,86 @@ function ShoppingListView({
     tombstone(d, ids);
     d.shopping_list = (d.shopping_list || []).filter(x => !x.checked);
   });
-  const checkedCount = list.filter(x => x.checked).length;
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fade-in"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
-    className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "‹ Recipes"), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-3"
-  }, /*#__PURE__*/React.createElement("h1", {
-    className: "text-xl font-bold"
-  }, "Shopping list"), checkedCount > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: clearChecked,
-    className: "text-[12px] text-[#8A8A90] underline"
-  }, "Clear ticked")), !list.length ? /*#__PURE__*/React.createElement(Card, {
-    className: "p-6 text-center"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] font-semibold mb-1"
-  }, "Nothing to buy yet"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90]"
-  }, "Open a recipe and add its missing ingredients to build your list.")) : /*#__PURE__*/React.createElement("div", {
-    className: "space-y-0.5"
-  }, list.map(it => /*#__PURE__*/React.createElement("div", {
+  const alwaysHave = it => update(d => {
+    const key = Rcp._norm(it.name);
+    const p = (d.pantry || []).slice();
+    if (p.indexOf(key) < 0) p.push(key);
+    d.pantry = p;
+    tombstone(d, [it.id]);
+    d.shopping_list = (d.shopping_list || []).filter(x => x.id !== it.id);
+    toast('Moved to your pantry, we\'ll stop adding it');
+  });
+  const removeFromPantry = name => update(d => {
+    d.pantry = (d.pantry || []).filter(n => n !== name);
+  });
+  function addManual() {
+    const line = add.trim();
+    if (!line) return;
+    update(d => {
+      const res = Rcp.addToShoppingList(d.shopping_list || [], [{
+        line,
+        recipe_id: null
+      }], {
+        uid: Store.uid,
+        pantry: {},
+        now: Date.now(),
+        manual: true
+      });
+      d.shopping_list = res.list;
+    });
+    setAdd('');
+  }
+  function saveEdit(id) {
+    const val = editVal.trim();
+    const tok = Rcp.parseQtyToken(val);
+    update(d => {
+      const it = (d.shopping_list || []).find(x => x.id === id);
+      if (it) {
+        it.qtys = tok ? Rcp.addQty({}, tok) : {};
+        it.qty_label = val;
+      }
+    });
+    setEditId(null);
+    setEditVal('');
+  }
+  const attrOf = it => {
+    const ts = (it.recipe_ids || []).map(id => rtitle[id]).filter(Boolean);
+    if (!ts.length) return '';
+    return ts.length === 1 ? 'for ' + ts[0] : 'for ' + ts[0] + ' +' + (ts.length - 1);
+  };
+  function listText() {
+    let out = 'Shopping list';
+    cats.forEach(c => {
+      out += '\n\n' + c + '\n' + groups[c].map(it => '- ' + it.name + (it.qty_label ? ' (' + it.qty_label + ')' : '')).join('\n');
+    });
+    return out;
+  }
+  async function shareList() {
+    const text = listText();
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Shopping list',
+          text
+        });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('List copied');
+    } catch (e) {
+      toast('Could not copy');
+    }
+  }
+  const row = it => /*#__PURE__*/React.createElement("div", {
     key: it.id,
-    className: "flex items-center gap-3 py-2"
+    className: "flex items-center gap-2.5 py-2"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => toggle(it.id),
+    "aria-label": it.checked ? 'Untick' : 'Tick',
     className: "w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]",
     style: {
       border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'),
@@ -19800,18 +19990,132 @@ function ShoppingListView({
     }
   }, it.checked ? '✓' : ''), /*#__PURE__*/React.createElement("button", {
     onClick: () => toggle(it.id),
-    className: "flex-1 min-w-0 text-left text-[14px]",
+    className: "flex-1 min-w-0 text-left"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[14px] truncate",
     style: {
       color: it.checked ? 'var(--muted)' : 'var(--text)',
       textDecoration: it.checked ? 'line-through' : 'none'
     }
-  }, it.name), it.qty_label && /*#__PURE__*/React.createElement("span", {
-    className: "text-[12px] text-[#8A8A90] tnum shrink-0"
-  }, it.qty_label), /*#__PURE__*/React.createElement("button", {
+  }, it.name), !it.checked && attrOf(it) && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] truncate"
+  }, attrOf(it))), editId === it.id ? /*#__PURE__*/React.createElement("input", {
+    autoFocus: true,
+    value: editVal,
+    onChange: e => setEditVal(e.target.value),
+    onBlur: () => saveEdit(it.id),
+    onKeyDown: e => {
+      if (e.key === 'Enter') saveEdit(it.id);
+    },
+    className: "w-16 text-[12px] text-right bg-transparent shrink-0",
+    style: {
+      borderBottom: '1px solid var(--border)',
+      color: 'var(--text)'
+    }
+  }) : /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setEditId(it.id);
+      setEditVal(it.qty_label || '');
+    },
+    className: "text-[12px] text-[#8A8A90] tnum shrink-0 min-w-[24px] text-right"
+  }, it.qty_label || '+'), !it.checked && /*#__PURE__*/React.createElement("button", {
+    onClick: () => alwaysHave(it),
+    title: "Always have (stop adding this to lists)",
+    "aria-label": "Always have",
+    className: "pf text-[6.5px] uppercase text-[#8A8A90] shrink-0 leading-none",
+    style: {
+      letterSpacing: '.5px'
+    }
+  }, "Have"), /*#__PURE__*/React.createElement("button", {
     onClick: () => removeItem(it.id),
-    className: "text-[#8A8A90] text-lg leading-none px-1",
-    "aria-label": "Remove"
-  }, "×")))));
+    "aria-label": "Remove",
+    className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0"
+  }, "×"));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "text-[13px] text-[#8A8A90] mb-3"
+  }, "‹ Recipes"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-3 gap-3"
+  }, /*#__PURE__*/React.createElement("h1", {
+    className: "text-xl font-bold"
+  }, "Shopping list"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 shrink-0"
+  }, unchecked.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: shareList,
+    className: "text-[12px] flex items-center gap-1",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.share, {
+    width: "14",
+    height: "14"
+  }), " Share"), checked.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: clearChecked,
+    className: "text-[12px] text-[#8A8A90] underline"
+  }, "Clear ticked"))), /*#__PURE__*/React.createElement("form", {
+    onSubmit: e => {
+      e.preventDefault();
+      addManual();
+    },
+    className: "flex gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: add,
+    onChange: e => setAdd(e.target.value),
+    placeholder: "Add an item, e.g. 2 milk",
+    className: "flex-1 min-w-0 pixel-box px-3 py-2 text-[14px] bg-transparent",
+    style: {
+      color: 'var(--text)'
+    }
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "primary",
+    type: "submit",
+    disabled: !add.trim(),
+    className: "shrink-0 px-4"
+  }, "Add")), !listAll.length ? /*#__PURE__*/React.createElement(Card, {
+    className: "p-6 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-semibold mb-1"
+  }, "Nothing to buy yet"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90]"
+  }, "Add an item above, or open a recipe and add its missing ingredients. Items combine and sort themselves into aisles.")) : /*#__PURE__*/React.createElement(React.Fragment, null, cats.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c,
+    className: "mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
+  }, c), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-0.5"
+  }, groups[c].map(row)))), checked.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mb-4 pt-2",
+    style: {
+      borderTop: '2px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5"
+  }, "Ticked (", checked.length, ")"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-0.5"
+  }, checked.map(row)))), pantry.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowPantry(v => !v),
+    className: "text-[11px] text-[#8A8A90]"
+  }, showPantry ? 'Hide' : 'Show', " pantry (", pantry.length, ") ", showPantry ? '' : '›'), showPantry && /*#__PURE__*/React.createElement(Card, {
+    className: "p-3 mt-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mb-2"
+  }, "Things you always have. We won't add these from recipes. Remove one to start buying it again."), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, pantry.map(n => /*#__PURE__*/React.createElement("button", {
+    key: n,
+    onClick: () => removeFromPantry(n),
+    className: "pf text-[7px] uppercase px-2 py-1 leading-none flex items-center gap-1",
+    style: {
+      background: 'var(--surface3)',
+      color: 'var(--muted)',
+      border: '1px solid var(--border)'
+    }
+  }, n, " ×"))))));
 }
 // The Cook game layer: cooking recipes climbs a Chef level, so the gamification spans the recipe hub
 // and reinforces the two moats (fun + recipes). Progression only for now; a Chef-exclusive Macrodex
@@ -20266,25 +20570,25 @@ function PlannerView({
       const r = byId[p.recipe_id];
       if (!r) return;
       (r.ingredients || []).filter(i => !i.have).forEach(i => additions.push({
-        name: i.name || Rcp.nameFromLine(i.line),
-        qty_label: Rcp.lineOf(i),
+        line: Rcp.lineOf(i),
         recipe_id: r.id
       }));
     }));
     let added = 0;
     update(d => {
-      const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions);
-      added = fresh.length;
-      d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({
-        id: Store.uid(),
-        name: a.name,
-        qty_label: a.qty_label,
-        recipe_id: a.recipe_id,
-        checked: false,
-        added_at: Date.now()
-      })));
+      const pantry = {};
+      (d.pantry || []).forEach(n => {
+        pantry[n] = 1;
+      });
+      const res = Rcp.addToShoppingList(d.shopping_list || [], additions, {
+        uid: Store.uid,
+        pantry,
+        now: Date.now()
+      });
+      added = res.added;
+      d.shopping_list = res.list;
     });
-    showToast(added ? 'Added ' + added + ' to your shopping list' : 'Those are already on your list');
+    showToast(added ? 'Added this week to your shopping list' : 'Those are already on your list or in your pantry');
   }
   const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
   return /*#__PURE__*/React.createElement("div", {
@@ -21010,7 +21314,8 @@ function Recipes({
   }), screen === 'shopping' && /*#__PURE__*/React.createElement(ShoppingListView, {
     db: db,
     update: update,
-    onBack: () => setScreen('list')
+    showToast: showToast,
+    onBack: () => setScreen("list")
   }), screen === 'plan' && /*#__PURE__*/React.createElement(PlannerView, {
     db: db,
     update: update,
