@@ -360,3 +360,13 @@ test('dayNightAffinity splits on 06:00 and 18:00', () => {
   assert.strictEqual(Game.dayNightAffinity(5), 'night');
   assert.strictEqual(Game.dayNightAffinity(0), 'night');
 });
+
+// ---- pre-fight stance (the battle plan) ----
+
+test('stanceMult trades attack and defence, steady is neutral', () => {
+  assert.deepStrictEqual(Game.stanceMult('press'), { atk: 1.2, def: 0.85 });
+  assert.deepStrictEqual(Game.stanceMult('dig'), { atk: 0.85, def: 1.2 });
+  assert.deepStrictEqual(Game.stanceMult('steady'), { atk: 1, def: 1 });
+  assert.deepStrictEqual(Game.stanceMult('bogus'), { atk: 1, def: 1 }); // safe default
+  assert.strictEqual(typeof Game.SPECIAL_ATK, 'number');
+});

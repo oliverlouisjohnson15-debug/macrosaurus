@@ -1611,6 +1611,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     if (isBoss && weaknessExploited) m *= 1.35;
     return Math.round(m * 100) / 100;
   }
+  // Pre-fight stance: the player's one tactical choice, read against the matchup. Press trades
+  // defence for attack, Dig in the reverse, Steady is neutral.
+  var STANCE_MULT = { press: { atk: 1.2, def: 0.85 }, steady: { atk: 1, def: 1 }, dig: { atk: 0.85, def: 1.2 } };
+  function stanceMult(stance) { return STANCE_MULT[stance] || STANCE_MULT.steady; }
+  var SPECIAL_ATK = 1.3;   // a spent perfect-day Special adds this attack multiplier for the bout
 
   // Day/night affinity (Gen 2 Espeon/Umbreon): the path the buddy takes is set by the clock at
   // the moment it evolves, i.e. whether you tend to hit your macros by day or after dark. Day is
@@ -1760,6 +1765,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     bossWeakness: bossWeakness,
     weeklyLoadout: weeklyLoadout,
     fightAtkMult: fightAtkMult,
+    stanceMult: stanceMult,
+    SPECIAL_ATK: SPECIAL_ATK,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,
@@ -9185,6 +9192,8 @@ function FightModal({
   const timers = useRef([]);
   const effRef = useRef(null); // buddy's effective stats for the current fight (type/weakness applied)
   const [lastMult, setLastMult] = useState(1);
+  const [stance, setStance] = useState('steady'); // pre-fight tactical choice
+  const [useSpecial, setUseSpecial] = useState(false);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   // The fight opens like a monster battle: both fighters slide onto their platforms and a VS flashes,
@@ -9192,8 +9201,11 @@ function FightModal({
   // attack is scaled by the type matchup (and the boss-weakness bonus when exploited) before the bout.
   function start(opponent, boss) {
     const mult = Game.fightAtkMult(buddyType, opponent.type, !!boss, weaknessExploited);
+    const sm = Game.stanceMult(stance);
+    const spec = useSpecial && loadout.special > 0 ? Game.SPECIAL_ATK : 1;
     const eff = Object.assign({}, fighter.stats, {
-      atk: Math.max(1, Math.round(fighter.stats.atk * mult))
+      atk: Math.max(1, Math.round(fighter.stats.atk * mult * sm.atk * spec)),
+      def: Math.max(1, Math.round(fighter.stats.def * sm.def))
     });
     effRef.current = eff;
     setLastMult(mult);
@@ -9559,7 +9571,41 @@ function FightModal({
       borderTop: '2px solid var(--border)',
       color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)'
     }
-  }, rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`)), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
+  }, rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`)), (gate.can || bossReady) && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3.5 mb-3.5",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Battle plan"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, [['press', 'Press', '+ATK'], ['steady', 'Steady', 'balanced'], ['dig', 'Dig in', '+DEF']].map(([k, label, hint]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setStance(k),
+    className: "flex-1 pixel-btn py-2 px-1",
+    style: {
+      background: stance === k ? 'var(--accent)' : 'var(--surface3)',
+      color: stance === k ? 'var(--on-accent)' : 'var(--text)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] leading-tight"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "text-[7px] mt-0.5",
+    style: {
+      opacity: 0.8
+    }
+  }, hint)))), loadout.special > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setUseSpecial(s => !s),
+    className: "w-full pixel-btn py-2 mt-2",
+    style: {
+      background: useSpecial ? 'var(--fat)' : 'var(--surface3)',
+      color: useSpecial ? '#1a1400' : 'var(--text)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px]"
+  }, useSpecial ? '✦ Special armed · +30% ATK' : 'Unleash perfect-day Special · +30% ATK'))), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-3.5",
     onClick: prestige

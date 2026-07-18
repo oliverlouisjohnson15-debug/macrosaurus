@@ -134,6 +134,11 @@
     if (isBoss && weaknessExploited) m *= 1.35;
     return Math.round(m * 100) / 100;
   }
+  // Pre-fight stance: the player's one tactical choice, read against the matchup. Press trades
+  // defence for attack, Dig in the reverse, Steady is neutral.
+  var STANCE_MULT = { press: { atk: 1.2, def: 0.85 }, steady: { atk: 1, def: 1 }, dig: { atk: 0.85, def: 1.2 } };
+  function stanceMult(stance) { return STANCE_MULT[stance] || STANCE_MULT.steady; }
+  var SPECIAL_ATK = 1.3;   // a spent perfect-day Special adds this attack multiplier for the bout
 
   // Day/night affinity (Gen 2 Espeon/Umbreon): the path the buddy takes is set by the clock at
   // the moment it evolves, i.e. whether you tend to hit your macros by day or after dark. Day is
@@ -283,6 +288,8 @@
     bossWeakness: bossWeakness,
     weeklyLoadout: weeklyLoadout,
     fightAtkMult: fightAtkMult,
+    stanceMult: stanceMult,
+    SPECIAL_ATK: SPECIAL_ATK,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,

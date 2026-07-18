@@ -2605,6 +2605,8 @@ function FightModal({ db, update, streak, onClose }) {
   const rewarded = useRef(false); const timers = useRef([]);
   const effRef = useRef(null);          // buddy's effective stats for the current fight (type/weakness applied)
   const [lastMult, setLastMult] = useState(1);
+  const [stance, setStance] = useState('steady');   // pre-fight tactical choice
+  const [useSpecial, setUseSpecial] = useState(false);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   // The fight opens like a monster battle: both fighters slide onto their platforms and a VS flashes,
@@ -2612,7 +2614,12 @@ function FightModal({ db, update, streak, onClose }) {
   // attack is scaled by the type matchup (and the boss-weakness bonus when exploited) before the bout.
   function start(opponent, boss) {
     const mult = Game.fightAtkMult(buddyType, opponent.type, !!boss, weaknessExploited);
-    const eff = Object.assign({}, fighter.stats, { atk: Math.max(1, Math.round(fighter.stats.atk * mult)) });
+    const sm = Game.stanceMult(stance);
+    const spec = (useSpecial && loadout.special > 0) ? Game.SPECIAL_ATK : 1;
+    const eff = Object.assign({}, fighter.stats, {
+      atk: Math.max(1, Math.round(fighter.stats.atk * mult * sm.atk * spec)),
+      def: Math.max(1, Math.round(fighter.stats.def * sm.def)),
+    });
     effRef.current = eff; setLastMult(mult);
     setOpp(opponent); setIsBoss(!!boss); setMaxA(eff.hp); setMaxB(opponent.stats.hp); setHpA(eff.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it);
   }
@@ -2738,6 +2745,22 @@ function FightModal({ db, update, streak, onClose }) {
             </div>
             {!ladderCleared && rivalMult !== 1 && <div className="text-[10px] text-center mt-3 pt-2.5" style={{ borderTop: '2px solid var(--border)', color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)' }}>{rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`}</div>}
           </div>
+
+          {/* battle plan: your one tactical choice before the bout */}
+          {(gate.can || bossReady) && <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+            <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Battle plan</div>
+            <div className="flex gap-2">
+              {[['press', 'Press', '+ATK'], ['steady', 'Steady', 'balanced'], ['dig', 'Dig in', '+DEF']].map(([k, label, hint]) => (
+                <button key={k} onClick={() => setStance(k)} className="flex-1 pixel-btn py-2 px-1" style={{ background: stance === k ? 'var(--accent)' : 'var(--surface3)', color: stance === k ? 'var(--on-accent)' : 'var(--text)' }}>
+                  <div className="pf text-[9px] leading-tight">{label}</div>
+                  <div className="text-[7px] mt-0.5" style={{ opacity: 0.8 }}>{hint}</div>
+                </button>
+              ))}
+            </div>
+            {loadout.special > 0 && <button onClick={() => setUseSpecial(s => !s)} className="w-full pixel-btn py-2 mt-2" style={{ background: useSpecial ? 'var(--fat)' : 'var(--surface3)', color: useSpecial ? '#1a1400' : 'var(--text)' }}>
+              <span className="pf text-[8px]">{useSpecial ? '✦ Special armed · +30% ATK' : 'Unleash perfect-day Special · +30% ATK'}</span>
+            </button>}
+          </div>}
 
           {/* primary action */}
           {ladderCleared

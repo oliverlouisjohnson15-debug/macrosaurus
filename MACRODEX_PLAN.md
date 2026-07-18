@@ -250,10 +250,12 @@ resolution, leaderboard scoring) lives in a **pure, unit-tested `app/game.js`** 
   feed-your-buddy loop (craving prompt framing logging as feeding), bond-gated evolution along
   the species line, and the day/night evolution path (Espeon/Umbreon-style — the clock at the
   first evolution sets a Day or Night form, shown as a ☀/☾ badge + warm/cool aura).
-- **Phase 2 — Fight 2.0. ◑ *(core shipped)*** Macros as types with a matchup triangle, the
-  week's eating as a loadout, and a weekly boss weakness that rewards eating the right macro,
-  all pure and unit-tested in `app/game.js`. *Still to do: one-tap move agency and boss phases
-  (deferred — they need live playtesting).*
+- **Phase 2 — Fight 2.0. ✅ *(shipped)*** Macros as types with a matchup triangle, the week's
+  eating as a loadout, a weekly boss weakness that rewards eating the right macro, and a
+  pre-fight **battle plan** (stance choice + a spendable perfect-day Special) as the player's
+  tactical agency — all pure stat modifiers so the proven auto-battle loop can never deadlock,
+  and all unit-tested. *A per-round timed-strike could still be added later as a preview-first
+  enhancement.*
 - **Phase 3 — Collection depth.** Monthly sets, biome-completion rewards, cosmetics earned by
   bond/fights, breeding/eggs.
 - **Phase 4 — Weekly League.** Supabase table + view + RLS + edge-function recompute; opt-in
