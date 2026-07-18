@@ -101,24 +101,47 @@ function instagramShortcode(u: URL): string | null {
   return i >= 0 ? (parts[i + 1] || null) : null;
 }
 
+// Read a <meta> content value tolerant of attribute order and quote style. `key` is the property/name.
+function metaContent(html: string, key: string): string {
+  const k = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const res = [
+    new RegExp('<meta[^>]+(?:property|name)=["\']' + k + '["\'][^>]*?content=["\']([^"\']*)["\']', 'i'),
+    new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]*?(?:property|name)=["\']' + k + '["\']', 'i'),
+  ];
+  for (const re of res) { const mm = html.match(re); if (mm && mm[1]) return decodeEntities(mm[1]); }
+  return '';
+}
+// Strip Instagram's "N likes, M comments - username on date:" engagement preamble from a preview line,
+// leaving just the caption. Falls back to the whole string when the shape doesn't match.
+function stripIgPreamble(s: string): string {
+  const q = s.match(/:\s*["\u201c\u201d']([\s\S]+?)["\u201c\u201d']\s*$/); // caption is often the trailing quoted part
+  if (q && q[1]) return q[1].trim();
+  return s.replace(/^\s*[\d.,]+\s+likes?,\s*[\d.,]+\s+comments?\s*[-\u2013\u2014]\s*/i, '')
+          .replace(/^[^:]{0,80}?\son\s[^:]{0,40}:\s*/i, '').trim();
+}
 // Pull a caption out of Instagram HTML using several strategies, most reliable first.
 function captionFromHtml(html: string): { text: string; strat: string } {
   // 1) GraphQL caption node (present in embed + page JSON). Tolerant of escaped quotes/backslashes.
-  let m = html.match(/edge_media_to_caption[\\\s"]*:[\s\S]{0,40}?[\\"]text[\\"]*\s*:\s*"((?:\\.|[^"\\])*)"/);
+  let m = html.match(/edge_media_to_caption[\\\s"]*:[\s\S]{0,120}?[\\"]text[\\"]*\s*:\s*"((?:\\.|[^"\\])*)"/);
   if (m && m[1]) { const t = unescapeJson(m[1]); if (t.trim().length > 10) return { text: t, strat: 'graphql' }; }
-  // 2) A bare "caption":"..." field.
-  m = html.match(/[\\"]caption[\\"]*\s*:\s*"((?:\\.|[^"\\])*)"/);
+  // 2) A bare "caption":"..." (or "caption_text":"...") field in embedded JSON.
+  m = html.match(/[\\"](?:caption_text|caption)[\\"]*\s*:\s*"((?:\\.|[^"\\])*)"/);
   if (m && m[1]) { const t = unescapeJson(m[1]); if (t.trim().length > 15) return { text: t, strat: 'caption-field' }; }
-  // 3) The rendered caption block in the /embed/captioned/ page.
-  m = html.match(/<div[^>]*class="[^"]*Caption[^"]*"[\s\S]*?<\/div>/i);
-  if (m) { const t = stripTags(m[0].replace(/<div[^>]*class="[^"]*CaptionUsername[^"]*"[\s\S]*?<\/a>/i, '')); if (t.trim().length > 15) return { text: t, strat: 'caption-div' }; }
-  // 4) og:description link-preview text (usually "N likes, M comments - user on date: "caption"").
-  m = html.match(/<meta[^>]+property="og:description"[^>]+content="([^"]*)"/i) || html.match(/<meta[^>]+content="([^"]*)"[^>]+property="og:description"/i);
-  if (m && m[1]) {
-    let t = decodeEntities(m[1]);
-    const q = t.match(/:\s*[""']([\s\S]+)[""']\s*$/); // strip the "N likes... user on date:" preamble if present
-    if (q && q[1]) t = q[1];
-    if (t.trim().length > 15) return { text: t, strat: 'og' };
+  // 3) The rendered caption block in the /embed/captioned/ page (class name contains "Caption").
+  m = html.match(/<div[^>]*class="[^"]*[Cc]aption[^"]*"[\s\S]*?<\/div>/);
+  if (m) { const t = stripTags(m[0].replace(/<[^>]*class="[^"]*CaptionUsername[^"]*"[\s\S]*?<\/a>/i, '')); if (t.trim().length > 15) return { text: t, strat: 'caption-div' }; }
+  // 4) Link-preview description (og / twitter / name), then peel off the engagement preamble.
+  for (const key of ['og:description', 'twitter:description', 'description']) {
+    const raw = metaContent(html, key);
+    if (!raw) continue;
+    const t = stripIgPreamble(raw);
+    if (t.length > 15) return { text: t, strat: 'meta:' + key };
+  }
+  // 5) <title> ("username on Instagram: caption").
+  const tt = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1];
+  if (tt) {
+    const t = decodeEntities(tt).replace(/^[\s\S]*?on Instagram[^:]*:\s*/i, '').replace(/^["\u201c\u201d']|["\u201c\u201d']$/g, '').trim();
+    if (t.length > 15 && !/^instagram$/i.test(t)) return { text: t, strat: 'title' };
   }
   return { text: '', strat: 'none' };
 }
