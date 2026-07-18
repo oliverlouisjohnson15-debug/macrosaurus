@@ -1990,9 +1990,33 @@ const CR_ART = {
 function crC(B, S) { return { K: '#241f2b', B: B, S: S, H: '#ffffff', W: '#ffffff', P: '#241f2b', A: S, T: '#fff6d5', L: '#54b53f' }; }
 function crShiny(c) { return Object.assign({}, c, { B: '#FFD400', S: '#B8860B', H: '#FFF6C0', A: '#B8860B' }); }
 function crSilhouette() { return { K: '#37343f', B: '#2a2830', S: '#2a2830', H: '#2a2830', W: '#2a2830', P: '#2a2830', A: '#2a2830', T: '#2a2830' }; }
+// Lighten a #rrggbb toward white by fraction f (0..1). Used for auto-shading below.
+function crLighten(hex, f) {
+  const h = String(hex).replace('#', ''); if (h.length < 6) return hex;
+  const p = i => parseInt(h.slice(i, i + 2), 16), m = v => Math.round(v + (255 - v) * f).toString(16).padStart(2, '0');
+  return '#' + m(p(0)) + m(p(2)) + m(p(4));
+}
 function Sprite({ art, colors, px = 6 }) {
   const rows = CR_ART[art] || []; const w = rows.reduce((m, r) => Math.max(m, r.length), 0); const h = rows.length; const rects = [];
-  rows.forEach((row, y) => row.split('').forEach((ch, x) => { if (ch !== '.' && colors[ch]) rects.push(<rect key={x + '_' + y} x={x} y={y} width="1.03" height="1.03" fill={colors[ch]} />); }));
+  // Auto light/shade the flat body ('B') from a top-left light: brighter up-left rim,
+  // darker (S) down-right rim, mid core. The black outline (K) counts as the form's edge,
+  // so the whole silhouette reads with volume off the same art, no redrawing. Undiscovered
+  // silhouettes (B === S) and explicit detail pixels (K/S/H/P/T/A/L) are left untouched.
+  const shade = colors.B && colors.S && colors.B !== colors.S;
+  const litB = shade ? crLighten(colors.B, 0.38) : colors.B;
+  const litB2 = shade ? crLighten(colors.B, 0.62) : colors.B;
+  const edge = (x, y) => { const c = (y >= 0 && y < h && x >= 0 && x < rows[y].length) ? rows[y][x] : '.'; return c === '.' || c === 'K'; };
+  rows.forEach((row, y) => row.split('').forEach((ch, x) => {
+    if (ch === '.' || !colors[ch]) return;
+    let fill = colors[ch];
+    if (ch === 'B' && shade) {
+      const up = edge(x, y - 1), left = edge(x - 1, y);
+      if (up && left) fill = litB2;
+      else if (up || left) fill = litB;
+      else if (edge(x, y + 1) || edge(x + 1, y)) fill = colors.S;
+    }
+    rects.push(<rect key={x + '_' + y} x={x} y={y} width="1.03" height="1.03" fill={fill} />);
+  }));
   return <svg width={w * px} height={h * px} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges">{rects}</svg>;
 }
 
