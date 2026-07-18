@@ -60,7 +60,10 @@
 section{padding:72px 0;}
 h2.sec{font-family:var(--pix); font-size:22px; line-height:1.45; margin:14px 0 0; text-wrap:balance; max-width:20ch;}
 .lead{color:var(--muted); font-size:15.5px; max-width:54ch; margin-top:16px;}
-@media(max-width:600px){.shell{padding:0 22px;} section{padding:56px 0;} h2.sec{font-size:18px;}}
+@media(max-width:600px){
+  .shell{padding:0 22px;} section{padding:56px 0;} h2.sec{font-size:18px;}
+  .hero-cta{gap:12px;} .hero-cta .btn{flex:1 1 100%; width:100%;}
+}
 
 /* NAV */
 .nav{position:sticky; top:0; z-index:50; background:var(--purple); border-bottom:3px solid var(--ink);}
@@ -73,16 +76,17 @@ h2.sec{font-family:var(--pix); font-size:22px; line-height:1.45; margin:14px 0 0
 .nav-cta{margin-left:auto; display:flex; gap:10px; align-items:center;}
 .nav .btn{padding:11px 15px; font-size:10px; box-shadow:3px 3px 0 0 var(--ink);}
 .nav .btn:active{box-shadow:0 0 0 0 var(--ink);}
-.nav-burger{display:none; font-family:var(--pix); font-size:15px; background:#fff; color:var(--ink); border:3px solid var(--ink); box-shadow:3px 3px 0 var(--ink); padding:9px 12px; cursor:pointer; line-height:1;}
-.nav-burger:active{box-shadow:0 0 0 var(--ink); transform:translate(3px,3px);}
+/* mobile nav: drop the section links, keep LOG IN + START FREE always visible */
 @media(max-width:880px){
-  .nav-in{padding:13px 22px;}
-  .nav-burger{display:inline-flex;}
-  .nav-links{position:absolute; top:100%; left:0; right:0; flex-direction:column; gap:0; margin:0; padding:0 22px; background:var(--purple); border-bottom:3px solid var(--ink); max-height:0; overflow:hidden; transition:max-height .26s ease;}
-  .nav.open .nav-links{max-height:340px; padding:6px 22px 16px;}
-  .nav-links a{font-size:13px; padding:13px 0; border-bottom:1px solid rgba(255,255,255,.14);}
+  .nav-in{padding:12px 20px;}
+  .nav-links{display:none;}
 }
-@media(max-width:520px){.nav-cta .btn.hide-xs{display:none;}}
+@media(max-width:600px){
+  .nav .brandtxt{display:none;}
+  .brand .dino{font-size:26px;}
+  .nav-cta{gap:8px;}
+  .nav .btn{padding:13px 13px; font-size:9.5px;}
+}
 
 /* HERO */
 .hero{padding:66px 0 40px;}
@@ -250,7 +254,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
   <!-- NAV -->
   <nav class="nav">
     <div class="nav-in">
-      <a class="brand" href="#top"><span class="dino">&#129430;</span> MACROSAURUS</a>
+      <a class="brand" href="#top"><span class="dino">&#129430;</span><span class="brandtxt"> MACROSAURUS</span></a>
       <div class="nav-links">
         <a href="#logging">Logging</a>
         <a href="#recipes">Recipes</a>
@@ -258,9 +262,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <a href="#pricing">Pricing</a>
       </div>
       <div class="nav-cta">
-        <a class="btn btn-onpurple hide-xs" href="https://app.macrosaurus.com">LOG IN</a>
+        <a class="btn btn-onpurple" href="https://app.macrosaurus.com">LOG IN</a>
         <a class="btn btn-primary" href="https://app.macrosaurus.com">START FREE</a>
-        <button class="nav-burger" aria-label="Menu" aria-expanded="false">&#9776;</button>
       </div>
     </div>
   </nav>
@@ -273,8 +276,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <div>
         <span class="eyebrow">Science-based &#183; Adaptive &#183; Actually fun</span>
         <h1>The best macro tracker. And the only one you'll enjoy.</h1>
-        <p class="sub">Targets built on real science that quietly adjust to your body every week. Log your food in seconds with AI, cook recipes tuned to your macros, and collect dinosaurs along the way.</p>
-        <p class="hero-vs">All the clever adaptive science of the big trackers, logging as quick as a photo, and a game <span class="hl-teal">none of them have</span>.</p>
+        <p class="sub">Targets that adapt to your body every week. Log food with a quick photo, cook from macro-tuned recipes, and collect dinosaurs as you go.</p>
+        <p class="hero-vs">The clever science of the big trackers, plus a game <span class="hl-teal">none of them have</span>.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="https://app.macrosaurus.com">START FREE &#9654;</a>
           <a class="btn btn-ghost" href="https://app.macrosaurus.com">LOG IN</a>
@@ -332,7 +335,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div>
           <span class="kt" style="color:var(--red)">AI FOOD LOGGING</span>
           <h3>Log a whole meal in one photo.</h3>
-          <p>Snap your plate, say it out loud, or just type a sentence, and the AI reads the food and fills in your macros in a moment. Barcodes and nutrition labels too. It's so quick you'll actually keep it up.</p>
+          <p>Snap your plate, say it, or type it. The AI reads the food and fills in your macros in a moment. So quick you'll actually keep it up.</p>
           <div class="chips"><span class="chip">Photo &#183; voice &#183; text</span><span class="chip">Barcode + label scan</span><span class="chip">One-tap saved meals</span></div>
         </div>
       </div>
@@ -352,7 +355,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div>
           <span class="kt" style="color:var(--gold)">COOK RECIPE MODULE</span>
           <h3>Every meal, built around your macros.</h3>
-          <p>Paste in any recipe and we work out the macros to the gram. Then browse a growing library sorted by what fits your day, your protein target, or whatever's in the fridge. Eat the food you love and still hit your numbers.</p>
+          <p>Paste in any recipe and we work out the macros to the gram. Then browse a library sorted by what fits your day. Eat what you love, hit your numbers.</p>
           <div class="chips"><span class="chip">Import any recipe</span><span class="chip">Priced to the macro</span><span class="chip">Cook for your gap</span></div>
         </div>
       </div>
@@ -369,7 +372,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div>
           <span class="kt" style="color:var(--purple)">THE MACRODEX</span>
           <h3>The reason you'll never miss a day.</h3>
-          <p>Hit your targets and creatures appear. What you eat decides what you catch, so a brilliant day brings out the rare ones. Streaks, hatching eggs and weekly boss fights quietly turn "just one more day" into a proper habit. Nothing else makes sticking with it this much fun.</p>
+          <p>Hit your targets and creatures appear, the better you eat, the rarer they get. Streaks, hatching eggs and weekly boss fights keep you coming back. Nothing else makes it this much fun.</p>
           <div class="chips"><span class="chip">Collect as you log</span><span class="chip">Streaks + eggs</span><span class="chip">Weekly boss fights</span></div>
         </div>
       </div>
@@ -463,7 +466,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <h2 class="sec" style="margin-left:auto;margin-right:auto;">Good to know</h2>
     </div>
     <div class="faq">
-      <details class="qa" open>
+      <details class="qa">
         <summary>Is it really free?<span class="plus">+</span></summary>
         <div class="ans">Yes. Core tracking, the adaptive engine, weekly check-ins, and the entire game are free forever. Premium adds unlimited AI logging, the full recipe library, and body-fat scans.</div>
       </details>
@@ -499,7 +502,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
     <div class="shell">
       <div class="foot-in">
         <div>
-          <a class="brand" href="#top"><span class="dino">&#129430;</span> MACROSAURUS</a>
+          <a class="brand" href="#top"><span class="dino">&#129430;</span><span class="brandtxt"> MACROSAURUS</span></a>
           <p style="margin-top:14px;max-width:32ch;font-size:13px;">The adaptive macro tracker that makes hitting your goals feel like a game.</p>
         </div>
         <div class="foot-links">
