@@ -2708,13 +2708,42 @@ function FightModal({ db, update, streak, onClose }) {
         </div>}
 
         {phase === 'select' && <div className="fade-in">
-          {(fight.prestige || 0) > 0 && <div className="text-center pf text-[8px] uppercase mb-2" style={{ color: 'var(--fat)' }}>Prestige {fight.prestige} · elite ladder</div>}
-          <div className="flex items-center justify-between gap-2 p-3 mb-2 pixel-box" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="text-center flex-1 min-w-0"><div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><Sprite art={fighter.art} colors={fighter.colors} px={5} /></div><div className="text-[10px] mt-1.5 font-bold truncate">{fighter.name}</div><div className="mb-0.5"><TypeChip t={buddyType} /></div><StatLine s={fighter.stats} /></div>
-            <div className="pf text-[12px] text-[#8A8A90] self-center">VS</div>
-            <div className="text-center flex-1 min-w-0"><div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Sprite art={rival.art} colors={rival.colors} px={5} /></span></div><div className="text-[10px] mt-1.5 font-bold truncate">{rival.name}</div><div className="mb-0.5"><TypeChip t={rival.type} /></div><StatLine s={rival.stats} />{rival.ability !== 'none' && <div className="text-[8px]" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}</div>
+          {/* progress eyebrow */}
+          <div className="text-center pf text-[8px] uppercase text-[#8A8A90] mb-3 inline-flex items-center justify-center gap-1.5 w-full flex-wrap">
+            {(fight.prestige || 0) > 0 && <span style={{ color: 'var(--fat)' }}>Prestige {fight.prestige} ·</span>}
+            <span>{ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0}</span>
+            <PixelGlyph kind="trophy" color="var(--fat)" size={11} />
           </div>
-          <div className="text-[11px] text-[#8A8A90] mb-2 text-center inline-flex items-center justify-center gap-1.5 flex-wrap w-full">{ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0} <PixelGlyph kind="trophy" color="var(--fat)" size={12} /></div>
+
+          {/* VS matchup, with the type verdict beneath */}
+          <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+            <div className="flex items-center gap-2">
+              <div className="text-center flex-1 min-w-0">
+                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><Sprite art={fighter.art} colors={fighter.colors} px={5} /></div>
+                <div className="text-[11px] mt-2 font-bold truncate">{fighter.name}</div>
+                <div className="my-1"><TypeChip t={buddyType} /></div>
+                <StatLine s={fighter.stats} />
+              </div>
+              <div className="pf text-[13px] text-[#8A8A90] self-center shrink-0">VS</div>
+              <div className="text-center flex-1 min-w-0">
+                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Sprite art={rival.art} colors={rival.colors} px={5} /></span></div>
+                <div className="text-[11px] mt-2 font-bold truncate">{rival.name}</div>
+                <div className="my-1"><TypeChip t={rival.type} /></div>
+                <StatLine s={rival.stats} />
+                {rival.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}
+              </div>
+            </div>
+            {!ladderCleared && rivalMult !== 1 && <div className="text-[10px] text-center mt-3 pt-2.5" style={{ borderTop: '2px solid var(--border)', color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)' }}>{rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`}</div>}
+          </div>
+
+          {/* primary action */}
+          {ladderCleared
+            ? <Btn kind="accent" className="w-full mb-3.5" onClick={prestige}>Prestige ↑, tougher ladder, better drops</Btn>
+            : gate.can
+              ? <Btn kind="accent" className="w-full mb-3.5" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, false); }}>Fight {rival.name} · 1 attempt today</Btn>
+              : <div className="pixel-box p-3 mb-3.5 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt, a fed buddy fights best.'}</div>}
+
+          {/* how the week armed the fighter */}
           {(() => {
             const s = fighter.stats;
             const rows = [
@@ -2722,33 +2751,28 @@ function FightModal({ db, update, streak, onClose }) {
               { label: 'Fibre', n: s.fib, add: s.fib * 2, unit: 'DEF', color: 'var(--carb)' },
               { label: 'Perfect', n: s.per, add: s.per * 5, unit: 'HP', color: 'var(--good)' },
             ];
-            return <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2 flex items-center justify-between"><span>This week's loadout</span><span style={{ color: TYPE_META[buddyType][1] }}>fed by {TYPE_META[buddyType][2]}</span></div>
-              <div className="space-y-1.5">
+            return <div className="pixel-box p-3.5 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2.5 flex items-center justify-between"><span>This week armed you</span><span style={{ color: TYPE_META[buddyType][1] }}>fed by {TYPE_META[buddyType][2]}</span></div>
+              <div className="space-y-2">
                 {rows.map(r => <div key={r.label} className="flex items-center gap-2 text-[9px]">
                   <span className="w-16 shrink-0 text-[#8A8A90] tnum">{r.label} {r.n}/7</span>
-                  <div className="pixel-bar flex-1" style={{ height: 11, borderWidth: 2 }}><i style={{ width: (r.n / 7 * 100) + '%', background: r.color, transition: 'width .4s' }} /></div>
+                  <div className="pixel-bar flex-1" style={{ height: 10, borderWidth: 2 }}><i style={{ width: (r.n / 7 * 100) + '%', background: r.color, transition: 'width .4s' }} /></div>
                   <span className="w-12 shrink-0 text-right tnum" style={{ color: r.add > 0 ? 'var(--text)' : 'var(--muted)' }}>+{r.add} {r.unit}</span>
                 </div>)}
               </div>
-              <div className="text-[9px] text-[#8A8A90] text-center mt-2 leading-snug">Eat well to power up your fighter.</div>
             </div>;
           })()}
-          {!ladderCleared && rivalMult !== 1 && <div className="text-[9px] text-center mb-1.5" style={{ color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)' }}>{rivalMult > 1 ? `Your ${TYPE_META[buddyType][0]} type is super-effective here (+25% attack)` : `${rival.name} resists your type (−20% attack)`}</div>}
-          {ladderCleared
-            ? <Btn kind="accent" className="w-full mb-2" onClick={prestige}>Prestige ↑, tougher ladder, better drops</Btn>
-            : gate.can
-              ? <Btn kind="accent" className="w-full mb-2" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, false); }}>Fight {rival.name} (1 attempt today)</Btn>
-              : <div className="pixel-box p-3 mb-2 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s ladder attempt is used. Your rival rests, a fresh attempt lands tomorrow.' : 'Log a meal today to earn your ladder attempt, a fed buddy fights best.'}</div>}
-          {bossReady && <div className="pixel-box p-2.5 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', border: '2px solid ' + (weaknessExploited ? 'var(--good)' : 'var(--border)') }}>
-            <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1 flex items-center justify-between"><span>{boss.name} · weak to</span><TypeChip t={weakness} /></div>
-            <div className="text-[10px] leading-snug">{weaknessExploited
-              ? <span style={{ color: 'var(--good)' }}>Weakness exploited: your buddy strikes at +35% this week. Take it down!</span>
-              : <span className="text-[#8A8A90]">Raise a {TYPE_META[weakness][0]} buddy, or eat {TYPE_META[weakness][2]}, {weakDays}/4 days hit this week.</span>}</div>
-          </div>}
+
+          {/* weekly boss: weakness and challenge in one card */}
           {bossReady
-            ? <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, true)}><PixelGlyph kind="glove" color="currentColor" size={14} /> Weekly Boss: {boss.name}</Btn>
-            : <div className="text-[11px] text-[#8A8A90] text-center mt-1">Weekly boss beaten, a new challenger arrives next week.</div>}
+            ? <div className="pixel-box p-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (weaknessExploited ? 'var(--good)' : 'var(--border)') }}>
+                <div className="flex items-center justify-between mb-2 gap-2"><span className="pf text-[8px] uppercase" style={{ color: 'var(--danger)' }}>Weekly boss · {boss.name}</span><span className="pf text-[7px] uppercase inline-flex items-center gap-1 text-[#8A8A90] shrink-0">weak <TypeChip t={weakness} /></span></div>
+                <div className="text-[10px] leading-snug mb-3">{weaknessExploited
+                  ? <span style={{ color: 'var(--good)' }}>Weakness exploited: your buddy strikes at +35% this week. Take it down!</span>
+                  : <span className="text-[#8A8A90]">Raise a {TYPE_META[weakness][0]} buddy or eat {TYPE_META[weakness][2]}, {weakDays}/4 days hit this week for +35% attack.</span>}</div>
+                <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, true)}><PixelGlyph kind="glove" color="currentColor" size={14} /> Challenge {boss.name}</Btn>
+              </div>
+            : <div className="text-[11px] text-[#8A8A90] text-center">Weekly boss beaten, a new challenger arrives next week.</div>}
         </div>}
 
         {(phase === 'fight' || phase === 'done') && opp && <div className="fade-in">
