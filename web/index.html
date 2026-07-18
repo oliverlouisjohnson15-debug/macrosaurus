@@ -56,12 +56,14 @@
 .hl-gold{background:var(--gold); color:var(--ink); padding:0 .12em; box-decoration-break:clone; -webkit-box-decoration-break:clone;}
 .hl-teal{color:var(--teal);}
 
-.shell{max-width:1080px; margin:0 auto; padding:0 40px;}
+/* horizontal inset only — using the shorthand here would wipe out the
+   vertical padding of section/.hero (class beats element specificity) */
+.shell{max-width:1080px; margin:0 auto; padding-left:40px; padding-right:40px;}
 section{padding:72px 0;}
 h2.sec{font-family:var(--pix); font-size:22px; line-height:1.45; margin:14px 0 0; text-wrap:balance; max-width:20ch;}
 .lead{color:var(--muted); font-size:15.5px; max-width:54ch; margin-top:16px;}
 @media(max-width:600px){
-  .shell{padding:0 22px;} section{padding:56px 0;} h2.sec{font-size:18px;}
+  .shell{padding-left:22px; padding-right:22px;} section{padding:56px 0;} h2.sec{font-size:18px;}
   .hero-cta{gap:12px;} .hero-cta .btn{flex:1 1 100%; width:100%;}
 }
 
@@ -92,7 +94,7 @@ h2.sec{font-family:var(--pix); font-size:22px; line-height:1.45; margin:14px 0 0
 }
 
 /* HERO */
-.hero{padding:66px 0 40px;}
+.hero{padding-top:66px; padding-bottom:40px;}
 .hero-grid{display:grid; grid-template-columns:1.02fr .98fr; gap:70px; align-items:center;}
 .hero h1{font-family:var(--pix); font-size:32px; line-height:1.45; margin:18px 0 0; text-wrap:balance;}
 .hero p.sub{color:var(--text2); font-size:16px; margin-top:24px; max-width:48ch;}
@@ -337,7 +339,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
   </div>
 
   <!-- STAR FEATURES -->
-  <section class="shell" style="padding-bottom:40px;">
+  <section class="shell">
     <span class="eyebrow">What you get</span>
     <h2 class="sec">Three things no other tracker does this well.</h2>
 
@@ -417,7 +419,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
   </section>
 
   <!-- COMPARISON -->
-  <section class="shell" style="padding-top:12px;">
+  <section class="shell">
     <div style="text-align:center;">
       <span class="eyebrow">Head to head</span>
       <h2 class="sec" style="margin-left:auto;margin-right:auto;max-width:26ch;">The best tracker you can put on your phone.</h2>
