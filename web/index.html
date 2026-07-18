@@ -136,7 +136,7 @@ h2.sec{font-family:var(--pix); font-size:22px; line-height:1.45; margin:14px 0 0
 .rows{display:flex; flex-direction:column; gap:26px; margin-top:52px;}
 .row{display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center;}
 .row.rev .row-media{order:2;}
-.row-media{border:3px solid var(--ink); background:var(--card); box-shadow:4px 4px 0 var(--ink); padding:24px; min-height:250px; display:flex; flex-direction:column; justify-content:center; gap:14px;}
+.row-media{border:3px solid var(--ink); background:var(--card); box-shadow:4px 4px 0 var(--ink); padding:24px; min-height:250px; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:14px;}
 .row .kt{font-family:var(--pix); font-size:9px; letter-spacing:1px;}
 .row h3{font-family:var(--pix); font-size:18px; line-height:1.45; margin:12px 0 0; text-wrap:balance;}
 .row p{color:var(--muted); font-size:15px; margin-top:14px; max-width:42ch;}
@@ -167,6 +167,12 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 .reel canvas{position:absolute; top:44%; left:50%; transform:translate(-50%,-50%); width:76%; height:auto; z-index:0; filter:drop-shadow(2px 2px 0 rgba(0,0,0,.4));}
 .r1{background:linear-gradient(160deg,#3d8b4a,#1f5a2a);} .r2{background:linear-gradient(160deg,#2a7d94,#164854);} .r3{background:linear-gradient(160deg,#8a3d6f,#4d2340);}
 .r4{background:linear-gradient(160deg,#9a7d2a,#5a4810);} .r5{background:linear-gradient(160deg,#2e5da8,#173a68);} .r6{background:linear-gradient(160deg,#b5532a,#6a2f16);}
+
+/* recipe import bar (share / paste a video -> recipe) */
+.import-bar{display:flex; align-items:center; gap:10px; border:3px solid var(--ink); background:#fff; padding:9px 10px;}
+.import-bar .ib-ico{flex:none; width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:var(--purple); color:#fff; border:2px solid var(--ink); font-size:11px;}
+.import-bar .ib-txt{flex:1; min-width:0; font-family:var(--mono); font-size:12.5px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.import-bar .ib-go{flex:none; font-family:var(--pix); font-size:8px; letter-spacing:.5px; color:var(--ink); background:var(--gold); border:2px solid var(--ink); padding:6px 8px;}
 
 /* macrodex visual */
 .dexgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:11px;}
@@ -333,8 +339,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
   <!-- TICKER -->
   <div class="ticker">
     <div class="ticker-in">
-      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; MACRO-TUNED RECIPES</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
-      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; MACRO-TUNED RECIPES</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
+      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
+      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
     </div>
   </div>
 
@@ -368,6 +374,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <!-- RECIPES -->
       <div class="row rev reveal" id="recipes">
         <div class="row-media">
+          <div class="import-bar"><span class="ib-ico">&#9654;</span><span class="ib-txt">Shared from TikTok / Instagram</span><span class="ib-go">GET RECIPE</span></div>
           <div class="reels">
             <div class="reel r1"><canvas data-meal="chickrice"></canvas><span class="kb">52g P</span><span class="rlbl">High-protein<br>chicken bowl</span></div>
             <div class="reel r3"><canvas data-meal="burrito"></canvas><span class="kb">38g P</span><span class="rlbl">Steak<br>burrito</span></div>
@@ -376,10 +383,10 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           </div>
         </div>
         <div>
-          <span class="kt" style="color:var(--gold)">COOK RECIPE MODULE</span>
-          <h3>Every meal, built around your macros.</h3>
-          <p>Paste in any recipe and we work out the macros to the gram. Then browse a library sorted by what fits your day. Eat what you love, hit your numbers.</p>
-          <div class="chips"><span class="chip">Import any recipe</span><span class="chip">Priced to the macro</span></div>
+          <span class="kt" style="color:var(--gold)">SOCIAL RECIPE IMPORT</span>
+          <h3>Turn any food video into a recipe.</h3>
+          <p>See a meal you like on TikTok or a Reel? Share it straight to Macrosaurus, or paste the link. We pull out the full recipe so you're not scrubbing a 30-second video, cost every macro to the gram, and slot it into your library sorted by what fits your day. Cook it, log it in a tap, feed your streak.</p>
+          <div class="chips"><span class="chip">Share from TikTok &amp; Reels</span><span class="chip">Macros to the gram</span></div>
         </div>
       </div>
 
@@ -431,6 +438,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           <tbody>
             <tr><td class="feat-name">Targets that adapt to you weekly</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Fixed or manual</td></tr>
             <tr><td class="feat-name">AI photo, voice &amp; text logging</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Mostly manual search</td></tr>
+            <tr><td class="feat-name">Import recipes from a TikTok or Reel</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
             <tr><td class="feat-name">Macro-tuned recipe library</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
             <tr><td class="feat-name">Actually fun to open (game layer)</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
             <tr><td class="feat-name">Shows why your targets changed</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Often a black box</td></tr>
@@ -500,6 +508,10 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <details class="qa">
         <summary>How is it different from other trackers?<span class="plus">+</span></summary>
         <div class="ans">You still get the clever adaptive science and quick AI logging you'd expect, plus two things most trackers skip: a recipe module that works out the macros of real meals, and a game that genuinely makes you want to log. And it's built for the UK, your units and your supermarket, not just the States.</div>
+      </details>
+      <details class="qa">
+        <summary>Can I import recipes from TikTok or Instagram?<span class="plus">+</span></summary>
+        <div class="ans">Yes. Share a cooking video straight to Macrosaurus from the TikTok or Instagram share sheet, or paste the link. We pull out the ingredients and method, work the macros out to the gram, and save it to your library sorted by what fits your day &mdash; so you never have to pause and rewind a 30-second video again.</div>
       </details>
       <details class="qa">
         <summary>Do I have to weigh my food?<span class="plus">+</span></summary>
