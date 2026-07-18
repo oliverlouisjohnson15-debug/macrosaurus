@@ -6014,10 +6014,14 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     setPickMeal(null);
   }
   function addMissingToShopping() {
-    const additions = missing.map(i => ({ name: i.name || Rcp.nameFromLine(i.line), qty_label: Rcp.lineOf(i), recipe_id: recipe.id }));
+    const additions = missing.map(i => ({ line: Rcp.lineOf(i), recipe_id: recipe.id }));
     let added = 0;
-    update(d => { const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions); added = fresh.length; d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: recipe.id, checked: false, added_at: Date.now() }))); });
-    showToast(added ? ('Added ' + added + ' to your shopping list') : 'Those are already on your list');
+    update(d => {
+      const pantry = {}; (d.pantry || []).forEach(n => { pantry[n] = 1; });
+      const res = Rcp.addToShoppingList(d.shopping_list || [], additions, { uid: Store.uid, pantry, now: Date.now() });
+      added = res.added; d.shopping_list = res.list;
+    });
+    showToast(added ? ('Added ' + added + ' to your shopping list') : 'Already on your list or in your pantry');
   }
   const srcLabel = { stated: 'as stated in the recipe', analysed: 'from a nutrition database', table: 'from standard measures', off: 'from Open Food Facts', mixed: 'standard measures, Open Food Facts and AI', ai: 'AI estimate', computed: 'from your ingredients', pending: 'not worked out yet' };
   const srcNote = srcLabel[recipe.macros_source] || (resolved > 0 ? 'from ' + resolved + ' of ' + total + ' ingredients' : 'not worked out yet');
@@ -6152,24 +6156,108 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   </div>);
 }
 
-function ShoppingListView({ db, update, onBack }) {
+function ShoppingListView({ db, update, showToast, onBack }) {
   useBackClose(onBack);
-  const list = (db.shopping_list || []).slice().sort((a, b) => (a.checked === b.checked ? (b.added_at || 0) - (a.added_at || 0) : a.checked ? 1 : -1));
+  const toast = (m) => { if (showToast) showToast(m); };
+  const [add, setAdd] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editVal, setEditVal] = useState('');
+  const [showPantry, setShowPantry] = useState(false);
+  const rtitle = {}; (db.recipes || []).forEach(r => { rtitle[r.id] = r.title; });
+  const listAll = db.shopping_list || [];
+  const pantry = db.pantry || [];
+  const unchecked = listAll.filter(x => !x.checked);
+  const checked = listAll.filter(x => x.checked).sort((a, b) => (b.added_at || 0) - (a.added_at || 0));
+  const groups = {}; unchecked.forEach(it => { const c = it.category || 'Other'; (groups[c] = groups[c] || []).push(it); });
+  Object.keys(groups).forEach(c => groups[c].sort((a, b) => (b.added_at || 0) - (a.added_at || 0)));
+  const known = Rcp.CATEGORY_ORDER || [];
+  const cats = known.filter(c => groups[c]).concat(Object.keys(groups).filter(c => known.indexOf(c) < 0));
+
   const toggle = (id) => update(d => { const it = (d.shopping_list || []).find(x => x.id === id); if (it) it.checked = !it.checked; });
   const removeItem = (id) => update(d => { tombstone(d, [id]); d.shopping_list = (d.shopping_list || []).filter(x => x.id !== id); });
   const clearChecked = () => update(d => { const ids = (d.shopping_list || []).filter(x => x.checked).map(x => x.id); tombstone(d, ids); d.shopping_list = (d.shopping_list || []).filter(x => !x.checked); });
-  const checkedCount = list.filter(x => x.checked).length;
+  const alwaysHave = (it) => update(d => {
+    const key = Rcp._norm(it.name); const p = (d.pantry || []).slice(); if (p.indexOf(key) < 0) p.push(key); d.pantry = p;
+    tombstone(d, [it.id]); d.shopping_list = (d.shopping_list || []).filter(x => x.id !== it.id);
+    toast('Moved to your pantry, we\'ll stop adding it');
+  });
+  const removeFromPantry = (name) => update(d => { d.pantry = (d.pantry || []).filter(n => n !== name); });
+  function addManual() {
+    const line = add.trim(); if (!line) return;
+    update(d => { const res = Rcp.addToShoppingList(d.shopping_list || [], [{ line, recipe_id: null }], { uid: Store.uid, pantry: {}, now: Date.now(), manual: true }); d.shopping_list = res.list; });
+    setAdd('');
+  }
+  function saveEdit(id) {
+    const val = editVal.trim(); const tok = Rcp.parseQtyToken(val);
+    update(d => { const it = (d.shopping_list || []).find(x => x.id === id); if (it) { it.qtys = tok ? Rcp.addQty({}, tok) : {}; it.qty_label = val; } });
+    setEditId(null); setEditVal('');
+  }
+  const attrOf = (it) => { const ts = (it.recipe_ids || []).map(id => rtitle[id]).filter(Boolean); if (!ts.length) return ''; return ts.length === 1 ? ('for ' + ts[0]) : ('for ' + ts[0] + ' +' + (ts.length - 1)); };
+  function listText() {
+    let out = 'Shopping list';
+    cats.forEach(c => { out += '\n\n' + c + '\n' + groups[c].map(it => '- ' + it.name + (it.qty_label ? ' (' + it.qty_label + ')' : '')).join('\n'); });
+    return out;
+  }
+  async function shareList() {
+    const text = listText();
+    try { if (navigator.share) { await navigator.share({ title: 'Shopping list', text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); toast('List copied'); } catch (e) { toast('Could not copy'); }
+  }
+
+  const row = (it) => (
+    <div key={it.id} className="flex items-center gap-2.5 py-2">
+      <button onClick={() => toggle(it.id)} aria-label={it.checked ? 'Untick' : 'Tick'} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.checked ? '✓' : ''}</button>
+      <button onClick={() => toggle(it.id)} className="flex-1 min-w-0 text-left">
+        <div className="text-[14px] truncate" style={{ color: it.checked ? 'var(--muted)' : 'var(--text)', textDecoration: it.checked ? 'line-through' : 'none' }}>{it.name}</div>
+        {!it.checked && attrOf(it) && <div className="text-[11px] text-[#8A8A90] truncate">{attrOf(it)}</div>}
+      </button>
+      {editId === it.id
+        ? <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={() => saveEdit(it.id)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(it.id); }} className="w-16 text-[12px] text-right bg-transparent shrink-0" style={{ borderBottom: '1px solid var(--border)', color: 'var(--text)' }} />
+        : <button onClick={() => { setEditId(it.id); setEditVal(it.qty_label || ''); }} className="text-[12px] text-[#8A8A90] tnum shrink-0 min-w-[24px] text-right">{it.qty_label || '+'}</button>}
+      {!it.checked && <button onClick={() => alwaysHave(it)} title="Always have (stop adding this to lists)" aria-label="Always have" className="pf text-[6.5px] uppercase text-[#8A8A90] shrink-0 leading-none" style={{ letterSpacing: '.5px' }}>Have</button>}
+      <button onClick={() => removeItem(it.id)} aria-label="Remove" className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0">×</button>
+    </div>
+  );
+
   return (<div className="fade-in">
     <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
-    <div className="flex items-center justify-between mb-3"><h1 className="text-xl font-bold">Shopping list</h1>{checkedCount > 0 && <button onClick={clearChecked} className="text-[12px] text-[#8A8A90] underline">Clear ticked</button>}</div>
-    {!list.length ? <Card className="p-6 text-center"><div className="text-[13px] font-semibold mb-1">Nothing to buy yet</div><div className="text-[12px] text-[#8A8A90]">Open a recipe and add its missing ingredients to build your list.</div></Card>
-      : <div className="space-y-0.5">{list.map(it => (
-        <div key={it.id} className="flex items-center gap-3 py-2">
-          <button onClick={() => toggle(it.id)} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.checked ? '✓' : ''}</button>
-          <button onClick={() => toggle(it.id)} className="flex-1 min-w-0 text-left text-[14px]" style={{ color: it.checked ? 'var(--muted)' : 'var(--text)', textDecoration: it.checked ? 'line-through' : 'none' }}>{it.name}</button>
-          {it.qty_label && <span className="text-[12px] text-[#8A8A90] tnum shrink-0">{it.qty_label}</span>}
-          <button onClick={() => removeItem(it.id)} className="text-[#8A8A90] text-lg leading-none px-1" aria-label="Remove">×</button>
-        </div>))}</div>}
+    <div className="flex items-center justify-between mb-3 gap-3">
+      <h1 className="text-xl font-bold">Shopping list</h1>
+      <div className="flex items-center gap-3 shrink-0">
+        {unchecked.length > 0 && <button onClick={shareList} className="text-[12px] flex items-center gap-1" style={{ color: 'var(--accent)' }}><Icon.share width="14" height="14" /> Share</button>}
+        {checked.length > 0 && <button onClick={clearChecked} className="text-[12px] text-[#8A8A90] underline">Clear ticked</button>}
+      </div>
+    </div>
+
+    <form onSubmit={e => { e.preventDefault(); addManual(); }} className="flex gap-2 mb-4">
+      <input value={add} onChange={e => setAdd(e.target.value)} placeholder="Add an item, e.g. 2 milk" className="flex-1 min-w-0 pixel-box px-3 py-2 text-[14px] bg-transparent" style={{ color: 'var(--text)' }} />
+      <Btn kind="primary" type="submit" disabled={!add.trim()} className="shrink-0 px-4">Add</Btn>
+    </form>
+
+    {!listAll.length
+      ? <Card className="p-6 text-center"><div className="text-[13px] font-semibold mb-1">Nothing to buy yet</div><div className="text-[12px] text-[#8A8A90]">Add an item above, or open a recipe and add its missing ingredients. Items combine and sort themselves into aisles.</div></Card>
+      : <>
+        {cats.map(c => (
+          <div key={c} className="mb-4">
+            <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5">{c}</div>
+            <div className="space-y-0.5">{groups[c].map(row)}</div>
+          </div>
+        ))}
+        {checked.length > 0 && <div className="mb-4 pt-2" style={{ borderTop: '2px solid var(--border)' }}>
+          <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Ticked ({checked.length})</div>
+          <div className="space-y-0.5">{checked.map(row)}</div>
+        </div>}
+      </>}
+
+    {pantry.length > 0 && <div className="mt-2">
+      <button onClick={() => setShowPantry(v => !v)} className="text-[11px] text-[#8A8A90]">{showPantry ? 'Hide' : 'Show'} pantry ({pantry.length}) {showPantry ? '' : '›'}</button>
+      {showPantry && <Card className="p-3 mt-2">
+        <div className="text-[11px] text-[#8A8A90] mb-2">Things you always have. We won't add these from recipes. Remove one to start buying it again.</div>
+        <div className="flex flex-wrap gap-1.5">{pantry.map(n => (
+          <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[7px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} ×</button>
+        ))}</div>
+      </Card>}
+    </div>}
   </div>);
 }
 // The Cook game layer: cooking recipes climbs a Chef level, so the gamification spans the recipe hub
@@ -6338,10 +6426,14 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
   function dayLabel(d) { return d === today ? 'today' : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' }); }
   function addWeekToShopping() {
     const additions = [];
-    days.forEach(d => planFor(d).forEach(p => { const r = byId[p.recipe_id]; if (!r) return; (r.ingredients || []).filter(i => !i.have).forEach(i => additions.push({ name: i.name || Rcp.nameFromLine(i.line), qty_label: Rcp.lineOf(i), recipe_id: r.id })); }));
+    days.forEach(d => planFor(d).forEach(p => { const r = byId[p.recipe_id]; if (!r) return; (r.ingredients || []).filter(i => !i.have).forEach(i => additions.push({ line: Rcp.lineOf(i), recipe_id: r.id })); }));
     let added = 0;
-    update(d => { const fresh = Rcp.newShoppingItems(d.shopping_list || [], additions); added = fresh.length; d.shopping_list = (d.shopping_list || []).concat(fresh.map(a => ({ id: Store.uid(), name: a.name, qty_label: a.qty_label, recipe_id: a.recipe_id, checked: false, added_at: Date.now() }))); });
-    showToast(added ? ('Added ' + added + ' to your shopping list') : 'Those are already on your list');
+    update(d => {
+      const pantry = {}; (d.pantry || []).forEach(n => { pantry[n] = 1; });
+      const res = Rcp.addToShoppingList(d.shopping_list || [], additions, { uid: Store.uid, pantry, now: Date.now() });
+      added = res.added; d.shopping_list = res.list;
+    });
+    showToast(added ? ('Added this week to your shopping list') : 'Those are already on your list or in your pantry');
   }
   const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
   return (<div className="fade-in">
@@ -6624,7 +6716,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
-    {screen === 'shopping' && <ShoppingListView db={db} update={update} onBack={() => setScreen('list')} />}
+    {screen === 'shopping' && <ShoppingListView db={db} update={update} showToast={showToast} onBack={() => setScreen("list")} />}
     {screen === 'plan' && <PlannerView db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onOpenRecipe={(id) => { setActiveId(id); setScreen('detail'); }} onLogOn={onLogOn} />}
   </div>);
 }

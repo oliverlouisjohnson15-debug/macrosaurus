@@ -6,6 +6,48 @@ const assert = require('node:assert');
 const Recipe = require('../app/recipe.js');
 const Store = require('../app/store.js');
 
+// ---- shopping list: quantity combining + categories ------------------------------------------
+test('parseQtyToken reads amount + unit and normalises mass/volume', () => {
+  assert.deepStrictEqual(Recipe.parseQtyToken('200 g chicken breast'), { n: 200, unit: 'g' });
+  assert.deepStrictEqual(Recipe.parseQtyToken('1 kg potatoes'), { n: 1000, unit: 'g' });
+  assert.deepStrictEqual(Recipe.parseQtyToken('2 tbsp olive oil'), { n: 2, unit: 'tbsp' });
+  assert.deepStrictEqual(Recipe.parseQtyToken('1 wholemeal pitta'), { n: 1, unit: 'x' }); // unknown word -> count
+  assert.strictEqual(Recipe.parseQtyToken('salt to taste'), null);
+});
+test('fmtQty combines like units and rolls up g->kg / ml->l', () => {
+  assert.strictEqual(Recipe.fmtQty({ g: 400 }), '400 g');
+  assert.strictEqual(Recipe.fmtQty({ g: 1500 }), '1.5 kg');
+  assert.strictEqual(Recipe.fmtQty({ x: 3 }), '3');
+  assert.strictEqual(Recipe.fmtQty({ g: 200, clove: 2 }), '200 g + 2 cloves');
+});
+test('shoppingCategory sorts foods into aisles', () => {
+  assert.strictEqual(Recipe.shoppingCategory('chicken breast'), 'Meat & fish');
+  assert.strictEqual(Recipe.shoppingCategory('cheddar cheese'), 'Dairy & eggs');
+  assert.strictEqual(Recipe.shoppingCategory('red onion'), 'Produce');
+  assert.strictEqual(Recipe.shoppingCategory('olive oil'), 'Store cupboard');
+  assert.strictEqual(Recipe.shoppingCategory('bin bags'), 'Household');
+  assert.strictEqual(Recipe.shoppingCategory('mystery gizmo'), 'Other');
+});
+test('addToShoppingList combines quantities across recipes and skips the pantry', () => {
+  let n = 0; const uid = () => 'id' + (++n);
+  // two recipes both need chicken -> one line with the summed amount (the old code dropped one)
+  let r = Recipe.addToShoppingList([], [{ line: '200 g chicken breast', recipe_id: 'r1' }], { uid, now: 1 });
+  r = Recipe.addToShoppingList(r.list, [{ line: '250 g chicken breast', recipe_id: 'r2' }], { uid, now: 2 });
+  const chicken = r.list.find(x => Recipe._norm(x.name) === 'chicken breast');
+  assert.strictEqual(chicken.qty_label, '450 g');
+  assert.deepStrictEqual(chicken.recipe_ids, ['r1', 'r2']);
+  assert.strictEqual(chicken.category, 'Meat & fish');
+  // pantry items are skipped
+  const r2 = Recipe.addToShoppingList([], [{ line: '1 tsp salt', recipe_id: 'r1' }], { uid, now: 3, pantry: { salt: 1 } });
+  assert.strictEqual(r2.list.length, 0);
+});
+test('addToShoppingList does not mutate the input list or items', () => {
+  const before = [{ id: 'a', name: 'chicken', qtys: { g: 200 }, qty_label: '200 g', checked: false, recipe_ids: ['r1'] }];
+  const snapshot = JSON.parse(JSON.stringify(before));
+  Recipe.addToShoppingList(before, [{ line: '100 g chicken', recipe_id: 'r2' }], { uid: () => 'z', now: 1 });
+  assert.deepStrictEqual(before, snapshot); // untouched
+});
+
 // ---- detectShare -----------------------------------------------------------------------------
 test('detectShare finds YouTube/Instagram/TikTok links in shared text', () => {
   assert.deepStrictEqual(Recipe.detectShare('nice wrap https://www.youtube.com/shorts/abc go'), { platform: 'youtube', url: 'https://www.youtube.com/shorts/abc' });
