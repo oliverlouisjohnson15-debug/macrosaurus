@@ -1,9 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
-  "trailingSlash": false,
-  "rewrites": [
-    { "source": "/", "has": [{ "type": "host", "value": "macrosaurus.com" }], "destination": "/welcome.html" },
-    { "source": "/", "has": [{ "type": "host", "value": "www.macrosaurus.com" }], "destination": "/welcome.html" }
-  ]
+  "trailingSlash": false
 }
