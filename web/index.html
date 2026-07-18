@@ -43,7 +43,7 @@
 .box{background:var(--card); border:3px solid var(--ink); box-shadow:5px 5px 0 0 var(--ink);}
 .btn{font-family:var(--pix); font-size:11px; line-height:1; text-decoration:none; display:inline-flex; align-items:center;
   justify-content:center; gap:8px; padding:15px 20px; border:3px solid var(--ink); cursor:pointer; color:var(--ink);
-  transition:transform .05s, box-shadow .05s, background .15s; background:#fff; box-shadow:4px 4px 0 0 var(--ink);}
+  white-space:nowrap; transition:transform .05s, box-shadow .05s, background .15s; background:#fff; box-shadow:4px 4px 0 0 var(--ink);}
 .btn:active{transform:translate(4px,4px); box-shadow:0 0 0 0 var(--ink);}
 .btn:focus-visible{outline:3px solid var(--blue); outline-offset:3px;}
 .btn-primary{background:var(--gold); color:var(--ink);}
@@ -70,16 +70,19 @@ h2.sec{font-family:var(--pix); font-size:22px; line-height:1.45; margin:14px 0 0
 .nav-in{position:relative; max-width:1080px; margin:0 auto; padding:13px 40px; display:flex; align-items:center; gap:20px;}
 .brand{font-family:var(--pix); font-size:15px; color:#fff; text-decoration:none; display:flex; align-items:center; gap:10px; white-space:nowrap;}
 .brand .dino{font-size:20px;}
-.nav-links{display:flex; gap:24px; margin-left:16px;}
+.nav-links{display:flex; gap:26px; margin-left:20px; margin-right:20px;}
 .nav-links a{color:rgba(255,255,255,.82); text-decoration:none; font-size:12px; font-family:var(--pix); letter-spacing:0;}
 .nav-links a:hover{color:var(--gold);}
 .nav-cta{margin-left:auto; display:flex; gap:10px; align-items:center;}
 .nav .btn{padding:11px 15px; font-size:10px; box-shadow:3px 3px 0 0 var(--ink);}
 .nav .btn:active{box-shadow:0 0 0 0 var(--ink);}
-/* mobile nav: drop the section links, keep LOG IN + START FREE always visible */
+/* drop the section links until the bar is wide enough for them to breathe;
+   below this they crowd the CTA buttons, which stay visible at every width */
+@media(max-width:1060px){
+  .nav-links{display:none;}
+}
 @media(max-width:880px){
   .nav-in{padding:12px 20px;}
-  .nav-links{display:none;}
 }
 @media(max-width:600px){
   .nav .brandtxt{display:none;}
@@ -194,6 +197,26 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 .cmp .yes{color:var(--teal); font-family:var(--pix); font-size:10px;}
 .cmp .no{color:#c2c2c8; font-family:var(--pix); font-size:10px;}
 .cmp td.us.price-us{font-family:var(--pix); font-size:11px; color:var(--purple);}
+/* comparison: stack into per-feature cards on mobile so nothing scrolls sideways */
+@media(max-width:600px){
+  .cmp{box-shadow:5px 5px 0 var(--ink);}
+  .cmp-scroll{overflow-x:visible;}
+  .cmp table{min-width:0;}
+  .cmp thead{display:none;}
+  .cmp table, .cmp tbody, .cmp tr, .cmp td{display:block; width:100%;}
+  .cmp tbody tr{padding:16px; border-bottom:3px solid var(--ink);}
+  .cmp tbody tr:last-child{border-bottom:none;}
+  .cmp td{padding:0; border-bottom:none;}
+  .cmp td.feat-name{font-family:var(--pix); font-size:9.5px; line-height:1.7; color:var(--ink); margin-bottom:12px;}
+  .cmp td.us, .cmp td.them{display:flex; justify-content:space-between; align-items:center; gap:12px; padding:9px 12px; font-size:13.5px;}
+  .cmp td.us::before, .cmp td.them::before{content:attr(data-label); font-family:var(--pix); font-size:8px; letter-spacing:.5px; text-transform:uppercase; flex:none;}
+  .cmp td.us{background:#fffdf5; border:2px solid var(--ink);}
+  .cmp td.us::before{color:var(--purple);}
+  .cmp td.them{margin-top:8px; border:2px solid var(--track); color:var(--muted);}
+  .cmp td.them::before{color:var(--muted);}
+  .cmp td.us.price-us{font-size:12px;}
+  .cmp .yes, .cmp .no{font-size:11px;}
+}
 
 /* PRICING */
 .price{display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:46px; max-width:800px; margin-left:auto; margin-right:auto;}
@@ -406,13 +429,13 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
             <tr><th>Feature</th><th class="us">Macrosaurus</th><th>Other trackers</th></tr>
           </thead>
           <tbody>
-            <tr><td class="feat-name">Targets that adapt to you weekly</td><td class="us"><span class="yes">YES</span></td><td class="them">Fixed or manual</td></tr>
-            <tr><td class="feat-name">AI photo, voice &amp; text logging</td><td class="us"><span class="yes">YES</span></td><td class="them">Mostly manual search</td></tr>
-            <tr><td class="feat-name">Macro-tuned recipe library</td><td class="us"><span class="yes">YES</span></td><td class="them"><span class="no">NO</span></td></tr>
-            <tr><td class="feat-name">Actually fun to open (game layer)</td><td class="us"><span class="yes">YES</span></td><td class="them"><span class="no">NO</span></td></tr>
-            <tr><td class="feat-name">Shows why your targets changed</td><td class="us"><span class="yes">YES</span></td><td class="them">Often a black box</td></tr>
-            <tr><td class="feat-name">Your units and foods (UK or US)</td><td class="us"><span class="yes">YES</span></td><td class="them">US-first</td></tr>
-            <tr><td class="feat-name">Price</td><td class="us price-us">&pound;4.99 / mo</td><td class="them">&pound;9 to &pound;16 / mo</td></tr>
+            <tr><td class="feat-name">Targets that adapt to you weekly</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Fixed or manual</td></tr>
+            <tr><td class="feat-name">AI photo, voice &amp; text logging</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Mostly manual search</td></tr>
+            <tr><td class="feat-name">Macro-tuned recipe library</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
+            <tr><td class="feat-name">Actually fun to open (game layer)</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others"><span class="no">NO</span></td></tr>
+            <tr><td class="feat-name">Shows why your targets changed</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">Often a black box</td></tr>
+            <tr><td class="feat-name">Your units and foods (UK or US)</td><td class="us" data-label="Macrosaurus"><span class="yes">YES</span></td><td class="them" data-label="Others">US-first</td></tr>
+            <tr><td class="feat-name">Price</td><td class="us price-us" data-label="Macrosaurus">&pound;4.99 / mo</td><td class="them" data-label="Others">&pound;9 to &pound;16 / mo</td></tr>
           </tbody>
         </table>
       </div>
