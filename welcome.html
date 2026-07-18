@@ -258,8 +258,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <a href="#pricing">Pricing</a>
       </div>
       <div class="nav-cta">
-        <a class="btn btn-onpurple hide-xs" href="/">LOG IN</a>
-        <a class="btn btn-primary" href="/">START FREE</a>
+        <a class="btn btn-onpurple hide-xs" href="https://app.macrosaurus.com">LOG IN</a>
+        <a class="btn btn-primary" href="https://app.macrosaurus.com">START FREE</a>
         <button class="nav-burger" aria-label="Menu" aria-expanded="false">&#9776;</button>
       </div>
     </div>
@@ -276,8 +276,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <p class="sub">Targets built on real science that quietly adjust to your body every week. Log your food in seconds with AI, cook recipes tuned to your macros, and collect dinosaurs along the way.</p>
         <p class="hero-vs">All the clever adaptive science of the big trackers, logging as quick as a photo, and a game <span class="hl-teal">none of them have</span>.</p>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="/">START FREE &#9654;</a>
-          <a class="btn btn-ghost" href="/">LOG IN</a>
+          <a class="btn btn-primary" href="https://app.macrosaurus.com">START FREE &#9654;</a>
+          <a class="btn btn-ghost" href="https://app.macrosaurus.com">LOG IN</a>
         </div>
         <div class="hero-note"><span class="blink" style="color:var(--teal)">&#9646;</span> Free forever plan &#183; <b>7-day Premium trial</b> &#183; Cancel anytime</div>
       </div>
@@ -433,7 +433,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           <li>The full game: Macrodex, eggs, fights</li>
           <li>10 AI logs every month</li>
         </ul>
-        <a class="btn btn-ghost" href="/">START FREE</a>
+        <a class="btn btn-ghost" href="https://app.macrosaurus.com">START FREE</a>
         <p class="fine">No card needed.</p>
       </div>
       <div class="plan prem">
@@ -450,7 +450,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           <li>Body-fat photo scans</li>
           <li>Deeper insights &amp; trends</li>
         </ul>
-        <a class="btn btn-primary" href="/">START 7-DAY FREE TRIAL</a>
+        <a class="btn btn-primary" href="https://app.macrosaurus.com">START 7-DAY FREE TRIAL</a>
         <p class="fine">Card required. Cancel anytime.</p>
       </div>
     </div>
@@ -488,8 +488,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <span class="eyebrow">Ready?</span>
       <h2>Your macros, handled. Your streak, waiting.</h2>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="/">START FREE &#9654;</a>
-        <a class="btn btn-onpurple" href="/">TRY PREMIUM FREE</a>
+        <a class="btn btn-primary" href="https://app.macrosaurus.com">START FREE &#9654;</a>
+        <a class="btn btn-onpurple" href="https://app.macrosaurus.com">TRY PREMIUM FREE</a>
       </div>
     </div>
   </section>
@@ -504,7 +504,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         </div>
         <div class="foot-links">
           <div class="foot-col"><b>PRODUCT</b><a href="#logging">Logging</a><a href="#recipes">Recipes</a><a href="#macrodex">Macrodex</a><a href="#pricing">Pricing</a></div>
-          <div class="foot-col"><b>ACCOUNT</b><a href="/">Log in</a><a href="/">Start free</a></div>
+          <div class="foot-col"><b>ACCOUNT</b><a href="https://app.macrosaurus.com">Log in</a><a href="https://app.macrosaurus.com">Start free</a></div>
           <div class="foot-col"><b>COMPANY</b><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Contact</a></div>
         </div>
       </div>
@@ -655,5 +655,14 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 })();
 </script>
 
+<script>
+(function(){
+  var host = location.hostname;
+  if ((host === 'macrosaurus.com' || host === 'www.macrosaurus.com') && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }).catch(function(){});
+    if (window.caches && caches.keys) { caches.keys().then(function(ks){ ks.forEach(function(k){ if (/macrosaurus/.test(k)) caches.delete(k); }); }).catch(function(){}); }
+  }
+})();
+</script>
 </body>
 </html>
