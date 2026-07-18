@@ -82,6 +82,20 @@
     if (todayQ && todayQ.proteinHit && todayQ.kcalIn) return 'content';
     return 'peckish';
   }
+  // EVOLUTION (Gen 2 friendship): the buddy evolves along its species line only when it has
+  // BOTH grown (cumulative quality days = level) AND is well cared for (bond hearts). Sequential
+  // (no skipping) and computed as an eligibility; the caller stores it high-water so a cooled
+  // bond never de-evolves an already-evolved buddy. `ats` = the species' per-stage day
+  // thresholds, `heartReqs` = hearts needed for each stage. Returns the eligible stage (0..N).
+  function buddyEvoStage(level, hearts, ats, heartReqs) {
+    var reqs = heartReqs || [];
+    var n = 0;
+    for (var k = 0; k < (ats || []).length; k++) {
+      if ((level || 0) >= ats[k] && (hearts || 0) >= (reqs[k] || 0)) n = k + 1; else break;
+    }
+    return n;
+  }
+
   // NEEDS: three 0..1 meters topped up by eating well. Fed = logged today, Nourished =
   // today's macro balance, Energy = current streak toward a full week.
   function buddyNeeds(loggedToday, todayQ, streak) {
@@ -214,6 +228,7 @@
     buddyBond: buddyBond,
     buddyMood: buddyMood,
     buddyNeeds: buddyNeeds,
+    buddyEvoStage: buddyEvoStage,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,

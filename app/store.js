@@ -98,7 +98,7 @@
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null }, // ladder + weekly boss + prestige; one ladder attempt per logged day
       game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
-      buddy: { stage: 0, name: '', personality: '', hatchedISO: null },   // stage: high-water index (never falls back, naps after a break); name/personality/hatchedISO: the individual you raise
+      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0 },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage: the individual you raise and bond-evolve
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist

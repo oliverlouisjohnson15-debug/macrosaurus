@@ -1341,7 +1341,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null }, // ladder + weekly boss + prestige; one ladder attempt per logged day
       game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
-      buddy: { stage: 0, name: '', personality: '', hatchedISO: null },   // stage: high-water index (never falls back, naps after a break); name/personality/hatchedISO: the individual you raise
+      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0 },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage: the individual you raise and bond-evolve
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
@@ -1559,6 +1559,20 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     if (todayQ && todayQ.proteinHit && todayQ.kcalIn) return 'content';
     return 'peckish';
   }
+  // EVOLUTION (Gen 2 friendship): the buddy evolves along its species line only when it has
+  // BOTH grown (cumulative quality days = level) AND is well cared for (bond hearts). Sequential
+  // (no skipping) and computed as an eligibility; the caller stores it high-water so a cooled
+  // bond never de-evolves an already-evolved buddy. `ats` = the species' per-stage day
+  // thresholds, `heartReqs` = hearts needed for each stage. Returns the eligible stage (0..N).
+  function buddyEvoStage(level, hearts, ats, heartReqs) {
+    var reqs = heartReqs || [];
+    var n = 0;
+    for (var k = 0; k < (ats || []).length; k++) {
+      if ((level || 0) >= ats[k] && (hearts || 0) >= (reqs[k] || 0)) n = k + 1; else break;
+    }
+    return n;
+  }
+
   // NEEDS: three 0..1 meters topped up by eating well. Fed = logged today, Nourished =
   // today's macro balance, Energy = current streak toward a full week.
   function buddyNeeds(loggedToday, todayQ, streak) {
@@ -1691,6 +1705,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     buddyBond: buddyBond,
     buddyMood: buddyMood,
     buddyNeeds: buddyNeeds,
+    buddyEvoStage: buddyEvoStage,
     BADGE_TIERS: BADGE_TIERS,
     badgeTier: badgeTier,
     CHECKIN_POOL: CHECKIN_POOL,
@@ -7683,6 +7698,66 @@ function crFx(shiny, aura) {
     filter: fx.join(' ')
   } : null;
 }
+// Hearts a buddy needs at each evolution to trigger it: friendship deepens as it grows.
+const EVO_HEART_REQ = [2, 3, 4];
+// Your buddy's current form along ITS species line, chosen by bond-gated evo stage (not catch
+// count). Level (cumulative quality days) still earns the Elder/Ancient aura for the devoted.
+function buddyForm(species, evoStage, level) {
+  if (!species) return null;
+  let f = {
+    name: species.name,
+    art: species.art,
+    colors: species.colors,
+    aura: null
+  };
+  if (species.evo && species.evo.length && evoStage > 0) {
+    const e = species.evo[Math.min(evoStage, species.evo.length) - 1];
+    if (e) f = {
+      name: e.name,
+      art: e.art || species.art,
+      colors: e.colors || species.colors,
+      aura: null
+    };
+  }
+  if ((level || 0) >= 50) {
+    f.aura = 'gold';
+    f.name = 'Ancient ' + f.name;
+  } else if ((level || 0) >= 25) {
+    f.aura = 'silver';
+    f.name = 'Elder ' + f.name;
+  }
+  return f;
+}
+// Buddy level = cumulative QUALITY days (logged + protein + calories): care you cannot fake by
+// just opening the app. Capped so the count is cheap and covers the top aura threshold.
+function buddyLevel(db) {
+  const seen = {};
+  let n = 0;
+  const dates = (db.log_entries || []).map(e => e.date);
+  for (let i = 0; i < dates.length && n < 60; i++) {
+    const d = dates[i];
+    if (!seen[d]) {
+      seen[d] = 1;
+      if (isQualityDay(db, d)) n++;
+    }
+  }
+  return n;
+}
+// The species the buddy is raised from: the creature you've caught most that has an evolution
+// line (the one you've bonded with), falling back to Dinky, the day-one hatchling.
+function buddySpeciesId(db) {
+  const dex = macrodex(db);
+  let best = null,
+    bestCount = -1;
+  Object.keys(dex).forEach(id => {
+    const cr = CR_BY_ID[id];
+    if (cr && cr.evo && cr.evo.length && (dex[id].count || 0) > bestCount) {
+      best = id;
+      bestCount = dex[id].count || 0;
+    }
+  });
+  return best || 'dinky';
+}
 // ---- Shared item system (earned from streaks, perfect weeks, biome sets and boss/ladder wins) ----
 const ITEMS = {
   lure: {
@@ -8033,7 +8108,7 @@ function moodLine(mood, seed) {
 }
 // Live view model for the buddy: given name, personality, days-together, and the bond / mood /
 // needs derived from how you have actually been eating. Pure read over db (no writes).
-function buddyProfile(db, streak, buddy) {
+function buddyProfile(db, streak, buddy, level) {
   const today = Store.todayISO();
   const b = db.buddy || {};
   const dates = (db.log_entries || []).map(e => e.date).sort();
@@ -8045,11 +8120,39 @@ function buddyProfile(db, streak, buddy) {
   for (let d = start, g = 0; d <= today && g < Game.BOND_WINDOW + 1; d = shiftISO(d, 1), g++) recentQ.push(dayQuality(db, d));
   const loggedToday = entriesOn(db, today).length > 0;
   const todayQ = dayQuality(db, today);
+  const bond = Game.buddyBond(recentQ);
+  const lvl = level != null ? level : buddyLevel(db);
+  // Species + current evolution form (bond-gated, stored high-water).
+  const species = CR_BY_ID[b.speciesId] || CR_BY_ID['dinky'];
+  const evoLine = species && species.evo || [];
+  const evoStage = Math.min(b.evoStage || 0, evoLine.length);
+  const form = buddyForm(species, evoStage, lvl);
+  const next = evoStage < evoLine.length ? evoLine[evoStage] : null;
+  const heartsNeed = next ? EVO_HEART_REQ[evoStage] || 2 : 0;
+  const evoInfo = next ? {
+    atMax: false,
+    nextName: next.name,
+    levelNeed: next.at,
+    level: lvl,
+    heartsNeed,
+    hearts: bond.hearts,
+    ready: lvl >= next.at && bond.hearts >= heartsNeed,
+    progress: Math.max(0, Math.min(1, Math.min(lvl / next.at, bond.hearts / (heartsNeed || 1))))
+  } : {
+    atMax: true,
+    level: lvl,
+    progress: 1
+  };
   return {
     name: b.name || '',
     personality: PERSONALITIES.find(p => p.key === b.personality) || null,
     daysTogether: Math.max(1, Game.daysBetween(hatchedISO, today) + 1),
-    bond: Game.buddyBond(recentQ),
+    bond,
+    level: lvl,
+    species,
+    evoStage,
+    form,
+    evoInfo,
     mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
     needs: Game.buddyNeeds(loggedToday, todayQ, streak)
   };
@@ -8931,10 +9034,14 @@ function FightModal({
   // Fighter fights at the buddy's high-water stage; a nap never shrinks it back to the egg.
   const si = Math.max(buddyStageIndex(streak), db.buddy && db.buddy.stage || 0);
   const b = BUDDY_STAGES[Math.min(si, BUDDY_STAGES.length - 1)];
+  // Once hatched, the fighter wears the buddy's actual species + bond-evolved form (stats unchanged).
+  const fSpecies = CR_BY_ID[db.buddy && db.buddy.speciesId || ''];
+  const fForm = fSpecies ? buddyForm(fSpecies, db.buddy && db.buddy.evoStage || 0, 0) : null;
+  const vis = si > 0 && fForm ? fForm : b;
   const fighter = {
-    name: b.name,
-    art: b.art,
-    colors: b.colors,
+    name: vis.name,
+    art: vis.art,
+    colors: vis.colors,
     stats: buddyStats(db, streak, si)
   };
   // Ladder gating: one attempt per day, and only on a day with food logged. Weekly boss unchanged.
@@ -9613,7 +9720,8 @@ function NameBuddyModal({
 }) {
   useBackClose(onClose);
   const b = db.buddy || {};
-  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const species = CR_BY_ID[b.speciesId] || CR_BY_ID['dinky'];
+  const form = buddyForm(species, b.evoStage || 0, 0) || BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const pers = PERSONALITIES.find(p => p.key === b.personality) || PERSONALITIES[0];
   const [name, setName] = useState(b.name || '');
   function save() {
@@ -9643,13 +9751,15 @@ function NameBuddyModal({
     style: {
       background: 'var(--surface3)'
     }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: crFx(false, form.aura)
   }, /*#__PURE__*/React.createElement(Sprite, {
-    art: st.art,
-    colors: st.colors,
+    art: form.art,
+    colors: form.colors,
     px: 5
-  })), /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90]"
-  }, "Your buddy · ", pers.label), /*#__PURE__*/React.createElement("div", {
+  }, form.name, " · ", pers.label), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-1 leading-snug"
   }, pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1), ". Give it a name, it’s yours to raise.")), /*#__PURE__*/React.createElement("input", {
     value: name,
@@ -9689,6 +9799,7 @@ function HomeGameStrip({
   onName
 }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const disp = profile && profile.form ? profile.form : st; // the buddy's species form (or a fallback)
   const pcr = todayCr && CR_BY_ID[todayCr.id];
   const today = Store.todayISO();
   const fght = db.fight || {};
@@ -9713,18 +9824,18 @@ function HomeGameStrip({
         opacity: 0.45
       }
     }, /*#__PURE__*/React.createElement(Sprite, {
-      art: st.art,
-      colors: st.colors,
+      art: disp.art,
+      colors: disp.colors,
       px: 3.2
     }))), /*#__PURE__*/React.createElement("div", {
       className: "min-w-0 flex-1"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] font-bold truncate leading-tight"
-    }, profile && profile.name || st.name, " ", /*#__PURE__*/React.createElement("span", {
+    }, profile && profile.name || disp.name, " ", /*#__PURE__*/React.createElement("span", {
       className: "text-[9px] text-[#8A8A90] font-normal"
     }, "napping")), /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] leading-snug mt-0.5"
-    }, "Log today to wake ", profile && profile.name || st.name, " and start a new streak.")), /*#__PURE__*/React.createElement("button", {
+    }, "Log today to wake ", profile && profile.name || disp.name, " and start a new streak.")), /*#__PURE__*/React.createElement("button", {
       onClick: onLog,
       className: "pixel-btn py-2 px-3 shrink-0",
       style: {
@@ -9740,17 +9851,14 @@ function HomeGameStrip({
   // Dex completion, the collection at a glance.
   const caught = Object.keys(macrodex(db)).length;
   const dexTotal = CREATURES.length;
-  // Buddy evolution: progress of the current streak toward the next stage threshold.
-  const sIdx = buddy.stage;
-  const atMax = sIdx >= BUDDY_STAGES.length - 1;
-  const prevMin = BUDDY_STAGES[sIdx].min;
-  const nextStage = atMax ? null : BUDDY_STAGES[sIdx + 1];
-  const evo = atMax ? 1 : Math.max(0, Math.min(1, (streak - prevMin) / (nextStage.min - prevMin || 1)));
   const best = Math.max(streak, db.records && db.records.longestStreak || 0);
   const ladderCleared = (fght.rank || 0) >= FIGHT_LADDER.length;
 
+  // Bond-gated evolution: progress toward the next form needs BOTH quality days and hearts.
+  const ev = profile ? profile.evoInfo : null;
+
   // Companion layer: given name, mood voice, bond hearts and the three need meters.
-  const name = profile && profile.name || st.name;
+  const name = profile && profile.name || disp.name;
   const mm = profile ? MOOD_META[profile.mood] || MOOD_META.content : null;
   const moodLn = profile ? moodLine(profile.mood, today) : '';
   const hearts = profile ? Array.from({
@@ -9788,11 +9896,13 @@ function HomeGameStrip({
     style: {
       background: 'var(--surface3)'
     }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: crFx(false, disp.aura)
   }, /*#__PURE__*/React.createElement(Sprite, {
-    art: st.art,
-    colors: st.colors,
+    art: disp.art,
+    colors: disp.colors,
     px: 3.4
-  })), /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-1.5"
@@ -9800,7 +9910,7 @@ function HomeGameStrip({
     className: "text-[12px] font-bold truncate leading-tight"
   }, name), profile && profile.name ? /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase text-[#8A8A90] shrink-0 truncate"
-  }, st.name) : null, /*#__PURE__*/React.createElement("span", {
+  }, disp.name) : null, /*#__PURE__*/React.createElement("span", {
     role: "button",
     tabIndex: 0,
     onClick: e => {
@@ -9833,8 +9943,9 @@ function HomeGameStrip({
   }), streak, "d", best > streak ? /*#__PURE__*/React.createElement("span", null, " · best ", best) : null), hearts ? /*#__PURE__*/React.createElement("span", {
     className: "inline-flex items-center gap-px",
     title: `Bond ${profile.bond.hearts}/${profile.bond.maxHearts}`
-  }, hearts) : null), /*#__PURE__*/React.createElement("div", {
-    className: "mt-1.5 flex items-center gap-1.5"
+  }, hearts) : null), ev ? /*#__PURE__*/React.createElement("div", {
+    className: "mt-1.5 flex items-center gap-1.5",
+    title: ev.atMax ? 'Level ' + ev.level + ' quality days' : 'Evolves to ' + ev.nextName + ' at ' + ev.levelNeed + ' quality days and ' + ev.heartsNeed + ' hearts'
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-bar flex-1",
     style: {
@@ -9843,13 +9954,13 @@ function HomeGameStrip({
     }
   }, /*#__PURE__*/React.createElement("i", {
     style: {
-      width: evo * 100 + '%',
-      background: 'var(--good)',
+      width: ev.progress * 100 + '%',
+      background: ev.ready ? 'var(--fat)' : 'var(--good)',
       transition: 'width .4s'
     }
   })), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase shrink-0 text-[#8A8A90]"
-  }, atMax ? 'Max' : nextStage.min - streak + 'd to ' + nextStage.name)))), profile ? /*#__PURE__*/React.createElement("div", {
+  }, ev.atMax ? 'Lv ' + ev.level : ev.ready ? 'Evolving!' : '→ ' + ev.nextName)) : null)), profile ? /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mt-2.5"
   }, ['hunger', 'nourish', 'energy'].map(k => /*#__PURE__*/React.createElement("div", {
     key: k,
@@ -9870,7 +9981,7 @@ function HomeGameStrip({
     }
   }))))) : null, caught === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] leading-snug mt-2.5"
-  }, "Every day you log and weigh in adds a prehistoric creature to your dex and grows your buddy. Keep the streak going to evolve it."), /*#__PURE__*/React.createElement("div", {
+  }, "Every day you log and weigh in adds a prehistoric creature to your dex. Feed your buddy well and it bonds, grows and evolves."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mt-3"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onOpenDex,
@@ -10314,6 +10425,8 @@ function Dashboard({
   // naps at its best-ever stage and wakes after 3 active days. Also track the longest streak.
   const buddyHw = db.buddy && db.buddy.stage || 0;
   const buddy = Game.buddyView(buddyHw, streak);
+  const buddyLvl = useMemo(() => buddyLevel(db), [db.log_entries]);
+  const bp = buddyProfile(db, streak, buddy, buddyLvl);
   useEffect(() => {
     const longest = db.records && db.records.longestStreak || 0;
     if (!buddy.ratchet && streak <= longest) return;
@@ -10328,21 +10441,39 @@ function Dashboard({
       if (streak > (d.records.longestStreak || 0)) d.records.longestStreak = streak;
     });
   }, [streak]);
-  // Seed the buddy's identity once: when it hatched (first log day) and a stable personality.
+  // Seed the buddy's identity once: hatch date, personality, and the species it's raised from.
   // Additive and idempotent, so returning accounts get an individual without losing anything.
   useEffect(() => {
     const b = db.buddy || {};
-    if (b.hatchedISO && b.personality) return;
+    if (b.hatchedISO && b.personality && b.speciesId) return;
     const dates = (db.log_entries || []).map(e => e.date).sort();
     const firstLog = dates[0] || today;
+    const spec = buddySpeciesId(db);
     update(d => {
       d.buddy = d.buddy || {
         stage: 0
       };
       if (!d.buddy.hatchedISO) d.buddy.hatchedISO = firstLog;
       if (!d.buddy.personality) d.buddy.personality = personalityFor(d.game_salt || firstLog || 'egg').key;
+      if (!d.buddy.speciesId) d.buddy.speciesId = spec;
+      if (d.buddy.evoStage == null) d.buddy.evoStage = 0;
     });
   }, [db.buddy, db.log_entries]);
+  // Bond-gated evolution (Gen 2 friendship): advance the buddy's form when it has BOTH grown
+  // (quality-day level) AND is well cared for (bond hearts). High-water, so a cooled bond never
+  // de-evolves it.
+  useEffect(() => {
+    const b = db.buddy || {};
+    const species = CR_BY_ID[b.speciesId];
+    if (!species || !species.evo || !species.evo.length) return;
+    const eligible = Game.buddyEvoStage(buddyLvl, bp.bond.hearts, species.evo.map(e => e.at), EVO_HEART_REQ);
+    if (eligible > (b.evoStage || 0)) update(d => {
+      d.buddy = d.buddy || {
+        stage: 0
+      };
+      d.buddy.evoStage = eligible;
+    });
+  }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
   // Migratory visitor: 20 logged days inside the calendar month lands Drizzlodon (once per month).
   const monthYm = today.slice(0, 7);
   const monthLogs = Game.monthlyLogCount(Array.from(logSet), monthYm);
@@ -10650,7 +10781,7 @@ function Dashboard({
     db: db,
     streak: streak,
     buddy: buddy,
-    profile: buddyProfile(db, streak, buddy),
+    profile: bp,
     todayCr: todayCr,
     onOpenDex: () => setShowDex(true),
     onOpenFight: () => setShowFight(true),

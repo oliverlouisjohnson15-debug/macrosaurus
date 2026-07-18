@@ -2080,6 +2080,36 @@ const CR_BY_ID = {}; CREATURES.forEach(c => CR_BY_ID[c.id] = c);
 function creatureForm(cr, count) { if (!cr) return null; let f = { name: cr.name, art: cr.art, colors: cr.colors, aura: null }; if (cr.evo) { cr.evo.forEach(e => { if ((count || 0) >= e.at) f = { name: e.name, art: e.art || cr.art, colors: e.colors || cr.colors, aura: null }; }); if ((count || 0) >= 50) { f.aura = 'gold'; f.name = 'Ancient ' + f.name; } else if ((count || 0) >= 25) { f.aura = 'silver'; f.name = 'Elder ' + f.name; } } return f; }
 // Combined sprite glow: shiny plus the Lv25/Lv50 aura tiers.
 function crFx(shiny, aura) { const fx = []; if (shiny) fx.push('drop-shadow(0 0 5px var(--fat))'); if (aura === 'silver') fx.push('drop-shadow(0 0 4px #cfd6e0)'); if (aura === 'gold') fx.push('drop-shadow(0 0 6px #FFD400)'); return fx.length ? { filter: fx.join(' ') } : null; }
+// Hearts a buddy needs at each evolution to trigger it: friendship deepens as it grows.
+const EVO_HEART_REQ = [2, 3, 4];
+// Your buddy's current form along ITS species line, chosen by bond-gated evo stage (not catch
+// count). Level (cumulative quality days) still earns the Elder/Ancient aura for the devoted.
+function buddyForm(species, evoStage, level) {
+  if (!species) return null;
+  let f = { name: species.name, art: species.art, colors: species.colors, aura: null };
+  if (species.evo && species.evo.length && evoStage > 0) {
+    const e = species.evo[Math.min(evoStage, species.evo.length) - 1];
+    if (e) f = { name: e.name, art: e.art || species.art, colors: e.colors || species.colors, aura: null };
+  }
+  if ((level || 0) >= 50) { f.aura = 'gold'; f.name = 'Ancient ' + f.name; }
+  else if ((level || 0) >= 25) { f.aura = 'silver'; f.name = 'Elder ' + f.name; }
+  return f;
+}
+// Buddy level = cumulative QUALITY days (logged + protein + calories): care you cannot fake by
+// just opening the app. Capped so the count is cheap and covers the top aura threshold.
+function buddyLevel(db) {
+  const seen = {}; let n = 0;
+  const dates = (db.log_entries || []).map(e => e.date);
+  for (let i = 0; i < dates.length && n < 60; i++) { const d = dates[i]; if (!seen[d]) { seen[d] = 1; if (isQualityDay(db, d)) n++; } }
+  return n;
+}
+// The species the buddy is raised from: the creature you've caught most that has an evolution
+// line (the one you've bonded with), falling back to Dinky, the day-one hatchling.
+function buddySpeciesId(db) {
+  const dex = macrodex(db); let best = null, bestCount = -1;
+  Object.keys(dex).forEach(id => { const cr = CR_BY_ID[id]; if (cr && cr.evo && cr.evo.length && (dex[id].count || 0) > bestCount) { best = id; bestCount = dex[id].count || 0; } });
+  return best || 'dinky';
+}
 // ---- Shared item system (earned from streaks, perfect weeks, biome sets and boss/ladder wins) ----
 const ITEMS = {
   lure: { name: 'Macro Lure', kind: 'dex', desc: 'Point it at a macro to make today’s catch favour that biome.' },
@@ -2218,7 +2248,7 @@ const MOOD_META = {
 function moodLine(mood, seed) { const m = MOOD_META[mood] || MOOD_META.content; return m.lines[crHash(String(seed) + mood) % m.lines.length]; }
 // Live view model for the buddy: given name, personality, days-together, and the bond / mood /
 // needs derived from how you have actually been eating. Pure read over db (no writes).
-function buddyProfile(db, streak, buddy) {
+function buddyProfile(db, streak, buddy, level) {
   const today = Store.todayISO();
   const b = db.buddy || {};
   const dates = (db.log_entries || []).map(e => e.date).sort();
@@ -2229,11 +2259,25 @@ function buddyProfile(db, streak, buddy) {
   const recentQ = []; for (let d = start, g = 0; d <= today && g < Game.BOND_WINDOW + 1; d = shiftISO(d, 1), g++) recentQ.push(dayQuality(db, d));
   const loggedToday = entriesOn(db, today).length > 0;
   const todayQ = dayQuality(db, today);
+  const bond = Game.buddyBond(recentQ);
+  const lvl = level != null ? level : buddyLevel(db);
+  // Species + current evolution form (bond-gated, stored high-water).
+  const species = CR_BY_ID[b.speciesId] || CR_BY_ID['dinky'];
+  const evoLine = (species && species.evo) || [];
+  const evoStage = Math.min(b.evoStage || 0, evoLine.length);
+  const form = buddyForm(species, evoStage, lvl);
+  const next = evoStage < evoLine.length ? evoLine[evoStage] : null;
+  const heartsNeed = next ? (EVO_HEART_REQ[evoStage] || 2) : 0;
+  const evoInfo = next
+    ? { atMax: false, nextName: next.name, levelNeed: next.at, level: lvl, heartsNeed, hearts: bond.hearts,
+        ready: lvl >= next.at && bond.hearts >= heartsNeed,
+        progress: Math.max(0, Math.min(1, Math.min(lvl / next.at, bond.hearts / (heartsNeed || 1)))) }
+    : { atMax: true, level: lvl, progress: 1 };
   return {
     name: b.name || '',
     personality: PERSONALITIES.find(p => p.key === b.personality) || null,
     daysTogether: Math.max(1, Game.daysBetween(hatchedISO, today) + 1),
-    bond: Game.buddyBond(recentQ),
+    bond, level: lvl, species, evoStage, form, evoInfo,
     mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
     needs: Game.buddyNeeds(loggedToday, todayQ, streak),
   };
@@ -2517,7 +2561,11 @@ function FightModal({ db, update, streak, onClose }) {
   // Fighter fights at the buddy's high-water stage; a nap never shrinks it back to the egg.
   const si = Math.max(buddyStageIndex(streak), (db.buddy && db.buddy.stage) || 0);
   const b = BUDDY_STAGES[Math.min(si, BUDDY_STAGES.length - 1)];
-  const fighter = { name: b.name, art: b.art, colors: b.colors, stats: buddyStats(db, streak, si) };
+  // Once hatched, the fighter wears the buddy's actual species + bond-evolved form (stats unchanged).
+  const fSpecies = CR_BY_ID[(db.buddy && db.buddy.speciesId) || ''];
+  const fForm = fSpecies ? buddyForm(fSpecies, (db.buddy && db.buddy.evoStage) || 0, 0) : null;
+  const vis = (si > 0 && fForm) ? fForm : b;
+  const fighter = { name: vis.name, art: vis.art, colors: vis.colors, stats: buddyStats(db, streak, si) };
   // Ladder gating: one attempt per day, and only on a day with food logged. Weekly boss unchanged.
   const loggedToday = (db.log_entries || []).some(e => e.date === today);
   const gate = Game.fightGate(fight.lastAttemptDate, loggedToday, today);
@@ -2760,7 +2808,8 @@ function GameTracksCard({ btState, egg, eggProg, onOpenDex }) {
 function NameBuddyModal({ db, update, buddy, onClose }) {
   useBackClose(onClose);
   const b = db.buddy || {};
-  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const species = CR_BY_ID[b.speciesId] || CR_BY_ID['dinky'];
+  const form = buddyForm(species, b.evoStage || 0, 0) || BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const pers = PERSONALITIES.find(p => p.key === b.personality) || PERSONALITIES[0];
   const [name, setName] = useState(b.name || '');
   function save() {
@@ -2772,8 +2821,8 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex flex-col items-center text-center mb-4">
-          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><Sprite art={st.art} colors={st.colors} px={5} /></div>
-          <div className="pf text-[8px] uppercase text-[#8A8A90]">Your buddy · {pers.label}</div>
+          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><div style={crFx(false, form.aura)}><Sprite art={form.art} colors={form.colors} px={5} /></div></div>
+          <div className="pf text-[8px] uppercase text-[#8A8A90]">{form.name} · {pers.label}</div>
           <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1)}. Give it a name, it’s yours to raise.</div>
         </div>
         <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
@@ -2790,6 +2839,7 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
 // gentle "log to wake" nudge. The dex and fight open as the existing modals.
 function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenFight, onLog, onName }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const disp = (profile && profile.form) ? profile.form : st;   // the buddy's species form (or a fallback)
   const pcr = todayCr && CR_BY_ID[todayCr.id];
   const today = Store.todayISO();
   const fght = db.fight || {};
@@ -2801,11 +2851,11 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
       <div className="bg-[#161618] pixel-box p-3 mb-4">
         <div className="flex items-center gap-3">
           <button onClick={onOpenDex} className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
-            <div style={{ filter: 'grayscale(0.85)', opacity: 0.45 }}><Sprite art={st.art} colors={st.colors} px={3.2} /></div>
+            <div style={{ filter: 'grayscale(0.85)', opacity: 0.45 }}><Sprite art={disp.art} colors={disp.colors} px={3.2} /></div>
           </button>
           <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-bold truncate leading-tight">{(profile && profile.name) || st.name} <span className="text-[9px] text-[#8A8A90] font-normal">napping</span></div>
-            <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Log today to wake {(profile && profile.name) || st.name} and start a new streak.</div>
+            <div className="text-[12px] font-bold truncate leading-tight">{(profile && profile.name) || disp.name} <span className="text-[9px] text-[#8A8A90] font-normal">napping</span></div>
+            <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Log today to wake {(profile && profile.name) || disp.name} and start a new streak.</div>
           </div>
           <button onClick={onLog} className="pixel-btn py-2 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} aria-label="Log a meal"><span className="pf text-[8px]">LOG</span></button>
         </div>
@@ -2816,17 +2866,14 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
   // Dex completion, the collection at a glance.
   const caught = Object.keys(macrodex(db)).length;
   const dexTotal = CREATURES.length;
-  // Buddy evolution: progress of the current streak toward the next stage threshold.
-  const sIdx = buddy.stage;
-  const atMax = sIdx >= BUDDY_STAGES.length - 1;
-  const prevMin = BUDDY_STAGES[sIdx].min;
-  const nextStage = atMax ? null : BUDDY_STAGES[sIdx + 1];
-  const evo = atMax ? 1 : Math.max(0, Math.min(1, (streak - prevMin) / ((nextStage.min - prevMin) || 1)));
   const best = Math.max(streak, (db.records && db.records.longestStreak) || 0);
   const ladderCleared = (fght.rank || 0) >= FIGHT_LADDER.length;
 
+  // Bond-gated evolution: progress toward the next form needs BOTH quality days and hearts.
+  const ev = profile ? profile.evoInfo : null;
+
   // Companion layer: given name, mood voice, bond hearts and the three need meters.
-  const name = (profile && profile.name) || st.name;
+  const name = (profile && profile.name) || disp.name;
   const mm = profile ? (MOOD_META[profile.mood] || MOOD_META.content) : null;
   const moodLn = profile ? moodLine(profile.mood, today) : '';
   const hearts = profile ? Array.from({ length: profile.bond.maxHearts }).map((_, i) => (
@@ -2841,11 +2888,11 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
         <button onClick={onOpenDex} className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--good)' }}>Dex {caught}/{dexTotal} ›</button>
       </div>
       <button onClick={onOpenDex} className="w-full text-left flex items-center gap-3">
-        <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }}><Sprite art={st.art} colors={st.colors} px={3.4} /></div>
+        <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }}><div style={crFx(false, disp.aura)}><Sprite art={disp.art} colors={disp.colors} px={3.4} /></div></div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="text-[12px] font-bold truncate leading-tight">{name}</span>
-            {profile && profile.name ? <span className="pf text-[7px] uppercase text-[#8A8A90] shrink-0 truncate">{st.name}</span> : null}
+            {profile && profile.name ? <span className="pf text-[7px] uppercase text-[#8A8A90] shrink-0 truncate">{disp.name}</span> : null}
             <span role="button" tabIndex={0} onClick={e => { e.stopPropagation(); onName && onName(); }}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onName && onName(); } }}
               className="text-[10px] text-[#8A8A90] shrink-0 leading-none px-0.5" aria-label={profile && profile.name ? 'Rename buddy' : 'Name your buddy'}>✎</span>
@@ -2855,10 +2902,10 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
             <span className="inline-flex items-center gap-1"><PixelFire size={11} />{streak}d{best > streak ? <span> · best {best}</span> : null}</span>
             {hearts ? <span className="inline-flex items-center gap-px" title={`Bond ${profile.bond.hearts}/${profile.bond.maxHearts}`}>{hearts}</span> : null}
           </div>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <div className="pixel-bar flex-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (evo * 100) + '%', background: 'var(--good)', transition: 'width .4s' }} /></div>
-            <span className="pf text-[7px] uppercase shrink-0 text-[#8A8A90]">{atMax ? 'Max' : (nextStage.min - streak) + 'd to ' + nextStage.name}</span>
-          </div>
+          {ev ? <div className="mt-1.5 flex items-center gap-1.5" title={ev.atMax ? ('Level ' + ev.level + ' quality days') : ('Evolves to ' + ev.nextName + ' at ' + ev.levelNeed + ' quality days and ' + ev.heartsNeed + ' hearts')}>
+            <div className="pixel-bar flex-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (ev.progress * 100) + '%', background: ev.ready ? 'var(--fat)' : 'var(--good)', transition: 'width .4s' }} /></div>
+            <span className="pf text-[7px] uppercase shrink-0 text-[#8A8A90]">{ev.atMax ? ('Lv ' + ev.level) : ev.ready ? 'Evolving!' : ('→ ' + ev.nextName)}</span>
+          </div> : null}
         </div>
       </button>
       {profile ? <div className="flex gap-2 mt-2.5">{['hunger', 'nourish', 'energy'].map(k => (
@@ -2867,7 +2914,7 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
           <div className="pixel-bar" style={{ height: 6, borderWidth: 2 }}><i style={{ width: Math.round(profile.needs[k] * 100) + '%', background: NEED_META[k][1], transition: 'width .4s' }} /></div>
         </div>
       ))}</div> : null}
-      {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-2.5">Every day you log and weigh in adds a prehistoric creature to your dex and grows your buddy. Keep the streak going to evolve it.</div>}
+      {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-2.5">Every day you log and weigh in adds a prehistoric creature to your dex. Feed your buddy well and it bonds, grows and evolves.</div>}
       <div className="flex gap-2 mt-3">
         <button onClick={onOpenDex} className="pixel-btn flex-1 py-2 px-2" style={{ background: 'var(--surface3)' }}>
           <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1">Catch today</div>
@@ -3042,6 +3089,8 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   // naps at its best-ever stage and wakes after 3 active days. Also track the longest streak.
   const buddyHw = (db.buddy && db.buddy.stage) || 0;
   const buddy = Game.buddyView(buddyHw, streak);
+  const buddyLvl = useMemo(() => buddyLevel(db), [db.log_entries]);
+  const bp = buddyProfile(db, streak, buddy, buddyLvl);
   useEffect(() => {
     const longest = (db.records && db.records.longestStreak) || 0;
     if (!buddy.ratchet && streak <= longest) return;
@@ -3052,19 +3101,31 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       if (streak > (d.records.longestStreak || 0)) d.records.longestStreak = streak;
     });
   }, [streak]);
-  // Seed the buddy's identity once: when it hatched (first log day) and a stable personality.
+  // Seed the buddy's identity once: hatch date, personality, and the species it's raised from.
   // Additive and idempotent, so returning accounts get an individual without losing anything.
   useEffect(() => {
     const b = db.buddy || {};
-    if (b.hatchedISO && b.personality) return;
+    if (b.hatchedISO && b.personality && b.speciesId) return;
     const dates = (db.log_entries || []).map(e => e.date).sort();
     const firstLog = dates[0] || today;
+    const spec = buddySpeciesId(db);
     update(d => {
       d.buddy = d.buddy || { stage: 0 };
       if (!d.buddy.hatchedISO) d.buddy.hatchedISO = firstLog;
       if (!d.buddy.personality) d.buddy.personality = personalityFor(d.game_salt || firstLog || 'egg').key;
+      if (!d.buddy.speciesId) d.buddy.speciesId = spec;
+      if (d.buddy.evoStage == null) d.buddy.evoStage = 0;
     });
   }, [db.buddy, db.log_entries]);
+  // Bond-gated evolution (Gen 2 friendship): advance the buddy's form when it has BOTH grown
+  // (quality-day level) AND is well cared for (bond hearts). High-water, so a cooled bond never
+  // de-evolves it.
+  useEffect(() => {
+    const b = db.buddy || {};
+    const species = CR_BY_ID[b.speciesId]; if (!species || !species.evo || !species.evo.length) return;
+    const eligible = Game.buddyEvoStage(buddyLvl, bp.bond.hearts, species.evo.map(e => e.at), EVO_HEART_REQ);
+    if (eligible > (b.evoStage || 0)) update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.evoStage = eligible; });
+  }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
   // Migratory visitor: 20 logged days inside the calendar month lands Drizzlodon (once per month).
   const monthYm = today.slice(0, 7);
   const monthLogs = Game.monthlyLogCount(Array.from(logSet), monthYm);
@@ -3226,7 +3287,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
-      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={buddyProfile(db, streak, buddy)} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} />
+      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={bp} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} />
       {loggedTotal >= 1 && <GameTracksCard btState={btState} egg={egg} eggProg={eggProg} onOpenDex={() => setShowDex(true)} />}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>

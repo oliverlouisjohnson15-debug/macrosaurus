@@ -162,7 +162,7 @@ test('existing persisted state migrates with sensible gamification defaults', ()
   assert.strictEqual(s.fight.lastAttemptDate, null);   // new gate field backfilled
   assert.strictEqual(s.game_salt, null);               // minted lazily on first run
   assert.deepStrictEqual(s.badges, { checkins: 0, inRange: 0 });
-  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null });
+  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0 });
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
   assert.strictEqual(s.catch_log['2026-07-01'][0].id, 'nugg'); // locked catches untouched
 });
@@ -293,4 +293,21 @@ test('buddyNeeds: fed, nourished and energy track behaviour', () => {
   const none = Game.buddyNeeds(false, null, 0);
   assert.ok(none.hunger < 0.2 && none.nourish === 0 && none.energy === 0);
   assert.strictEqual(Game.buddyNeeds(true, PROTEIN_KCAL, 3).nourish, 2 / 5);
+});
+
+// ---- buddy evolution: gated by BOTH cumulative quality days and bond hearts ----
+
+test('buddyEvoStage: needs both the days and the hearts, sequentially', () => {
+  const ats = [5, 10], req = [2, 3];
+  assert.strictEqual(Game.buddyEvoStage(0, 4, ats, req), 0);   // no days yet
+  assert.strictEqual(Game.buddyEvoStage(6, 1, ats, req), 0);   // days ok but bond too cold
+  assert.strictEqual(Game.buddyEvoStage(6, 2, ats, req), 1);   // first evolution unlocked
+  assert.strictEqual(Game.buddyEvoStage(12, 2, ats, req), 1);  // days for stage 2 but only 2 hearts
+  assert.strictEqual(Game.buddyEvoStage(12, 3, ats, req), 2);  // both conditions -> fully evolved
+  assert.strictEqual(Game.buddyEvoStage(99, 4, ats, req), 2);  // never exceeds the line length
+});
+
+test('buddyEvoStage: a species with no evo line never evolves', () => {
+  assert.strictEqual(Game.buddyEvoStage(100, 4, [], []), 0);
+  assert.strictEqual(Game.buddyEvoStage(100, 4, undefined, undefined), 0);
 });
