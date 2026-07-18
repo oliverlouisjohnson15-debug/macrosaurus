@@ -7281,37 +7281,44 @@ function DietBreakCard({
    ===================================================================== */
 // Multi-colour pixel sprite. `art` = array of equal-width strings; each char keys `colors`.
 const CR_ART = {
-  egg: ['....KKKK....', '..KKHHHHKK..', '.KHBBBBBBHK.', '.KBBBBSBBBK.', 'KHBBBBBBBSBK', 'KBBBSBBBBBBK', 'KBBBBBBBBSBK', 'KBSBBBBBBBBK', '.KBBBBBSBBK.', '.KBBBBBBBBK.', '..KKBBBBKK..', '....KKKK....'],
-  hatch: ['............', '....KKKK....', '...KBBBBK...', '..KBPBBPBK..', '..KBBBBBBK..', '..KBBHHBBK..', '..KBBBBBBK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............'],
-  saur: ['........KK..', '.......KBBK.', '......KBBBK.', '......KBPBK.', 'KK...KBBBBK.', 'KBK.KBBBBBK.', 'KBBKBBBBBK..', '.KBBBBBBK...', '.KBBBBBBK...', '.KBBBBBBBK..', '.KBKBBKBBK..', '.KK.KK.KKK..'],
-  raptor: ['.........KK.', '........KBBK', '......KKKBBK', '.....KBPBBK.', 'KK..KBBBBBK.', '.KKKBBBBBK..', '..KBBBBBK...', '..KBBBBBBK..', '..KBBKKBBK..', '.KBK..KBBK..', '.KK....KK...', '............'],
-  stego: ['..............', '.....A.A.A....', '....KAKAKAK...', '..KKBBBBBBKK..', '.KPBBBBBBBBBK.', '.KKBBBBBBBBBK.', '..KBBBBBBBBK..', '..KBBBBBBBK...', '..KBKBKBK.....', '..KK.K.K......', '..............', '..............'],
-  trike: ['..............', '..............', '.KK...........', 'KPBK..KKKKK...', 'KBBKKKBBBBBK..', '.KBBBBBBBBBK..', '.KBBBBBBBBBBK.', '.KBBBBBBBBBBK.', '.KBKBBKKBBKBK.', '.KK.KK.KK.KK..', '..............', '..............'],
-  rex: ['...KKKK......', '..KBBBBK.....', '..KBPBBK.....', '.KKBBBBK.....', 'KBBBBBBKK....', '.KBBBBBBBKK..', '.KBBBBBBBBBK.', '.KBBBBBBBBK..', '.KBKBBKBK....', '.KK.KK.K.....', '.............', '.............'],
-  longneck: ['...KK.........', '..KBBK........', '..KBPK........', '..KBBK........', '..KBBKK.......', '.KBBBBK.......', '.KBBBBKKKK....', 'KKBBBBBBBBKK..', '.KBBBBBBBBBBK.', '.KBBBBBBBBBBK.', '.KBKBBKKBBKBK.', '.KK.KK.KK.KK..'],
-  sprout: ['.....K......', '....KLK.....', '...KLLLK....', '....KLK.....', '....KKKK....', '...KBBBBK...', '..KBPBBPBK..', '..KBBBBBBK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.'],
-  brolly: ['...AAAAAA...', '..AASAASAA..', '.ASAASAASAA.', '.....K......', '.....K.KK...', '....KBBBBK..', '....KBPBBK..', '.KK.KBBBBK..', '.KBKBBBBBK..', '..KBBBBBBK..', '..KBKBBKBK..', '..KK.KK.KK..'],
-  // Sail-backed biped (spinosaur): a dorsal fan of spines behind the head.
-  spino: ['......KKK...', '.....KBBBK..', '..A..KBPBK..', '.AKA.KBBBK..', 'AKAKKBBBBK..', '.KBBBBBBBK..', '.KBBBBBBK...', '.KBBBBBBK...', '.KBKBBKBK...', '.KK.KK.KK...', '............', '............'],
-  // Low armoured tank (ankylosaur): head left, a heavy club tail right, spiked back.
-  anky: ['............', '............', '...AKAKA....', '..KKKKKKK...', '.KBBBBBBBK..', 'KKBPBBBBBBKK', 'KBBBBBBBBBBK', '.KBBBBBBBBK.', '..KK.KK.KK..', '............', '............', '............'],
-  // Winged flyer (pterosaur): wings spread wide, a small beaked head.
-  ptero: ['KK..........KK', '.KKK......KKK.', '..KBKK..KKBK..', 'KKKBBKKKKBBK..', 'KBBPBBBBBBBK..', '.KKBBBBBBBBK..', '...KKKBBBKK...', '.....KBBK.....', '.....K.K......', '.....K.K......', '..............', '..............'],
-  // Crested duck-bill (parasaurolophus): a long crest swept back off the head.
-  para: ['....KK.......', '...KBBK......', '...KBPK......', '...KBBK......', '..KBBBK......', '..KBBBKK.....', '.KBBBBBBKK...', '.KBBBBBBBBK..', '.KBBBBBBBBK..', '.KBKBBKBBK...', '.KK.KK.KK....', '.............'],
-  // Dome-headed head-butter (pachycephalosaur): a thick, rounded skull.
-  pachy: ['............', '....KKKK....', '...KBBBBK...', '...KBBBBK...', '...KBPBBK...', '..KKBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBBBBBK...', '..KBKBBKK...', '..KK.KK.....', '............'],
-  // Sail-finned prowler (dimetrodon): a rounded back-sail on a low four-legged body.
-  dimetro: ['............', '...AAAAA....', '..AKKKKKA...', '.AKBBBBBKA..', 'KKBBBBBBBK..', 'KBPBBBBBBK..', '.KBBBBBBBKK.', '.KKBBBBBKK..', '..K.KKK.K...', '............', '............', '............'],
-  // Rounded stony boulder-beast: hunched, low, with cracked scutes (S) in the shell.
-  boulder: ['............', '...KKKKKK...', '..KBBBBBBK..', '.KBBBBBBBBK.', 'KBBPBBBBBBK.', 'KBBBBBSBBBK.', 'KBSBBBBBBBK.', 'KBBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............'],
-  // Round-bodied glutton: small head, big belly patch (T), stubby legs.
-  blob: ['....KKK.....', '...KBBBK....', '...KBPBK....', '..KBBBBBK...', '.KBBBBBBBK..', 'KBBBBBBBBBK.', 'KBBBTTTBBBK.', 'KBBTTTTTBBK.', 'KBBBTTTBBBK.', '.KBBBBBBBK..', '.KBK.K.KBK..', '.KK.....KK..'],
-  // Leafy long-neck: a broad frond (L) sprouting off the head, tall neck, plump body.
-  leafneck: ['....LL......', '...LLLL.....', '.....KKK....', '....KBBBK...', '....KBPBK...', '.....KBBK...', '.....KBBK...', '...KKBBKKK..', '.KBBBBBBBBK.', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.'],
-  // Smooth-domed tank: a rounded armour dome (A) instead of spikes, low wide body.
-  domeback: ['............', '....AAAA....', '..KKAAAAKK..', '.KBBBBBBBBK.', 'KBBBBBBBBBBK', 'KBPBBBBBBBBK', 'KBBBBBBBBBBK', '.KBBBBBBBBK.', '.KBKBBBBKBK.', '.KK.KKKK.KK.', '............', '............']
+  egg: ['................', '......KKKK......', '....KKllllKK....', '...KlllmmmllK...', '..KllmmmmmmmK...', '..KlmmmdmmmmK...', '.KlmmmmmmmdmK...', '.KmmmdmmmmmmK...', '.KmmmmmmmdmmK...', '.KmmdmmmmmmmK...', '..KmmmmmdmmK....', '..KbmmmmmmbK....', '...KKbbbbKK.....', '.....KKKK.......', '................', '................'],
+  hatch: ['................', '.....KKKKK......', '....KlllllK.....', '...KlmmmmmlK....', '..KmmemmemmK....', '..KmmmmmmmmK....', '..KmbbbbbmmK....', '.KmmmmmmmmmK....', '.KbbbbbbbbmK....', '.KmmKmmmKmmK....', '.KmdK.d.KmdK....', '.Kdd.....dd.....', '................', '................', '................', '................'],
+  saur: ['........KKKK..', '.......KllmK..', '......KlmemK..', '.....KlmmmK...', '..KKKlmmmK....', '.KllmmmmmKK...', 'KlmmmmmmmmmK..', '.KmmmmmmmmmK..', '.KbbbmmmmddK..', '.KmmmmmmdK....', '.KmmdmmK......', '.KmKKmK.......', '.KmdKmdK......', '.Kdd.Kdd......', '..............', '..............'],
+  raptor: ['........KKKK...', '.......KllmmK..', '.....KKKlmemK..', '...KKlmmmmmK...', '..KlmmmmmmK....', '.KllmmmmmmmKKK.', 'KlmmmmmmmmmmmmK', '.KmmmmmmmmmmmK.', '.KbbbbmmmmddK..', '.KmmmmmmdK.....', '.KmmdmmK.......', '.KmKKmK........', '.KmdKmdK.......', '.Kdd.Kdd.......', '...............', '...............'],
+  stego: ['................', '......l.l.l.....', '.....dKdKdKd.KK.', '...KKllllllllK..', '..KlmmmmmmmmmmK.', '.KKmmemmmmmmmmmK', '.KmmmmmmmmmmmdK.', '.KbbbbbbbbbbmmK.', '.KmmKmmKmmKmmK..', '.KmdKmdKmdKmdK..', '.Kdd.dd.dd.dd...', '................', '................', '................', '................', '................'],
+  trike: ['................', '..KK............', '.KllK...........', '.KmmKKKKKKKK....', 'KlmmmllllllmK...', 'KmemmmmmmmmmmK..', 'KmmmmmmmmmmmmKK.', '.KbbbbbbbbbbmmK.', '.KmmKmmKmmKmmdK.', '.KmdKmdKmdKmmdK.', '.Kdd.dd.dd.ddK..', '..............K.', '................', '................', '................', '................'],
+  rex: ['.....KKKKKK....', '....KllllllK...', '...KlmmmmmmK...', '...KmmemmmmK...', '...KmmmmmmmK...', '.KKKlmmmmmmK...', 'KllmmmmmmmmKK..', 'KmmmmmmmmmmmK..', '.KmmmmmmmmmmmKK', '.KbbbbbmmmmmmmK', '.KmdmmmdmmmmmmK', '.KmmKmmKmmdmmK.', '.KmdKmmKmmmdK..', '.Kdd.KKd.Kdd...', '...............', '...............'],
+  longneck: ['..............KKKK..', '.............KllllK.', '.............KlmmmK.', '.............KmmmeK.', '.............KmmmmK.', '............KKmmmmK.', '...........KlmmmK...', '..........KlmmmK....', '.....KKKKKlmmmK.....', '...KKllllllmmmKKKK..', '..KlmdmmdmmmdmmmmmK.', '..KmmmmmmmmmmmmmmmK.', '..KbbbbbbbbbbbbbmmK.', '..KmmKmmKmmmKmmdmmK.', '..KmmKmmKmmmKmmmdK..', '..Kd.KKd.KKd.KKmdK..', '..KK...KK..KK..KKK..'],
+  sprout: ['......l.......', '.....lll......', '....lllll.....', '......l.......', '.....KKKK.....', '....KllllK....', '...KlmemmlK...', '..KmmmmmmmK...', '..KmbbbbmmK...', '.KmmmmmmmmK...', '.KmmKmmmKmK...', '.KmdK.dKmdK...', '.Kdd...Kdd....', '..............', '..............', '..............'],
+  brolly: ['...KKKKKKKK...', '..KllllllllK..', '.KmmmmmmmmmmK.', 'KdmdmdmdmdmdmK', '.....KK.......', '....KllK......', '...KlmemlK....', '..KmmmmmmmK...', '..KmbbbmmmK...', '.KmmmmmmmmK...', '.KmdKmKmdK....', '.Kdd...dd.....', '..............', '..............', '..............', '..............'],
+  spino: ['.....d.d.d.....', '....dKdKdKd....', '..KKlllllllK...', '.KlmmemmmmmK...', 'KlmmmmmmmmmKK..', '.KmmmmmmmmmmK..', '.KbbbbmmmmddK..', '.KmmmmmmmdK....', '.KmmdmmK.......', '.KmKKmK........', '.KmdKmdK.......', '.Kdd.Kdd.......', '...............', '...............', '...............', '...............'],
+  anky: ['................', '.....dddddd.....', '...KKlllllllKK..', '..KlmmemmmmmmmK.', 'KKmmmmmmmmmmmmmK', 'KdmmmmmmmmmmmmdK', '.KbbbbbbbbbbmmK.', '.KmmKmmKmmKmmK..', '.Kdd.dd.dd.dd...', '................', '................', '................', '................', '................', '................', '................'],
+  ptero: ['KK............KK.', 'KllK........KllK.', '.KmlKK....KKlmK..', '.KmmmlKKKKlmmmK..', 'KKmmmmmmmmmmmmKK.', 'KllmmemmmmmmmmK..', '.KKmmmmmmmmmmK...', '..KKdmmmmmdKK....', '....KmmmmmK......', '....KbbbbK.......', '.....Km.mK.......', '.....Kd.dK.......', '.....KK.KK.......', '.................', '.................', '.................'],
+  para: ['....KK.........', '...KllK........', '..KlmmK........', '..KmemK........', '..KmmmK........', '.KKmmmKK.......', 'KllmmmmmKKKK...', 'KmmmmmmmmmmmK..', '.KbbbbbmmmmdK..', '.KmmmmmmmmmK...', '.KmdmmmdmmK....', '.KmKKmmKmK.....', '.KmdK.Kmd......', '.Kdd..Kdd......', '...............', '...............'],
+  pachy: ['....KKKKK.....', '...KllllllK...', '..KlmmmmmmK...', '..KmmemmmmK...', '..KmmmmmmK....', '.KKlmmmmK.....', 'KlmmmmmmmKK...', '.KmmmmmmmmmK..', '.KbbbmmmmddK..', '.KmmKmmmKmK...', '.KmdK.KmdK....', '.Kdd..Kdd.....', '..............', '..............', '..............', '..............'],
+  dimetro: ['................', '...lllllll......', '..dKdKdKdKd.....', '.KKlllllllKKK...', 'KlmmemmmmmmmmK..', 'KmmmmmmmmmmmmKK.', '.KbbbbbbbbbmmK..', '.KmmKmmKmmKmK...', '.Kdd.dd.dd.dK...', '................', '................', '................', '................', '................', '................', '................'],
+  boulder: ['................', '....KKKKKKK.....', '..KKlllllllKK...', '.KlmmmmmmmmmK...', 'KlmmdmmemmmmmK..', 'KmmmmmmmdmmmmK..', 'KmdmmmmmmmmmmK..', '.KbbbbbbbbbmK...', '.KmmKmmmKmmK....', '.Kdd.KdK.dd.....', '................', '................', '................', '................', '................', '................'],
+  blob: ['.....KKKK.......', '....KllllK......', '...KlmemmlK.....', '..KmmmmmmmK.....', '.KKmmmmmmmKKK...', 'KlmmmmmmmmmmmK..', 'KmmbbbbbbbmmmK..', 'KmbbbbbbbbbbmK..', 'KmmbbbbbbbmmmK..', '.KmmmmmmmmmmK...', '.KmdKmmmKmdK....', '.Kdd..K..dd.....', '................', '................', '................', '................'],
+  leafneck: ['.............b......', '............bbb.....', '.............b.KKKK.', '............bbKllllK', '.............KlmmmeK', '.............KmmmmmK', '............KKmmmmK.', '...........KlmmmK...', '..........KlmmmK....', '.....KKKKKlmmmK.....', '...KKllllllmmmKKKK..', '..KlmdmmdmmmdmmmmmK.', '..KmmmmmmmmmmmmmmmK.', '..KbbbbbbbbbbbbbmmK.', '..KmmKmmKmmmKmmdmmK.', '..KmmKmmKmmmKmmmdK..', '..Kd.KKd.KKd.KKmdK..'],
+  domeback: ['................', '.....KKKKKK.....', '...KKllllllKK...', '..KlmmmmmmmmK...', '.KlmmmmmmmmmmK..', 'KKmmemmmmmmmmK..', 'KmmmmmmmmmmmdK..', '.KbbbbbbbbbmmK..', '.KmmKmmKmmKmK...', '.Kdd.dd.dd.dd...', '................', '................', '................', '................', '................', '................']
 };
+// Lighten / darken a #rrggbb toward white / black by fraction f (0..1).
+function crLighten(hex, f) {
+  const h = String(hex).replace('#', '');
+  if (h.length < 6) return hex;
+  const p = i => parseInt(h.slice(i, i + 2), 16),
+    m = v => Math.round(v + (255 - v) * f).toString(16).padStart(2, '0');
+  return '#' + m(p(0)) + m(p(2)) + m(p(4));
+}
+function crDarken(hex, f) {
+  const h = String(hex).replace('#', '');
+  if (h.length < 6) return hex;
+  const p = i => parseInt(h.slice(i, i + 2), 16),
+    m = v => Math.round(v * (1 - f)).toString(16).padStart(2, '0');
+  return '#' + m(p(0)) + m(p(2)) + m(p(4));
+}
+// Each creature carries a light/mid/dark ramp derived from its base colour (m), plus a bright
+// belly (b) and a dark eye (e), so the hand-shaded sprites render in the logo's multi-tone style.
 function crC(B, S) {
   return {
     K: '#241f2b',
@@ -7322,7 +7329,12 @@ function crC(B, S) {
     P: '#241f2b',
     A: S,
     T: '#fff6d5',
-    L: '#54b53f'
+    L: '#54b53f',
+    m: B,
+    l: crLighten(B, 0.34),
+    d: crDarken(B, 0.40),
+    e: '#182014',
+    b: crLighten(B, 0.55)
   };
 }
 function crShiny(c) {
@@ -7330,28 +7342,31 @@ function crShiny(c) {
     B: '#FFD400',
     S: '#B8860B',
     H: '#FFF6C0',
-    A: '#B8860B'
+    A: '#B8860B',
+    m: '#FFD400',
+    l: crLighten('#FFD400', 0.30),
+    d: crDarken('#FFD400', 0.38),
+    e: '#2a2205',
+    b: crLighten('#FFD400', 0.55)
   });
 }
 function crSilhouette() {
+  const g = '#2a2830';
   return {
     K: '#37343f',
-    B: '#2a2830',
-    S: '#2a2830',
-    H: '#2a2830',
-    W: '#2a2830',
-    P: '#2a2830',
-    A: '#2a2830',
-    T: '#2a2830'
+    B: g,
+    S: g,
+    H: g,
+    W: g,
+    P: g,
+    A: g,
+    T: g,
+    m: g,
+    l: g,
+    d: g,
+    e: g,
+    b: g
   };
-}
-// Lighten a #rrggbb toward white by fraction f (0..1). Used for auto-shading below.
-function crLighten(hex, f) {
-  const h = String(hex).replace('#', '');
-  if (h.length < 6) return hex;
-  const p = i => parseInt(h.slice(i, i + 2), 16),
-    m = v => Math.round(v + (255 - v) * f).toString(16).padStart(2, '0');
-  return '#' + m(p(0)) + m(p(2)) + m(p(4));
 }
 function Sprite({
   art,
@@ -7362,37 +7377,22 @@ function Sprite({
   const w = rows.reduce((m, r) => Math.max(m, r.length), 0);
   const h = rows.length;
   const rects = [];
-  // Auto light/shade the flat body ('B') from a top-left light: brighter up-left rim,
-  // darker (S) down-right rim, mid core. The black outline (K) counts as the form's edge,
-  // so the whole silhouette reads with volume off the same art, no redrawing. Undiscovered
-  // silhouettes (B === S) and explicit detail pixels (K/S/H/P/T/A/L) are left untouched.
-  const shade = colors.B && colors.S && colors.B !== colors.S;
-  const litB = shade ? crLighten(colors.B, 0.38) : colors.B;
-  const litB2 = shade ? crLighten(colors.B, 0.62) : colors.B;
-  const edge = (x, y) => {
-    const c = y >= 0 && y < h && x >= 0 && x < rows[y].length ? rows[y][x] : '.';
-    return c === '.' || c === 'K';
-  };
+  // Normalise the larger multi-tone grids to about the old 12-cell footprint at a given px,
+  // so every render site keeps its existing size no matter each sprite's exact dimensions.
+  const cell = px * 12 / Math.max(w, h, 12);
   rows.forEach((row, y) => row.split('').forEach((ch, x) => {
-    if (ch === '.' || !colors[ch]) return;
-    let fill = colors[ch];
-    if (ch === 'B' && shade) {
-      const up = edge(x, y - 1),
-        left = edge(x - 1, y);
-      if (up && left) fill = litB2;else if (up || left) fill = litB;else if (edge(x, y + 1) || edge(x + 1, y)) fill = colors.S;
-    }
-    rects.push(/*#__PURE__*/React.createElement("rect", {
+    if (ch !== '.' && colors[ch]) rects.push(/*#__PURE__*/React.createElement("rect", {
       key: x + '_' + y,
       x: x,
       y: y,
       width: "1.03",
       height: "1.03",
-      fill: fill
+      fill: colors[ch]
     }));
   }));
   return /*#__PURE__*/React.createElement("svg", {
-    width: w * px,
-    height: h * px,
+    width: w * cell,
+    height: h * cell,
     viewBox: `0 0 ${w} ${h}`,
     shapeRendering: "crispEdges"
   }, rects);
