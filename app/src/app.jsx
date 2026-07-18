@@ -61,11 +61,30 @@ function PixelGlyph({ kind, color, size }) {
   g.forEach((row, y) => row.split('').forEach((c, x) => { if (c === '#') rects.push(<rect key={x + '_' + y} x={x} y={y} width="1" height="1" />); }));
   return <svg viewBox={`0 0 ${w} ${h}`} width={size || 20} height={size || 20} fill={color} style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges' }}>{rects}</svg>;
 }
-// The Macrosaurus mascot is the dinosaur emoji, our brand through-line across the app.
-// `color` is accepted for call-site compatibility but ignored (emoji renders in full colour).
+// The Macrosaurus mascot: an original multi-colour pixel dino, our brand logo, drawn in the
+// same crisp sprite style as the Macrodex creatures. `color` is accepted for call-site
+// compatibility but ignored (the mascot carries its own fixed palette so it reads on any
+// background: the dark nav chip, the header box, and light screens alike).
+const DINO_ART = [
+  '..........KKK.',
+  '.........KBBBK',
+  '.........KBEBK',
+  '.........KBBBK',
+  '.......KKKBBBK',
+  '.....KKBBBBBBK',
+  '....KBBBBBBBBK',
+  '.KKKBBBBBBBBK.',
+  'KBBBBBBBHHBK..',
+  'KKBBBBBHHBBK..',
+  '..KBBK.KBBK...',
+  '..KBK..KBBK...',
+  '..KK...KKK....',
+];
+const DINO_COLORS = { K: '#1b1622', B: '#55C24A', S: '#2E8B3B', H: '#9EE88C', E: '#ffffff' };
 function PixelDino({ size, className }) {
-  const px = size || 24;
-  return <span role="img" aria-label="Macrosaurus" className={className} style={{ fontSize: px + 'px', lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>🦖</span>;
+  const px = size || 24, w = DINO_ART[0].length, h = DINO_ART.length, rects = [];
+  DINO_ART.forEach((row, y) => row.split('').forEach((ch, x) => { const c = DINO_COLORS[ch]; if (ch !== '.' && c) rects.push(<rect key={x + '_' + y} x={x} y={y} width="1.03" height="1.03" fill={c} />); }));
+  return <svg role="img" aria-label="Macrosaurus" className={className} width={px} height={px * h / w} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges" style={{ display: 'inline-block', verticalAlign: 'middle' }}>{rects}</svg>;
 }
 // Pixel flame, outer glow (fat/orange), inner core (accent). Replaces the 🔥 emoji.
 const FIRE_OUTER = ['...#...', '..###..', '.#.###.', '.#####.', '#####.#', '#######', '#######', '.#####.', '..###..'];
