@@ -68,3 +68,16 @@ for (const size of [192, 512]) {
   const png = encodePNG(size, pixels(size));
   for (const rel of targets[size]) { writeFileSync(rel, png); console.log(`wrote ${rel} (${png.length} bytes, ${size}x${size})`); }
 }
+
+// favicon.ico: an ICO wrapping a 32x32 PNG (supported by all modern browsers), so the
+// default /favicon.ico request resolves instead of 404-ing to a stale cached icon.
+function encodeICO(size, pngBuf) {
+  const dir = Buffer.alloc(6); dir.writeUInt16LE(0, 0); dir.writeUInt16LE(1, 2); dir.writeUInt16LE(1, 4);
+  const ent = Buffer.alloc(16);
+  ent[0] = size >= 256 ? 0 : size; ent[1] = size >= 256 ? 0 : size; ent[2] = 0; ent[3] = 0;
+  ent.writeUInt16LE(1, 4); ent.writeUInt16LE(32, 6);
+  ent.writeUInt32LE(pngBuf.length, 8); ent.writeUInt32LE(22, 12);
+  return Buffer.concat([dir, ent, pngBuf]);
+}
+const ico = encodeICO(32, encodePNG(32, pixels(32)));
+for (const rel of ['favicon.ico', 'web/favicon.ico']) { writeFileSync(rel, ico); console.log(`wrote ${rel} (${ico.length} bytes, 32x32 ico)`); }
