@@ -12,12 +12,15 @@
 <meta property="og:site_name" content="Macrosaurus">
 <meta property="og:title" content="Macrosaurus, the macro tracker that adapts (and is actually fun)">
 <meta property="og:description" content="Science-based macro targets that adapt every week, AI food logging, macro-tuned recipes, and a game that keeps you coming back. Free to start.">
-<meta property="og:image" content="/icon-512.png">
+<meta property="og:image" content="https://macrosaurus.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Macrosaurus — the macro tracker that adapts, and is actually fun.">
 <meta property="og:url" content="https://macrosaurus.com/">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Macrosaurus, the macro tracker that adapts (and is actually fun)">
 <meta name="twitter:description" content="Science-based macro targets that adapt every week, AI food logging, macro-tuned recipes, and a game that keeps you coming back.">
-<meta name="twitter:image" content="/icon-512.png">
+<meta name="twitter:image" content="https://macrosaurus.com/og.png">
 <style>html,body{margin:0;padding:0;background:#F0F0F0;}</style>
 </head>
 <body>
@@ -543,7 +546,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         <div class="foot-links">
           <div class="foot-col"><b>PRODUCT</b><a href="#logging">Logging</a><a href="#recipes">Recipes</a><a href="#macrodex">Macrodex</a><a href="#pricing">Pricing</a></div>
           <div class="foot-col"><b>ACCOUNT</b><a href="https://app.macrosaurus.com">Log in</a><a href="https://app.macrosaurus.com">Start free</a></div>
-          <div class="foot-col"><b>COMPANY</b><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Contact</a></div>
+          <div class="foot-col"><b>COMPANY</b><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="mailto:hello@macrosaurus.com">Contact</a></div>
         </div>
       </div>
       <div class="foot-base">
@@ -659,24 +662,6 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
   for(var i=0;i<nodes.length;i++){
     var m = meals[nodes[i].getAttribute('data-meal')];
     if(m) draw(nodes[i], m);
-  }
-
-  // mobile nav menu toggle
-  var nav = document.querySelector('.nav');
-  var burger = document.querySelector('.nav-burger');
-  if(nav && burger){
-    burger.addEventListener('click', function(){
-      var open = nav.classList.toggle('open');
-      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-    // close after tapping a link
-    var links = nav.querySelectorAll('.nav-links a');
-    for(var l=0;l<links.length;l++){
-      links[l].addEventListener('click', function(){
-        nav.classList.remove('open');
-        burger.setAttribute('aria-expanded','false');
-      });
-    }
   }
 
   // scroll reveal (no-op when reduced motion)
