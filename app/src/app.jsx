@@ -61,13 +61,32 @@ function PixelGlyph({ kind, color, size }) {
   g.forEach((row, y) => row.split('').forEach((c, x) => { if (c === '#') rects.push(<rect key={x + '_' + y} x={x} y={y} width="1" height="1" />); }));
   return <svg viewBox={`0 0 ${w} ${h}`} width={size || 20} height={size || 20} fill={color} style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges' }}>{rects}</svg>;
 }
-// The Macrosaurus mascot: a front-facing triceratops (two brow horns, a frill, stout body, legs).
-const DINO_GRID = ['..#..........', '.####........', '######.......', '#############', '.###########.', '.###########.', '.##.##.##.##.', '.##.##.##.##.'];
-function PixelDino({ color, size, className }) {
-  const W = DINO_GRID[0].length, H = DINO_GRID.length, px = size || 24;
-  const rects = [];
-  DINO_GRID.forEach((row, y) => row.split('').forEach((c, x) => { if (c === '#') rects.push(<rect key={x + '_' + y} x={x} y={y} width="1" height="1" />); }));
-  return <svg viewBox={`0 0 ${W} ${H}`} width={px} height={px * H / W} fill={color || 'currentColor'} className={className} style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges' }}>{rects}</svg>;
+// The Macrosaurus mascot: an original multi-colour pixel dino, our brand logo, drawn in the
+// same crisp sprite style as the Macrodex creatures. `color` is accepted for call-site
+// compatibility but ignored (the mascot carries its own fixed palette so it reads on any
+// background: the dark nav chip, the header box, and light screens alike).
+const DINO_ART = [
+  '..........LLLLL.',
+  '..........BBBBBB',
+  '..........BBPBBB',
+  '..........BBBB..',
+  'L.........DBBB..',
+  'BL.......DBBBB..',
+  'BBLD.D.DDBBBBB..',
+  'BBBLLLLLLLBBBB..',
+  '.BBBBBBBBBBBBB..',
+  '..BBBBBBBBBBBL..',
+  '..BBBBBBBBBBB...',
+  '..BBBBBBBBBB....',
+  '..BBB..BBBB.....',
+  '..BBB..BBB......',
+  '..DDD..BDDD.....',
+];
+const DINO_COLORS = { L: '#7BD957', B: '#46B94A', D: '#2C8C3E', P: '#123A1C' };
+function PixelDino({ size, className }) {
+  const px = size || 24, w = DINO_ART[0].length, h = DINO_ART.length, rects = [];
+  DINO_ART.forEach((row, y) => row.split('').forEach((ch, x) => { const c = DINO_COLORS[ch]; if (ch !== '.' && c) rects.push(<rect key={x + '_' + y} x={x} y={y} width="1.03" height="1.03" fill={c} />); }));
+  return <svg role="img" aria-label="Macrosaurus" className={className} width={px} height={px * h / w} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges" style={{ display: 'inline-block', verticalAlign: 'middle' }}>{rects}</svg>;
 }
 // Pixel flame, outer glow (fat/orange), inner core (accent). Replaces the 🔥 emoji.
 const FIRE_OUTER = ['...#...', '..###..', '.#.###.', '.#####.', '#####.#', '#######', '#######', '.#####.', '..###..'];
