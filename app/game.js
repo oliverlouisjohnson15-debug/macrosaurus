@@ -135,6 +135,11 @@
     return Math.round(m * 100) / 100;
   }
 
+  // Day/night affinity (Gen 2 Espeon/Umbreon): the path the buddy takes is set by the clock at
+  // the moment it evolves, i.e. whether you tend to hit your macros by day or after dark. Day is
+  // 06:00-17:59, night is 18:00-05:59.
+  function dayNightAffinity(hour) { return (hour >= 6 && hour < 18) ? 'day' : 'night'; }
+
   // NEEDS: three 0..1 meters topped up by eating well. Fed = logged today, Nourished =
   // today's macro balance, Energy = current streak toward a full week.
   function buddyNeeds(loggedToday, todayQ, streak) {
@@ -268,6 +273,7 @@
     buddyMood: buddyMood,
     buddyNeeds: buddyNeeds,
     buddyEvoStage: buddyEvoStage,
+    dayNightAffinity: dayNightAffinity,
     buddyCraving: buddyCraving,
     FIGHT_TYPES: FIGHT_TYPES,
     TYPE_MACRO: TYPE_MACRO,

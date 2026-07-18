@@ -162,7 +162,7 @@ test('existing persisted state migrates with sensible gamification defaults', ()
   assert.strictEqual(s.fight.lastAttemptDate, null);   // new gate field backfilled
   assert.strictEqual(s.game_salt, null);               // minted lazily on first run
   assert.deepStrictEqual(s.badges, { checkins: 0, inRange: 0 });
-  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0 });
+  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null });
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
   assert.strictEqual(s.catch_log['2026-07-01'][0].id, 'nugg'); // locked catches untouched
 });
@@ -347,4 +347,16 @@ test('fightAtkMult stacks the boss-weakness bonus only when exploited', () => {
   assert.strictEqual(Game.fightAtkMult('power', 'swift', true, false), 1);     // boss, not exploited
   assert.strictEqual(Game.fightAtkMult('power', 'swift', true, true), 1.35);   // boss weakness hit
   assert.strictEqual(Game.fightAtkMult('power', 'guard', true, true), Math.round(1.25 * 1.35 * 100) / 100);
+});
+
+// ---- day/night evolution affinity (Espeon/Umbreon by the clock) ----
+
+test('dayNightAffinity splits on 06:00 and 18:00', () => {
+  assert.strictEqual(Game.dayNightAffinity(6), 'day');
+  assert.strictEqual(Game.dayNightAffinity(9), 'day');
+  assert.strictEqual(Game.dayNightAffinity(17), 'day');
+  assert.strictEqual(Game.dayNightAffinity(18), 'night');
+  assert.strictEqual(Game.dayNightAffinity(23), 'night');
+  assert.strictEqual(Game.dayNightAffinity(5), 'night');
+  assert.strictEqual(Game.dayNightAffinity(0), 'night');
 });

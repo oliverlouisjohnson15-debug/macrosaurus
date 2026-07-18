@@ -2078,8 +2078,10 @@ const CR_BY_ID = {}; CREATURES.forEach(c => CR_BY_ID[c.id] = c);
 // stage. Post-17 content: evo lines gain an Elder (Lv25) and Ancient (Lv50) aura tier, rendered
 // as a glow on the top sprite rather than new pixel art.
 function creatureForm(cr, count) { if (!cr) return null; let f = { name: cr.name, art: cr.art, colors: cr.colors, aura: null }; if (cr.evo) { cr.evo.forEach(e => { if ((count || 0) >= e.at) f = { name: e.name, art: e.art || cr.art, colors: e.colors || cr.colors, aura: null }; }); if ((count || 0) >= 50) { f.aura = 'gold'; f.name = 'Ancient ' + f.name; } else if ((count || 0) >= 25) { f.aura = 'silver'; f.name = 'Elder ' + f.name; } } return f; }
-// Combined sprite glow: shiny plus the Lv25/Lv50 aura tiers.
-function crFx(shiny, aura) { const fx = []; if (shiny) fx.push('drop-shadow(0 0 5px var(--fat))'); if (aura === 'silver') fx.push('drop-shadow(0 0 4px #cfd6e0)'); if (aura === 'gold') fx.push('drop-shadow(0 0 6px #FFD400)'); return fx.length ? { filter: fx.join(' ') } : null; }
+// Combined sprite glow: shiny, the Lv25/Lv50 aura tiers, and the day/night evolution path.
+function crFx(shiny, aura, affinity) { const fx = []; if (shiny) fx.push('drop-shadow(0 0 5px var(--fat))'); if (aura === 'silver') fx.push('drop-shadow(0 0 4px #cfd6e0)'); if (aura === 'gold') fx.push('drop-shadow(0 0 6px #FFD400)'); if (affinity === 'day') fx.push('drop-shadow(0 0 5px rgba(255,201,84,0.85))'); if (affinity === 'night') fx.push('drop-shadow(0 0 5px rgba(126,156,255,0.9))'); return fx.length ? { filter: fx.join(' ') } : null; }
+// Day/night path display: badge glyph, colour and label (set at evolution, reflects when you eat).
+const AFFINITY_META = { day: ['☀', 'var(--fat)', 'Day form'], night: ['☾', 'var(--carb)', 'Night form'] };
 // Hearts a buddy needs at each evolution to trigger it: friendship deepens as it grows.
 const EVO_HEART_REQ = [2, 3, 4];
 // Your buddy's current form along ITS species line, chosen by bond-gated evo stage (not catch
@@ -2278,6 +2280,7 @@ function buddyProfile(db, streak, buddy, level) {
     personality: PERSONALITIES.find(p => p.key === b.personality) || null,
     daysTogether: Math.max(1, Game.daysBetween(hatchedISO, today) + 1),
     bond, level: lvl, species, evoStage, form, evoInfo,
+    affinity: evoStage > 0 ? (b.affinity || null) : null,   // only shows once evolved
     mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
     needs: Game.buddyNeeds(loggedToday, todayQ, streak),
     craving: Game.buddyCraving(todayQ),
@@ -2719,7 +2722,7 @@ function FightModal({ db, update, streak, onClose }) {
           <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
             <div className="flex items-center gap-2">
               <div className="text-center flex-1 min-w-0">
-                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><Sprite art={fighter.art} colors={fighter.colors} px={5} /></div>
+                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><div style={crFx(false, null, (db.buddy && (db.buddy.evoStage || 0) > 0) ? db.buddy.affinity : null)}><Sprite art={fighter.art} colors={fighter.colors} px={5} /></div></div>
                 <div className="text-[11px] mt-2 font-bold truncate">{fighter.name}</div>
                 <div className="my-1"><TypeChip t={buddyType} /></div>
                 <StatLine s={fighter.stats} />
@@ -2876,8 +2879,8 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex flex-col items-center text-center mb-4">
-          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><div style={crFx(false, form.aura)}><Sprite art={form.art} colors={form.colors} px={5} /></div></div>
-          <div className="pf text-[8px] uppercase text-[#8A8A90]">{form.name} · {pers.label}</div>
+          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><div style={crFx(false, form.aura, (b.evoStage || 0) > 0 ? b.affinity : null)}><Sprite art={form.art} colors={form.colors} px={5} /></div></div>
+          <div className="pf text-[8px] uppercase text-[#8A8A90]">{form.name}{(b.evoStage || 0) > 0 && b.affinity ? ' ' + AFFINITY_META[b.affinity][0] : ''} · {pers.label}</div>
           <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1)}. Give it a name, it’s yours to raise.</div>
         </div>
         <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
@@ -2949,15 +2952,16 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
         </div>
         <div className="flex items-center gap-3.5">
           <button onClick={onOpenDex} className="pixel-box p-2 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
-            <div style={crFx(false, disp.aura)}><Sprite art={disp.art} colors={disp.colors} px={4.8} /></div>
+            <div style={crFx(false, disp.aura, profile && profile.affinity)}><Sprite art={disp.art} colors={disp.colors} px={4.8} /></div>
           </button>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-[18px] font-bold leading-none truncate">{name}</span>
+              {profile && profile.affinity ? <span title={AFFINITY_META[profile.affinity][2]} style={{ color: AFFINITY_META[profile.affinity][1], fontSize: 13, lineHeight: 1 }}>{AFFINITY_META[profile.affinity][0]}</span> : null}
               <span role="button" tabIndex={0} onClick={() => onName && onName()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onName && onName(); }}
                 className="text-[11px] text-[#8A8A90] shrink-0 leading-none" aria-label={profile && profile.name ? 'Rename buddy' : 'Name your buddy'}>✎</span>
             </div>
-            <div className="pf text-[8px] uppercase text-[#8A8A90] mt-1 truncate">{profile && profile.name ? disp.name + ' · ' : ''}Lv {profile ? profile.level : 0}</div>
+            <div className="pf text-[8px] uppercase text-[#8A8A90] mt-1 truncate">{profile && profile.name ? disp.name + ' · ' : ''}Lv {profile ? profile.level : 0}{profile && profile.affinity ? ' · ' + AFFINITY_META[profile.affinity][2] : ''}</div>
             {mm ? <div className="text-[12px] leading-snug mt-2"><span style={{ color: mm.color }}>●</span> <span>{moodLn}</span></div> : null}
           </div>
         </div>
@@ -3197,7 +3201,11 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     const b = db.buddy || {};
     const species = CR_BY_ID[b.speciesId]; if (!species || !species.evo || !species.evo.length) return;
     const eligible = Game.buddyEvoStage(buddyLvl, bp.bond.hearts, species.evo.map(e => e.at), EVO_HEART_REQ);
-    if (eligible > (b.evoStage || 0)) update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.evoStage = eligible; });
+    if (eligible > (b.evoStage || 0)) {
+      // Day/night path (Espeon/Umbreon): set once, by the clock at the first evolution.
+      const aff = Game.dayNightAffinity(new Date().getHours());
+      update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.evoStage = eligible; if (!d.buddy.affinity) d.buddy.affinity = aff; });
+    }
   }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
   // Migratory visitor: 20 logged days inside the calendar month lands Drizzlodon (once per month).
   const monthYm = today.slice(0, 7);

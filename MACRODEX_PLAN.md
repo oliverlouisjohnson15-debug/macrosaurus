@@ -247,8 +247,9 @@ resolution, leaderboard scoring) lives in a **pure, unit-tested `app/game.js`** 
   template-sharing creatures their own silhouettes. **Next in 0:** promote `buddy` to a
   persistent named entity + migration.
 - **Phase 1 — The Bond. ✅ *(shipped)*** Hatch/name flow, bond + mood + needs meters, the
-  feed-your-buddy loop (craving prompt framing logging as feeding), and bond-gated evolution
-  along the species line. *Still to do: day/night evolution branch.*
+  feed-your-buddy loop (craving prompt framing logging as feeding), bond-gated evolution along
+  the species line, and the day/night evolution path (Espeon/Umbreon-style — the clock at the
+  first evolution sets a Day or Night form, shown as a ☀/☾ badge + warm/cool aura).
 - **Phase 2 — Fight 2.0. ◑ *(core shipped)*** Macros as types with a matchup triangle, the
   week's eating as a loadout, and a weekly boss weakness that rewards eating the right macro,
   all pure and unit-tested in `app/game.js`. *Still to do: one-tap move agency and boss phases

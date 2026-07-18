@@ -1341,7 +1341,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null }, // ladder + weekly boss + prestige; one ladder attempt per logged day
       game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
-      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0 },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage: the individual you raise and bond-evolve
+      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
@@ -1612,6 +1612,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return Math.round(m * 100) / 100;
   }
 
+  // Day/night affinity (Gen 2 Espeon/Umbreon): the path the buddy takes is set by the clock at
+  // the moment it evolves, i.e. whether you tend to hit your macros by day or after dark. Day is
+  // 06:00-17:59, night is 18:00-05:59.
+  function dayNightAffinity(hour) { return (hour >= 6 && hour < 18) ? 'day' : 'night'; }
+
   // NEEDS: three 0..1 meters topped up by eating well. Fed = logged today, Nourished =
   // today's macro balance, Energy = current streak toward a full week.
   function buddyNeeds(loggedToday, todayQ, streak) {
@@ -1745,6 +1750,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     buddyMood: buddyMood,
     buddyNeeds: buddyNeeds,
     buddyEvoStage: buddyEvoStage,
+    dayNightAffinity: dayNightAffinity,
     buddyCraving: buddyCraving,
     FIGHT_TYPES: FIGHT_TYPES,
     TYPE_MACRO: TYPE_MACRO,
@@ -7736,16 +7742,23 @@ function creatureForm(cr, count) {
   }
   return f;
 }
-// Combined sprite glow: shiny plus the Lv25/Lv50 aura tiers.
-function crFx(shiny, aura) {
+// Combined sprite glow: shiny, the Lv25/Lv50 aura tiers, and the day/night evolution path.
+function crFx(shiny, aura, affinity) {
   const fx = [];
   if (shiny) fx.push('drop-shadow(0 0 5px var(--fat))');
   if (aura === 'silver') fx.push('drop-shadow(0 0 4px #cfd6e0)');
   if (aura === 'gold') fx.push('drop-shadow(0 0 6px #FFD400)');
+  if (affinity === 'day') fx.push('drop-shadow(0 0 5px rgba(255,201,84,0.85))');
+  if (affinity === 'night') fx.push('drop-shadow(0 0 5px rgba(126,156,255,0.9))');
   return fx.length ? {
     filter: fx.join(' ')
   } : null;
 }
+// Day/night path display: badge glyph, colour and label (set at evolution, reflects when you eat).
+const AFFINITY_META = {
+  day: ['☀', 'var(--fat)', 'Day form'],
+  night: ['☾', 'var(--carb)', 'Night form']
+};
 // Hearts a buddy needs at each evolution to trigger it: friendship deepens as it grows.
 const EVO_HEART_REQ = [2, 3, 4];
 // Your buddy's current form along ITS species line, chosen by bond-gated evo stage (not catch
@@ -8201,6 +8214,8 @@ function buddyProfile(db, streak, buddy, level) {
     evoStage,
     form,
     evoInfo,
+    affinity: evoStage > 0 ? b.affinity || null : null,
+    // only shows once evolved
     mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
     needs: Game.buddyNeeds(loggedToday, todayQ, streak),
     craving: Game.buddyCraving(todayQ)
@@ -9493,11 +9508,13 @@ function FightModal({
     style: {
       background: 'var(--surface3)'
     }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: crFx(false, null, db.buddy && (db.buddy.evoStage || 0) > 0 ? db.buddy.affinity : null)
   }, /*#__PURE__*/React.createElement(Sprite, {
     art: fighter.art,
     colors: fighter.colors,
     px: 5
-  })), /*#__PURE__*/React.createElement("div", {
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2 font-bold truncate"
   }, fighter.name), /*#__PURE__*/React.createElement("div", {
     className: "my-1"
@@ -9898,14 +9915,14 @@ function NameBuddyModal({
       background: 'var(--surface3)'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: crFx(false, form.aura)
+    style: crFx(false, form.aura, (b.evoStage || 0) > 0 ? b.affinity : null)
   }, /*#__PURE__*/React.createElement(Sprite, {
     art: form.art,
     colors: form.colors,
     px: 5
   }))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90]"
-  }, form.name, " · ", pers.label), /*#__PURE__*/React.createElement("div", {
+  }, form.name, (b.evoStage || 0) > 0 && b.affinity ? ' ' + AFFINITY_META[b.affinity][0] : '', " · ", pers.label), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-1 leading-snug"
   }, pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1), ". Give it a name, it’s yours to raise.")), /*#__PURE__*/React.createElement("input", {
     value: name,
@@ -10050,7 +10067,7 @@ function HomeGameStrip({
     },
     "aria-label": "Open Macrodex"
   }, /*#__PURE__*/React.createElement("div", {
-    style: crFx(false, disp.aura)
+    style: crFx(false, disp.aura, profile && profile.affinity)
   }, /*#__PURE__*/React.createElement(Sprite, {
     art: disp.art,
     colors: disp.colors,
@@ -10061,7 +10078,14 @@ function HomeGameStrip({
     className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[18px] font-bold leading-none truncate"
-  }, name), /*#__PURE__*/React.createElement("span", {
+  }, name), profile && profile.affinity ? /*#__PURE__*/React.createElement("span", {
+    title: AFFINITY_META[profile.affinity][2],
+    style: {
+      color: AFFINITY_META[profile.affinity][1],
+      fontSize: 13,
+      lineHeight: 1
+    }
+  }, AFFINITY_META[profile.affinity][0]) : null, /*#__PURE__*/React.createElement("span", {
     role: "button",
     tabIndex: 0,
     onClick: () => onName && onName(),
@@ -10072,7 +10096,7 @@ function HomeGameStrip({
     "aria-label": profile && profile.name ? 'Rename buddy' : 'Name your buddy'
   }, "✎")), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mt-1 truncate"
-  }, profile && profile.name ? disp.name + ' · ' : '', "Lv ", profile ? profile.level : 0), mm ? /*#__PURE__*/React.createElement("div", {
+  }, profile && profile.name ? disp.name + ' · ' : '', "Lv ", profile ? profile.level : 0, profile && profile.affinity ? ' · ' + AFFINITY_META[profile.affinity][2] : ''), mm ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] leading-snug mt-2"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -10629,12 +10653,17 @@ function Dashboard({
     const species = CR_BY_ID[b.speciesId];
     if (!species || !species.evo || !species.evo.length) return;
     const eligible = Game.buddyEvoStage(buddyLvl, bp.bond.hearts, species.evo.map(e => e.at), EVO_HEART_REQ);
-    if (eligible > (b.evoStage || 0)) update(d => {
-      d.buddy = d.buddy || {
-        stage: 0
-      };
-      d.buddy.evoStage = eligible;
-    });
+    if (eligible > (b.evoStage || 0)) {
+      // Day/night path (Espeon/Umbreon): set once, by the clock at the first evolution.
+      const aff = Game.dayNightAffinity(new Date().getHours());
+      update(d => {
+        d.buddy = d.buddy || {
+          stage: 0
+        };
+        d.buddy.evoStage = eligible;
+        if (!d.buddy.affinity) d.buddy.affinity = aff;
+      });
+    }
   }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
   // Migratory visitor: 20 logged days inside the calendar month lands Drizzlodon (once per month).
   const monthYm = today.slice(0, 7);
