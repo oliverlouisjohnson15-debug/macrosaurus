@@ -96,7 +96,7 @@ const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutriti
 // small monthly spend cap per account. No API key is ever shipped to the browser.
 const AI_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/ai-proxy';
 // recipe-extract fetches the public text (title, description, transcript, caption) behind a shared
-// YouTube/Instagram link server-side (the browser can't, due to CORS). It holds no key and calls no
+// YouTube/Instagram/TikTok link server-side (the browser can't, due to CORS). It holds no key and calls no
 // paid API; we then hand its text to the normal ai-proxy to structure into a recipe.
 const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/recipe-extract';
 // nutrition-analyze turns ingredient LINES into per-ingredient + total macros via a real nutrition
@@ -170,7 +170,7 @@ async function coachNarrative(key, payload) {
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
-// Fetch the public text behind a shared YouTube/Instagram link via the recipe-extract Edge Function.
+// Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
 // Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
 async function extractRecipeSource(url) {
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
@@ -5622,7 +5622,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
 }
 
 /* ========================== Recipes module ==========================
-   Share a YouTube Short / Instagram Reel (or paste a link/caption) -> the recipe-extract Edge
+   Share a YouTube Short / Instagram Reel / TikTok (or paste a link/caption) -> the recipe-extract Edge
    Function pulls the public text -> ai-proxy structures it into ingredients + steps + per-serving
    macros -> save it, tick what you have (the rest rolls up into a shopping list), and log a cooked
    serving straight into the food diary via the same addEntry path everything else uses. */
@@ -5696,7 +5696,7 @@ function RecipeCard({ recipe, onOpen, onFav }) {
 function ShareTip({ className = '' }) {
   return (<Card className={'p-3.5 ' + className} style={{ background: 'var(--surface3)' }}>
     <div className="flex items-center gap-2 mb-1.5"><Icon.share width="16" height="16" style={{ color: 'var(--accent)' }} /><div className="text-[13px] font-bold">Best way: share it straight to Macrosaurus</div></div>
-    <div className="text-[12px] text-[#8A8A90] leading-snug">In Instagram or YouTube, tap <span className="font-semibold" style={{ color: 'var(--text)' }}>Share</span> on the Reel or Short, then pick <span className="font-semibold" style={{ color: 'var(--text)' }}>Macrosaurus</span>. It opens here and becomes a recipe automatically, nothing to copy or paste.</div>
+    <div className="text-[12px] text-[#8A8A90] leading-snug">In Instagram, TikTok or YouTube, tap <span className="font-semibold" style={{ color: 'var(--text)' }}>Share</span> on the Reel, video or Short, then pick <span className="font-semibold" style={{ color: 'var(--text)' }}>Macrosaurus</span>. It opens here and becomes a recipe automatically, nothing to copy or paste.</div>
   </Card>);
 }
 // The import + review flow. `initialUrl` is set when arriving from a share; otherwise the user pastes
