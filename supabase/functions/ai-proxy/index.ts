@@ -99,13 +99,18 @@ Deno.serve(async (req) => {
 
   // ---- Access control: free tier (count) vs premium (fair-use ceiling) -------
   // Owner is exempt. Until enforce_tiers is turned on, the legacy USD cap applies unchanged.
+  // usedBonus: set when a free user spends one of their one-time referral bonus calls (drawn only
+  // AFTER the monthly free allowance is exhausted), so we can decrement the pool after a good call.
+  let usedBonus = false;
   if (!isOwner) {
-    const [{ data: usage }, { data: limit }, { data: cfg }, { data: sub }] = await Promise.all([
+    const [{ data: usage }, { data: limit }, { data: cfg }, { data: sub }, { data: rewards }] = await Promise.all([
       admin.from('ai_usage').select('spend_usd, calls').eq('user_id', userId).eq('period', period).maybeSingle(),
       admin.from('user_limits').select('monthly_cap_usd').eq('user_id', userId).maybeSingle(),
       admin.from('app_config').select('default_cap_usd, free_ai_monthly, premium_cap_usd, enforce_tiers').eq('id', 1).maybeSingle(),
       admin.from('subscriptions').select('status').eq('user_id', userId).maybeSingle(),
+      admin.from('user_rewards').select('bonus_ai_remaining').eq('user_id', userId).maybeSingle(),
     ]);
+    const bonusPool = Number(rewards?.bonus_ai_remaining ?? 0);
     const spent = Number(usage?.spend_usd ?? 0);
     const calls = Number(usage?.calls ?? 0);
     const override = limit ? Number(limit.monthly_cap_usd) : null;
@@ -129,10 +134,15 @@ Deno.serve(async (req) => {
         }
         const freeLimit = Number(cfg?.free_ai_monthly ?? FALLBACK_FREE_MONTHLY);
         if (calls >= freeLimit) {
-          return json({ error: {
-            type: 'free_limit', limit: freeLimit,
-            message: `You've used your ${freeLimit} free AI logs this month. Upgrade to Premium for unlimited AI.`,
-          } }, 402);
+          // Monthly free allowance spent: fall back to the one-time referral bonus pool if any.
+          if (bonusPool > 0) {
+            usedBonus = true;
+          } else {
+            return json({ error: {
+              type: 'free_limit', limit: freeLimit,
+              message: `You've used your ${freeLimit} free AI logs this month. Upgrade to Premium for unlimited AI.`,
+            } }, 402);
+          }
         }
       }
     } else {
@@ -176,6 +186,8 @@ Deno.serve(async (req) => {
     if (cost > 0) {
       try { await admin.rpc('add_ai_usage_model', { p_user: userId, p_period: period, p_model: model, p_cost: cost }); } catch (_) { /* non-fatal */ }
     }
+    // This served call came out of the one-time referral bonus pool: consume one.
+    if (usedBonus) { try { await admin.rpc('consume_referral_bonus', { p_user: userId }); } catch (_) { /* non-fatal */ } }
   }
 
   // Log the call for admin vetting/tuning. Best-effort, off the response path. Body-fat is NEVER

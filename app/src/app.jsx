@@ -5606,8 +5606,9 @@ function FeedbackSheet({ email, onClose }) {
     </div>
   );
 }
-function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage }) {
+function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast }) {
   const [tab, setTab] = useState('details');
+  const [invite, setInvite] = useState(false);
   const daysLeft = (iso) => { if (!iso) return ''; const d = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000); return d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'ends soon'; };
   const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return ''; } };
   const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
@@ -5655,12 +5656,13 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
             <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent)' }}>Free plan</div>
             <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
+            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
             <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
           </div>
         )}
 
         {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
+        <MenuRow label="Invite friends, get free AI logs" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' · ' + rewards.referrals_count + ' joined so far' : '')} tone="accent" onClick={() => setInvite(true)} />
         <InstallMenuRow />
         <ChangePassword email={email} />
         <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
@@ -5697,6 +5699,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
       </div>}
       {guide && <WelcomeCarousel reviewing theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
       {feedback && <FeedbackSheet email={email} onClose={() => setFeedback(false)} />}
+      {invite && <InviteSheet rewards={rewards} onClose={() => setInvite(false)} toast={showToast} />}
     </div>
   );
 }
@@ -6182,6 +6185,53 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
 const SUPA_URL = 'https://wnbksotvcjqfslrttjxy.supabase.co';
 const SUPA_KEY = 'sb_publishable_IMKN6PzhKwUZQp8n1RlKaQ_t2_1iQXB';
 const supa = (typeof window !== 'undefined' && window.supabase) ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+
+/* ---------- Referrals ----------
+   A friend opens macrosaurus.com/?ref=CODE and signs up: the `referral` edge function credits BOTH
+   people a one-time pool of 5 free AI logs and a rare Macrodex creature. We stash the code at load
+   (before the launch-intent handler strips the query string), claim it once the user is signed in,
+   then drain any pending creature rewards into the local dex. All awards are server-authoritative. */
+let PENDING_REF = null;
+try {
+  const _rc = new URLSearchParams(window.location.search).get('ref');
+  if (_rc) { PENDING_REF = _rc.trim().slice(0, 32); try { localStorage.setItem('mac_ref', PENDING_REF); } catch (_) {} }
+  else { try { PENDING_REF = localStorage.getItem('mac_ref'); } catch (_) {} }
+} catch (_) {}
+function referralCall(action, extra) {
+  if (!supa) return Promise.resolve(null);
+  return supa.functions.invoke('referral', { body: Object.assign({ action: action }, extra || {}) })
+    .then(function (r) { return (r && r.data) || null; }, function () { return null; });
+}
+// The invite sheet: the user's share link plus a running tally of friends joined and bonus earned.
+function InviteSheet({ rewards, onClose, toast }) {
+  useBackClose(onClose);
+  const link = (rewards && rewards.link) || SHARE_URL;
+  const count = (rewards && rewards.referrals_count) || 0;
+  const bonus = (rewards && rewards.bonus_ai_remaining) || 0;
+  async function doShare() {
+    const text = 'Track your macros and catch dinos with me on Macrosaurus. Join with my link and we both get 5 free AI logs and a rare dino: ' + link;
+    try { if (navigator.share) { await navigator.share({ title: 'Macrosaurus', text: text, url: link }); window.MTRACK && MTRACK('referral_share', { method: 'native' }); return; } }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(link); toast && toast('Invite link copied'); window.MTRACK && MTRACK('referral_share', { method: 'copy' }); }
+    catch (_) { toast && toast('Could not copy link'); }
+  }
+  async function copy() { try { await navigator.clipboard.writeText(link); toast && toast('Invite link copied'); } catch (_) {} }
+  return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+    <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none" aria-label="Close">×</button></div>
+      <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Share your link. When a friend joins with it, you <b style={{ color: 'var(--text)' }}>both</b> get <b style={{ color: 'var(--text)' }}>5 free AI logs</b> and a <b style={{ color: 'var(--text)' }}>rare dino</b>.</div>
+      <div className="pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--surface3)' }}>
+        <div className="min-w-0 flex-1 text-[12px] tnum truncate">{link}</div>
+        <button onClick={copy} className="pixel-btn px-3 py-1.5 text-[10px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>COPY</button>
+      </div>
+      <button onClick={doShare} className="w-full pixel-btn py-3 text-[11px] pf inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><ShareIOSIcon size={14} /> SHARE INVITE</button>
+      <div className="flex gap-2 mt-4 text-center">
+        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum">{count}</div><div className="text-[10px] text-[#8A8A90]">friends joined</div></div>
+        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum" style={{ color: 'var(--accent)' }}>{bonus}</div><div className="text-[10px] text-[#8A8A90]">bonus AI logs left</div></div>
+      </div>
+    </div>
+  </div>);
+}
 let _saveTimer = null;
 function cloudSave(uid, data) {
   if (!supa || !uid) return;
@@ -7523,6 +7573,8 @@ function App() {
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
+  const [rewards, setRewards] = useState(null);   // { code, link, referrals_count, bonus_ai_remaining }
+  const rewardsSyncedRef = useRef(false);
   const isPremium = !!sub && (sub.status === 'active' || sub.status === 'trialing');
   function showToast(msg, actionLabel, onAction, action2Label, onAction2) {
     clearTimeout(toastTimer.current);
@@ -7595,6 +7647,34 @@ function App() {
     window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; setPaywall({ reason: reason }); window.MTRACK && MTRACK('paywall_view', { reason: reason }); };
     return function () { try { delete window.MPAYWALL; } catch (_) {} };
   }, []);
+  // Referrals: once signed in with data loaded, claim any pending ?ref code, fetch our own link and
+  // tally, and drain any creature rewards (ours, or ones a friend just earned us) into the dex. Runs
+  // once per session; server-authoritative so a replay can never double-award.
+  useEffect(() => {
+    if (!session || !supa || !db || rewardsSyncedRef.current) return;
+    rewardsSyncedRef.current = true;
+    let cancelled = false;
+    (async function () {
+      if (PENDING_REF) { await referralCall('claim', { code: PENDING_REF }); try { localStorage.removeItem('mac_ref'); } catch (_) {} PENDING_REF = null; }
+      const mine = await referralCall('mine');
+      if (!mine || cancelled) return;
+      setRewards({ code: mine.code, link: mine.link, referrals_count: mine.referrals_count, bonus_ai_remaining: mine.bonus_ai_remaining });
+      const pend = Array.isArray(mine.pending) ? mine.pending.filter(function (p) { return p && p.id && p.rid; }) : [];
+      if (!pend.length) return;
+      update(function (d) {
+        d.catch_log = d.catch_log || {}; const day = Store.todayISO(); const arr = d.catch_log[day] || [];
+        pend.forEach(function (p) { if (!arr.some(function (x) { return x.rid === p.rid; })) arr.push({ id: p.id, shiny: !!p.shiny, src: 'referral', rid: p.rid }); });
+        d.catch_log[day] = arr;
+      });
+      referralCall('ack', { ids: pend.map(function (p) { return p.rid; }) });
+      const cr = CR_BY_ID[pend[0].id];
+      showToast(pend.length === 1 && cr
+        ? 'Referral reward! ' + cr.name + ' joined your dex, plus 5 bonus AI logs.'
+        : pend.length + ' referral rewards added, plus bonus AI logs.');
+      window.MTRACK && MTRACK('referral_reward', { count: pend.length });
+    })();
+    return function () { cancelled = true; };
+  }, [session, !!db]);
   // Expose premium state globally so deep, non-billing components (e.g. the body-fat trend teaser)
   // can gate an upsell without threading the flag through every parent. Read at render time.
   useEffect(() => { window.MISPREMIUM = isPremium; }, [isPremium]);
@@ -7870,7 +7950,7 @@ function App() {
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
-      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} />}
+      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
