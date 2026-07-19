@@ -3190,36 +3190,44 @@ function StepsCard({ db, update }) {
     update(d => { d.steps = d.steps || {}; if (n > 0) d.steps[today] = n; else delete d.steps[today]; });
     setEditing(false);
   }
+  const R = 17, C = 2 * Math.PI * R;
   return (
-    <Card className="p-4 mb-4">
-      <div className="flex justify-between items-center mb-2">
-        <span className="pf text-[9px] uppercase text-[#8A8A90]">Steps today</span>
-        {!editing && <button onClick={() => { setVal(todaySteps || ''); setEditing(true); }} className="pf text-[8px]" style={{ color: 'var(--accent)' }}>{todaySteps ? 'Edit' : 'Log'} ›</button>}
-      </div>
+    <Card className="p-3.5 mb-4">
       {editing ? (
         <div className="flex items-center gap-2">
-          <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="e.g. 8500" autoFocus /></div>
+          <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="Steps today, e.g. 8500" autoFocus /></div>
           <Btn kind="accent" className="text-sm" onClick={save}>Save</Btn>
           <button onClick={() => setEditing(false)} className="text-[#8A8A90] text-sm px-1">Cancel</button>
         </div>
       ) : (
-        <>
-          <div className="flex items-end gap-2 mb-2">
-            {todaySteps
-              ? <><span className="text-2xl font-bold tnum">{k(todaySteps)}</span>{baseline > 0 && <span className="text-[11px] text-[#8A8A90] mb-1">/ {k(baseline)} goal</span>}</>
-              : <span className="text-[13px] text-[#8A8A90]">Not logged yet{baseline > 0 ? ` · goal ${k(baseline)}` : ''}</span>}
+        <div className="flex items-center gap-3">
+          {/* Compact step ring: SVG so the track/fill follow the theme and no opaque centre is needed */}
+          <svg width="44" height="44" viewBox="0 0 44 44" className="shrink-0" style={{ color: 'var(--text)' }} aria-hidden="true">
+            <circle cx="22" cy="22" r={R} fill="none" stroke="var(--track)" strokeWidth="5" />
+            {baseline > 0 && <circle cx="22" cy="22" r={R} fill="none" stroke="var(--good)" strokeWidth="5" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} transform="rotate(-90 22 22)" style={{ transition: 'stroke-dashoffset .4s' }} />}
+            <text x="22" y="26" textAnchor="middle" fontSize="11" fill="currentColor" className="tnum">{baseline > 0 && todaySteps ? pct + '%' : '·'}</text>
+          </svg>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="pf text-[9px] uppercase text-[#8A8A90]">Steps</span>
+              {goalHit && <span className="text-[9px]" style={{ color: 'var(--good)' }}>▲ goal hit · feeds your egg</span>}
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-bold tnum">{todaySteps ? k(todaySteps) : 'Not logged'}</span>
+              <span className="text-[10px] text-[#8A8A90] tnum">{baseline > 0 ? `/ ${k(baseline)}` : ''}{avg7 != null ? ` · avg ${k(avg7)}` : ''}</span>
+            </div>
           </div>
-          {baseline > 0 && <div className="pixel-bar mb-2" style={{ height: 9, borderWidth: 2 }}><i style={{ width: pct + '%', background: 'var(--good)', transition: 'width .4s' }} /></div>}
-          {goalHit && <div className="text-[10px] mb-1.5" style={{ color: 'var(--good)' }}>Step goal hit, this counts towards hatching your egg.</div>}
-          <div className="flex justify-between text-[10px] text-[#8A8A90] tnum">
-            <span>{avg7 != null ? `7-day avg ${k(avg7)}` : 'No steps logged this week'}</span>
-            {db.googleHealth && db.googleHealth.connected
-              ? <span style={{ color: 'var(--good)' }}>Google Health synced</span>
-              : ghConfigured()
-                ? <button onClick={ghConnect} style={{ color: 'var(--accent)' }}>Connect Google Health</button>
-                : <span style={{ color: 'var(--muted)' }}>Auto-sync soon</span>}
+          <div className="text-right shrink-0 leading-tight">
+            <button onClick={() => { setVal(todaySteps || ''); setEditing(true); }} className="pf text-[8px] block ml-auto" style={{ color: 'var(--accent)' }}>{todaySteps ? 'Edit' : 'Log'} ›</button>
+            <span className="text-[8px]">
+              {db.googleHealth && db.googleHealth.connected
+                ? <span style={{ color: 'var(--good)' }}>✓ synced</span>
+                : ghConfigured()
+                  ? <button onClick={ghConnect} style={{ color: 'var(--accent)' }}>Connect</button>
+                  : <span style={{ color: 'var(--muted)' }}>soon</span>}
+            </span>
           </div>
-        </>
+        </div>
       )}
     </Card>
   );
