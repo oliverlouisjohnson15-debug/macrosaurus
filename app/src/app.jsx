@@ -183,10 +183,22 @@ async function claudeVision(key, files, prompt, opts) {
 // into a warm, plain-English explanation + one tip. Guardrailed so it can't invent numbers or give
 // medical/extreme advice, and it's optional (needs a key, degrades gracefully offline). Returns text.
 async function coachNarrative(key, payload) {
-  const rules = 'You are Macrosaurus, a warm but honest UK body-composition coach. A deterministic engine has ALREADY decided this week\'s calorie change from the user\'s weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. In 2-3 short sentences, explain in plain UK English what this week\'s result means for the user, then give ONE concrete, evidence-aligned tip for the coming week (e.g. logging consistency, hitting the protein target, weighing in daily, or being patient with the weight trend). No medical or supplement advice, no crash-dieting or extreme measures, no emojis, no headings, no bullet points, no markdown. Address the user directly as "you".';
+  const rules = 'You are Macrosaurus, a warm but honest UK body-composition coach. A deterministic engine has ALREADY decided this week\'s calorie change from the user\'s weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. In 2-3 short sentences, explain in plain UK English what this week\'s result means for the user, then give ONE concrete, evidence-aligned tip for the coming week (e.g. logging consistency, hitting the protein target, weighing in daily, or being patient with the weight trend). STEPS-FIRST COACHING: if steps_recommendedLever is "steps", make that one tip about daily activity, getting steps back up toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly that the loss slowed but so did the steps; a good coach lifts steps before cutting food. If steps_recommendedLever is "calories", note the steps are already solid (around steps_avgThisCycle a day) so the small calorie change is the right move this time. If the step fields are null, ignore steps entirely. No medical or supplement advice, no crash-dieting or extreme measures, no emojis, no headings, no bullet points, no markdown, no em dashes. Address the user directly as "you".';
   const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nCoach\'s take:';
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 240, messages: [{ role: 'user', content: prompt }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+}
+// Deterministic steps-first line for the check-in result screen. Shows even when the AI coach is
+// offline, and mirrors the lever the engine picked. British English, no em dashes (house style).
+function stepsCoachLine(sc) {
+  if (!sc || !sc.hasData || sc.lever === 'none') return null;
+  const k = n => Math.round(n).toLocaleString('en-GB');
+  if (sc.lever === 'steps') {
+    return (sc.droppedVsPrev && sc.prevAvg)
+      ? `Before we touch your food: your steps dropped from about ${k(sc.prevAvg)} to ${k(sc.avg)} a day this cycle. Get them back up towards ${k(sc.suggestTarget)} and that alone should get the scale moving again.`
+      : `Before we touch your food: you averaged about ${k(sc.avg)} steps a day, under your ${k(sc.baseline)} baseline. Lifting them towards ${k(sc.suggestTarget)} is the first lever to pull, and easier to hold than eating less.`;
+  }
+  return `Your steps held up well this cycle (about ${k(sc.avg)} a day), so there is no easy activity left to add. That is why the small calorie change above is the right call this time.`;
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
@@ -1478,7 +1490,15 @@ function CheckInModal({ db, update, onClose, resume }) {
       phase: result.earlyPhase ? 'first cycle (early: rapid loss is largely water, targets nudged gently not fully retuned)' : 'normal adaptive cycle',
       daysLogged: loggedDays, daysWeighed: weighDays, cycleDays: cycleDays, enoughData: onTrack,
       dataConfidence: result.confidence || null, maxStepThisCycle_kcal: result.adjCap || null,
-      underReportFlagged: !!result.underReportFlagged, unit: unit === 'st_lb' ? 'stones/pounds' : 'kilograms'
+      underReportFlagged: !!result.underReportFlagged, unit: unit === 'st_lb' ? 'stones/pounds' : 'kilograms',
+      // Steps-first coaching context. recommendedLever = 'steps' means progress was short AND daily
+      // steps were low or had dropped: lead the tip with lifting steps toward suggestTargetPerDay
+      // rather than eating less. 'calories' means steps were already solid, so the calorie move stands.
+      steps_avgThisCycle: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.avg : null,
+      steps_avgPrevCycle: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.prevAvg : null,
+      steps_baseline: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.baseline : null,
+      steps_recommendedLever: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.lever : null,
+      steps_suggestTargetPerDay: (result.stepsCoaching && result.stepsCoaching.hasData) ? result.stepsCoaching.suggestTarget : null,
     };
     coachNarrative(p.aiKey, payload).then(t => { if (!cancelled) setCoach(t ? { text: t } : null); }).catch(() => { if (!cancelled) setCoach({ error: true }); });
     return () => { cancelled = true; };
@@ -1544,6 +1564,14 @@ function CheckInModal({ db, update, onClose, resume }) {
       expenditure: expenditurePrior(db, prof), checkins: db.checkins || [],
       waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
     });
+    // Steps-first coaching: decide which lever to lead with (walk more vs eat less) from this cycle's
+    // average daily steps versus last cycle and the activity-band baseline. The engine has ALREADY set
+    // the calorie number; this only shapes the ADVICE, so a slow week that was really just a drop in
+    // steps gets answered with "get your steps back up" before any talk of cutting food.
+    const stThis = E.avgStepsInRange(db.steps, cs, today);
+    const stPrev = E.avgStepsInRange(db.steps, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
+    const behindTarget = dec.status === 'proposed' && (p.goalType === 'gain' ? dec.direction === 'up' : dec.direction === 'down');
+    dec.stepsCoaching = E.stepsCoaching({ thisCycle: stThis, prevCycle: stPrev, baseline: prof.avgSteps, behindTarget });
     if (dec.status === 'needdata') {
       setResult({ status: 'needdata', reason: dec.reasonCode === 'weighins'
         ? 'Not enough weigh-ins this cycle yet. Weigh in daily and your first adjustment will come through.'
@@ -1611,6 +1639,10 @@ function CheckInModal({ db, update, onClose, resume }) {
               <div className="text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]">{result.earlyPhase
                 ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.'
                 : 'Your body is burning about ' + ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) + ' kcal a day, worked out from your intake versus how your weight moved.'}</div>
+            </div>}
+            {result.stepsCoaching && stepsCoachLine(result.stepsCoaching) && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--accent)' }}>
+              <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Steps first</div>
+              <div className="text-[13px] leading-snug">{stepsCoachLine(result.stepsCoaching)}</div>
             </div>}
             {coach && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--good)' }}>
               <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5 flex items-center gap-1.5"><PixelDino size={13} color="var(--good)" /> Coach's take</div>
@@ -2883,6 +2915,56 @@ function HomeWeightSpark({ db, onOpen }) {
   );
 }
 
+// Daily steps: today's count and this week's average against your activity-band baseline. Manual
+// entry for now; Fitbit sync (Phase 3) will fill it automatically. Steps also feed the check-in's
+// steps-first coaching, so a slow cycle can be answered with "walk more" before "eat less".
+function StepsCard({ db, update }) {
+  const today = Store.todayISO();
+  const steps = db.steps || {};
+  const todaySteps = +steps[today] || 0;
+  const baseline = withActivity(db.profile).avgSteps || 0;
+  const last7 = Array.from({ length: 7 }, (_, i) => shiftISO(today, -i));
+  const wk = last7.map(d => +steps[d]).filter(v => v > 0);
+  const avg7 = wk.length ? Math.round(wk.reduce((a, b) => a + b, 0) / wk.length) : null;
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState('');
+  const k = n => Math.round(n).toLocaleString('en-GB');
+  const pct = baseline ? Math.min(100, Math.round((todaySteps / baseline) * 100)) : 0;
+  function save() {
+    const n = Math.max(0, Math.round(+val || 0));
+    update(d => { d.steps = d.steps || {}; if (n > 0) d.steps[today] = n; else delete d.steps[today]; });
+    setEditing(false);
+  }
+  return (
+    <Card className="p-4 mb-4">
+      <div className="flex justify-between items-center mb-2">
+        <span className="pf text-[9px] uppercase text-[#8A8A90]">Steps today</span>
+        {!editing && <button onClick={() => { setVal(todaySteps || ''); setEditing(true); }} className="pf text-[8px]" style={{ color: 'var(--accent)' }}>{todaySteps ? 'Edit' : 'Log'} ›</button>}
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="e.g. 8500" autoFocus /></div>
+          <Btn kind="accent" className="text-sm" onClick={save}>Save</Btn>
+          <button onClick={() => setEditing(false)} className="text-[#8A8A90] text-sm px-1">Cancel</button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-end gap-2 mb-2">
+            {todaySteps
+              ? <><span className="text-2xl font-bold tnum">{k(todaySteps)}</span>{baseline > 0 && <span className="text-[11px] text-[#8A8A90] mb-1">/ {k(baseline)} goal</span>}</>
+              : <span className="text-[13px] text-[#8A8A90]">Not logged yet{baseline > 0 ? ` · goal ${k(baseline)}` : ''}</span>}
+          </div>
+          {baseline > 0 && <div className="pixel-bar mb-2" style={{ height: 9, borderWidth: 2 }}><i style={{ width: pct + '%', background: 'var(--good)', transition: 'width .4s' }} /></div>}
+          <div className="flex justify-between text-[10px] text-[#8A8A90] tnum">
+            <span>{avg7 != null ? `7-day avg ${k(avg7)}` : 'No steps logged this week'}</span>
+            <span style={{ color: 'var(--muted)' }}>Fitbit sync soon</span>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 // Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
 // Macrodex Active section so the two surfaces stay identical.
 function BreakthroughMeter({ state, size = 10 }) {
@@ -3451,6 +3533,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Slim weight trend, taps through to the Goal tab for the full picture and burn estimate */}
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
+
+      {/* Daily steps: today's count vs your activity-band goal, manual entry until Fitbit sync lands */}
+      <StepsCard db={db} update={update} />
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
       <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={bp} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} />

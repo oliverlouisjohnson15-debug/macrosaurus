@@ -678,6 +678,51 @@
   function shiftISOdays(iso, delta) { var t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + delta); return t.toISOString().slice(0, 10); }
   function daysBetweenISO(a, b) { return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000); }
 
+  // ---- Daily steps ---------------------------------------------------------------------------
+  // Average steps over the days that actually HAVE a reading in [startISO, endISO] (0/blank days are
+  // ignored, not counted as zero, so a day with no sync doesn't drag the average down). null if none.
+  function avgStepsInRange(stepsMap, startISO, endISO) {
+    if (!stepsMap) return null;
+    var sum = 0, n = 0;
+    for (var k in stepsMap) {
+      if (!Object.prototype.hasOwnProperty.call(stepsMap, k)) continue;
+      if (k < startISO || k > endISO) continue;
+      var v = +stepsMap[k];
+      if (isFinite(v) && v > 0) { sum += v; n++; }
+    }
+    return n ? { avg: Math.round(sum / n), days: n } : null;
+  }
+
+  // Steps-first coaching signal. The deterministic calorie engine has ALREADY decided this cycle's
+  // number; this only decides which LEVER the coach should LEAD with. When progress is short of the
+  // target rate, a good coach lifts NEAT (daily steps) before cutting food: so if steps are low or
+  // have dropped, recommend raising them first; if steps are already solid, the small calorie move is
+  // the honest lever. Pure and side-effect free. { hasData:false } when there's no step data to use.
+  //   opts: { thisCycle:{avg,days}|null, prevCycle:{avg,days}|null, baseline:Number, behindTarget:Bool }
+  function stepsCoaching(opts) {
+    opts = opts || {};
+    var thisC = opts.thisCycle, prevC = opts.prevCycle;
+    var baseline = +opts.baseline || 0;          // activity-band assumed steps/day
+    var behind = !!opts.behindTarget;            // slower than target this cycle (engine wants to cut)
+    if (!thisC || !isFinite(+thisC.avg)) return { hasData: false };
+    var avg = Math.round(+thisC.avg);
+    var DROP = 750, LOW = 500;                   // material thresholds (step-count noise floor)
+    var droppedVsPrev = !!(prevC && isFinite(+prevC.avg) && avg < prevC.avg - DROP);
+    var belowBaseline = baseline > 0 && avg < baseline - LOW;
+    // Where to aim when we want more NEAT: back to your usual level (baseline / last cycle) or a bump.
+    var aims = [baseline, prevC && prevC.avg, avg + 2000].filter(function (x) { return isFinite(x) && x > 0; });
+    var suggestTarget = aims.length ? Math.round(Math.max.apply(null, aims) / 500) * 500 : null;
+    var lever = 'none';
+    if (behind && (droppedVsPrev || belowBaseline)) lever = 'steps';   // lift steps before touching food
+    else if (behind) lever = 'calories';                               // steps solid; the calorie move stands
+    return {
+      hasData: true, avg: avg, days: thisC.days,
+      prevAvg: (prevC && isFinite(+prevC.avg)) ? Math.round(+prevC.avg) : null,
+      baseline: baseline || null, droppedVsPrev: droppedVsPrev, belowBaseline: belowBaseline,
+      lever: lever, suggestTarget: lever === 'steps' ? suggestTarget : null,
+    };
+  }
+
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
@@ -690,6 +735,7 @@
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
+    avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
