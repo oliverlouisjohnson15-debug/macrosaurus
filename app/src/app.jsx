@@ -88,6 +88,132 @@ function PixelDino({ size, className }) {
   DINO_ART.forEach((row, y) => row.split('').forEach((ch, x) => { const c = DINO_COLORS[ch]; if (ch !== '.' && c) rects.push(<rect key={x + '_' + y} x={x} y={y} width="1.03" height="1.03" fill={c} />); }));
   return <svg role="img" aria-label="Macrosaurus" className={className} width={px} height={px * h / w} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges" style={{ display: 'inline-block', verticalAlign: 'middle' }}>{rects}</svg>;
 }
+
+/* ---------- Add to home screen / install (PWA) ----------
+   Macrosaurus is already an installable PWA (manifest + service worker). On Android/Chrome the
+   browser fires `beforeinstallprompt`; we stash it here at module load, BEFORE React mounts, so the
+   event is never lost, then a custom button can trigger the real native install dialog. iOS Safari
+   has no such event, so there we show the manual Add-to-Home-Screen steps instead. When the app is
+   already running installed (standalone display mode), every install affordance stays hidden. */
+let DEFERRED_INSTALL = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); DEFERRED_INSTALL = e; try { window.dispatchEvent(new Event('mac:installable')); } catch (_) {} });
+  window.addEventListener('appinstalled', function () { DEFERRED_INSTALL = null; try { window.dispatchEvent(new Event('mac:installed')); window.MTRACK && MTRACK('pwa_installed'); } catch (_) {} });
+}
+function isStandalonePWA() { try { return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true || (document.referrer || '').indexOf('android-app://') === 0; } catch (_) { return false; } }
+function isIOSDevice() { try { const ua = navigator.userAgent || ''; return /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); } catch (_) { return false; } }
+// iOS can only "Add to Home Screen" from Safari itself, not Chrome/Firefox/Edge on iOS (all WebKit but
+// no install path), so only surface the manual steps when we're actually in Safari.
+function isIOSSafari() { try { const ua = navigator.userAgent || ''; return isIOSDevice() && /WebKit/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA|mercury/i.test(ua); } catch (_) { return false; } }
+// React hook exposing install state: whether the app is already installed, whether a native prompt is
+// available (Android/Chrome), whether we're on iOS Safari (manual steps), and a trigger for the prompt.
+function useInstallPrompt() {
+  const [deferred, setDeferred] = useState(DEFERRED_INSTALL);
+  const [installed, setInstalled] = useState(isStandalonePWA());
+  useEffect(() => {
+    function onCan() { setDeferred(DEFERRED_INSTALL); }
+    function onDone() { setDeferred(null); setInstalled(true); }
+    window.addEventListener('mac:installable', onCan);
+    window.addEventListener('mac:installed', onDone);
+    setDeferred(DEFERRED_INSTALL); // in case the event fired between module load and mount
+    const mq = (window.matchMedia && window.matchMedia('(display-mode: standalone)')) || null;
+    function onMode(e) { if (e.matches) setInstalled(true); }
+    try { if (mq && mq.addEventListener) mq.addEventListener('change', onMode); } catch (_) {}
+    return function () {
+      window.removeEventListener('mac:installable', onCan);
+      window.removeEventListener('mac:installed', onDone);
+      try { if (mq && mq.removeEventListener) mq.removeEventListener('change', onMode); } catch (_) {}
+    };
+  }, []);
+  async function promptInstall() {
+    const d = deferred || DEFERRED_INSTALL;
+    if (!d) return 'unavailable';
+    try {
+      d.prompt();
+      const res = await d.userChoice;
+      DEFERRED_INSTALL = null; setDeferred(null);
+      window.MTRACK && MTRACK('pwa_install_prompt', { outcome: (res && res.outcome) || 'unknown' });
+      return (res && res.outcome) || 'dismissed';
+    } catch (_) { return 'error'; }
+  }
+  return { installed: installed, canInstall: !!deferred, isIOS: isIOSSafari(), promptInstall: promptInstall };
+}
+// The proactive home-screen nudge on the dashboard is dismissable per device, and comes back after a
+// couple of weeks so it keeps gently offering without nagging every launch.
+const INSTALL_DISMISS_KEY = 'mac_install_dismissed_at';
+const INSTALL_RESHOW_MS = 14 * 24 * 60 * 60 * 1000;
+function installRecentlyDismissed() { try { const v = +localStorage.getItem(INSTALL_DISMISS_KEY) || 0; return !!v && (Date.now() - v) < INSTALL_RESHOW_MS; } catch (_) { return false; } }
+function markInstallDismissed() { try { localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now())); } catch (_) {} }
+// Safari's Share glyph, so the iOS steps point at the exact button to tap.
+function ShareIOSIcon({ size }) {
+  const s = size || 16;
+  return (<svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'text-bottom' }} aria-hidden="true">
+    <path d="M12 15V4" /><path d="M8 8l4-4 4 4" /><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
+  </svg>);
+}
+// The step-by-step Add-to-Home-Screen sheet for iOS Safari (which has no programmatic install).
+function IOSInstallSheet({ onClose }) {
+  useBackClose(onClose);
+  const steps = [
+    ['1', <span>Tap the <b>Share</b> button <ShareIOSIcon /> in Safari's toolbar.</span>],
+    ['2', <span>Scroll down and tap <b>Add to Home Screen</b>.</span>],
+    ['3', <span>Tap <b>Add</b>. Macrosaurus lands on your home screen like any app.</span>],
+  ];
+  return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+    <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Add to Home Screen</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none" aria-label="Close">×</button></div>
+      <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon.</div>
+      <div className="space-y-3">
+        {steps.map(([n, body]) => (<div key={n} className="flex items-start gap-3">
+          <span className="pixel-box w-6 h-6 flex items-center justify-center shrink-0 pf text-[9px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--border)' }}>{n}</span>
+          <div className="text-[13px] leading-snug pt-0.5">{body}</div>
+        </div>))}
+      </div>
+      <button onClick={onClose} className="w-full pixel-btn mt-6 py-3 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>GOT IT</button>
+    </div>
+  </div>);
+}
+// Proactive dashboard card: offers install to anyone who hasn't added the app yet, dismissable.
+function InstallCard() {
+  const { installed, canInstall, isIOS, promptInstall } = useInstallPrompt();
+  const [dismissed, setDismissed] = useState(installRecentlyDismissed());
+  const [iosOpen, setIosOpen] = useState(false);
+  if (installed || dismissed || (!canInstall && !isIOS)) return null;
+  function dismiss() { markInstallDismissed(); setDismissed(true); }
+  async function onInstall() {
+    if (canInstall) { const r = await promptInstall(); if (r === 'accepted') setDismissed(true); }
+    else { setIosOpen(true); window.MTRACK && MTRACK('pwa_ios_help', { from: 'dashboard' }); }
+  }
+  return (<Card className="p-4 mb-4 fade-in" style={{ borderColor: 'var(--accent)' }}>
+    <div className="flex items-start gap-3">
+      <div className="pixel-box w-10 h-10 flex items-center justify-center shrink-0" style={{ background: 'var(--accent)', borderColor: 'var(--border)' }}><PixelDino size={22} /></div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-sm font-bold">Add Macrosaurus to your home screen</div>
+          <button onClick={dismiss} aria-label="Dismiss" className="text-[#8A8A90] text-lg leading-none shrink-0">×</button>
+        </div>
+        <div className="text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug">{isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'}</div>
+        <button onClick={onInstall} className="pixel-btn px-4 py-2.5 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{isIOS ? 'SHOW ME HOW' : 'INSTALL APP'}</button>
+      </div>
+    </div>
+    {iosOpen && <IOSInstallSheet onClose={() => setIosOpen(false)} />}
+  </Card>);
+}
+// Persistent menu entry (in the Account tab) so install stays reachable even after the card is dismissed.
+function InstallMenuRow() {
+  const { installed, canInstall, isIOS, promptInstall } = useInstallPrompt();
+  const [iosOpen, setIosOpen] = useState(false);
+  if (installed || (!canInstall && !isIOS)) return null;
+  async function onClick() {
+    if (canInstall) promptInstall();
+    else { setIosOpen(true); window.MTRACK && MTRACK('pwa_ios_help', { from: 'menu' }); }
+  }
+  return (<React.Fragment>
+    <MenuRow label="Add to home screen" desc={isIOS ? 'Install Macrosaurus as an app from Safari' : 'Install Macrosaurus as an app on your device'} tone="accent" onClick={onClick} />
+    {iosOpen && <IOSInstallSheet onClose={() => setIosOpen(false)} />}
+  </React.Fragment>);
+}
+
 // Pixel flame, outer glow (fat/orange), inner core (accent). Replaces the 🔥 emoji.
 const FIRE_OUTER = ['...#...', '..###..', '.#.###.', '.#####.', '#####.#', '#######', '#######', '.#####.', '..###..'];
 const FIRE_INNER = ['.......', '.......', '.......', '...#...', '..###..', '..###..', '..###..', '...#...', '.......'];
@@ -3378,6 +3504,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Dashboard" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={() => setShowDex(true)} />
+      <InstallCard />
 
       {/* flex-wrap: on narrow phones the pixel font is wide, so the pill drops below rather than colliding */}
       <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 mb-3">
@@ -5450,6 +5577,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
         )}
 
         {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
+        <InstallMenuRow />
         <ChangePassword email={email} />
         <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
         <MenuRow label="Export my data" desc="Download a JSON backup of everything" onClick={exportData} />
