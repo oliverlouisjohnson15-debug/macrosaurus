@@ -5916,7 +5916,7 @@ function MobileHeader({ setView }) {
       </div>
       <button onClick={() => setView('more')} aria-label="Menu and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>
         <Icon.gear width="18" height="18" />
-        <span className="pf text-[8px]">MENU</span>
+        <span className="pf text-[8px]">SETTINGS</span>
       </button>
     </div>
   );
