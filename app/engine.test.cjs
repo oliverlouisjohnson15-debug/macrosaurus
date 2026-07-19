@@ -56,5 +56,24 @@ ok('adjusts, capped <=150', adj.changed && Math.abs(adj.deltaKcal) <= 150);
 ok('low adherence guard', E.weeklyAdjust({ profile: prof, currentTargets: cur, estimate: est, adherenceDays: 3 }).changed === false);
 ok('under-report guard', E.weeklyAdjust({ profile: prof, currentTargets: cur, estimate: { tdee: 1500, avgKcal: 1400, weeklyChangeKg: 0, days: 7 }, adherenceDays: 7 }).underReportFlagged === true);
 
+console.log('Daily steps: average over days with a reading');
+var stepMap = { '2026-07-01': 8000, '2026-07-02': 0, '2026-07-03': 10000, '2026-07-05': 6000 };
+var sr = E.avgStepsInRange(stepMap, '2026-07-01', '2026-07-07');
+ok('averages only days with steps (8000 avg over 3 days)', sr && sr.avg === 8000 && sr.days === 3, sr && (sr.avg + '/' + sr.days));
+ok('out-of-range excluded', E.avgStepsInRange(stepMap, '2026-07-10', '2026-07-20') === null);
+ok('null map is safe', E.avgStepsInRange(null, '2026-07-01', '2026-07-07') === null);
+
+console.log('Steps-first coaching lever');
+var scDrop = E.stepsCoaching({ thisCycle: { avg: 5000, days: 6 }, prevCycle: { avg: 9000, days: 7 }, baseline: 9000, behindTarget: true });
+ok('slow week + steps dropped => lever steps', scDrop.lever === 'steps', scDrop.lever);
+ok('steps drop flagged', scDrop.droppedVsPrev === true && scDrop.belowBaseline === true);
+ok('suggests a target back up towards usual', scDrop.suggestTarget >= 9000, 'got ' + scDrop.suggestTarget);
+var scSolid = E.stepsCoaching({ thisCycle: { avg: 9500, days: 7 }, prevCycle: { avg: 9200, days: 7 }, baseline: 9000, behindTarget: true });
+ok('slow week + steps solid => lever calories', scSolid.lever === 'calories', scSolid.lever);
+ok('solid steps => no suggested step target', scSolid.suggestTarget === null);
+var scOnTrack = E.stepsCoaching({ thisCycle: { avg: 5000, days: 6 }, prevCycle: { avg: 9000, days: 7 }, baseline: 9000, behindTarget: false });
+ok('on-target week => lever none (no nagging)', scOnTrack.lever === 'none');
+ok('no step data => hasData false', E.stepsCoaching({ thisCycle: null, baseline: 9000, behindTarget: true }).hasData === false);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
