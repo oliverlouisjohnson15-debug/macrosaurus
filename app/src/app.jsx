@@ -2843,22 +2843,6 @@ function TrophyCabinet({ db, streak, onBack }) {
       : <div className="text-[10px] text-[#8A8A90]">No shinies yet. A perfect macro day has a chance to gleam gold.</div>}
   </div>;
 }
-function DailyCatch({ db, date }) {
-  const c = catchForDay(db, date); if (!c) return null;
-  const cr = CR_BY_ID[c.id]; if (!cr) return null;
-  const dex = macrodex(db); const isNew = dex[cr.id] && dex[cr.id].firstDate === date && dex[cr.id].count === 1;
-  const form = creatureForm(cr, dex[cr.id] ? dex[cr.id].count : 1);
-  return (
-    <div className="pixel-box p-3 mb-4 flex items-center gap-3" style={{ background: 'var(--surface3)' }}>
-      <div className="shrink-0" style={crFx(c.shiny, form.aura)}><Sprite art={form.art} colors={c.shiny ? crShiny(form.colors) : form.colors} px={5} /></div>
-      <div className="min-w-0">
-        <div className="text-[9px] flex items-center gap-1.5"><span style={{ color: isNew ? 'var(--good)' : 'var(--muted)' }}>{isNew ? '★ NEW CATCH!' : 'CAUGHT THIS DAY'}</span><span className="pf uppercase" style={{ color: CR_RARITY_COLOR[cr.rarity] }}>{CR_RARITY_LABEL[cr.rarity]}</span></div>
-        <div className="text-sm font-bold">{form.name}{c.shiny ? <span style={{ color: 'var(--fat)' }}> ✦ shiny</span> : ''}</div>
-        <div className="text-[10px] text-[#8A8A90] leading-snug">{cr.lore}</div>
-      </div>
-    </div>
-  );
-}
 /* ---- Auto-battle: your buddy (stats from your recent eating) vs a rival ladder + rotating weekly boss ---- */
 const FIGHT_LADDER = [
   { name: 'Dinky', art: 'hatch', colors: crC('#7FD46B', '#3f8e2f'), power: 1, ability: 'none' },
@@ -3244,41 +3228,7 @@ function BreakthroughMeter({ state, size = 10 }) {
     </div>
   );
 }
-// Dashboard Collection card: the two always-on loops (Weekly Breakthrough + egg incubation)
-// folded into one tidy entry point. Progress-focused; the full reveals live in the Macrodex.
-function GameTracksCard({ btState, egg, eggProg, onOpenDex }) {
-  return (
-    <button onClick={onOpenDex} className="w-full text-left bg-[#161618] pixel-box p-3 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">Collection</span>
-        <span className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--good)' }}>Open ›</span>
-      </div>
-      <div className={egg && eggProg ? 'mb-3' : ''}>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] font-bold">Weekly breakthrough</span>
-          <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{btState.stamps}/{btState.goal}</span>
-        </div>
-        <BreakthroughMeter state={btState} />
-        <div className="text-[9px] text-[#8A8A90] mt-1">Log {btState.toNext} more {btState.toNext === 1 ? 'day' : 'days'} for a guaranteed <span style={{ color: 'var(--carb)' }}>rare+</span> catch.</div>
-      </div>
-      {egg && eggProg && <div className="flex items-center gap-2.5">
-        <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: EGG_TIER_COLOR[egg.tier], borderWidth: 3 }}>
-          <Sprite art="egg" colors={EGG_TIER_EGGCOLORS[egg.tier]} px={2.4} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold">{egg.tier}-day egg <span className="pf text-[7px] uppercase" style={{ color: EGG_TIER_COLOR[egg.tier] }}>{EGG_TIER_LABEL[egg.tier]}</span></span>
-            <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
-          </div>
-          <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
-          <div className="text-[9px] text-[#8A8A90] mt-1">{eggProg.toGo === 0 ? 'Ready to hatch!' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch.'}</div>
-        </div>
-      </div>}
-    </button>
-  );
-}
 
-// Everything gamey, collapsed to one strip that reads as a status board: dex completion up top,
 // Hatch-and-name: turn the generic buddy into an individual. Shown from the home strip; on an
 // account with no name yet it reads as "hatching", afterwards as a rename.
 function NameBuddyModal({ db, update, buddy, onClose }) {
@@ -3307,126 +3257,6 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
           <span className="pf text-[10px]">{b.name ? 'RENAME' : 'HATCH'}</span>
         </button>
       </div>
-    </div>
-  );
-}
-// buddy + streak + an evolution bar in the middle, and the two daily hooks (today's catch and the
-// fight) as buttons underneath. When the streak breaks the buddy naps and the strip becomes a
-// gentle "log to wake" nudge. The dex and fight open as the existing modals.
-function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenFight, onLog, onName, onShare }) {
-  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
-  const disp = (profile && profile.form) ? profile.form : st;   // the buddy's species form (or a fallback)
-  const pcr = todayCr && CR_BY_ID[todayCr.id];
-  const today = Store.todayISO();
-  const fght = db.fight || {};
-  const attemptUsed = fght.lastAttemptDate === today;
-
-  // Napping: a broken streak turns the sad grey buddy into a one-tap reason to log today.
-  if (buddy.asleep) {
-    return (
-      <div className="bg-[#161618] pixel-box p-3 mb-4">
-        <div className="flex items-center gap-3">
-          <button onClick={onOpenDex} className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
-            <div style={{ filter: 'grayscale(0.85)', opacity: 0.45 }}><Sprite art={disp.art} colors={disp.colors} px={3.2} /></div>
-          </button>
-          <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-bold truncate leading-tight">{(profile && profile.name) || disp.name} <span className="text-[9px] text-[#8A8A90] font-normal">napping</span></div>
-            <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Log today to wake {(profile && profile.name) || disp.name} and start a new streak.</div>
-          </div>
-          <button onClick={onLog} className="pixel-btn py-2 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} aria-label="Log a meal"><span className="pf text-[8px]">LOG</span></button>
-        </div>
-      </div>
-    );
-  }
-
-  // Dex completion, the collection at a glance.
-  const caught = Object.keys(macrodex(db)).length;
-  const dexTotal = CREATURES.length;
-  const best = Math.max(streak, (db.records && db.records.longestStreak) || 0);
-  const ladderCleared = (fght.rank || 0) >= FIGHT_LADDER.length;
-
-  // Bond-gated evolution: progress toward the next form needs BOTH quality days and hearts.
-  const ev = profile ? profile.evoInfo : null;
-
-  // Companion layer: given name, mood voice, bond hearts and the three need meters.
-  const name = (profile && profile.name) || disp.name;
-  const mm = profile ? (MOOD_META[profile.mood] || MOOD_META.content) : null;
-  const moodLn = profile ? moodLine(profile.mood, today) : '';
-  const hearts = profile ? Array.from({ length: profile.bond.maxHearts }).map((_, i) => (
-    <span key={i} style={{ fontSize: 9, lineHeight: 1, color: i < profile.bond.hearts ? '#e0607a' : 'var(--surface3)' }}>♥</span>
-  )) : null;
-  const NEED_META = { hunger: ['Fed', 'var(--good)'], nourish: ['Fuel', 'var(--carb)'], energy: ['Energy', 'var(--fat)'] };
-
-  return (
-    <div className="mb-4">
-      {/* Hero: the buddy is the centrepiece, name and mood carry the personality */}
-      <div className="bg-[#161618] pixel-box p-4 mb-2.5">
-        <div className="flex items-center justify-between mb-3">
-          <span className="pf text-[8px] uppercase text-[#8A8A90]">My buddy</span>
-          <span className="pf text-[9px] text-[#8A8A90] inline-flex items-center gap-2">
-            <span className="inline-flex items-center gap-1" title={`${streak} day streak${best > streak ? ', best ' + best : ''}`}><PixelFire size={11} />{streak}</span>
-            {hearts ? <span className="inline-flex items-center gap-px" title={`Bond ${profile.bond.hearts}/${profile.bond.maxHearts}`}>{hearts}</span> : null}
-          </span>
-        </div>
-        <div className="flex items-center gap-3.5">
-          <button onClick={onOpenDex} className="pixel-box p-2 shrink-0" style={{ background: 'var(--surface3)' }} aria-label="Open Macrodex">
-            <div style={crFx(false, disp.aura, profile && profile.affinity)}><Sprite art={disp.art} colors={disp.colors} px={4.8} /></div>
-          </button>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[18px] font-bold leading-none truncate">{name}</span>
-              {profile && profile.affinity ? <span title={AFFINITY_META[profile.affinity][2]} style={{ color: AFFINITY_META[profile.affinity][1], fontSize: 13, lineHeight: 1 }}>{AFFINITY_META[profile.affinity][0]}</span> : null}
-              <span role="button" tabIndex={0} onClick={() => onName && onName()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onName && onName(); }}
-                className="text-[11px] text-[#8A8A90] shrink-0 leading-none" aria-label={profile && profile.name ? 'Rename buddy' : 'Name your buddy'}>✎</span>
-            </div>
-            <div className="pf text-[8px] uppercase text-[#8A8A90] mt-1 truncate">{profile && profile.name ? disp.name + ' · ' : ''}Lv {profile ? profile.level : 0}{profile && profile.affinity ? ' · ' + AFFINITY_META[profile.affinity][2] : ''}</div>
-            {mm ? <div className="text-[12px] leading-snug mt-2"><span style={{ color: mm.color }}>●</span> <span>{moodLn}</span></div> : null}
-          </div>
-        </div>
-        {ev ? <div className="mt-3.5" title={ev.atMax ? ('Level ' + ev.level + ' quality days') : ('Evolves to ' + ev.nextName + ' at ' + ev.levelNeed + ' quality days and ' + ev.heartsNeed + ' hearts')}>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="pf text-[8px] uppercase text-[#8A8A90]">{ev.atMax ? 'Fully evolved' : ev.ready ? 'Ready to evolve!' : 'Evolving to ' + ev.nextName}</span>
-            <span className="pf text-[8px] text-[#8A8A90] shrink-0">{ev.atMax ? ('Lv ' + ev.level) : (Math.min(ev.level, ev.levelNeed) + '/' + ev.levelNeed + ' days · ♥' + Math.min(ev.hearts, ev.heartsNeed))}</span>
-          </div>
-          <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (ev.progress * 100) + '%', background: ev.ready ? 'var(--fat)' : 'var(--good)', transition: 'width .4s' }} /></div>
-        </div> : null}
-        {caught === 0 && <div className="text-[10px] text-[#8A8A90] leading-snug mt-3">Feed your buddy well each day and it bonds, grows and evolves. Every log also adds a creature to your dex.</div>}
-      </div>
-
-      {/* Care: the day's needs, framed as feeding, with one clear action */}
-      {profile ? <div className="bg-[#161618] pixel-box p-3.5 mb-2.5">
-        <div className="flex items-center justify-between mb-2.5">
-          <span className="pf text-[8px] uppercase text-[#8A8A90]">Today's care</span>
-          <span className="pf text-[8px] uppercase" style={{ color: profile.craving ? 'var(--fat)' : 'var(--good)' }}>{profile.craving ? 'Craving ' + (CRAVE_LABEL[profile.craving] || 'a meal') : 'Well fed ✓'}</span>
-        </div>
-        <div className="flex gap-2.5">{['hunger', 'nourish', 'energy'].map(k => (
-          <div key={k} className="flex-1">
-            <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1">{NEED_META[k][0]}</div>
-            <div className="pixel-bar" style={{ height: 8, borderWidth: 2 }}><i style={{ width: Math.round(profile.needs[k] * 100) + '%', background: NEED_META[k][1], transition: 'width .4s' }} /></div>
-          </div>
-        ))}</div>
-        {profile.craving ? <button onClick={onLog} className="pixel-btn w-full py-2.5 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[9px]">Log a meal to feed {name}</span></button> : null}
-      </div> : null}
-
-      {/* Actions: the two daily hooks as clean tiles */}
-      <div className="flex gap-2.5">
-        <button onClick={onOpenDex} className="pixel-btn flex-1 py-2.5 px-2" style={{ background: 'var(--surface3)' }}>
-          <div className="pf text-[7px] uppercase text-[#8A8A90] mb-1.5">Catch today</div>
-          <div className="text-[10px] flex items-center justify-center gap-1.5">{pcr
-            ? <><span className="inline-flex"><Sprite art={pcr.art} colors={crSilhouette()} px={1.5} /></span><span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[pcr.rarity] }}>{CR_RARITY_LABEL[pcr.rarity]}{todayCr.shiny ? ' ✦' : ''}</span></>
-            : <span className="text-[#8A8A90]">???</span>}</div>
-        </button>
-        <button onClick={onOpenFight} className="pixel-btn flex-1 py-2.5 px-2" style={{ background: 'var(--carb)', color: '#fff', opacity: attemptUsed ? 0.7 : 1 }}>
-          <div className="pf text-[7px] uppercase mb-1.5" style={{ opacity: 0.85 }}>{ladderCleared ? 'Ladder clear' : 'Rung ' + ((fght.rank || 0) + 1) + '/' + FIGHT_LADDER.length}</div>
-          <div className="text-[10px] inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="glove" color="#fff" size={12} /><span className="pf text-[8px]">BATTLE</span></div>
-        </button>
-      </div>
-      {(best >= 1 || caught >= 1) && onShare && (
-        <button onClick={() => onShare({ streak, best, caught, dexTotal, name, art: disp.art, colors: disp.colors })} className="w-full pixel-btn py-2.5 mt-2.5 inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface3)' }}>
-          <ShareIOSIcon size={14} /><span className="pf text-[8px] uppercase">Share my streak</span>
-        </button>
-      )}
-      <button onClick={onOpenDex} className="w-full text-center pf text-[8px] uppercase text-[#8A8A90] mt-3">Macrodex · {caught}/{dexTotal} caught ›</button>
     </div>
   );
 }
@@ -3769,9 +3599,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
             <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
             <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
             <div className="flex justify-between items-center mt-3">
-              <span className="text-[13px] font-semibold tnum" style={{ color: CARB }}>{remCarbs}g carbs left</span>
-              {override.shiftKcal ? <button onClick={() => setShift(0)} className="text-[11px] text-[#4A9EEB]">reset</button> : <span className="text-[11px] text-[#8A8A90]">balanced</span>}
-              <span className="text-[13px] font-semibold tnum" style={{ color: FAT }}>{remFat}g fat left</span>
+              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
+              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
+              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
             </div>
           </div>
         ) : (<>
