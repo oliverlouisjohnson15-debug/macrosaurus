@@ -4076,8 +4076,6 @@ function FoodLog({ db, update, openLog, showToast }) {
           </button>) : <div key={i} />)}</div>
       </Card>}
 
-      <DailyCatch db={db} date={date} />
-
       {et && <Card className="p-5 mb-4">
         <div className="flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl text-[13px]">
           {/* 'Balance', not 'Edit balance': the longer label wraps inside its segment on phones */}
@@ -6562,7 +6560,10 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
         <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
         <div className="leading-tight">
           <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
-          {streak > 0 && <div className="text-[9px]" style={{ color: 'var(--fat)' }}>▲ {streak} day streak</div>}
+          <div className="text-[9px] flex items-center gap-1.5">
+            {streak > 0 && <span style={{ color: 'var(--fat)' }}>▲ {streak}d</span>}
+            <span className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Play ›</span>
+          </div>
         </div>
       </button>
       <button onClick={onOpenYou} aria-label="You and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>

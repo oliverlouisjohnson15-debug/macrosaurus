@@ -12694,10 +12694,7 @@ function FoodLog({
     })) : null;
   })()) : /*#__PURE__*/React.createElement("div", {
     key: i
-  })))), /*#__PURE__*/React.createElement(DailyCatch, {
-    db: db,
-    date: date
-  }), et && /*#__PURE__*/React.createElement(Card, {
+  })))), et && /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl text-[13px]"
@@ -20386,12 +20383,18 @@ function MobileHeader({
     style: {
       color: 'var(--header-text)'
     }
-  }, "MACROSAURUS"), streak > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px]",
+  }, "MACROSAURUS"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] flex items-center gap-1.5"
+  }, streak > 0 && /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--fat)'
     }
-  }, "▲ ", streak, " day streak"))), /*#__PURE__*/React.createElement("button", {
+  }, "▲ ", streak, "d"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Play ›")))), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenYou,
     "aria-label": "You and settings",
     className: "pixel-box flex items-center gap-1.5 h-9 px-2.5",
