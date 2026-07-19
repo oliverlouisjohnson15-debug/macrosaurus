@@ -2399,6 +2399,14 @@ function perfectDaysIn(db, endISO, span) { let n = 0; for (let i = 0; i < span; 
 function isQualityDay(db, date) { const q = dayQuality(db, date); return !!(q && q.proteinHit && q.kcalIn); }
 // Quality days strictly after `afterISO` up to and including `throughISO` (an egg's "distance").
 function qualityDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
+// Your daily step goal: the step count assumed by your activity band (same target as the home tile).
+function stepGoalFor(db) { return withActivity(db.profile).avgSteps || 0; }
+// A step-goal day: you hit or beat that goal. Days with no step reading never qualify, so this is
+// entirely opt-in and changes nothing until you actually track steps (manually or via Fitbit).
+function isStepGoalDay(db, date) { const g = stepGoalFor(db); return g > 0 && (+((db.steps || {})[date]) || 0) >= g; }
+// Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
+// day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
+function incubationDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d) || isStepGoalDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
 function creatureForDay(db, date) {
   const q = dayQuality(db, date); if (!q) return null;
   const h = Game.seedFor(db.game_salt || '', date); // per-user roll; empty salt matches the legacy date-only hash
@@ -2559,7 +2567,7 @@ function DexActiveSection({ db, today }) {
   const logged = new Set((db.log_entries || []).map(e => e.date)).size;
   const btState = Game.breakthroughState(logged, bt ? bt.base : logged);
   const eggs = db.eggs; const egg = eggs && eggs.cur ? eggs.cur : null;
-  const eggProg = egg ? Game.eggProgress(qualityDaysAfter(db, egg.startDate, today), egg.tier) : null;
+  const eggProg = egg ? Game.eggProgress(incubationDaysAfter(db, egg.startDate, today), egg.tier) : null;
   const tc = catchForDay(db, today); const tcr = tc && CR_BY_ID[tc.id];
   const btJust = bt && bt.lastDate === today; const btCr = bt && bt.lastId ? CR_BY_ID[bt.lastId] : null;
   const eggJust = eggs && eggs.lastDate === today; const eggCr = eggs && eggs.lastId ? CR_BY_ID[eggs.lastId] : null;
@@ -2627,7 +2635,7 @@ function DexActiveSection({ db, today }) {
               <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
             </div>
             <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
-            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{eggJust && eggCr ? <span><span style={{ color: 'var(--good)' }}>Hatched!</span> <b>{eggCr.name}{eggs.lastShiny ? ' ✦' : ''}</b> joined your dex.</span> : eggProg.toGo === 0 ? 'Ready to hatch on your next quality day.' : eggProg.toGo + ' quality ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. A quality day: hit protein and land your calories.'}</div>
+            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{eggJust && eggCr ? <span><span style={{ color: 'var(--good)' }}>Hatched!</span> <b>{eggCr.name}{eggs.lastShiny ? ' ✦' : ''}</b> joined your dex.</span> : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.'}</div>
           </div>
         </div>
       </div>}
@@ -3117,6 +3125,7 @@ function StepsCard({ db, update }) {
   const [val, setVal] = useState('');
   const k = n => Math.round(n).toLocaleString('en-GB');
   const pct = baseline ? Math.min(100, Math.round((todaySteps / baseline) * 100)) : 0;
+  const goalHit = baseline > 0 && todaySteps >= baseline;
   function save() {
     const n = Math.max(0, Math.round(+val || 0));
     update(d => { d.steps = d.steps || {}; if (n > 0) d.steps[today] = n; else delete d.steps[today]; });
@@ -3142,6 +3151,7 @@ function StepsCard({ db, update }) {
               : <span className="text-[13px] text-[#8A8A90]">Not logged yet{baseline > 0 ? ` · goal ${k(baseline)}` : ''}</span>}
           </div>
           {baseline > 0 && <div className="pixel-bar mb-2" style={{ height: 9, borderWidth: 2 }}><i style={{ width: pct + '%', background: 'var(--good)', transition: 'width .4s' }} /></div>}
+          {goalHit && <div className="text-[10px] mb-1.5" style={{ color: 'var(--good)' }}>Step goal hit, this counts towards hatching your egg.</div>}
           <div className="flex justify-between text-[10px] text-[#8A8A90] tnum">
             <span>{avg7 != null ? `7-day avg ${k(avg7)}` : 'No steps logged this week'}</span>
             <span style={{ color: 'var(--muted)' }}>Fitbit sync soon</span>
@@ -3190,7 +3200,7 @@ function GameTracksCard({ btState, egg, eggProg, onOpenDex }) {
             <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
           </div>
           <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
-          <div className="text-[9px] text-[#8A8A90] mt-1">{eggProg.toGo === 0 ? 'Ready to hatch!' : eggProg.toGo + ' quality ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch.'}</div>
+          <div className="text-[9px] text-[#8A8A90] mt-1">{eggProg.toGo === 0 ? 'Ready to hatch!' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch.'}</div>
         </div>
       </div>}
     </button>
@@ -3608,7 +3618,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   // When it fills it hatches (a tier-scaled catch) and the next egg appears automatically.
   const eggs = db.eggs;
   const egg = eggs && eggs.cur ? eggs.cur : null;
-  const eggElapsed = egg ? qualityDaysAfter(db, egg.startDate, today) : 0;
+  const eggElapsed = egg ? incubationDaysAfter(db, egg.startDate, today) : 0;
   const eggProg = egg ? Game.eggProgress(eggElapsed, egg.tier) : null;
   useEffect(() => {
     const salt = db.game_salt || '';
