@@ -247,6 +247,13 @@ const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/re
 // nutrition-analyze turns ingredient LINES into per-ingredient + total macros via a real nutrition
 // database (Edamam), server-side. If it is not configured, the client falls back to an AI estimate.
 const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/nutrition-analyze';
+// google-health-proxy runs the Google OAuth token exchange (with the app secret) and returns daily
+// step counts via the Google Health API; no Google token ever reaches the browser. GOOGLE_CLIENT_ID
+// is public (it only names the app on the consent screen). Reads Fitbit device data too, since Fitbit
+// now syncs into Google Health. See the google-health-proxy edge function.
+const GH_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/google-health-proxy';
+const GOOGLE_CLIENT_ID = '779915009623-ahbl494cs1psoeilmph4n8ij24goi9jh.apps.googleusercontent.com';
+const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly';
 function fileToDataURL(file) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); }); }
 // Downscale + re-encode to JPEG so requests stay small and reliable across devices.
 async function imageToB64(file, max) {
@@ -291,6 +298,58 @@ async function aiRequest(body) {
   }
   return j;
 }
+// ---- Google Health steps sync (client half) -------------------------------------------------
+// The Google secret lives only in the edge function. Here we run the PKCE OAuth redirect, then hand
+// the returned one-time code to the proxy, which exchanges it and returns step counts. Steps only.
+const ghConfigured = () => !!GOOGLE_CLIENT_ID;
+function b64url(bytes) { let s = ''; const a = new Uint8Array(bytes); for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function ghRandom(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0, n); }
+async function ghChallenge(verifier) { const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)); return b64url(d); }
+function ghRedirectUri() { return window.location.origin + '/'; }
+function ghTimezone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) { return 'UTC'; } }
+// Kick off the Google consent redirect. access_type=offline + prompt=consent guarantee a refresh
+// token. Stashes the PKCE verifier + a state nonce so the callback can prove the response is ours
+// (and not, say, a Supabase auth ?code on the same URL).
+async function ghConnect() {
+  const verifier = ghRandom(64);
+  const state = 'ghealth_' + ghRandom(16);
+  sessionStorage.setItem('gh_pkce', verifier);
+  sessionStorage.setItem('gh_state', state);
+  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  u.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('scope', GH_SCOPE);
+  u.searchParams.set('access_type', 'offline');
+  u.searchParams.set('prompt', 'consent');
+  u.searchParams.set('include_granted_scopes', 'true');
+  u.searchParams.set('code_challenge', await ghChallenge(verifier));
+  u.searchParams.set('code_challenge_method', 'S256');
+  u.searchParams.set('state', state);
+  u.searchParams.set('redirect_uri', ghRedirectUri());
+  window.location.href = u.toString();
+}
+async function ghPost(action, body) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) throw new Error('Please sign in first.');
+  const res = await fetch(GH_PROXY, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+    body: JSON.stringify(Object.assign({ action, tz: ghTimezone() }, body || {})),
+  });
+  const data = await res.json();
+  if (!res.ok) { const e = new Error((data && data.error && data.error.message) || 'Google Health request failed.'); e.gh = data && data.error; throw e; }
+  return data;
+}
+// Merge a { date: count } map from Google Health into d.steps, letting a fresh reading win per date.
+function mergeStepsInto(d, steps) {
+  if (!steps) return 0;
+  d.steps = d.steps || {};
+  let n = 0;
+  for (const k in steps) { const v = +steps[k]; if (isFinite(v) && v > 0) { d.steps[k] = Math.round(v); n++; } }
+  return n;
+}
+
 // Call the AI with any number of images + a text prompt; expect one JSON object back.
 // `key` is retained for signature compatibility but is no longer used, the proxy holds the key.
 async function claudeVision(key, files, prompt, opts) {
@@ -2402,7 +2461,7 @@ function qualityDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(af
 // Your daily step goal: the step count assumed by your activity band (same target as the home tile).
 function stepGoalFor(db) { return withActivity(db.profile).avgSteps || 0; }
 // A step-goal day: you hit or beat that goal. Days with no step reading never qualify, so this is
-// entirely opt-in and changes nothing until you actually track steps (manually or via Fitbit).
+// entirely opt-in and changes nothing until you actually track steps (manually or via Google Health).
 function isStepGoalDay(db, date) { const g = stepGoalFor(db); return g > 0 && (+((db.steps || {})[date]) || 0) >= g; }
 // Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
 // day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
@@ -3111,7 +3170,7 @@ function HomeWeightSpark({ db, onOpen }) {
 }
 
 // Daily steps: today's count and this week's average against your activity-band baseline. Manual
-// entry for now; Fitbit sync (Phase 3) will fill it automatically. Steps also feed the check-in's
+// entry for now; Google Health sync (Phase 3) will fill it automatically. Steps also feed the check-in's
 // steps-first coaching, so a slow cycle can be answered with "walk more" before "eat less".
 function StepsCard({ db, update }) {
   const today = Store.todayISO();
@@ -3154,7 +3213,11 @@ function StepsCard({ db, update }) {
           {goalHit && <div className="text-[10px] mb-1.5" style={{ color: 'var(--good)' }}>Step goal hit, this counts towards hatching your egg.</div>}
           <div className="flex justify-between text-[10px] text-[#8A8A90] tnum">
             <span>{avg7 != null ? `7-day avg ${k(avg7)}` : 'No steps logged this week'}</span>
-            <span style={{ color: 'var(--muted)' }}>Fitbit sync soon</span>
+            {db.googleHealth && db.googleHealth.connected
+              ? <span style={{ color: 'var(--good)' }}>Google Health synced</span>
+              : ghConfigured()
+                ? <button onClick={ghConnect} style={{ color: 'var(--accent)' }}>Connect Google Health</button>
+                : <span style={{ color: 'var(--muted)' }}>Auto-sync soon</span>}
           </div>
         </>
       )}
@@ -3737,7 +3800,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Slim weight trend, taps through to the Goal tab for the full picture and burn estimate */}
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
-      {/* Daily steps: today's count vs your activity-band goal, manual entry until Fitbit sync lands */}
+      {/* Daily steps: today's count vs your activity-band goal, manual entry until Google Health sync lands */}
       <StepsCard db={db} update={update} />
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
@@ -5425,6 +5488,20 @@ function SettingsTab({ db, update }) {
       {s.reminders && <Field label="Nudge after" hint="Honest about what this is: an in-app banner on the Dashboard, not a push notification. It shows after this time on days you've not logged food or weighed in, before a miss would spend your monthly streak freeze.">
         <Dropdown value={s.nudgeHour} onChange={v => sset('nudgeHour', +v)} options={[12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({ v: h, l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am') }))} />
       </Field>}
+    </Section>
+    <Section title="Connected apps">
+      <div className="text-[12px] text-[#8A8A90] mb-3">Sync your daily steps automatically from Google Health (this reads your Fitbit steps too, since Fitbit now feeds Google Health). Steps show on your dashboard and feed your coaching and egg incubation. We only ever read your step counts.</div>
+      {(() => {
+        const gh = db.googleHealth;
+        if (!ghConfigured()) return <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>;
+        if (gh && gh.connected) return (
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
+            <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
+          </div>
+        );
+        return <Btn kind="accent" className="w-full" onClick={ghConnect}>Connect Google Health</Btn>;
+      })()}
     </Section>
     {p.sex === 'female' && (() => {
       const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
@@ -7663,6 +7740,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const entryHandled = useRef(false);
+  const ghHandled = useRef(false);
   const [reveal, setReveal] = useState(null);
   const revealTimer = useRef(null);
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
@@ -7892,6 +7970,43 @@ function App() {
     })();
     try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
   }, [db]);
+
+  // Google Health: finish the OAuth callback (swap the code for step counts) then keep steps fresh
+  // with a quiet once-a-day sync. All token handling lives server-side in google-health-proxy.
+  useEffect(() => {
+    if (!db || !db.profile || !session || ghHandled.current) return;
+    if (!ghConfigured()) { ghHandled.current = true; return; }
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code'), state = params.get('state');
+    const savedState = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('gh_state') : null;
+    const isCallback = code && state && savedState && state === savedState && String(state).startsWith('ghealth_');
+    ghHandled.current = true;
+    if (isCallback) {
+      const verifier = sessionStorage.getItem('gh_pkce');
+      sessionStorage.removeItem('gh_state'); sessionStorage.removeItem('gh_pkce');
+      try { const u = new URL(window.location.href); ['code', 'state', 'scope', 'authuser', 'prompt', 'hd'].forEach(k => u.searchParams.delete(k)); window.history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (_) {}
+      (async () => {
+        try {
+          const r = await ghPost('exchange', { code, code_verifier: verifier, redirect_uri: ghRedirectUri() });
+          update(d => { d.googleHealth = { connected: true, lastSync: r.last_sync || new Date().toISOString() }; mergeStepsInto(d, r.steps); });
+          showToast('Google Health connected. Your steps sync automatically now.');
+        } catch (e) { showToast('Could not connect Google Health: ' + e.message); }
+      })();
+      return;
+    }
+    const gh = db.googleHealth;
+    if (gh && gh.connected) {
+      const syncedToday = gh.lastSync && String(gh.lastSync).slice(0, 10) === Store.todayISO();
+      if (!syncedToday) (async () => {
+        try {
+          const r = await ghPost('sync', {});
+          update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); });
+        } catch (e) {
+          if (e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
+        }
+      })();
+    }
+  }, [db, session]);
 
   function update(m) { setDb(prev => { const n = JSON.parse(JSON.stringify(prev)); m(n); n._rev = Date.now(); if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n; }); }
   function saveProfile(profile, isNew) {

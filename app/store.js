@@ -104,8 +104,8 @@
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
       deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
       menstrual: { enabled: false, lastStart: null, cycleLen: 28 }, // optional cycle tracking so premenstrual water weight doesn't trigger a wrong calorie cut
-      steps: {},          // daily step counts (Fitbit sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
-      fitbit: null,       // Fitbit connection state (Phase 3): { connected, userId, refresh, lastSync }; null until linked
+      steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
+      googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
       goals: null,
     };
   }
@@ -183,7 +183,7 @@
     out.day_meals     = Object.assign({}, older.day_meals || {},     newer.day_meals || {});
     out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});
     out.game_awards   = Object.assign({}, older.game_awards || {},   newer.game_awards || {});
-    out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Fitbit resync / manual edit)
+    out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
     // catch_log: union dates, and union the creatures caught on each shared date
     var cl = {};
     [older.catch_log || {}, newer.catch_log || {}].forEach(function (src) {
