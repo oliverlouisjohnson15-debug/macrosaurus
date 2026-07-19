@@ -19971,8 +19971,11 @@ function InviteSheet({
   }, "bonus AI logs left")))));
 }
 let _saveTimer = null;
+// Demo mode: ?demo seeds a local sample account and bypasses sign-in. It NEVER touches the cloud
+// (cloudSave is a hard no-op below), so real accounts are completely unaffected. For previews + tests.
+const DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
 function cloudSave(uid, data) {
-  if (!supa || !uid) return;
+  if (DEMO || !supa || !uid) return;
   clearTimeout(_saveTimer);
   var snapshot = data;
   _saveTimer = setTimeout(function () {
@@ -20054,6 +20057,88 @@ function localLoad(uid) {
 }
 function localSave(uid, data) {
   if (uid) idbSet('state:' + uid, data);
+}
+// A representative sample account for ?demo mode: a mid-cut male with a part-logged day, a fortnight
+// of weigh-ins trending down, a week of steps, and a hatched buddy, enough to show every surface.
+function demoState() {
+  const today = Store.todayISO();
+  const s = Store.defaultState();
+  s.profile = {
+    sex: 'male',
+    age: 32,
+    heightCm: 178,
+    weightKg: 84,
+    bodyFatPct: 22,
+    activityLevel: 'moderate',
+    goalType: 'cut',
+    rateKgPerWeek: 0.5,
+    dietStyle: 'balanced',
+    weight_unit: 'kg',
+    height_unit: 'cm',
+    theme: 'light',
+    reminders: true,
+    nudgeHour: 14,
+    carryover: {
+      enabled: true,
+      mode: 'dispersed',
+      capKcal: 400
+    },
+    cycling: {
+      enabled: false,
+      highDays: [],
+      deltaPct: 0.15
+    },
+    program_mode: 'collaborative',
+    proteinGPerKgLBM: 2.0,
+    goalWeightKg: 78,
+    aiKey: ''
+  };
+  const t = E.computeInitialTargets(withActivity(s.profile));
+  t.id = Store.uid();
+  t.effective_date = shiftISO(today, -14);
+  t.source = 'initial';
+  s.targets = [t];
+  const mk = (meal, name, kcal, p, c, f, fib) => ({
+    id: Store.uid(),
+    date: today,
+    meal_id: meal,
+    name,
+    computed_macros: {
+      kcal,
+      protein: p,
+      carbs: c,
+      fat: f,
+      fiber: fib
+    }
+  });
+  s.log_entries = [mk('m_1', 'Porridge, banana & whey', 430, 34, 58, 8, 7), mk('m_2', 'Chicken & rice bowl', 620, 48, 72, 14, 6), mk('m_s', 'Greek yoghurt & berries', 180, 18, 16, 4, 3)];
+  s.weight_entries = [[14, 84.6], [12, 84.4], [10, 84.1], [8, 83.9], [6, 83.6], [4, 83.5], [2, 83.2], [0, 83.0]].map(([ago, w]) => ({
+    id: Store.uid(),
+    date: shiftISO(today, -ago),
+    scale_weight: w
+  }));
+  s.last_checkin = shiftISO(today, -6);
+  s.steps = {};
+  [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => {
+    s.steps[shiftISO(today, -(6 - i))] = v;
+  });
+  s.buddy = {
+    stage: 3,
+    name: 'Chompers',
+    personality: 'plucky',
+    hatchedISO: shiftISO(today, -20),
+    speciesId: null,
+    evoStage: 0,
+    affinity: null
+  };
+  s.game_salt = 'demo-salt';
+  s.onboarding = {
+    welcomed: true,
+    sawDex: true,
+    dismissed: true
+  };
+  s._rev = Date.now();
+  return s;
 }
 function stateRev(d) {
   return d && d._rev || 0;
@@ -23775,6 +23860,15 @@ function App() {
     }
   }, [themePref]);
   useEffect(() => {
+    if (DEMO) {
+      setSession({
+        user: {
+          id: 'demo',
+          email: 'demo@macrosaurus.app'
+        }
+      });
+      return;
+    }
     if (!supa) {
       setSession(null);
       return;
@@ -23861,7 +23955,7 @@ function App() {
   // tally, and drain any creature rewards (ours, or ones a friend just earned us) into the dex. Runs
   // once per session; server-authoritative so a replay can never double-award.
   useEffect(() => {
-    if (!session || !supa || !db || rewardsSyncedRef.current) return;
+    if (DEMO || !session || !supa || !db || rewardsSyncedRef.current) return;
     rewardsSyncedRef.current = true;
     let cancelled = false;
     (async function () {
@@ -23996,6 +24090,10 @@ function App() {
     showToast('Could not open billing. Please try again.');
   }
   useEffect(() => {
+    if (DEMO) {
+      setDb(demoState());
+      return;
+    } // seed a fresh sample account; never load/save cloud
     if (!session) return;
     let cancelled = false;
     const uid = session.user.id;
