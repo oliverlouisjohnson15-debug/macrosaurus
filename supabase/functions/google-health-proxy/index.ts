@@ -49,17 +49,18 @@ function isoShift(days: number): string {
   t.setUTCDate(t.getUTCDate() + days);
   return t.toISOString().slice(0, 10);
 }
-// A CivilDateTime at midnight on an ISO date, in the given IANA timezone (defines the day boundary).
-function civilMidnight(iso: string, tz: string) {
+// A CivilDateTime at midnight on an ISO date. Per the v4 discovery doc CivilDateTime nests a Date and
+// a TimeOfDay and carries no timezone (times are civil / the user's own local wall clock).
+function civilMidnight(iso: string) {
   const [year, month, day] = iso.split('-').map(Number);
-  return { year, month, day, hours: 0, minutes: 0, seconds: 0, timeZone: { id: tz } };
+  return { date: { year, month, day }, time: { hours: 0, minutes: 0, seconds: 0 } };
 }
 
 // Pull daily step totals for [startISO, endISO] (inclusive) via dailyRollUp. Returns date->count map.
-async function fetchSteps(accessToken: string, startISO: string, endISO: string, tz: string): Promise<Record<string, number>> {
+async function fetchSteps(accessToken: string, startISO: string, endISO: string): Promise<Record<string, number>> {
   const url = `https://health.googleapis.com/v4/users/me/dataTypes/${STEPS_DATA_TYPE}/dataPoints:dailyRollUp`;
   const body = {
-    range: { start: civilMidnight(startISO, tz), end: civilMidnight(isoShift0(endISO, 1), tz) }, // end is exclusive
+    range: { start: civilMidnight(startISO), end: civilMidnight(isoShift0(endISO, 1)) }, // end is exclusive
     windowSizeDays: 1,
   };
   const res = await fetch(url, {
@@ -71,11 +72,11 @@ async function fetchSteps(accessToken: string, startISO: string, endISO: string,
   if (!res.ok) throw new Error(data?.error?.message || 'Google Health steps request failed');
   const out: Record<string, number> = {};
   for (const p of (data?.rollupDataPoints || [])) {
-    const c = p?.civilStartTime;
+    const c = p?.civilStartTime?.date; // { year, month, day }
     if (!c || !c.year) continue;
     const date = c.year + '-' + String(c.month).padStart(2, '0') + '-' + String(c.day).padStart(2, '0');
-    // Response uses count_sum (proto) which REST may surface as countSum; accept either.
-    const n = Number(p?.steps?.count_sum ?? p?.steps?.countSum ?? p?.steps?.count);
+    // StepsRollupValue.countSum is a string in the REST response.
+    const n = Number(p?.steps?.countSum ?? p?.steps?.count_sum ?? p?.steps?.count);
     if (isFinite(n) && n > 0) out[date] = Math.round(n);
   }
   return out;
@@ -102,7 +103,6 @@ Deno.serve(async (req) => {
   let payload: any;
   try { payload = await req.json(); } catch { return json({ error: { message: 'Bad request body.' } }, 400); }
   const action = payload?.action;
-  const tz = (typeof payload?.tz === 'string' && payload.tz) ? payload.tz : 'UTC';
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
         connected_at: nowISO,
         last_sync: nowISO,
       });
-      const steps = await fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0), tz);
+      const steps = await fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0));
       return json({ ok: true, steps, last_sync: nowISO });
     }
 
@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       const patch: Record<string, unknown> = { last_sync: nowISO };
       if (tok.refresh_token && tok.refresh_token !== conn.refresh_token) patch.refresh_token = tok.refresh_token;
       await table.update(patch).eq('user_id', userId);
-      const steps = await fetchSteps(tok.access_token, isoShift(-days), isoShift(0), tz);
+      const steps = await fetchSteps(tok.access_token, isoShift(-days), isoShift(0));
       return json({ ok: true, steps, last_sync: nowISO });
     }
 
