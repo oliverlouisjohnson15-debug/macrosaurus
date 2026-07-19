@@ -11439,6 +11439,7 @@ function Dashboard({
   onQuickAdd,
   showToast,
   onOpenRecipe,
+  onOpenPlay,
   isPremium,
   aiCalls
 }) {
@@ -11446,7 +11447,6 @@ function Dashboard({
   const [span, setSpan] = useState('today');
   const [showStats, setShowStats] = useState(false);
   const [showCarry, setShowCarry] = useState(false);
-  const [showDex, setShowDex] = useState(false);
   const [showFight, setShowFight] = useState(false);
   const [showName, setShowName] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
@@ -11787,7 +11787,7 @@ function Dashboard({
     db: db,
     update: update,
     onLog: () => onQuickAdd(false),
-    onOpenDex: () => setShowDex(true)
+    onOpenDex: onOpenPlay
   }), /*#__PURE__*/React.createElement(InstallCard, null), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -11907,30 +11907,51 @@ function Dashboard({
   }), /*#__PURE__*/React.createElement(StepsCard, {
     db: db,
     update: update
-  }), /*#__PURE__*/React.createElement(HomeGameStrip, {
-    db: db,
-    streak: streak,
-    buddy: buddy,
-    profile: bp,
-    todayCr: todayCr,
-    onOpenDex: () => setShowDex(true),
-    onOpenFight: () => setShowFight(true),
-    onLog: () => onQuickAdd(false),
-    onName: () => setShowName(true),
-    onShare: p => shareStreak(p, showToast)
-  }), loggedTotal >= 1 && /*#__PURE__*/React.createElement(GameTracksCard, {
-    btState: btState,
-    egg: egg,
-    eggProg: eggProg,
-    onOpenDex: () => setShowDex(true)
-  }), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenPlay,
+    className: "w-full text-left bg-[#161618] pixel-box p-4 mb-3 flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0"
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 30,
+    color: "var(--good)"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] uppercase"
+  }, "Play"), streak > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px]",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "▲ ", streak, "d streak"), egg && eggProg && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] text-[#8A8A90] tnum"
+  }, "· egg ", eggProg.steps, "/", eggProg.tier)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] truncate"
+  }, db.buddy && db.buddy.name ? db.buddy.name + ' · ' : '', "Macrodex ", Object.keys(macrodex(db)).length, " caught")), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] shrink-0",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Open ›")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowFight(true),
+    className: "pixel-box flex-1 py-2 pf text-[9px] uppercase",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "Boss fight"), !(db.buddy && db.buddy.name) && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowName(true),
+    className: "pixel-box flex-1 py-2 pf text-[9px] uppercase",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "Name your dino")), /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"
-  }, quote), showDex && /*#__PURE__*/React.createElement(MacrodexModal, {
-    db: db,
-    update: update,
-    streak: streak,
-    onClose: () => setShowDex(false)
-  }), showFight && /*#__PURE__*/React.createElement(FightModal, {
+  }, quote), showFight && /*#__PURE__*/React.createElement(FightModal, {
     db: db,
     update: update,
     streak: streak,
@@ -20101,7 +20122,7 @@ function Toast({
     className: "hit text-sm font-semibold text-[#4A9EEB] shrink-0"
   }, toast.actionLabel)));
 }
-const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'GOAL', Icon.goal], ['more', 'MENU', Icon.more]];
+const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
 // The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
 // header (MobileHeader) and the desktop Sidebar instead. Bottom bar order: HOME, FOOD, (Add), GOAL, COOK.
 const BOTTOM_NAV = ['dashboard', 'foodlog', 'goals', 'recipes'].map(k => NAV_ITEMS.find(([n]) => n === k));
@@ -20169,12 +20190,17 @@ function NavBtn({
 function Sidebar({
   view,
   setView,
-  onAdd
+  onAdd,
+  onOpenPlay
 }) {
+  // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
+  const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
   return /*#__PURE__*/React.createElement("div", {
     className: "hidden lg:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-[#0F0F12] border-r-[3px] border-[#262629] p-4 z-40"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-1 py-3 mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenPlay,
+    "aria-label": "Open Play",
+    className: "px-1 py-3 mb-3 text-left"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2.5"
   }, /*#__PURE__*/React.createElement(PixelDino, {
@@ -20198,19 +20224,33 @@ function Sidebar({
     height: "18"
   }), " Log food"), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-2"
-  }, NAV_ITEMS.map(([k, l, Ic]) => /*#__PURE__*/React.createElement("button", {
+  }, tabs.map(([k, l, Ic]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setView(k),
     className: `pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === k ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
   }, /*#__PURE__*/React.createElement(Ic, {
     width: "20",
     height: "20"
-  }), " ", l))), /*#__PURE__*/React.createElement("div", {
+  }), " ", l)), /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenPlay,
+    className: "pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 20,
+    color: "var(--good)"
+  }), " PLAY"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setView('more'),
+    className: `pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
+  }, /*#__PURE__*/React.createElement(Icon.more, {
+    width: "20",
+    height: "20"
+  }), " YOU")), /*#__PURE__*/React.createElement("div", {
     className: "mt-auto pf text-[8px] text-[#8A8A90] px-1"
   }, BRAND));
 }
 function MobileHeader({
-  setView
+  onOpenPlay,
+  onOpenYou,
+  streak
 }) {
   return /*#__PURE__*/React.createElement("div", {
     className: "lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b-[3px]",
@@ -20218,8 +20258,10 @@ function MobileHeader({
       background: 'var(--header)',
       borderColor: 'var(--border)'
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenPlay,
+    "aria-label": "Open Play",
+    className: "flex items-center gap-2.5 text-left"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box w-9 h-9 flex items-center justify-center",
     style: {
@@ -20229,14 +20271,21 @@ function MobileHeader({
   }, /*#__PURE__*/React.createElement(PixelDino, {
     size: 20,
     color: "#fff"
-  })), /*#__PURE__*/React.createElement("span", {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "leading-tight"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[12px]",
     style: {
       color: 'var(--header-text)'
     }
-  }, "MACROSAURUS")), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setView('more'),
-    "aria-label": "Menu and settings",
+  }, "MACROSAURUS"), streak > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px]",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "▲ ", streak, " day streak"))), /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenYou,
+    "aria-label": "You and settings",
     className: "pixel-box flex items-center gap-1.5 h-9 px-2.5",
     style: {
       background: '#111',
@@ -20248,7 +20297,7 @@ function MobileHeader({
     height: "18"
   }), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px]"
-  }, "SETTINGS")));
+  }, "YOU")));
 }
 
 // First-run welcome tour: a few full-screen slides teaching the core concepts. Shown once to new
@@ -23618,6 +23667,7 @@ function App() {
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
+  const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -24555,6 +24605,9 @@ function App() {
     initialKey: db.aiKey || ''
   });
   const meals = mealsForDay(db, Store.todayISO());
+  // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
+  const _today = Store.todayISO();
+  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date)]), new Set(db.freezes && db.freezes.frozen || []), _today).streak;
   return /*#__PURE__*/React.createElement("div", {
     className: "lg:pl-56"
   }, /*#__PURE__*/React.createElement(Sidebar, {
@@ -24563,9 +24616,13 @@ function App() {
     onAdd: () => setAdding({
       date: Store.todayISO(),
       mealId: meals[0].id
-    })
+    }),
+    onOpenPlay: () => setDexOpen(true)
   }), /*#__PURE__*/React.createElement(MobileHeader, {
-    setView: setView
+    onOpenPlay: () => setDexOpen(true),
+    onOpenYou: () => setView('more'),
+    streak: appStreak,
+    db: db
   }), updateReady && /*#__PURE__*/React.createElement("div", {
     className: "fixed top-0 inset-x-0 z-[100] flex justify-center px-3",
     style: {
@@ -24605,6 +24662,7 @@ function App() {
       setOpenRecipeId(id);
       setView('recipes');
     },
+    onOpenPlay: () => setDexOpen(true),
     isPremium: isPremium,
     aiCalls: aiCalls
   }), view === 'foodlog' && /*#__PURE__*/React.createElement(FoodLog, {
@@ -24724,6 +24782,11 @@ function App() {
     reason: paywall.reason,
     onCheckout: startCheckout,
     onClose: () => setPaywall(null)
+  }), dexOpen && /*#__PURE__*/React.createElement(MacrodexModal, {
+    db: db,
+    update: update,
+    streak: appStreak,
+    onClose: () => setDexOpen(false)
   }), /*#__PURE__*/React.createElement(Toast, {
     toast: toast
   }), reveal && /*#__PURE__*/React.createElement(CatchReveal, {

@@ -3535,12 +3535,11 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     </div>
   );
 }
-function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, isPremium, aiCalls }) {
+function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
   const [span, setSpan] = useState('today');
   const [showStats, setShowStats] = useState(false);
   const [showCarry, setShowCarry] = useState(false);
-  const [showDex, setShowDex] = useState(false);
   const [showFight, setShowFight] = useState(false);
   const [showName, setShowName] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
@@ -3742,7 +3741,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Dashboard" />
-      <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={() => setShowDex(true)} />
+      <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       <InstallCard />
 
       {/* flex-wrap: on narrow phones the pixel font is wide, so the pill drops below rather than colliding */}
@@ -3803,12 +3802,26 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Daily steps: today's count vs your activity-band goal, manual entry until Google Health sync lands */}
       <StepsCard db={db} update={update} />
 
-      {/* Game, collapsed to a single strip; dex and fight open as modals */}
-      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={bp} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} onShare={(p) => shareStreak(p, showToast)} />
-      {loggedTotal >= 1 && <GameTracksCard btState={btState} egg={egg} eggProg={eggProg} onOpenDex={() => setShowDex(true)} />}
+      {/* Play: the game lives behind the dino now. One compact entry into the full hub, so the
+          dashboard stays about today's food and progress. Fight + naming stay reachable here. */}
+      <button onClick={onOpenPlay} className="w-full text-left bg-[#161618] pixel-box p-4 mb-3 flex items-center gap-3">
+        <div className="shrink-0"><PixelDino size={30} color="var(--good)" /></div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="pf text-[9px] uppercase">Play</span>
+            {streak > 0 && <span className="text-[10px]" style={{ color: 'var(--fat)' }}>▲ {streak}d streak</span>}
+            {egg && eggProg && <span className="text-[10px] text-[#8A8A90] tnum">· egg {eggProg.steps}/{eggProg.tier}</span>}
+          </div>
+          <div className="text-[11px] text-[#8A8A90] truncate">{(db.buddy && db.buddy.name) ? db.buddy.name + ' · ' : ''}Macrodex {Object.keys(macrodex(db)).length} caught</div>
+        </div>
+        <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>Open ›</span>
+      </button>
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setShowFight(true)} className="pixel-box flex-1 py-2 pf text-[9px] uppercase" style={{ background: 'var(--surface2)' }}>Boss fight</button>
+        {!(db.buddy && db.buddy.name) && <button onClick={() => setShowName(true)} className="pixel-box flex-1 py-2 pf text-[9px] uppercase" style={{ background: 'var(--surface2)' }}>Name your dino</button>}
+      </div>
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
-      {showDex && <MacrodexModal db={db} update={update} streak={streak} onClose={() => setShowDex(false)} />}
       {showFight && <FightModal db={db} update={update} streak={streak} onClose={() => setShowFight(false)} />}
       {showName && <NameBuddyModal db={db} update={update} buddy={buddy} onClose={() => setShowName(false)} />}
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
@@ -6474,7 +6487,7 @@ function Toast({ toast }) {
   );
 }
 
-const NAV_ITEMS = [['dashboard', 'HOME', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'GOAL', Icon.goal], ['more', 'MENU', Icon.more]];
+const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
 // The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
 // header (MobileHeader) and the desktop Sidebar instead. Bottom bar order: HOME, FOOD, (Add), GOAL, COOK.
 const BOTTOM_NAV = ['dashboard', 'foodlog', 'goals', 'recipes'].map(k => NAV_ITEMS.find(([n]) => n === k));
@@ -6488,26 +6501,35 @@ function BottomNav({ view, setView, onAdd }) {
   );
 }
 function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: view === k ? 'var(--accent)' : 'rgba(255,255,255,0.6)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
-function Sidebar({ view, setView, onAdd }) {
+function Sidebar({ view, setView, onAdd, onOpenPlay }) {
+  // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
+  const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
   return (
     <div className="hidden lg:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-[#0F0F12] border-r-[3px] border-[#262629] p-4 z-40">
-      <div className="px-1 py-3 mb-3"><div className="flex items-center gap-2.5"><PixelDino size={22} color="var(--good)" /><span className="pf text-[13px]">MACROSAURUS</span></div><div className="flex gap-1 mt-2 ml-8">{[PRO, CARB, FAT, 'var(--accent)'].map((c, i) => <span key={i} className="w-2.5 h-2.5" style={{ background: c }} />)}</div></div>
+      <button onClick={onOpenPlay} aria-label="Open Play" className="px-1 py-3 mb-3 text-left"><div className="flex items-center gap-2.5"><PixelDino size={22} color="var(--good)" /><span className="pf text-[13px]">MACROSAURUS</span></div><div className="flex gap-1 mt-2 ml-8">{[PRO, CARB, FAT, 'var(--accent)'].map((c, i) => <span key={i} className="w-2.5 h-2.5" style={{ background: c }} />)}</div></button>
       <button onClick={onAdd} className="pixel-btn flex items-center justify-center gap-2 bg-white text-black py-3 font-bold mb-4"><Icon.plus width="18" height="18" /> Log food</button>
-      <div className="flex flex-col gap-2">{NAV_ITEMS.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === k ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Ic width="20" height="20" /> {l}</button>)}</div>
+      <div className="flex flex-col gap-2">{tabs.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === k ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Ic width="20" height="20" /> {l}</button>)}
+        <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelDino size={20} color="var(--good)" /> PLAY</button>
+        <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="20" height="20" /> YOU</button>
+      </div>
       <div className="mt-auto pf text-[8px] text-[#8A8A90] px-1">{BRAND}</div>
     </div>
   );
 }
-function MobileHeader({ setView }) {
+function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
   return (
     <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-      <div className="flex items-center gap-3">
+      {/* The dino is your buddy: tap it to open the Play hub (Macrodex, egg, catches). */}
+      <button onClick={onOpenPlay} aria-label="Open Play" className="flex items-center gap-2.5 text-left">
         <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
-        <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
-      </div>
-      <button onClick={() => setView('more')} aria-label="Menu and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>
+        <div className="leading-tight">
+          <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
+          {streak > 0 && <div className="text-[9px]" style={{ color: 'var(--fat)' }}>▲ {streak} day streak</div>}
+        </div>
+      </button>
+      <button onClick={onOpenYou} aria-label="You and settings" className="pixel-box flex items-center gap-1.5 h-9 px-2.5" style={{ background: '#111', borderColor: '#000', color: '#fff' }}>
         <Icon.gear width="18" height="18" />
-        <span className="pf text-[8px]">SETTINGS</span>
+        <span className="pf text-[8px]">YOU</span>
       </button>
     </div>
   );
@@ -7727,6 +7749,7 @@ function App() {
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
+  const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -8145,10 +8168,13 @@ function App() {
   if (fresh) return <Wizard initial={db.profile} onDone={(pr) => saveProfile(pr, false)} onCancel={() => setFresh(false)} />;
   if (!db.profile) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} />;
   const meals = mealsForDay(db, Store.todayISO());
+  // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
+  const _today = Store.todayISO();
+  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date)]), new Set((db.freezes && db.freezes.frozen) || []), _today).streak;
   return (
     <div className="lg:pl-56">
-      <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
-      <MobileHeader setView={setView} />
+      <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} />
+      <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
         <div className="pixel-box w-full max-w-md flex items-center gap-3 p-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--accent)' }}>
           <PixelDino size={20} color="var(--accent)" />
@@ -8156,7 +8182,7 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: '#111' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} isPremium={isPremium} aiCalls={aiCalls} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
@@ -8175,6 +8201,7 @@ function App() {
         </div>
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
+      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onClose={() => setDexOpen(false)} />}
       <Toast toast={toast} />
       {reveal && <CatchReveal c={reveal} />}
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
