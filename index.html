@@ -7559,7 +7559,7 @@ function ExpenditureCard({
       className: "text-[13px] font-semibold mb-1"
     }, "Still learning your burn"), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90] leading-relaxed mb-3"
-    }, "Once you have enough weigh-ins and logged days over a fortnight, I can work out how many calories your body actually burns a day, from what you eat versus how your weight moves."), /*#__PURE__*/React.createElement("div", {
+    }, "After a fortnight of weigh-ins and logged days, I can work out how many calories you actually burn a day, from what you eat versus how your weight moves."), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-2"
     }, /*#__PURE__*/React.createElement(MiniStat, {
       label: weighGap > 0 ? weighGap + ' more to go' : 'enough',
@@ -14927,7 +14927,7 @@ function DescribeTab({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Type, say, or photograph what you had. A photo plus a few words is the most accurate, it catches the portion size, oils and extras a picture alone can miss. You confirm before it's logged."), onScan && /*#__PURE__*/React.createElement("div", {
+  }, "Type, say or snap what you had. A photo plus a few words is most accurate: it catches portions, oils and extras. You confirm before anything's logged."), onScan && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2 rounded-2xl p-3 mb-3 border border-[#262629]",
     style: {
       background: 'var(--surface3)'
@@ -15134,7 +15134,7 @@ function MealEstimate({
     className: "text-[13px] text-[#8A8A90] mb-3"
   }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Add a food photo, a photo of the menu, and any notes. The AI proposes what you ate (for a restaurant it anchors to that chain's published nutrition) then you say yes or correct it."), /*#__PURE__*/React.createElement("div", {
+  }, "Add a photo of the food or menu, plus any notes. The AI proposes what you ate, then you confirm or correct it. For a known chain it anchors to their published nutrition."), /*#__PURE__*/React.createElement("div", {
     className: "mb-1"
   }, /*#__PURE__*/React.createElement(PhotoButton, {
     label: "Add photos",
@@ -15803,7 +15803,7 @@ function PhotoTab({
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
-  }, "A barcode is the quickest, most accurate way to log packaged food. No barcode, or not in the database? Scan the label instead."), notFound && /*#__PURE__*/React.createElement("div", {
+  }, "The quickest, most accurate way to log packaged food. No barcode, or not found? Scan the label instead."), notFound && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3.5 mb-3 fade-in",
     style: {
       background: 'var(--surface3)',
@@ -16016,7 +16016,7 @@ function AlcoholTab({
   }
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Tell me the drink and measure and I'll work out the calories from its strength. Those calories are split across your carbs and fat so your day still balances."), /*#__PURE__*/React.createElement("div", {
+  }, "Tell me the drink and measure and I'll work the calories from its strength. They split across carbs and fat so your day still balances."), /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement(Seg, {
     value: cat,
@@ -20091,13 +20091,13 @@ const WELCOME_SLIDES = [{
   body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week."
 }, {
   title: 'Logging is quick',
-  body: "Tap the plus button to add food: a photo, your voice, or a barcode. The AI does the maths, you just confirm."
+  body: "Tap the plus to add food by photo, voice or barcode. The AI does the maths, you just confirm."
 }, {
   title: 'Weigh in, then relax',
-  body: "A few times a week is plenty, right on the Dashboard. Macrosaurus follows your trend, not one noisy day, and adjusts weekly."
+  body: "A few times a week is plenty. Macrosaurus follows your trend, not one noisy day, and adjusts your targets weekly."
 }, {
   title: 'Make it a habit',
-  body: "Log each day to collect Macrodex dinos, with a playful Fight arena for your streak. Consistency, made fun."
+  body: "Every logged day hatches your dino, catches Macrodex creatures and feeds your streak. Tap the dino any time to play."
 }];
 function WelcomeCarousel({
   onDone,

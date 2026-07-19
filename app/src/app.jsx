@@ -2068,7 +2068,7 @@ function ExpenditureCard({ db }) {
       <Card className="p-5 mb-4">
         <div className="pf text-[8px] text-[#8A8A90] mb-2">DAILY BURN</div>
         <div className="text-[13px] font-semibold mb-1">Still learning your burn</div>
-        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-3">Once you have enough weigh-ins and logged days over a fortnight, I can work out how many calories your body actually burns a day, from what you eat versus how your weight moves.</div>
+        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-3">After a fortnight of weigh-ins and logged days, I can work out how many calories you actually burn a day, from what you eat versus how your weight moves.</div>
         <div className="grid grid-cols-2 gap-2">
           <MiniStat label={weighGap > 0 ? weighGap + ' more to go' : 'enough'} value={est.weighDays + '/' + est.needWeigh} ok={weighGap === 0} />
           <MiniStat label={logGap > 0 ? logGap + ' more to go' : 'enough'} value={est.loggedDays + '/' + est.needLog} ok={logGap === 0} />
@@ -4724,7 +4724,7 @@ function DescribeTab({ db, onPick, onScan }) {
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" />;
   return (<div>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Type, say, or photograph what you had. A photo plus a few words is the most accurate, it catches the portion size, oils and extras a picture alone can miss. You confirm before it's logged.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-3">Type, say or snap what you had. A photo plus a few words is most accurate: it catches portions, oils and extras. You confirm before anything's logged.</div>
     {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
       <div className="text-[11px] text-[#8A8A90] leading-snug">Packaged, with a barcode or label? Scanning it is more accurate.</div>
       <button onClick={onScan} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}>Scan instead</button>
@@ -4775,7 +4775,7 @@ function MealEstimate({ apiKey, onPick, onBack, initialFiles }) {
   if (busy) return <DinoLoader label="Estimating your meal" />;
   return (<div className="fade-in">
     <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Add a food photo, a photo of the menu, and any notes. The AI proposes what you ate (for a restaurant it anchors to that chain's published nutrition) then you say yes or correct it.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-3">Add a photo of the food or menu, plus any notes. The AI proposes what you ate, then you confirm or correct it. For a known chain it anchors to their published nutrition.</div>
     <div className="mb-1"><PhotoButton label="Add photos" multiple onFiles={addImgs} className="w-full" /></div>
     <div className="text-[10px] text-[#8A8A90] mb-3">Add your food and/or the menu (up to 3 photos), take a new photo or choose from your library.</div>
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remove(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
@@ -5033,7 +5033,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
   if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => setMode(null)} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div>
-    <div className="text-[12px] text-[#8A8A90] mb-4">A barcode is the quickest, most accurate way to log packaged food. No barcode, or not in the database? Scan the label instead.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-4">The quickest, most accurate way to log packaged food. No barcode, or not found? Scan the label instead.</div>
     {notFound && <div className="pixel-box p-3.5 mb-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] mb-2.5" style={{ color: 'var(--text)' }}>That barcode isn't in the food database. Scan the nutrition label instead and it will read the numbers for you.</div>
       <div className="flex gap-2">
@@ -5110,7 +5110,7 @@ function AlcoholTab({ onPick }) {
     onPick({ name: drinkName, source: 'alcohol', is_alcohol: true, qtyLabel: qtyLabel, alcohol_split: manual ? null : { carb_pct: carbPct, fat_pct: 100 - carbPct }, macros: macros, amount: n, unitNoun: 'drink' });
   }
   return (<div>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Tell me the drink and measure and I'll work out the calories from its strength. Those calories are split across your carbs and fat so your day still balances.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-3">Tell me the drink and measure and I'll work the calories from its strength. They split across carbs and fat so your day still balances.</div>
     <div className="mb-3"><Seg value={cat} onChange={chooseCat} options={[{ v: 'beer', l: 'Beer' }, { v: 'wine', l: 'Wine' }, { v: 'spirit', l: 'Spirits' }, { v: 'other', l: 'Other' }]} /></div>
     {cat === 'other' ? (<>
       <Field label="Name"><TextInput value={otherName} onChange={e => setOtherName(e.target.value)} /></Field>
@@ -6436,9 +6436,9 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
 // users after setup, and replayable from the menu (reviewing=true just changes the button labels).
 const WELCOME_SLIDES = [
   { title: 'Welcome to Macrosaurus', body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week." },
-  { title: 'Logging is quick', body: "Tap the plus button to add food: a photo, your voice, or a barcode. The AI does the maths, you just confirm." },
-  { title: 'Weigh in, then relax', body: "A few times a week is plenty, right on the Dashboard. Macrosaurus follows your trend, not one noisy day, and adjusts weekly." },
-  { title: 'Make it a habit', body: "Log each day to collect Macrodex dinos, with a playful Fight arena for your streak. Consistency, made fun." },
+  { title: 'Logging is quick', body: "Tap the plus to add food by photo, voice or barcode. The AI does the maths, you just confirm." },
+  { title: 'Weigh in, then relax', body: "A few times a week is plenty. Macrosaurus follows your trend, not one noisy day, and adjusts your targets weekly." },
+  { title: 'Make it a habit', body: "Every logged day hatches your dino, catches Macrodex creatures and feeds your streak. Tap the dino any time to play." },
 ];
 function WelcomeCarousel({ onDone, reviewing, theme }) {
   useBackClose(onDone);
