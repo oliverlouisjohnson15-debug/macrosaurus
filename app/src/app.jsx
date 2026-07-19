@@ -3194,7 +3194,7 @@ function StepsCard({ db, update }) {
     update(d => { d.steps = d.steps || {}; if (n > 0) d.steps[today] = n; else delete d.steps[today]; });
     setEditing(false);
   }
-  const R = 17, C = 2 * Math.PI * R;
+  const R = 16, C = 2 * Math.PI * R;
   return (
     <Card className="p-3.5 mb-4">
       {editing ? (
@@ -3205,31 +3205,27 @@ function StepsCard({ db, update }) {
         </div>
       ) : (
         <div className="flex items-center gap-3">
-          {/* Compact step ring: SVG so the track/fill follow the theme and no opaque centre is needed */}
-          <svg width="44" height="44" viewBox="0 0 44 44" className="shrink-0" style={{ color: 'var(--text)' }} aria-hidden="true">
-            <circle cx="22" cy="22" r={R} fill="none" stroke="var(--track)" strokeWidth="5" />
-            {baseline > 0 && <circle cx="22" cy="22" r={R} fill="none" stroke="var(--good)" strokeWidth="5" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} transform="rotate(-90 22 22)" style={{ transition: 'stroke-dashoffset .4s' }} />}
-            <text x="22" y="26" textAnchor="middle" fontSize="11" fill="currentColor" className="tnum">{baseline > 0 && todaySteps ? pct + '%' : '·'}</text>
+          {/* Ring is purely visual: the count lives in the text, so nothing overlaps the stroke.
+              A checkmark replaces the arc's end once the goal is hit (no more covered "100%"). */}
+          <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0" aria-hidden="true">
+            <circle cx="20" cy="20" r={R} fill="none" stroke="var(--track)" strokeWidth="4" />
+            {baseline > 0 && <circle cx="20" cy="20" r={R} fill="none" stroke="var(--good)" strokeWidth="4" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} transform="rotate(-90 20 20)" style={{ transition: 'stroke-dashoffset .4s' }} />}
+            {goalHit && <path d="M13.5 20.5 l4 4 l9 -9.5" fill="none" stroke="var(--good)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
           </svg>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="pf text-[9px] uppercase text-[#8A8A90]">Steps</span>
-              {goalHit && <span className="text-[9px]" style={{ color: 'var(--good)' }}>▲ goal hit · feeds your egg</span>}
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-bold tnum">{todaySteps ? k(todaySteps) : 'Not logged'}</span>
-              <span className="text-[10px] text-[#8A8A90] tnum">{baseline > 0 ? `/ ${k(baseline)}` : ''}{avg7 != null ? ` · avg ${k(avg7)}` : ''}</span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="pf text-[9px] uppercase text-[#8A8A90] truncate">Steps{goalHit ? <span style={{ color: 'var(--good)' }}> · goal hit</span> : baseline > 0 ? ' · ' + pct + '%' : ''}</div>
+            <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+              <span className="text-base font-bold tnum">{todaySteps ? k(todaySteps) : 'Not logged'}</span>
+              {baseline > 0 && <span className="text-[10px] text-[#8A8A90] tnum">/ {k(baseline)} goal</span>}
             </div>
           </div>
-          <div className="text-right shrink-0 leading-tight">
-            <button onClick={() => { setVal(todaySteps || ''); setEditing(true); }} className="pf text-[8px] block ml-auto" style={{ color: 'var(--accent)' }}>{todaySteps ? 'Edit' : 'Log'} ›</button>
-            <span className="text-[8px]">
-              {db.googleHealth && db.googleHealth.connected
-                ? <span style={{ color: 'var(--good)' }}>✓ synced</span>
-                : ghConfigured()
-                  ? <button onClick={ghConnect} style={{ color: 'var(--accent)' }}>Connect</button>
-                  : <span style={{ color: 'var(--muted)' }}>soon</span>}
-            </span>
+          <div className="shrink-0 flex flex-col items-end gap-0.5">
+            <button onClick={() => { setVal(todaySteps || ''); setEditing(true); }} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>{todaySteps ? 'Edit' : 'Log'} ›</button>
+            {db.googleHealth && db.googleHealth.connected
+              ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ synced</span>
+              : ghConfigured()
+                ? <button onClick={ghConnect} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect</button>
+                : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>soon</span>}
           </div>
         </div>
       )}
@@ -3568,6 +3564,12 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const loggedDates = Array.from(logSet).filter(x => x <= today).sort().slice(-7);
   const avgTot = loggedDates.length ? (() => { const n = loggedDates.length; const a = loggedDates.map(dd => sumMacros(entriesOn(db, dd))).reduce((x, s) => ({ kcal: x.kcal + s.kcal, protein: x.protein + s.protein, carbs: x.carbs + s.carbs, fat: x.fat + s.fat, fiber: x.fiber + s.fiber }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }); return { kcal: a.kcal / n, protein: a.protein / n, carbs: a.carbs / n, fat: a.fat / n, fiber: a.fiber / n }; })() : todayTot;
   const tot = span === 'avg' ? avgTot : todayTot;
+  // Balance: shift today's leftover calories between carbs and fat (protein fixed). Editable right
+  // here on Today now, so the Food log no longer needs to repeat the whole macro card.
+  const override = (db.day_overrides || {})[today] || { shiftKcal: 0 };
+  const setShift = (v) => update(d => { d.day_overrides = Object.assign({}, d.day_overrides || {}, { [today]: { shiftKcal: v } }); });
+  const remCarbs = Math.max(0, Math.round(et.eff.carbs_g - todayTot.carbs));
+  const remFat = Math.max(0, Math.round(et.eff.fat_g - todayTot.fat));
   // streak: consecutive ACTIVE days (food logged OR weighed in) ending today, with a
   // monthly freeze forgiving one miss.
   const frozenSet = new Set((db.freezes && db.freezes.frozen) || []);
@@ -3760,31 +3762,43 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         <Pill value={span} onChange={setSpan} options={[{ v: 'today', l: 'Today' }, { v: 'avg', l: '7d avg' }]} />
       </div>
       <Card className="p-5 mb-4">
-        <div className="flex justify-end -mt-1 mb-2"><Pill value={mode} onChange={setMode} options={[{ v: 'consumed', l: 'Consumed' }, { v: 'remaining', l: 'Remaining' }]} /></div>
-        <MacroSummaryCard et={et} tot={tot} mode={mode} avg={span === 'avg'} />
-        {(et.cyc !== 0 || et.carry !== 0) && (() => {
-          const adj = et.eff.kcal - et.base.kcal;
-          const cd = et.carryDetail;
-          const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
-          const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
-          const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-          return <button onClick={() => canOpen && setShowCarry(true)} className="mt-2 pt-2 border-t border-[#262629] w-full flex items-center gap-1.5 text-[11px] text-[#8A8A90]">
-            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> {label}</span>
-            {canOpen && <span className="ml-auto shrink-0 inline-flex items-center justify-center w-[15px] h-[15px] border-2 border-[#262629] text-[8px] leading-none" style={{ color: 'var(--muted)' }}>i</span>}
-          </button>;
-        })()}
-        {/* Today's food, folded into the hero as a slim tap-through footer to the Food log */}
-        {(() => {
-          const dayEntries = entriesOn(db, today);
-          if (!dayEntries.length) return null;
-          const totalKcal = Math.round(sumMacros(dayEntries).kcal);
-          const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
-          return <button onClick={() => setView('foodlog')} className="mt-2 pt-2 border-t border-[#262629] w-full flex items-center gap-2 text-[11px]">
-            <span className="pf text-[8px] uppercase text-[#8A8A90]">Today's food</span>
-            <span className="text-[#8A8A90]">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal}</span> kcal</span>
-            <span className="pf text-[8px] ml-auto shrink-0" style={{ color: 'var(--accent)' }}>Food log ›</span>
-          </button>;
-        })()}
+        <div className="flex justify-center -mt-1 mb-3"><Pill value={mode} onChange={setMode} options={[{ v: 'consumed', l: 'Consumed' }, { v: 'remaining', l: 'Remaining' }, { v: 'balance', l: 'Balance' }]} /></div>
+        {mode === 'balance' ? (
+          <div className="fade-in">
+            <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
+            <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
+            <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
+            <div className="flex justify-between items-center mt-3">
+              <span className="text-[13px] font-semibold tnum" style={{ color: CARB }}>{remCarbs}g carbs left</span>
+              {override.shiftKcal ? <button onClick={() => setShift(0)} className="text-[11px] text-[#4A9EEB]">reset</button> : <span className="text-[11px] text-[#8A8A90]">balanced</span>}
+              <span className="text-[13px] font-semibold tnum" style={{ color: FAT }}>{remFat}g fat left</span>
+            </div>
+          </div>
+        ) : (<>
+          <MacroSummaryCard et={et} tot={tot} mode={mode} avg={span === 'avg'} />
+          {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
+          {(et.cyc !== 0 || et.carry !== 0) && (() => {
+            const adj = et.eff.kcal - et.base.kcal;
+            const cd = et.carryDetail;
+            const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
+            const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
+            const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+            return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
+              <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
+              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
+            </div>;
+          })()}
+          {(() => {
+            const dayEntries = entriesOn(db, today);
+            if (!dayEntries.length) return null;
+            const totalKcal = Math.round(sumMacros(dayEntries).kcal);
+            const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
+            return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
+              <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
+              <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
+            </button>;
+          })()}
+        </>)}
       </Card>
 
       {!isPremium && (() => {
@@ -3816,13 +3830,16 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
           dashboard stays about today's food and progress. Fight + naming stay reachable here. */}
       <button onClick={onOpenPlay} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4 flex items-center gap-3">
         <div className="shrink-0"><PixelDino size={30} color="var(--good)" /></div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0 leading-tight">
+          <div className="flex items-baseline gap-2">
             <span className="pf text-[9px] uppercase">Play</span>
-            {streak > 0 && <span className="text-[10px]" style={{ color: 'var(--fat)' }}>▲ {streak}d streak</span>}
-            {egg && eggProg && <span className="text-[10px] text-[#8A8A90] tnum">· egg {eggProg.steps}/{eggProg.tier}</span>}
+            {db.buddy && db.buddy.name && <span className="text-[11px] font-bold truncate">{db.buddy.name}</span>}
           </div>
-          <div className="text-[11px] text-[#8A8A90] truncate">{(db.buddy && db.buddy.name) ? db.buddy.name + ' · ' : ''}Macrodex {Object.keys(macrodex(db)).length} caught</div>
+          <div className="text-[10px] text-[#8A8A90] tnum truncate">
+            {streak > 0 && <><span style={{ color: 'var(--fat)' }}>▲ {streak}d</span> · </>}
+            {egg && eggProg && <>egg {eggProg.steps}/{eggProg.tier} · </>}
+            {Object.keys(macrodex(db)).length} in Macrodex
+          </div>
         </div>
         <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>Open ›</span>
       </button>
@@ -4076,30 +4093,29 @@ function FoodLog({ db, update, openLog, showToast }) {
           </button>) : <div key={i} />)}</div>
       </Card>}
 
-      {et && <Card className="p-5 mb-4">
-        <div className="flex gap-1.5 mb-4 bg-[#1E1E22] p-1 rounded-2xl text-[13px]">
-          {/* 'Balance', not 'Edit balance': the longer label wraps inside its segment on phones */}
-          {[['consumed', 'Consumed'], ['remaining', 'Remaining'], ['balance', 'Balance']].map(([k, l]) => (
-            <button key={k} onClick={() => setMode(k)} className={`flex-1 rounded-xl py-2 transition ${mode === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>
-          ))}
-        </div>
-        {mode === 'balance' ? (
-          <div className="fade-in">
-            <div className="text-[12px] text-[#8A8A90] mb-3">Shift leftover calories between carbs and fat. Protein stays fixed.</div>
-            <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
-            <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
-            <div className="flex justify-between items-center mt-3">
-              <span className="text-[13px] font-semibold tnum" style={{ color: CARB }}>{remCarbs}g carbs left</span>
-              {override.shiftKcal ? <button onClick={() => setShift(0)} className="text-[11px] text-[#4A9EEB]">reset</button> : <span className="text-[11px] text-[#8A8A90]">balanced</span>}
-              <span className="text-[13px] font-semibold tnum" style={{ color: FAT }}>{remFat}g fat left</span>
+      {/* Slim remaining-at-a-glance while you log; the full hero + Balance live on the Today tab. */}
+      {et && (() => {
+        const rem = et.eff.kcal - tot.kcal;
+        const over = rem < 0;
+        return <Card className="p-4 mb-4">
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="flex items-baseline gap-1.5">
+              <span className="pf text-[8px] uppercase text-[#8A8A90]">{over ? 'Over by' : 'Kcal left'}</span>
+              <span className="text-2xl font-bold tnum" style={{ color: over ? 'var(--danger)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
             </div>
+            <span className="text-[10px] text-[#8A8A90] tnum">of {et.eff.kcal}</span>
           </div>
-        ) : (
-          <div className="fade-in">
-            <MacroSummaryCard et={et} tot={tot} mode={mode} />
+          <div className="space-y-2">
+            {[['PROT', tot.protein, et.eff.protein_g, PRO], ['CARB', tot.carbs, et.eff.carbs_g, CARB], ['FATS', tot.fat, et.eff.fat_g, FAT]].map(([l, e, t, c]) => (
+              <div key={l} className="flex items-center gap-2.5">
+                <span className="pf text-[8px] w-8 shrink-0 text-[#8A8A90]">{l}</span>
+                <div className="pixel-bar flex-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: Math.min(100, t > 0 ? e / t * 100 : 0) + '%', background: c }} /></div>
+                <span className="tnum text-[10px] w-[72px] text-right shrink-0 whitespace-nowrap"><span className="font-bold">{Math.max(0, Math.round(t - e))}</span><span className="text-[#8A8A90]">g left</span></span>
+              </div>
+            ))}
           </div>
-        )}
-      </Card>}
+        </Card>;
+      })()}
 
       {day.length > 0 && <button onClick={() => setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date })} className="w-full text-[12px] text-[#8A8A90] mb-3 flex items-center justify-center gap-1.5 py-1.5">⧉ Copy this day to another date…</button>}
       </div>
