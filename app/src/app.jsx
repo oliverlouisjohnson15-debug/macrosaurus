@@ -5306,6 +5306,95 @@ function ChangePassword({ email }) {
     </div>}
   </div>);
 }
+// ---- Support tickets / feature requests -----------------------------------------------------
+// A signed-in user submits via the `support` edge function (which stores the row and emails us);
+// they read back their own tickets directly (RLS returns only their rows) to track status + reply.
+async function submitTicket({ kind, body }) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) throw new Error('Please sign in to send feedback.');
+  const res = await fetch(SUPA_URL + '/functions/v1/support', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+    body: JSON.stringify({ kind, body }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error((j.error && (j.error.message || j.error)) || ('Request failed (' + res.status + ')'));
+  return j.ticket;
+}
+async function loadMyTickets() {
+  if (!supa) return [];
+  const r = await supa.from('support_tickets').select('id, kind, body, status, admin_reply, created_at, updated_at').order('created_at', { ascending: false });
+  if (r.error) throw new Error(r.error.message);
+  return r.data || [];
+}
+const TICKET_KINDS = [{ v: 'bug', l: 'Bug' }, { v: 'feature', l: 'Feature' }, { v: 'question', l: 'Question' }];
+const TICKET_PLACEHOLDER = {
+  bug: 'What went wrong, and what were you doing when it happened?',
+  feature: 'What would you like Macrosaurus to do?',
+  question: 'What can we help you with?',
+};
+function ticketKindLabel(k) { return k === 'bug' ? 'Bug' : k === 'feature' ? 'Feature request' : 'Question'; }
+function ticketStatusMeta(s) {
+  if (s === 'resolved') return { label: 'Resolved', color: 'var(--good)' };
+  if (s === 'in_review') return { label: 'In review', color: 'var(--accent)' };
+  return { label: 'Received', color: 'var(--muted)' };
+}
+// The user-facing feedback sheet: one message with a type picker, plus the user's own ticket
+// history with live status and any reply. Opened from a MenuRow in Menu → Account.
+function FeedbackSheet({ email, onClose }) {
+  useBackClose(onClose);
+  const [kind, setKind] = useState('bug');
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(''); const [err, setErr] = useState('');
+  const [tickets, setTickets] = useState(null);
+  const refresh = () => loadMyTickets().then(setTickets, () => setTickets([]));
+  useEffect(() => { refresh(); }, []);
+  async function submit() {
+    const body = text.trim(); if (!body || busy) return;
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      await submitTicket({ kind, body });
+      setText(''); setMsg("Thanks, we've got it. Any reply shows up below.");
+      refresh();
+    } catch (e) { setErr(e.message || 'Could not send. Please try again.'); }
+    setBusy(false);
+  }
+  return (
+    <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Send feedback</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
+        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Report a bug, request a feature, or ask a question. We read every message{email ? ' and may reply to ' + email : ''}.</div>
+        <Field label="Type"><Seg value={kind} options={TICKET_KINDS} onChange={setKind} /></Field>
+        <Field label="Message">
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={5} maxLength={4000} className={inputCls + ' resize-y leading-relaxed'} placeholder={TICKET_PLACEHOLDER[kind]} />
+        </Field>
+        {err && <div className="text-[12px] mb-2" style={{ color: 'var(--danger)' }}>{err}</div>}
+        {msg && <div className="text-[12px] mb-2" style={{ color: 'var(--good)' }}>{msg}</div>}
+        <Btn kind="accent" className="w-full" disabled={!text.trim() || busy} style={{ opacity: (!text.trim() || busy) ? 0.5 : 1 }} onClick={submit}>{busy ? 'Sending…' : 'Send'}</Btn>
+        <div className="mt-6">
+          <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pb-2 px-0.5">Your requests</div>
+          {tickets === null ? <div className="py-4"><DinoLoader label="Loading" /></div>
+            : tickets.length === 0 ? <div className="text-[12px] text-[#8A8A90]">Nothing yet. Anything you send shows up here with its status.</div>
+              : <div className="space-y-2">{tickets.map(t => {
+                const st = ticketStatusMeta(t.status);
+                return (<div key={t.id} className="pixel-box p-3 bg-[#1E1E22]">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+                    <span className="text-[10px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
+                  </div>
+                  <div className="text-[12px] whitespace-pre-wrap break-words">{t.body}</div>
+                  {t.admin_reply && <div className="mt-2 pixel-box p-2.5 bg-[#0F0F12]" style={{ borderColor: 'var(--accent)' }}>
+                    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>Reply from Macrosaurus</div>
+                    <div className="text-[12px] whitespace-pre-wrap break-words">{t.admin_reply}</div>
+                  </div>}
+                </div>);
+              })}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
 function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage }) {
   const [tab, setTab] = useState('details');
   const daysLeft = (iso) => { if (!iso) return ''; const d = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000); return d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'ends soon'; };
@@ -5314,6 +5403,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
   const [guide, setGuide] = useState(false);
   const [delOpen, setDelOpen] = useState(false); const [delText, setDelText] = useState(''); const [delBusy, setDelBusy] = useState(false); const [delErr, setDelErr] = useState('');
   const [resetOpen, setResetOpen] = useState(false); const [legal, setLegal] = useState(null);
+  const [feedback, setFeedback] = useState(false);
   async function doDelete() { setDelBusy(true); setDelErr(''); try { await onDeleteAccount(); } catch (e) { setDelErr(e.message || 'Something went wrong.'); setDelBusy(false); } }
   function exportData() {
     try {
@@ -5365,6 +5455,9 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
         <MenuRow label="Export my data" desc="Download a JSON backup of everything" onClick={exportData} />
         <MenuRow label="Sign out" onClick={onSignOut} />
 
+        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Help & feedback</div>
+        <MenuRow label="Send feedback or get help" desc="Report a bug or request a feature" onClick={() => setFeedback(true)} />
+
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Legal & privacy</div>
         <MenuRow label="Privacy Policy" desc="What we collect and your rights" onClick={() => setLegal('privacy')} />
         <MenuRow label="Terms of Use" desc="The rules for using Macrosaurus" onClick={() => setLegal('terms')} />
@@ -5391,6 +5484,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
         </div>
       </div>}
       {guide && <WelcomeCarousel reviewing theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
+      {feedback && <FeedbackSheet email={email} onClose={() => setFeedback(false)} />}
     </div>
   );
 }
@@ -5450,6 +5544,66 @@ async function adminBilling(action, payload) {
   const j = await res.json().catch(() => ({}));
   if (!res.ok || j.error) throw new Error((j.error && (j.error.message || j.error)) || ('Request failed (' + res.status + ')'));
   return j;
+}
+// Admin support-ticket triage endpoint (raw fetch like adminCall). list_tickets / open_count /
+// set_ticket_status / reply_ticket, all admin-gated + audited server-side.
+async function adminSupport(action, payload) {
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token; if (!token) throw new Error('Not signed in.');
+  const res = await fetch(SUPA_URL + '/functions/v1/admin-support', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+    body: JSON.stringify(Object.assign({ action }, payload || {})),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error((j.error && (j.error.message || j.error)) || ('Request failed (' + res.status + ')'));
+  return j;
+}
+// Support tab: users' bug reports / feature requests / questions, with status + reply controls.
+function AdminSupport() {
+  const [tickets, setTickets] = useState(null); const [err, setErr] = useState('');
+  const [filter, setFilter] = useState('open'); // 'open' = anything not resolved
+  function load() {
+    setTickets(null); setErr('');
+    const payload = (filter === 'open' || filter === 'all') ? {} : { status: filter };
+    adminSupport('list_tickets', payload).then(j => {
+      let rows = j.tickets || [];
+      if (filter === 'open') rows = rows.filter(t => t.status !== 'resolved');
+      setTickets(rows);
+    }, e => setErr(e.message));
+  }
+  useEffect(() => { load(); }, [filter]);
+  function patch(updated) { setTickets(ts => (ts || []).map(t => t.id === updated.id ? updated : t)); }
+  const FILTERS = [['open', 'Open'], ['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved'], ['all', 'All']];
+  return (<div className="fade-in">
+    <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Bug reports, feature requests and questions from users. Set a status or write a reply, and the user sees both in the app. You're also emailed at olly@macrosaurus.com when a new one lands.</div>
+    <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
+    {!tickets ? <div className="mt-6"><DinoLoader label="Loading tickets" /></div>
+      : !tickets.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No tickets here{filter !== 'all' ? ' for this filter' : ''}.</div>
+        : <div className="space-y-2">{tickets.map(t => <AdminTicketCard key={t.id} ticket={t} onPatch={patch} />)}</div>}
+  </div>);
+}
+function AdminTicketCard({ ticket, onPatch }) {
+  const t = ticket;
+  const [reply, setReply] = useState(t.admin_reply || '');
+  const [busy, setBusy] = useState(''); const [err, setErr] = useState('');
+  const st = ticketStatusMeta(t.status);
+  async function setStatus(status) { if (status === t.status) return; setBusy('status'); setErr(''); try { const j = await adminSupport('set_ticket_status', { ticketId: t.id, status }); onPatch(j.ticket); } catch (e) { setErr(e.message); } setBusy(''); }
+  async function sendReply() { const r = reply.trim(); if (!r) return; setBusy('reply'); setErr(''); try { const j = await adminSupport('reply_ticket', { ticketId: t.id, reply: r }); onPatch(j.ticket); } catch (e) { setErr(e.message); } setBusy(''); }
+  return (<div className="pixel-box p-3 bg-[#1E1E22]">
+    <div className="flex items-center justify-between gap-2 mb-1">
+      <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+      <span className="text-[10px] text-[#8A8A90]">{ticketKindLabel(t.kind)} · {adminFmtWhen(t.created_at)}</span>
+    </div>
+    <div className="text-[11px] text-[#8A8A90] mb-1 break-all">{t.email || 'unknown'}</div>
+    <div className="text-[13px] whitespace-pre-wrap break-words mb-3">{t.body}</div>
+    <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[8px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
+    <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2} maxLength={4000} className={inputCls + ' resize-y leading-relaxed text-[12px]'} placeholder="Write a reply (the user sees this; sending resolves the ticket)…" />
+    <div className="flex justify-between items-center mt-2 gap-2">
+      {err ? <span className="text-[11px]" style={{ color: 'var(--danger)' }}>{err}</span> : <span />}
+      <Btn kind="accent" disabled={busy === 'reply' || !reply.trim()} onClick={sendReply}>{busy === 'reply' ? 'Sending…' : (t.admin_reply ? 'Update reply' : 'Reply & resolve')}</Btn>
+    </div>
+  </div>);
 }
 // Global free/premium tier controls: enforcement toggle + the free AI count and premium ceiling.
 function AdminTiers() {
@@ -5594,6 +5748,8 @@ function AdminPanel({ onBack, adminEmail, update }) {
   const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true); const [err, setErr] = useState('');
   const [devMsg, setDevMsg] = useState('');
+  const [supportOpen, setSupportOpen] = useState(0); // unresolved ticket count, for the tab badge
+  useEffect(() => { adminSupport('open_count').then(j => setSupportOpen(j.open || 0), () => {}); }, [tab]);
   // Reset the Dino Fight day-gate on your OWN account, through the normal sync path, so a fresh
   // ladder attempt (and this week's boss) is available again for testing.
   function resetBattle() { update(d => { d.fight = d.fight || {}; d.fight.lastAttemptDate = null; d.fight.lastBossWeek = null; }); setDevMsg("Done. Today's ladder attempt and this week's boss are available again on your account."); }
@@ -5621,7 +5777,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
     <div className="max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <button onClick={onBack} className="text-[12px] text-[#8A8A90] mb-2">← Back to menu</button>
       <PageHeader kicker="Admin" title="Control room" />
-      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[10px] px-1 rounded" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
       {loading ? <div className="mt-6"><DinoLoader label="Loading" /></div> : <>
         {tab === 'overview' && <div className="fade-in">
@@ -5672,6 +5828,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
             {!filtered.length && <div className="text-[12px] text-[#8A8A90] mt-4">No matching users.</div>}
           </div>
         </div>}
+        {tab === 'support' && <AdminSupport />}
         {tab === 'ailogs' && <AdminAiLogs />}
         {tab === 'audit' && <AdminAudit />}
       </>}
