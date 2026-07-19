@@ -2155,6 +2155,85 @@ function Sprite({ art, colors, px = 6 }) {
   return <svg width={w * cell} height={h * cell} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges">{rects}</svg>;
 }
 
+/* ---------- Share card (streak -> shareable image) ----------
+   Turns a user's streak + buddy into a 1080x1080 PNG they can drop into a Story, WhatsApp or a group
+   chat. Uses the Web Share API with a file where supported (mobile), and falls back to a download plus
+   a copied link on desktop. Every card is watermarked with the app URL, so a shared streak doubles as
+   an invitation. Drawn on a canvas from the same pixel grids the app renders, so it stays on-brand. */
+const SHARE_URL = 'https://macrosaurus.com';
+function drawPixelGrid(ctx, grid, colors, ox, oy, cell) {
+  for (let y = 0; y < (grid || []).length; y++) {
+    const row = grid[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.' || !colors[ch]) continue;
+      ctx.fillStyle = colors[ch];
+      ctx.fillRect(Math.round(ox + x * cell), Math.round(oy + y * cell), Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+}
+function renderStreakCard({ streak, best, caught, dexTotal, name, art, colors }) {
+  const S = 1080;
+  const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0, '#241f2b'); g.addColorStop(1, '#0e0c12');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+  ctx.strokeStyle = '#39FF14'; ctx.lineWidth = 14; ctx.strokeRect(30, 30, S - 60, S - 60);
+  ctx.textAlign = 'center';
+  // wordmark (mascot + name)
+  const mascotColors = { L: '#7BD957', B: '#46B94A', D: '#2C8C3E', P: '#123A1C' };
+  drawPixelGrid(ctx, DINO_ART, mascotColors, S / 2 - (16 * 7) / 2, 92, 7);
+  ctx.fillStyle = '#EDE9F0'; ctx.font = '800 40px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('MACROSAURUS', S / 2, 250);
+  // buddy sprite, centred
+  const grid = CR_ART[art] || CR_ART[Object.keys(CR_ART)[0]] || [];
+  const gw = grid.reduce((m, r) => Math.max(m, r.length), 0) || 1, gh = grid.length || 1;
+  const target = 380, cell = target / Math.max(gw, gh);
+  drawPixelGrid(ctx, grid, colors || {}, S / 2 - (gw * cell) / 2, 300, cell);
+  // streak number
+  ctx.fillStyle = '#F5C518'; ctx.font = '900 220px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText(String(streak), S / 2, 810);
+  ctx.fillStyle = '#EDE9F0'; ctx.font = '800 52px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('DAY STREAK', S / 2, 872);
+  // sub line
+  ctx.fillStyle = '#9aa0a6'; ctx.font = '600 32px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  const bits = [];
+  if (name) bits.push(name);
+  if (best && best > streak) bits.push('best ' + best);
+  if (caught) bits.push(caught + '/' + dexTotal + ' dinos caught');
+  ctx.fillText(bits.join('  ·  '), S / 2, 928);
+  // footer / call to action
+  ctx.fillStyle = '#39FF14'; ctx.font = '800 34px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('Track macros. Catch dinos.  macrosaurus.com', S / 2, 1004);
+  return cv;
+}
+async function shareStreak(payload, toast) {
+  const text = payload.streak > 0
+    ? payload.streak + '-day streak on Macrosaurus. Track macros, catch dinos: ' + SHARE_URL
+    : 'Tracking my macros (and catching dinos) on Macrosaurus: ' + SHARE_URL;
+  let blob = null;
+  try { const cv = renderStreakCard(payload); blob = await new Promise(r => cv.toBlob(r, 'image/png')); } catch (_) {}
+  const file = blob ? new File([blob], 'macrosaurus-streak.png', { type: 'image/png' }) : null;
+  try {
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: text });
+      window.MTRACK && MTRACK('share_streak', { method: 'file', streak: payload.streak }); return;
+    }
+    if (navigator.share) {
+      await navigator.share({ title: 'Macrosaurus', text: text, url: SHARE_URL });
+      window.MTRACK && MTRACK('share_streak', { method: 'text', streak: payload.streak }); return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; /* fall through to download */ }
+  // Desktop / no Web Share: save the image and copy the link.
+  try {
+    if (blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'macrosaurus-streak.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    try { await navigator.clipboard.writeText(SHARE_URL); } catch (_) {}
+    toast && toast(blob ? 'Streak image saved and link copied' : 'Link copied');
+    window.MTRACK && MTRACK('share_streak', { method: 'download', streak: payload.streak });
+  } catch (_) { toast && toast('Could not share right now'); }
+}
+
 const BIOMES = [
   { id: 'nursery', name: 'The Nursery', blurb: 'Where every log begins. Show up and something hatches.' },
   { id: 'protein', name: 'Protein Peaks', blurb: 'High, hard country. Only the well-fed climb it.' },
@@ -3071,7 +3150,7 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
 // buddy + streak + an evolution bar in the middle, and the two daily hooks (today's catch and the
 // fight) as buttons underneath. When the streak breaks the buddy naps and the strip becomes a
 // gentle "log to wake" nudge. The dex and fight open as the existing modals.
-function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenFight, onLog, onName }) {
+function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenFight, onLog, onName, onShare }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const disp = (profile && profile.form) ? profile.form : st;   // the buddy's species form (or a fallback)
   const pcr = todayCr && CR_BY_ID[todayCr.id];
@@ -3179,6 +3258,11 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
           <div className="text-[10px] inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="glove" color="#fff" size={12} /><span className="pf text-[8px]">BATTLE</span></div>
         </button>
       </div>
+      {(best >= 1 || caught >= 1) && onShare && (
+        <button onClick={() => onShare({ streak, best, caught, dexTotal, name, art: disp.art, colors: disp.colors })} className="w-full pixel-btn py-2.5 mt-2.5 inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface3)' }}>
+          <ShareIOSIcon size={14} /><span className="pf text-[8px] uppercase">Share my streak</span>
+        </button>
+      )}
       <button onClick={onOpenDex} className="w-full text-center pf text-[8px] uppercase text-[#8A8A90] mt-3">Macrodex · {caught}/{dexTotal} caught ›</button>
     </div>
   );
@@ -3562,7 +3646,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
-      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={bp} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} />
+      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={bp} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} onShare={(p) => shareStreak(p, showToast)} />
       {loggedTotal >= 1 && <GameTracksCard btState={btState} egg={egg} eggProg={eggProg} onOpenDex={() => setShowDex(true)} />}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
@@ -5522,8 +5606,9 @@ function FeedbackSheet({ email, onClose }) {
     </div>
   );
 }
-function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage }) {
+function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast }) {
   const [tab, setTab] = useState('details');
+  const [invite, setInvite] = useState(false);
   const daysLeft = (iso) => { if (!iso) return ''; const d = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000); return d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'ends soon'; };
   const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return ''; } };
   const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
@@ -5571,12 +5656,13 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
             <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent)' }}>Free plan</div>
             <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
+            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
             <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
           </div>
         )}
 
         {isAdmin && <MenuRow label="Admin panel" desc="Manage users, AI limits and support" tone="accent" onClick={onOpenAdmin} />}
+        <MenuRow label="Invite friends, get free AI logs" desc={'You and a friend each get 5 free AI logs and a rare dino' + (rewards && rewards.referrals_count ? ' · ' + rewards.referrals_count + ' joined so far' : '')} tone="accent" onClick={() => setInvite(true)} />
         <InstallMenuRow />
         <ChangePassword email={email} />
         <MenuRow label="Replay the intro tour" desc="How Macrosaurus adapts your plan, logging and check-ins" onClick={() => setGuide(true)} />
@@ -5613,6 +5699,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
       </div>}
       {guide && <WelcomeCarousel reviewing theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
       {feedback && <FeedbackSheet email={email} onClose={() => setFeedback(false)} />}
+      {invite && <InviteSheet rewards={rewards} onClose={() => setInvite(false)} toast={showToast} />}
     </div>
   );
 }
@@ -6098,6 +6185,53 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
 const SUPA_URL = 'https://wnbksotvcjqfslrttjxy.supabase.co';
 const SUPA_KEY = 'sb_publishable_IMKN6PzhKwUZQp8n1RlKaQ_t2_1iQXB';
 const supa = (typeof window !== 'undefined' && window.supabase) ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+
+/* ---------- Referrals ----------
+   A friend opens macrosaurus.com/?ref=CODE and signs up: the `referral` edge function credits BOTH
+   people a one-time pool of 5 free AI logs and a rare Macrodex creature. We stash the code at load
+   (before the launch-intent handler strips the query string), claim it once the user is signed in,
+   then drain any pending creature rewards into the local dex. All awards are server-authoritative. */
+let PENDING_REF = null;
+try {
+  const _rc = new URLSearchParams(window.location.search).get('ref');
+  if (_rc) { PENDING_REF = _rc.trim().slice(0, 32); try { localStorage.setItem('mac_ref', PENDING_REF); } catch (_) {} }
+  else { try { PENDING_REF = localStorage.getItem('mac_ref'); } catch (_) {} }
+} catch (_) {}
+function referralCall(action, extra) {
+  if (!supa) return Promise.resolve(null);
+  return supa.functions.invoke('referral', { body: Object.assign({ action: action }, extra || {}) })
+    .then(function (r) { return (r && r.data) || null; }, function () { return null; });
+}
+// The invite sheet: the user's share link plus a running tally of friends joined and bonus earned.
+function InviteSheet({ rewards, onClose, toast }) {
+  useBackClose(onClose);
+  const link = (rewards && rewards.link) || SHARE_URL;
+  const count = (rewards && rewards.referrals_count) || 0;
+  const bonus = (rewards && rewards.bonus_ai_remaining) || 0;
+  async function doShare() {
+    const text = 'Track your macros and catch dinos with me on Macrosaurus. Join with my link and we both get 5 free AI logs and a rare dino: ' + link;
+    try { if (navigator.share) { await navigator.share({ title: 'Macrosaurus', text: text, url: link }); window.MTRACK && MTRACK('referral_share', { method: 'native' }); return; } }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(link); toast && toast('Invite link copied'); window.MTRACK && MTRACK('referral_share', { method: 'copy' }); }
+    catch (_) { toast && toast('Could not copy link'); }
+  }
+  async function copy() { try { await navigator.clipboard.writeText(link); toast && toast('Invite link copied'); } catch (_) {} }
+  return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+    <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none" aria-label="Close">×</button></div>
+      <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Share your link. When a friend joins with it, you <b style={{ color: 'var(--text)' }}>both</b> get <b style={{ color: 'var(--text)' }}>5 free AI logs</b> and a <b style={{ color: 'var(--text)' }}>rare dino</b>.</div>
+      <div className="pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--surface3)' }}>
+        <div className="min-w-0 flex-1 text-[12px] tnum truncate">{link}</div>
+        <button onClick={copy} className="pixel-btn px-3 py-1.5 text-[10px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }}>COPY</button>
+      </div>
+      <button onClick={doShare} className="w-full pixel-btn py-3 text-[11px] pf inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><ShareIOSIcon size={14} /> SHARE INVITE</button>
+      <div className="flex gap-2 mt-4 text-center">
+        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum">{count}</div><div className="text-[10px] text-[#8A8A90]">friends joined</div></div>
+        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum" style={{ color: 'var(--accent)' }}>{bonus}</div><div className="text-[10px] text-[#8A8A90]">bonus AI logs left</div></div>
+      </div>
+    </div>
+  </div>);
+}
 let _saveTimer = null;
 function cloudSave(uid, data) {
   if (!supa || !uid) return;
@@ -7439,6 +7573,8 @@ function App() {
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
+  const [rewards, setRewards] = useState(null);   // { code, link, referrals_count, bonus_ai_remaining }
+  const rewardsSyncedRef = useRef(false);
   const isPremium = !!sub && (sub.status === 'active' || sub.status === 'trialing');
   function showToast(msg, actionLabel, onAction, action2Label, onAction2) {
     clearTimeout(toastTimer.current);
@@ -7511,6 +7647,34 @@ function App() {
     window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; setPaywall({ reason: reason }); window.MTRACK && MTRACK('paywall_view', { reason: reason }); };
     return function () { try { delete window.MPAYWALL; } catch (_) {} };
   }, []);
+  // Referrals: once signed in with data loaded, claim any pending ?ref code, fetch our own link and
+  // tally, and drain any creature rewards (ours, or ones a friend just earned us) into the dex. Runs
+  // once per session; server-authoritative so a replay can never double-award.
+  useEffect(() => {
+    if (!session || !supa || !db || rewardsSyncedRef.current) return;
+    rewardsSyncedRef.current = true;
+    let cancelled = false;
+    (async function () {
+      if (PENDING_REF) { await referralCall('claim', { code: PENDING_REF }); try { localStorage.removeItem('mac_ref'); } catch (_) {} PENDING_REF = null; }
+      const mine = await referralCall('mine');
+      if (!mine || cancelled) return;
+      setRewards({ code: mine.code, link: mine.link, referrals_count: mine.referrals_count, bonus_ai_remaining: mine.bonus_ai_remaining });
+      const pend = Array.isArray(mine.pending) ? mine.pending.filter(function (p) { return p && p.id && p.rid; }) : [];
+      if (!pend.length) return;
+      update(function (d) {
+        d.catch_log = d.catch_log || {}; const day = Store.todayISO(); const arr = d.catch_log[day] || [];
+        pend.forEach(function (p) { if (!arr.some(function (x) { return x.rid === p.rid; })) arr.push({ id: p.id, shiny: !!p.shiny, src: 'referral', rid: p.rid }); });
+        d.catch_log[day] = arr;
+      });
+      referralCall('ack', { ids: pend.map(function (p) { return p.rid; }) });
+      const cr = CR_BY_ID[pend[0].id];
+      showToast(pend.length === 1 && cr
+        ? 'Referral reward! ' + cr.name + ' joined your dex, plus 5 bonus AI logs.'
+        : pend.length + ' referral rewards added, plus bonus AI logs.');
+      window.MTRACK && MTRACK('referral_reward', { count: pend.length });
+    })();
+    return function () { cancelled = true; };
+  }, [session, !!db]);
   // Expose premium state globally so deep, non-billing components (e.g. the body-fat trend teaser)
   // can gate an upsell without threading the flag through every parent. Read at render time.
   useEffect(() => { window.MISPREMIUM = isPremium; }, [isPremium]);
@@ -7786,7 +7950,7 @@ function App() {
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
-      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} />}
+      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
