@@ -9337,7 +9337,7 @@ function MacrodexModal({
     className: "text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
-  }, "Log a day to catch a creature, the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore."), /*#__PURE__*/React.createElement("div", {
+  }, "Every logged day catches a creature. Tap one for its lore."), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-bar flex-1",
@@ -11425,7 +11425,7 @@ function Dashboard({
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: prettyDate(today),
-    title: "Dashboard"
+    title: "Today"
   }), /*#__PURE__*/React.createElement(OnboardingChecklist, {
     db: db,
     update: update,
@@ -16315,7 +16315,7 @@ function Goals({
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "What you're working towards",
-    title: "Goals"
+    title: "Progress"
   }), !db.paused && (() => {
     const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
     const ready = daysSince >= 5,
@@ -16329,17 +16329,17 @@ function Goals({
     }, /*#__PURE__*/React.createElement("div", {
       className: "pf text-[9px] uppercase text-[#8A8A90] mb-1"
     }, "Weekly check-in"), /*#__PURE__*/React.createElement("div", {
-      className: "text-[13px]"
-    }, due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`)), /*#__PURE__*/React.createElement(Btn, {
+      className: "text-[13px] font-bold"
+    }, due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90]"
+    }, "Reads your week and suggests a small tweak. Nothing changes until you approve it.")), /*#__PURE__*/React.createElement(Btn, {
       kind: ready ? 'accent' : 'ghost',
       disabled: !ready,
       style: {
         opacity: ready ? 1 : .5
       },
       onClick: onCheckIn
-    }, "Check in")), /*#__PURE__*/React.createElement("div", {
-      className: "text-[10px] text-[#8A8A90] mt-2 leading-relaxed"
-    }, "It reads your last week of weight and food, then suggests a small macro tweak to keep you on pace. Nothing changes until you approve it."));
+    }, "Check in")));
   })(), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-3"
   }, "Progress"), /*#__PURE__*/React.createElement(ProgressPanel, {
@@ -17287,7 +17287,7 @@ function ProfileTab({
     }
   }, "Edit details"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-2 leading-snug"
-  }, "Editing age, height or activity recalculates your targets and keeps your history. To also change your weight or rebuild from scratch, use full setup."), /*#__PURE__*/React.createElement(Btn, {
+  }, "Editing these recalculates your targets and keeps your history. To change your weight or rebuild, use full setup."), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
     onClick: onFreshStart
@@ -17686,8 +17686,8 @@ function More({
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement(PageHeader, {
-    kicker: "Your profile",
-    title: "Menu"
+    kicker: "Your profile & settings",
+    title: "You"
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl"
   }, [['details', 'Profile'], ['settings', 'Settings'], ['advanced', 'Advanced'], ['account', 'Account']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
@@ -19755,6 +19755,43 @@ function demoState() {
   [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => {
     s.steps[shiftISO(today, -(6 - i))] = v;
   });
+  const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort) => ({
+    id: Store.uid(),
+    user_id: Store.USER,
+    title,
+    source_platform: platform,
+    source_url: 'https://example.com/' + encodeURIComponent(title),
+    thumbnail: null,
+    servings: 2,
+    ingredients: [{
+      id: Store.uid(),
+      name: '1 portion',
+      quantity: 1,
+      unit: 'x',
+      grams: 100,
+      have: false
+    }],
+    steps: ['Prep the ingredients.', 'Cook and plate up.'],
+    macros_per_serving: {
+      kcal,
+      protein: p,
+      carbs: c,
+      fat: f,
+      fiber: fib
+    },
+    macros_confidence: 'high',
+    tags: {
+      meal,
+      cuisine: 'british',
+      main,
+      effort,
+      diet: p >= 30 ? ['high-protein'] : []
+    },
+    private: false,
+    created_at: Date.now(),
+    updated_at: Date.now()
+  });
+  s.recipes = [rcp('High-protein chicken pesto pasta', 'instagram', 540, 46, 58, 14, 6, 'dinner', 'chicken', 'quick'), rcp('Smash burger tacos', 'tiktok', 620, 38, 44, 30, 4, 'dinner', 'beef', 'standard'), rcp('Cottage cheese protein bagel', 'youtube', 310, 28, 40, 4, 5, 'breakfast', 'cheese', 'quick')];
   s.buddy = {
     stage: 3,
     name: 'Chompers',
@@ -22146,7 +22183,11 @@ function ChefCard({
   }, shared), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase text-[#8A8A90] mt-1"
   }, "shared", cooked ? ' · ' + cooked + ' cooked' : ''))), bt.next != null ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "pixel-bar mb-1.5"
+    className: "pixel-bar mb-1.5",
+    style: {
+      height: 8,
+      borderWidth: 2
+    }
   }, /*#__PURE__*/React.createElement("i", {
     style: {
       width: Math.round((bt.progress || 0) * 100) + '%',
@@ -22158,9 +22199,9 @@ function ChefCard({
     style: {
       color: 'var(--text)'
     }
-  }, nextName), ". Every recipe you import joins the shared library, credited to the original creator, and helps everyone cook. Keep any recipe private anytime.")) : /*#__PURE__*/React.createElement("div", {
+  }, nextName), ". Every import joins the shared cookbook, always credited to its creator.")) : /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] leading-snug"
-  }, "You've given ", shared, " recipes to the community", cooked ? ', cooked ' + cooked : '', ". Legend. Every import still helps everyone cook."));
+  }, shared, " recipes shared. You're keeping the whole cookbook stocked."));
 }
 // Format the original creator's credit: Instagram handles get an @, YouTube channels shown as-is.
 function creditName(pub) {

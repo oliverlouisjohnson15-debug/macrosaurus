@@ -2749,7 +2749,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
           </div>;
         })() : (<>
           <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Macrodex</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
-          <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Log a day to catch a creature, the macros you hit decide which one, a perfect day can turn it shiny, and re-catching evolves it. Tap any creature for its lore.</div>
+          <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
           <div className="flex items-center gap-2 mb-3">
             <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
             <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
@@ -3582,7 +3582,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
-      <PageHeader kicker={prettyDate(today)} title="Dashboard" />
+      <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       <InstallCard />
 
@@ -5203,7 +5203,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
   function pause() { update(d => { d.paused = true; }); showToast && showToast('Goal paused'); }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <PageHeader kicker="What you're working towards" title="Goals" />
+      <PageHeader kicker="What you're working towards" title="Progress" />
 
       {!db.paused && (() => {
         const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
@@ -5212,11 +5212,11 @@ function Goals({ db, update, showToast, onCheckIn }) {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Weekly check-in</div>
-              <div className="text-[13px]">{due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
+              <div className="text-[13px] font-bold">{due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
+              <div className="text-[10px] text-[#8A8A90]">Reads your week and suggests a small tweak. Nothing changes until you approve it.</div>
             </div>
             <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} style={{ opacity: ready ? 1 : .5 }} onClick={onCheckIn}>Check in</Btn>
           </div>
-          <div className="text-[10px] text-[#8A8A90] mt-2 leading-relaxed">It reads your last week of weight and food, then suggests a small macro tweak to keep you on pace. Nothing changes until you approve it.</div>
         </Card>;
       })()}
 
@@ -5510,7 +5510,7 @@ function ProfileTab({ db, update, onFreshStart }) {
     </Card>
     {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good)' }}>Saved. Targets recalculated.</div>}
     <Btn kind="accent" className="w-full mb-3" onClick={() => { setF(init()); setEdit(true); }}>Edit details</Btn>
-    <div className="text-[12px] text-[#8A8A90] mb-2 leading-snug">Editing age, height or activity recalculates your targets and keeps your history. To also change your weight or rebuild from scratch, use full setup.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-2 leading-snug">Editing these recalculates your targets and keeps your history. To change your weight or rebuild, use full setup.</div>
     <Btn kind="ghost" className="w-full" onClick={onFreshStart}>Full setup &amp; recalculate</Btn>
   </>);
 }
@@ -5661,7 +5661,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
   }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <PageHeader kicker="Your profile" title="Menu" />
+      <PageHeader kicker="Your profile & settings" title="You" />
       <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl">{[['details', 'Profile'], ['settings', 'Settings'], ['advanced', 'Advanced'], ['account', 'Account']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
       {tab === 'details' && <ProfileTab db={db} update={update} onFreshStart={onFreshStart} />}
@@ -6317,6 +6317,18 @@ function demoState() {
     .map(([ago, w]) => ({ id: Store.uid(), date: shiftISO(today, -ago), scale_weight: w }));
   s.last_checkin = shiftISO(today, -6);
   s.steps = {}; [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => { s.steps[shiftISO(today, -(6 - i))] = v; });
+  const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort) => ({
+    id: Store.uid(), user_id: Store.USER, title, source_platform: platform, source_url: 'https://example.com/' + encodeURIComponent(title),
+    thumbnail: null, servings: 2, ingredients: [{ id: Store.uid(), name: '1 portion', quantity: 1, unit: 'x', grams: 100, have: false }],
+    steps: ['Prep the ingredients.', 'Cook and plate up.'], macros_per_serving: { kcal, protein: p, carbs: c, fat: f, fiber: fib },
+    macros_confidence: 'high', tags: { meal, cuisine: 'british', main, effort, diet: p >= 30 ? ['high-protein'] : [] },
+    private: false, created_at: Date.now(), updated_at: Date.now(),
+  });
+  s.recipes = [
+    rcp('High-protein chicken pesto pasta', 'instagram', 540, 46, 58, 14, 6, 'dinner', 'chicken', 'quick'),
+    rcp('Smash burger tacos', 'tiktok', 620, 38, 44, 30, 4, 'dinner', 'beef', 'standard'),
+    rcp('Cottage cheese protein bagel', 'youtube', 310, 28, 40, 4, 5, 'breakfast', 'cheese', 'quick'),
+  ];
   s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null };
   s.game_salt = 'demo-salt';
   s.onboarding = { welcomed: true, sawDex: true, dismissed: true };
@@ -7138,9 +7150,9 @@ function ChefCard({ db }) {
         <div className="text-right shrink-0 pl-3"><div className="text-lg font-bold tnum leading-none" style={{ color: 'var(--accent)' }}>{shared}</div><div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">shared{cooked ? ' · ' + cooked + ' cooked' : ''}</div></div>
       </div>
       {bt.next != null ? <>
-        <div className="pixel-bar mb-1.5"><i style={{ width: Math.round((bt.progress || 0) * 100) + '%', background: 'var(--accent)' }} /></div>
-        <div className="text-[10px] text-[#8A8A90] leading-snug">{toGo} more to <b style={{ color: 'var(--text)' }}>{nextName}</b>. Every recipe you import joins the shared library, credited to the original creator, and helps everyone cook. Keep any recipe private anytime.</div>
-      </> : <div className="text-[10px] text-[#8A8A90] leading-snug">You've given {shared} recipes to the community{cooked ? ', cooked ' + cooked : ''}. Legend. Every import still helps everyone cook.</div>}
+        <div className="pixel-bar mb-1.5" style={{ height: 8, borderWidth: 2 }}><i style={{ width: Math.round((bt.progress || 0) * 100) + '%', background: 'var(--accent)' }} /></div>
+        <div className="text-[10px] text-[#8A8A90] leading-snug">{toGo} more to <b style={{ color: 'var(--text)' }}>{nextName}</b>. Every import joins the shared cookbook, always credited to its creator.</div>
+      </> : <div className="text-[10px] text-[#8A8A90] leading-snug">{shared} recipes shared. You're keeping the whole cookbook stocked.</div>}
     </div>
   );
 }
