@@ -253,7 +253,10 @@ const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1
 // now syncs into Google Health. See the google-health-proxy edge function.
 const GH_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/google-health-proxy';
 const GOOGLE_CLIENT_ID = '779915009623-ahbl494cs1psoeilmph4n8ij24goi9jh.apps.googleusercontent.com';
-const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly';
+const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly https://www.googleapis.com/auth/googlehealth.sleep.readonly';
+// Minimum gap between Google Health syncs. We re-sync on app open and whenever the app returns to the
+// foreground (throttled to this), so steps/sleep stay fresh through the day without hammering the API.
+const GH_SYNC_GAP_MS = 10 * 60 * 1000;
 function fileToDataURL(file) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); }); }
 // Downscale + re-encode to JPEG so requests stay small and reliable across devices.
 async function imageToB64(file, max) {
@@ -347,6 +350,24 @@ function mergeStepsInto(d, steps) {
   d.steps = d.steps || {};
   let n = 0;
   for (const k in steps) { const v = +steps[k]; if (isFinite(v) && v > 0) { d.steps[k] = Math.round(v); n++; } }
+  return n;
+}
+// Merge a { date: { min, deep?, rem?, light?, awake? } } map (keyed by wake date) from Google Health
+// into d.sleep, scoring each night against the user's target so the morning-catch effect can read it.
+function mergeSleepInto(d, sleep) {
+  if (!sleep) return 0;
+  d.sleep = d.sleep || {};
+  const target = (d.profile && d.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
+  let n = 0;
+  for (const k in sleep) {
+    const s = sleep[k]; const min = s && +s.min;
+    if (!isFinite(min) || min <= 0) continue;
+    const stages = (s.deep != null || s.rem != null || s.light != null || s.awake != null)
+      ? { deep: +s.deep || 0, rem: +s.rem || 0, light: +s.light || 0, awake: +s.awake || 0 } : null;
+    const rec = { min: Math.round(min), score: Game.sleepScore(min, target, stages) };
+    if (stages) Object.assign(rec, stages);
+    d.sleep[k] = rec; n++;
+  }
   return n;
 }
 
@@ -2459,7 +2480,8 @@ function isQualityDay(db, date) { const q = dayQuality(db, date); return !!(q &&
 // Quality days strictly after `afterISO` up to and including `throughISO` (an egg's "distance").
 function qualityDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
 // Your daily step goal: the step count assumed by your activity band (same target as the home tile).
-function stepGoalFor(db) { return withActivity(db.profile).avgSteps || 0; }
+// Daily step goal: a user-set target (profile.stepGoal) wins; otherwise fall back to the activity band.
+function stepGoalFor(db) { const g = db.profile && +db.profile.stepGoal; return (g > 0 ? Math.round(g) : 0) || withActivity(db.profile).avgSteps || 0; }
 // A step-goal day: you hit or beat that goal. Days with no step reading never qualify, so this is
 // entirely opt-in and changes nothing until you actually track steps (manually or via Google Health).
 function isStepGoalDay(db, date) { const g = stepGoalFor(db); return g > 0 && (+((db.steps || {})[date]) || 0) >= g; }
@@ -2698,6 +2720,32 @@ function DexActiveSection({ db, today }) {
           </div>
         </div>
       </div>}
+      {(() => {
+        // Sleep styles: a Pokemon Sleep style style-dex. A creature caught from a night's sleep carries
+        // one of three styles; collect all three of each. Counts come from the style tags on catches.
+        const collected = {};
+        Object.keys(db.catch_log || {}).forEach(dt => (db.catch_log[dt] || []).forEach(c => { if (c && c.style) collected[c.style] = (collected[c.style] || 0) + 1; }));
+        const sdex = db.sleepDex || {};
+        const just = sdex.lastDate === today && sdex.lastId; const jcr = just && CR_BY_ID[sdex.lastId];
+        return (
+          <div className={panel + ' mt-2'} style={pStyle}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="pf text-[7px] uppercase text-[#8A8A90]">Sleep styles</span>
+              <span className="pf text-[7px] uppercase tnum" style={{ color: Object.keys(collected).length ? 'var(--accent)' : 'var(--muted)' }}>{Object.keys(collected).length}/{Game.SLEEP_STYLES.length}</span>
+            </div>
+            <div className="flex gap-1.5">
+              {Game.SLEEP_STYLES.map(st => {
+                const on = collected[st] > 0;
+                return <div key={st} className="pixel-box flex-1 text-center px-1 py-1" style={{ background: 'var(--surface2)', boxShadow: 'none', borderWidth: 2, borderColor: on ? 'var(--accent)' : 'var(--border)', opacity: on ? 1 : 0.5 }}>
+                  <div className="pf text-[7px] uppercase" style={{ color: on ? 'var(--accent)' : 'var(--muted)' }}>{st}</div>
+                  <div className="text-[9px] tnum" style={{ color: on ? 'var(--text)' : 'var(--muted)' }}>{on ? '×' + collected[st] : '–'}</div>
+                </div>;
+              })}
+            </div>
+            <div className="text-[9px] text-[#8A8A90] mt-1.5 leading-snug">{just && jcr ? <span><span style={{ color: 'var(--good)' }}>Slept well!</span> A {sdex.lastStyle} <b>{jcr.name}{sdex.lastShiny ? ' ✦' : ''}</b> joined your dex.</span> : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'}</div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -3164,7 +3212,7 @@ function StepsCard({ db, update }) {
   const today = Store.todayISO();
   const steps = db.steps || {};
   const todaySteps = +steps[today] || 0;
-  const baseline = withActivity(db.profile).avgSteps || 0;
+  const baseline = stepGoalFor(db);
   const last7 = Array.from({ length: 7 }, (_, i) => shiftISO(today, -i));
   const wk = last7.map(d => +steps[d]).filter(v => v > 0);
   const avg7 = wk.length ? Math.round(wk.reduce((a, b) => a + b, 0) / wk.length) : null;
@@ -3205,6 +3253,67 @@ function StepsCard({ db, update }) {
           </div>
           <div className="shrink-0 flex flex-col items-end gap-0.5">
             <button onClick={() => { setVal(todaySteps || ''); setEditing(true); }} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>{todaySteps ? 'Edit' : 'Log'} ›</button>
+            {db.googleHealth && db.googleHealth.connected
+              ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ synced</span>
+              : ghConfigured()
+                ? <button onClick={ghConnect} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect</button>
+                : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>soon</span>}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Sleep tile (a Pokemon Sleep style morning read): shows last night's synced sleep, a score ring
+// against your target, and the creature that last night's sleep drew into your dex. Sleep comes from
+// Google Health only (no manual entry); the one editable thing here is your nightly target.
+function SleepCard({ db, update }) {
+  const sleep = db.sleep || {};
+  const dates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
+  const lastDate = dates.length ? dates[dates.length - 1] : null;
+  const rec = lastDate ? sleep[lastDate] : null;
+  const targetMin = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
+  const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
+    ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
+  const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : 0; // live so a target edit moves the ring
+  const hrs = rec ? Math.floor(rec.min / 60) : 0, mins = rec ? rec.min % 60 : 0;
+  const sdex = db.sleepDex || {};
+  const caughtLast = !!lastDate && sdex.lastDate === lastDate;
+  const crName = caughtLast && CR_BY_ID[sdex.lastId] ? CR_BY_ID[sdex.lastId].name : null;
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState('');
+  function save() {
+    const h = Math.max(0, +val || 0);
+    update(d => { d.profile = d.profile || {}; if (h > 0) d.profile.sleepTargetMin = Math.round(h * 60); else delete d.profile.sleepTargetMin; });
+    setEditing(false);
+  }
+  const R = 16, C = 2 * Math.PI * R, pct = Math.min(100, score);
+  const targetH = targetMin / 60, targetHLabel = Number.isInteger(targetH) ? String(targetH) : targetH.toFixed(1);
+  return (
+    <Card className="p-3.5 mb-4">
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="Target hours, e.g. 8" autoFocus /></div>
+          <Btn kind="accent" className="text-sm" onClick={save}>Save</Btn>
+          <button onClick={() => setEditing(false)} className="text-[#8A8A90] text-sm px-1">Cancel</button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0" aria-hidden="true">
+            <circle cx="20" cy="20" r={R} fill="none" stroke="var(--track)" strokeWidth="4" />
+            {rec && <circle cx="20" cy="20" r={R} fill="none" stroke="var(--accent)" strokeWidth="4" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} transform="rotate(-90 20 20)" style={{ transition: 'stroke-dashoffset .4s' }} />}
+          </svg>
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="pf text-[9px] uppercase text-[#8A8A90] truncate">Sleep{rec ? ' · ' + score + ' score' : ''}</div>
+            <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+              <span className="text-base font-bold tnum">{rec ? hrs + 'h ' + (mins ? mins + 'm' : '') : 'No sleep yet'}</span>
+              <span className="text-[10px] text-[#8A8A90] tnum">/ {targetHLabel}h target</span>
+            </div>
+            {crName && <div className="text-[10px] truncate" style={{ color: 'var(--accent)' }}>{sdex.lastStyle} {sdex.lastShiny ? 'shiny ' : ''}{crName} joined your dex</div>}
+          </div>
+          <div className="shrink-0 flex flex-col items-end gap-0.5">
+            <button onClick={() => { setVal(targetH || ''); setEditing(true); }} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Target ›</button>
             {db.googleHealth && db.googleHealth.connected
               ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ synced</span>
               : ghConfigured()
@@ -3542,6 +3651,40 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     const cr = CR_BY_ID[c.id];
     if (showToast && cr) showToast('Your ' + egg.tier + '-day egg hatched! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.');
   }, [!!egg, eggProg ? eggProg.steps : -1, eggProg ? eggProg.ready : false]);
+  // Sleep morning catch (a Pokemon Sleep style encounter): last night's sleep score powers a single
+  // catch whose rarity climbs with how well you slept, and it carries a "sleep style" for the style
+  // dex. Only the newest night awards; any older un-awarded nights are silently baselined so a first
+  // sync (or a few missed days) never dumps a backlog of catches.
+  const sleepDates = Object.keys(db.sleep || {}).filter(dt => ((db.sleep[dt] || {}).min > 0)).sort();
+  const latestSleep = sleepDates.length ? sleepDates[sleepDates.length - 1] : null;
+  const sleepClaimed = (db.sleepDex && db.sleepDex.claimed) || {};
+  const sleepPending = latestSleep && !sleepClaimed[latestSleep] ? latestSleep : null;
+  useEffect(() => {
+    if (!db || !latestSleep) return;
+    const claimed = (db.sleepDex && db.sleepDex.claimed) || {};
+    const older = sleepDates.slice(0, -1).filter(dt => !claimed[dt]);
+    const need = !claimed[latestSleep];
+    if (!older.length && !need) return;
+    const rec = db.sleep[latestSleep] || {};
+    const stages = (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
+      ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
+    const band = Game.sleepBand(rec.score);
+    const c = Game.sleepCatch(db.game_salt || '', latestSleep, band);
+    const style = Game.sleepStyleFor(rec.score, stages);
+    update(d => {
+      d.sleepDex = d.sleepDex || { claimed: {} };
+      d.sleepDex.claimed = d.sleepDex.claimed || {};
+      older.forEach(dt => { d.sleepDex.claimed[dt] = true; });
+      if (need && !d.sleepDex.claimed[latestSleep]) {
+        d.sleepDex.claimed[latestSleep] = true;
+        d.sleepDex.lastDate = latestSleep; d.sleepDex.lastId = c.id; d.sleepDex.lastShiny = !!c.shiny; d.sleepDex.lastStyle = style;
+        d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
+        if (!arr.some(x => x.sleep === latestSleep)) arr.push({ id: c.id, shiny: !!c.shiny, sleep: latestSleep, style: style });
+        d.catch_log[today] = arr;
+      }
+    });
+    if (need && showToast) { const cr = CR_BY_ID[c.id]; if (cr) showToast('You slept well. A ' + style + ' ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.'); }
+  }, [latestSleep, sleepPending]);
   // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
   // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
   const todayCr = creatureForDay(db, today);
@@ -3655,6 +3798,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Daily steps: today's count vs your activity-band goal, manual entry until Google Health sync lands */}
       <StepsCard db={db} update={update} />
+
+      {/* Last night's sleep: score ring vs target, plus the creature it drew into your dex (Google Health sync) */}
+      <SleepCard db={db} update={update} />
 
       {/* Play: the game lives behind the dino now. One compact entry into the full hub, so the
           dashboard stays about today's food and progress. Fight + naming stay reachable here. */}
@@ -5297,7 +5443,7 @@ const COACH_MODES = [
 
 function SettingsTab({ db, update }) {
   const p = db.profile;
-  const init = () => ({ checkinDay: p.checkinDay == null ? 1 : p.checkinDay, weight_unit: p.weight_unit, height_unit: p.height_unit, aiKey: p.aiKey || '', reminders: p.reminders !== false, nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour, theme: p.theme || 'light' });
+  const init = () => ({ checkinDay: p.checkinDay == null ? 1 : p.checkinDay, weight_unit: p.weight_unit, height_unit: p.height_unit, aiKey: p.aiKey || '', reminders: p.reminders !== false, nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour, theme: p.theme || 'light', stepGoal: p.stepGoal || '', sleepTargetHours: p.sleepTargetMin ? +(p.sleepTargetMin / 60).toFixed(2).replace(/\.00$/, '') : '' });
   const [s, setS] = useState(init);
   const sset = (k, v) => setS(x => Object.assign({}, x, { [k]: v }));
   const [saved, setSaved] = useState(false);
@@ -5311,6 +5457,10 @@ function SettingsTab({ db, update }) {
   function save() {
     update(d => {
       Object.assign(d.profile, s);
+      // Normalise the two Google Health targets: blank means "use the automatic default".
+      const sg = Math.round(+s.stepGoal) || 0; if (sg > 0) d.profile.stepGoal = sg; else delete d.profile.stepGoal;
+      const sh = +s.sleepTargetHours || 0; if (sh > 0) d.profile.sleepTargetMin = Math.round(sh * 60); else delete d.profile.sleepTargetMin;
+      delete d.profile.sleepTargetHours; // staging-only field, never persisted
       d.meal_templates = dm.map((m, i) => { const ex = d.meal_templates.find(x => x.id === m.id); return Object.assign({}, ex || { id: m.id, user_id: Store.USER }, { name: (m.name || '').trim() || 'Meal', sort_order: i }); });
     });
     setSaved(true); setTimeout(() => setSaved(false), 1800);
@@ -5328,7 +5478,7 @@ function SettingsTab({ db, update }) {
       <Field label="Height units"><Seg value={s.height_unit} onChange={v => sset('height_unit', v)} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
     </Section>
     <Section title="Connected apps">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Auto-sync your daily steps from Google Health (Fitbit included). Read-only, and they feed your dashboard, coaching and egg.</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3">Auto-sync your daily steps and sleep from Google Health (Fitbit included). Read-only. Steps feed your dashboard, coaching and egg; a good night's sleep draws a creature into your dex each morning.</div>
       {(() => {
         const gh = db.googleHealth;
         if (!ghConfigured()) return <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>;
@@ -5340,6 +5490,15 @@ function SettingsTab({ db, update }) {
         );
         return <Btn kind="accent" className="w-full" onClick={ghConnect}>Connect Google Health</Btn>;
       })()}
+    </Section>
+    <Section title="Daily targets">
+      <div className="text-[12px] text-[#8A8A90] mb-3">Set your own daily step goal and nightly sleep target. Leave blank to use the automatic default (steps from your activity level, sleep at 8 hours).</div>
+      <Field label="Step goal" hint={'Blank uses your activity level (' + (withActivity(p).avgSteps || 0).toLocaleString('en-GB') + '/day).'}>
+        <NumInput value={s.stepGoal} onChange={e => sset('stepGoal', e.target.value)} placeholder={String(withActivity(p).avgSteps || 8000)} />
+      </Field>
+      <Field label="Sleep target (hours)" hint="Blank uses 8 hours. Your sleep score is measured against this.">
+        <NumInput value={s.sleepTargetHours} onChange={e => sset('sleepTargetHours', e.target.value)} placeholder="8" />
+      </Field>
     </Section>
     <Section title="Meals">
       <div className="text-[12px] text-[#8A8A90] mb-3">Your default meals for each new day. Set the standard layout here, you can still add, remove or reorder meals on any individual day in the Food log without changing this default.</div>
@@ -6317,6 +6476,18 @@ function demoState() {
     .map(([ago, w]) => ({ id: Store.uid(), date: shiftISO(today, -ago), scale_weight: w }));
   s.last_checkin = shiftISO(today, -6);
   s.steps = {}; [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => { s.steps[shiftISO(today, -(6 - i))] = v; });
+  // A week of synced sleep (keyed by wake date) with a couple of stage-detailed nights, so the sleep
+  // tile and the morning Macrodex catch have something to show in the demo.
+  s.sleep = {};
+  const sleepNights = [[462, null], [405, null], [498, { deep: 118, rem: 96, light: 260, awake: 24 }], [372, null], [510, { deep: 132, rem: 108, light: 246, awake: 24 }], [447, null], [489, { deep: 110, rem: 92, light: 262, awake: 25 }]];
+  sleepNights.forEach(([min, st], i) => { const d = shiftISO(today, -(6 - i)); s.sleep[d] = Object.assign({ min, score: Game.sleepScore(min, 480, st) }, st || {}); });
+  // Last night's morning catch, already awarded, so the demo shows the sleep loop populated. Every
+  // prior night is marked claimed too, matching how the live effect baselines older nights.
+  s.game_salt = 'demo-salt';
+  const lastNight = shiftISO(today, 0); const lnRec = s.sleep[lastNight]; const lnStages = { deep: lnRec.deep, rem: lnRec.rem, light: lnRec.light, awake: lnRec.awake };
+  const lnCatch = Game.sleepCatch(s.game_salt, lastNight, Game.sleepBand(lnRec.score)); const lnStyle = Game.sleepStyleFor(lnRec.score, lnStages);
+  s.sleepDex = { claimed: Object.fromEntries(Object.keys(s.sleep).map(d => [d, true])), lastDate: lastNight, lastId: lnCatch.id, lastShiny: lnCatch.shiny, lastStyle: lnStyle };
+  s.catch_log = s.catch_log || {}; s.catch_log[today] = (s.catch_log[today] || []).concat([{ id: lnCatch.id, shiny: lnCatch.shiny, sleep: lastNight, style: lnStyle }]);
   const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort) => ({
     id: Store.uid(), user_id: Store.USER, title, source_platform: platform, source_url: 'https://example.com/' + encodeURIComponent(title),
     thumbnail: null, servings: 2, ingredients: [{ id: Store.uid(), name: '1 portion', quantity: 1, unit: 'x', grams: 100, have: false }],
@@ -7895,8 +8066,8 @@ function App() {
     try { window.history.replaceState(null, '', window.location.pathname); } catch (e) {}
   }, [db]);
 
-  // Google Health: finish the OAuth callback (swap the code for step counts) then keep steps fresh
-  // with a quiet once-a-day sync. All token handling lives server-side in google-health-proxy.
+  // Google Health: finish the OAuth callback (swap the code for step/sleep data), then a first sync.
+  // Ongoing freshness is handled by the foreground/interval effect below. Tokens stay server-side.
   useEffect(() => {
     if (!db || !db.profile || !session || ghHandled.current) return;
     if (!ghConfigured()) { ghHandled.current = true; return; }
@@ -7912,25 +8083,50 @@ function App() {
       (async () => {
         try {
           const r = await ghPost('exchange', { code, code_verifier: verifier, redirect_uri: ghRedirectUri() });
-          update(d => { d.googleHealth = { connected: true, lastSync: r.last_sync || new Date().toISOString() }; mergeStepsInto(d, r.steps); });
-          showToast('Google Health connected. Your steps sync automatically now.');
+          update(d => { d.googleHealth = { connected: true, lastSync: r.last_sync || new Date().toISOString() }; mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); });
+          showToast('Google Health connected. Your steps and sleep sync automatically now.');
         } catch (e) { showToast('Could not connect Google Health: ' + e.message); }
       })();
       return;
     }
     const gh = db.googleHealth;
     if (gh && gh.connected) {
-      const syncedToday = gh.lastSync && String(gh.lastSync).slice(0, 10) === Store.todayISO();
-      if (!syncedToday) (async () => {
+      const last = gh.lastSync ? Date.parse(gh.lastSync) : 0;
+      if (Date.now() - last >= GH_SYNC_GAP_MS) (async () => {
         try {
           const r = await ghPost('sync', {});
-          update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); });
+          update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); });
         } catch (e) {
           if (e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
         }
       })();
     }
   }, [db, session]);
+
+  // Keep Google Health fresh through the day: re-sync when the app returns to the foreground and on a
+  // slow interval, throttled to GH_SYNC_GAP_MS so we never poll harder than roughly four times an hour.
+  useEffect(() => {
+    if (!session || !ghConfigured()) return;
+    let syncing = false;
+    async function ghRefresh() {
+      const gh = dbRef.current && dbRef.current.googleHealth;
+      if (!gh || !gh.connected || syncing) return;
+      const last = gh.lastSync ? Date.parse(gh.lastSync) : 0;
+      if (Date.now() - last < GH_SYNC_GAP_MS) return; // throttle
+      syncing = true;
+      try {
+        const r = await ghPost('sync', {});
+        update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); });
+      } catch (e) {
+        if (e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
+      } finally { syncing = false; }
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') ghRefresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', ghRefresh);
+    const iv = setInterval(ghRefresh, GH_SYNC_GAP_MS);
+    return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', ghRefresh); clearInterval(iv); };
+  }, [session]);
 
   function update(m) { setDb(prev => { const n = JSON.parse(JSON.stringify(prev)); m(n); n._rev = Date.now(); if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n; }); }
   function saveProfile(profile, isNew) {

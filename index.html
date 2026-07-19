@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1{margin-top:.25rem;margin-bottom:.25rem}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-2xl,.shadow-xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1{margin-top:.25rem;margin-bottom:.25rem}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-2xl,.shadow-xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -1410,6 +1410,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
       menstrual: { enabled: false, lastStart: null, cycleLen: 28 }, // optional cycle tracking so premenstrual water weight doesn't trigger a wrong calorie cut
       steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
+      sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + morning Macrodex catch.
+      sleepDex: { claimed: {}, lastDate: null, lastId: null, lastShiny: false, lastStyle: null }, // Pokemon Sleep style morning-catch: which wake dates already awarded a catch + last night's reveal
       googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
       goals: null,
     };
@@ -1489,6 +1491,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});
     out.game_awards   = Object.assign({}, older.game_awards || {},   newer.game_awards || {});
     out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
+    out.sleep         = Object.assign({}, older.sleep || {},         newer.sleep || {}); // newer wins per wake date
+    // sleepDex: union the claimed wake dates, keep the later night's reveal fields
+    var so = older.sleepDex || {}, sn = newer.sleepDex || {};
+    var later = (sn.lastDate || '') >= (so.lastDate || '') ? sn : so;
+    out.sleepDex = Object.assign({}, later, { claimed: Object.assign({}, so.claimed || {}, sn.claimed || {}) });
     // catch_log: union dates, and union the creatures caught on each shared date
     var cl = {};
     [older.catch_log || {}, newer.catch_log || {}].forEach(function (src) {
@@ -1813,6 +1820,54 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'eggshiny#' + tier + '#' + n) % shinyMod === 0, tier: tier };
   }
 
+  // Sleep (a Pokemon Sleep style morning encounter): a night's sleep earns a SCORE, and the score
+  // powers a morning catch whose rarity climbs with how well you slept. It rewards recovery, a third
+  // signal alongside showing up (breakthrough) and eating well (eggs). Each catch also carries a
+  // "sleep style" collected into a small style dex. All deterministic per user + wake date.
+  var SLEEP_TARGET_DEFAULT = 480; // 8h in minutes; per-user override in profile.sleepTargetMin
+  var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
+  // Score 0..100 from duration against the user's target, nudged by a healthy deep+REM share when
+  // the device reports stages. Pure: no clock, no randomness. `stages` = { deep, rem, light, awake } mins.
+  function sleepScore(durationMin, targetMin, stages) {
+    var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
+    if (dur <= 0 || tgt <= 0) return 0;
+    var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
+    var total = stages ? (Number(stages.deep) || 0) + (Number(stages.rem) || 0) + (Number(stages.light) || 0) + (Number(stages.awake) || 0) : 0;
+    if (total > 0) {
+      var deepRem = ((Number(stages.deep) || 0) + (Number(stages.rem) || 0)) / total; // ideal ~0.45
+      var qFactor = 1 - Math.min(Math.abs(deepRem - 0.45) / 0.45, 1); // 1 = ideal share, 0 = far off
+      return Math.max(0, Math.min(100, Math.round(ratio * (85 + 15 * qFactor))));
+    }
+    return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  }
+  // Score -> rarity band. Every night above the floor still catches something (Pokemon Sleep always
+  // gives an encounter); better sleep just reaches rarer pools.
+  function sleepBand(score) { var s = Number(score) || 0; return s < 50 ? 'poor' : s < 75 ? 'ok' : s < 90 ? 'good' : 'great'; }
+  // Which sleep style a night reads as: from the deep+REM share when stages exist, else the score.
+  function sleepStyleFor(score, stages) {
+    var total = stages ? (Number(stages.deep) || 0) + (Number(stages.rem) || 0) + (Number(stages.light) || 0) + (Number(stages.awake) || 0) : 0;
+    if (total > 0) {
+      var frac = ((Number(stages.deep) || 0) + (Number(stages.rem) || 0)) / total;
+      return frac < 0.25 ? 'Dozing' : frac < 0.45 ? 'Snoozing' : 'Slumbering';
+    }
+    var s = Number(score) || 0; return s < 60 ? 'Dozing' : s < 85 ? 'Snoozing' : 'Slumbering';
+  }
+  // Rarity-banded morning pools (reuse existing creature ids), rarer as sleep improves.
+  var SLEEP_POOL = {
+    poor: ['dinky', 'pebble', 'sprowl', 'carbo'],
+    ok: ['protops', 'fatzilla', 'noodon', 'buttron'],
+    good: ['frondo', 'flexor', 'noodon', 'buttron'],
+    great: ['veloci', 'platealon', 'triceros', 'flexor'],
+  };
+  var SLEEP_SHINY_MOD = { poor: 14, ok: 11, good: 8, great: 5 }; // better sleep shines more often
+  function sleepCatch(salt, date, band) {
+    var b = SLEEP_POOL[band] ? band : 'poor';
+    var pool = SLEEP_POOL[b].slice();
+    var h = seedFor(salt, 'sleep#' + date);
+    if (b === 'great' && h % 7 === 0) pool.push('rexosaur'); // a great night can rouse a legendary
+    return { id: pool[h % pool.length], shiny: seedFor(salt, 'sleepshiny#' + date) % (SLEEP_SHINY_MOD[b] || 14) === 0 };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -1862,6 +1917,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     eggProgress: eggProgress,
     nextEggTier: nextEggTier,
     eggHatch: eggHatch,
+    SLEEP_TARGET_DEFAULT: SLEEP_TARGET_DEFAULT,
+    SLEEP_STYLES: SLEEP_STYLES,
+    SLEEP_POOL: SLEEP_POOL,
+    sleepScore: sleepScore,
+    sleepBand: sleepBand,
+    sleepStyleFor: sleepStyleFor,
+    sleepCatch: sleepCatch,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
@@ -2954,7 +3016,10 @@ const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1
 // now syncs into Google Health. See the google-health-proxy edge function.
 const GH_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/google-health-proxy';
 const GOOGLE_CLIENT_ID = '779915009623-ahbl494cs1psoeilmph4n8ij24goi9jh.apps.googleusercontent.com';
-const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly';
+const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly https://www.googleapis.com/auth/googlehealth.sleep.readonly';
+// Minimum gap between Google Health syncs. We re-sync on app open and whenever the app returns to the
+// foreground (throttled to this), so steps/sleep stay fresh through the day without hammering the API.
+const GH_SYNC_GAP_MS = 10 * 60 * 1000;
 function fileToDataURL(file) {
   return new Promise(res => {
     const r = new FileReader();
@@ -3108,6 +3173,33 @@ function mergeStepsInto(d, steps) {
       d.steps[k] = Math.round(v);
       n++;
     }
+  }
+  return n;
+}
+// Merge a { date: { min, deep?, rem?, light?, awake? } } map (keyed by wake date) from Google Health
+// into d.sleep, scoring each night against the user's target so the morning-catch effect can read it.
+function mergeSleepInto(d, sleep) {
+  if (!sleep) return 0;
+  d.sleep = d.sleep || {};
+  const target = d.profile && d.profile.sleepTargetMin || Game.SLEEP_TARGET_DEFAULT;
+  let n = 0;
+  for (const k in sleep) {
+    const s = sleep[k];
+    const min = s && +s.min;
+    if (!isFinite(min) || min <= 0) continue;
+    const stages = s.deep != null || s.rem != null || s.light != null || s.awake != null ? {
+      deep: +s.deep || 0,
+      rem: +s.rem || 0,
+      light: +s.light || 0,
+      awake: +s.awake || 0
+    } : null;
+    const rec = {
+      min: Math.round(min),
+      score: Game.sleepScore(min, target, stages)
+    };
+    if (stages) Object.assign(rec, stages);
+    d.sleep[k] = rec;
+    n++;
   }
   return n;
 }
@@ -8646,8 +8738,10 @@ function qualityDaysAfter(db, afterISO, throughISO) {
   return n;
 }
 // Your daily step goal: the step count assumed by your activity band (same target as the home tile).
+// Daily step goal: a user-set target (profile.stepGoal) wins; otherwise fall back to the activity band.
 function stepGoalFor(db) {
-  return withActivity(db.profile).avgSteps || 0;
+  const g = db.profile && +db.profile.stepGoal;
+  return (g > 0 ? Math.round(g) : 0) || withActivity(db.profile).avgSteps || 0;
 }
 // A step-goal day: you hit or beat that goal. Days with no step reading never qualify, so this is
 // entirely opt-in and changes nothing until you actually track steps (manually or via Google Health).
@@ -9195,7 +9289,61 @@ function DexActiveSection({
     style: {
       color: 'var(--good)'
     }
-  }, "Hatched!"), " ", /*#__PURE__*/React.createElement("b", null, eggCr.name, eggs.lastShiny ? ' ✦' : ''), " joined your dex.") : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.')))));
+  }, "Hatched!"), " ", /*#__PURE__*/React.createElement("b", null, eggCr.name, eggs.lastShiny ? ' ✦' : ''), " joined your dex.") : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.')))), (() => {
+    // Sleep styles: a Pokemon Sleep style style-dex. A creature caught from a night's sleep carries
+    // one of three styles; collect all three of each. Counts come from the style tags on catches.
+    const collected = {};
+    Object.keys(db.catch_log || {}).forEach(dt => (db.catch_log[dt] || []).forEach(c => {
+      if (c && c.style) collected[c.style] = (collected[c.style] || 0) + 1;
+    }));
+    const sdex = db.sleepDex || {};
+    const just = sdex.lastDate === today && sdex.lastId;
+    const jcr = just && CR_BY_ID[sdex.lastId];
+    return /*#__PURE__*/React.createElement("div", {
+      className: panel + ' mt-2',
+      style: pStyle
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between mb-1.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[7px] uppercase text-[#8A8A90]"
+    }, "Sleep styles"), /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[7px] uppercase tnum",
+      style: {
+        color: Object.keys(collected).length ? 'var(--accent)' : 'var(--muted)'
+      }
+    }, Object.keys(collected).length, "/", Game.SLEEP_STYLES.length)), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-1.5"
+    }, Game.SLEEP_STYLES.map(st => {
+      const on = collected[st] > 0;
+      return /*#__PURE__*/React.createElement("div", {
+        key: st,
+        className: "pixel-box flex-1 text-center px-1 py-1",
+        style: {
+          background: 'var(--surface2)',
+          boxShadow: 'none',
+          borderWidth: 2,
+          borderColor: on ? 'var(--accent)' : 'var(--border)',
+          opacity: on ? 1 : 0.5
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "pf text-[7px] uppercase",
+        style: {
+          color: on ? 'var(--accent)' : 'var(--muted)'
+        }
+      }, st), /*#__PURE__*/React.createElement("div", {
+        className: "text-[9px] tnum",
+        style: {
+          color: on ? 'var(--text)' : 'var(--muted)'
+        }
+      }, on ? '×' + collected[st] : '–'));
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "text-[9px] text-[#8A8A90] mt-1.5 leading-snug"
+    }, just && jcr ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--good)'
+      }
+    }, "Slept well!"), " A ", sdex.lastStyle, " ", /*#__PURE__*/React.createElement("b", null, jcr.name, sdex.lastShiny ? ' ✦' : ''), " joined your dex.") : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'));
+  })());
 }
 function MacrodexModal({
   db,
@@ -10545,7 +10693,7 @@ function StepsCard({
   const today = Store.todayISO();
   const steps = db.steps || {};
   const todaySteps = +steps[today] || 0;
-  const baseline = withActivity(db.profile).avgSteps || 0;
+  const baseline = stepGoalFor(db);
   const last7 = Array.from({
     length: 7
   }, (_, i) => shiftISO(today, -i));
@@ -10645,6 +10793,136 @@ function StepsCard({
       color: 'var(--accent)'
     }
   }, todaySteps ? 'Edit' : 'Log', " ›"), db.googleHealth && db.googleHealth.connected ? /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: 'var(--good)'
+    }
+  }, "✓ synced") : ghConfigured() ? /*#__PURE__*/React.createElement("button", {
+    onClick: ghConnect,
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Connect") : /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "soon"))));
+}
+
+// Sleep tile (a Pokemon Sleep style morning read): shows last night's synced sleep, a score ring
+// against your target, and the creature that last night's sleep drew into your dex. Sleep comes from
+// Google Health only (no manual entry); the one editable thing here is your nightly target.
+function SleepCard({
+  db,
+  update
+}) {
+  const sleep = db.sleep || {};
+  const dates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort();
+  const lastDate = dates.length ? dates[dates.length - 1] : null;
+  const rec = lastDate ? sleep[lastDate] : null;
+  const targetMin = db.profile && db.profile.sleepTargetMin || Game.SLEEP_TARGET_DEFAULT;
+  const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null) ? {
+    deep: rec.deep || 0,
+    rem: rec.rem || 0,
+    light: rec.light || 0,
+    awake: rec.awake || 0
+  } : null;
+  const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : 0; // live so a target edit moves the ring
+  const hrs = rec ? Math.floor(rec.min / 60) : 0,
+    mins = rec ? rec.min % 60 : 0;
+  const sdex = db.sleepDex || {};
+  const caughtLast = !!lastDate && sdex.lastDate === lastDate;
+  const crName = caughtLast && CR_BY_ID[sdex.lastId] ? CR_BY_ID[sdex.lastId].name : null;
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState('');
+  function save() {
+    const h = Math.max(0, +val || 0);
+    update(d => {
+      d.profile = d.profile || {};
+      if (h > 0) d.profile.sleepTargetMin = Math.round(h * 60);else delete d.profile.sleepTargetMin;
+    });
+    setEditing(false);
+  }
+  const R = 16,
+    C = 2 * Math.PI * R,
+    pct = Math.min(100, score);
+  const targetH = targetMin / 60,
+    targetHLabel = Number.isInteger(targetH) ? String(targetH) : targetH.toFixed(1);
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-3.5 mb-4"
+  }, editing ? /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: val,
+    onChange: e => setVal(e.target.value),
+    placeholder: "Target hours, e.g. 8",
+    autoFocus: true
+  })), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "text-sm",
+    onClick: save
+  }, "Save"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditing(false),
+    className: "text-[#8A8A90] text-sm px-1"
+  }, "Cancel")) : /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "40",
+    height: "40",
+    viewBox: "0 0 40 40",
+    className: "shrink-0",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "20",
+    cy: "20",
+    r: R,
+    fill: "none",
+    stroke: "var(--track)",
+    strokeWidth: "4"
+  }), rec && /*#__PURE__*/React.createElement("circle", {
+    cx: "20",
+    cy: "20",
+    r: R,
+    fill: "none",
+    stroke: "var(--accent)",
+    strokeWidth: "4",
+    strokeDasharray: C,
+    strokeDashoffset: C * (1 - pct / 100),
+    transform: "rotate(-90 20 20)",
+    style: {
+      transition: 'stroke-dashoffset .4s'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1 leading-tight"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] truncate"
+  }, "Sleep", rec ? ' · ' + score + ' score' : ''), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-1.5 whitespace-nowrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-base font-bold tnum"
+  }, rec ? hrs + 'h ' + (mins ? mins + 'm' : '') : 'No sleep yet'), /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] text-[#8A8A90] tnum"
+  }, "/ ", targetHLabel, "h target")), crName && /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] truncate",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, sdex.lastStyle, " ", sdex.lastShiny ? 'shiny ' : '', crName, " joined your dex")), /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0 flex flex-col items-end gap-0.5"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setVal(targetH || '');
+      setEditing(true);
+    },
+    className: "pf text-[8px] uppercase",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Target ›"), db.googleHealth && db.googleHealth.connected ? /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
       color: 'var(--good)'
@@ -11358,6 +11636,60 @@ function Dashboard({
     const cr = CR_BY_ID[c.id];
     if (showToast && cr) showToast('Your ' + egg.tier + '-day egg hatched! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.');
   }, [!!egg, eggProg ? eggProg.steps : -1, eggProg ? eggProg.ready : false]);
+  // Sleep morning catch (a Pokemon Sleep style encounter): last night's sleep score powers a single
+  // catch whose rarity climbs with how well you slept, and it carries a "sleep style" for the style
+  // dex. Only the newest night awards; any older un-awarded nights are silently baselined so a first
+  // sync (or a few missed days) never dumps a backlog of catches.
+  const sleepDates = Object.keys(db.sleep || {}).filter(dt => (db.sleep[dt] || {}).min > 0).sort();
+  const latestSleep = sleepDates.length ? sleepDates[sleepDates.length - 1] : null;
+  const sleepClaimed = db.sleepDex && db.sleepDex.claimed || {};
+  const sleepPending = latestSleep && !sleepClaimed[latestSleep] ? latestSleep : null;
+  useEffect(() => {
+    if (!db || !latestSleep) return;
+    const claimed = db.sleepDex && db.sleepDex.claimed || {};
+    const older = sleepDates.slice(0, -1).filter(dt => !claimed[dt]);
+    const need = !claimed[latestSleep];
+    if (!older.length && !need) return;
+    const rec = db.sleep[latestSleep] || {};
+    const stages = rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null ? {
+      deep: rec.deep || 0,
+      rem: rec.rem || 0,
+      light: rec.light || 0,
+      awake: rec.awake || 0
+    } : null;
+    const band = Game.sleepBand(rec.score);
+    const c = Game.sleepCatch(db.game_salt || '', latestSleep, band);
+    const style = Game.sleepStyleFor(rec.score, stages);
+    update(d => {
+      d.sleepDex = d.sleepDex || {
+        claimed: {}
+      };
+      d.sleepDex.claimed = d.sleepDex.claimed || {};
+      older.forEach(dt => {
+        d.sleepDex.claimed[dt] = true;
+      });
+      if (need && !d.sleepDex.claimed[latestSleep]) {
+        d.sleepDex.claimed[latestSleep] = true;
+        d.sleepDex.lastDate = latestSleep;
+        d.sleepDex.lastId = c.id;
+        d.sleepDex.lastShiny = !!c.shiny;
+        d.sleepDex.lastStyle = style;
+        d.catch_log = d.catch_log || {};
+        const arr = d.catch_log[today] || [];
+        if (!arr.some(x => x.sleep === latestSleep)) arr.push({
+          id: c.id,
+          shiny: !!c.shiny,
+          sleep: latestSleep,
+          style: style
+        });
+        d.catch_log[today] = arr;
+      }
+    });
+    if (need && showToast) {
+      const cr = CR_BY_ID[c.id];
+      if (cr) showToast('You slept well. A ' + style + ' ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.');
+    }
+  }, [latestSleep, sleepPending]);
   // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
   // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
   const todayCr = creatureForDay(db, today);
@@ -11591,6 +11923,9 @@ function Dashboard({
     db: db,
     onOpen: () => setView('goals')
   }), /*#__PURE__*/React.createElement(StepsCard, {
+    db: db,
+    update: update
+  }), /*#__PURE__*/React.createElement(SleepCard, {
     db: db,
     update: update
   }), /*#__PURE__*/React.createElement("button", {
@@ -16615,7 +16950,9 @@ function SettingsTab({
     aiKey: p.aiKey || '',
     reminders: p.reminders !== false,
     nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour,
-    theme: p.theme || 'light'
+    theme: p.theme || 'light',
+    stepGoal: p.stepGoal || '',
+    sleepTargetHours: p.sleepTargetMin ? +(p.sleepTargetMin / 60).toFixed(2).replace(/\.00$/, '') : ''
   });
   const [s, setS] = useState(init);
   const sset = (k, v) => setS(x => Object.assign({}, x, {
@@ -16635,6 +16972,12 @@ function SettingsTab({
   function save() {
     update(d => {
       Object.assign(d.profile, s);
+      // Normalise the two Google Health targets: blank means "use the automatic default".
+      const sg = Math.round(+s.stepGoal) || 0;
+      if (sg > 0) d.profile.stepGoal = sg;else delete d.profile.stepGoal;
+      const sh = +s.sleepTargetHours || 0;
+      if (sh > 0) d.profile.sleepTargetMin = Math.round(sh * 60);else delete d.profile.sleepTargetMin;
+      delete d.profile.sleepTargetHours; // staging-only field, never persisted
       d.meal_templates = dm.map((m, i) => {
         const ex = d.meal_templates.find(x => x.id === m.id);
         return Object.assign({}, ex || {
@@ -16722,7 +17065,7 @@ function SettingsTab({
     title: "Connected apps"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Auto-sync your daily steps from Google Health (Fitbit included). Read-only, and they feed your dashboard, coaching and egg."), (() => {
+  }, "Auto-sync your daily steps and sleep from Google Health (Fitbit included). Read-only. Steps feed your dashboard, coaching and egg; a good night's sleep draws a creature into your dex each morning."), (() => {
     const gh = db.googleHealth;
     if (!ghConfigured()) return /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90]"
@@ -16760,6 +17103,24 @@ function SettingsTab({
       onClick: ghConnect
     }, "Connect Google Health");
   })()), /*#__PURE__*/React.createElement(Section, {
+    title: "Daily targets"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Set your own daily step goal and nightly sleep target. Leave blank to use the automatic default (steps from your activity level, sleep at 8 hours)."), /*#__PURE__*/React.createElement(Field, {
+    label: "Step goal",
+    hint: 'Blank uses your activity level (' + (withActivity(p).avgSteps || 0).toLocaleString('en-GB') + '/day).'
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: s.stepGoal,
+    onChange: e => sset('stepGoal', e.target.value),
+    placeholder: String(withActivity(p).avgSteps || 8000)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Sleep target (hours)",
+    hint: "Blank uses 8 hours. Your sleep score is measured against this."
+  }, /*#__PURE__*/React.createElement(NumInput, {
+    value: s.sleepTargetHours,
+    onChange: e => sset('sleepTargetHours', e.target.value),
+    placeholder: "8"
+  }))), /*#__PURE__*/React.createElement(Section, {
     title: "Meals"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -19755,6 +20116,59 @@ function demoState() {
   [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => {
     s.steps[shiftISO(today, -(6 - i))] = v;
   });
+  // A week of synced sleep (keyed by wake date) with a couple of stage-detailed nights, so the sleep
+  // tile and the morning Macrodex catch have something to show in the demo.
+  s.sleep = {};
+  const sleepNights = [[462, null], [405, null], [498, {
+    deep: 118,
+    rem: 96,
+    light: 260,
+    awake: 24
+  }], [372, null], [510, {
+    deep: 132,
+    rem: 108,
+    light: 246,
+    awake: 24
+  }], [447, null], [489, {
+    deep: 110,
+    rem: 92,
+    light: 262,
+    awake: 25
+  }]];
+  sleepNights.forEach(([min, st], i) => {
+    const d = shiftISO(today, -(6 - i));
+    s.sleep[d] = Object.assign({
+      min,
+      score: Game.sleepScore(min, 480, st)
+    }, st || {});
+  });
+  // Last night's morning catch, already awarded, so the demo shows the sleep loop populated. Every
+  // prior night is marked claimed too, matching how the live effect baselines older nights.
+  s.game_salt = 'demo-salt';
+  const lastNight = shiftISO(today, 0);
+  const lnRec = s.sleep[lastNight];
+  const lnStages = {
+    deep: lnRec.deep,
+    rem: lnRec.rem,
+    light: lnRec.light,
+    awake: lnRec.awake
+  };
+  const lnCatch = Game.sleepCatch(s.game_salt, lastNight, Game.sleepBand(lnRec.score));
+  const lnStyle = Game.sleepStyleFor(lnRec.score, lnStages);
+  s.sleepDex = {
+    claimed: Object.fromEntries(Object.keys(s.sleep).map(d => [d, true])),
+    lastDate: lastNight,
+    lastId: lnCatch.id,
+    lastShiny: lnCatch.shiny,
+    lastStyle: lnStyle
+  };
+  s.catch_log = s.catch_log || {};
+  s.catch_log[today] = (s.catch_log[today] || []).concat([{
+    id: lnCatch.id,
+    shiny: lnCatch.shiny,
+    sleep: lastNight,
+    style: lnStyle
+  }]);
   const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort) => ({
     id: Store.uid(),
     user_id: Store.USER,
@@ -23913,8 +24327,8 @@ function App() {
     } catch (e) {}
   }, [db]);
 
-  // Google Health: finish the OAuth callback (swap the code for step counts) then keep steps fresh
-  // with a quiet once-a-day sync. All token handling lives server-side in google-health-proxy.
+  // Google Health: finish the OAuth callback (swap the code for step/sleep data), then a first sync.
+  // Ongoing freshness is handled by the foreground/interval effect below. Tokens stay server-side.
   useEffect(() => {
     if (!db || !db.profile || !session || ghHandled.current) return;
     if (!ghConfigured()) {
@@ -23949,8 +24363,9 @@ function App() {
               lastSync: r.last_sync || new Date().toISOString()
             };
             mergeStepsInto(d, r.steps);
+            mergeSleepInto(d, r.sleep);
           });
-          showToast('Google Health connected. Your steps sync automatically now.');
+          showToast('Google Health connected. Your steps and sleep sync automatically now.');
         } catch (e) {
           showToast('Could not connect Google Health: ' + e.message);
         }
@@ -23959,8 +24374,8 @@ function App() {
     }
     const gh = db.googleHealth;
     if (gh && gh.connected) {
-      const syncedToday = gh.lastSync && String(gh.lastSync).slice(0, 10) === Store.todayISO();
-      if (!syncedToday) (async () => {
+      const last = gh.lastSync ? Date.parse(gh.lastSync) : 0;
+      if (Date.now() - last >= GH_SYNC_GAP_MS) (async () => {
         try {
           const r = await ghPost('sync', {});
           update(d => {
@@ -23969,6 +24384,7 @@ function App() {
               lastSync: r.last_sync || new Date().toISOString()
             });
             mergeStepsInto(d, r.steps);
+            mergeSleepInto(d, r.sleep);
           });
         } catch (e) {
           if (e.gh && e.gh.type === 'reauth_required') update(d => {
@@ -23978,6 +24394,48 @@ function App() {
       })();
     }
   }, [db, session]);
+
+  // Keep Google Health fresh through the day: re-sync when the app returns to the foreground and on a
+  // slow interval, throttled to GH_SYNC_GAP_MS so we never poll harder than roughly four times an hour.
+  useEffect(() => {
+    if (!session || !ghConfigured()) return;
+    let syncing = false;
+    async function ghRefresh() {
+      const gh = dbRef.current && dbRef.current.googleHealth;
+      if (!gh || !gh.connected || syncing) return;
+      const last = gh.lastSync ? Date.parse(gh.lastSync) : 0;
+      if (Date.now() - last < GH_SYNC_GAP_MS) return; // throttle
+      syncing = true;
+      try {
+        const r = await ghPost('sync', {});
+        update(d => {
+          d.googleHealth = Object.assign({}, d.googleHealth, {
+            connected: true,
+            lastSync: r.last_sync || new Date().toISOString()
+          });
+          mergeStepsInto(d, r.steps);
+          mergeSleepInto(d, r.sleep);
+        });
+      } catch (e) {
+        if (e.gh && e.gh.type === 'reauth_required') update(d => {
+          if (d.googleHealth) d.googleHealth.connected = false;
+        });
+      } finally {
+        syncing = false;
+      }
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') ghRefresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', ghRefresh);
+    const iv = setInterval(ghRefresh, GH_SYNC_GAP_MS);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', ghRefresh);
+      clearInterval(iv);
+    };
+  }, [session]);
   function update(m) {
     setDb(prev => {
       const n = JSON.parse(JSON.stringify(prev));

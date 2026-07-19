@@ -271,6 +271,54 @@
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'eggshiny#' + tier + '#' + n) % shinyMod === 0, tier: tier };
   }
 
+  // Sleep (a Pokemon Sleep style morning encounter): a night's sleep earns a SCORE, and the score
+  // powers a morning catch whose rarity climbs with how well you slept. It rewards recovery, a third
+  // signal alongside showing up (breakthrough) and eating well (eggs). Each catch also carries a
+  // "sleep style" collected into a small style dex. All deterministic per user + wake date.
+  var SLEEP_TARGET_DEFAULT = 480; // 8h in minutes; per-user override in profile.sleepTargetMin
+  var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
+  // Score 0..100 from duration against the user's target, nudged by a healthy deep+REM share when
+  // the device reports stages. Pure: no clock, no randomness. `stages` = { deep, rem, light, awake } mins.
+  function sleepScore(durationMin, targetMin, stages) {
+    var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
+    if (dur <= 0 || tgt <= 0) return 0;
+    var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
+    var total = stages ? (Number(stages.deep) || 0) + (Number(stages.rem) || 0) + (Number(stages.light) || 0) + (Number(stages.awake) || 0) : 0;
+    if (total > 0) {
+      var deepRem = ((Number(stages.deep) || 0) + (Number(stages.rem) || 0)) / total; // ideal ~0.45
+      var qFactor = 1 - Math.min(Math.abs(deepRem - 0.45) / 0.45, 1); // 1 = ideal share, 0 = far off
+      return Math.max(0, Math.min(100, Math.round(ratio * (85 + 15 * qFactor))));
+    }
+    return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  }
+  // Score -> rarity band. Every night above the floor still catches something (Pokemon Sleep always
+  // gives an encounter); better sleep just reaches rarer pools.
+  function sleepBand(score) { var s = Number(score) || 0; return s < 50 ? 'poor' : s < 75 ? 'ok' : s < 90 ? 'good' : 'great'; }
+  // Which sleep style a night reads as: from the deep+REM share when stages exist, else the score.
+  function sleepStyleFor(score, stages) {
+    var total = stages ? (Number(stages.deep) || 0) + (Number(stages.rem) || 0) + (Number(stages.light) || 0) + (Number(stages.awake) || 0) : 0;
+    if (total > 0) {
+      var frac = ((Number(stages.deep) || 0) + (Number(stages.rem) || 0)) / total;
+      return frac < 0.25 ? 'Dozing' : frac < 0.45 ? 'Snoozing' : 'Slumbering';
+    }
+    var s = Number(score) || 0; return s < 60 ? 'Dozing' : s < 85 ? 'Snoozing' : 'Slumbering';
+  }
+  // Rarity-banded morning pools (reuse existing creature ids), rarer as sleep improves.
+  var SLEEP_POOL = {
+    poor: ['dinky', 'pebble', 'sprowl', 'carbo'],
+    ok: ['protops', 'fatzilla', 'noodon', 'buttron'],
+    good: ['frondo', 'flexor', 'noodon', 'buttron'],
+    great: ['veloci', 'platealon', 'triceros', 'flexor'],
+  };
+  var SLEEP_SHINY_MOD = { poor: 14, ok: 11, good: 8, great: 5 }; // better sleep shines more often
+  function sleepCatch(salt, date, band) {
+    var b = SLEEP_POOL[band] ? band : 'poor';
+    var pool = SLEEP_POOL[b].slice();
+    var h = seedFor(salt, 'sleep#' + date);
+    if (b === 'great' && h % 7 === 0) pool.push('rexosaur'); // a great night can rouse a legendary
+    return { id: pool[h % pool.length], shiny: seedFor(salt, 'sleepshiny#' + date) % (SLEEP_SHINY_MOD[b] || 14) === 0 };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -320,6 +368,13 @@
     eggProgress: eggProgress,
     nextEggTier: nextEggTier,
     eggHatch: eggHatch,
+    SLEEP_TARGET_DEFAULT: SLEEP_TARGET_DEFAULT,
+    SLEEP_STYLES: SLEEP_STYLES,
+    SLEEP_POOL: SLEEP_POOL,
+    sleepScore: sleepScore,
+    sleepBand: sleepBand,
+    sleepStyleFor: sleepStyleFor,
+    sleepCatch: sleepCatch,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;

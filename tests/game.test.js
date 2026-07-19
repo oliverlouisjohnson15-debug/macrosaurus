@@ -390,3 +390,53 @@ test('expeditionState tracks the quality-day goal and caps progress', () => {
   assert.deepStrictEqual(Game.expeditionState(12), { goal: 12, days: 12, ready: true, toGo: 0 });
   assert.deepStrictEqual(Game.expeditionState(20), { goal: 12, days: 12, ready: true, toGo: 0 });
 });
+
+// ---- sleep (a Pokemon Sleep style morning catch): score, band, style, deterministic catch ----
+
+test('sleepScore ramps with duration and caps at 100 at target', () => {
+  assert.strictEqual(Game.sleepScore(0, 480), 0);
+  assert.strictEqual(Game.sleepScore(240, 480), 50);  // half the target
+  assert.strictEqual(Game.sleepScore(480, 480), 100); // exactly on target
+  assert.strictEqual(Game.sleepScore(600, 480), 100); // oversleeping does not exceed 100
+  assert.strictEqual(Game.sleepScore(480, 0), 100);   // a zero/absent target falls back to the 8h default
+  assert.strictEqual(Game.sleepScore(0, 0), 0);       // no sleep still scores 0
+});
+
+test('sleepScore nudges by deep+REM share when stages are present', () => {
+  const ideal = Game.sleepScore(480, 480, { deep: 120, rem: 96, light: 240, awake: 24 }); // ~0.45 share
+  const poor = Game.sleepScore(480, 480, { deep: 20, rem: 20, light: 400, awake: 40 });   // far from ideal
+  assert.ok(ideal > poor, 'ideal stage mix should score higher');
+  assert.ok(ideal <= 100 && poor >= 0);
+});
+
+test('sleepBand splits poor/ok/good/great at the right thresholds', () => {
+  assert.strictEqual(Game.sleepBand(49), 'poor');
+  assert.strictEqual(Game.sleepBand(50), 'ok');
+  assert.strictEqual(Game.sleepBand(74), 'ok');
+  assert.strictEqual(Game.sleepBand(75), 'good');
+  assert.strictEqual(Game.sleepBand(89), 'good');
+  assert.strictEqual(Game.sleepBand(90), 'great');
+});
+
+test('sleepStyleFor reads deep+REM share, else falls back to score', () => {
+  assert.strictEqual(Game.sleepStyleFor(0, { deep: 5, rem: 5, light: 90, awake: 0 }), 'Dozing');    // ~0.1
+  assert.strictEqual(Game.sleepStyleFor(0, { deep: 20, rem: 15, light: 65, awake: 0 }), 'Snoozing'); // ~0.35
+  assert.strictEqual(Game.sleepStyleFor(0, { deep: 40, rem: 30, light: 30, awake: 0 }), 'Slumbering'); // ~0.7
+  assert.strictEqual(Game.sleepStyleFor(40, null), 'Dozing');
+  assert.strictEqual(Game.sleepStyleFor(70, null), 'Snoozing');
+  assert.strictEqual(Game.sleepStyleFor(90, null), 'Slumbering');
+});
+
+test('sleepCatch is deterministic per user+date and stays in the band pool', () => {
+  const a = Game.sleepCatch('saltA', '2026-07-19', 'good');
+  const b = Game.sleepCatch('saltA', '2026-07-19', 'good');
+  assert.deepStrictEqual(a, b); // same user + date + band => same catch
+  for (const band of ['poor', 'ok', 'good', 'great']) {
+    const c = Game.sleepCatch('saltA', '2026-07-19', band);
+    const pool = Game.SLEEP_POOL[band].concat(band === 'great' ? ['rexosaur'] : []);
+    assert.ok(pool.includes(c.id), 'off-pool ' + band + ': ' + c.id);
+    assert.strictEqual(typeof c.shiny, 'boolean');
+  }
+  const fb = Game.sleepCatch('saltA', '2026-07-19', 'bogus'); // unknown band falls back to the poor pool
+  assert.ok(Game.SLEEP_POOL.poor.includes(fb.id), 'unknown band should draw from poor: ' + fb.id);
+});

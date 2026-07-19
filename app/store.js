@@ -105,6 +105,8 @@
       deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
       menstrual: { enabled: false, lastStart: null, cycleLen: 28 }, // optional cycle tracking so premenstrual water weight doesn't trigger a wrong calorie cut
       steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
+      sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + morning Macrodex catch.
+      sleepDex: { claimed: {}, lastDate: null, lastId: null, lastShiny: false, lastStyle: null }, // Pokemon Sleep style morning-catch: which wake dates already awarded a catch + last night's reveal
       googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
       goals: null,
     };
@@ -184,6 +186,11 @@
     out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});
     out.game_awards   = Object.assign({}, older.game_awards || {},   newer.game_awards || {});
     out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
+    out.sleep         = Object.assign({}, older.sleep || {},         newer.sleep || {}); // newer wins per wake date
+    // sleepDex: union the claimed wake dates, keep the later night's reveal fields
+    var so = older.sleepDex || {}, sn = newer.sleepDex || {};
+    var later = (sn.lastDate || '') >= (so.lastDate || '') ? sn : so;
+    out.sleepDex = Object.assign({}, later, { claimed: Object.assign({}, so.claimed || {}, sn.claimed || {}) });
     // catch_log: union dates, and union the creatures caught on each shared date
     var cl = {};
     [older.catch_log || {}, newer.catch_log || {}].forEach(function (src) {

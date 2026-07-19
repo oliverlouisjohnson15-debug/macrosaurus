@@ -88,6 +88,70 @@ function isoShift0(iso: string, days: number): string {
   return t.toISOString().slice(0, 10);
 }
 
+// Minutes between two RFC3339 timestamps, or 0 if either is missing/unparsable.
+function minutesBetween(startTs?: string, endTs?: string): number {
+  if (!startTs || !endTs) return 0;
+  const a = Date.parse(startTs), b = Date.parse(endTs);
+  if (!isFinite(a) || !isFinite(b) || b <= a) return 0;
+  return Math.round((b - a) / 60000);
+}
+// Minutes for one sleep segment, however the API expresses it: a `duration` string ("1200s"),
+// a nested interval, or bare start/end timestamps. Defensive because the exact shape is only
+// confirmable against a live call (per the discovery doc the segment carries a duration + stageType).
+function segmentMinutes(seg: any): number {
+  if (!seg) return 0;
+  if (typeof seg.duration === 'string') { const s = parseFloat(seg.duration); if (isFinite(s)) return Math.round(s / 60); }
+  const iv = seg.interval || seg;
+  return minutesBetween(iv.startTime, iv.endTime);
+}
+
+// Pull sleep sessions whose wake time falls in [startISO, endISO] (inclusive) and roll each up to a
+// per-wake-date record { min, deep, rem, light, awake } (stage minutes present only if the device
+// reports segments). Sleep is a session list-with-filter, NOT dailyRollUp, and pages at 25 per call.
+async function fetchSleep(accessToken: string, startISO: string, endISO: string): Promise<Record<string, any>> {
+  const filter = `sleep.interval.end_time >= "${startISO}T00:00:00Z" AND sleep.interval.end_time < "${isoShift0(endISO, 1)}T00:00:00Z"`;
+  const base = `https://health.googleapis.com/v4/users/me/dataTypes/sleep/dataPoints`;
+  const out: Record<string, any> = {};
+  let pageToken = '';
+  for (let guard = 0; guard < 40; guard++) { // guard: at 25/page this covers well over a year
+    const url = `${base}?pageSize=25&filter=${encodeURIComponent(filter)}` + (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || 'Google Health sleep request failed');
+    for (const p of (data?.dataPoints || [])) {
+      const s = p?.sleep || p; // the sleep object may sit under `.sleep` or be the point itself
+      const iv = s?.interval || {};
+      // Attribute the night to its WAKE date: prefer the civil end date, else the ISO end timestamp.
+      const ce = iv?.civilEndTime?.date;
+      const date = (ce && ce.year)
+        ? ce.year + '-' + String(ce.month).padStart(2, '0') + '-' + String(ce.day).padStart(2, '0')
+        : (iv?.endTime ? String(iv.endTime).slice(0, 10) : null);
+      if (!date) continue;
+      const rec: any = out[date] || { min: 0, deep: 0, rem: 0, light: 0, awake: 0 };
+      rec.min += minutesBetween(iv.startTime, iv.endTime);
+      for (const seg of (s?.sleepSegments || [])) {
+        const m = segmentMinutes(seg);
+        if (!m) continue;
+        const st = String(seg?.stageType || '').toUpperCase();
+        if (st === 'DEEP') rec.deep += m;
+        else if (st === 'REM') rec.rem += m;
+        else if (st === 'LIGHT') rec.light += m;
+        else if (st === 'AWAKE') rec.awake += m;
+      }
+      out[date] = rec;
+    }
+    pageToken = data?.nextPageToken || '';
+    if (!pageToken) break;
+  }
+  // Drop stage buckets that stayed empty so the client can tell "no stages reported" from "0 minutes".
+  for (const d of Object.keys(out)) {
+    const r = out[d];
+    if (!(r.deep || r.rem || r.light || r.awake)) { delete r.deep; delete r.rem; delete r.light; delete r.awake; }
+    if (!(r.min > 0)) delete out[d];
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: { message: 'Method not allowed' } }, 405);
@@ -154,8 +218,11 @@ Deno.serve(async (req) => {
         connected_at: nowISO,
         last_sync: nowISO,
       });
-      const steps = await fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0));
-      return json({ ok: true, steps, last_sync: nowISO });
+      const [steps, sleep] = await Promise.all([
+        fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)),
+        fetchSleep(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // sleep scope may not be granted yet; never fail the connect over it
+      ]);
+      return json({ ok: true, steps, sleep, last_sync: nowISO });
     }
 
     if (action === 'sync') {
@@ -176,8 +243,11 @@ Deno.serve(async (req) => {
       const patch: Record<string, unknown> = { last_sync: nowISO };
       if (tok.refresh_token && tok.refresh_token !== conn.refresh_token) patch.refresh_token = tok.refresh_token;
       await table.update(patch).eq('user_id', userId);
-      const steps = await fetchSteps(tok.access_token, isoShift(-days), isoShift(0));
-      return json({ ok: true, steps, last_sync: nowISO });
+      const [steps, sleep] = await Promise.all([
+        fetchSteps(tok.access_token, isoShift(-days), isoShift(0)),
+        fetchSleep(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // tolerate sleep scope not (yet) granted
+      ]);
+      return json({ ok: true, steps, sleep, last_sync: nowISO });
     }
 
     return json({ error: { message: 'Unknown action.' } }, 400);
