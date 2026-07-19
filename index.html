@@ -9201,7 +9201,9 @@ function MacrodexModal({
   db,
   update,
   streak,
-  onClose
+  onClose,
+  onOpenFight,
+  onOpenName
 }) {
   useBackClose(onClose);
   useEffect(() => {
@@ -9350,9 +9352,11 @@ function MacrodexModal({
     }
   })), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] tnum shrink-0"
-  }, "caught ", caught)), /*#__PURE__*/React.createElement("button", {
+  }, "caught ", caught)), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setTrophies(true),
-    className: "pixel-btn w-full py-2.5 mb-4 text-[10px] inline-flex items-center justify-center gap-2",
+    className: "pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2",
     style: {
       background: 'var(--surface2)'
     }
@@ -9360,7 +9364,22 @@ function MacrodexModal({
     kind: "trophy",
     color: "var(--fat)",
     size: 13
-  }), " TROPHY CABINET"), /*#__PURE__*/React.createElement(DexActiveSection, {
+  }), " TROPHIES"), onOpenFight && /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenFight,
+    className: "pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelDino, {
+    size: 13,
+    color: "var(--danger)"
+  }), " BOSS FIGHT")), onOpenName && !(db.buddy && db.buddy.name) && /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenName,
+    className: "pixel-btn w-full py-2.5 mb-4 text-[10px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "NAME YOUR DINO"), /*#__PURE__*/React.createElement(DexActiveSection, {
     db: db,
     today: today
   }), invIds.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -11477,8 +11496,6 @@ function Dashboard({
   const [span, setSpan] = useState('today');
   const [showStats, setShowStats] = useState(false);
   const [showCarry, setShowCarry] = useState(false);
-  const [showFight, setShowFight] = useState(false);
-  const [showName, setShowName] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
@@ -11939,7 +11956,7 @@ function Dashboard({
     update: update
   }), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
-    className: "w-full text-left bg-[#161618] pixel-box p-4 mb-3 flex items-center gap-3"
+    className: "w-full text-left bg-[#161618] pixel-box p-4 mb-4 flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "shrink-0"
   }, /*#__PURE__*/React.createElement(PixelDino, {
@@ -11966,32 +11983,8 @@ function Dashboard({
       color: 'var(--accent)'
     }
   }, "Open ›")), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 mb-4"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setShowFight(true),
-    className: "pixel-box flex-1 py-2 pf text-[9px] uppercase",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Boss fight"), !(db.buddy && db.buddy.name) && /*#__PURE__*/React.createElement("button", {
-    onClick: () => setShowName(true),
-    className: "pixel-box flex-1 py-2 pf text-[9px] uppercase",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Name your dino")), /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"
-  }, quote), showFight && /*#__PURE__*/React.createElement(FightModal, {
-    db: db,
-    update: update,
-    streak: streak,
-    onClose: () => setShowFight(false)
-  }), showName && /*#__PURE__*/React.createElement(NameBuddyModal, {
-    db: db,
-    update: update,
-    buddy: buddy,
-    onClose: () => setShowName(false)
-  }), showCarry && /*#__PURE__*/React.createElement(CarryoverSheet, {
+  }, quote), showCarry && /*#__PURE__*/React.createElement(CarryoverSheet, {
     et: et,
     onClose: () => setShowCarry(false)
   }));
@@ -17093,6 +17086,47 @@ function SettingsTab({
       l: 'ft / in'
     }]
   }))), /*#__PURE__*/React.createElement(Section, {
+    title: "Connected apps"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Auto-sync your daily steps from Google Health (Fitbit included). Read-only, and they feed your dashboard, coaching and egg."), (() => {
+    const gh = db.googleHealth;
+    if (!ghConfigured()) return /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] text-[#8A8A90]"
+    }, "Auto-sync is coming soon.");
+    if (gh && gh.connected) return /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between gap-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px]"
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--good)'
+      }
+    }, "Google Health connected"), gh.lastSync ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, " · synced ", new Date(gh.lastSync).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short'
+    })) : ''), /*#__PURE__*/React.createElement(Btn, {
+      kind: "ghost",
+      className: "text-sm",
+      onClick: async () => {
+        try {
+          await ghPost('disconnect', {});
+        } catch (_) {}
+        update(d => {
+          d.googleHealth = {
+            connected: false
+          };
+        });
+      }
+    }, "Disconnect"));
+    return /*#__PURE__*/React.createElement(Btn, {
+      kind: "accent",
+      className: "w-full",
+      onClick: ghConnect
+    }, "Connect Google Health");
+  })()), /*#__PURE__*/React.createElement(Section, {
     title: "Meals"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -17159,48 +17193,7 @@ function SettingsTab({
       v: h,
       l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am')
     }))
-  }))), /*#__PURE__*/React.createElement(Section, {
-    title: "Connected apps"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Sync your daily steps automatically from Google Health (this reads your Fitbit steps too, since Fitbit now feeds Google Health). Steps show on your dashboard and feed your coaching and egg incubation. We only ever read your step counts."), (() => {
-    const gh = db.googleHealth;
-    if (!ghConfigured()) return /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] text-[#8A8A90]"
-    }, "Auto-sync is coming soon.");
-    if (gh && gh.connected) return /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center justify-between gap-3"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-[13px]"
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: 'var(--good)'
-      }
-    }, "Google Health connected"), gh.lastSync ? /*#__PURE__*/React.createElement("span", {
-      className: "text-[#8A8A90]"
-    }, " · synced ", new Date(gh.lastSync).toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short'
-    })) : ''), /*#__PURE__*/React.createElement(Btn, {
-      kind: "ghost",
-      className: "text-sm",
-      onClick: async () => {
-        try {
-          await ghPost('disconnect', {});
-        } catch (_) {}
-        update(d => {
-          d.googleHealth = {
-            connected: false
-          };
-        });
-      }
-    }, "Disconnect"));
-    return /*#__PURE__*/React.createElement(Btn, {
-      kind: "accent",
-      className: "w-full",
-      onClick: ghConnect
-    }, "Connect Google Health");
-  })()), p.sex === 'female' && (() => {
+  }))), p.sex === 'female' && (() => {
     const m = db.menstrual || {
       enabled: false,
       lastStart: null,
@@ -20155,7 +20148,7 @@ function Toast({
 const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
 // The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
 // header (MobileHeader) and the desktop Sidebar instead. Bottom bar order: HOME, FOOD, (Add), GOAL, COOK.
-const BOTTOM_NAV = ['dashboard', 'foodlog', 'goals', 'recipes'].map(k => NAV_ITEMS.find(([n]) => n === k));
+const BOTTOM_NAV = ['dashboard', 'foodlog', 'recipes', 'goals'].map(k => NAV_ITEMS.find(([n]) => n === k)); // Today, Food, (Add), Cook, Progress: matches the desktop sidebar order
 function BottomNav({
   view,
   setView,
@@ -23698,6 +23691,8 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
+  const [fightOpen, setFightOpen] = useState(false); // boss fight, launched from inside the Play hub
+  const [nameOpen, setNameOpen] = useState(false); // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -24638,6 +24633,7 @@ function App() {
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
   const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date)]), new Set(db.freezes && db.freezes.frozen || []), _today).streak;
+  const appBuddy = Game.buddyView(db.buddy && db.buddy.stage || 0, appStreak);
   return /*#__PURE__*/React.createElement("div", {
     className: "lg:pl-56"
   }, /*#__PURE__*/React.createElement(Sidebar, {
@@ -24816,7 +24812,19 @@ function App() {
     db: db,
     update: update,
     streak: appStreak,
+    onOpenFight: () => setFightOpen(true),
+    onOpenName: () => setNameOpen(true),
     onClose: () => setDexOpen(false)
+  }), fightOpen && /*#__PURE__*/React.createElement(FightModal, {
+    db: db,
+    update: update,
+    streak: appStreak,
+    onClose: () => setFightOpen(false)
+  }), nameOpen && /*#__PURE__*/React.createElement(NameBuddyModal, {
+    db: db,
+    update: update,
+    buddy: appBuddy,
+    onClose: () => setNameOpen(false)
   }), /*#__PURE__*/React.createElement(Toast, {
     toast: toast
   }), reveal && /*#__PURE__*/React.createElement(CatchReveal, {

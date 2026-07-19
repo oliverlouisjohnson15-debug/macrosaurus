@@ -2701,7 +2701,7 @@ function DexActiveSection({ db, today }) {
     </div>
   );
 }
-function MacrodexModal({ db, update, streak, onClose }) {
+function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
   const dex = macrodex(db); const caught = Object.keys(dex).length;
@@ -2754,7 +2754,11 @@ function MacrodexModal({ db, update, streak, onClose }) {
             <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
             <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
           </div>
-          <button onClick={() => setTrophies(true)} className="pixel-btn w-full py-2.5 mb-4 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <button onClick={() => setTrophies(true)} className="pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHIES</button>
+            {onOpenFight && <button onClick={onOpenFight} className="pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelDino size={13} color="var(--danger)" /> BOSS FIGHT</button>}
+          </div>
+          {onOpenName && !(db.buddy && db.buddy.name) && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 mb-4 text-[10px]" style={{ background: 'var(--surface2)' }}>NAME YOUR DINO</button>}
           <DexActiveSection db={db} today={today} />
           {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
             <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
@@ -3548,8 +3552,6 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const [span, setSpan] = useState('today');
   const [showStats, setShowStats] = useState(false);
   const [showCarry, setShowCarry] = useState(false);
-  const [showFight, setShowFight] = useState(false);
-  const [showName, setShowName] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
@@ -3812,7 +3814,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Play: the game lives behind the dino now. One compact entry into the full hub, so the
           dashboard stays about today's food and progress. Fight + naming stay reachable here. */}
-      <button onClick={onOpenPlay} className="w-full text-left bg-[#161618] pixel-box p-4 mb-3 flex items-center gap-3">
+      <button onClick={onOpenPlay} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4 flex items-center gap-3">
         <div className="shrink-0"><PixelDino size={30} color="var(--good)" /></div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -3824,14 +3826,8 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         </div>
         <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>Open ›</span>
       </button>
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setShowFight(true)} className="pixel-box flex-1 py-2 pf text-[9px] uppercase" style={{ background: 'var(--surface2)' }}>Boss fight</button>
-        {!(db.buddy && db.buddy.name) && <button onClick={() => setShowName(true)} className="pixel-box flex-1 py-2 pf text-[9px] uppercase" style={{ background: 'var(--surface2)' }}>Name your dino</button>}
-      </div>
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
-      {showFight && <FightModal db={db} update={update} streak={streak} onClose={() => setShowFight(false)} />}
-      {showName && <NameBuddyModal db={db} update={update} buddy={buddy} onClose={() => setShowName(false)} />}
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
     </div>
   );
@@ -5487,6 +5483,20 @@ function SettingsTab({ db, update }) {
       <Field label="Weight units"><Seg value={s.weight_unit} onChange={v => sset('weight_unit', v)} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
       <Field label="Height units"><Seg value={s.height_unit} onChange={v => sset('height_unit', v)} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
     </Section>
+    <Section title="Connected apps">
+      <div className="text-[12px] text-[#8A8A90] mb-3">Auto-sync your daily steps from Google Health (Fitbit included). Read-only, and they feed your dashboard, coaching and egg.</div>
+      {(() => {
+        const gh = db.googleHealth;
+        if (!ghConfigured()) return <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>;
+        if (gh && gh.connected) return (
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
+            <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
+          </div>
+        );
+        return <Btn kind="accent" className="w-full" onClick={ghConnect}>Connect Google Health</Btn>;
+      })()}
+    </Section>
     <Section title="Meals">
       <div className="text-[12px] text-[#8A8A90] mb-3">Your default meals for each new day. Set the standard layout here, you can still add, remove or reorder meals on any individual day in the Food log without changing this default.</div>
       {dm.map((m, i) => (
@@ -5509,20 +5519,6 @@ function SettingsTab({ db, update }) {
       {s.reminders && <Field label="Nudge after" hint="Honest about what this is: an in-app banner on the Dashboard, not a push notification. It shows after this time on days you've not logged food or weighed in, before a miss would spend your monthly streak freeze.">
         <Dropdown value={s.nudgeHour} onChange={v => sset('nudgeHour', +v)} options={[12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({ v: h, l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am') }))} />
       </Field>}
-    </Section>
-    <Section title="Connected apps">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Sync your daily steps automatically from Google Health (this reads your Fitbit steps too, since Fitbit now feeds Google Health). Steps show on your dashboard and feed your coaching and egg incubation. We only ever read your step counts.</div>
-      {(() => {
-        const gh = db.googleHealth;
-        if (!ghConfigured()) return <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>;
-        if (gh && gh.connected) return (
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
-            <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
-          </div>
-        );
-        return <Btn kind="accent" className="w-full" onClick={ghConnect}>Connect Google Health</Btn>;
-      })()}
     </Section>
     {p.sex === 'female' && (() => {
       const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
@@ -6498,7 +6494,7 @@ function Toast({ toast }) {
 const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
 // The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
 // header (MobileHeader) and the desktop Sidebar instead. Bottom bar order: HOME, FOOD, (Add), GOAL, COOK.
-const BOTTOM_NAV = ['dashboard', 'foodlog', 'goals', 'recipes'].map(k => NAV_ITEMS.find(([n]) => n === k));
+const BOTTOM_NAV = ['dashboard', 'foodlog', 'recipes', 'goals'].map(k => NAV_ITEMS.find(([n]) => n === k)); // Today, Food, (Add), Cook, Progress: matches the desktop sidebar order
 function BottomNav({ view, setView, onAdd }) {
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2" style={{ height: 'calc(64px + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)', background: 'var(--header)', borderColor: 'var(--border)' }}>
@@ -7758,6 +7754,8 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
+  const [fightOpen, setFightOpen] = useState(false); // boss fight, launched from inside the Play hub
+  const [nameOpen, setNameOpen] = useState(false);   // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -8179,6 +8177,7 @@ function App() {
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
   const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date)]), new Set((db.freezes && db.freezes.frozen) || []), _today).streak;
+  const appBuddy = Game.buddyView((db.buddy && db.buddy.stage) || 0, appStreak);
   return (
     <div className="lg:pl-56">
       <Sidebar view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} onOpenPlay={() => setDexOpen(true)} />
@@ -8209,7 +8208,9 @@ function App() {
         </div>
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
-      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onClose={() => setDexOpen(false)} />}
+      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenFight={() => setFightOpen(true)} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
+      {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
+      {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} />
       {reveal && <CatchReveal c={reveal} />}
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
