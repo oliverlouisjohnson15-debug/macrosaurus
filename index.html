@@ -14,6 +14,21 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Macrosaurus" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="description" content="The macro tracker that adapts to you every week. Log food in seconds with AI, import recipes from TikTok and Instagram, and collect dinosaurs as you go. UK-first, free to start." />
+<link rel="canonical" href="https://macrosaurus.com/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Macrosaurus" />
+<meta property="og:title" content="Macrosaurus, the macro tracker that adapts (and is actually fun)" />
+<meta property="og:description" content="Science-based macro targets that adapt every week, AI food logging, macro-tuned recipes, and a game that keeps you coming back. Free to start." />
+<meta property="og:image" content="https://macrosaurus.com/og.png?v=124" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Macrosaurus, the macro tracker that adapts, and is actually fun." />
+<meta property="og:url" content="https://macrosaurus.com/" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Macrosaurus, the macro tracker that adapts (and is actually fun)" />
+<meta name="twitter:description" content="Science-based macro targets that adapt every week, AI food logging, macro-tuned recipes, and a game that keeps you coming back." />
+<meta name="twitter:image" content="https://macrosaurus.com/og.png?v=124" />
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(e){console.warn('SW registration failed:',e);});});}</script>
 <!-- Error monitoring: Sentry loader (error-only; Session Replay and Tracing are disabled in the project settings, so no screen data is recorded). -->
 <script src="https://js-de.sentry-cdn.com/29e6070c53aafda38874cf1fa649e03f.min.js" crossorigin="anonymous"></script>
@@ -7700,6 +7715,149 @@ function Sprite({
     shapeRendering: "crispEdges"
   }, rects);
 }
+
+/* ---------- Share card (streak -> shareable image) ----------
+   Turns a user's streak + buddy into a 1080x1080 PNG they can drop into a Story, WhatsApp or a group
+   chat. Uses the Web Share API with a file where supported (mobile), and falls back to a download plus
+   a copied link on desktop. Every card is watermarked with the app URL, so a shared streak doubles as
+   an invitation. Drawn on a canvas from the same pixel grids the app renders, so it stays on-brand. */
+const SHARE_URL = 'https://macrosaurus.com';
+function drawPixelGrid(ctx, grid, colors, ox, oy, cell) {
+  for (let y = 0; y < (grid || []).length; y++) {
+    const row = grid[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.' || !colors[ch]) continue;
+      ctx.fillStyle = colors[ch];
+      ctx.fillRect(Math.round(ox + x * cell), Math.round(oy + y * cell), Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+}
+function renderStreakCard({
+  streak,
+  best,
+  caught,
+  dexTotal,
+  name,
+  art,
+  colors
+}) {
+  const S = 1080;
+  const cv = document.createElement('canvas');
+  cv.width = S;
+  cv.height = S;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0, '#241f2b');
+  g.addColorStop(1, '#0e0c12');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  ctx.strokeStyle = '#39FF14';
+  ctx.lineWidth = 14;
+  ctx.strokeRect(30, 30, S - 60, S - 60);
+  ctx.textAlign = 'center';
+  // wordmark (mascot + name)
+  const mascotColors = {
+    L: '#7BD957',
+    B: '#46B94A',
+    D: '#2C8C3E',
+    P: '#123A1C'
+  };
+  drawPixelGrid(ctx, DINO_ART, mascotColors, S / 2 - 16 * 7 / 2, 92, 7);
+  ctx.fillStyle = '#EDE9F0';
+  ctx.font = '800 40px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('MACROSAURUS', S / 2, 250);
+  // buddy sprite, centred
+  const grid = CR_ART[art] || CR_ART[Object.keys(CR_ART)[0]] || [];
+  const gw = grid.reduce((m, r) => Math.max(m, r.length), 0) || 1,
+    gh = grid.length || 1;
+  const target = 380,
+    cell = target / Math.max(gw, gh);
+  drawPixelGrid(ctx, grid, colors || {}, S / 2 - gw * cell / 2, 300, cell);
+  // streak number
+  ctx.fillStyle = '#F5C518';
+  ctx.font = '900 220px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText(String(streak), S / 2, 810);
+  ctx.fillStyle = '#EDE9F0';
+  ctx.font = '800 52px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('DAY STREAK', S / 2, 872);
+  // sub line
+  ctx.fillStyle = '#9aa0a6';
+  ctx.font = '600 32px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  const bits = [];
+  if (name) bits.push(name);
+  if (best && best > streak) bits.push('best ' + best);
+  if (caught) bits.push(caught + '/' + dexTotal + ' dinos caught');
+  ctx.fillText(bits.join('  ·  '), S / 2, 928);
+  // footer / call to action
+  ctx.fillStyle = '#39FF14';
+  ctx.font = '800 34px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('Track macros. Catch dinos.  macrosaurus.com', S / 2, 1004);
+  return cv;
+}
+async function shareStreak(payload, toast) {
+  const text = payload.streak > 0 ? payload.streak + '-day streak on Macrosaurus. Track macros, catch dinos: ' + SHARE_URL : 'Tracking my macros (and catching dinos) on Macrosaurus: ' + SHARE_URL;
+  let blob = null;
+  try {
+    const cv = renderStreakCard(payload);
+    blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+  } catch (_) {}
+  const file = blob ? new File([blob], 'macrosaurus-streak.png', {
+    type: 'image/png'
+  }) : null;
+  try {
+    if (file && navigator.canShare && navigator.canShare({
+      files: [file]
+    })) {
+      await navigator.share({
+        files: [file],
+        text: text
+      });
+      window.MTRACK && MTRACK('share_streak', {
+        method: 'file',
+        streak: payload.streak
+      });
+      return;
+    }
+    if (navigator.share) {
+      await navigator.share({
+        title: 'Macrosaurus',
+        text: text,
+        url: SHARE_URL
+      });
+      window.MTRACK && MTRACK('share_streak', {
+        method: 'text',
+        streak: payload.streak
+      });
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; /* fall through to download */
+  }
+  // Desktop / no Web Share: save the image and copy the link.
+  try {
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'macrosaurus-streak.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    try {
+      await navigator.clipboard.writeText(SHARE_URL);
+    } catch (_) {}
+    toast && toast(blob ? 'Streak image saved and link copied' : 'Link copied');
+    window.MTRACK && MTRACK('share_streak', {
+      method: 'download',
+      streak: payload.streak
+    });
+  } catch (_) {
+    toast && toast('Could not share right now');
+  }
+}
 const BIOMES = [{
   id: 'nursery',
   name: 'The Nursery',
@@ -10383,7 +10541,8 @@ function HomeGameStrip({
   onOpenDex,
   onOpenFight,
   onLog,
-  onName
+  onName,
+  onShare
 }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const disp = profile && profile.form ? profile.form : st; // the buddy's species form (or a fallback)
@@ -10634,7 +10793,25 @@ function HomeGameStrip({
     size: 12
   }), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px]"
-  }, "BATTLE")))), /*#__PURE__*/React.createElement("button", {
+  }, "BATTLE")))), (best >= 1 || caught >= 1) && onShare && /*#__PURE__*/React.createElement("button", {
+    onClick: () => onShare({
+      streak,
+      best,
+      caught,
+      dexTotal,
+      name,
+      art: disp.art,
+      colors: disp.colors
+    }),
+    className: "w-full pixel-btn py-2.5 mt-2.5 inline-flex items-center justify-center gap-2",
+    style: {
+      background: 'var(--surface3)'
+    }
+  }, /*#__PURE__*/React.createElement(ShareIOSIcon, {
+    size: 14
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase"
+  }, "Share my streak")), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenDex,
     className: "w-full text-center pf text-[8px] uppercase text-[#8A8A90] mt-3"
   }, "Macrodex · ", caught, "/", dexTotal, " caught ›"));
@@ -11423,7 +11600,8 @@ function Dashboard({
     onOpenDex: () => setShowDex(true),
     onOpenFight: () => setShowFight(true),
     onLog: () => onQuickAdd(false),
-    onName: () => setShowName(true)
+    onName: () => setShowName(true),
+    onShare: p => shareStreak(p, showToast)
   }), loggedTotal >= 1 && /*#__PURE__*/React.createElement(GameTracksCard, {
     btState: btState,
     egg: egg,

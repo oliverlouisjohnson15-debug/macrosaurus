@@ -2155,6 +2155,85 @@ function Sprite({ art, colors, px = 6 }) {
   return <svg width={w * cell} height={h * cell} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges">{rects}</svg>;
 }
 
+/* ---------- Share card (streak -> shareable image) ----------
+   Turns a user's streak + buddy into a 1080x1080 PNG they can drop into a Story, WhatsApp or a group
+   chat. Uses the Web Share API with a file where supported (mobile), and falls back to a download plus
+   a copied link on desktop. Every card is watermarked with the app URL, so a shared streak doubles as
+   an invitation. Drawn on a canvas from the same pixel grids the app renders, so it stays on-brand. */
+const SHARE_URL = 'https://macrosaurus.com';
+function drawPixelGrid(ctx, grid, colors, ox, oy, cell) {
+  for (let y = 0; y < (grid || []).length; y++) {
+    const row = grid[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.' || !colors[ch]) continue;
+      ctx.fillStyle = colors[ch];
+      ctx.fillRect(Math.round(ox + x * cell), Math.round(oy + y * cell), Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+}
+function renderStreakCard({ streak, best, caught, dexTotal, name, art, colors }) {
+  const S = 1080;
+  const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0, '#241f2b'); g.addColorStop(1, '#0e0c12');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+  ctx.strokeStyle = '#39FF14'; ctx.lineWidth = 14; ctx.strokeRect(30, 30, S - 60, S - 60);
+  ctx.textAlign = 'center';
+  // wordmark (mascot + name)
+  const mascotColors = { L: '#7BD957', B: '#46B94A', D: '#2C8C3E', P: '#123A1C' };
+  drawPixelGrid(ctx, DINO_ART, mascotColors, S / 2 - (16 * 7) / 2, 92, 7);
+  ctx.fillStyle = '#EDE9F0'; ctx.font = '800 40px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('MACROSAURUS', S / 2, 250);
+  // buddy sprite, centred
+  const grid = CR_ART[art] || CR_ART[Object.keys(CR_ART)[0]] || [];
+  const gw = grid.reduce((m, r) => Math.max(m, r.length), 0) || 1, gh = grid.length || 1;
+  const target = 380, cell = target / Math.max(gw, gh);
+  drawPixelGrid(ctx, grid, colors || {}, S / 2 - (gw * cell) / 2, 300, cell);
+  // streak number
+  ctx.fillStyle = '#F5C518'; ctx.font = '900 220px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText(String(streak), S / 2, 810);
+  ctx.fillStyle = '#EDE9F0'; ctx.font = '800 52px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('DAY STREAK', S / 2, 872);
+  // sub line
+  ctx.fillStyle = '#9aa0a6'; ctx.font = '600 32px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  const bits = [];
+  if (name) bits.push(name);
+  if (best && best > streak) bits.push('best ' + best);
+  if (caught) bits.push(caught + '/' + dexTotal + ' dinos caught');
+  ctx.fillText(bits.join('  ·  '), S / 2, 928);
+  // footer / call to action
+  ctx.fillStyle = '#39FF14'; ctx.font = '800 34px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('Track macros. Catch dinos.  macrosaurus.com', S / 2, 1004);
+  return cv;
+}
+async function shareStreak(payload, toast) {
+  const text = payload.streak > 0
+    ? payload.streak + '-day streak on Macrosaurus. Track macros, catch dinos: ' + SHARE_URL
+    : 'Tracking my macros (and catching dinos) on Macrosaurus: ' + SHARE_URL;
+  let blob = null;
+  try { const cv = renderStreakCard(payload); blob = await new Promise(r => cv.toBlob(r, 'image/png')); } catch (_) {}
+  const file = blob ? new File([blob], 'macrosaurus-streak.png', { type: 'image/png' }) : null;
+  try {
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: text });
+      window.MTRACK && MTRACK('share_streak', { method: 'file', streak: payload.streak }); return;
+    }
+    if (navigator.share) {
+      await navigator.share({ title: 'Macrosaurus', text: text, url: SHARE_URL });
+      window.MTRACK && MTRACK('share_streak', { method: 'text', streak: payload.streak }); return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; /* fall through to download */ }
+  // Desktop / no Web Share: save the image and copy the link.
+  try {
+    if (blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'macrosaurus-streak.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    try { await navigator.clipboard.writeText(SHARE_URL); } catch (_) {}
+    toast && toast(blob ? 'Streak image saved and link copied' : 'Link copied');
+    window.MTRACK && MTRACK('share_streak', { method: 'download', streak: payload.streak });
+  } catch (_) { toast && toast('Could not share right now'); }
+}
+
 const BIOMES = [
   { id: 'nursery', name: 'The Nursery', blurb: 'Where every log begins. Show up and something hatches.' },
   { id: 'protein', name: 'Protein Peaks', blurb: 'High, hard country. Only the well-fed climb it.' },
@@ -3071,7 +3150,7 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
 // buddy + streak + an evolution bar in the middle, and the two daily hooks (today's catch and the
 // fight) as buttons underneath. When the streak breaks the buddy naps and the strip becomes a
 // gentle "log to wake" nudge. The dex and fight open as the existing modals.
-function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenFight, onLog, onName }) {
+function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenFight, onLog, onName, onShare }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const disp = (profile && profile.form) ? profile.form : st;   // the buddy's species form (or a fallback)
   const pcr = todayCr && CR_BY_ID[todayCr.id];
@@ -3179,6 +3258,11 @@ function HomeGameStrip({ db, streak, buddy, profile, todayCr, onOpenDex, onOpenF
           <div className="text-[10px] inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="glove" color="#fff" size={12} /><span className="pf text-[8px]">BATTLE</span></div>
         </button>
       </div>
+      {(best >= 1 || caught >= 1) && onShare && (
+        <button onClick={() => onShare({ streak, best, caught, dexTotal, name, art: disp.art, colors: disp.colors })} className="w-full pixel-btn py-2.5 mt-2.5 inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface3)' }}>
+          <ShareIOSIcon size={14} /><span className="pf text-[8px] uppercase">Share my streak</span>
+        </button>
+      )}
       <button onClick={onOpenDex} className="w-full text-center pf text-[8px] uppercase text-[#8A8A90] mt-3">Macrodex · {caught}/{dexTotal} caught ›</button>
     </div>
   );
@@ -3562,7 +3646,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
       {/* Game, collapsed to a single strip; dex and fight open as modals */}
-      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={bp} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} />
+      <HomeGameStrip db={db} streak={streak} buddy={buddy} profile={bp} todayCr={todayCr} onOpenDex={() => setShowDex(true)} onOpenFight={() => setShowFight(true)} onLog={() => onQuickAdd(false)} onName={() => setShowName(true)} onShare={(p) => shareStreak(p, showToast)} />
       {loggedTotal >= 1 && <GameTracksCard btState={btState} egg={egg} eggProg={eggProg} onOpenDex={() => setShowDex(true)} />}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
