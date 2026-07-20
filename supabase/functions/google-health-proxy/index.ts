@@ -95,19 +95,59 @@ function minutesBetween(startTs?: string, endTs?: string): number {
   if (!isFinite(a) || !isFinite(b) || b <= a) return 0;
   return Math.round((b - a) / 60000);
 }
-// Minutes for one sleep segment, however the API expresses it: a `duration` string ("1200s"),
-// a nested interval, or bare start/end timestamps. Defensive because the exact shape is only
-// confirmable against a live call (per the discovery doc the segment carries a duration + stageType).
-function segmentMinutes(seg: any): number {
-  if (!seg) return 0;
-  if (typeof seg.duration === 'string') { const s = parseFloat(seg.duration); if (isFinite(s)) return Math.round(s / 60); }
-  const iv = seg.interval || seg;
-  return minutesBetween(iv.startTime, iv.endTime);
+// Add `min` minutes of a sleep stage to a per-point stage tally. Stage type values come from the v4
+// SleepStage/StageSummary enum (AWAKE, LIGHT, DEEP, REM, ASLEEP, RESTLESS); anything that is sleep but
+// not deep/REM (undifferentiated ASLEEP, RESTLESS, or plain LIGHT) rolls into the light bucket.
+function bucketStage(seg: { deep: number; rem: number; light: number; awake: number }, type: unknown, min: number): void {
+  if (!min || min <= 0) return;
+  const t = String(type || '').toUpperCase();
+  if (t === 'DEEP') seg.deep += min;
+  else if (t === 'REM') seg.rem += min;
+  else if (t === 'AWAKE') seg.awake += min;
+  else if (t === 'LIGHT' || t === 'ASLEEP' || t === 'RESTLESS') seg.light += min;
+}
+
+// Roll one Google Health `sleep` data point up into `out` keyed by its wake date. Per the v4 schema a
+// Sleep carries an `interval` (the in-bed period), a `stages` array of SleepStage { startTime, endTime,
+// type }, and a `summary` with precomputed minutesAsleep / minutesAwake and a stagesSummary
+// [{ type, minutes }]. We prefer the summary's figures, fall back to the stages array, and fall back
+// again to the raw interval for a "classic" session that reports no stages at all. Crucially `min` is
+// time ASLEEP (not time in bed), so the score reflects real sleep rather than pinning at 100.
+function addSleepPoint(out: Record<string, any>, s: any): void {
+  const iv = s?.interval || {};
+  // Attribute the night to its WAKE date: prefer the civil end date, else the ISO end timestamp.
+  const ce = iv?.civilEndTime?.date;
+  const date = (ce && ce.year)
+    ? ce.year + '-' + String(ce.month).padStart(2, '0') + '-' + String(ce.day).padStart(2, '0')
+    : (iv?.endTime ? String(iv.endTime).slice(0, 10) : null);
+  if (!date) return;
+
+  const sum = s?.summary || {};
+  const seg = { deep: 0, rem: 0, light: 0, awake: 0 };
+  const stagesSummary = Array.isArray(sum.stagesSummary) ? sum.stagesSummary : [];
+  if (stagesSummary.length) {
+    for (const ss of stagesSummary) bucketStage(seg, ss?.type, Math.round(Number(ss?.minutes) || 0));
+  } else {
+    for (const st of (Array.isArray(s?.stages) ? s.stages : [])) bucketStage(seg, st?.type, minutesBetween(st?.startTime, st?.endTime));
+  }
+
+  // Time asleep: the summary's own figure (already excludes awake), else the sleep-stage sum, else the
+  // raw in-bed interval when a device reports neither a summary nor stages.
+  let asleep = Math.round(Number(sum.minutesAsleep) || 0);
+  if (!asleep) asleep = seg.deep + seg.rem + seg.light;
+  if (!asleep) asleep = minutesBetween(iv.startTime, iv.endTime);
+  if (!seg.awake) seg.awake = Math.round(Number(sum.minutesAwake) || 0);
+  if (asleep <= 0) return;
+
+  const rec: any = out[date] || { min: 0, deep: 0, rem: 0, light: 0, awake: 0 };
+  rec.min += asleep;
+  rec.deep += seg.deep; rec.rem += seg.rem; rec.light += seg.light; rec.awake += seg.awake;
+  out[date] = rec;
 }
 
 // Pull sleep sessions whose wake time falls in [startISO, endISO] (inclusive) and roll each up to a
 // per-wake-date record { min, deep, rem, light, awake } (stage minutes present only if the device
-// reports segments). Sleep is a session list-with-filter, NOT dailyRollUp, and pages at 25 per call.
+// reports them). Sleep is a session list-with-filter, NOT dailyRollUp, and pages at 25 per call.
 async function fetchSleep(accessToken: string, startISO: string, endISO: string): Promise<Record<string, any>> {
   const filter = `sleep.interval.end_time >= "${startISO}T00:00:00Z" AND sleep.interval.end_time < "${isoShift0(endISO, 1)}T00:00:00Z"`;
   const base = `https://health.googleapis.com/v4/users/me/dataTypes/sleep/dataPoints`;
@@ -119,26 +159,7 @@ async function fetchSleep(accessToken: string, startISO: string, endISO: string)
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message || 'Google Health sleep request failed');
     for (const p of (data?.dataPoints || [])) {
-      const s = p?.sleep || p; // the sleep object may sit under `.sleep` or be the point itself
-      const iv = s?.interval || {};
-      // Attribute the night to its WAKE date: prefer the civil end date, else the ISO end timestamp.
-      const ce = iv?.civilEndTime?.date;
-      const date = (ce && ce.year)
-        ? ce.year + '-' + String(ce.month).padStart(2, '0') + '-' + String(ce.day).padStart(2, '0')
-        : (iv?.endTime ? String(iv.endTime).slice(0, 10) : null);
-      if (!date) continue;
-      const rec: any = out[date] || { min: 0, deep: 0, rem: 0, light: 0, awake: 0 };
-      rec.min += minutesBetween(iv.startTime, iv.endTime);
-      for (const seg of (s?.sleepSegments || [])) {
-        const m = segmentMinutes(seg);
-        if (!m) continue;
-        const st = String(seg?.stageType || '').toUpperCase();
-        if (st === 'DEEP') rec.deep += m;
-        else if (st === 'REM') rec.rem += m;
-        else if (st === 'LIGHT') rec.light += m;
-        else if (st === 'AWAKE') rec.awake += m;
-      }
-      out[date] = rec;
+      addSleepPoint(out, p?.sleep || p); // the sleep object may sit under `.sleep` or be the point itself
     }
     pageToken = data?.nextPageToken || '';
     if (!pageToken) break;

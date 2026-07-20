@@ -277,17 +277,26 @@
   // "sleep style" collected into a small style dex. All deterministic per user + wake date.
   var SLEEP_TARGET_DEFAULT = 480; // 8h in minutes; per-user override in profile.sleepTargetMin
   var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
-  // Score 0..100 from duration against the user's target, nudged by a healthy deep+REM share when
-  // the device reports stages. Pure: no clock, no randomness. `stages` = { deep, rem, light, awake } mins.
+  // Score 0..100. Duration against the user's target is the backbone; when the device reports stages
+  // the points split across duration (60), sleep efficiency / how little of the night was awake (15),
+  // and a healthy deep+REM share (25), so a perfect score needs a genuinely good night rather than just
+  // time in bed. Stage-less nights fall back to the plain duration ratio. Pure: no clock, no randomness.
+  // `durationMin` is time asleep; `stages` = { deep, rem, light, awake } minutes.
   function sleepScore(durationMin, targetMin, stages) {
     var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
     if (dur <= 0 || tgt <= 0) return 0;
     var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
-    var total = stages ? (Number(stages.deep) || 0) + (Number(stages.rem) || 0) + (Number(stages.light) || 0) + (Number(stages.awake) || 0) : 0;
+    var deep = stages ? (Number(stages.deep) || 0) : 0, rem = stages ? (Number(stages.rem) || 0) : 0;
+    var light = stages ? (Number(stages.light) || 0) : 0, awake = stages ? (Number(stages.awake) || 0) : 0;
+    var asleep = deep + rem + light;
+    var total = asleep + awake;
     if (total > 0) {
-      var deepRem = ((Number(stages.deep) || 0) + (Number(stages.rem) || 0)) / total; // ideal ~0.45
+      var durComp = 60 * ratio; // time asleep vs target
+      var eff = asleep / total; // fraction of the night actually asleep
+      var effComp = 15 * Math.max(0, Math.min(1, (eff - 0.75) / 0.20)); // ramps 0.75 (poor) -> 0.95 (great)
+      var deepRem = asleep > 0 ? (deep + rem) / asleep : 0; // ideal ~0.45
       var qFactor = 1 - Math.min(Math.abs(deepRem - 0.45) / 0.45, 1); // 1 = ideal share, 0 = far off
-      return Math.max(0, Math.min(100, Math.round(ratio * (85 + 15 * qFactor))));
+      return Math.max(0, Math.min(100, Math.round(durComp + effComp + 25 * qFactor)));
     }
     return Math.max(0, Math.min(100, Math.round(ratio * 100)));
   }
