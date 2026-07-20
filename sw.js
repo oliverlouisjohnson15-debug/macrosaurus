@@ -7,7 +7,7 @@
    - API traffic (Supabase, Anthropic, Open Food Facts): never cached — always straight to the
      network; offline reads/writes are handled by the app's own IndexedDB store.
    Bump VERSION to force old caches to clear on the next activate. */
-const VERSION = '145';
+const VERSION = '146';
 const CORE = 'macrosaurus-core-v' + VERSION;
 const RUNTIME = 'macrosaurus-rt-v' + VERSION;
 const CORE_ASSETS = [
@@ -33,6 +33,39 @@ self.addEventListener('activate', function (e) {
     caches.keys()
       .then(function (keys) { return Promise.all(keys.filter(function (k) { return k !== CORE && k !== RUNTIME; }).map(function (k) { return caches.delete(k); })); })
       .then(function () { return self.clients.claim(); })
+  );
+});
+
+// Web Push: the push-nudge edge function sends a JSON payload {title, body, url, tag}. Show it as a
+// notification even when the app is closed. This is the whole point of the feature: the buddy can
+// reach you outside the app. Never fires without a payload the user opted into.
+self.addEventListener('push', function (e) {
+  var data = {};
+  try { data = e.data ? e.data.json() : {}; }
+  catch (_) { data = { body: e.data ? e.data.text() : '' }; }
+  var title = data.title || 'Macrosaurus';
+  var opts = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag || 'macrosaurus-nudge',
+    data: { url: data.url || '/' }
+  };
+  e.waitUntil(self.registration.showNotification(title, opts));
+});
+
+// Tapping the notification focuses an open tab (navigating it to the deep link) or opens a new one.
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var target = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i];
+        if ('focus' in c) { try { c.navigate && c.navigate(target); } catch (_) {} return c.focus(); }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    })
   );
 });
 

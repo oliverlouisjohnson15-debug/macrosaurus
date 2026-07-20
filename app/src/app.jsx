@@ -5559,6 +5559,25 @@ function SettingsTab({ db, update }) {
   const sset = (k, v) => setS(x => Object.assign({}, x, { [k]: v }));
   const [saved, setSaved] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
+  // Web Push opt-in for this device (separate from the in-app banner below).
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState('');
+  useEffect(() => { let ok = true; pushStatus().then(v => { if (ok) setPushOn(v); }); return () => { ok = false; }; }, []);
+  async function togglePush() {
+    setPushMsg('');
+    if (pushOn) { setPushBusy(true); await pushDisable(); setPushOn(false); setPushBusy(false); return; }
+    setPushBusy(true);
+    try { await pushEnable(s.nudgeHour); setPushOn(true); }
+    catch (e) {
+      const m = e && e.message;
+      setPushMsg(m === 'denied' ? 'Notifications are blocked. Allow them for this site in your browser settings, then try again.'
+        : m === 'signedout' ? 'Sign in first to turn on push reminders.'
+        : m === 'unsupported' ? 'This browser does not support push notifications.'
+        : 'Could not turn on push reminders. Please try again.');
+    }
+    setPushBusy(false);
+  }
   // Default meals are staged locally and committed on Save, so editing a meal name
   // flips the Save button just like every other setting on this tab.
   const initMeals = () => db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order).map(m => ({ id: m.id, name: m.name }));
@@ -5574,6 +5593,7 @@ function SettingsTab({ db, update }) {
       delete d.profile.sleepTargetHours; // staging-only field, never persisted
       d.meal_templates = dm.map((m, i) => { const ex = d.meal_templates.find(x => x.id === m.id); return Object.assign({}, ex || { id: m.id, user_id: Store.USER }, { name: (m.name || '').trim() || 'Meal', sort_order: i }); });
     });
+    if (pushOn) pushSyncHour(s.nudgeHour);
     setSaved(true); setTimeout(() => setSaved(false), 1800);
   }
   const renameDef = (id, name) => setDm(a => a.map(x => x.id === id ? Object.assign({}, x, { name }) : x));
@@ -5629,8 +5649,16 @@ function SettingsTab({ db, update }) {
       <Field label="Check-in day" hint="Your preferred weekly check-in day. Once a check-in unlocks (day 5 of the cycle), the dashboard nudges you on and after this day. The day-5 gate stays the source of truth.">
         <div className="flex gap-1.5">{DOW.map((d, i) => <button key={i} onClick={() => sset('checkinDay', i)} className={`flex-1 pixel-box py-2 text-[11px] ${s.checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>)}</div>
       </Field>
-      <RowToggle label={`Show a nudge banner when I open the app after ${(s.nudgeHour > 12 ? s.nudgeHour - 12 : s.nudgeHour) + (s.nudgeHour >= 12 ? 'pm' : 'am')} without logging`} on={s.reminders} onClick={() => sset('reminders', !s.reminders)} />
-      {s.reminders && <Field label="Nudge after" hint="Honest about what this is: an in-app banner on the Dashboard, not a push notification. It shows after this time on days you've not logged food or weighed in, before a miss would spend your monthly streak freeze.">
+      {pushSupported()
+        ? <>
+            <RowToggle label="Push reminders (your buddy nudges you to log)" on={pushOn} onClick={togglePush} />
+            {pushBusy && <div className="text-[12px] text-[#8A8A90] mb-1">Working...</div>}
+            {pushMsg && <div className="text-[12px] mb-1" style={{ color: 'var(--fat)' }}>{pushMsg}</div>}
+            {!pushOn && !pushBusy && pushNeedsInstall() && <div className="text-[12px] text-[#8A8A90] mb-1">On iPhone or iPad, add Macrosaurus to your Home Screen first (Share, then Add to Home Screen) to receive push reminders.</div>}
+          </>
+        : <div className="text-[12px] text-[#8A8A90] mb-2">This browser does not support push notifications. The in-app banner below still works.</div>}
+      <RowToggle label="Also show an in-app nudge banner when I open the app" on={s.reminders} onClick={() => sset('reminders', !s.reminders)} />
+      {(pushOn || s.reminders) && <Field label="Nudge after" hint="On a day you have not logged food or weighed in, before a miss would spend your monthly streak freeze. Sets both the push reminder (fires around this hour) and the in-app banner (shows when you next open the app).">
         <Dropdown value={s.nudgeHour} onChange={v => sset('nudgeHour', +v)} options={[12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({ v: h, l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am') }))} />
       </Field>}
     </Section>
@@ -6488,6 +6516,75 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
 const SUPA_URL = 'https://wnbksotvcjqfslrttjxy.supabase.co';
 const SUPA_KEY = 'sb_publishable_IMKN6PzhKwUZQp8n1RlKaQ_t2_1iQXB';
 const supa = (typeof window !== 'undefined' && window.supabase) ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+
+/* ---------- Web Push nudges ----------
+   The buddy reaches you outside the app: at your nudge hour on a day you have not logged, the
+   push-nudge edge function sends "Rex is peckish" to this device. Opt-in per device: we register a
+   PushManager subscription (VAPID) and upsert it to push_subscriptions (RLS-scoped to the user).
+   The VAPID PUBLIC key is safe to ship in the client; the private key lives server-side only. */
+const VAPID_PUBLIC = 'BLgtXjzArEUpXssjnf98rBDp7CyRegyV44aaNFKU95_sKzrLE_R4140-7HDDRu6bTzLBgjX9fAaS4B2_8FjtkxI';
+function pushSupported() {
+  return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+// iOS/iPadOS only deliver Web Push to an installed (home-screen) PWA. Detect so we can guide the user.
+function pushNeedsInstall() {
+  try {
+    var iOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    return iOS && !standalone;
+  } catch (_) { return false; }
+}
+function urlB64ToUint8(base64) {
+  var pad = '='.repeat((4 - base64.length % 4) % 4);
+  var b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  var raw = atob(b64); var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function pushTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) { return 'UTC'; } }
+// Is this device currently subscribed (permission granted + a live subscription)?
+async function pushStatus() {
+  if (!pushSupported() || typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+  try { var reg = await navigator.serviceWorker.ready; var sx = await reg.pushManager.getSubscription(); return !!sx; }
+  catch (_) { return false; }
+}
+// Turn push on for this device: ask permission, subscribe, store the subscription for the sender.
+async function pushEnable(nudgeHour) {
+  if (!pushSupported() || !supa) throw new Error('unsupported');
+  var perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('denied');
+  var reg = await navigator.serviceWorker.ready;
+  var sx = await reg.pushManager.getSubscription();
+  if (!sx) sx = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(VAPID_PUBLIC) });
+  var j = sx.toJSON();
+  var sess = (await supa.auth.getSession()).data.session;
+  if (!sess) throw new Error('signedout');
+  var row = { endpoint: sx.endpoint, user_id: sess.user.id, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: pushTz(), nudge_hour: nudgeHour == null ? 14 : nudgeHour, enabled: true, updated_at: new Date().toISOString() };
+  var res = await supa.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' });
+  if (res.error) throw res.error;
+  try { window.MTRACK && MTRACK('push_enable'); } catch (_) {}
+}
+// Turn push off for this device: unsubscribe locally and mark the stored row disabled.
+async function pushDisable() {
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sx = await reg.pushManager.getSubscription();
+    if (sx) {
+      if (supa) { try { await supa.from('push_subscriptions').update({ enabled: false, updated_at: new Date().toISOString() }).eq('endpoint', sx.endpoint); } catch (_) {} }
+      try { await sx.unsubscribe(); } catch (_) {}
+    }
+  } catch (_) {}
+  try { window.MTRACK && MTRACK('push_disable'); } catch (_) {}
+}
+// Keep the stored nudge hour in step with the setting while push stays on.
+async function pushSyncHour(nudgeHour) {
+  try {
+    if (!supa || !pushSupported()) return;
+    var reg = await navigator.serviceWorker.ready;
+    var sx = await reg.pushManager.getSubscription();
+    if (sx) await supa.from('push_subscriptions').update({ nudge_hour: nudgeHour, tz: pushTz(), updated_at: new Date().toISOString() }).eq('endpoint', sx.endpoint);
+  } catch (_) {}
+}
 
 /* ---------- Referrals ----------
    A friend opens macrosaurus.com/?ref=CODE and signs up: the `referral` edge function credits BOTH
