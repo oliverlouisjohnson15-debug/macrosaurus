@@ -1188,7 +1188,6 @@ function TrendCard({ db }) {
 /* =====================================================================
    AUTH (polished email login)
    ===================================================================== */
-const BETA_INVITE_CODE = 'henryalfie'; // required to create an account while in beta
 // Shown when a user arrives via a password-reset link (Supabase fires a PASSWORD_RECOVERY event and
 // puts the session into a recovery state). They set a new password, which logs them straight in.
 function ResetPassword({ onDone }) {
@@ -1259,7 +1258,7 @@ const LEGAL = {
       { h: "AI estimates", p: "Calorie and macro figures, barcode and label reads, and body-fat estimates are approximations and can be wrong. Always sense-check and edit them before relying on them." },
       { h: "Your account", p: "Keep your login details secure and do not share your account. You are responsible for activity that happens under it." },
       { h: "Acceptable use", p: "Do not misuse the app, attempt to break its security, or use it for anything unlawful." },
-      { h: "Subscriptions and payment", p: "Some features may require a paid subscription. Where they do, pricing, billing and cancellation terms will be shown clearly at the point of purchase. During the invite-only beta the app is provided free of charge." },
+      { h: "Subscriptions and payment", p: "Some features may require a paid subscription. Where they do, pricing, billing and cancellation terms will be shown clearly at the point of purchase." },
       { h: "Availability", p: "We aim to keep the app running smoothly but do not guarantee it will always be available or free of errors." },
       { h: "Intellectual property", p: "The app, its design and its content are owned by us or our licensors. Food data is provided by Open Food Facts under its own open licence." },
       { h: "Disclaimer of warranties", p: "The app is provided \"as is\" and \"as available\", without warranties of any kind, to the fullest extent permitted by law." },
@@ -1301,7 +1300,7 @@ function LegalDoc({ doc, onClose }) {
 }
 function Auth() {
   const [mode, setMode] = useState('login');
-  const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState(''); const [code, setCode] = useState('');
+  const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState('');
   const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false); const [legal, setLegal] = useState(null);
   const [needsConfirm, setNeedsConfirm] = useState(false);
   async function resendConfirm() {
@@ -1326,7 +1325,6 @@ function Auth() {
     if (mode === 'signup') {
       if (pw.length < 6) { setMsg('Use a password of at least 6 characters.'); return; }
       if (pw !== pw2) { setMsg('Those passwords do not match, please retype them.'); return; }
-      if (code.trim().toLowerCase() !== BETA_INVITE_CODE) { setMsg('That invite code isn\'t right. Macrosaurus is invite-only during the beta.'); return; }
     }
     setBusy(true); setMsg('');
     try {
@@ -1352,7 +1350,6 @@ function Auth() {
           <Field label="Email"><input type="email" autoComplete="email" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="you@email.com" /></Field>
           {mode !== 'forgot' && <Field label="Password"><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className={inputCls} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="at least 6 characters" /></Field>}
           {mode === 'signup' && <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="type it again" /></Field>}
-          {mode === 'signup' && <Field label="Beta invite code" hint="Macrosaurus is invite-only right now. Enter the code you were given."><input type="text" autoComplete="off" className={inputCls} value={code} onChange={e => setCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="invite code" /></Field>}
           {mode === 'forgot' && <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
           <button onClick={submit} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'PLEASE WAIT…' : (mode === 'signup' ? 'CREATE ACCOUNT' : (mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'))}</button>
           {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); }} className="w-full text-[11px] mt-3 text-center" style={{ color: 'var(--header)' }}>Forgot your password?</button>}
