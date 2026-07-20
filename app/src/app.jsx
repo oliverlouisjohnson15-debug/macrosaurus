@@ -6233,7 +6233,7 @@ function AdminAudit() {
   if (err) return <div className="text-[12px] mt-4" style={{ color: 'var(--danger)' }}>{err}</div>;
   if (!rows) return <div className="mt-6"><DinoLoader label="Loading log" /></div>;
   if (!rows.length) return <div className="text-[12px] text-[#8A8A90] mt-4">No admin actions logged yet.</div>;
-  const L = { view_user: 'viewed', set_cap: 'set cap for', set_config: 'set default cap', grant_admin: 'made admin', revoke_admin: 'revoked admin from', suspend_user: 'suspended', unsuspend_user: 'reinstated', add_note: 'noted', delete_note: 'deleted note for', update_state: 'edited data of', reset_user: 'reset data of', reset_usage: 'reset usage of', delete_user: 'deleted', resend_confirmation: 'resent confirm to', view_ai_logs: 'browsed AI logs', view_ai_log: 'opened an AI log for', clear_ai_logs: 'cleared AI logs' };
+  const L = { view_user: 'viewed', set_cap: 'set cap for', set_config: 'set default cap', grant_admin: 'made admin', revoke_admin: 'revoked admin from', suspend_user: 'suspended', unsuspend_user: 'reinstated', add_note: 'noted', delete_note: 'deleted note for', update_state: 'edited data of', reset_user: 'reset data of', reset_usage: 'reset usage of', delete_user: 'deleted', resend_confirmation: 'resent confirm to', set_password: 'set password for', view_ai_logs: 'browsed AI logs', view_ai_log: 'opened an AI log for', clear_ai_logs: 'cleared AI logs' };
   return (<div className="fade-in mt-1 space-y-1.5">
     {rows.map(r => (<div key={r.id} className="pixel-box p-2.5 bg-[#1E1E22]">
       <div className="text-[12px]"><span className="font-medium">{(r.admin_email || 'admin').split('@')[0]}</span> <span className="text-[#8A8A90]">{L[r.action] || r.action}</span>{r.target_email && <> <span className="font-medium">{r.target_email.split('@')[0]}</span></>}{r.meta && r.meta.cap != null && <span className="text-[#8A8A90]"> → ${Number(r.meta.cap).toFixed(2)}</span>}{r.meta && r.meta.default_cap_usd != null && <span className="text-[#8A8A90]"> → ${Number(r.meta.default_cap_usd).toFixed(2)}</span>}</div>
@@ -6411,6 +6411,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
   const [adminRole, setAdminRole] = useState(!!detail.is_admin);
   const [banned, setBanned] = useState(!!(detail.user && detail.user.banned));
   const [notes, setNotes] = useState(detail.notes || []); const [noteText, setNoteText] = useState('');
+  const [newPw, setNewPw] = useState(''); const [showPw, setShowPw] = useState(false);
   const isSelf = (u.email || '').toLowerCase() === (adminEmail || '').toLowerCase();
   const prof = detail.state && detail.state.profile;
   function flash(m) { setMsg(m); setErr(''); }
@@ -6427,6 +6428,9 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
   async function delNote(id) { setErr(''); try { await adminCall('delete_note', { userId: u.id, noteId: id }); setNotes(notes.filter(n => n.id !== id)); } catch (e) { setErr(e.message); } }
   function exportData() { try { const blob = new Blob([JSON.stringify(detail.state || {}, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'macrosaurus-' + (u.email || 'account') + '.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000); } catch (e) { setErr('Export failed: ' + e.message); } }
   async function doRecovery() { setBusy('recovery'); setErr(''); try { const j = await adminCall('send_recovery', { userId: u.id }); if (j.action_link) { try { await navigator.clipboard.writeText(j.action_link); flash('Reset link generated and copied to your clipboard. Send it to the user. ' + (j.note || '')); } catch (_) { flash('Reset link generated. ' + (j.note || '')); } } else { flash(j.note || 'Reset link generated.'); } } catch (e) { setErr(e.message); } setBusy(''); }
+  // Set a new password for the user directly (support does the typing, then hands it over securely).
+  // Kept behind an explicit confirm because it locks the user out of their old password immediately.
+  async function doSetPassword() { const p = newPw; if (!p || p.length < 6) { setErr('Password must be at least 6 characters.'); return; } setBusy('pw'); setErr(''); setMsg(''); try { await adminCall('set_password', { userId: u.id, password: p }); setNewPw(''); setConfirmKind(null); flash('Password updated. Their old password no longer works - share the new one with them securely and suggest they change it after logging in.'); } catch (e) { setErr(e.message); setConfirmKind(null); } setBusy(''); }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <button onClick={onBack} className="text-[12px] text-[#8A8A90] mb-2">← All users</button>
@@ -6445,6 +6449,13 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
           <Btn kind="ghost" className="flex-1" disabled={isSelf || busy === 'ban'} style={{ opacity: isSelf ? 0.5 : 1, color: banned ? 'var(--good)' : 'var(--danger)' }} onClick={() => banned ? toggleBan() : setConfirmKind('ban')}>{busy === 'ban' ? 'Working…' : (banned ? 'Reinstate account' : 'Suspend account')}</Btn>
         </div>
         <Btn kind="ghost" className="w-full mt-2" disabled={busy === 'recovery'} onClick={doRecovery}>{busy === 'recovery' ? 'Generating…' : 'Send password-reset link'}</Btn>
+        <div className="text-[12px] text-[#8A8A90] mt-4 mb-1.5">Set a new password directly</div>
+        <div className="flex gap-2">
+          <TextInput type={showPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="at least 6 characters" autoComplete="new-password" className="flex-1" />
+          <Btn kind="ghost" onClick={() => setShowPw(v => !v)}>{showPw ? 'Hide' : 'Show'}</Btn>
+        </div>
+        <Btn kind="accent" className="w-full mt-2" disabled={busy === 'pw' || newPw.length < 6} onClick={() => setConfirmKind('pw')}>{busy === 'pw' ? 'Saving…' : 'Set password'}</Btn>
+        <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-relaxed">Use this when someone is locked out and the reset email won't reach them. It takes effect immediately and their old password stops working.</div>
       </Section>
 
       <Section title="AI usage this month">
@@ -6508,6 +6519,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
         {isSelf && <div className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>Heads up: this is your own account.</div>}
       </Section>
 
+      {confirmKind === 'pw' && <ConfirmDialog title={'Set a new password for ' + u.email + '?'} body="Their current password stops working right away and they'll need the new one to log in. Share it with them securely, and suggest they change it once they're back in." confirmLabel={busy === 'pw' ? 'Setting…' : 'Set password'} confirmKind="accent" onConfirm={doSetPassword} onClose={() => setConfirmKind(null)} />}
       {confirmKind === 'ban' && <ConfirmDialog title={'Suspend ' + u.email + '?'} body="They'll be signed out and blocked from logging in until you reinstate them. Their data is kept, and this is reversible." confirmLabel={busy === 'ban' ? 'Suspending…' : 'Suspend account'} onConfirm={toggleBan} onClose={() => setConfirmKind(null)} />}
       {confirmKind === 'grant' && <ConfirmDialog title={'Make ' + u.email + ' an admin?'} body="They'll be able to view and manage every user account, including AI spend limits and deletions. Only do this for people you trust." confirmLabel={busy === 'admin' ? 'Working…' : 'Make admin'} confirmKind="accent" onConfirm={doGrant} onClose={() => setConfirmKind(null)} />}
       {confirmKind === 'revoke' && <ConfirmDialog title="Revoke admin access?" body={'This removes ' + u.email + "'s access to the admin panel. They keep their normal account."} confirmLabel={busy === 'admin' ? 'Working…' : 'Revoke access'} onConfirm={doRevoke} onClose={() => setConfirmKind(null)} />}

@@ -19077,6 +19077,7 @@ function AdminAudit() {
     reset_usage: 'reset usage of',
     delete_user: 'deleted',
     resend_confirmation: 'resent confirm to',
+    set_password: 'set password for',
     view_ai_logs: 'browsed AI logs',
     view_ai_log: 'opened an AI log for',
     clear_ai_logs: 'cleared AI logs'
@@ -19571,6 +19572,8 @@ function AdminUserDetail({
   const [banned, setBanned] = useState(!!(detail.user && detail.user.banned));
   const [notes, setNotes] = useState(detail.notes || []);
   const [noteText, setNoteText] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const isSelf = (u.email || '').toLowerCase() === (adminEmail || '').toLowerCase();
   const prof = detail.state && detail.state.profile;
   function flash(m) {
@@ -19798,6 +19801,31 @@ function AdminUserDetail({
     }
     setBusy('');
   }
+  // Set a new password for the user directly (support does the typing, then hands it over securely).
+  // Kept behind an explicit confirm because it locks the user out of their old password immediately.
+  async function doSetPassword() {
+    const p = newPw;
+    if (!p || p.length < 6) {
+      setErr('Password must be at least 6 characters.');
+      return;
+    }
+    setBusy('pw');
+    setErr('');
+    setMsg('');
+    try {
+      await adminCall('set_password', {
+        userId: u.id,
+        password: p
+      });
+      setNewPw('');
+      setConfirmKind(null);
+      flash('Password updated. Their old password no longer works - share the new one with them securely and suggest they change it after logging in.');
+    } catch (e) {
+      setErr(e.message);
+      setConfirmKind(null);
+    }
+    setBusy('');
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -19855,7 +19883,28 @@ function AdminUserDetail({
     className: "w-full mt-2",
     disabled: busy === 'recovery',
     onClick: doRecovery
-  }, busy === 'recovery' ? 'Generating…' : 'Send password-reset link')), /*#__PURE__*/React.createElement(Section, {
+  }, busy === 'recovery' ? 'Generating…' : 'Send password-reset link'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mt-4 mb-1.5"
+  }, "Set a new password directly"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    type: showPw ? 'text' : 'password',
+    value: newPw,
+    onChange: e => setNewPw(e.target.value),
+    placeholder: "at least 6 characters",
+    autoComplete: "new-password",
+    className: "flex-1"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: () => setShowPw(v => !v)
+  }, showPw ? 'Hide' : 'Show')), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full mt-2",
+    disabled: busy === 'pw' || newPw.length < 6,
+    onClick: () => setConfirmKind('pw')
+  }, busy === 'pw' ? 'Saving…' : 'Set password'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-1.5 leading-relaxed"
+  }, "Use this when someone is locked out and the reset email won't reach them. It takes effect immediately and their old password stops working.")), /*#__PURE__*/React.createElement(Section, {
     title: "AI usage this month"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Spent",
@@ -20014,7 +20063,14 @@ function AdminUserDetail({
     style: {
       color: 'var(--danger)'
     }
-  }, "Heads up: this is your own account.")), confirmKind === 'ban' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, "Heads up: this is your own account.")), confirmKind === 'pw' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Set a new password for ' + u.email + '?',
+    body: "Their current password stops working right away and they'll need the new one to log in. Share it with them securely, and suggest they change it once they're back in.",
+    confirmLabel: busy === 'pw' ? 'Setting…' : 'Set password',
+    confirmKind: "accent",
+    onConfirm: doSetPassword,
+    onClose: () => setConfirmKind(null)
+  }), confirmKind === 'ban' && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Suspend ' + u.email + '?',
     body: "They'll be signed out and blocked from logging in until you reinstate them. Their data is kept, and this is reversible.",
     confirmLabel: busy === 'ban' ? 'Suspending…' : 'Suspend account',
