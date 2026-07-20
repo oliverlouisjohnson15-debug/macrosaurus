@@ -475,3 +475,14 @@ test('readinessBand + buff reward recovery and cushion a rough night', () => {
   const drowsy = Game.readinessBuff(30);
   assert.ok(drowsy.atk < 1 && drowsy.def > 1 && drowsy.heal > 0, 'a recovery day softens attack but adds defence + heal');
 });
+
+test('primedCatch is deterministic and draws from the rare primed pool', () => {
+  const a = Game.primedCatch('saltZ', '2026-07-20');
+  assert.deepStrictEqual(a, Game.primedCatch('saltZ', '2026-07-20')); // stable per user+date
+  const pool = Game.PRIMED_POOL.concat(['rexosaur']);
+  for (let i = 0; i < 30; i++) {
+    const c = Game.primedCatch('u' + i, '2026-07-' + String((i % 28) + 1).padStart(2, '0'));
+    assert.ok(pool.includes(c.id), 'off-pool primed catch: ' + c.id);
+    assert.strictEqual(typeof c.shiny, 'boolean');
+  }
+});

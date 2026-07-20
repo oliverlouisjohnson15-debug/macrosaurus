@@ -3321,9 +3321,12 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const rInfo = rBand ? Game.READY_BAND[rBand] : null;
   const R_COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
-  const buffLine = rBuff ? (rBuff.atk > 1 ? "Your dino hits +" + Math.round((rBuff.atk - 1) * 100) + "% in today's fight"
-    : rBuff.atk < 1 ? "Recovery day: your dino guards +" + Math.round((rBuff.def - 1) * 100) + "% and heals"
-      : "Your dino's at full strength today") : null;
+  // On an Apex morning the recovery bonus catch is the headline; otherwise show what the buff does.
+  const primedName = db.primed && db.primed.lastDate === today && CR_BY_ID[db.primed.lastId] ? CR_BY_ID[db.primed.lastId].name : null;
+  const buffLine = primedName ? "Primed! A " + (db.primed.lastShiny ? "shiny " : "") + primedName + " joined your dex"
+    : rBuff ? (rBuff.atk > 1 ? "Your dino hits +" + Math.round((rBuff.atk - 1) * 100) + "% in today's fight"
+      : rBuff.atk < 1 ? "Recovery day: your dino guards +" + Math.round((rBuff.def - 1) * 100) + "% and heals"
+        : "Your dino's at full strength today") : null;
   // One editor at a time: null | 'steps' | 'sleep'.
   const [edit, setEdit] = useState(null);
   const [val, setVal] = useState('');
@@ -3761,6 +3764,26 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     });
     if (need && showToast) { const cr = CR_BY_ID[c.id]; if (cr) showToast('You slept well. A ' + style + ' ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.'); }
   }, [latestSleep, sleepPending]);
+  // Primed morning catch (Phase C, reward for recovery): an Apex-readiness morning draws a bonus, rarer
+  // creature into your dex, once a day, distinct from the sleep-style catch. db-null-safe + deduped.
+  const todayReadyBand = Game.readinessBand(readinessFor(db, today));
+  const primedPending = todayReadyBand === 'apex' && !((db.primed && db.primed.claimed) || {})[today] ? today : null;
+  useEffect(() => {
+    if (!db || todayReadyBand !== 'apex') return;
+    if (db.primed && db.primed.claimed && db.primed.claimed[today]) return;
+    const c = Game.primedCatch(db.game_salt || '', today);
+    update(d => {
+      d.primed = d.primed || { claimed: {} };
+      d.primed.claimed = d.primed.claimed || {};
+      if (d.primed.claimed[today]) return;
+      d.primed.claimed[today] = true;
+      d.primed.lastDate = today; d.primed.lastId = c.id; d.primed.lastShiny = !!c.shiny;
+      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
+      if (!arr.some(x => x.primed === today)) arr.push({ id: c.id, shiny: !!c.shiny, primed: today });
+      d.catch_log[today] = arr;
+    });
+    if (showToast) { const cr = CR_BY_ID[c.id]; if (cr) showToast('Primed and recovered! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.'); }
+  }, [primedPending]);
   // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
   // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
   const todayCr = creatureForDay(db, today);
@@ -8172,6 +8195,22 @@ function App() {
         } catch (e) {
           if (e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
         }
+      })();
+    } else {
+      // Self-heal: the server may still hold a live connection even if this device's copy lost the
+      // flag (a concurrent save from another session/tab can overwrite it on merge, since state carries
+      // the newest _rev wholesale). Ask the server for the truth and reconnect the UI if so.
+      (async () => {
+        try {
+          const st = await ghPost('status', {});
+          if (st && st.connected) {
+            const r = await ghPost('sync', {}).catch(() => null);
+            update(d => {
+              d.googleHealth = { connected: true, lastSync: (r && r.last_sync) || st.last_sync || new Date().toISOString() };
+              if (r) { mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); mergeHealthInto(d, r.health); }
+            });
+          }
+        } catch (_) { /* offline or not signed in: leave the UI as-is */ }
       })();
     }
   }, [db, session]);

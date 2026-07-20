@@ -108,6 +108,7 @@
       sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + morning Macrodex catch.
       sleepDex: { claimed: {}, lastDate: null, lastId: null, lastShiny: false, lastStyle: null }, // Pokemon Sleep style morning-catch: which wake dates already awarded a catch + last night's reveal
       health: {},         // daily recovery signals keyed by date (Google Health, Phase B): { 'YYYY-MM-DD': { hrv, hrvBaseline, rhr, rhrBaseline, tempDev } }. Powers the readiness score.
+      primed: { claimed: {}, lastDate: null, lastId: null, lastShiny: false }, // Apex-readiness morning bonus catch: which dates already awarded + last reveal
       googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
       goals: null,
     };
@@ -189,6 +190,10 @@
     out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
     out.sleep         = Object.assign({}, older.sleep || {},         newer.sleep || {}); // newer wins per wake date
     out.health        = Object.assign({}, older.health || {},        newer.health || {}); // recovery signals, newer wins per date
+    // primed morning catch: union the claimed dates, keep the later reveal
+    var po = older.primed || {}, pn = newer.primed || {};
+    var plater = (pn.lastDate || '') >= (po.lastDate || '') ? pn : po;
+    out.primed = Object.assign({ claimed: {}, lastDate: null }, plater, { claimed: Object.assign({}, po.claimed || {}, pn.claimed || {}) });
     // sleepDex: union the claimed wake dates, keep the later night's reveal fields
     var so = older.sleepDex || {}, sn = newer.sleepDex || {};
     var later = (sn.lastDate || '') >= (so.lastDate || '') ? sn : so;

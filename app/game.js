@@ -376,6 +376,16 @@
     if (band === 'drowsy') return { band: band, atk: 0.9, def: 1.15, heal: 0.1, label: 'Recovering' };
     return { band: band || 'prowling', atk: 1.0, def: 1.0, heal: 0, label: 'Steady' };
   }
+  // A "primed" morning bonus catch: an extra, rarer encounter you only earn on an Apex-readiness
+  // morning, so genuinely good recovery is rewarded in the dex (distinct from the sleep-style catch).
+  // Deterministic per user + date.
+  var PRIMED_POOL = ['veloci', 'platealon', 'triceros', 'flexor', 'aurora'];
+  function primedCatch(salt, date) {
+    var h = seedFor(salt, 'primed#' + date);
+    var pool = PRIMED_POOL.slice();
+    if (h % 6 === 0) pool.push('rexosaur'); // a great recovery day can rouse a legendary
+    return { id: pool[h % pool.length], shiny: seedFor(salt, 'primedshiny#' + date) % 5 === 0 };
+  }
 
   var Game = {
     shiftISO: shiftISO,
@@ -438,6 +448,8 @@
     readinessScore: readinessScore,
     readinessBand: readinessBand,
     readinessBuff: readinessBuff,
+    PRIMED_POOL: PRIMED_POOL,
+    primedCatch: primedCatch,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
