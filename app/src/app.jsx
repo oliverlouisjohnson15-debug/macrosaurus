@@ -3235,9 +3235,37 @@ function HomeWeightSpark({ db, onOpen }) {
 // target) share one compact tile so the dashboard carries a single activity card. Both sync from
 // Google Health; steps stay hand-loggable, sleep's one editable is the nightly target. Steps also feed
 // the check-in's steps-first coaching. The morning-catch line and one sync status sit along the bottom.
-function StepsSleepCard({ db, update }) {
+// One dial in the Today status card: a 0..100 ring with the headline number inside and a raw value
+// beneath. Consistent across Move / Sleep / Ready so the three read as one glanceable row on mobile.
+function StatDial({ label, fill, big, sub, color, subColor, active, onTap }) {
+  const R = 17, C = 2 * Math.PI * R;
+  const has = fill != null;
+  const f = has ? Math.max(0, Math.min(100, fill)) : 0;
+  return (
+    <button type="button" onClick={onTap} className="flex-1 min-w-0 flex flex-col items-center text-center py-1 px-0.5"
+      style={{ background: 'transparent', border: 0 }}>
+      <div className="pf text-[8px] uppercase truncate w-full" style={{ color: active ? color : 'var(--muted)' }}>{label}</div>
+      <div className="relative my-1.5" style={{ width: 46, height: 46 }}>
+        <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+          <circle cx="23" cy="23" r={R} fill="none" stroke="var(--track)" strokeWidth="4.5" />
+          {has && <circle cx="23" cy="23" r={R} fill="none" stroke={color} strokeWidth="4.5" strokeLinecap="round"
+            strokeDasharray={C} strokeDashoffset={C * (1 - f / 100)} transform="rotate(-90 23 23)"
+            style={{ transition: 'stroke-dashoffset .5s cubic-bezier(.2,.7,.3,1)' }} />}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center font-bold tnum leading-none"
+          style={{ fontSize: 15, color: has ? 'var(--text)' : 'var(--muted)' }}>{big}</div>
+      </div>
+      <div className="text-[9.5px] tnum truncate w-full leading-tight" style={{ color: subColor || 'var(--muted)' }}>{sub}</div>
+    </button>
+  );
+}
+
+// Today status: Move / Sleep / Ready as three comparable dials, with the readiness -> Fight buff as the
+// payoff strip. Steps + sleep-target edit inline; Google Health drives it, manual entry is the fallback.
+function StepsSleepCard({ db, update, onOpenPlay }) {
   const today = Store.todayISO();
   const k = n => Math.round(n).toLocaleString('en-GB');
+  const kShort = n => n >= 1000 ? (Math.round(n / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(Math.round(n));
   // Steps: today vs the activity-band (or custom) goal.
   const steps = db.steps || {};
   const todaySteps = +steps[today] || 0;
@@ -3258,6 +3286,16 @@ function StepsSleepCard({ db, update }) {
   const sdex = db.sleepDex || {};
   const caughtLast = !!lastDate && sdex.lastDate === lastDate;
   const crName = caughtLast && CR_BY_ID[sdex.lastId] ? CR_BY_ID[sdex.lastId].name : null;
+  // Readiness: our recovery score + the band and Fight buff it grants.
+  const readiness = readinessFor(db, today);
+  const rBand = Game.readinessBand(readiness);
+  const rBuff = readiness != null ? Game.readinessBuff(readiness) : null;
+  const rInfo = rBand ? Game.READY_BAND[rBand] : null;
+  const R_COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
+  const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
+  const buffLine = rBuff ? (rBuff.atk > 1 ? "Your dino hits +" + Math.round((rBuff.atk - 1) * 100) + "% in today's fight"
+    : rBuff.atk < 1 ? "Recovery day: your dino guards +" + Math.round((rBuff.def - 1) * 100) + "% and heals"
+      : "Your dino's at full strength today") : null;
   // One editor at a time: null | 'steps' | 'sleep'.
   const [edit, setEdit] = useState(null);
   const [val, setVal] = useState('');
@@ -3271,104 +3309,67 @@ function StepsSleepCard({ db, update }) {
     update(d => { d.profile = d.profile || {}; if (h > 0) d.profile.sleepTargetMin = Math.round(h * 60); else delete d.profile.sleepTargetMin; });
     setEdit(null);
   }
-  const R = 15, C = 2 * Math.PI * R;
   const synced = db.googleHealth && db.googleHealth.connected;
   return (
-    <Card className="p-3.5 mb-4">
-      <div className="grid grid-cols-2 gap-3">
-        {/* Steps */}
-        <div className="min-w-0">
-          <div className="pf text-[9px] uppercase text-[#8A8A90] truncate">Steps{goalHit ? <span style={{ color: 'var(--good)' }}> · goal hit</span> : stepGoal > 0 ? ' · ' + stepPct + '%' : ''}</div>
-          <div className="flex items-center gap-2 mt-1.5">
-            {/* Ring is purely visual; the count lives in the text. A checkmark caps the arc once hit. */}
-            <svg width="36" height="36" viewBox="0 0 36 36" className="shrink-0" aria-hidden="true">
-              <circle cx="18" cy="18" r={R} fill="none" stroke="var(--track)" strokeWidth="4" />
-              {stepGoal > 0 && <circle cx="18" cy="18" r={R} fill="none" stroke="var(--good)" strokeWidth="4" strokeDasharray={C} strokeDashoffset={C * (1 - stepPct / 100)} transform="rotate(-90 18 18)" style={{ transition: 'stroke-dashoffset .4s' }} />}
-              {goalHit && <path d="M12 18.5 l4 4 l8 -9" fill="none" stroke="var(--good)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
-            </svg>
-            <div className="min-w-0 leading-tight">
-              <div className="text-base font-bold tnum truncate">{todaySteps ? k(todaySteps) : 'Not logged'}</div>
-              <div className="text-[10px] text-[#8A8A90] tnum truncate">{stepGoal > 0 ? '/ ' + k(stepGoal) + ' goal' : 'no goal'}</div>
-            </div>
-          </div>
-          <button onClick={() => { setVal(todaySteps || ''); setEdit('steps'); }} className="pf text-[8px] uppercase mt-1.5" style={{ color: 'var(--accent)' }}>{todaySteps ? 'Edit' : 'Log'} ›</button>
-        </div>
-        {/* Sleep */}
-        <div className="min-w-0 pl-3" style={{ borderLeft: '1px solid var(--border)' }}>
-          <div className="pf text-[9px] uppercase text-[#8A8A90] truncate">Sleep{rec ? ' · ' + score + ' score' : ''}</div>
-          <div className="flex items-center gap-2 mt-1.5">
-            <svg width="36" height="36" viewBox="0 0 36 36" className="shrink-0" aria-hidden="true">
-              <circle cx="18" cy="18" r={R} fill="none" stroke="var(--track)" strokeWidth="4" />
-              {rec && <circle cx="18" cy="18" r={R} fill="none" stroke="var(--accent)" strokeWidth="4" strokeDasharray={C} strokeDashoffset={C * (1 - Math.min(100, score) / 100)} transform="rotate(-90 18 18)" style={{ transition: 'stroke-dashoffset .4s' }} />}
-            </svg>
-            <div className="min-w-0 leading-tight">
-              <div className="text-base font-bold tnum truncate">{rec ? sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '') : 'No sleep yet'}</div>
-              <div className="text-[10px] text-[#8A8A90] tnum truncate">/ {targetHLabel}h target</div>
-            </div>
-          </div>
-          <button onClick={() => { setVal(targetH || ''); setEdit('sleep'); }} className="pf text-[8px] uppercase mt-1.5" style={{ color: 'var(--accent)' }}>Target ›</button>
-        </div>
+    <Card className="p-3 mb-4">
+      <div className="flex items-center justify-between mb-0.5 px-1">
+        <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Today</div>
+        {synced
+          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ Synced</span>
+          : ghConfigured()
+            ? <button onClick={ghConnect} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect Health ›</button>
+            : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
+      </div>
+
+      {/* Three dials: Move / Sleep / Ready, all 0..100 so they read as one row */}
+      <div className="flex items-stretch">
+        <StatDial label="Move" fill={stepGoal > 0 ? stepPct : null} color="var(--good)"
+          big={stepGoal > 0 ? (goalHit ? '✓' : stepPct) : '–'}
+          sub={todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'Tap to log'}
+          onTap={() => { setVal(todaySteps || ''); setEdit(edit === 'steps' ? null : 'steps'); }} />
+        <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
+        <StatDial label="Sleep" fill={rec ? Math.min(100, score) : null} color="var(--accent)"
+          big={rec ? score : '–'}
+          sub={rec ? sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '') : 'No data'}
+          onTap={() => { setVal(targetH || ''); setEdit(edit === 'sleep' ? null : 'sleep'); }} />
+        <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
+        <StatDial label="Ready" fill={readiness != null ? Math.min(100, readiness) : null} color={rColor}
+          big={readiness != null ? readiness : '–'} active={!!rBand}
+          sub={rInfo ? rInfo.label : 'No data'} subColor={rBand ? rColor : 'var(--muted)'}
+          onTap={onOpenPlay} />
       </div>
 
       {/* Inline editor for whichever field is being changed */}
       {edit === 'steps' && (
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-2.5">
           <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="Steps today, e.g. 8500" autoFocus /></div>
           <Btn kind="accent" className="text-sm" onClick={saveSteps}>Save</Btn>
           <button onClick={() => setEdit(null)} className="text-[#8A8A90] text-sm px-1">Cancel</button>
         </div>
       )}
       {edit === 'sleep' && (
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-2.5">
           <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="Sleep target hours, e.g. 8" autoFocus /></div>
           <Btn kind="accent" className="text-sm" onClick={saveSleep}>Save</Btn>
           <button onClick={() => setEdit(null)} className="text-[#8A8A90] text-sm px-1">Cancel</button>
         </div>
       )}
 
-      {/* Shared footer: last night's morning catch, then one Google Health status for both metrics */}
-      {crName && <div className="text-[10px] truncate mt-2" style={{ color: 'var(--accent)' }}>{sdex.lastStyle} {sdex.lastShiny ? 'shiny ' : ''}{crName} joined your dex</div>}
-      <div className="flex items-center justify-end mt-2">
-        {synced
-          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ Google Health synced</span>
-          : ghConfigured()
-            ? <button onClick={ghConnect} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect Google Health</button>
-            : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Google Health soon</span>}
-      </div>
-    </Card>
-  );
-}
-
-// Readiness tile: our own recovery score, banded Apex / Prowling / Drowsy, with the battle buff it
-// grants that day so the number connects to the game. Sleep + activity today; sharper once a
-// heart-rate wearable is connected (Phase B adds HRV + resting HR).
-function ReadinessCard({ db }) {
-  const today = Store.todayISO();
-  const score = readinessFor(db, today);
-  const band = Game.readinessBand(score);
-  const buff = score != null ? Game.readinessBuff(score) : null;
-  const info = band ? Game.READY_BAND[band] : null;
-  const COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
-  const col = band ? COLOR[band] : 'var(--muted)';
-  const R = 16, C = 2 * Math.PI * R, pct = score != null ? Math.min(100, score) : 0;
-  const buffLine = buff ? (buff.atk > 1 ? 'Dino +' + Math.round((buff.atk - 1) * 100) + '% ATK'
-    : buff.atk < 1 ? 'Recovery · +' + Math.round((buff.def - 1) * 100) + '% defence' : 'Dino at full strength') : null;
-  return (
-    <Card className="p-3.5 mb-4">
-      <div className="flex items-center gap-3">
-        <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0" aria-hidden="true">
-          <circle cx="20" cy="20" r={R} fill="none" stroke="var(--track)" strokeWidth="4" />
-          {score != null && <circle cx="20" cy="20" r={R} fill="none" stroke={col} strokeWidth="4" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} transform="rotate(-90 20 20)" style={{ transition: 'stroke-dashoffset .4s' }} />}
-        </svg>
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="pf text-[9px] uppercase text-[#8A8A90] truncate">Readiness{info ? ' · ' + info.label : ''}</div>
-          <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-            <span className="text-base font-bold tnum">{score != null ? score : '–'}</span>
-            {buffLine && <span className="text-[10px] tnum" style={{ color: col }}>{buffLine}</span>}
+      {/* The payoff: readiness turned into a game buff, tappable through to the Fight */}
+      {rBuff && rInfo && (
+        <button type="button" onClick={onOpenPlay} className="w-full text-left mt-2.5 pixel-box p-2.5 flex items-center gap-2.5"
+          style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: rColor, borderWidth: 2 }}>
+          <PixelGlyph kind="dino" color={rColor} size={16} />
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="pf text-[8px] uppercase" style={{ color: rColor }}>{rInfo.label} · readiness {readiness}</div>
+            <div className="text-[11px] truncate" style={{ color: 'var(--text)' }}>{buffLine}</div>
           </div>
-          <div className="text-[10px] text-[#8A8A90] truncate">{info ? info.blurb : 'Builds from your sleep and activity. Sharper with a heart-rate wearable.'}</div>
-        </div>
-      </div>
+          <span className="pf text-[9px]" style={{ color: 'var(--muted)' }}>›</span>
+        </button>
+      )}
+
+      {/* Last night's morning catch */}
+      {crName && <div className="text-[10px] truncate mt-2 text-center" style={{ color: 'var(--accent)' }}>{sdex.lastStyle} {sdex.lastShiny ? 'shiny ' : ''}{crName} joined your dex</div>}
     </Card>
   );
 }
@@ -3843,11 +3844,8 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Slim weight trend, taps through to the Goal tab for the full picture and burn estimate */}
       <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
 
-      {/* Move & rest: today's steps vs goal and last night's sleep score in one tile (Google Health sync) */}
-      <StepsSleepCard db={db} update={update} />
-
-      {/* This morning's readiness: our recovery score + the dino battle buff it grants today */}
-      <ReadinessCard db={db} />
+      {/* Today status: Move / Sleep / Ready as three dials, with the readiness -> Fight buff (Google Health) */}
+      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
 
       {/* Play: the game lives behind the dino now. One compact entry into the full hub, so the
           dashboard stays about today's food and progress. Fight + naming stay reachable here. */}
