@@ -31,7 +31,10 @@ To rebuild the database from scratch: `supabase db push` (or `supabase db reset`
 | 20260719071757 | support_tickets | `support_tickets` |
 | 20260719112946 | referrals_and_rewards | `user_rewards`, `referrals` + referral RPCs |
 | 20260719173549 | google_health_connections | `google_health_connections` (refresh tokens, deny-all RLS) |
-| 20260720120000 | lock_down_referral_functions | **security fix** — REVOKE client grants on referral RPCs |
+| 20260720171240 | lock_down_referral_functions | **security fix** — REVOKE client grants on referral RPCs |
+| 20260720173542 | push_subscriptions | `push_subscriptions` (Web Push devices, owner-managed RLS) |
+| 20260720173553 | app_secrets | `app_secrets` (server-only secrets, deny-all RLS) |
+| 20260720174224 | push_nudge_cron | hourly pg_cron job → `push-nudge` edge function |
 
 ## RLS model (the important part)
 
@@ -39,6 +42,8 @@ Every table in `public` has RLS **enabled**. There are two deliberate patterns:
 
 **1. Owner-readable tables** — the client reads its own row(s); writes are server-side.
 - `user_state` — owner select/insert/update (the only table the client writes directly).
+- `push_subscriptions` — owner-scoped select/insert/update/delete (each device manages its own Web
+  Push subscription row); the `push-nudge` sender reads them as `service_role`.
 - `ai_usage`, `subscriptions`, `user_rewards`, `admins`, `app_config`, `support_tickets`,
   `referrals`, `food_submissions`, `recipe_public` — owner-scoped `select` (and, for
   `food_submissions`/`recipe_public`, owner-scoped writes). All privileged writes are done by
@@ -47,7 +52,10 @@ Every table in `public` has RLS **enabled**. There are two deliberate patterns:
 **2. Deny-all / server-only tables** — RLS enabled with **no policies on purpose**. The
 `anon`/`authenticated` keys get nothing; only `service_role` (edge functions) can touch them:
 `admin_audit`, `ai_logs`, `ai_usage_by_model`, `user_limits`, `support_notes`,
-`user_state_history`, `user_state_backup`, `google_health_connections`.
+`user_state_history`, `user_state_backup`, `google_health_connections`, `app_secrets`.
+
+> `app_secrets` holds the VAPID private key and the push-nudge cron secret. Values are inserted
+> out-of-band (never in a committed migration) and read only by edge functions as `service_role`.
 
 > The Supabase **security advisor** reports these eight as `rls_enabled_no_policy` (INFO). That is
 > **expected and correct** — they are meant to be unreachable by client keys. Do **not** "fix"
@@ -69,6 +77,39 @@ granted to `authenticated` (never `anon`).**
 The advisor lists the `authenticated`-granted RPCs under `..._security_definer_function_executable`
 (WARN). These are **intended** — they are the deduped/anonymised access path to the shared recipe
 and community-food pools, and each validates input and scopes writes to `auth.uid()` internally.
+
+## Web Push nudges (the `push-nudge` function)
+
+The buddy reaches users outside the app. Flow:
+
+1. **Client** (`app/src/app.jsx`) asks permission, `PushManager.subscribe()` with the VAPID **public**
+   key, and upserts the subscription (endpoint, keys, IANA `tz`, `nudge_hour`) into
+   `push_subscriptions`. Toggle lives in Settings → Notifications.
+2. **Service worker** (`sw.js`) has `push` + `notificationclick` handlers that show the notification
+   and deep-link to `/?action=log`.
+3. **Sender** (`supabase/functions/push-nudge/index.ts`, `verify_jwt=false`) runs hourly via
+   `push_nudge_hourly` (pg_cron → pg_net). For each enabled subscription whose **local** hour equals
+   its `nudge_hour`, hasn't been nudged today (`last_nudge_date`), isn't paused, and hasn't logged
+   food today, it sends one Web Push. Expired subs (404/410) are pruned. It authenticates callers
+   with `x-cron-secret` (compared against `app_secrets.cron_secret`).
+
+VAPID keys: **public** key is embedded in the client (safe); **private** key + subject live in
+`app_secrets`. To rotate, generate a new P-256 keypair, update `app_secrets`, and ship the new public
+key in the client (existing subscriptions must re-subscribe).
+
+Manual delivery test (sends to every enabled device, bypassing the hour/logged gates):
+```sql
+select net.http_post(
+  url := 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/push-nudge',
+  headers := jsonb_build_object('Content-Type','application/json',
+    'x-cron-secret', (select value from public.app_secrets where key='cron_secret')),
+  body := '{"test":true}'::jsonb);
+-- then: select status_code, content from net._http_response order by id desc limit 1;
+```
+
+> **iOS/iPadOS caveat:** Safari only delivers Web Push to an **installed** (home-screen) PWA. The
+> Settings toggle detects this and tells the user to Add to Home Screen first. Android/desktop
+> Chrome/Firefox/Edge work in-browser.
 
 ## Outstanding security-advisor items (not code — needs a dashboard toggle)
 
