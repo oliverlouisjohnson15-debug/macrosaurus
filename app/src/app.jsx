@@ -1303,17 +1303,20 @@ function Auth() {
   const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState('');
   const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false); const [legal, setLegal] = useState(null);
   const [needsConfirm, setNeedsConfirm] = useState(false);
+  const [loginFailed, setLoginFailed] = useState(false); const [existing, setExisting] = useState(false);
   async function resendConfirm() {
     if (!supa) { setMsg('Accounts need an internet connection. Open the deployed site.'); return; }
     if (!email) { setMsg('Enter your email above and we\'ll send the confirmation link again.'); return; }
     setBusy(true); setMsg('');
-    try { const r = await supa.auth.resend({ type: 'signup', email, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; setMsg('Confirmation email sent again to ' + email + '. It can take a minute to arrive, so check your spam folder too.'); }
-    catch (e) { setMsg(e.message); }
+    try { const r = await supa.auth.resend({ type: 'signup', email, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; setMsg('Confirmation email sent again to ' + email + '. Give it a minute, and check your spam/junk folder - Hotmail and Outlook often file it there.'); }
+    // An already-confirmed address can't be "resent" a signup link; Supabase errors instead of
+    // sending. Don't leave the user waiting on an email that will never come - point them at login.
+    catch (e) { const m = e.message || ''; if (/already|confirm|registered/i.test(m)) { setNeedsConfirm(false); setMode('login'); setExisting(true); setMsg('This email is already confirmed - just log in below. Forgotten your password? Reset it with the link under the button.'); } else setMsg(m); }
     setBusy(false);
   }
   async function submit() {
     if (!supa) { setMsg('Accounts need an internet connection. Open the deployed site.'); return; }
-    setNeedsConfirm(false);
+    setNeedsConfirm(false); setLoginFailed(false); setExisting(false);
     if (mode === 'forgot') {
       if (!email) { setMsg('Enter your email and we\'ll send a reset link.'); return; }
       setBusy(true); setMsg('');
@@ -1328,9 +1331,27 @@ function Auth() {
     }
     setBusy(true); setMsg('');
     try {
-      if (mode === 'signup') { const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } }); if (r.error) throw r.error; window.MTRACK && MTRACK('signup'); if (!r.data.session) { setNeedsConfirm(true); setMsg('Account created. Check your email for a confirmation link, then log in.'); } }
+      if (mode === 'signup') {
+        const r = await supa.auth.signUp({ email, password: pw, options: { emailRedirectTo: window.location.origin } });
+        if (r.error) throw r.error;
+        // Supabase obfuscates "email already registered" as a success with no session and an empty
+        // identities array (so signup can't be used to probe who has an account). Telling these users
+        // to "check your email" is exactly what manufactures the phantom "never got my verification
+        // email" tickets - nothing is ever sent. Send them to log in / reset instead.
+        const already = r.data && r.data.user && Array.isArray(r.data.user.identities) && r.data.user.identities.length === 0;
+        if (already) { setMode('login'); setExisting(true); setMsg('You already have an account for ' + email + '. Log in below - or reset your password if you\'ve forgotten it.'); }
+        else { window.MTRACK && MTRACK('signup'); if (!r.data.session) { setNeedsConfirm(true); setMsg('Account created. Check your email for a confirmation link, then log in. It can take a minute - and on Hotmail/Outlook, check your junk folder.'); } }
+      }
       else { const r = await supa.auth.signInWithPassword({ email, password: pw }); if (r.error) throw r.error; }
-    } catch (e) { if (/confirm/i.test(e.message || '')) setNeedsConfirm(true); setMsg(e.message); }
+    } catch (e) {
+      const m = e.message || '';
+      // A wrong password comes back as the generic "Invalid login credentials". Left as-is, returning
+      // users read it as "my account/verification is broken" and open a ticket - so name the real fix
+      // (reset) and surface the Forgot-password link.
+      if (/confirm/i.test(m)) { setNeedsConfirm(true); setMsg('Your email isn\'t confirmed yet - check your inbox (and junk folder) for the link, or resend it below.'); }
+      else if (mode === 'login' && /invalid login credentials/i.test(m)) { setLoginFailed(true); setMsg('That email and password don\'t match. If you\'ve forgotten your password, reset it with the link below.'); }
+      else setMsg(m);
+    }
     setBusy(false);
   }
   return (
@@ -1352,13 +1373,13 @@ function Auth() {
           {mode === 'signup' && <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="type it again" /></Field>}
           {mode === 'forgot' && <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
           <button onClick={submit} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'PLEASE WAIT…' : (mode === 'signup' ? 'CREATE ACCOUNT' : (mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'))}</button>
-          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); }} className="w-full text-[11px] mt-3 text-center" style={{ color: 'var(--header)' }}>Forgot your password?</button>}
-          {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: 'var(--danger)' }}>{msg}</div>}
+          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[11px] mt-3 text-center' + (loginFailed ? ' underline font-semibold' : '')} style={{ color: 'var(--header)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
+          {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger)' }}>{msg}</div>}
           {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
         </div>
         {mode === 'forgot'
-          ? <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">← Back to log in</button>
-          : <button onClick={() => { setMode(mode === 'signup' ? 'login' : 'signup'); setMsg(''); setNeedsConfirm(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">
+          ? <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">← Back to log in</button>
+          : <button onClick={() => { setMode(mode === 'signup' ? 'login' : 'signup'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">
             {mode === 'signup' ? <>Already have an account? <span className="font-semibold" style={{ color: 'var(--header)' }}>Log in</span></> : <>New here? <span className="font-semibold" style={{ color: 'var(--header)' }}>Create an account</span></>}
           </button>}
         <div className="text-[10px] text-[#8A8A90] text-center mt-8 leading-relaxed px-2">
