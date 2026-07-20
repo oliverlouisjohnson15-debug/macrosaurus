@@ -253,7 +253,7 @@ const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1
 // now syncs into Google Health. See the google-health-proxy edge function.
 const GH_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/google-health-proxy';
 const GOOGLE_CLIENT_ID = '779915009623-ahbl494cs1psoeilmph4n8ij24goi9jh.apps.googleusercontent.com';
-const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly https://www.googleapis.com/auth/googlehealth.sleep.readonly';
+const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly https://www.googleapis.com/auth/googlehealth.sleep.readonly https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly';
 // Minimum gap between Google Health syncs. We re-sync on app open and whenever the app returns to the
 // foreground (throttled to this), so steps/sleep stay fresh through the day without hammering the API.
 const GH_SYNC_GAP_MS = 10 * 60 * 1000;
@@ -368,6 +368,32 @@ function mergeSleepInto(d, sleep) {
     if (stages) Object.assign(rec, stages);
     d.sleep[k] = rec; n++;
   }
+  return n;
+}
+// Merge a { date: { hrv?, rhr?, spo2?, tempDev? } } map from Google Health into d.health, then compute
+// each day's rolling baseline (trailing average of the PRIOR readings) so readiness can compare today
+// to the user's own normal. HRV and resting HR only mean anything relative to a personal baseline.
+function mergeHealthInto(d, health) {
+  if (!health) return 0;
+  d.health = d.health || {};
+  let n = 0;
+  for (const k in health) {
+    const h = health[k]; if (!h) continue;
+    const rec = Object.assign({}, d.health[k]);
+    ['hrv', 'rhr', 'spo2', 'tempDev'].forEach(f => { if (isFinite(h[f])) rec[f] = +h[f]; });
+    d.health[k] = rec; n++;
+  }
+  const BASE_WIN = 14;
+  const dates = Object.keys(d.health).sort();
+  ['hrv', 'rhr'].forEach(metric => {
+    const hist = [];
+    dates.forEach(dt => {
+      if (hist.length) d.health[dt][metric + 'Baseline'] = Math.round((hist.reduce((a, b) => a + b, 0) / hist.length) * 10) / 10;
+      else delete d.health[dt][metric + 'Baseline'];
+      const v = d.health[dt][metric];
+      if (isFinite(v)) { hist.push(v); if (hist.length > BASE_WIN) hist.shift(); }
+    });
+  });
   return n;
 }
 
@@ -3235,27 +3261,29 @@ function HomeWeightSpark({ db, onOpen }) {
 // target) share one compact tile so the dashboard carries a single activity card. Both sync from
 // Google Health; steps stay hand-loggable, sleep's one editable is the nightly target. Steps also feed
 // the check-in's steps-first coaching. The morning-catch line and one sync status sit along the bottom.
-// One dial in the Today status card: a 0..100 ring with the headline number inside and a raw value
-// beneath. Consistent across Move / Sleep / Ready so the three read as one glanceable row on mobile.
+// One dial in the Today status card: the headline number with room to breathe, over an ascending
+// pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
+// Move / Sleep / Ready so the three read as one glanceable row on mobile.
+const DIAL_SEGMENTS = 7;
 function StatDial({ label, fill, big, sub, color, subColor, active, onTap }) {
-  const R = 17, C = 2 * Math.PI * R;
   const has = fill != null;
-  const f = has ? Math.max(0, Math.min(100, fill)) : 0;
+  const lit = has ? Math.round(Math.max(0, Math.min(100, fill)) / 100 * DIAL_SEGMENTS) : 0;
   return (
-    <button type="button" onClick={onTap} className="flex-1 min-w-0 flex flex-col items-center text-center py-1 px-0.5"
+    <button type="button" onClick={onTap} className="flex-1 min-w-0 flex flex-col items-center text-center py-1.5 px-1"
       style={{ background: 'transparent', border: 0 }}>
       <div className="pf text-[8px] uppercase truncate w-full" style={{ color: active ? color : 'var(--muted)' }}>{label}</div>
-      <div className="relative my-1.5" style={{ width: 46, height: 46 }}>
-        <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
-          <circle cx="23" cy="23" r={R} fill="none" stroke="var(--track)" strokeWidth="4.5" />
-          {has && <circle cx="23" cy="23" r={R} fill="none" stroke={color} strokeWidth="4.5" strokeLinecap="round"
-            strokeDasharray={C} strokeDashoffset={C * (1 - f / 100)} transform="rotate(-90 23 23)"
-            style={{ transition: 'stroke-dashoffset .5s cubic-bezier(.2,.7,.3,1)' }} />}
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center font-bold tnum leading-none"
-          style={{ fontSize: 15, color: has ? 'var(--text)' : 'var(--muted)' }}>{big}</div>
+      <div className="tnum font-bold leading-none mt-2 mb-2.5" style={{ fontSize: 25, color: has ? 'var(--text)' : 'var(--muted)' }}>{big}</div>
+      <div className="flex gap-[3px] w-full justify-center items-end" style={{ height: 18 }} aria-hidden="true">
+        {Array.from({ length: DIAL_SEGMENTS }).map((_, i) => (
+          <div key={i} style={{
+            flex: '0 0 auto', width: 6, height: Math.round((i + 1) / DIAL_SEGMENTS * 100) + '%',
+            background: i < lit ? color : 'var(--surface3)',
+            border: '1.5px solid ' + (i < lit ? color : 'var(--border)'),
+            transition: 'background .35s, border-color .35s',
+          }} />
+        ))}
       </div>
-      <div className="text-[9.5px] tnum truncate w-full leading-tight" style={{ color: subColor || 'var(--muted)' }}>{sub}</div>
+      <div className="text-[9.5px] tnum truncate w-full mt-2 leading-tight" style={{ color: subColor || 'var(--muted)' }}>{sub}</div>
     </button>
   );
 }
@@ -8128,7 +8156,7 @@ function App() {
       (async () => {
         try {
           const r = await ghPost('exchange', { code, code_verifier: verifier, redirect_uri: ghRedirectUri() });
-          update(d => { d.googleHealth = { connected: true, lastSync: r.last_sync || new Date().toISOString() }; mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); });
+          update(d => { d.googleHealth = { connected: true, lastSync: r.last_sync || new Date().toISOString() }; mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); mergeHealthInto(d, r.health); });
           showToast('Google Health connected. Your steps and sleep sync automatically now.');
         } catch (e) { showToast('Could not connect Google Health: ' + e.message); }
       })();
@@ -8140,7 +8168,7 @@ function App() {
       if (Date.now() - last >= GH_SYNC_GAP_MS) (async () => {
         try {
           const r = await ghPost('sync', {});
-          update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); });
+          update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); mergeHealthInto(d, r.health); });
         } catch (e) {
           if (e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
         }
@@ -8161,7 +8189,7 @@ function App() {
       syncing = true;
       try {
         const r = await ghPost('sync', {});
-        update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); });
+        update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); mergeHealthInto(d, r.health); });
       } catch (e) {
         if (e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
       } finally { syncing = false; }

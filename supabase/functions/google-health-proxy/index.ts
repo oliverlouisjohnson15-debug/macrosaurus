@@ -173,6 +173,68 @@ async function fetchSleep(accessToken: string, startISO: string, endISO: string)
   return out;
 }
 
+// Recursively find the first finite number stored under any of `names` anywhere in an object. Daily
+// health rollups nest their value under a per-type key we can't be 100% sure of until a live call, so
+// we search by the documented field names instead of hard-coding the path.
+function findNum(obj: any, names: string[]): number | null {
+  if (obj == null || typeof obj !== 'object') return null;
+  for (const key of Object.keys(obj)) {
+    if (names.includes(key)) { const n = Number(obj[key]); if (isFinite(n)) return n; }
+  }
+  for (const key of Object.keys(obj)) {
+    const v = obj[key];
+    if (v && typeof v === 'object') { const r = findNum(v, names); if (r != null) return r; }
+  }
+  return null;
+}
+// A rollup point's civil date -> 'YYYY-MM-DD', matching fetchSteps.
+function rollupDate(p: any): string | null {
+  const c = p?.civilStartTime?.date || p?.startTime?.date;
+  if (c && c.year) return c.year + '-' + String(c.month).padStart(2, '0') + '-' + String(c.day).padStart(2, '0');
+  const ts = p?.civilStartTime?.time ? null : (p?.startTime && typeof p.startTime === 'string' ? p.startTime : null);
+  return ts ? ts.slice(0, 10) : null;
+}
+async function dailyRollup(accessToken: string, dataType: string, startISO: string, endISO: string): Promise<any[]> {
+  const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints:dailyRollUp`;
+  const body = { range: { start: civilMidnight(startISO), end: civilMidnight(isoShift0(endISO, 1)) }, windowSizeDays: 1 };
+  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || dataType + ' request failed');
+  return data?.rollupDataPoints || data?.dataPoints || [];
+}
+// Daily recovery signals for readiness: HRV (RMSSD), resting heart rate, and SpO2, each keyed by date.
+// These are "Daily" summary types (health_metrics scope). Every metric is wrapped so a missing one or a
+// not-yet-granted scope never fails the others. Field names per the v4 discovery doc; verify vs a live
+// call before trusting the exact nesting (same caveat as sleep).
+async function fetchHealth(accessToken: string, startISO: string, endISO: string): Promise<Record<string, any>> {
+  const out: Record<string, any> = {};
+  const put = (dt: string, k: string, v: number) => { (out[dt] = out[dt] || {})[k] = v; };
+  try {
+    for (const p of await dailyRollup(accessToken, 'daily-heart-rate-variability', startISO, endISO)) {
+      const dt = rollupDate(p); if (!dt) continue;
+      const v = findNum(p, ['rootMeanSquareOfSuccessiveDifferencesMilliseconds', 'rmssdMilliseconds', 'rmssd']);
+      if (v != null && v > 0) put(dt, 'hrv', Math.round(v * 10) / 10);
+    }
+  } catch (_) { /* HRV unavailable */ }
+  try {
+    for (const p of await dailyRollup(accessToken, 'daily-resting-heart-rate', startISO, endISO)) {
+      const dt = rollupDate(p); if (!dt) continue;
+      const avg = findNum(p, ['beatsPerMinute', 'beatsPerMinuteAverage', 'averageBeatsPerMinute']);
+      const mn = findNum(p, ['beatsPerMinuteMin']), mx = findNum(p, ['beatsPerMinuteMax']);
+      const v = avg != null ? avg : (mn != null && mx != null ? (mn + mx) / 2 : (mn != null ? mn : mx));
+      if (v != null && v > 0) put(dt, 'rhr', Math.round(v));
+    }
+  } catch (_) { /* resting HR unavailable */ }
+  try {
+    for (const p of await dailyRollup(accessToken, 'daily-oxygen-saturation', startISO, endISO)) {
+      const dt = rollupDate(p); if (!dt) continue;
+      const v = findNum(p, ['averagePercentage', 'average']);
+      if (v != null && v > 0) put(dt, 'spo2', Math.round(v * 10) / 10);
+    }
+  } catch (_) { /* SpO2 unavailable */ }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: { message: 'Method not allowed' } }, 405);
@@ -239,11 +301,12 @@ Deno.serve(async (req) => {
         connected_at: nowISO,
         last_sync: nowISO,
       });
-      const [steps, sleep] = await Promise.all([
+      const [steps, sleep, health] = await Promise.all([
         fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)),
-        fetchSleep(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // sleep scope may not be granted yet; never fail the connect over it
+        fetchSleep(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})),
+        fetchHealth(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // health_metrics scope may not be granted yet
       ]);
-      return json({ ok: true, steps, sleep, last_sync: nowISO });
+      return json({ ok: true, steps, sleep, health, last_sync: nowISO });
     }
 
     if (action === 'sync') {
@@ -264,11 +327,12 @@ Deno.serve(async (req) => {
       const patch: Record<string, unknown> = { last_sync: nowISO };
       if (tok.refresh_token && tok.refresh_token !== conn.refresh_token) patch.refresh_token = tok.refresh_token;
       await table.update(patch).eq('user_id', userId);
-      const [steps, sleep] = await Promise.all([
+      const [steps, sleep, health] = await Promise.all([
         fetchSteps(tok.access_token, isoShift(-days), isoShift(0)),
-        fetchSleep(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // tolerate sleep scope not (yet) granted
+        fetchSleep(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})),
+        fetchHealth(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // tolerate health_metrics scope not granted
       ]);
-      return json({ ok: true, steps, sleep, last_sync: nowISO });
+      return json({ ok: true, steps, sleep, health, last_sync: nowISO });
     }
 
     return json({ error: { message: 'Unknown action.' } }, 400);
