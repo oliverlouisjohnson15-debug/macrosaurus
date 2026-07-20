@@ -409,6 +409,16 @@ test('sleepScore nudges by deep+REM share when stages are present', () => {
   assert.ok(ideal <= 100 && poor >= 0);
 });
 
+test('sleepScore does not pin at 100 for an at-target night with ordinary quality', () => {
+  // A full 8h in bed but a mediocre stage mix / low efficiency should land well under 100 now that
+  // efficiency and deep+REM quality carry weight (regression: the old duration-only score always 100).
+  const s = Game.sleepScore(456, 480, { deep: 40, rem: 40, light: 376, awake: 60 });
+  assert.ok(s < 100 && s > 40, 'ordinary night should score in a realistic band, got ' + s);
+  // A restorative night of the same length scores clearly higher.
+  const good = Game.sleepScore(462, 480, { deep: 100, rem: 108, light: 254, awake: 18 });
+  assert.ok(good > s, 'restorative night should beat the ordinary one');
+});
+
 test('sleepBand splits poor/ok/good/great at the right thresholds', () => {
   assert.strictEqual(Game.sleepBand(49), 'poor');
   assert.strictEqual(Game.sleepBand(50), 'ok');
