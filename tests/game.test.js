@@ -450,3 +450,28 @@ test('sleepCatch is deterministic per user+date and stays in the band pool', () 
   const fb = Game.sleepCatch('saltA', '2026-07-19', 'bogus'); // unknown band falls back to the poor pool
   assert.ok(Game.SLEEP_POOL.poor.includes(fb.id), 'unknown band should draw from poor: ' + fb.id);
 });
+
+// ---- readiness (our own recovery score) + the dino battle buff ----
+
+test('readinessScore is baseline-relative and degrades to available signals', () => {
+  assert.strictEqual(Game.readinessScore({}), null);            // nothing to score yet
+  assert.strictEqual(Game.readinessScore({ sleepScore: 80 }), 80); // sleep-only (Phase A) tracks sleep
+  const high = Game.readinessScore({ sleepScore: 70, hrv: 65, hrvBaseline: 50, rhr: 52, rhrBaseline: 55 });
+  const low = Game.readinessScore({ sleepScore: 70, hrv: 38, hrvBaseline: 50, rhr: 60, rhrBaseline: 55 });
+  assert.ok(high > low, 'higher HRV + lower resting HR should read more recovered');
+  assert.ok(high <= 100 && low >= 0);
+  const well = Game.readinessScore({ sleepScore: 80, hrv: 55, hrvBaseline: 50 });
+  const feverish = Game.readinessScore({ sleepScore: 80, hrv: 55, hrvBaseline: 50, tempDev: 1.0 });
+  assert.ok(feverish < well, 'a raised skin temperature knocks readiness down');
+});
+
+test('readinessBand + buff reward recovery and cushion a rough night', () => {
+  assert.strictEqual(Game.readinessBand(85), 'apex');
+  assert.strictEqual(Game.readinessBand(60), 'prowling');
+  assert.strictEqual(Game.readinessBand(40), 'drowsy');
+  assert.strictEqual(Game.readinessBand(null), null);
+  assert.ok(Game.readinessBuff(90).atk > 1, 'apex hits harder');
+  assert.strictEqual(Game.readinessBuff(65).atk, 1); // steady = no change
+  const drowsy = Game.readinessBuff(30);
+  assert.ok(drowsy.atk < 1 && drowsy.def > 1 && drowsy.heal > 0, 'a recovery day softens attack but adds defence + heal');
+});

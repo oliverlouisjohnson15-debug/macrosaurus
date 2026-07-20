@@ -2485,6 +2485,21 @@ function stepGoalFor(db) { const g = db.profile && +db.profile.stepGoal; return 
 // A step-goal day: you hit or beat that goal. Days with no step reading never qualify, so this is
 // entirely opt-in and changes nothing until you actually track steps (manually or via Google Health).
 function isStepGoalDay(db, date) { const g = stepGoalFor(db); return g > 0 && (+((db.steps || {})[date]) || 0) >= g; }
+// This morning's readiness: our own recovery score (Oura/Whoop style, baseline-relative). Phase A feeds
+// last night's sleep + a training-load proxy from steps; Phase B adds HRV + resting HR from db.health so
+// the same tile just gets sharper. Returns 0..100 or null when there is nothing to score yet.
+function readinessFor(db, dateISO) {
+  const rec = (db.sleep || {})[dateISO] || null;                 // last night, keyed by wake (today's) date
+  const steps = db.steps || {};
+  const inp = {};
+  if (rec && isFinite(rec.score)) inp.sleepScore = rec.score;
+  const loadY = +steps[shiftISO(dateISO, -1)] || 0;              // yesterday's steps as a rough load proxy
+  const base = E.avgStepsInRange(steps, shiftISO(dateISO, -8), shiftISO(dateISO, -1)) || 0;
+  if (loadY > 0 && base > 0) { inp.load = loadY; inp.loadBaseline = base; }
+  const h = (db.health || {})[dateISO];                          // Phase B: { hrv, hrvBaseline, rhr, rhrBaseline, tempDev }
+  if (h) { ['hrv', 'hrvBaseline', 'rhr', 'rhrBaseline', 'tempDev'].forEach(k => { if (isFinite(h[k])) inp[k] = h[k]; }); }
+  return Game.readinessScore(inp);
+}
 // Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
 // day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
 function incubationDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d) || isStepGoalDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
@@ -2951,6 +2966,10 @@ function FightModal({ db, update, streak, onClose }) {
   let weakDays = 0;
   for (let i = 0; i < 7; i++) { const q = dayQuality(db, shiftISO(today, -i)); if (q) { const hit = weakMacro === 'protein' ? q.proteinHit : weakMacro === 'fat' ? q.fatHit : weakMacro === 'carbs' ? q.carbHit : q.fiberHit; if (hit) weakDays++; } }
   const weaknessExploited = buddyType === weakness || weakDays >= 4;
+  // Readiness buff: a well-rested, recovered morning makes the dino hit harder today; a rough night
+  // gives a defensive, self-healing stance instead of a penalty. Rewards good sleep + recovery.
+  const readiness = readinessFor(db, today);
+  const readyBuff = readiness != null ? Game.readinessBuff(readiness) : { band: null, atk: 1, def: 1, heal: 0, label: null };
   const rivalMult = Game.typeMult(buddyType, Game.typeForName(FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)].name));
   // Ladder gating: one attempt per day, and only on a day with food logged. Weekly boss unchanged.
   const loggedToday = (db.log_entries || []).some(e => e.date === today);
@@ -2984,8 +3003,9 @@ function FightModal({ db, update, streak, onClose }) {
     const sm = Game.stanceMult(stance);
     const spec = (useSpecial && loadout.special > 0) ? Game.SPECIAL_ATK : 1;
     const eff = Object.assign({}, fighter.stats, {
-      atk: Math.max(1, Math.round(fighter.stats.atk * mult * sm.atk * spec)),
-      def: Math.max(1, Math.round(fighter.stats.def * sm.def)),
+      atk: Math.max(1, Math.round(fighter.stats.atk * mult * sm.atk * spec * readyBuff.atk)),
+      def: Math.max(1, Math.round(fighter.stats.def * sm.def * readyBuff.def)),
+      hp: Math.max(1, Math.round(fighter.stats.hp * (1 + (readyBuff.heal || 0)))), // a recovery day starts you tankier
     });
     effRef.current = eff; setLastMult(mult);
     setOpp(opponent); setIsBoss(!!boss); setMaxA(eff.hp); setMaxB(opponent.stats.hp); setHpA(eff.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it);
@@ -3112,6 +3132,12 @@ function FightModal({ db, update, streak, onClose }) {
             </div>
             {!ladderCleared && rivalMult !== 1 && <div className="text-[10px] text-center mt-3 pt-2.5" style={{ borderTop: '2px solid var(--border)', color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)' }}>{rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`}</div>}
           </div>
+
+          {/* readiness buff: today's recovery turned into a battle edge */}
+          {readyBuff.band && <div className="text-center mb-3.5 pixel-box p-2" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--border)') }}>
+            <span className="pf text-[8px] uppercase" style={{ color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--text)' }}>Readiness {Game.READY_BAND[readyBuff.band].label}</span>
+            <span className="text-[10px] ml-1.5" style={{ color: 'var(--text)' }}>{readyBuff.atk > 1 ? readyBuff.label + ', +' + Math.round((readyBuff.atk - 1) * 100) + '% attack' : readyBuff.atk < 1 ? readyBuff.label + ', +' + Math.round((readyBuff.def - 1) * 100) + '% defence & a heal' : 'steady, no change'}</span>
+          </div>}
 
           {/* battle plan: your one tactical choice before the bout */}
           {(gate.can || bossReady) && <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
@@ -3308,6 +3334,40 @@ function StepsSleepCard({ db, update }) {
           : ghConfigured()
             ? <button onClick={ghConnect} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect Google Health</button>
             : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Google Health soon</span>}
+      </div>
+    </Card>
+  );
+}
+
+// Readiness tile: our own recovery score, banded Apex / Prowling / Drowsy, with the battle buff it
+// grants that day so the number connects to the game. Sleep + activity today; sharper once a
+// heart-rate wearable is connected (Phase B adds HRV + resting HR).
+function ReadinessCard({ db }) {
+  const today = Store.todayISO();
+  const score = readinessFor(db, today);
+  const band = Game.readinessBand(score);
+  const buff = score != null ? Game.readinessBuff(score) : null;
+  const info = band ? Game.READY_BAND[band] : null;
+  const COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
+  const col = band ? COLOR[band] : 'var(--muted)';
+  const R = 16, C = 2 * Math.PI * R, pct = score != null ? Math.min(100, score) : 0;
+  const buffLine = buff ? (buff.atk > 1 ? 'Dino +' + Math.round((buff.atk - 1) * 100) + '% ATK'
+    : buff.atk < 1 ? 'Recovery · +' + Math.round((buff.def - 1) * 100) + '% defence' : 'Dino at full strength') : null;
+  return (
+    <Card className="p-3.5 mb-4">
+      <div className="flex items-center gap-3">
+        <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0" aria-hidden="true">
+          <circle cx="20" cy="20" r={R} fill="none" stroke="var(--track)" strokeWidth="4" />
+          {score != null && <circle cx="20" cy="20" r={R} fill="none" stroke={col} strokeWidth="4" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} transform="rotate(-90 20 20)" style={{ transition: 'stroke-dashoffset .4s' }} />}
+        </svg>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="pf text-[9px] uppercase text-[#8A8A90] truncate">Readiness{info ? ' · ' + info.label : ''}</div>
+          <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+            <span className="text-base font-bold tnum">{score != null ? score : '–'}</span>
+            {buffLine && <span className="text-[10px] tnum" style={{ color: col }}>{buffLine}</span>}
+          </div>
+          <div className="text-[10px] text-[#8A8A90] truncate">{info ? info.blurb : 'Builds from your sleep and activity. Sharper with a heart-rate wearable.'}</div>
+        </div>
       </div>
     </Card>
   );
@@ -3785,6 +3845,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Move & rest: today's steps vs goal and last night's sleep score in one tile (Google Health sync) */}
       <StepsSleepCard db={db} update={update} />
+
+      {/* This morning's readiness: our recovery score + the dino battle buff it grants today */}
+      <ReadinessCard db={db} />
 
       {/* Play: the game lives behind the dino now. One compact entry into the full hub, so the
           dashboard stays about today's food and progress. Fight + naming stay reachable here. */}

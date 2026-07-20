@@ -1412,6 +1412,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
       sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + morning Macrodex catch.
       sleepDex: { claimed: {}, lastDate: null, lastId: null, lastShiny: false, lastStyle: null }, // Pokemon Sleep style morning-catch: which wake dates already awarded a catch + last night's reveal
+      health: {},         // daily recovery signals keyed by date (Google Health, Phase B): { 'YYYY-MM-DD': { hrv, hrvBaseline, rhr, rhrBaseline, tempDev } }. Powers the readiness score.
       googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
       goals: null,
     };
@@ -1492,6 +1493,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     out.game_awards   = Object.assign({}, older.game_awards || {},   newer.game_awards || {});
     out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
     out.sleep         = Object.assign({}, older.sleep || {},         newer.sleep || {}); // newer wins per wake date
+    out.health        = Object.assign({}, older.health || {},        newer.health || {}); // recovery signals, newer wins per date
     // sleepDex: union the claimed wake dates, keep the later night's reveal fields
     var so = older.sleepDex || {}, sn = newer.sleepDex || {};
     var later = (sn.lastDate || '') >= (so.lastDate || '') ? sn : so;
@@ -1877,6 +1879,55 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'sleepshiny#' + date) % (SLEEP_SHINY_MOD[b] || 14) === 0 };
   }
 
+  // ---- Readiness (our own recovery score) --------------------------------------------------------
+  // No wearable exposes a readiness score through the Google Health API, so we build one the way Oura /
+  // Whoop do: baseline-RELATIVE signals (compared to the user's own rolling average, never an absolute
+  // target), weighted, with graceful degradation to whatever data we actually have. Pure + testable.
+  // inputs (all optional; needs at least one to return a score): {
+  //   sleepScore,           // last night, 0..100
+  //   hrv, hrvBaseline,     // ms RMSSD, today vs personal baseline   -> higher = more recovered
+  //   rhr, rhrBaseline,     // bpm, today vs baseline                 -> lower  = more recovered
+  //   load, loadBaseline,   // yesterday's active-zone minutes vs baseline (a big day tilts to rest)
+  //   tempDev               // nightly skin-temp deviation from baseline (deg C), an illness flag
+  // }
+  var READY_WEIGHTS = { sleep: 0.35, hrv: 0.30, rhr: 0.20, load: 0.15 };
+  function readinessScore(inp) {
+    inp = inp || {};
+    var sum = 0, weights = 0;
+    function add(w, v) { sum += w * Math.max(0, Math.min(1, v)); weights += w; }
+    if (isFinite(inp.sleepScore)) add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100);
+    if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && inp.hrvBaseline > 0) {
+      // HRV balance: logistic on the relative change, so at baseline reads ~0.5 and well above ~0.9.
+      var hd = (Number(inp.hrv) - Number(inp.hrvBaseline)) / Number(inp.hrvBaseline);
+      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd)));
+    }
+    if (isFinite(inp.rhr) && isFinite(inp.rhrBaseline) && inp.rhrBaseline > 0) {
+      // Resting HR: lower than baseline is better; a ~10% swing spans most of the range.
+      var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline);
+      add(READY_WEIGHTS.rhr, 0.5 + rd * 5);
+    }
+    if (isFinite(inp.load) && isFinite(inp.loadBaseline) && inp.loadBaseline > 0) {
+      // Recent load: at/under baseline is fine; a big spike above tilts toward recovery (lower readiness).
+      var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline));
+      add(READY_WEIGHTS.load, 1 - Math.min(ov, 1) * 0.6);
+    }
+    if (!weights) return null; // nothing to score yet
+    var score = sum / weights; // renormalise to whatever signals are present
+    if (isFinite(inp.tempDev)) score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; // illness knock
+    return Math.max(0, Math.min(100, Math.round(score * 100)));
+  }
+  // Dino-flavoured bands. Apex = roaring and ready; Drowsy = a recovery day, not a failure.
+  function readinessBand(score) { if (score == null) return null; var s = Number(score); if (!isFinite(s)) return null; return s >= 80 ? 'apex' : s >= 55 ? 'prowling' : 'drowsy'; }
+  var READY_BAND = { apex: { label: 'Apex', blurb: 'Roaring and ready. Push today.' }, prowling: { label: 'Prowling', blurb: 'Steady. A normal day.' }, drowsy: { label: 'Drowsy', blurb: 'Recover. Go gentle today.' } };
+  // The daily Fight buff a readiness band grants. Good sleep + recovery earns a real edge; a rough night
+  // gives a defensive, self-healing stance so a recovery day still helps rather than only punishing.
+  function readinessBuff(score) {
+    var band = readinessBand(score);
+    if (band === 'apex') return { band: band, atk: 1.15, def: 1.0, heal: 0, label: 'Well rested' };
+    if (band === 'drowsy') return { band: band, atk: 0.9, def: 1.15, heal: 0.1, label: 'Recovering' };
+    return { band: band || 'prowling', atk: 1.0, def: 1.0, heal: 0, label: 'Steady' };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -1933,6 +1984,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     sleepBand: sleepBand,
     sleepStyleFor: sleepStyleFor,
     sleepCatch: sleepCatch,
+    READY_WEIGHTS: READY_WEIGHTS,
+    READY_BAND: READY_BAND,
+    readinessScore: readinessScore,
+    readinessBand: readinessBand,
+    readinessBuff: readinessBuff,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
@@ -8758,6 +8814,28 @@ function isStepGoalDay(db, date) {
   const g = stepGoalFor(db);
   return g > 0 && (+(db.steps || {})[date] || 0) >= g;
 }
+// This morning's readiness: our own recovery score (Oura/Whoop style, baseline-relative). Phase A feeds
+// last night's sleep + a training-load proxy from steps; Phase B adds HRV + resting HR from db.health so
+// the same tile just gets sharper. Returns 0..100 or null when there is nothing to score yet.
+function readinessFor(db, dateISO) {
+  const rec = (db.sleep || {})[dateISO] || null; // last night, keyed by wake (today's) date
+  const steps = db.steps || {};
+  const inp = {};
+  if (rec && isFinite(rec.score)) inp.sleepScore = rec.score;
+  const loadY = +steps[shiftISO(dateISO, -1)] || 0; // yesterday's steps as a rough load proxy
+  const base = E.avgStepsInRange(steps, shiftISO(dateISO, -8), shiftISO(dateISO, -1)) || 0;
+  if (loadY > 0 && base > 0) {
+    inp.load = loadY;
+    inp.loadBaseline = base;
+  }
+  const h = (db.health || {})[dateISO]; // Phase B: { hrv, hrvBaseline, rhr, rhrBaseline, tempDev }
+  if (h) {
+    ['hrv', 'hrvBaseline', 'rhr', 'rhrBaseline', 'tempDev'].forEach(k => {
+      if (isFinite(h[k])) inp[k] = h[k];
+    });
+  }
+  return Game.readinessScore(inp);
+}
 // Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
 // day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
 function incubationDaysAfter(db, afterISO, throughISO) {
@@ -10033,6 +10111,16 @@ function FightModal({
     }
   }
   const weaknessExploited = buddyType === weakness || weakDays >= 4;
+  // Readiness buff: a well-rested, recovered morning makes the dino hit harder today; a rough night
+  // gives a defensive, self-healing stance instead of a penalty. Rewards good sleep + recovery.
+  const readiness = readinessFor(db, today);
+  const readyBuff = readiness != null ? Game.readinessBuff(readiness) : {
+    band: null,
+    atk: 1,
+    def: 1,
+    heal: 0,
+    label: null
+  };
   const rivalMult = Game.typeMult(buddyType, Game.typeForName(FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)].name));
   // Ladder gating: one attempt per day, and only on a day with food logged. Weekly boss unchanged.
   const loggedToday = (db.log_entries || []).some(e => e.date === today);
@@ -10080,8 +10168,9 @@ function FightModal({
     const sm = Game.stanceMult(stance);
     const spec = useSpecial && loadout.special > 0 ? Game.SPECIAL_ATK : 1;
     const eff = Object.assign({}, fighter.stats, {
-      atk: Math.max(1, Math.round(fighter.stats.atk * mult * sm.atk * spec)),
-      def: Math.max(1, Math.round(fighter.stats.def * sm.def))
+      atk: Math.max(1, Math.round(fighter.stats.atk * mult * sm.atk * spec * readyBuff.atk)),
+      def: Math.max(1, Math.round(fighter.stats.def * sm.def * readyBuff.def)),
+      hp: Math.max(1, Math.round(fighter.stats.hp * (1 + (readyBuff.heal || 0)))) // a recovery day starts you tankier
     });
     effRef.current = eff;
     setLastMult(mult);
@@ -10447,7 +10536,24 @@ function FightModal({
       borderTop: '2px solid var(--border)',
       color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)'
     }
-  }, rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`)), (gate.can || bossReady) && /*#__PURE__*/React.createElement("div", {
+  }, rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`)), readyBuff.band && /*#__PURE__*/React.createElement("div", {
+    className: "text-center mb-3.5 pixel-box p-2",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none',
+      border: '2px solid ' + (readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--border)')
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase",
+    style: {
+      color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--text)'
+    }
+  }, "Readiness ", Game.READY_BAND[readyBuff.band].label), /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] ml-1.5",
+    style: {
+      color: 'var(--text)'
+    }
+  }, readyBuff.atk > 1 ? readyBuff.label + ', +' + Math.round((readyBuff.atk - 1) * 100) + '% attack' : readyBuff.atk < 1 ? readyBuff.label + ', +' + Math.round((readyBuff.def - 1) * 100) + '% defence & a heal' : 'steady, no change')), (gate.can || bossReady) && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3.5 mb-3.5",
     style: {
       background: 'var(--surface2)',
@@ -10918,6 +11024,75 @@ function StepsSleepCard({
       color: 'var(--muted)'
     }
   }, "Google Health soon")));
+}
+
+// Readiness tile: our own recovery score, banded Apex / Prowling / Drowsy, with the battle buff it
+// grants that day so the number connects to the game. Sleep + activity today; sharper once a
+// heart-rate wearable is connected (Phase B adds HRV + resting HR).
+function ReadinessCard({
+  db
+}) {
+  const today = Store.todayISO();
+  const score = readinessFor(db, today);
+  const band = Game.readinessBand(score);
+  const buff = score != null ? Game.readinessBuff(score) : null;
+  const info = band ? Game.READY_BAND[band] : null;
+  const COLOR = {
+    apex: 'var(--good)',
+    prowling: 'var(--accent)',
+    drowsy: 'var(--warn)'
+  };
+  const col = band ? COLOR[band] : 'var(--muted)';
+  const R = 16,
+    C = 2 * Math.PI * R,
+    pct = score != null ? Math.min(100, score) : 0;
+  const buffLine = buff ? buff.atk > 1 ? 'Dino +' + Math.round((buff.atk - 1) * 100) + '% ATK' : buff.atk < 1 ? 'Recovery · +' + Math.round((buff.def - 1) * 100) + '% defence' : 'Dino at full strength' : null;
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-3.5 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3"
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "40",
+    height: "40",
+    viewBox: "0 0 40 40",
+    className: "shrink-0",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "20",
+    cy: "20",
+    r: R,
+    fill: "none",
+    stroke: "var(--track)",
+    strokeWidth: "4"
+  }), score != null && /*#__PURE__*/React.createElement("circle", {
+    cx: "20",
+    cy: "20",
+    r: R,
+    fill: "none",
+    stroke: col,
+    strokeWidth: "4",
+    strokeDasharray: C,
+    strokeDashoffset: C * (1 - pct / 100),
+    transform: "rotate(-90 20 20)",
+    style: {
+      transition: 'stroke-dashoffset .4s'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1 leading-tight"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] truncate"
+  }, "Readiness", info ? ' · ' + info.label : ''), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-1.5 whitespace-nowrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-base font-bold tnum"
+  }, score != null ? score : '–'), buffLine && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] tnum",
+    style: {
+      color: col
+    }
+  }, buffLine)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] truncate"
+  }, info ? info.blurb : 'Builds from your sleep and activity. Sharper with a heart-rate wearable.'))));
 }
 
 // Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
@@ -11904,6 +12079,8 @@ function Dashboard({
   }), /*#__PURE__*/React.createElement(StepsSleepCard, {
     db: db,
     update: update
+  }), /*#__PURE__*/React.createElement(ReadinessCard, {
+    db: db
   }), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
     className: "w-full text-left bg-[#161618] pixel-box p-4 mb-4 flex items-center gap-3"

@@ -107,6 +107,7 @@
       steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
       sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + morning Macrodex catch.
       sleepDex: { claimed: {}, lastDate: null, lastId: null, lastShiny: false, lastStyle: null }, // Pokemon Sleep style morning-catch: which wake dates already awarded a catch + last night's reveal
+      health: {},         // daily recovery signals keyed by date (Google Health, Phase B): { 'YYYY-MM-DD': { hrv, hrvBaseline, rhr, rhrBaseline, tempDev } }. Powers the readiness score.
       googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
       goals: null,
     };
@@ -187,6 +188,7 @@
     out.game_awards   = Object.assign({}, older.game_awards || {},   newer.game_awards || {});
     out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
     out.sleep         = Object.assign({}, older.sleep || {},         newer.sleep || {}); // newer wins per wake date
+    out.health        = Object.assign({}, older.health || {},        newer.health || {}); // recovery signals, newer wins per date
     // sleepDex: union the claimed wake dates, keep the later night's reveal fields
     var so = older.sleepDex || {}, sn = newer.sleepDex || {};
     var later = (sn.lastDate || '') >= (so.lastDate || '') ? sn : so;

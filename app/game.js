@@ -328,6 +328,55 @@
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'sleepshiny#' + date) % (SLEEP_SHINY_MOD[b] || 14) === 0 };
   }
 
+  // ---- Readiness (our own recovery score) --------------------------------------------------------
+  // No wearable exposes a readiness score through the Google Health API, so we build one the way Oura /
+  // Whoop do: baseline-RELATIVE signals (compared to the user's own rolling average, never an absolute
+  // target), weighted, with graceful degradation to whatever data we actually have. Pure + testable.
+  // inputs (all optional; needs at least one to return a score): {
+  //   sleepScore,           // last night, 0..100
+  //   hrv, hrvBaseline,     // ms RMSSD, today vs personal baseline   -> higher = more recovered
+  //   rhr, rhrBaseline,     // bpm, today vs baseline                 -> lower  = more recovered
+  //   load, loadBaseline,   // yesterday's active-zone minutes vs baseline (a big day tilts to rest)
+  //   tempDev               // nightly skin-temp deviation from baseline (deg C), an illness flag
+  // }
+  var READY_WEIGHTS = { sleep: 0.35, hrv: 0.30, rhr: 0.20, load: 0.15 };
+  function readinessScore(inp) {
+    inp = inp || {};
+    var sum = 0, weights = 0;
+    function add(w, v) { sum += w * Math.max(0, Math.min(1, v)); weights += w; }
+    if (isFinite(inp.sleepScore)) add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100);
+    if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && inp.hrvBaseline > 0) {
+      // HRV balance: logistic on the relative change, so at baseline reads ~0.5 and well above ~0.9.
+      var hd = (Number(inp.hrv) - Number(inp.hrvBaseline)) / Number(inp.hrvBaseline);
+      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd)));
+    }
+    if (isFinite(inp.rhr) && isFinite(inp.rhrBaseline) && inp.rhrBaseline > 0) {
+      // Resting HR: lower than baseline is better; a ~10% swing spans most of the range.
+      var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline);
+      add(READY_WEIGHTS.rhr, 0.5 + rd * 5);
+    }
+    if (isFinite(inp.load) && isFinite(inp.loadBaseline) && inp.loadBaseline > 0) {
+      // Recent load: at/under baseline is fine; a big spike above tilts toward recovery (lower readiness).
+      var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline));
+      add(READY_WEIGHTS.load, 1 - Math.min(ov, 1) * 0.6);
+    }
+    if (!weights) return null; // nothing to score yet
+    var score = sum / weights; // renormalise to whatever signals are present
+    if (isFinite(inp.tempDev)) score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; // illness knock
+    return Math.max(0, Math.min(100, Math.round(score * 100)));
+  }
+  // Dino-flavoured bands. Apex = roaring and ready; Drowsy = a recovery day, not a failure.
+  function readinessBand(score) { if (score == null) return null; var s = Number(score); if (!isFinite(s)) return null; return s >= 80 ? 'apex' : s >= 55 ? 'prowling' : 'drowsy'; }
+  var READY_BAND = { apex: { label: 'Apex', blurb: 'Roaring and ready. Push today.' }, prowling: { label: 'Prowling', blurb: 'Steady. A normal day.' }, drowsy: { label: 'Drowsy', blurb: 'Recover. Go gentle today.' } };
+  // The daily Fight buff a readiness band grants. Good sleep + recovery earns a real edge; a rough night
+  // gives a defensive, self-healing stance so a recovery day still helps rather than only punishing.
+  function readinessBuff(score) {
+    var band = readinessBand(score);
+    if (band === 'apex') return { band: band, atk: 1.15, def: 1.0, heal: 0, label: 'Well rested' };
+    if (band === 'drowsy') return { band: band, atk: 0.9, def: 1.15, heal: 0.1, label: 'Recovering' };
+    return { band: band || 'prowling', atk: 1.0, def: 1.0, heal: 0, label: 'Steady' };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -384,6 +433,11 @@
     sleepBand: sleepBand,
     sleepStyleFor: sleepStyleFor,
     sleepCatch: sleepCatch,
+    READY_WEIGHTS: READY_WEIGHTS,
+    READY_BAND: READY_BAND,
+    readinessScore: readinessScore,
+    readinessBand: readinessBand,
+    readinessBuff: readinessBuff,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
