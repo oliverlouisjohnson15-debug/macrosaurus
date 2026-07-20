@@ -5619,6 +5619,8 @@ function Auth() {
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState(null);
   const [needsConfirm, setNeedsConfirm] = useState(false);
+  const [loginFailed, setLoginFailed] = useState(false);
+  const [existing, setExisting] = useState(false);
   async function resendConfirm() {
     if (!supa) {
       setMsg('Accounts need an internet connection. Open the deployed site.');
@@ -5639,9 +5641,18 @@ function Auth() {
         }
       });
       if (r.error) throw r.error;
-      setMsg('Confirmation email sent again to ' + email + '. It can take a minute to arrive, so check your spam folder too.');
-    } catch (e) {
-      setMsg(e.message);
+      setMsg('Confirmation email sent again to ' + email + '. Give it a minute, and check your spam/junk folder - Hotmail and Outlook often file it there.');
+    }
+    // An already-confirmed address can't be "resent" a signup link; Supabase errors instead of
+    // sending. Don't leave the user waiting on an email that will never come - point them at login.
+    catch (e) {
+      const m = e.message || '';
+      if (/already|confirm|registered/i.test(m)) {
+        setNeedsConfirm(false);
+        setMode('login');
+        setExisting(true);
+        setMsg('This email is already confirmed - just log in below. Forgotten your password? Reset it with the link under the button.');
+      } else setMsg(m);
     }
     setBusy(false);
   }
@@ -5651,6 +5662,8 @@ function Auth() {
       return;
     }
     setNeedsConfirm(false);
+    setLoginFailed(false);
+    setExisting(false);
     if (mode === 'forgot') {
       if (!email) {
         setMsg('Enter your email and we\'ll send a reset link.');
@@ -5696,10 +5709,21 @@ function Auth() {
           }
         });
         if (r.error) throw r.error;
-        window.MTRACK && MTRACK('signup');
-        if (!r.data.session) {
-          setNeedsConfirm(true);
-          setMsg('Account created. Check your email for a confirmation link, then log in.');
+        // Supabase obfuscates "email already registered" as a success with no session and an empty
+        // identities array (so signup can't be used to probe who has an account). Telling these users
+        // to "check your email" is exactly what manufactures the phantom "never got my verification
+        // email" tickets - nothing is ever sent. Send them to log in / reset instead.
+        const already = r.data && r.data.user && Array.isArray(r.data.user.identities) && r.data.user.identities.length === 0;
+        if (already) {
+          setMode('login');
+          setExisting(true);
+          setMsg('You already have an account for ' + email + '. Log in below - or reset your password if you\'ve forgotten it.');
+        } else {
+          window.MTRACK && MTRACK('signup');
+          if (!r.data.session) {
+            setNeedsConfirm(true);
+            setMsg('Account created. Check your email for a confirmation link, then log in. It can take a minute - and on Hotmail/Outlook, check your junk folder.');
+          }
         }
       } else {
         const r = await supa.auth.signInWithPassword({
@@ -5709,8 +5733,17 @@ function Auth() {
         if (r.error) throw r.error;
       }
     } catch (e) {
-      if (/confirm/i.test(e.message || '')) setNeedsConfirm(true);
-      setMsg(e.message);
+      const m = e.message || '';
+      // A wrong password comes back as the generic "Invalid login credentials". Left as-is, returning
+      // users read it as "my account/verification is broken" and open a ticket - so name the real fix
+      // (reset) and surface the Forgot-password link.
+      if (/confirm/i.test(m)) {
+        setNeedsConfirm(true);
+        setMsg('Your email isn\'t confirmed yet - check your inbox (and junk folder) for the link, or resend it below.');
+      } else if (mode === 'login' && /invalid login credentials/i.test(m)) {
+        setLoginFailed(true);
+        setMsg('That email and password don\'t match. If you\'ve forgotten your password, reset it with the link below.');
+      } else setMsg(m);
     }
     setBusy(false);
   }
@@ -5812,15 +5845,17 @@ function Auth() {
       setMode('forgot');
       setMsg('');
       setNeedsConfirm(false);
+      setLoginFailed(false);
+      setExisting(false);
     },
-    className: "w-full text-[11px] mt-3 text-center",
+    className: 'w-full text-[11px] mt-3 text-center' + (loginFailed ? ' underline font-semibold' : ''),
     style: {
       color: 'var(--header)'
     }
-  }, "Forgot your password?"), msg && /*#__PURE__*/React.createElement("div", {
+  }, loginFailed ? 'Reset your password' : 'Forgot your password?'), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-3 text-center leading-relaxed",
     style: {
-      color: 'var(--danger)'
+      color: existing || needsConfirm || loginFailed || mode === 'forgot' ? 'var(--header)' : 'var(--danger)'
     }
   }, msg), needsConfirm && /*#__PURE__*/React.createElement("button", {
     onClick: resendConfirm,
@@ -5834,6 +5869,8 @@ function Auth() {
       setMode('login');
       setMsg('');
       setNeedsConfirm(false);
+      setLoginFailed(false);
+      setExisting(false);
     },
     className: "w-full text-[11px] text-[#8A8A90] mt-5 text-center"
   }, "← Back to log in") : /*#__PURE__*/React.createElement("button", {
@@ -5841,6 +5878,8 @@ function Auth() {
       setMode(mode === 'signup' ? 'login' : 'signup');
       setMsg('');
       setNeedsConfirm(false);
+      setLoginFailed(false);
+      setExisting(false);
     },
     className: "w-full text-[11px] text-[#8A8A90] mt-5 text-center"
   }, mode === 'signup' ? /*#__PURE__*/React.createElement(React.Fragment, null, "Already have an account? ", /*#__PURE__*/React.createElement("span", {
@@ -19038,6 +19077,7 @@ function AdminAudit() {
     reset_usage: 'reset usage of',
     delete_user: 'deleted',
     resend_confirmation: 'resent confirm to',
+    set_password: 'set password for',
     view_ai_logs: 'browsed AI logs',
     view_ai_log: 'opened an AI log for',
     clear_ai_logs: 'cleared AI logs'
@@ -19532,6 +19572,8 @@ function AdminUserDetail({
   const [banned, setBanned] = useState(!!(detail.user && detail.user.banned));
   const [notes, setNotes] = useState(detail.notes || []);
   const [noteText, setNoteText] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const isSelf = (u.email || '').toLowerCase() === (adminEmail || '').toLowerCase();
   const prof = detail.state && detail.state.profile;
   function flash(m) {
@@ -19759,6 +19801,31 @@ function AdminUserDetail({
     }
     setBusy('');
   }
+  // Set a new password for the user directly (support does the typing, then hands it over securely).
+  // Kept behind an explicit confirm because it locks the user out of their old password immediately.
+  async function doSetPassword() {
+    const p = newPw;
+    if (!p || p.length < 6) {
+      setErr('Password must be at least 6 characters.');
+      return;
+    }
+    setBusy('pw');
+    setErr('');
+    setMsg('');
+    try {
+      await adminCall('set_password', {
+        userId: u.id,
+        password: p
+      });
+      setNewPw('');
+      setConfirmKind(null);
+      flash('Password updated. Their old password no longer works - share the new one with them securely and suggest they change it after logging in.');
+    } catch (e) {
+      setErr(e.message);
+      setConfirmKind(null);
+    }
+    setBusy('');
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -19816,7 +19883,28 @@ function AdminUserDetail({
     className: "w-full mt-2",
     disabled: busy === 'recovery',
     onClick: doRecovery
-  }, busy === 'recovery' ? 'Generating…' : 'Send password-reset link')), /*#__PURE__*/React.createElement(Section, {
+  }, busy === 'recovery' ? 'Generating…' : 'Send password-reset link'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mt-4 mb-1.5"
+  }, "Set a new password directly"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    type: showPw ? 'text' : 'password',
+    value: newPw,
+    onChange: e => setNewPw(e.target.value),
+    placeholder: "at least 6 characters",
+    autoComplete: "new-password",
+    className: "flex-1"
+  }), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    onClick: () => setShowPw(v => !v)
+  }, showPw ? 'Hide' : 'Show')), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full mt-2",
+    disabled: busy === 'pw' || newPw.length < 6,
+    onClick: () => setConfirmKind('pw')
+  }, busy === 'pw' ? 'Saving…' : 'Set password'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-1.5 leading-relaxed"
+  }, "Use this when someone is locked out and the reset email won't reach them. It takes effect immediately and their old password stops working.")), /*#__PURE__*/React.createElement(Section, {
     title: "AI usage this month"
   }, /*#__PURE__*/React.createElement(Row2, {
     k: "Spent",
@@ -19975,7 +20063,14 @@ function AdminUserDetail({
     style: {
       color: 'var(--danger)'
     }
-  }, "Heads up: this is your own account.")), confirmKind === 'ban' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, "Heads up: this is your own account.")), confirmKind === 'pw' && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: 'Set a new password for ' + u.email + '?',
+    body: "Their current password stops working right away and they'll need the new one to log in. Share it with them securely, and suggest they change it once they're back in.",
+    confirmLabel: busy === 'pw' ? 'Setting…' : 'Set password',
+    confirmKind: "accent",
+    onConfirm: doSetPassword,
+    onClose: () => setConfirmKind(null)
+  }), confirmKind === 'ban' && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Suspend ' + u.email + '?',
     body: "They'll be signed out and blocked from logging in until you reinstate them. Their data is kept, and this is reversible.",
     confirmLabel: busy === 'ban' ? 'Suspending…' : 'Suspend account',
