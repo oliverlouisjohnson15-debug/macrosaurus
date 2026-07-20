@@ -1567,7 +1567,7 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
 // One combined check-in + coaching card: status line and cycle progress, the weigh-in row, and a
 // compact coach line, merged from the old separate StatusCard and CoachCard so the dashboard has a
 // single check-in surface. (The Goals screen keeps its own small check-in card.)
-function StatusCard({ db, update, onCheckIn, onReview, streak }) {
+function StatusCard({ db, update, onCheckIn, onReview, streak, onOpenProgress }) {
   const unit = db.profile.weight_unit; const today = Store.todayISO();
   const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
   const EARLY_DAY = 5, RECO_DAY = 7;
@@ -1614,6 +1614,15 @@ function StatusCard({ db, update, onCheckIn, onReview, streak }) {
     setOpen(false);
   }
   const weighInputs = unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
+  // Weight-trend spark, merged in from the old standalone card: one Progress surface, not two.
+  const sparkPts = db.weight_entries.slice(-21).map(w => (w.trend_weight != null ? w.trend_weight : w.scale_weight)).filter(v => v != null);
+  const TrendSpark = (onOpenProgress && sparkPts.length > 1) ? (
+    <button onClick={onOpenProgress} className="w-full mt-3 pt-3 border-t border-[#262629] flex items-center gap-3">
+      <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0">Weight trend</span>
+      <div className="flex-1 min-w-0"><MiniSpark points={sparkPts} color="var(--weight)" /></div>
+      <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>Progress ›</span>
+    </button>
+  ) : null;
   if (db.paused) return (
     <Card className="p-5 mb-6">
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Goal</div>
@@ -1636,6 +1645,7 @@ function StatusCard({ db, update, onCheckIn, onReview, streak }) {
         <Btn kind="ghost" className="text-[12px] shrink-0" onClick={() => setOpen(o => !o)}>{todays ? 'Update' : 'Weigh in'}</Btn>
       </div>
       {open && <div className="mt-3">{weighInputs}<Btn kind="accent" className="w-full mt-3" onClick={() => saveWeight(false)}>Save weight</Btn></div>}
+      {TrendSpark}
     </Card>
   );
   return (
@@ -1643,16 +1653,16 @@ function StatusCard({ db, update, onCheckIn, onReview, streak }) {
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Check-in</div>
       <div className="text-2xl font-bold">{alreadyToday ? 'Checked in today' : onCheckinDay ? `It's your ${DOW_FULL[cd]} check-in` : due ? 'Check-in due' : ready ? 'Check-in unlocked' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`}</div>
       <div className="text-[12px] text-[#8A8A90] mb-3">{pending
-        ? 'Your check-in suggested new macros and they\'re still waiting on you. Review them below.'
+        ? 'A new macro suggestion is waiting on you. Review it below.'
         : alreadyToday
-          ? 'Fresh cycle underway. Keep logging and weighing daily so the next retune reads true.'
+          ? 'Fresh cycle underway. Keep logging and weighing daily.'
           : onCheckinDay
-            ? 'Your chosen check-in day is here and your cycle has enough days behind it. It compares this cycle\'s average weight to the last, so daily wobbles don\'t skew it.'
+            ? 'Your check-in day is here, with enough days behind it for a clean read.'
             : due
-              ? 'Recommended cadence reached. Your check-in compares this cycle\'s average weight to the last, so daily wobbles don\'t skew it.'
+              ? 'Recommended cadence reached. Time for your check-in.'
               : ready
-                ? `You can check in now, but waiting ${daysToReco} more day${daysToReco === 1 ? '' : 's'} (7 total) gives a steadier weight trend and a more reliable adjustment.`
-                : `Check-ins run on a 7-day cycle (unlockable from day 5) so there are enough weigh-ins to read the trend. Weigh in daily until then.`}</div>
+                ? `Ready now. Waiting for day 7 (${daysToReco} more) gives a steadier read.`
+                : `Runs on a 7-day cycle, unlockable from day 5. Weigh in daily until then.`}</div>
       <div className="h-1.5 rounded-full bg-[#262629] mb-4 overflow-hidden"><div className="h-full rounded-full" style={{ width: Math.min(100, (Math.min(daysSince, RECO_DAY) / RECO_DAY) * 100) + '%', background: due ? 'var(--good)' : 'var(--carb)' }} /></div>
       {pending && <Btn kind="accent" className="w-full mb-2" onClick={onReview}>Review this week's suggestion</Btn>}
       <div className="flex gap-2">
@@ -1664,11 +1674,12 @@ function StatusCard({ db, update, onCheckIn, onReview, streak }) {
         <span>{todays ? 'Logged today: ' + fmtWeight(todays.scale_weight, unit) : 'Not weighed in today'}</span>
         {last7 != null && <span>7-day avg <span className="text-white tnum">{fmtWeight(last7, unit)}</span></span>}
       </div>
-      <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This cycle: <span className="text-white tnum">{logged}/{cycleDays}</span> logged · <span className="text-white tnum">{weighed}/{cycleDays}</span> weighed{trendStr ? <> · trend <span className="text-white tnum">{trendStr}</span> vs last</> : null}. {alreadyToday
-        ? 'Your macros are up to date.'
+      <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This cycle: <span className="text-white tnum">{logged}/{cycleDays}</span> logged · <span className="text-white tnum">{weighed}/{cycleDays}</span> weighed{trendStr ? <> · trend <span className="text-white tnum">{trendStr}</span> vs last</> : null}.{alreadyToday
+        ? ''
         : ready
-          ? (onTrack ? 'Enough data for a confident retune, run your check-in.' : `Aim for ${needLogs} logged days and ${needWeigh} weigh-ins for a reliable read.`)
-          : 'Keep logging and weighing daily.'}</div>
+          ? (onTrack ? ' Enough data, run your check-in.' : ` Aim for ${needLogs} logged, ${needWeigh} weigh-ins.`)
+          : ''}</div>
+      {TrendSpark}
     </Card>
   );
 }
@@ -2837,17 +2848,49 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
             {got && <div className="mt-3 text-[10px] text-[#8A8A90]">Caught <b className="text-[var(--text)]">Lv {got.count}</b>{evoNote}{got.shiny ? ' · ✦ shiny' : ''}</div>}
           </div>;
         })() : (<>
-          <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Macrodex</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+          <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+
+          {/* Boss fight, front and centre: this used to be a nameless button lost in a 2-up grid, so
+              nobody knew there was a weekly boss to beat. Now it's the hub's headline call to action,
+              spelling out who the boss is, its weakness (what to eat), and your readiness buff. */}
+          {onOpenFight && (() => {
+            const wk = fightWeekKey();
+            const boss = bossForWeek();
+            const wm = TYPE_META[Game.bossWeakness(wk)] || TYPE_META.balanced;
+            const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
+            const readiness = readinessFor(db, today);
+            const buff = readiness != null ? Game.readinessBuff(readiness) : null;
+            const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today'
+              : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight'
+              : buff ? 'Full strength today' : null;
+            const edge = beaten ? 'var(--good)' : 'var(--danger)';
+            // pixel-box forces a grey border (!important), so the emphasis comes from a danger-tinted
+            // background + the raised shadow (kept) + the red kicker text and filled FIGHT pill.
+            return (
+              <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
+                style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
+                <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                  <Sprite art={boss.art} colors={boss.colors} px={3.2} />
+                </div>
+                <div className="min-w-0 flex-1 leading-tight">
+                  <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? 'Boss beaten this week ✓' : "This week's boss"}</div>
+                  <div className="text-[13px] font-bold truncate">{boss.name}</div>
+                  <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Weak to <span style={{ color: wm[1] }}>{wm[0]}</span>, so eat {wm[2]}.{buffLine ? ' ' + buffLine + '.' : ''}</div>
+                </div>
+                <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: beaten ? 'var(--surface3)' : 'var(--danger)', color: beaten ? 'var(--muted)' : '#fff' }}>{beaten ? 'REMATCH ›' : 'FIGHT ›'}</span>
+              </button>
+            );
+          })()}
+
           <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
           <div className="flex items-center gap-2 mb-3">
             <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
             <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
           </div>
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className={'grid gap-2 mb-4 ' + (onOpenName && !(db.buddy && db.buddy.name) ? 'grid-cols-2' : 'grid-cols-1')}>
             <button onClick={() => setTrophies(true)} className="pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHIES</button>
-            {onOpenFight && <button onClick={onOpenFight} className="pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelDino size={13} color="var(--danger)" /> BOSS FIGHT</button>}
+            {onOpenName && !(db.buddy && db.buddy.name) && <button onClick={onOpenName} className="pixel-btn py-2.5 text-[10px]" style={{ background: 'var(--surface2)' }}>NAME YOUR DINO</button>}
           </div>
-          {onOpenName && !(db.buddy && db.buddy.name) && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 mb-4 text-[10px]" style={{ background: 'var(--surface2)' }}>NAME YOUR DINO</button>}
           <DexActiveSection db={db} today={today} />
           {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
             <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
@@ -3311,22 +3354,13 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : 0;
   const sHrs = rec ? Math.floor(rec.min / 60) : 0, sMins = rec ? rec.min % 60 : 0;
   const targetH = targetMin / 60, targetHLabel = Number.isInteger(targetH) ? String(targetH) : targetH.toFixed(1);
-  const sdex = db.sleepDex || {};
-  const caughtLast = !!lastDate && sdex.lastDate === lastDate;
-  const crName = caughtLast && CR_BY_ID[sdex.lastId] ? CR_BY_ID[sdex.lastId].name : null;
-  // Readiness: our recovery score + the band and Fight buff it grants.
+  // Readiness: our recovery score + the band it grants. The Fight buff it powers now lives in the
+  // Play hub's boss card, so this dial just shows the band and taps through to Play.
   const readiness = readinessFor(db, today);
   const rBand = Game.readinessBand(readiness);
-  const rBuff = readiness != null ? Game.readinessBuff(readiness) : null;
   const rInfo = rBand ? Game.READY_BAND[rBand] : null;
   const R_COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
-  // On an Apex morning the recovery bonus catch is the headline; otherwise show what the buff does.
-  const primedName = db.primed && db.primed.lastDate === today && CR_BY_ID[db.primed.lastId] ? CR_BY_ID[db.primed.lastId].name : null;
-  const buffLine = primedName ? "Primed! A " + (db.primed.lastShiny ? "shiny " : "") + primedName + " joined your dex"
-    : rBuff ? (rBuff.atk > 1 ? "Your dino hits +" + Math.round((rBuff.atk - 1) * 100) + "% in today's fight"
-      : rBuff.atk < 1 ? "Recovery day: your dino guards +" + Math.round((rBuff.def - 1) * 100) + "% and heals"
-        : "Your dino's at full strength today") : null;
   // One editor at a time: null | 'steps' | 'sleep'.
   const [edit, setEdit] = useState(null);
   const [val, setVal] = useState('');
@@ -3386,21 +3420,6 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
         </div>
       )}
 
-      {/* The payoff: readiness turned into a game buff, tappable through to the Fight */}
-      {rBuff && rInfo && (
-        <button type="button" onClick={onOpenPlay} className="w-full text-left mt-2.5 pixel-box p-2.5 flex items-center gap-2.5"
-          style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: rColor, borderWidth: 2 }}>
-          <PixelGlyph kind="dino" color={rColor} size={16} />
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="pf text-[8px] uppercase" style={{ color: rColor }}>{rInfo.label} · readiness {readiness}</div>
-            <div className="text-[11px] truncate" style={{ color: 'var(--text)' }}>{buffLine}</div>
-          </div>
-          <span className="pf text-[9px]" style={{ color: 'var(--muted)' }}>›</span>
-        </button>
-      )}
-
-      {/* Last night's morning catch */}
-      {crName && <div className="text-[10px] truncate mt-2 text-center" style={{ color: 'var(--accent)' }}>{sdex.lastStyle} {sdex.lastShiny ? 'shiny ' : ''}{crName} joined your dex</div>}
     </Card>
   );
 }
@@ -3884,18 +3903,14 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
               blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
       })()}
 
-      {onOpenRecipe && <LeftoversStrip db={db} onOpenRecipe={onOpenRecipe} />}
-      {onOpenRecipe && <CookGapStrip db={db} onOpenRecipe={onOpenRecipe} />}
-
-      {/* Next action: check-in, weigh-in and the coach line in one adaptive surface */}
-      <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} /></div>
+      {/* Progress: check-in, weigh-in, the coach line AND the weight-trend spark in one surface.
+          (Recipe rails live on the Cook tab now, so Today stays about today's food and progress.) */}
+      <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
 
       <DietBreakCard db={db} update={update} />
 
-      {/* Slim weight trend, taps through to the Goal tab for the full picture and burn estimate */}
-      <HomeWeightSpark db={db} onOpen={() => setView('goals')} />
-
-      {/* Today status: Move / Sleep / Ready as three dials, with the readiness -> Fight buff (Google Health) */}
+      {/* Today status: Move / Sleep / Ready as three dials (Google Health). The readiness -> Fight
+          payoff moved into the Play hub, so this stays a calm glance. */}
       <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
 
       {/* Play: the game lives behind the dino now. One compact entry into the full hub, so the
