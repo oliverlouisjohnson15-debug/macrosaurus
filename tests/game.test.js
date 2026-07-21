@@ -422,15 +422,23 @@ test('sleepScore does not pin at 100 for an at-target night with ordinary qualit
   assert.ok(good > s, 'restorative night should beat the ordinary one');
 });
 
-test('sleepScoreParts itemises the score and always agrees with sleepScore', () => {
+test('sleepScoreParts itemises the score (Fitbit-style split) and always agrees with sleepScore', () => {
   const stages = { deep: 100, rem: 108, light: 254, awake: 18 };
   const p = Game.sleepScoreParts(462, 480, stages);
   assert.strictEqual(p.score, Game.sleepScore(462, 480, stages), 'parts.score must equal sleepScore');
   assert.strictEqual(p.hasStages, true);
-  assert.strictEqual(p.parts.length, 3);
-  assert.deepStrictEqual(p.parts.map(x => x.key), ['duration', 'efficiency', 'quality']);
-  assert.deepStrictEqual(p.parts.map(x => x.max), [60, 15, 25]);
+  assert.strictEqual(p.parts.length, 4);
+  assert.deepStrictEqual(p.parts.map(x => x.key), ['duration', 'efficiency', 'rem', 'deep']);
+  assert.deepStrictEqual(p.parts.map(x => x.max), [45, 20, 18, 17]);
+  assert.strictEqual(p.parts.reduce((a, x) => a + x.max, 0), 100, 'component maxima sum to 100');
   p.parts.forEach(x => assert.ok(x.points >= 0 && x.points <= x.max, x.key + ' points within [0,max]'));
+  // Deep and REM are scored against their own clinical ranges, so a night short on ONE stage is docked
+  // only on that component. Robbing REM (down to ~9%) should cost REM points but leave deep near full.
+  const lowRem = Game.sleepScoreParts(462, 480, { deep: 100, rem: 42, light: 320, awake: 18 });
+  const remPart = lowRem.parts.find(x => x.key === 'rem'), deepPart = lowRem.parts.find(x => x.key === 'deep');
+  assert.ok(remPart.points < 8, 'a REM-deficient night loses REM points');
+  assert.ok(deepPart.points >= 15, 'but healthy deep sleep keeps its points');
+  assert.ok(lowRem.score < p.score, 'and the overall score drops');
   // A stage-less night has no quality to itemise: score null, no parts, but hours are still known.
   const bare = Game.sleepScoreParts(450, 480);
   assert.strictEqual(bare.score, null);
@@ -442,28 +450,45 @@ test('sleepScoreParts itemises the score and always agrees with sleepScore', () 
 });
 
 test('readinessParts explains every signal and agrees with readinessScore', () => {
-  // Nothing tracked: score null, all four signals listed as absent, zero anchors.
+  // Nothing tracked: score null, all five signals listed as absent, zero anchors.
   const empty = Game.readinessParts({});
   assert.strictEqual(empty.score, null);
   assert.strictEqual(empty.anchored, false);
   assert.strictEqual(empty.anchorCount, 0);
-  assert.strictEqual(empty.signals.length, 4);
+  assert.strictEqual(empty.signals.length, 5);
+  assert.deepStrictEqual(empty.signals.map(s => s.key), ['hrv', 'sleep', 'rhr', 'spo2', 'load']);
   assert.ok(empty.signals.every(s => s.present === false));
-  // A thin load-only proxy is not enough to anchor a score (regression: must not pin at 100).
-  const loadOnly = Game.readinessParts({ load: 8000, loadBaseline: 9000 });
-  assert.strictEqual(loadOnly.score, null);
-  assert.strictEqual(loadOnly.anchorCount, 0);
-  assert.strictEqual(loadOnly.signals.find(s => s.key === 'load').present, true);
+  // HRV is the dominant anchor (evidence-based): its weight exceeds every other signal's.
+  const hrvW = empty.signals.find(s => s.key === 'hrv').weightPct;
+  assert.ok(empty.signals.every(s => s.key === 'hrv' || s.weightPct < hrvW), 'HRV must carry the most weight');
+  // Thin modifier proxies never anchor a score (regression: must not pin at 100). Load alone -> null...
+  assert.strictEqual(Game.readinessScore({ load: 8000, loadBaseline: 9000 }), null);
+  // ...and SpO2 alone -> null, even a perfect 99% night, because a healthy SpO2 must not fabricate 100.
+  const spo2Only = Game.readinessParts({ spo2: 99 });
+  assert.strictEqual(spo2Only.score, null);
+  assert.strictEqual(spo2Only.anchorCount, 0);
+  assert.strictEqual(spo2Only.signals.find(s => s.key === 'spo2').present, true);
   // Sleep alone anchors it; parts.score tracks readinessScore exactly.
   const sleepOnly = Game.readinessParts({ sleepScore: 80 });
   assert.strictEqual(sleepOnly.score, Game.readinessScore({ sleepScore: 80 }));
   assert.strictEqual(sleepOnly.anchorCount, 1);
   // Full signal set: three anchors, score matches, illness penalty flagged when tempDev present.
-  const full = { sleepScore: 70, hrv: 65, hrvBaseline: 50, rhr: 52, rhrBaseline: 55, tempDev: 0.6 };
+  const full = { sleepScore: 70, hrv: 65, hrvBaseline: 50, rhr: 52, rhrBaseline: 55, spo2: 97, tempDev: 0.6 };
   const fp = Game.readinessParts(full);
   assert.strictEqual(fp.score, Game.readinessScore(full));
   assert.strictEqual(fp.anchorCount, 3);
   assert.strictEqual(fp.tempPenaltyApplied, true);
+});
+
+test('readiness uses lnRMSSD: HRV is judged log-symmetrically around baseline', () => {
+  // At baseline, HRV contributes exactly 0.5 (neutral).
+  const atBase = Game.readinessParts({ hrv: 50, hrvBaseline: 50 });
+  assert.strictEqual(atBase.signals.find(s => s.key === 'hrv').value, 50);
+  // Log symmetry: a x1.25 HRV and a x0.8 HRV (reciprocals) sit equidistant from 50.
+  const up = Game.readinessParts({ hrv: 62.5, hrvBaseline: 50 }).signals.find(s => s.key === 'hrv').value;
+  const down = Game.readinessParts({ hrv: 40, hrvBaseline: 50 }).signals.find(s => s.key === 'hrv').value;
+  assert.ok(Math.abs((up - 50) - (50 - down)) <= 1, 'lnRMSSD should be symmetric in log space around baseline');
+  assert.ok(up > 50 && down < 50);
 });
 
 test('sleepBand splits poor/ok/good/great at the right thresholds', () => {

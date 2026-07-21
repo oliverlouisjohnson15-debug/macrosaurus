@@ -2594,10 +2594,11 @@ function readinessInputsFor(db, dateISO) {
     if (isFinite(sc)) inp.sleepScore = sc;
   }
   const loadY = +steps[shiftISO(dateISO, -1)] || 0;              // yesterday's steps as a rough load proxy
-  const base = E.avgStepsInRange(steps, shiftISO(dateISO, -8), shiftISO(dateISO, -1)) || 0;
+  const baseObj = E.avgStepsInRange(steps, shiftISO(dateISO, -8), shiftISO(dateISO, -1)); // { avg, days } | null
+  const base = baseObj ? baseObj.avg : 0;                        // (was compared as a number: load never fired)
   if (loadY > 0 && base > 0) { inp.load = loadY; inp.loadBaseline = base; }
-  const h = (db.health || {})[dateISO];                          // Phase B: { hrv, hrvBaseline, rhr, rhrBaseline, tempDev }
-  if (h) { ['hrv', 'hrvBaseline', 'rhr', 'rhrBaseline', 'tempDev'].forEach(k => { if (isFinite(h[k])) inp[k] = h[k]; }); }
+  const h = (db.health || {})[dateISO];                          // Phase B: { hrv, hrvBaseline, rhr, rhrBaseline, spo2, tempDev }
+  if (h) { ['hrv', 'hrvBaseline', 'rhr', 'rhrBaseline', 'spo2', 'tempDev'].forEach(k => { if (isFinite(h[k])) inp[k] = h[k]; }); }
   return inp;
 }
 function readinessFor(db, dateISO) { return Game.readinessScore(readinessInputsFor(db, dateISO)); }
@@ -3569,7 +3570,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--accent)" />
           ))}
           <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
-            A great score needs a genuinely good night, not just time in bed: efficiency and a healthy deep + REM share both count. Change your sleep target in Settings → Daily targets.
+            Modelled on the way Fitbit scores sleep: time asleep leads, but efficiency and healthy deep and REM sleep (judged against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed. Change your sleep target in Settings → Daily targets.
           </p>
         </div>
       );
@@ -7056,6 +7057,11 @@ function demoState() {
   s.sleep = {};
   const sleepNights = [[462, null], [405, null], [498, { deep: 118, rem: 96, light: 260, awake: 24 }], [372, null], [510, { deep: 132, rem: 108, light: 246, awake: 24 }], [447, null], [489, { deep: 110, rem: 92, light: 262, awake: 25 }]];
   sleepNights.forEach(([min, st], i) => { const d = shiftISO(today, -(6 - i)); s.sleep[d] = Object.assign({ min, score: Game.sleepScore(min, 480, st) }, st || {}); });
+  // A week of recovery signals (HRV / resting HR / SpO2) so readiness runs on more than sleep alone and
+  // the breakdown shows the full multi-signal picture. Baselines are computed by mergeHealthInto.
+  const hrvSeries = [48, 53, 50, 56, 52, 58, 60], rhrSeries = [56, 55, 57, 54, 55, 53, 52], spo2Series = [97, 96, 97, 98, 97, 97, 98];
+  const healthSeed = {}; hrvSeries.forEach((_, i) => { const d = shiftISO(today, -(6 - i)); healthSeed[d] = { hrv: hrvSeries[i], rhr: rhrSeries[i], spo2: spo2Series[i] }; });
+  mergeHealthInto(s, healthSeed);
   // Last night's morning catch, already awarded, so the demo shows the sleep loop populated. Every
   // prior night is marked claimed too, matching how the live effect baselines older nights.
   s.game_salt = 'demo-salt';
