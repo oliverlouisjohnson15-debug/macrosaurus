@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1{margin-top:.25rem;margin-bottom:.25rem}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1{margin-top:.25rem;margin-bottom:.25rem}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -1892,31 +1892,60 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // "sleep style" collected into a small style dex. All deterministic per user + wake date.
   var SLEEP_TARGET_DEFAULT = 480; // 8h in minutes; per-user override in profile.sleepTargetMin
   var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
-  // Score 0..100, or null when the night has no stage breakdown to judge. When the device reports stages
-  // the points split across duration (60), sleep efficiency / how little of the night was awake (15),
-  // and a healthy deep+REM share (25), so a perfect score needs a genuinely good night rather than just
-  // time in bed. A stage-less night returns null on purpose: with no measured quality the old duration
-  // ratio just pinned at 100 for anyone who hit their target (and inflated readiness with it), so callers
-  // now show raw hours instead of a fabricated score. `durationMin` is time asleep; `stages` = { deep,
-  // rem, light, awake } minutes. Pure: no clock, no randomness.
-  function sleepScore(durationMin, targetMin, stages) {
+  // Sleep score 0..100, evidence-based and modelled on Fitbit's published duration / quality / restoration
+  // split (Fitbit ~duration 50, quality 25, restoration 25; typical real nights cluster 72-83). We can't
+  // measure restlessness or sleeping-HR restoration from Google Health stage minutes, so those points are
+  // routed into the signals we CAN measure, and deep / REM are scored against their clinical healthy ranges
+  // (deep/N3 ~13-23% of sleep, REM ~20-25%; sleep efficiency >=85% is "good") rather than one arbitrary
+  // combined target. Points: duration 45, efficiency 20, REM 18, deep 17.
+  //   - Duration 45: time asleep vs the 7-9h target; 0 below 60% of target, full at target (no oversleep bonus).
+  //   - Efficiency 20: asleep / time-in-bed; 0 at 80%, full only at an excellent >=95%.
+  //   - REM 18 / Deep 17: share of sleep; full credit only at the good end of the healthy band, 0 well below.
+  // The ramps are deliberately STRICT: an average night lands in the 60s-70s and 90+ needs a genuinely
+  // excellent one, so the score keeps its discriminative power rather than clustering everyone near 100.
+  // A stage-less night returns null on purpose (no measured architecture to judge) so callers show raw
+  // hours instead of a fabricated number. Refs: Fitbit sleep score (androidpolice.com/fitbit-sleep-score-
+  // calculation-explainer), sleep architecture NCBI NBK19956, duration/efficiency Hirshkowitz 2015
+  // (pubmed 29073412). `durationMin` = time asleep; `stages` = { deep, rem, light, awake } minutes. Pure.
+  // sleepScore() is the thin wrapper returning just the number, so the score the UI shows and the breakdown
+  // it explains can never drift. Returns { score, hasStages, durationMin, targetMin, asleepMin, awakeMin,
+  // eff, deepShare, remShare, parts:[{key,label,points,max,detail}] }.
+  function sleepScoreParts(durationMin, targetMin, stages) {
     var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
-    if (dur <= 0 || tgt <= 0) return 0;
+    var out = { score: null, hasStages: false, durationMin: Math.max(0, Math.round(dur)), targetMin: Math.round(tgt),
+      asleepMin: 0, awakeMin: 0, eff: null, deepShare: null, remShare: null, parts: [] };
+    if (dur <= 0 || tgt <= 0) { out.score = 0; return out; }
     var deep = stages ? (Number(stages.deep) || 0) : 0, rem = stages ? (Number(stages.rem) || 0) : 0;
     var light = stages ? (Number(stages.light) || 0) : 0, awake = stages ? (Number(stages.awake) || 0) : 0;
     var asleep = deep + rem + light;
     var total = asleep + awake;
     if (asleep > 0 && total > 0) {
-      var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
-      var durComp = 60 * ratio; // time asleep vs target
-      var eff = asleep / total; // fraction of the night actually asleep
-      var effComp = 15 * Math.max(0, Math.min(1, (eff - 0.75) / 0.20)); // ramps 0.75 (poor) -> 0.95 (great)
-      var deepRem = (deep + rem) / asleep; // ideal ~0.45
-      var qFactor = 1 - Math.min(Math.abs(deepRem - 0.45) / 0.45, 1); // 1 = ideal share, 0 = far off
-      return Math.max(0, Math.min(100, Math.round(durComp + effComp + 25 * qFactor)));
+      var clamp01 = function (v) { return Math.max(0, Math.min(1, v)); };
+      // Strict ramps: full credit only at the GOOD end of each range, so a merely-average night lands in
+      // the 60s-70s (like Fitbit's real-world spread) and 90+ demands a genuinely excellent night. Being
+      // barely "not terrible" earns little.
+      var durComp = 45 * clamp01((dur / tgt - 0.6) / (1 - 0.6));       // 0 at <=60% of target, full at target
+      var eff = asleep / total;                                        // fraction of the night actually asleep
+      var effComp = 20 * clamp01((eff - 0.80) / (0.95 - 0.80));        // 0 at <=80%, full at excellent >=95%
+      var deepShare = deep / asleep, remShare = rem / asleep;
+      var remComp = 18 * clamp01((remShare - 0.12) / (0.22 - 0.12));   // 0 at <=12%, full at healthy >=22%
+      var deepComp = 17 * clamp01((deepShare - 0.09) / (0.18 - 0.09)); // 0 at <=9%, full at healthy >=18%
+      out.hasStages = true;
+      out.asleepMin = Math.round(asleep); out.awakeMin = Math.round(awake);
+      out.eff = eff; out.deepShare = deepShare; out.remShare = remShare;
+      out.parts = [
+        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 45, detail: 'vs your ' + Math.round(tgt / 6) / 10 + 'h target' },
+        { key: 'efficiency', label: 'Efficiency', points: Math.round(effComp), max: 20, detail: Math.round(eff * 100) + '% of the night asleep' },
+        { key: 'rem', label: 'REM sleep', points: Math.round(remComp), max: 18, detail: Math.round(remShare * 100) + '% of sleep (healthy 20-25%)' },
+        { key: 'deep', label: 'Deep sleep', points: Math.round(deepComp), max: 17, detail: Math.round(deepShare * 100) + '% of sleep (healthy 13-23%)' },
+      ];
+      out.score = Math.max(0, Math.min(100, Math.round(durComp + effComp + remComp + deepComp)));
+      return out;
     }
-    return null; // no stage data -> no quality score (callers fall back to showing hours)
+    out.asleepMin = Math.round(dur); // stage-less: we know the hours but nothing about quality
+    return out; // score stays null -> callers fall back to showing hours
   }
+  function sleepScore(durationMin, targetMin, stages) { return sleepScoreParts(durationMin, targetMin, stages).score; }
   // Score -> rarity band. Every night above the floor still catches something (Pokemon Sleep always
   // gives an encounter); better sleep just reaches rarer pools.
   function sleepBand(score) { var s = Number(score) || 0; return s < 50 ? 'poor' : s < 75 ? 'ok' : s < 90 ? 'good' : 'great'; }
@@ -1946,45 +1975,77 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   }
 
   // ---- Readiness (our own recovery score) --------------------------------------------------------
-  // No wearable exposes a readiness score through the Google Health API, so we build one the way Oura /
-  // Whoop do: baseline-RELATIVE signals (compared to the user's own rolling average, never an absolute
-  // target), weighted, with graceful degradation to whatever data we actually have. Pure + testable.
-  // inputs (all optional; needs at least one to return a score): {
+  // No wearable exposes a readiness score through the Google Health API, so we build one the evidence-based
+  // way Whoop / Oura / Fitbit do: baseline-RELATIVE signals (each judged against the user's own rolling
+  // average, never an absolute target), weighted with HRV dominant, degrading gracefully to whatever data
+  // we actually have. HRV carries the most weight because nocturnal RMSSD is the best-validated autonomic
+  // recovery marker (Buchheit 2014; Plews 2013, pubmed 23852425) and it drives Whoop/Fitbit recovery;
+  // resting HR and sleep corroborate; SpO2 and load are thin/noisy so they only ever MODIFY an
+  // anchored score, never produce one (a 96% SpO2 or an easy step day must not pin readiness at 100).
+  // Weights when all present: HRV 40, sleep 25, RHR 20, SpO2 7 (modifier), load 8 (modifier).
+  // inputs (all optional; needs at least one anchor to return a score): {
   //   sleepScore,           // last night, 0..100
   //   hrv, hrvBaseline,     // ms RMSSD, today vs personal baseline   -> higher = more recovered
   //   rhr, rhrBaseline,     // bpm, today vs baseline                 -> lower  = more recovered
-  //   load, loadBaseline,   // yesterday's active-zone minutes vs baseline (a big day tilts to rest)
-  //   tempDev               // nightly skin-temp deviation from baseline (deg C), an illness flag
+  //   spo2,                 // nightly average blood-oxygen %          -> an illness / desaturation flag
+  //   load, loadBaseline,   // yesterday's steps vs baseline (a big day tilts to rest)
+  //   tempDev               // nightly skin-temp deviation from baseline (deg C), an illness flag (unused today)
   // }
-  var READY_WEIGHTS = { sleep: 0.35, hrv: 0.30, rhr: 0.20, load: 0.15 };
-  function readinessScore(inp) {
+  var READY_WEIGHTS = { sleep: 0.25, hrv: 0.40, rhr: 0.20, spo2: 0.07, load: 0.08 };
+  // The full, itemised readiness calculation. readinessScore() is the thin wrapper returning just the
+  // number, so what the UI shows and what it explains stay in lockstep. Returns:
+  //   { score, anchored, anchorCount, tempPenaltyApplied, signals: [{ key, label, weightPct, present,
+  //     value(0..100|null), modifierOnly, note }] }
+  // score is null until at least one ANCHOR (sleep quality, HRV or resting HR) is present. A signal is
+  // always listed whether present or not, with a note saying what it would take to light it up.
+  function readinessParts(inp) {
     inp = inp || {};
     var sum = 0, weights = 0, anchored = false;
-    function add(w, v) { sum += w * Math.max(0, Math.min(1, v)); weights += w; }
-    // An "anchor" is a signal that actually reflects recovery (sleep quality, HRV, resting HR). The
-    // step-load proxy only modulates those; on its own it is too thin to report, and at/under baseline
-    // it would read 1.0 and pin readiness at 100. So a load-only day scores nothing until an anchor lands.
-    if (isFinite(inp.sleepScore)) { add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100); anchored = true; }
-    if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && inp.hrvBaseline > 0) {
-      // HRV balance: logistic on the relative change, so at baseline reads ~0.5 and well above ~0.9.
-      var hd = (Number(inp.hrv) - Number(inp.hrvBaseline)) / Number(inp.hrvBaseline);
-      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd))); anchored = true;
-    }
+    function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+    var signals = [];
+    // HRV balance (anchor, dominant). lnRMSSD vs baseline: raw RMSSD is right-skewed, so we compare the
+    // LOG of today's value to the log of the baseline (the field standard, Plews/Buchheit; Whoop does the
+    // same). A logistic maps that log-ratio to 0..1: at baseline ~0.5, ~+28% RMSSD ~0.8, ~-20% ~0.2.
+    if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && Number(inp.hrv) > 0 && Number(inp.hrvBaseline) > 0) {
+      var hd = Math.log(Number(inp.hrv) / Number(inp.hrvBaseline)); var hvv = clamp01(1 / (1 + Math.exp(-6 * hd)));
+      sum += READY_WEIGHTS.hrv * hvv; weights += READY_WEIGHTS.hrv; anchored = true;
+      signals.push({ key: 'hrv', label: 'HRV balance', weightPct: 40, present: true, value: Math.round(hvv * 100), modifierOnly: false, note: "Last night's HRV (lnRMSSD) vs your rolling baseline." });
+    } else signals.push({ key: 'hrv', label: 'HRV balance', weightPct: 40, present: false, value: null, modifierOnly: false, note: 'Needs a wearable that reports HRV.' });
+    // Sleep quality (anchor). A stage-less night gives no sleepScore, so this stays dark until stages land.
+    if (isFinite(inp.sleepScore)) {
+      var sv = clamp01((Number(inp.sleepScore) || 0) / 100); sum += READY_WEIGHTS.sleep * sv; weights += READY_WEIGHTS.sleep; anchored = true;
+      signals.push({ key: 'sleep', label: 'Sleep quality', weightPct: 25, present: true, value: Math.round(sv * 100), modifierOnly: false, note: "Last night's sleep score." });
+    } else signals.push({ key: 'sleep', label: 'Sleep quality', weightPct: 25, present: false, value: null, modifierOnly: false, note: 'Needs a night with sleep stages. An hours-only night has no quality to score.' });
+    // Resting HR (anchor). Lower than baseline is better; a sustained +3-7 bpm rise flags fatigue/illness
+    // (pmc PMC11235883). ~10% below baseline spans most of the range; weaker evidence than HRV, so half.
     if (isFinite(inp.rhr) && isFinite(inp.rhrBaseline) && inp.rhrBaseline > 0) {
-      // Resting HR: lower than baseline is better; a ~10% swing spans most of the range.
-      var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline);
-      add(READY_WEIGHTS.rhr, 0.5 + rd * 5); anchored = true;
-    }
+      var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline); var rv = clamp01(0.5 + rd * 5);
+      sum += READY_WEIGHTS.rhr * rv; weights += READY_WEIGHTS.rhr; anchored = true;
+      signals.push({ key: 'rhr', label: 'Resting HR', weightPct: 20, present: true, value: Math.round(rv * 100), modifierOnly: false, note: 'Today vs your rolling baseline. A rise above baseline signals fatigue.' });
+    } else signals.push({ key: 'rhr', label: 'Resting HR', weightPct: 20, present: false, value: null, modifierOnly: false, note: 'Needs a wearable that reports resting heart rate.' });
+    // Blood oxygen (modifier only, never an anchor). For healthy users a stable >=95% carries little
+    // day-to-day signal; its value is as an illness / desaturation flag, and consumer SpO2 is noisy, so it
+    // only trims an already-anchored score. Full at >=95%, 0 by ~91% (pmc PMC6594211).
+    if (isFinite(inp.spo2) && Number(inp.spo2) > 0) {
+      var ov2 = clamp01((Number(inp.spo2) - 91) / (95 - 91)); sum += READY_WEIGHTS.spo2 * ov2; weights += READY_WEIGHTS.spo2;
+      signals.push({ key: 'spo2', label: 'Blood oxygen', weightPct: 7, present: true, value: Math.round(ov2 * 100), modifierOnly: true, note: Math.round(Number(inp.spo2) * 10) / 10 + '% overnight. A low night trims the score as an illness flag.' });
+    } else signals.push({ key: 'spo2', label: 'Blood oxygen', weightPct: 7, present: false, value: null, modifierOnly: true, note: 'Needs a wearable that reports overnight SpO2.' });
+    // Recent load (modifier only, never an anchor). At/under baseline is fine; a big spike tilts to rest.
     if (isFinite(inp.load) && isFinite(inp.loadBaseline) && inp.loadBaseline > 0) {
-      // Recent load: at/under baseline is fine; a big spike above tilts toward recovery (lower readiness).
-      var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline));
-      add(READY_WEIGHTS.load, 1 - Math.min(ov, 1) * 0.6);
-    }
-    if (!weights || !anchored) return null; // nothing (or only a thin load proxy) to score yet
+      var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline)); var lv = clamp01(1 - Math.min(ov, 1) * 0.6);
+      sum += READY_WEIGHTS.load * lv; weights += READY_WEIGHTS.load;
+      signals.push({ key: 'load', label: 'Recent load', weightPct: 8, present: true, value: Math.round(lv * 100), modifierOnly: true, note: "Yesterday's steps vs baseline. Only shapes the score once a recovery signal anchors it." });
+    } else signals.push({ key: 'load', label: 'Recent load', weightPct: 8, present: false, value: null, modifierOnly: true, note: 'From your recent daily steps.' });
+
+    var anchorCount = signals.filter(function (s) { return s.present && !s.modifierOnly; }).length;
+    var out = { score: null, anchored: anchored, anchorCount: anchorCount, tempPenaltyApplied: false, signals: signals };
+    if (!weights || !anchored) return out; // nothing (or only thin modifier proxies) to score yet
     var score = sum / weights; // renormalise to whatever signals are present
-    if (isFinite(inp.tempDev)) score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; // illness knock
-    return Math.max(0, Math.min(100, Math.round(score * 100)));
+    if (isFinite(inp.tempDev)) { score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; out.tempPenaltyApplied = true; } // illness knock
+    out.score = Math.max(0, Math.min(100, Math.round(score * 100)));
+    return out;
   }
+  function readinessScore(inp) { return readinessParts(inp).score; }
   // Dino-flavoured bands. Apex = roaring and ready; Drowsy = a recovery day, not a failure.
   function readinessBand(score) { if (score == null) return null; var s = Number(score); if (!isFinite(s)) return null; return s >= 80 ? 'apex' : s >= 55 ? 'prowling' : 'drowsy'; }
   var READY_BAND = { apex: { label: 'Apex', blurb: 'Roaring and ready. Push today.' }, prowling: { label: 'Prowling', blurb: 'Steady. A normal day.' }, drowsy: { label: 'Drowsy', blurb: 'Recover. Go gentle today.' } };
@@ -2060,12 +2121,14 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     SLEEP_STYLES: SLEEP_STYLES,
     SLEEP_POOL: SLEEP_POOL,
     sleepScore: sleepScore,
+    sleepScoreParts: sleepScoreParts,
     sleepBand: sleepBand,
     sleepStyleFor: sleepStyleFor,
     sleepCatch: sleepCatch,
     READY_WEIGHTS: READY_WEIGHTS,
     READY_BAND: READY_BAND,
     readinessScore: readinessScore,
+    readinessParts: readinessParts,
     readinessBand: readinessBand,
     readinessBuff: readinessBuff,
     PRIMED_POOL: PRIMED_POOL,
@@ -9035,7 +9098,10 @@ function isStepGoalDay(db, date) {
 // This morning's readiness: our own recovery score (Oura/Whoop style, baseline-relative). Phase A feeds
 // last night's sleep + a training-load proxy from steps; Phase B adds HRV + resting HR from db.health so
 // the same tile just gets sharper. Returns 0..100 or null when there is nothing to score yet.
-function readinessFor(db, dateISO) {
+// Assemble the readiness inputs for a date from whatever the app has synced. Split out from
+// readinessFor so the "how is this calculated" breakdown sheet scores the exact same inputs the dial
+// does (Game.readinessParts(readinessInputsFor(db, date)) can never disagree with the number shown).
+function readinessInputsFor(db, dateISO) {
   const rec = (db.sleep || {})[dateISO] || null; // last night, keyed by wake (today's) date
   const steps = db.steps || {};
   const inp = {};
@@ -9054,18 +9120,22 @@ function readinessFor(db, dateISO) {
     if (isFinite(sc)) inp.sleepScore = sc;
   }
   const loadY = +steps[shiftISO(dateISO, -1)] || 0; // yesterday's steps as a rough load proxy
-  const base = E.avgStepsInRange(steps, shiftISO(dateISO, -8), shiftISO(dateISO, -1)) || 0;
+  const baseObj = E.avgStepsInRange(steps, shiftISO(dateISO, -8), shiftISO(dateISO, -1)); // { avg, days } | null
+  const base = baseObj ? baseObj.avg : 0; // (was compared as a number: load never fired)
   if (loadY > 0 && base > 0) {
     inp.load = loadY;
     inp.loadBaseline = base;
   }
-  const h = (db.health || {})[dateISO]; // Phase B: { hrv, hrvBaseline, rhr, rhrBaseline, tempDev }
+  const h = (db.health || {})[dateISO]; // Phase B: { hrv, hrvBaseline, rhr, rhrBaseline, spo2, tempDev }
   if (h) {
-    ['hrv', 'hrvBaseline', 'rhr', 'rhrBaseline', 'tempDev'].forEach(k => {
+    ['hrv', 'hrvBaseline', 'rhr', 'rhrBaseline', 'spo2', 'tempDev'].forEach(k => {
       if (isFinite(h[k])) inp[k] = h[k];
     });
   }
-  return Game.readinessScore(inp);
+  return inp;
+}
+function readinessFor(db, dateISO) {
+  return Game.readinessScore(readinessInputsFor(db, dateISO));
 }
 // Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
 // day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
@@ -11134,23 +11204,24 @@ function StatDial({
   }, sub));
 }
 
-// Today status: Move / Sleep / Ready as three comparable dials, with the readiness -> Fight buff as the
-// payoff strip. Steps + sleep-target edit inline; Google Health drives it, manual entry is the fallback.
+// Today status: Move / Sleep / Ready as three comparable dials, all driven by the Google Health
+// integration. Tapping a dial opens a read-only breakdown of how its number was reached, never an
+// editor: steps aren't hand-entered, and the step goal + sleep target are set in Settings.
 function StepsSleepCard({
   db,
   update,
   onOpenPlay
 }) {
   const today = Store.todayISO();
-  const k = n => Math.round(n).toLocaleString('en-GB');
   const kShort = n => n >= 1000 ? (Math.round(n / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(Math.round(n));
-  // Steps: today vs the activity-band (or custom) goal.
+  // Steps: today vs the activity-band (or custom) goal. Google Health is the only source; the tap-through
+  // sheet explains the number rather than letting the user type one in.
   const steps = db.steps || {};
   const todaySteps = +steps[today] || 0;
   const stepGoal = stepGoalFor(db);
   const stepPct = stepGoal ? Math.min(100, Math.round(todaySteps / stepGoal * 100)) : 0;
   const goalHit = stepGoal > 0 && todaySteps >= stepGoal;
-  // Sleep: last synced night, scored live so a target edit moves the ring.
+  // Sleep: last synced night, scored live against the target (which is set in Settings, not here).
   const sleep = db.sleep || {};
   const sdates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort();
   const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
@@ -11167,8 +11238,6 @@ function StepsSleepCard({
   const sHrs = rec ? Math.floor(rec.min / 60) : 0,
     sMins = rec ? rec.min % 60 : 0;
   const sHrsLabel = sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '');
-  const targetH = targetMin / 60,
-    targetHLabel = Number.isInteger(targetH) ? String(targetH) : targetH.toFixed(1);
   // Readiness: our recovery score + the band it grants. The Fight buff it powers now lives in the
   // Play hub's boss card, so this dial just shows the band and taps through to Play.
   const readiness = readinessFor(db, today);
@@ -11180,25 +11249,10 @@ function StepsSleepCard({
     drowsy: 'var(--warn)'
   };
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
-  // One editor at a time: null | 'steps' | 'sleep'.
-  const [edit, setEdit] = useState(null);
-  const [val, setVal] = useState('');
-  function saveSteps() {
-    const n = Math.max(0, Math.round(+val || 0));
-    update(d => {
-      d.steps = d.steps || {};
-      if (n > 0) d.steps[today] = n;else delete d.steps[today];
-    });
-    setEdit(null);
-  }
-  function saveSleep() {
-    const h = Math.max(0, +val || 0);
-    update(d => {
-      d.profile = d.profile || {};
-      if (h > 0) d.profile.sleepTargetMin = Math.round(h * 60);else delete d.profile.sleepTargetMin;
-    });
-    setEdit(null);
-  }
+  // Tapping a dial opens a read-only breakdown of how that number was reached, never an editor.
+  // Steps come only from the Google Health integration; the sleep target and step goal are set in
+  // Settings. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
+  const [sheet, setSheet] = useState(null);
   const synced = db.googleHealth && db.googleHealth.connected;
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-4"
@@ -11229,14 +11283,11 @@ function StepsSleepCard({
     className: "flex items-stretch"
   }, /*#__PURE__*/React.createElement(StatDial, {
     label: "Move",
-    fill: stepGoal > 0 ? stepPct : null,
+    fill: stepGoal > 0 && synced ? stepPct : null,
     color: "var(--good)",
-    big: stepGoal > 0 ? goalHit ? '✓' : stepPct : '–',
-    sub: todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'Tap to log',
-    onTap: () => {
-      setVal(todaySteps || '');
-      setEdit(edit === 'steps' ? null : 'steps');
-    }
+    big: synced ? stepGoal > 0 ? goalHit ? '✓' : stepPct : '–' : '–',
+    sub: synced ? todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'No steps yet' : 'Not connected',
+    onTap: () => setSheet('move')
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 1,
@@ -11248,11 +11299,8 @@ function StepsSleepCard({
     fill: hasScore ? Math.min(100, score) : null,
     color: "var(--accent)",
     big: rec ? hasScore ? score : sHrsLabel : '–',
-    sub: rec ? hasScore ? sHrsLabel : 'Hours only · no stages' : 'No data',
-    onTap: () => {
-      setVal(targetH || '');
-      setEdit(edit === 'sleep' ? null : 'sleep');
-    }
+    sub: rec ? hasScore ? sHrsLabel : 'Hours only · no stages' : synced ? 'No data' : 'Not connected',
+    onTap: () => setSheet('sleep')
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       width: 1,
@@ -11265,42 +11313,358 @@ function StepsSleepCard({
     color: rColor,
     big: readiness != null ? readiness : '–',
     active: !!rBand,
-    sub: rInfo ? rInfo.label : synced ? 'Pending' : 'No data',
+    sub: readiness != null ? rInfo ? rInfo.label : '' : synced ? 'Not enough data' : 'Not connected',
     subColor: rBand ? rColor : 'var(--muted)',
-    onTap: onOpenPlay
-  })), edit === 'steps' && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 mt-2.5"
+    onTap: () => setSheet('ready')
+  })), sheet && /*#__PURE__*/React.createElement(MetricBreakdownSheet, {
+    metric: sheet,
+    db: db,
+    onClose: () => setSheet(null),
+    onOpenPlay: onOpenPlay
+  }));
+}
+
+// Read-only "how was this number reached" sheet for a Move / Sleep / Ready dial. It never edits data:
+// steps come from the Google Health integration, and the step goal + sleep target are set in Settings.
+// Every figure is recomputed here from the same game.js functions the dials use, so the explanation
+// can never disagree with the number on the card.
+function MetricBreakdownSheet({
+  metric,
+  db,
+  onClose,
+  onOpenPlay
+}) {
+  useBackClose(onClose);
+  const today = Store.todayISO();
+  const k = n => Math.round(n).toLocaleString('en-GB');
+  const synced = db.googleHealth && db.googleHealth.connected;
+  const lastSyncLabel = db.googleHealth && db.googleHealth.lastSync ? new Date(db.googleHealth.lastSync).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short'
+  }) : null;
+  const hmLabel = min => {
+    const h = Math.floor(min / 60),
+      m = Math.round(min % 60);
+    return h + 'h' + (m ? ' ' + m + 'm' : '');
+  };
+  const TITLE = {
+    move: 'Move',
+    sleep: 'Sleep',
+    ready: 'Readiness'
+  };
+  const TINT = {
+    move: 'var(--good)',
+    sleep: 'var(--accent)',
+    ready: 'var(--text)'
+  };
+
+  // A single labelled contribution row (points bar for sleep, weight/value for readiness).
+  function PartRow({
+    label,
+    detail,
+    value,
+    max,
+    pct,
+    tint,
+    muted
+  }) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-3 py-2 border-b",
+      style: {
+        borderColor: 'var(--border)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px]",
+      style: {
+        color: muted ? 'var(--muted)' : 'var(--text)'
+      }
+    }, label), detail && /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] mt-0.5 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, detail)), value != null && /*#__PURE__*/React.createElement("div", {
+      className: "text-right shrink-0",
+      style: {
+        minWidth: 68
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "tnum text-[13px] font-bold",
+      style: {
+        color: muted ? 'var(--muted)' : tint
+      }
+    }, value, max != null ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] font-normal",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, " / ", max) : ''), pct != null && /*#__PURE__*/React.createElement("div", {
+      className: "pixel-bar mt-1",
+      style: {
+        height: 6,
+        width: 68
+      }
+    }, /*#__PURE__*/React.createElement("i", {
+      style: {
+        width: Math.max(0, Math.min(100, pct)) + '%',
+        background: muted ? 'var(--surface3)' : tint
+      }
+    }))));
+  }
+  let body = null;
+  if (metric === 'move') {
+    const steps = db.steps || {};
+    const todaySteps = +steps[today] || 0;
+    const stepGoal = stepGoalFor(db);
+    const custom = db.profile && +db.profile.stepGoal > 0;
+    const pct = stepGoal ? Math.round(todaySteps / stepGoal * 100) : 0;
+    body = /*#__PURE__*/React.createElement("div", null, synced ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-end gap-2 mb-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "tnum text-4xl font-bold leading-none",
+      style: {
+        color: 'var(--good)'
+      }
+    }, k(todaySteps)), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] pb-1",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "steps today", stepGoal > 0 ? ' · ' + pct + '% of goal' : '')), stepGoal > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "pixel-bar mb-4",
+      style: {
+        height: 10
+      }
+    }, /*#__PURE__*/React.createElement("i", {
+      style: {
+        width: Math.max(0, Math.min(100, pct)) + '%',
+        background: 'var(--good)'
+      }
+    })), /*#__PURE__*/React.createElement(PartRow, {
+      label: "Steps today",
+      detail: 'Read from Google Health' + (lastSyncLabel ? ' · synced ' + lastSyncLabel : ''),
+      value: k(todaySteps),
+      tint: "var(--good)"
+    }), stepGoal > 0 && /*#__PURE__*/React.createElement(PartRow, {
+      label: "Daily goal",
+      detail: custom ? 'Your custom goal, set in Settings' : 'From your activity level, set in Settings',
+      value: k(stepGoal),
+      tint: "var(--good)"
+    }), /*#__PURE__*/React.createElement("p", {
+      className: "text-[12px] mt-4 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Steps sync automatically from Google Health, so Macrosaurus never asks you to count them by hand, and everything tied to movement (your step-goal streak and steps-first coaching) follows this figure.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      className: "text-[13px] leading-snug mb-4",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, "Your steps sync automatically from Google Health. Connect it once and your daily movement, step-goal streak and steps-first coaching all fill in on their own. There's no manual step entry."), ghConfigured() ? /*#__PURE__*/React.createElement(Btn, {
+      kind: "accent",
+      className: "w-full",
+      onClick: () => {
+        onClose();
+        ghConnect();
+      }
+    }, "Connect Google Health") : /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-3 text-[12px]",
+      style: {
+        background: 'var(--surface3)',
+        color: 'var(--muted)'
+      }
+    }, "Google Health connection is coming soon.")));
+  }
+  if (metric === 'sleep') {
+    const sleep = db.sleep || {};
+    const sdates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort();
+    const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
+    const rec = lastDate ? sleep[lastDate] : null;
+    const targetMin = db.profile && db.profile.sleepTargetMin || Game.SLEEP_TARGET_DEFAULT;
+    const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null) ? {
+      deep: rec.deep || 0,
+      rem: rec.rem || 0,
+      light: rec.light || 0,
+      awake: rec.awake || 0
+    } : null;
+    const p = rec ? Game.sleepScoreParts(rec.min, targetMin, stages) : null;
+    const nightLabel = lastDate ? new Date(lastDate).toLocaleDateString('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short'
+    }) : null;
+    if (!rec) {
+      body = /*#__PURE__*/React.createElement("p", {
+        className: "text-[13px] leading-snug",
+        style: {
+          color: 'var(--text2)'
+        }
+      }, synced ? "No night has synced yet. Once your device records a night's sleep it'll appear here, scored against your sleep target." : "Sleep syncs from Google Health. Connect it and we'll score each night automatically.", !synced && ghConfigured() && /*#__PURE__*/React.createElement("span", {
+        className: "block mt-4"
+      }, /*#__PURE__*/React.createElement(Btn, {
+        kind: "accent",
+        className: "w-full",
+        onClick: () => {
+          onClose();
+          ghConnect();
+        }
+      }, "Connect Google Health")));
+    } else if (p.hasStages) {
+      body = /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "flex items-end gap-2 mb-1"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "tnum text-4xl font-bold leading-none",
+        style: {
+          color: 'var(--accent)'
+        }
+      }, p.score), /*#__PURE__*/React.createElement("div", {
+        className: "text-[13px] pb-1",
+        style: {
+          color: 'var(--muted)'
+        }
+      }, "/ 100 · ", Game.sleepBand(p.score))), /*#__PURE__*/React.createElement("div", {
+        className: "text-[12px] mb-4",
+        style: {
+          color: 'var(--muted)'
+        }
+      }, nightLabel, " · ", hmLabel(p.asleepMin), " asleep vs ", hmLabel(targetMin), " target"), /*#__PURE__*/React.createElement("div", {
+        className: "pf text-[8px] uppercase mb-1",
+        style: {
+          color: 'var(--muted)'
+        }
+      }, "How the score is built"), p.parts.map(part => /*#__PURE__*/React.createElement(PartRow, {
+        key: part.key,
+        label: part.label,
+        detail: part.detail,
+        value: part.points,
+        max: part.max,
+        pct: part.points / part.max * 100,
+        tint: "var(--accent)"
+      })), /*#__PURE__*/React.createElement("p", {
+        className: "text-[12px] mt-4 leading-snug",
+        style: {
+          color: 'var(--muted)'
+        }
+      }, "Modelled on the way Fitbit scores sleep: time asleep leads, but efficiency and healthy deep and REM sleep (judged against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed. Change your sleep target in Settings → Daily targets."));
+    } else {
+      body = /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "tnum text-4xl font-bold leading-none mb-1",
+        style: {
+          color: 'var(--accent)'
+        }
+      }, hmLabel(rec.min)), /*#__PURE__*/React.createElement("div", {
+        className: "text-[12px] mb-4",
+        style: {
+          color: 'var(--muted)'
+        }
+      }, nightLabel, " · vs ", hmLabel(targetMin), " target"), /*#__PURE__*/React.createElement("p", {
+        className: "text-[13px] leading-snug",
+        style: {
+          color: 'var(--text2)'
+        }
+      }, "Your device reported how long you slept but not the sleep stages (deep, REM, light, awake), so there's no quality to score yet, so we're showing hours instead of a number out of 100. When your device syncs a staged night you'll get a full score. Change your target in Settings → Daily targets."));
+    }
+  }
+  if (metric === 'ready') {
+    const parts = Game.readinessParts(readinessInputsFor(db, today));
+    const band = Game.readinessBand(parts.score);
+    const info = band ? Game.READY_BAND[band] : null;
+    const R_COLOR = {
+      apex: 'var(--good)',
+      prowling: 'var(--accent)',
+      drowsy: 'var(--warn)'
+    };
+    const rColor = band ? R_COLOR[band] : 'var(--muted)';
+    body = /*#__PURE__*/React.createElement("div", null, parts.score != null ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-end gap-2 mb-1"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "tnum text-4xl font-bold leading-none",
+      style: {
+        color: rColor
+      }
+    }, parts.score), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] pb-1",
+      style: {
+        color: rColor
+      }
+    }, info ? info.label : '')), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mb-4 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, info ? info.blurb : '', " Based on ", parts.anchorCount, " of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "tnum text-4xl font-bold leading-none mb-2",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "–"), /*#__PURE__*/React.createElement("p", {
+      className: "text-[13px] leading-snug mb-4",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, "We can't score your readiness yet. It needs at least one real recovery signal: last night's sleep quality (a night with sleep stages), HRV, or resting heart rate. Steps alone aren't enough to anchor it."), !synced && ghConfigured() && /*#__PURE__*/React.createElement("div", {
+      className: "mb-4"
+    }, /*#__PURE__*/React.createElement(Btn, {
+      kind: "accent",
+      className: "w-full",
+      onClick: () => {
+        onClose();
+        ghConnect();
+      }
+    }, "Connect Google Health"))), /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-1",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Recovery signals"), parts.signals.map(s => /*#__PURE__*/React.createElement(PartRow, {
+      key: s.key,
+      label: s.label + ' · ' + s.weightPct + '%' + (s.modifierOnly ? ' (modifier)' : ''),
+      detail: s.present ? s.note : s.note,
+      value: s.present ? s.value : 'Off',
+      max: s.present ? 100 : null,
+      pct: s.present ? s.value : null,
+      tint: rColor,
+      muted: !s.present
+    })), /*#__PURE__*/React.createElement("p", {
+      className: "text-[12px] mt-4 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Readiness is baseline-relative (Oura / Whoop style): each signal is judged against your own rolling average, not a fixed target."), onOpenPlay && parts.score != null && /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        onClose();
+        onOpenPlay();
+      },
+      className: "w-full mt-4 pixel-box py-3 text-[13px] font-semibold",
+      style: {
+        background: 'var(--surface2)',
+        boxShadow: 'none'
+      }
+    }, "See today's Fight buff →"));
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center",
+    onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1"
-  }, /*#__PURE__*/React.createElement(NumInput, {
-    value: val,
-    onChange: e => setVal(e.target.value),
-    placeholder: "Steps today, e.g. 8500",
-    autoFocus: true
-  })), /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "text-sm",
-    onClick: saveSteps
-  }, "Save"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setEdit(null),
-    className: "text-[#8A8A90] text-sm px-1"
-  }, "Cancel")), edit === 'sleep' && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 mt-2.5"
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
+    onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1"
-  }, /*#__PURE__*/React.createElement(NumInput, {
-    value: val,
-    onChange: e => setVal(e.target.value),
-    placeholder: "Sleep target hours, e.g. 8",
-    autoFocus: true
-  })), /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "text-sm",
-    onClick: saveSleep
-  }, "Save"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setEdit(null),
-    className: "text-[#8A8A90] text-sm px-1"
-  }, "Cancel")));
+    className: "flex justify-between items-center mb-4"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-bold",
+    style: {
+      color: TINT[metric]
+    }
+  }, TITLE[metric]), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    "aria-label": "Close",
+    className: "text-[#8A8A90] text-2xl leading-none"
+  }, "×")), body));
 }
 
 // Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
@@ -21012,6 +21376,10 @@ function demoState() {
     scale_weight: w
   }));
   s.last_checkin = shiftISO(today, -6);
+  s.googleHealth = {
+    connected: true,
+    lastSync: new Date().toISOString()
+  }; // demo: show the synced Today card
   s.steps = {};
   [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => {
     s.steps[shiftISO(today, -(6 - i))] = v;
@@ -21042,6 +21410,21 @@ function demoState() {
       score: Game.sleepScore(min, 480, st)
     }, st || {});
   });
+  // A week of recovery signals (HRV / resting HR / SpO2) so readiness runs on more than sleep alone and
+  // the breakdown shows the full multi-signal picture. Baselines are computed by mergeHealthInto.
+  const hrvSeries = [48, 53, 50, 56, 52, 58, 60],
+    rhrSeries = [56, 55, 57, 54, 55, 53, 52],
+    spo2Series = [97, 96, 97, 98, 97, 97, 98];
+  const healthSeed = {};
+  hrvSeries.forEach((_, i) => {
+    const d = shiftISO(today, -(6 - i));
+    healthSeed[d] = {
+      hrv: hrvSeries[i],
+      rhr: rhrSeries[i],
+      spo2: spo2Series[i]
+    };
+  });
+  mergeHealthInto(s, healthSeed);
   // Last night's morning catch, already awarded, so the demo shows the sleep loop populated. Every
   // prior night is marked claimed too, matching how the live effect baselines older nights.
   s.game_salt = 'demo-salt';
