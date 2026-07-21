@@ -5578,6 +5578,56 @@ const COACH_MODES = [
   { v: 'manual', l: 'Manual', d: 'We never change your macros for you. You read the trends and adjust your goal yourself whenever you want.' },
 ];
 
+// Sync diagnostics: show exactly what Google Health handed us for the last few nights, so "is my sleep
+// scoring?" has a definite answer. Stage fields present => the device's deep/REM/light breakdown survived
+// the sync (a real quality score); absent => hours-only. HRV/resting-HR rows show whether readiness has
+// the recovery signals it needs (and their rolling baselines, which take ~2 weeks to fill).
+function GhDebug({ db, update }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const sleep = db.sleep || {}, health = db.health || {};
+  const sdates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort().slice(-7).reverse();
+  const hdates = Object.keys(health).sort().slice(-7).reverse();
+  const hasStages = r => r && (r.deep != null || r.rem != null || r.light != null || r.awake != null);
+  const hm = m => Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '');
+  async function resync() {
+    setBusy(true); setMsg('');
+    try {
+      const r = await ghPost('sync', {});
+      update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); mergeHealthInto(d, r.health); });
+      setMsg('Synced. Check the nights below - stage fields mean quality data came through.');
+    } catch (e) {
+      setMsg('Sync failed: ' + (e && e.message ? e.message : 'unknown error'));
+      if (e && e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
+    } finally { setBusy(false); }
+  }
+  const row = { color: 'var(--muted)', fontSize: 11 };
+  return (
+    <details className="mt-3" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+      <summary className="pf text-[9px] uppercase cursor-pointer" style={{ color: 'var(--muted)' }}>Sync diagnostics</summary>
+      <div className="mt-2">
+        <Btn kind="ghost" className="text-sm" onClick={resync} disabled={busy}>{busy ? 'Syncing…' : 'Re-sync now'}</Btn>
+        {msg ? <div className="mt-1.5 text-[11px]" style={{ color: 'var(--text)' }}>{msg}</div> : null}
+        <div className="pf text-[8px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Sleep · last synced nights</div>
+        {sdates.length ? sdates.map(dt => {
+          const r = sleep[dt];
+          return <div key={dt} className="tnum leading-snug" style={row}>
+            <b style={{ color: 'var(--text)' }}>{dt}</b> · {hm(r.min)} · {hasStages(r)
+              ? <span>deep {r.deep || 0} / rem {r.rem || 0} / light {r.light || 0} / awake {r.awake || 0} to score <b style={{ color: 'var(--accent)' }}>{isFinite(r.score) ? r.score : '-'}</b></span>
+              : <span style={{ color: 'var(--warn)' }}>no stage data (hours only)</span>}
+          </div>;
+        }) : <div style={row}>No sleep synced yet.</div>}
+        <div className="pf text-[8px] uppercase mt-3 mb-1" style={{ color: 'var(--muted)' }}>Recovery signals · HRV / resting HR</div>
+        {hdates.length ? hdates.map(dt => {
+          const h = health[dt];
+          return <div key={dt} className="tnum leading-snug" style={row}>
+            <b style={{ color: 'var(--text)' }}>{dt}</b> · HRV {h.hrv != null ? h.hrv : '-'}{h.hrvBaseline != null ? ' (base ' + h.hrvBaseline + ')' : ''} · RHR {h.rhr != null ? h.rhr : '-'}{h.rhrBaseline != null ? ' (base ' + h.rhrBaseline + ')' : ''}
+          </div>;
+        }) : <div style={row}>No HRV / resting-HR synced yet - readiness needs ~14 days of these to build a baseline.</div>}
+      </div>
+    </details>
+  );
+}
 function SettingsTab({ db, update }) {
   const p = db.profile;
   const init = () => ({ checkinDay: p.checkinDay == null ? 1 : p.checkinDay, weight_unit: p.weight_unit, height_unit: p.height_unit, aiKey: p.aiKey || '', reminders: p.reminders !== false, nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour, theme: p.theme || 'light', stepGoal: p.stepGoal || '', sleepTargetHours: p.sleepTargetMin ? +(p.sleepTargetMin / 60).toFixed(2).replace(/\.00$/, '') : '' });
@@ -5640,9 +5690,12 @@ function SettingsTab({ db, update }) {
         const gh = db.googleHealth;
         if (!ghConfigured()) return <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>;
         if (gh && gh.connected) return (
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
-            <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
+              <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
+            </div>
+            <GhDebug db={db} update={update} />
           </div>
         );
         return <Btn kind="accent" className="w-full" onClick={ghConnect}>Connect Google Health</Btn>;
