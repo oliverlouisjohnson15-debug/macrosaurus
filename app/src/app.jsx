@@ -2549,7 +2549,16 @@ function readinessFor(db, dateISO) {
   const rec = (db.sleep || {})[dateISO] || null;                 // last night, keyed by wake (today's) date
   const steps = db.steps || {};
   const inp = {};
-  if (rec && isFinite(rec.score)) inp.sleepScore = rec.score;
+  // Recompute the sleep score from stages rather than trusting rec.score: older syncs stored a
+  // duration-only score (100) on stage-less nights, and readiness must not echo that stale number.
+  // A stage-less night yields null here, so it contributes no sleep signal to readiness at all.
+  if (rec && isFinite(rec.min)) {
+    const stages = (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
+      ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
+    const target = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
+    const sc = Game.sleepScore(rec.min, target, stages);
+    if (isFinite(sc)) inp.sleepScore = sc;
+  }
   const loadY = +steps[shiftISO(dateISO, -1)] || 0;              // yesterday's steps as a rough load proxy
   const base = E.avgStepsInRange(steps, shiftISO(dateISO, -8), shiftISO(dateISO, -1)) || 0;
   if (loadY > 0 && base > 0) { inp.load = loadY; inp.loadBaseline = base; }
@@ -3422,7 +3431,7 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
         <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
         <StatDial label="Ready" fill={readiness != null ? Math.min(100, readiness) : null} color={rColor}
           big={readiness != null ? readiness : '–'} active={!!rBand}
-          sub={rInfo ? rInfo.label : 'No data'} subColor={rBand ? rColor : 'var(--muted)'}
+          sub={rInfo ? rInfo.label : (synced ? 'Pending' : 'No data')} subColor={rBand ? rColor : 'var(--muted)'}
           onTap={onOpenPlay} />
       </div>
 
