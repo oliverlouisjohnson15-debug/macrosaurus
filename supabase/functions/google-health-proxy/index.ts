@@ -95,16 +95,26 @@ function minutesBetween(startTs?: string, endTs?: string): number {
   if (!isFinite(a) || !isFinite(b) || b <= a) return 0;
   return Math.round((b - a) / 60000);
 }
-// Add `min` minutes of a sleep stage to a per-point stage tally. Stage type values come from the v4
-// SleepStage/StageSummary enum (AWAKE, LIGHT, DEEP, REM, ASLEEP, RESTLESS); anything that is sleep but
-// not deep/REM (undifferentiated ASLEEP, RESTLESS, or plain LIGHT) rolls into the light bucket.
+// First value among `keys` on `obj` that is a non-empty array, else []. Used to probe the several field
+// names different Google Health sources use for the sleep-stage list.
+function firstArray(obj: any, keys: string[]): any[] {
+  if (obj == null || typeof obj !== 'object') return [];
+  for (const k of keys) { const v = obj[k]; if (Array.isArray(v) && v.length) return v; }
+  return [];
+}
+// Add `min` minutes of a sleep stage to a per-point stage tally. Stage type values vary by source and are
+// not fully pinned down, so match tolerantly: the v4 REST enum (AWAKE, LIGHT, DEEP, REM, ASLEEP, RESTLESS),
+// prefixed variants (SLEEP_STAGE_TYPE_DEEP, STAGE_DEEP, DEEP_SLEEP, CORE), and Health Connect numeric codes
+// (1 AWAKE, 2 SLEEPING, 3 OUT_OF_BED, 4 LIGHT, 5 DEEP, 6 REM). Anything that is sleep but not deep/REM
+// (undifferentiated ASLEEP/SLEEPING, RESTLESS, CORE, or plain LIGHT) rolls into the light bucket; unknowns
+// are dropped rather than guessed. Ordered so DEEP/REM win before the generic "…SLEEP" catch-all.
 function bucketStage(seg: { deep: number; rem: number; light: number; awake: number }, type: unknown, min: number): void {
   if (!min || min <= 0) return;
-  const t = String(type || '').toUpperCase();
-  if (t === 'DEEP') seg.deep += min;
-  else if (t === 'REM') seg.rem += min;
-  else if (t === 'AWAKE') seg.awake += min;
-  else if (t === 'LIGHT' || t === 'ASLEEP' || t === 'RESTLESS') seg.light += min;
+  const t = String(type == null ? '' : type).toUpperCase();
+  if (t === '5' || t.includes('DEEP')) seg.deep += min;
+  else if (t === '6' || t.includes('REM')) seg.rem += min;
+  else if (t === '1' || t === '3' || t.includes('AWAKE') || t.includes('WAKE') || t.includes('OUT_OF_BED')) seg.awake += min;
+  else if (t === '2' || t === '4' || t.includes('LIGHT') || t.includes('CORE') || t.includes('ASLEEP') || t.includes('RESTLESS') || t.includes('SLEEP')) seg.light += min;
 }
 
 // Roll one Google Health `sleep` data point up into `out` keyed by its wake date. Per the v4 schema a
@@ -124,19 +134,28 @@ function addSleepPoint(out: Record<string, any>, s: any): void {
 
   const sum = s?.summary || {};
   const seg = { deep: 0, rem: 0, light: 0, awake: 0 };
-  const stagesSummary = Array.isArray(sum.stagesSummary) ? sum.stagesSummary : [];
-  if (stagesSummary.length) {
-    for (const ss of stagesSummary) bucketStage(seg, ss?.type, Math.round(Number(ss?.minutes) || 0));
+  // Precomputed per-stage summary [{ type, minutes }] under any plausible key; else the raw stage segment
+  // array [{ type, startTime, endTime }]. Sources disagree on field names, so probe several and read the
+  // duration as explicit minutes when given, otherwise from the segment's start/end.
+  let stageSummary = firstArray(sum, ['stagesSummary', 'sleepStageSummaries', 'stageSummaries']);
+  if (!stageSummary.length) stageSummary = firstArray(s, ['stagesSummary', 'stageSummaries']);
+  if (stageSummary.length) {
+    for (const ss of stageSummary) {
+      const m = findNum(ss, ['minutes', 'durationMinutes', 'minutesInStage', 'totalMinutes']);
+      bucketStage(seg, ss?.type ?? ss?.stage ?? ss?.stageType ?? ss?.sleepStageType,
+        m != null ? Math.round(m) : minutesBetween(ss?.startTime, ss?.endTime));
+    }
   } else {
-    for (const st of (Array.isArray(s?.stages) ? s.stages : [])) bucketStage(seg, st?.type, minutesBetween(st?.startTime, st?.endTime));
+    const segs = firstArray(s, ['stages', 'sleepStages', 'stageSegments', 'segments']);
+    for (const st of segs) bucketStage(seg, st?.type ?? st?.stage ?? st?.stageType ?? st?.sleepStageType, minutesBetween(st?.startTime, st?.endTime));
   }
 
   // Time asleep: the summary's own figure (already excludes awake), else the sleep-stage sum, else the
   // raw in-bed interval when a device reports neither a summary nor stages.
-  let asleep = Math.round(Number(sum.minutesAsleep) || 0);
+  let asleep = Math.round(findNum(sum, ['minutesAsleep', 'asleepMinutes', 'totalSleepMinutes', 'sleepMinutes', 'sleepDurationMinutes']) || 0);
   if (!asleep) asleep = seg.deep + seg.rem + seg.light;
   if (!asleep) asleep = minutesBetween(iv.startTime, iv.endTime);
-  if (!seg.awake) seg.awake = Math.round(Number(sum.minutesAwake) || 0);
+  if (!seg.awake) seg.awake = Math.round(findNum(sum, ['minutesAwake', 'awakeMinutes', 'timeAwakeMinutes']) || 0);
   if (asleep <= 0) return;
 
   const rec: any = out[date] || { min: 0, deep: 0, rem: 0, light: 0, awake: 0 };

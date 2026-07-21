@@ -364,7 +364,9 @@ function mergeSleepInto(d, sleep) {
     if (!isFinite(min) || min <= 0) continue;
     const stages = (s.deep != null || s.rem != null || s.light != null || s.awake != null)
       ? { deep: +s.deep || 0, rem: +s.rem || 0, light: +s.light || 0, awake: +s.awake || 0 } : null;
-    const rec = { min: Math.round(min), score: Game.sleepScore(min, target, stages) };
+    const sc = Game.sleepScore(min, target, stages);      // null for a stage-less night (no quality to judge)
+    const rec = { min: Math.round(min) };
+    if (isFinite(sc)) rec.score = sc;
     if (stages) Object.assign(rec, stages);
     d.sleep[k] = rec; n++;
   }
@@ -3369,8 +3371,10 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const targetMin = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
   const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
     ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
-  const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : 0;
+  const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : null; // null = stage-less night, show hours
+  const hasScore = isFinite(score);
   const sHrs = rec ? Math.floor(rec.min / 60) : 0, sMins = rec ? rec.min % 60 : 0;
+  const sHrsLabel = sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '');
   const targetH = targetMin / 60, targetHLabel = Number.isInteger(targetH) ? String(targetH) : targetH.toFixed(1);
   // Readiness: our recovery score + the band it grants. The Fight buff it powers now lives in the
   // Play hub's boss card, so this dial just shows the band and taps through to Play.
@@ -3411,9 +3415,9 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
           sub={todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'Tap to log'}
           onTap={() => { setVal(todaySteps || ''); setEdit(edit === 'steps' ? null : 'steps'); }} />
         <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
-        <StatDial label="Sleep" fill={rec ? Math.min(100, score) : null} color="var(--accent)"
-          big={rec ? score : '–'}
-          sub={rec ? sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '') : 'No data'}
+        <StatDial label="Sleep" fill={hasScore ? Math.min(100, score) : null} color="var(--accent)"
+          big={rec ? (hasScore ? score : sHrsLabel) : '–'}
+          sub={rec ? (hasScore ? sHrsLabel : 'Hours only · no stages') : 'No data'}
           onTap={() => { setVal(targetH || ''); setEdit(edit === 'sleep' ? null : 'sleep'); }} />
         <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
         <StatDial label="Ready" fill={readiness != null ? Math.min(100, readiness) : null} color={rColor}
@@ -3784,9 +3788,13 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     const rec = db.sleep[latestSleep] || {};
     const stages = (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
       ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
-    const band = Game.sleepBand(rec.score);
+    // A stage-less night has no quality score (we show hours, not a number), but the morning catch should
+    // still happen and stay fair: tier it by duration alone rather than dumping every such night in 'poor'.
+    const catchTarget = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
+    const catchScore = isFinite(rec.score) ? rec.score : Math.round(Math.min((rec.min || 0) / catchTarget, 1) * 100);
+    const band = Game.sleepBand(catchScore);
     const c = Game.sleepCatch(db.game_salt || '', latestSleep, band);
-    const style = Game.sleepStyleFor(rec.score, stages);
+    const style = Game.sleepStyleFor(catchScore, stages);
     update(d => {
       d.sleepDex = d.sleepDex || { claimed: {} };
       d.sleepDex.claimed = d.sleepDex.claimed || {};

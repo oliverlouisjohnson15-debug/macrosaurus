@@ -393,13 +393,16 @@ test('expeditionState tracks the quality-day goal and caps progress', () => {
 
 // ---- sleep (a Pokemon Sleep style morning catch): score, band, style, deterministic catch ----
 
-test('sleepScore ramps with duration and caps at 100 at target', () => {
-  assert.strictEqual(Game.sleepScore(0, 480), 0);
-  assert.strictEqual(Game.sleepScore(240, 480), 50);  // half the target
-  assert.strictEqual(Game.sleepScore(480, 480), 100); // exactly on target
-  assert.strictEqual(Game.sleepScore(600, 480), 100); // oversleeping does not exceed 100
-  assert.strictEqual(Game.sleepScore(480, 0), 100);   // a zero/absent target falls back to the 8h default
-  assert.strictEqual(Game.sleepScore(0, 0), 0);       // no sleep still scores 0
+test('sleepScore returns null for a stage-less night (no quality to judge)', () => {
+  // Without a stage breakdown we cannot assess quality, so we return null instead of a duration-only
+  // score that used to pin at 100 for anyone who hit their target (regression: "sleep always 100").
+  // Callers show raw hours for these nights rather than a fabricated 0..100 number.
+  assert.strictEqual(Game.sleepScore(480, 480), null); // at target, no stages -> no score
+  assert.strictEqual(Game.sleepScore(600, 480), null); // oversleeping, no stages -> no score
+  assert.strictEqual(Game.sleepScore(240, 480), null); // short night, no stages -> no score
+  assert.strictEqual(Game.sleepScore(480, 0), null);   // absent target still needs stages to score
+  assert.strictEqual(Game.sleepScore(0, 480), 0);      // no sleep at all still scores 0
+  assert.strictEqual(Game.sleepScore(0, 0), 0);
 });
 
 test('sleepScore nudges by deep+REM share when stages are present', () => {
@@ -456,6 +459,10 @@ test('sleepCatch is deterministic per user+date and stays in the band pool', () 
 test('readinessScore is baseline-relative and degrades to available signals', () => {
   assert.strictEqual(Game.readinessScore({}), null);            // nothing to score yet
   assert.strictEqual(Game.readinessScore({ sleepScore: 80 }), 80); // sleep-only (Phase A) tracks sleep
+  // The step-load proxy alone is too thin to anchor readiness: at/under baseline it would read 1.0 and
+  // pin readiness at 100, so a load-only day (e.g. a stage-less night with no HRV/RHR yet) scores nothing.
+  assert.strictEqual(Game.readinessScore({ load: 8000, loadBaseline: 9000 }), null);
+  assert.strictEqual(Game.readinessScore({ load: 12000, loadBaseline: 9000 }), null);
   const high = Game.readinessScore({ sleepScore: 70, hrv: 65, hrvBaseline: 50, rhr: 52, rhrBaseline: 55 });
   const low = Game.readinessScore({ sleepScore: 70, hrv: 38, hrvBaseline: 50, rhr: 60, rhrBaseline: 55 });
   assert.ok(high > low, 'higher HRV + lower resting HR should read more recovered');
