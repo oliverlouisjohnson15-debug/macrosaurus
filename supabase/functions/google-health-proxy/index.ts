@@ -206,20 +206,13 @@ function findNum(obj: any, names: string[]): number | null {
   }
   return null;
 }
-// A rollup point's civil date -> 'YYYY-MM-DD', matching fetchSteps.
+// A rollup / list point's civil date -> 'YYYY-MM-DD'. Handles the civil date object, a nested startTime
+// date object, and a plain RFC3339 startTime string (list points).
 function rollupDate(p: any): string | null {
   const c = p?.civilStartTime?.date || p?.startTime?.date;
   if (c && c.year) return c.year + '-' + String(c.month).padStart(2, '0') + '-' + String(c.day).padStart(2, '0');
-  const ts = p?.civilStartTime?.time ? null : (p?.startTime && typeof p.startTime === 'string' ? p.startTime : null);
+  const ts = (typeof p?.startTime === 'string' ? p.startTime : (typeof p?.civilStartTime === 'string' ? p.civilStartTime : null));
   return ts ? ts.slice(0, 10) : null;
-}
-async function dailyRollup(accessToken: string, dataType: string, startISO: string, endISO: string): Promise<any[]> {
-  const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints:dailyRollUp`;
-  const body = { range: { start: civilMidnight(startISO), end: civilMidnight(isoShift0(endISO, 1)) }, windowSizeDays: 1 };
-  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken, 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || dataType + ' request failed');
-  return data?.rollupDataPoints || data?.dataPoints || [];
 }
 // A shallow structural sketch of a value: object -> { key: shape }, array -> [shape], leaf -> its TYPE
 // (never the value). Used to log what a live Google Health point actually looks like without leaking any
