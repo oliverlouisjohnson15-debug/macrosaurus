@@ -5801,6 +5801,12 @@ function SettingsTab({ db, update }) {
 
 function AdvancedTab({ db, update }) {
   const p = db.profile; const base = currentTargets(db);
+  // Days already run in the current check-in period are locked: you can't retune a high/low day you've
+  // already eaten. The window is the current cycle (last check-in), capped at 7 days so an overdue
+  // check-in can't grey out the whole week. Editing is only allowed for today and the days ahead.
+  const cycToday = Store.todayISO();
+  const cycStart = (() => { const floor = shiftISO(cycToday, -6); const cs = db.last_checkin || floor; return cs < floor ? floor : cs; })();
+  const lockedWeekdays = (() => { const s = new Set(); for (let d = cycStart; d < cycToday; d = shiftISO(d, 1)) s.add(weekdayIdx(d)); return s; })();
   const initCarry = () => ({ enabled: !!(p.carryover && p.carryover.enabled), mode: (p.carryover && p.carryover.mode) || 'aggressive', capKcal: (p.carryover && p.carryover.capKcal) || 400 });
   const initCyc = () => ({ enabled: !!(p.cycling && p.cycling.enabled), highDays: (p.cycling && p.cycling.highDays) || [], deltaPct: (p.cycling && p.cycling.deltaPct) || 0.15 });
   const [carry, setCarry] = useState(initCarry);
@@ -5851,9 +5857,10 @@ function AdvancedTab({ db, update }) {
       <RowToggle label="Cycle calories across the week" on={cyc.enabled} onClick={() => setCyc(c => Object.assign({}, c, { enabled: !c.enabled }))} />
       {cyc.enabled && <>
         <div className="text-[11px] text-[#8A8A90] mb-2">Pick your high days. The rest come down to keep your weekly total the same.</div>
-        <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => { const on = cyc.highDays.includes(i); return <button key={i} onClick={() => setCyc(c => Object.assign({}, c, { highDays: on ? c.highDays.filter(x => x !== i) : c.highDays.concat([i]) }))} className={`flex-1 pixel-box py-2 text-[11px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>; })}</div>
+        <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => { const on = cyc.highDays.includes(i); const locked = lockedWeekdays.has(i); return <button key={i} disabled={locked} onClick={() => { if (locked) return; setCyc(c => Object.assign({}, c, { highDays: on ? c.highDays.filter(x => x !== i) : c.highDays.concat([i]) })); }} title={locked ? 'Already run this check-in period' : ''} className={`flex-1 pixel-box py-2 text-[11px] ${locked ? 'bg-[#141417] text-[#4A4A50] cursor-not-allowed opacity-60' : on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>; })}</div>
+        {lockedWeekdays.size > 0 && <div className="text-[11px] text-[#8A8A90] mb-3 leading-snug">Greyed days have already run this check-in period and are locked. New picks shape the days you have left; your check-in resets them all.</div>}
         <Field label={`High-day boost: +${Math.round(cyc.deltaPct * 100)}%`}><input type="range" min="5" max="35" value={Math.round(cyc.deltaPct * 100)} onChange={e => setCyc(c => Object.assign({}, c, { deltaPct: +e.target.value / 100 }))} className="w-full accent-[#4A9EEB]" /></Field>
-        {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => { const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal); const hi = cyc.highDays.includes(i); return <div key={i} className="text-center"><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>; })}</div>}
+        {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => { const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal); const hi = cyc.highDays.includes(i); const locked = lockedWeekdays.has(i); return <div key={i} className={`text-center ${locked ? 'opacity-40' : ''}`}><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>; })}</div>}
       </>}
     </Section>
     <Section title="Custom calories & macros">
