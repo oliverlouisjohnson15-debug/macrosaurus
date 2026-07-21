@@ -277,28 +277,30 @@
   // "sleep style" collected into a small style dex. All deterministic per user + wake date.
   var SLEEP_TARGET_DEFAULT = 480; // 8h in minutes; per-user override in profile.sleepTargetMin
   var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
-  // Score 0..100. Duration against the user's target is the backbone; when the device reports stages
+  // Score 0..100, or null when the night has no stage breakdown to judge. When the device reports stages
   // the points split across duration (60), sleep efficiency / how little of the night was awake (15),
   // and a healthy deep+REM share (25), so a perfect score needs a genuinely good night rather than just
-  // time in bed. Stage-less nights fall back to the plain duration ratio. Pure: no clock, no randomness.
-  // `durationMin` is time asleep; `stages` = { deep, rem, light, awake } minutes.
+  // time in bed. A stage-less night returns null on purpose: with no measured quality the old duration
+  // ratio just pinned at 100 for anyone who hit their target (and inflated readiness with it), so callers
+  // now show raw hours instead of a fabricated score. `durationMin` is time asleep; `stages` = { deep,
+  // rem, light, awake } minutes. Pure: no clock, no randomness.
   function sleepScore(durationMin, targetMin, stages) {
     var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
     if (dur <= 0 || tgt <= 0) return 0;
-    var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
     var deep = stages ? (Number(stages.deep) || 0) : 0, rem = stages ? (Number(stages.rem) || 0) : 0;
     var light = stages ? (Number(stages.light) || 0) : 0, awake = stages ? (Number(stages.awake) || 0) : 0;
     var asleep = deep + rem + light;
     var total = asleep + awake;
-    if (total > 0) {
+    if (asleep > 0 && total > 0) {
+      var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
       var durComp = 60 * ratio; // time asleep vs target
       var eff = asleep / total; // fraction of the night actually asleep
       var effComp = 15 * Math.max(0, Math.min(1, (eff - 0.75) / 0.20)); // ramps 0.75 (poor) -> 0.95 (great)
-      var deepRem = asleep > 0 ? (deep + rem) / asleep : 0; // ideal ~0.45
+      var deepRem = (deep + rem) / asleep; // ideal ~0.45
       var qFactor = 1 - Math.min(Math.abs(deepRem - 0.45) / 0.45, 1); // 1 = ideal share, 0 = far off
       return Math.max(0, Math.min(100, Math.round(durComp + effComp + 25 * qFactor)));
     }
-    return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+    return null; // no stage data -> no quality score (callers fall back to showing hours)
   }
   // Score -> rarity band. Every night above the floor still catches something (Pokemon Sleep always
   // gives an encounter); better sleep just reaches rarer pools.
@@ -342,25 +344,28 @@
   var READY_WEIGHTS = { sleep: 0.35, hrv: 0.30, rhr: 0.20, load: 0.15 };
   function readinessScore(inp) {
     inp = inp || {};
-    var sum = 0, weights = 0;
+    var sum = 0, weights = 0, anchored = false;
     function add(w, v) { sum += w * Math.max(0, Math.min(1, v)); weights += w; }
-    if (isFinite(inp.sleepScore)) add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100);
+    // An "anchor" is a signal that actually reflects recovery (sleep quality, HRV, resting HR). The
+    // step-load proxy only modulates those; on its own it is too thin to report, and at/under baseline
+    // it would read 1.0 and pin readiness at 100. So a load-only day scores nothing until an anchor lands.
+    if (isFinite(inp.sleepScore)) { add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100); anchored = true; }
     if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && inp.hrvBaseline > 0) {
       // HRV balance: logistic on the relative change, so at baseline reads ~0.5 and well above ~0.9.
       var hd = (Number(inp.hrv) - Number(inp.hrvBaseline)) / Number(inp.hrvBaseline);
-      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd)));
+      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd))); anchored = true;
     }
     if (isFinite(inp.rhr) && isFinite(inp.rhrBaseline) && inp.rhrBaseline > 0) {
       // Resting HR: lower than baseline is better; a ~10% swing spans most of the range.
       var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline);
-      add(READY_WEIGHTS.rhr, 0.5 + rd * 5);
+      add(READY_WEIGHTS.rhr, 0.5 + rd * 5); anchored = true;
     }
     if (isFinite(inp.load) && isFinite(inp.loadBaseline) && inp.loadBaseline > 0) {
       // Recent load: at/under baseline is fine; a big spike above tilts toward recovery (lower readiness).
       var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline));
       add(READY_WEIGHTS.load, 1 - Math.min(ov, 1) * 0.6);
     }
-    if (!weights) return null; // nothing to score yet
+    if (!weights || !anchored) return null; // nothing (or only a thin load proxy) to score yet
     var score = sum / weights; // renormalise to whatever signals are present
     if (isFinite(inp.tempDev)) score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; // illness knock
     return Math.max(0, Math.min(100, Math.round(score * 100)));

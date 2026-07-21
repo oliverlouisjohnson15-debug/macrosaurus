@@ -1833,28 +1833,30 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // "sleep style" collected into a small style dex. All deterministic per user + wake date.
   var SLEEP_TARGET_DEFAULT = 480; // 8h in minutes; per-user override in profile.sleepTargetMin
   var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
-  // Score 0..100. Duration against the user's target is the backbone; when the device reports stages
+  // Score 0..100, or null when the night has no stage breakdown to judge. When the device reports stages
   // the points split across duration (60), sleep efficiency / how little of the night was awake (15),
   // and a healthy deep+REM share (25), so a perfect score needs a genuinely good night rather than just
-  // time in bed. Stage-less nights fall back to the plain duration ratio. Pure: no clock, no randomness.
-  // `durationMin` is time asleep; `stages` = { deep, rem, light, awake } minutes.
+  // time in bed. A stage-less night returns null on purpose: with no measured quality the old duration
+  // ratio just pinned at 100 for anyone who hit their target (and inflated readiness with it), so callers
+  // now show raw hours instead of a fabricated score. `durationMin` is time asleep; `stages` = { deep,
+  // rem, light, awake } minutes. Pure: no clock, no randomness.
   function sleepScore(durationMin, targetMin, stages) {
     var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
     if (dur <= 0 || tgt <= 0) return 0;
-    var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
     var deep = stages ? (Number(stages.deep) || 0) : 0, rem = stages ? (Number(stages.rem) || 0) : 0;
     var light = stages ? (Number(stages.light) || 0) : 0, awake = stages ? (Number(stages.awake) || 0) : 0;
     var asleep = deep + rem + light;
     var total = asleep + awake;
-    if (total > 0) {
+    if (asleep > 0 && total > 0) {
+      var ratio = Math.min(dur / tgt, 1); // oversleeping past target does not add, mirrors Pokemon Sleep
       var durComp = 60 * ratio; // time asleep vs target
       var eff = asleep / total; // fraction of the night actually asleep
       var effComp = 15 * Math.max(0, Math.min(1, (eff - 0.75) / 0.20)); // ramps 0.75 (poor) -> 0.95 (great)
-      var deepRem = asleep > 0 ? (deep + rem) / asleep : 0; // ideal ~0.45
+      var deepRem = (deep + rem) / asleep; // ideal ~0.45
       var qFactor = 1 - Math.min(Math.abs(deepRem - 0.45) / 0.45, 1); // 1 = ideal share, 0 = far off
       return Math.max(0, Math.min(100, Math.round(durComp + effComp + 25 * qFactor)));
     }
-    return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+    return null; // no stage data -> no quality score (callers fall back to showing hours)
   }
   // Score -> rarity band. Every night above the floor still catches something (Pokemon Sleep always
   // gives an encounter); better sleep just reaches rarer pools.
@@ -1898,25 +1900,28 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var READY_WEIGHTS = { sleep: 0.35, hrv: 0.30, rhr: 0.20, load: 0.15 };
   function readinessScore(inp) {
     inp = inp || {};
-    var sum = 0, weights = 0;
+    var sum = 0, weights = 0, anchored = false;
     function add(w, v) { sum += w * Math.max(0, Math.min(1, v)); weights += w; }
-    if (isFinite(inp.sleepScore)) add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100);
+    // An "anchor" is a signal that actually reflects recovery (sleep quality, HRV, resting HR). The
+    // step-load proxy only modulates those; on its own it is too thin to report, and at/under baseline
+    // it would read 1.0 and pin readiness at 100. So a load-only day scores nothing until an anchor lands.
+    if (isFinite(inp.sleepScore)) { add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100); anchored = true; }
     if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && inp.hrvBaseline > 0) {
       // HRV balance: logistic on the relative change, so at baseline reads ~0.5 and well above ~0.9.
       var hd = (Number(inp.hrv) - Number(inp.hrvBaseline)) / Number(inp.hrvBaseline);
-      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd)));
+      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd))); anchored = true;
     }
     if (isFinite(inp.rhr) && isFinite(inp.rhrBaseline) && inp.rhrBaseline > 0) {
       // Resting HR: lower than baseline is better; a ~10% swing spans most of the range.
       var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline);
-      add(READY_WEIGHTS.rhr, 0.5 + rd * 5);
+      add(READY_WEIGHTS.rhr, 0.5 + rd * 5); anchored = true;
     }
     if (isFinite(inp.load) && isFinite(inp.loadBaseline) && inp.loadBaseline > 0) {
       // Recent load: at/under baseline is fine; a big spike above tilts toward recovery (lower readiness).
       var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline));
       add(READY_WEIGHTS.load, 1 - Math.min(ov, 1) * 0.6);
     }
-    if (!weights) return null; // nothing to score yet
+    if (!weights || !anchored) return null; // nothing (or only a thin load proxy) to score yet
     var score = sum / weights; // renormalise to whatever signals are present
     if (isFinite(inp.tempDev)) score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; // illness knock
     return Math.max(0, Math.min(100, Math.round(score * 100)));
@@ -3275,10 +3280,11 @@ function mergeSleepInto(d, sleep) {
       light: +s.light || 0,
       awake: +s.awake || 0
     } : null;
+    const sc = Game.sleepScore(min, target, stages); // null for a stage-less night (no quality to judge)
     const rec = {
-      min: Math.round(min),
-      score: Game.sleepScore(min, target, stages)
+      min: Math.round(min)
     };
+    if (isFinite(sc)) rec.score = sc;
     if (stages) Object.assign(rec, stages);
     d.sleep[k] = rec;
     n++;
@@ -11021,9 +11027,11 @@ function StepsSleepCard({
     light: rec.light || 0,
     awake: rec.awake || 0
   } : null;
-  const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : 0;
+  const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : null; // null = stage-less night, show hours
+  const hasScore = isFinite(score);
   const sHrs = rec ? Math.floor(rec.min / 60) : 0,
     sMins = rec ? rec.min % 60 : 0;
+  const sHrsLabel = sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '');
   const targetH = targetMin / 60,
     targetHLabel = Number.isInteger(targetH) ? String(targetH) : targetH.toFixed(1);
   // Readiness: our recovery score + the band it grants. The Fight buff it powers now lives in the
@@ -11102,10 +11110,10 @@ function StepsSleepCard({
     className: "my-2"
   }), /*#__PURE__*/React.createElement(StatDial, {
     label: "Sleep",
-    fill: rec ? Math.min(100, score) : null,
+    fill: hasScore ? Math.min(100, score) : null,
     color: "var(--accent)",
-    big: rec ? score : '–',
-    sub: rec ? sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '') : 'No data',
+    big: rec ? hasScore ? score : sHrsLabel : '–',
+    sub: rec ? hasScore ? sHrsLabel : 'Hours only · no stages' : 'No data',
     onTap: () => {
       setVal(targetH || '');
       setEdit(edit === 'sleep' ? null : 'sleep');
@@ -11876,9 +11884,13 @@ function Dashboard({
       light: rec.light || 0,
       awake: rec.awake || 0
     } : null;
-    const band = Game.sleepBand(rec.score);
+    // A stage-less night has no quality score (we show hours, not a number), but the morning catch should
+    // still happen and stay fair: tier it by duration alone rather than dumping every such night in 'poor'.
+    const catchTarget = db.profile && db.profile.sleepTargetMin || Game.SLEEP_TARGET_DEFAULT;
+    const catchScore = isFinite(rec.score) ? rec.score : Math.round(Math.min((rec.min || 0) / catchTarget, 1) * 100);
+    const band = Game.sleepBand(catchScore);
     const c = Game.sleepCatch(db.game_salt || '', latestSleep, band);
-    const style = Game.sleepStyleFor(rec.score, stages);
+    const style = Game.sleepStyleFor(catchScore, stages);
     update(d => {
       d.sleepDex = d.sleepDex || {
         claimed: {}
@@ -17179,6 +17191,120 @@ const COACH_MODES = [{
   l: 'Manual',
   d: 'We never change your macros for you. You read the trends and adjust your goal yourself whenever you want.'
 }];
+
+// Sync diagnostics: show exactly what Google Health handed us for the last few nights, so "is my sleep
+// scoring?" has a definite answer. Stage fields present => the device's deep/REM/light breakdown survived
+// the sync (a real quality score); absent => hours-only. HRV/resting-HR rows show whether readiness has
+// the recovery signals it needs (and their rolling baselines, which take ~2 weeks to fill).
+function GhDebug({
+  db,
+  update
+}) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const sleep = db.sleep || {},
+    health = db.health || {};
+  const sdates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort().slice(-7).reverse();
+  const hdates = Object.keys(health).sort().slice(-7).reverse();
+  const hasStages = r => r && (r.deep != null || r.rem != null || r.light != null || r.awake != null);
+  const hm = m => Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + m % 60 + 'm' : '');
+  async function resync() {
+    setBusy(true);
+    setMsg('');
+    try {
+      const r = await ghPost('sync', {});
+      update(d => {
+        d.googleHealth = Object.assign({}, d.googleHealth, {
+          connected: true,
+          lastSync: r.last_sync || new Date().toISOString()
+        });
+        mergeStepsInto(d, r.steps);
+        mergeSleepInto(d, r.sleep);
+        mergeHealthInto(d, r.health);
+      });
+      setMsg('Synced. Check the nights below - stage fields mean quality data came through.');
+    } catch (e) {
+      setMsg('Sync failed: ' + (e && e.message ? e.message : 'unknown error'));
+      if (e && e.gh && e.gh.type === 'reauth_required') update(d => {
+        if (d.googleHealth) d.googleHealth.connected = false;
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+  const row = {
+    color: 'var(--muted)',
+    fontSize: 11
+  };
+  return /*#__PURE__*/React.createElement("details", {
+    className: "mt-3",
+    style: {
+      borderTop: '1px solid var(--border)',
+      paddingTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("summary", {
+    className: "pf text-[9px] uppercase cursor-pointer",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Sync diagnostics"), /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "text-sm",
+    onClick: resync,
+    disabled: busy
+  }, busy ? 'Syncing…' : 'Re-sync now'), msg ? /*#__PURE__*/React.createElement("div", {
+    className: "mt-1.5 text-[11px]",
+    style: {
+      color: 'var(--text)'
+    }
+  }, msg) : null, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase mt-3 mb-1",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Sleep · last synced nights"), sdates.length ? sdates.map(dt => {
+    const r = sleep[dt];
+    return /*#__PURE__*/React.createElement("div", {
+      key: dt,
+      className: "tnum leading-snug",
+      style: row
+    }, /*#__PURE__*/React.createElement("b", {
+      style: {
+        color: 'var(--text)'
+      }
+    }, dt), " · ", hm(r.min), " · ", hasStages(r) ? /*#__PURE__*/React.createElement("span", null, "deep ", r.deep || 0, " / rem ", r.rem || 0, " / light ", r.light || 0, " / awake ", r.awake || 0, " to score ", /*#__PURE__*/React.createElement("b", {
+      style: {
+        color: 'var(--accent)'
+      }
+    }, isFinite(r.score) ? r.score : '-')) : /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--warn)'
+      }
+    }, "no stage data (hours only)"));
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: row
+  }, "No sleep synced yet."), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase mt-3 mb-1",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Recovery signals · HRV / resting HR"), hdates.length ? hdates.map(dt => {
+    const h = health[dt];
+    return /*#__PURE__*/React.createElement("div", {
+      key: dt,
+      className: "tnum leading-snug",
+      style: row
+    }, /*#__PURE__*/React.createElement("b", {
+      style: {
+        color: 'var(--text)'
+      }
+    }, dt), " · HRV ", h.hrv != null ? h.hrv : '-', h.hrvBaseline != null ? ' (base ' + h.hrvBaseline + ')' : '', " · RHR ", h.rhr != null ? h.rhr : '-', h.rhrBaseline != null ? ' (base ' + h.rhrBaseline + ')' : '');
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: row
+  }, "No HRV / resting-HR synced yet - readiness needs ~14 days of these to build a baseline.")));
+}
 function SettingsTab({
   db,
   update
@@ -17344,7 +17470,7 @@ function SettingsTab({
     if (!ghConfigured()) return /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90]"
     }, "Auto-sync is coming soon.");
-    if (gh && gh.connected) return /*#__PURE__*/React.createElement("div", {
+    if (gh && gh.connected) return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "flex items-center justify-between gap-3"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[13px]"
@@ -17370,7 +17496,10 @@ function SettingsTab({
           };
         });
       }
-    }, "Disconnect"));
+    }, "Disconnect")), /*#__PURE__*/React.createElement(GhDebug, {
+      db: db,
+      update: update
+    }));
     return /*#__PURE__*/React.createElement(Btn, {
       kind: "accent",
       className: "w-full",
