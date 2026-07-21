@@ -221,36 +221,57 @@ async function dailyRollup(accessToken: string, dataType: string, startISO: stri
   if (!res.ok) throw new Error(data?.error?.message || dataType + ' request failed');
   return data?.rollupDataPoints || data?.dataPoints || [];
 }
+// A shallow structural sketch of a value: object -> { key: shape }, array -> [shape], leaf -> its TYPE
+// (never the value). Used to log what a live Google Health point actually looks like without leaking any
+// health data, so we can see the real field names our parser must read.
+function shapeOf(obj: any, depth = 3): any {
+  if (obj == null) return null;
+  if (typeof obj !== 'object') return typeof obj;
+  if (Array.isArray(obj)) return obj.length ? ['(' + obj.length + ')', shapeOf(obj[0], depth - 1)] : [];
+  if (depth <= 0) return Object.keys(obj);
+  const o: Record<string, any> = {};
+  for (const k of Object.keys(obj)) o[k] = shapeOf(obj[k], depth - 1);
+  return o;
+}
+
 // Daily recovery signals for readiness: HRV (RMSSD), resting heart rate, and SpO2, each keyed by date.
-// These are "Daily" summary types (health_metrics scope). Every metric is wrapped so a missing one or a
-// not-yet-granted scope never fails the others. Field names per the v4 discovery doc; verify vs a live
-// call before trusting the exact nesting (same caveat as sleep).
+// These are "Daily" summary types (health_metrics scope). Every metric is isolated so a missing one or a
+// not-yet-granted scope never fails the others, and each logs a diagnostic (HTTP status, point count,
+// how many we parsed, and the shape of the first point) so we can see why a metric comes back empty.
 async function fetchHealth(accessToken: string, startISO: string, endISO: string): Promise<Record<string, any>> {
   const out: Record<string, any> = {};
+  const diag: Record<string, any> = {};
   const put = (dt: string, k: string, v: number) => { (out[dt] = out[dt] || {})[k] = v; };
-  try {
-    for (const p of await dailyRollup(accessToken, 'daily-heart-rate-variability', startISO, endISO)) {
-      const dt = rollupDate(p); if (!dt) continue;
-      const v = findNum(p, ['rootMeanSquareOfSuccessiveDifferencesMilliseconds', 'rmssdMilliseconds', 'rmssd']);
-      if (v != null && v > 0) put(dt, 'hrv', Math.round(v * 10) / 10);
-    }
-  } catch (_) { /* HRV unavailable */ }
-  try {
-    for (const p of await dailyRollup(accessToken, 'daily-resting-heart-rate', startISO, endISO)) {
-      const dt = rollupDate(p); if (!dt) continue;
-      const avg = findNum(p, ['beatsPerMinute', 'beatsPerMinuteAverage', 'averageBeatsPerMinute']);
-      const mn = findNum(p, ['beatsPerMinuteMin']), mx = findNum(p, ['beatsPerMinuteMax']);
-      const v = avg != null ? avg : (mn != null && mx != null ? (mn + mx) / 2 : (mn != null ? mn : mx));
-      if (v != null && v > 0) put(dt, 'rhr', Math.round(v));
-    }
-  } catch (_) { /* resting HR unavailable */ }
-  try {
-    for (const p of await dailyRollup(accessToken, 'daily-oxygen-saturation', startISO, endISO)) {
-      const dt = rollupDate(p); if (!dt) continue;
-      const v = findNum(p, ['averagePercentage', 'average']);
-      if (v != null && v > 0) put(dt, 'spo2', Math.round(v * 10) / 10);
-    }
-  } catch (_) { /* SpO2 unavailable */ }
+  // Pull one daily metric without throwing; extract() reads the numeric value from a rollup point.
+  const pull = async (metric: string, dataType: string, extract: (p: any) => number | null) => {
+    const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints:dailyRollUp`;
+    const body = { range: { start: civilMidnight(startISO), end: civilMidnight(isoShift0(endISO, 1)) }, windowSizeDays: 1 };
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) { diag[metric] = { status: res.status, error: String(data?.error?.message || data?.error?.status || '').slice(0, 160) }; return; }
+      const pts = data?.rollupDataPoints || data?.dataPoints || [];
+      let parsed = 0;
+      for (const p of pts) { const dt = rollupDate(p); const v = extract(p); if (dt && v != null && v > 0) { put(dt, metric, v); parsed++; } }
+      diag[metric] = { status: 200, points: pts.length, parsed, shape: pts.length ? shapeOf(pts[0]) : null };
+    } catch (e) { diag[metric] = { error: String((e as Error)?.message || e).slice(0, 160) }; }
+  };
+  await pull('hrv', 'daily-heart-rate-variability', (p) => {
+    const v = findNum(p, ['rootMeanSquareOfSuccessiveDifferencesMilliseconds', 'rmssdMilliseconds', 'rmssd', 'heartRateVariabilityMillis', 'millis']);
+    return v != null ? Math.round(v * 10) / 10 : null;
+  });
+  await pull('rhr', 'daily-resting-heart-rate', (p) => {
+    const avg = findNum(p, ['beatsPerMinute', 'beatsPerMinuteAverage', 'averageBeatsPerMinute', 'bpm', 'restingHeartRateBpm']);
+    const mn = findNum(p, ['beatsPerMinuteMin', 'minBeatsPerMinute']), mx = findNum(p, ['beatsPerMinuteMax', 'maxBeatsPerMinute']);
+    const v = avg != null ? avg : (mn != null && mx != null ? (mn + mx) / 2 : (mn != null ? mn : mx));
+    return v != null ? Math.round(v) : null;
+  });
+  await pull('spo2', 'daily-oxygen-saturation', (p) => {
+    const v = findNum(p, ['averagePercentage', 'average', 'percentage', 'oxygenSaturationPercentage']);
+    return v != null ? Math.round(v * 10) / 10 : null;
+  });
+  // Structure + counts only, never health values (shapeOf logs types, not numbers).
+  console.log('[gh-health]', JSON.stringify(diag));
   return out;
 }
 
