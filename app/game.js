@@ -283,9 +283,11 @@
   // routed into the signals we CAN measure, and deep / REM are scored against their clinical healthy ranges
   // (deep/N3 ~13-23% of sleep, REM ~20-25%; sleep efficiency >=85% is "good") rather than one arbitrary
   // combined target. Points: duration 45, efficiency 20, REM 18, deep 17.
-  //   - Duration 45: time asleep vs the 7-9h target (oversleeping past target does not add).
-  //   - Efficiency 20: asleep / time-in-bed; ramps 0.75 (poor) -> 0.90 (excellent).
-  //   - REM 18 / Deep 17: share of sleep, full credit inside the healthy band, tapering as it falls short.
+  //   - Duration 45: time asleep vs the 7-9h target; 0 below 60% of target, full at target (no oversleep bonus).
+  //   - Efficiency 20: asleep / time-in-bed; 0 at 80%, full only at an excellent >=95%.
+  //   - REM 18 / Deep 17: share of sleep; full credit only at the good end of the healthy band, 0 well below.
+  // The ramps are deliberately STRICT: an average night lands in the 60s-70s and 90+ needs a genuinely
+  // excellent one, so the score keeps its discriminative power rather than clustering everyone near 100.
   // A stage-less night returns null on purpose (no measured architecture to judge) so callers show raw
   // hours instead of a fabricated number. Refs: Fitbit sleep score (androidpolice.com/fitbit-sleep-score-
   // calculation-explainer), sleep architecture NCBI NBK19956, duration/efficiency Hirshkowitz 2015
@@ -304,13 +306,15 @@
     var total = asleep + awake;
     if (asleep > 0 && total > 0) {
       var clamp01 = function (v) { return Math.max(0, Math.min(1, v)); };
-      var ratio = Math.min(dur / tgt, 1);                              // time asleep vs target (no oversleep bonus)
-      var durComp = 45 * ratio;
+      // Strict ramps: full credit only at the GOOD end of each range, so a merely-average night lands in
+      // the 60s-70s (like Fitbit's real-world spread) and 90+ demands a genuinely excellent night. Being
+      // barely "not terrible" earns little.
+      var durComp = 45 * clamp01((dur / tgt - 0.6) / (1 - 0.6));       // 0 at <=60% of target, full at target
       var eff = asleep / total;                                        // fraction of the night actually asleep
-      var effComp = 20 * clamp01((eff - 0.75) / (0.90 - 0.75));        // 0 at <=75%, full at >=90%
+      var effComp = 20 * clamp01((eff - 0.80) / (0.95 - 0.80));        // 0 at <=80%, full at excellent >=95%
       var deepShare = deep / asleep, remShare = rem / asleep;
-      var remComp = 18 * clamp01((remShare - 0.08) / (0.22 - 0.08));   // 0 at <=8%, full at healthy >=22%
-      var deepComp = 17 * clamp01((deepShare - 0.05) / (0.18 - 0.05)); // 0 at <=5%, full at healthy >=18%
+      var remComp = 18 * clamp01((remShare - 0.12) / (0.22 - 0.12));   // 0 at <=12%, full at healthy >=22%
+      var deepComp = 17 * clamp01((deepShare - 0.09) / (0.18 - 0.09)); // 0 at <=9%, full at healthy >=18%
       out.hasStages = true;
       out.asleepMin = Math.round(asleep); out.awakeMin = Math.round(awake);
       out.eff = eff; out.deepShare = deepShare; out.remShare = remShare;

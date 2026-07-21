@@ -491,6 +491,20 @@ test('readiness uses lnRMSSD: HRV is judged log-symmetrically around baseline', 
   assert.ok(up > 50 && down < 50);
 });
 
+test('sleep scoring is strict: an average night lands well under 80, only an excellent one reaches 90+', () => {
+  // Average night: 7h asleep of ~7h55 in bed (88% efficiency), stages a touch under ideal. Should NOT
+  // flatter the user - lands in the 60s-70s like Fitbit's real-world spread, not the 90s.
+  const avg = Game.sleepScore(420, 480, { deep: 63, rem: 80, light: 277, awake: 55 }); // deep 15%, rem 19%
+  assert.ok(avg < 80, 'an average night should score under 80, got ' + avg);
+  assert.ok(avg > 45, 'but not punitively low, got ' + avg);
+  // Genuinely excellent night: 8h asleep, 95% efficiency, ideal architecture -> 90+.
+  const great = Game.sleepScore(480, 480, { deep: 110, rem: 110, light: 260, awake: 25 });
+  assert.ok(great >= 90, 'an excellent night should reach 90+, got ' + great);
+  // A poor night is clearly separated below the average one.
+  const poor = Game.sleepScore(330, 480, { deep: 20, rem: 25, light: 250, awake: 70 });
+  assert.ok(poor < avg, 'a poor night scores below an average one');
+});
+
 test('sleepBand splits poor/ok/good/great at the right thresholds', () => {
   assert.strictEqual(Game.sleepBand(49), 'poor');
   assert.strictEqual(Game.sleepBand(50), 'ok');
