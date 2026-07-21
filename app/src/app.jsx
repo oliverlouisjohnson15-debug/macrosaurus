@@ -5578,6 +5578,23 @@ const COACH_MODES = [
   { v: 'manual', l: 'Manual', d: 'We never change your macros for you. You read the trends and adjust your goal yourself whenever you want.' },
 ];
 
+// A one-tap "pull fresh data now" button. Google Health already auto-syncs on app open and on a slow
+// interval, but this bypasses the throttle for an on-demand refresh. Shares the exact merge path the
+// auto-sync uses, so results are identical; drops the connection flag if the Google link has expired.
+function GhResyncButton({ db, update, className }) {
+  const [busy, setBusy] = useState(false);
+  async function resync() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await ghPost('sync', {});
+      update(d => { d.googleHealth = Object.assign({}, d.googleHealth, { connected: true, lastSync: r.last_sync || new Date().toISOString() }); mergeStepsInto(d, r.steps); mergeSleepInto(d, r.sleep); mergeHealthInto(d, r.health); });
+    } catch (e) {
+      if (e && e.gh && e.gh.type === 'reauth_required') update(d => { if (d.googleHealth) d.googleHealth.connected = false; });
+    } finally { setBusy(false); }
+  }
+  return <Btn kind="ghost" className={className || 'text-sm'} onClick={resync} disabled={busy}>{busy ? 'Syncing…' : 'Re-sync'}</Btn>;
+}
 // Sync diagnostics: show exactly what Google Health handed us for the last few nights, so "is my sleep
 // scoring?" has a definite answer. Stage fields present => the device's deep/REM/light breakdown survived
 // the sync (a real quality score); absent => hours-only. HRV/resting-HR rows show whether readiness has
@@ -5693,7 +5710,10 @@ function SettingsTab({ db, update }) {
           <div>
             <div className="flex items-center justify-between gap-3">
               <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
-              <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
+              <div className="flex items-center gap-2">
+                <GhResyncButton db={db} update={update} />
+                <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
+              </div>
             </div>
             <GhDebug db={db} update={update} />
           </div>
