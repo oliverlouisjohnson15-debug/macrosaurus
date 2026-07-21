@@ -422,6 +422,50 @@ test('sleepScore does not pin at 100 for an at-target night with ordinary qualit
   assert.ok(good > s, 'restorative night should beat the ordinary one');
 });
 
+test('sleepScoreParts itemises the score and always agrees with sleepScore', () => {
+  const stages = { deep: 100, rem: 108, light: 254, awake: 18 };
+  const p = Game.sleepScoreParts(462, 480, stages);
+  assert.strictEqual(p.score, Game.sleepScore(462, 480, stages), 'parts.score must equal sleepScore');
+  assert.strictEqual(p.hasStages, true);
+  assert.strictEqual(p.parts.length, 3);
+  assert.deepStrictEqual(p.parts.map(x => x.key), ['duration', 'efficiency', 'quality']);
+  assert.deepStrictEqual(p.parts.map(x => x.max), [60, 15, 25]);
+  p.parts.forEach(x => assert.ok(x.points >= 0 && x.points <= x.max, x.key + ' points within [0,max]'));
+  // A stage-less night has no quality to itemise: score null, no parts, but hours are still known.
+  const bare = Game.sleepScoreParts(450, 480);
+  assert.strictEqual(bare.score, null);
+  assert.strictEqual(bare.hasStages, false);
+  assert.strictEqual(bare.parts.length, 0);
+  assert.strictEqual(bare.asleepMin, 450);
+  // No sleep at all still scores 0 (matches sleepScore).
+  assert.strictEqual(Game.sleepScoreParts(0, 480).score, 0);
+});
+
+test('readinessParts explains every signal and agrees with readinessScore', () => {
+  // Nothing tracked: score null, all four signals listed as absent, zero anchors.
+  const empty = Game.readinessParts({});
+  assert.strictEqual(empty.score, null);
+  assert.strictEqual(empty.anchored, false);
+  assert.strictEqual(empty.anchorCount, 0);
+  assert.strictEqual(empty.signals.length, 4);
+  assert.ok(empty.signals.every(s => s.present === false));
+  // A thin load-only proxy is not enough to anchor a score (regression: must not pin at 100).
+  const loadOnly = Game.readinessParts({ load: 8000, loadBaseline: 9000 });
+  assert.strictEqual(loadOnly.score, null);
+  assert.strictEqual(loadOnly.anchorCount, 0);
+  assert.strictEqual(loadOnly.signals.find(s => s.key === 'load').present, true);
+  // Sleep alone anchors it; parts.score tracks readinessScore exactly.
+  const sleepOnly = Game.readinessParts({ sleepScore: 80 });
+  assert.strictEqual(sleepOnly.score, Game.readinessScore({ sleepScore: 80 }));
+  assert.strictEqual(sleepOnly.anchorCount, 1);
+  // Full signal set: three anchors, score matches, illness penalty flagged when tempDev present.
+  const full = { sleepScore: 70, hrv: 65, hrvBaseline: 50, rhr: 52, rhrBaseline: 55, tempDev: 0.6 };
+  const fp = Game.readinessParts(full);
+  assert.strictEqual(fp.score, Game.readinessScore(full));
+  assert.strictEqual(fp.anchorCount, 3);
+  assert.strictEqual(fp.tempPenaltyApplied, true);
+});
+
 test('sleepBand splits poor/ok/good/great at the right thresholds', () => {
   assert.strictEqual(Game.sleepBand(49), 'poor');
   assert.strictEqual(Game.sleepBand(50), 'ok');

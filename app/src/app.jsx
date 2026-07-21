@@ -2576,7 +2576,10 @@ function isStepGoalDay(db, date) { const g = stepGoalFor(db); return g > 0 && (+
 // This morning's readiness: our own recovery score (Oura/Whoop style, baseline-relative). Phase A feeds
 // last night's sleep + a training-load proxy from steps; Phase B adds HRV + resting HR from db.health so
 // the same tile just gets sharper. Returns 0..100 or null when there is nothing to score yet.
-function readinessFor(db, dateISO) {
+// Assemble the readiness inputs for a date from whatever the app has synced. Split out from
+// readinessFor so the "how is this calculated" breakdown sheet scores the exact same inputs the dial
+// does (Game.readinessParts(readinessInputsFor(db, date)) can never disagree with the number shown).
+function readinessInputsFor(db, dateISO) {
   const rec = (db.sleep || {})[dateISO] || null;                 // last night, keyed by wake (today's) date
   const steps = db.steps || {};
   const inp = {};
@@ -2595,8 +2598,9 @@ function readinessFor(db, dateISO) {
   if (loadY > 0 && base > 0) { inp.load = loadY; inp.loadBaseline = base; }
   const h = (db.health || {})[dateISO];                          // Phase B: { hrv, hrvBaseline, rhr, rhrBaseline, tempDev }
   if (h) { ['hrv', 'hrvBaseline', 'rhr', 'rhrBaseline', 'tempDev'].forEach(k => { if (isFinite(h[k])) inp[k] = h[k]; }); }
-  return Game.readinessScore(inp);
+  return inp;
 }
+function readinessFor(db, dateISO) { return Game.readinessScore(readinessInputsFor(db, dateISO)); }
 // Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
 // day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
 function incubationDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d) || isStepGoalDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
@@ -3391,19 +3395,20 @@ function StatDial({ label, fill, big, sub, color, subColor, active, onTap }) {
   );
 }
 
-// Today status: Move / Sleep / Ready as three comparable dials, with the readiness -> Fight buff as the
-// payoff strip. Steps + sleep-target edit inline; Google Health drives it, manual entry is the fallback.
+// Today status: Move / Sleep / Ready as three comparable dials, all driven by the Google Health
+// integration. Tapping a dial opens a read-only breakdown of how its number was reached, never an
+// editor: steps aren't hand-entered, and the step goal + sleep target are set in Settings.
 function StepsSleepCard({ db, update, onOpenPlay }) {
   const today = Store.todayISO();
-  const k = n => Math.round(n).toLocaleString('en-GB');
   const kShort = n => n >= 1000 ? (Math.round(n / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(Math.round(n));
-  // Steps: today vs the activity-band (or custom) goal.
+  // Steps: today vs the activity-band (or custom) goal. Google Health is the only source; the tap-through
+  // sheet explains the number rather than letting the user type one in.
   const steps = db.steps || {};
   const todaySteps = +steps[today] || 0;
   const stepGoal = stepGoalFor(db);
   const stepPct = stepGoal ? Math.min(100, Math.round((todaySteps / stepGoal) * 100)) : 0;
   const goalHit = stepGoal > 0 && todaySteps >= stepGoal;
-  // Sleep: last synced night, scored live so a target edit moves the ring.
+  // Sleep: last synced night, scored live against the target (which is set in Settings, not here).
   const sleep = db.sleep || {};
   const sdates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
   const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
@@ -3415,7 +3420,6 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const hasScore = isFinite(score);
   const sHrs = rec ? Math.floor(rec.min / 60) : 0, sMins = rec ? rec.min % 60 : 0;
   const sHrsLabel = sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '');
-  const targetH = targetMin / 60, targetHLabel = Number.isInteger(targetH) ? String(targetH) : targetH.toFixed(1);
   // Readiness: our recovery score + the band it grants. The Fight buff it powers now lives in the
   // Play hub's boss card, so this dial just shows the band and taps through to Play.
   const readiness = readinessFor(db, today);
@@ -3423,19 +3427,10 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const rInfo = rBand ? Game.READY_BAND[rBand] : null;
   const R_COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
-  // One editor at a time: null | 'steps' | 'sleep'.
-  const [edit, setEdit] = useState(null);
-  const [val, setVal] = useState('');
-  function saveSteps() {
-    const n = Math.max(0, Math.round(+val || 0));
-    update(d => { d.steps = d.steps || {}; if (n > 0) d.steps[today] = n; else delete d.steps[today]; });
-    setEdit(null);
-  }
-  function saveSleep() {
-    const h = Math.max(0, +val || 0);
-    update(d => { d.profile = d.profile || {}; if (h > 0) d.profile.sleepTargetMin = Math.round(h * 60); else delete d.profile.sleepTargetMin; });
-    setEdit(null);
-  }
+  // Tapping a dial opens a read-only breakdown of how that number was reached, never an editor.
+  // Steps come only from the Google Health integration; the sleep target and step goal are set in
+  // Settings. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
+  const [sheet, setSheet] = useState(null);
   const synced = db.googleHealth && db.googleHealth.connected;
   return (
     <Card className="p-3 mb-4">
@@ -3450,39 +3445,198 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
 
       {/* Three dials: Move / Sleep / Ready, all 0..100 so they read as one row */}
       <div className="flex items-stretch">
-        <StatDial label="Move" fill={stepGoal > 0 ? stepPct : null} color="var(--good)"
-          big={stepGoal > 0 ? (goalHit ? '✓' : stepPct) : '–'}
-          sub={todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'Tap to log'}
-          onTap={() => { setVal(todaySteps || ''); setEdit(edit === 'steps' ? null : 'steps'); }} />
+        <StatDial label="Move" fill={stepGoal > 0 && synced ? stepPct : null} color="var(--good)"
+          big={synced ? (stepGoal > 0 ? (goalHit ? '✓' : stepPct) : '–') : '–'}
+          sub={synced ? (todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'No steps yet') : 'Not connected'}
+          onTap={() => setSheet('move')} />
         <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
         <StatDial label="Sleep" fill={hasScore ? Math.min(100, score) : null} color="var(--accent)"
           big={rec ? (hasScore ? score : sHrsLabel) : '–'}
-          sub={rec ? (hasScore ? sHrsLabel : 'Hours only · no stages') : 'No data'}
-          onTap={() => { setVal(targetH || ''); setEdit(edit === 'sleep' ? null : 'sleep'); }} />
+          sub={rec ? (hasScore ? sHrsLabel : 'Hours only · no stages') : (synced ? 'No data' : 'Not connected')}
+          onTap={() => setSheet('sleep')} />
         <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
         <StatDial label="Ready" fill={readiness != null ? Math.min(100, readiness) : null} color={rColor}
           big={readiness != null ? readiness : '–'} active={!!rBand}
-          sub={rInfo ? rInfo.label : (synced ? 'Pending' : 'No data')} subColor={rBand ? rColor : 'var(--muted)'}
-          onTap={onOpenPlay} />
+          sub={readiness != null ? (rInfo ? rInfo.label : '') : (synced ? 'Not enough data' : 'Not connected')} subColor={rBand ? rColor : 'var(--muted)'}
+          onTap={() => setSheet('ready')} />
       </div>
 
-      {/* Inline editor for whichever field is being changed */}
-      {edit === 'steps' && (
-        <div className="flex items-center gap-2 mt-2.5">
-          <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="Steps today, e.g. 8500" autoFocus /></div>
-          <Btn kind="accent" className="text-sm" onClick={saveSteps}>Save</Btn>
-          <button onClick={() => setEdit(null)} className="text-[#8A8A90] text-sm px-1">Cancel</button>
-        </div>
-      )}
-      {edit === 'sleep' && (
-        <div className="flex items-center gap-2 mt-2.5">
-          <div className="flex-1"><NumInput value={val} onChange={e => setVal(e.target.value)} placeholder="Sleep target hours, e.g. 8" autoFocus /></div>
-          <Btn kind="accent" className="text-sm" onClick={saveSleep}>Save</Btn>
-          <button onClick={() => setEdit(null)} className="text-[#8A8A90] text-sm px-1">Cancel</button>
-        </div>
-      )}
-
+      {sheet && <MetricBreakdownSheet metric={sheet} db={db} onClose={() => setSheet(null)} onOpenPlay={onOpenPlay} />}
     </Card>
+  );
+}
+
+// Read-only "how was this number reached" sheet for a Move / Sleep / Ready dial. It never edits data:
+// steps come from the Google Health integration, and the step goal + sleep target are set in Settings.
+// Every figure is recomputed here from the same game.js functions the dials use, so the explanation
+// can never disagree with the number on the card.
+function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
+  useBackClose(onClose);
+  const today = Store.todayISO();
+  const k = n => Math.round(n).toLocaleString('en-GB');
+  const synced = db.googleHealth && db.googleHealth.connected;
+  const lastSyncLabel = (db.googleHealth && db.googleHealth.lastSync)
+    ? new Date(db.googleHealth.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
+  const hmLabel = min => { const h = Math.floor(min / 60), m = Math.round(min % 60); return h + 'h' + (m ? ' ' + m + 'm' : ''); };
+
+  const TITLE = { move: 'Move', sleep: 'Sleep', ready: 'Readiness' };
+  const TINT = { move: 'var(--good)', sleep: 'var(--accent)', ready: 'var(--text)' };
+
+  // A single labelled contribution row (points bar for sleep, weight/value for readiness).
+  function PartRow({ label, detail, value, max, pct, tint, muted }) {
+    return (
+      <div className="flex items-center gap-3 py-2 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px]" style={{ color: muted ? 'var(--muted)' : 'var(--text)' }}>{label}</div>
+          {detail && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>{detail}</div>}
+        </div>
+        {value != null && (
+          <div className="text-right shrink-0" style={{ minWidth: 68 }}>
+            <div className="tnum text-[13px] font-bold" style={{ color: muted ? 'var(--muted)' : tint }}>{value}{max != null ? <span className="text-[10px] font-normal" style={{ color: 'var(--muted)' }}> / {max}</span> : ''}</div>
+            {pct != null && <div className="pixel-bar mt-1" style={{ height: 6, width: 68 }}><i style={{ width: Math.max(0, Math.min(100, pct)) + '%', background: muted ? 'var(--surface3)' : tint }} /></div>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  let body = null;
+
+  if (metric === 'move') {
+    const steps = db.steps || {};
+    const todaySteps = +steps[today] || 0;
+    const stepGoal = stepGoalFor(db);
+    const custom = db.profile && +db.profile.stepGoal > 0;
+    const pct = stepGoal ? Math.round((todaySteps / stepGoal) * 100) : 0;
+    body = (
+      <div>
+        {synced ? (
+          <div>
+            <div className="flex items-end gap-2 mb-3">
+              <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--good)' }}>{k(todaySteps)}</div>
+              <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>steps today{stepGoal > 0 ? ' · ' + pct + '% of goal' : ''}</div>
+            </div>
+            {stepGoal > 0 && <div className="pixel-bar mb-4" style={{ height: 10 }}><i style={{ width: Math.max(0, Math.min(100, pct)) + '%', background: 'var(--good)' }} /></div>}
+            <PartRow label="Steps today" detail={'Read from Google Health' + (lastSyncLabel ? ' · synced ' + lastSyncLabel : '')} value={k(todaySteps)} tint="var(--good)" />
+            {stepGoal > 0 && <PartRow label="Daily goal" detail={custom ? 'Your custom goal, set in Settings' : 'From your activity level, set in Settings'} value={k(stepGoal)} tint="var(--good)" />}
+            <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
+              Steps sync automatically from Google Health, so Macrosaurus never asks you to count them by hand, and everything tied to movement (your step-goal streak and steps-first coaching) follows this figure.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <p className="text-[13px] leading-snug mb-4" style={{ color: 'var(--text2)' }}>
+              Your steps sync automatically from Google Health. Connect it once and your daily movement, step-goal streak and steps-first coaching all fill in on their own. There's no manual step entry.
+            </p>
+            {ghConfigured()
+              ? <Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnect(); }}>Connect Google Health</Btn>
+              : <div className="pixel-box p-3 text-[12px]" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>Google Health connection is coming soon.</div>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (metric === 'sleep') {
+    const sleep = db.sleep || {};
+    const sdates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
+    const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
+    const rec = lastDate ? sleep[lastDate] : null;
+    const targetMin = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
+    const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
+      ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
+    const p = rec ? Game.sleepScoreParts(rec.min, targetMin, stages) : null;
+    const nightLabel = lastDate ? new Date(lastDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }) : null;
+    if (!rec) {
+      body = (
+        <p className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>
+          {synced
+            ? "No night has synced yet. Once your device records a night's sleep it'll appear here, scored against your sleep target."
+            : "Sleep syncs from Google Health. Connect it and we'll score each night automatically."}
+          {!synced && ghConfigured() && <span className="block mt-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnect(); }}>Connect Google Health</Btn></span>}
+        </p>
+      );
+    } else if (p.hasStages) {
+      body = (
+        <div>
+          <div className="flex items-end gap-2 mb-1">
+            <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--accent)' }}>{p.score}</div>
+            <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>/ 100 · {Game.sleepBand(p.score)}</div>
+          </div>
+          <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · {hmLabel(p.asleepMin)} asleep vs {hmLabel(targetMin)} target</div>
+          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)' }}>How the score is built</div>
+          {p.parts.map(part => (
+            <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--accent)" />
+          ))}
+          <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
+            A great score needs a genuinely good night, not just time in bed: efficiency and a healthy deep + REM share both count. Change your sleep target in Settings → Daily targets.
+          </p>
+        </div>
+      );
+    } else {
+      body = (
+        <div>
+          <div className="tnum text-4xl font-bold leading-none mb-1" style={{ color: 'var(--accent)' }}>{hmLabel(rec.min)}</div>
+          <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · vs {hmLabel(targetMin)} target</div>
+          <p className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>
+            Your device reported how long you slept but not the sleep stages (deep, REM, light, awake), so there's no quality to score yet, so we're showing hours instead of a number out of 100. When your device syncs a staged night you'll get a full score. Change your target in Settings → Daily targets.
+          </p>
+        </div>
+      );
+    }
+  }
+
+  if (metric === 'ready') {
+    const parts = Game.readinessParts(readinessInputsFor(db, today));
+    const band = Game.readinessBand(parts.score);
+    const info = band ? Game.READY_BAND[band] : null;
+    const R_COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
+    const rColor = band ? R_COLOR[band] : 'var(--muted)';
+    body = (
+      <div>
+        {parts.score != null ? (
+          <div>
+            <div className="flex items-end gap-2 mb-1">
+              <div className="tnum text-4xl font-bold leading-none" style={{ color: rColor }}>{parts.score}</div>
+              <div className="text-[13px] pb-1" style={{ color: rColor }}>{info ? info.label : ''}</div>
+            </div>
+            <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{info ? info.blurb : ''} Based on {parts.anchorCount} of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it.</div>
+          </div>
+        ) : (
+          <div>
+            <div className="tnum text-4xl font-bold leading-none mb-2" style={{ color: 'var(--muted)' }}>–</div>
+            <p className="text-[13px] leading-snug mb-4" style={{ color: 'var(--text2)' }}>
+              We can't score your readiness yet. It needs at least one real recovery signal: last night's sleep quality (a night with sleep stages), HRV, or resting heart rate. Steps alone aren't enough to anchor it.
+            </p>
+            {!synced && ghConfigured() && <div className="mb-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnect(); }}>Connect Google Health</Btn></div>}
+          </div>
+        )}
+        <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Recovery signals</div>
+        {parts.signals.map(s => (
+          <PartRow key={s.key} label={s.label + ' · ' + s.weightPct + '%' + (s.modifierOnly ? ' (modifier)' : '')}
+            detail={s.present ? s.note : s.note} value={s.present ? s.value : 'Off'} max={s.present ? 100 : null}
+            pct={s.present ? s.value : null} tint={rColor} muted={!s.present} />
+        ))}
+        <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
+          Readiness is baseline-relative (Oura / Whoop style): each signal is judged against your own rolling average, not a fixed target.
+        </p>
+        {onOpenPlay && parts.score != null && (
+          <button onClick={() => { onClose(); onOpenPlay(); }} className="w-full mt-4 pixel-box py-3 text-[13px] font-semibold" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>See today's Fight buff →</button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold" style={{ color: TINT[metric] }}>{TITLE[metric]}</h2>
+          <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
+        </div>
+        {body}
+      </div>
+    </div>
   );
 }
 
@@ -6895,6 +7049,7 @@ function demoState() {
   s.weight_entries = [[14, 84.6], [12, 84.4], [10, 84.1], [8, 83.9], [6, 83.6], [4, 83.5], [2, 83.2], [0, 83.0]]
     .map(([ago, w]) => ({ id: Store.uid(), date: shiftISO(today, -ago), scale_weight: w }));
   s.last_checkin = shiftISO(today, -6);
+  s.googleHealth = { connected: true, lastSync: new Date().toISOString() }; // demo: show the synced Today card
   s.steps = {}; [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => { s.steps[shiftISO(today, -(6 - i))] = v; });
   // A week of synced sleep (keyed by wake date) with a couple of stage-detailed nights, so the sleep
   // tile and the morning Macrodex catch have something to show in the demo.

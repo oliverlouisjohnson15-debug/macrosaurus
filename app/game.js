@@ -284,9 +284,15 @@
   // ratio just pinned at 100 for anyone who hit their target (and inflated readiness with it), so callers
   // now show raw hours instead of a fabricated score. `durationMin` is time asleep; `stages` = { deep,
   // rem, light, awake } minutes. Pure: no clock, no randomness.
-  function sleepScore(durationMin, targetMin, stages) {
+  // The full, itemised sleep-score calculation. sleepScore() is the thin wrapper that returns just the
+  // number, so the score the UI shows and the breakdown the UI explains can never drift apart. Returns:
+  //   { score, hasStages, durationMin, targetMin, asleepMin, awakeMin, eff, deepRemShare, parts:[{key,label,points,max,detail}] }
+  // score is null on a stage-less night (no measured quality to judge) and 0 on a no-sleep night.
+  function sleepScoreParts(durationMin, targetMin, stages) {
     var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
-    if (dur <= 0 || tgt <= 0) return 0;
+    var out = { score: null, hasStages: false, durationMin: Math.max(0, Math.round(dur)), targetMin: Math.round(tgt),
+      asleepMin: 0, awakeMin: 0, eff: null, deepRemShare: null, parts: [] };
+    if (dur <= 0 || tgt <= 0) { out.score = 0; return out; }
     var deep = stages ? (Number(stages.deep) || 0) : 0, rem = stages ? (Number(stages.rem) || 0) : 0;
     var light = stages ? (Number(stages.light) || 0) : 0, awake = stages ? (Number(stages.awake) || 0) : 0;
     var asleep = deep + rem + light;
@@ -298,10 +304,21 @@
       var effComp = 15 * Math.max(0, Math.min(1, (eff - 0.75) / 0.20)); // ramps 0.75 (poor) -> 0.95 (great)
       var deepRem = (deep + rem) / asleep; // ideal ~0.45
       var qFactor = 1 - Math.min(Math.abs(deepRem - 0.45) / 0.45, 1); // 1 = ideal share, 0 = far off
-      return Math.max(0, Math.min(100, Math.round(durComp + effComp + 25 * qFactor)));
+      out.hasStages = true;
+      out.asleepMin = Math.round(asleep); out.awakeMin = Math.round(awake);
+      out.eff = eff; out.deepRemShare = deepRem;
+      out.parts = [
+        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 60, detail: 'vs your ' + Math.round(tgt / 6) / 10 + 'h target' },
+        { key: 'efficiency', label: 'Efficiency', points: Math.round(effComp), max: 15, detail: Math.round(eff * 100) + '% of the night asleep' },
+        { key: 'quality', label: 'Deep + REM', points: Math.round(25 * qFactor), max: 25, detail: Math.round(deepRem * 100) + '% of sleep (ideal ~45%)' },
+      ];
+      out.score = Math.max(0, Math.min(100, Math.round(durComp + effComp + 25 * qFactor)));
+      return out;
     }
-    return null; // no stage data -> no quality score (callers fall back to showing hours)
+    out.asleepMin = Math.round(dur); // stage-less: we know the hours but nothing about quality
+    return out; // score stays null -> callers fall back to showing hours
   }
+  function sleepScore(durationMin, targetMin, stages) { return sleepScoreParts(durationMin, targetMin, stages).score; }
   // Score -> rarity band. Every night above the floor still catches something (Pokemon Sleep always
   // gives an encounter); better sleep just reaches rarer pools.
   function sleepBand(score) { var s = Number(score) || 0; return s < 50 ? 'poor' : s < 75 ? 'ok' : s < 90 ? 'good' : 'great'; }
@@ -342,34 +359,50 @@
   //   tempDev               // nightly skin-temp deviation from baseline (deg C), an illness flag
   // }
   var READY_WEIGHTS = { sleep: 0.35, hrv: 0.30, rhr: 0.20, load: 0.15 };
-  function readinessScore(inp) {
+  // The full, itemised readiness calculation. readinessScore() is the thin wrapper returning just the
+  // number, so what the UI shows and what it explains stay in lockstep. Returns:
+  //   { score, anchored, anchorCount, tempPenaltyApplied, signals: [{ key, label, weightPct, present,
+  //     value(0..100|null), modifierOnly, note }] }
+  // score is null until at least one ANCHOR (sleep quality, HRV or resting HR) is present. A signal is
+  // always listed whether present or not, with a note saying what it would take to light it up.
+  function readinessParts(inp) {
     inp = inp || {};
     var sum = 0, weights = 0, anchored = false;
-    function add(w, v) { sum += w * Math.max(0, Math.min(1, v)); weights += w; }
-    // An "anchor" is a signal that actually reflects recovery (sleep quality, HRV, resting HR). The
-    // step-load proxy only modulates those; on its own it is too thin to report, and at/under baseline
-    // it would read 1.0 and pin readiness at 100. So a load-only day scores nothing until an anchor lands.
-    if (isFinite(inp.sleepScore)) { add(READY_WEIGHTS.sleep, (Number(inp.sleepScore) || 0) / 100); anchored = true; }
+    function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+    var signals = [];
+    // Sleep quality (anchor). A stage-less night gives no sleepScore, so this stays dark until stages land.
+    if (isFinite(inp.sleepScore)) {
+      var sv = clamp01((Number(inp.sleepScore) || 0) / 100); sum += READY_WEIGHTS.sleep * sv; weights += READY_WEIGHTS.sleep; anchored = true;
+      signals.push({ key: 'sleep', label: 'Sleep quality', weightPct: 35, present: true, value: Math.round(sv * 100), modifierOnly: false, note: "Last night's sleep score." });
+    } else signals.push({ key: 'sleep', label: 'Sleep quality', weightPct: 35, present: false, value: null, modifierOnly: false, note: 'Needs a night with sleep stages. An hours-only night has no quality to score.' });
+    // HRV balance (anchor). Logistic on the relative change: at baseline ~0.5, well above ~0.9.
     if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && inp.hrvBaseline > 0) {
-      // HRV balance: logistic on the relative change, so at baseline reads ~0.5 and well above ~0.9.
-      var hd = (Number(inp.hrv) - Number(inp.hrvBaseline)) / Number(inp.hrvBaseline);
-      add(READY_WEIGHTS.hrv, 1 / (1 + Math.exp(-6 * hd))); anchored = true;
-    }
+      var hd = (Number(inp.hrv) - Number(inp.hrvBaseline)) / Number(inp.hrvBaseline); var hvv = clamp01(1 / (1 + Math.exp(-6 * hd)));
+      sum += READY_WEIGHTS.hrv * hvv; weights += READY_WEIGHTS.hrv; anchored = true;
+      signals.push({ key: 'hrv', label: 'HRV balance', weightPct: 30, present: true, value: Math.round(hvv * 100), modifierOnly: false, note: 'Today vs your rolling baseline.' });
+    } else signals.push({ key: 'hrv', label: 'HRV balance', weightPct: 30, present: false, value: null, modifierOnly: false, note: 'Needs a wearable that reports HRV.' });
+    // Resting HR (anchor). Lower than baseline is better; a ~10% swing spans most of the range.
     if (isFinite(inp.rhr) && isFinite(inp.rhrBaseline) && inp.rhrBaseline > 0) {
-      // Resting HR: lower than baseline is better; a ~10% swing spans most of the range.
-      var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline);
-      add(READY_WEIGHTS.rhr, 0.5 + rd * 5); anchored = true;
-    }
+      var rd = (Number(inp.rhrBaseline) - Number(inp.rhr)) / Number(inp.rhrBaseline); var rv = clamp01(0.5 + rd * 5);
+      sum += READY_WEIGHTS.rhr * rv; weights += READY_WEIGHTS.rhr; anchored = true;
+      signals.push({ key: 'rhr', label: 'Resting HR', weightPct: 20, present: true, value: Math.round(rv * 100), modifierOnly: false, note: 'Today vs your rolling baseline.' });
+    } else signals.push({ key: 'rhr', label: 'Resting HR', weightPct: 20, present: false, value: null, modifierOnly: false, note: 'Needs a wearable that reports resting heart rate.' });
+    // Recent load (modifier only, never an anchor). At/under baseline is fine; a big spike tilts to rest.
     if (isFinite(inp.load) && isFinite(inp.loadBaseline) && inp.loadBaseline > 0) {
-      // Recent load: at/under baseline is fine; a big spike above tilts toward recovery (lower readiness).
-      var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline));
-      add(READY_WEIGHTS.load, 1 - Math.min(ov, 1) * 0.6);
-    }
-    if (!weights || !anchored) return null; // nothing (or only a thin load proxy) to score yet
+      var ov = Math.max(0, (Number(inp.load) - Number(inp.loadBaseline)) / Number(inp.loadBaseline)); var lv = clamp01(1 - Math.min(ov, 1) * 0.6);
+      sum += READY_WEIGHTS.load * lv; weights += READY_WEIGHTS.load;
+      signals.push({ key: 'load', label: 'Recent load', weightPct: 15, present: true, value: Math.round(lv * 100), modifierOnly: true, note: "Yesterday's steps vs baseline. Only shapes the score once a recovery signal anchors it." });
+    } else signals.push({ key: 'load', label: 'Recent load', weightPct: 15, present: false, value: null, modifierOnly: true, note: 'From your recent daily steps.' });
+
+    var anchorCount = signals.filter(function (s) { return s.present && !s.modifierOnly; }).length;
+    var out = { score: null, anchored: anchored, anchorCount: anchorCount, tempPenaltyApplied: false, signals: signals };
+    if (!weights || !anchored) return out; // nothing (or only a thin load proxy) to score yet
     var score = sum / weights; // renormalise to whatever signals are present
-    if (isFinite(inp.tempDev)) score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; // illness knock
-    return Math.max(0, Math.min(100, Math.round(score * 100)));
+    if (isFinite(inp.tempDev)) { score -= Math.min(Math.abs(Number(inp.tempDev)) / 1.0, 1) * 0.15; out.tempPenaltyApplied = true; } // illness knock
+    out.score = Math.max(0, Math.min(100, Math.round(score * 100)));
+    return out;
   }
+  function readinessScore(inp) { return readinessParts(inp).score; }
   // Dino-flavoured bands. Apex = roaring and ready; Drowsy = a recovery day, not a failure.
   function readinessBand(score) { if (score == null) return null; var s = Number(score); if (!isFinite(s)) return null; return s >= 80 ? 'apex' : s >= 55 ? 'prowling' : 'drowsy'; }
   var READY_BAND = { apex: { label: 'Apex', blurb: 'Roaring and ready. Push today.' }, prowling: { label: 'Prowling', blurb: 'Steady. A normal day.' }, drowsy: { label: 'Drowsy', blurb: 'Recover. Go gentle today.' } };
@@ -445,12 +478,14 @@
     SLEEP_STYLES: SLEEP_STYLES,
     SLEEP_POOL: SLEEP_POOL,
     sleepScore: sleepScore,
+    sleepScoreParts: sleepScoreParts,
     sleepBand: sleepBand,
     sleepStyleFor: sleepStyleFor,
     sleepCatch: sleepCatch,
     READY_WEIGHTS: READY_WEIGHTS,
     READY_BAND: READY_BAND,
     readinessScore: readinessScore,
+    readinessParts: readinessParts,
     readinessBand: readinessBand,
     readinessBuff: readinessBuff,
     PRIMED_POOL: PRIMED_POOL,
