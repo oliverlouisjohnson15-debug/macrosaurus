@@ -191,6 +191,14 @@
     out.steps         = Object.assign({}, older.steps || {},         newer.steps || {}); // newer wins per date (Google Health resync / manual edit)
     out.sleep         = Object.assign({}, older.sleep || {},         newer.sleep || {}); // newer wins per wake date
     out.health        = Object.assign({}, older.health || {},        newer.health || {}); // recovery signals, newer wins per date
+    // googleHealth: a server-backed connection flag that must survive a merge from a device/tab that
+    // never linked (or holds an older snapshot). Taking `newer` wholesale (as the JSON copy does) lets a
+    // higher-_rev copy with no connection silently wipe a live link, so the UI flips to "not connected"
+    // even though the server is still synced. Instead keep the most RECENT connection event across the
+    // two copies: a live/synced link stamps lastSync, an explicit unlink stamps disconnectedAt, and a
+    // copy that never linked has neither (time 0) so it can no longer clobber a live connection.
+    var ghTime = function (g) { return g ? (Date.parse(g.lastSync) || Date.parse(g.disconnectedAt) || 0) : 0; };
+    out.googleHealth = (ghTime(newer.googleHealth) >= ghTime(older.googleHealth) ? newer.googleHealth : older.googleHealth) || null;
     // primed morning catch: union the claimed dates, keep the later reveal
     var po = older.primed || {}, pn = newer.primed || {};
     var plater = (pn.lastDate || '') >= (po.lastDate || '') ? pn : po;

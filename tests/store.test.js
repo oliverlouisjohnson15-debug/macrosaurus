@@ -99,6 +99,23 @@ test('mergeStates: scalar/derived fields come from the higher-_rev copy, edits w
   assert.strictEqual(m._rev, 2);
 });
 
+test('mergeStates: a live Google Health link survives a higher-_rev copy that never connected', () => {
+  // The bug: a stale device/tab with a higher _rev but no googleHealth wiped a live connection on
+  // merge, flipping the UI to "not connected" while the server was still synced.
+  const connected = { _rev: 5, googleHealth: { connected: true, lastSync: '2026-07-21T13:44:00.000Z' } };
+  const neverLinked = { _rev: 9, googleHealth: null };
+  assert.strictEqual(Store.mergeStates(connected, neverLinked).googleHealth.connected, true);
+  assert.strictEqual(Store.mergeStates(neverLinked, connected).googleHealth.connected, true); // order-independent
+  // Two connected copies: the most recently synced one wins.
+  const older = { _rev: 2, googleHealth: { connected: true, lastSync: '2026-07-20T09:00:00.000Z' } };
+  const fresher = { _rev: 1, googleHealth: { connected: true, lastSync: '2026-07-21T13:44:00.000Z' } };
+  assert.strictEqual(Store.mergeStates(older, fresher).googleHealth.lastSync, '2026-07-21T13:44:00.000Z');
+  // An explicit disconnect (timestamped) still wins over an older connected copy.
+  const live = { _rev: 3, googleHealth: { connected: true, lastSync: '2026-07-21T08:00:00.000Z' } };
+  const off = { _rev: 1, googleHealth: { connected: false, disconnectedAt: '2026-07-21T12:00:00.000Z' } };
+  assert.strictEqual(Store.mergeStates(live, off).googleHealth.connected, false);
+});
+
 test('mergeStates: a tombstoned delete is not resurrected by the copy that still has it', () => {
   // device A deleted entry 'a' (tombstone); device B (or the cloud) still holds 'a'.
   const deletedOn = { _rev: 3, log_entries: [{ id: 'b', date: 'x' }], deleted: { a: 999 } };

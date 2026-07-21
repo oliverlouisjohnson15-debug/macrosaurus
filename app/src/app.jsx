@@ -5920,7 +5920,7 @@ function SettingsTab({ db, update }) {
               <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
               <div className="flex items-center gap-2">
                 <GhResyncButton db={db} update={update} />
-                <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false }; }); }}>Disconnect</Btn>
+                <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false, disconnectedAt: new Date().toISOString() }; }); }}>Disconnect</Btn>
               </div>
             </div>
             <GhDebug db={db} update={update} />

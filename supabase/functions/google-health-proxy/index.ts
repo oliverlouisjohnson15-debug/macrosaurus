@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
         last_sync: nowISO,
       });
       const [steps, sleep, health] = await Promise.all([
-        fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)),
+        fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // never fail the connect on a steps hiccup: the token is saved, sync retries
         fetchSleep(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})),
         fetchHealth(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // health_metrics scope may not be granted yet
       ]);
@@ -347,7 +347,7 @@ Deno.serve(async (req) => {
       if (tok.refresh_token && tok.refresh_token !== conn.refresh_token) patch.refresh_token = tok.refresh_token;
       await table.update(patch).eq('user_id', userId);
       const [steps, sleep, health] = await Promise.all([
-        fetchSteps(tok.access_token, isoShift(-days), isoShift(0)),
+        fetchSteps(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // a steps hiccup must not fail the whole sync
         fetchSleep(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})),
         fetchHealth(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // tolerate health_metrics scope not granted
       ]);
