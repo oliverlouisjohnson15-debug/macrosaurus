@@ -395,37 +395,34 @@ test('expeditionState tracks the quality-day goal and caps progress', () => {
 
 test('sleepScore returns null for a stage-less night (no quality to judge)', () => {
   // Without a stage breakdown we cannot assess quality, so we return null instead of a duration-only
-  // score that used to pin at 100 for anyone who hit their target (regression: "sleep always 100").
-  // Callers show raw hours for these nights rather than a fabricated 0..100 number.
-  assert.strictEqual(Game.sleepScore(480, 480), null); // at target, no stages -> no score
-  assert.strictEqual(Game.sleepScore(600, 480), null); // oversleeping, no stages -> no score
-  assert.strictEqual(Game.sleepScore(240, 480), null); // short night, no stages -> no score
-  assert.strictEqual(Game.sleepScore(480, 0), null);   // absent target still needs stages to score
-  assert.strictEqual(Game.sleepScore(0, 480), 0);      // no sleep at all still scores 0
-  assert.strictEqual(Game.sleepScore(0, 0), 0);
+  // score that used to pin at 100 (regression: "sleep always 100"). Callers show raw hours instead.
+  assert.strictEqual(Game.sleepScore(480), null); // no stages -> no score
+  assert.strictEqual(Game.sleepScore(600), null); // long night, no stages -> no score
+  assert.strictEqual(Game.sleepScore(240), null); // short night, no stages -> no score
+  assert.strictEqual(Game.sleepScore(0), 0);      // no sleep at all still scores 0
 });
 
 test('sleepScore nudges by deep+REM share when stages are present', () => {
-  const ideal = Game.sleepScore(480, 480, { deep: 120, rem: 96, light: 240, awake: 24 }); // ~0.45 share
-  const poor = Game.sleepScore(480, 480, { deep: 20, rem: 20, light: 400, awake: 40 });   // far from ideal
+  const ideal = Game.sleepScore(480, { deep: 120, rem: 96, light: 240, awake: 24 });
+  const poor = Game.sleepScore(480, { deep: 20, rem: 20, light: 400, awake: 40 });   // far from ideal
   assert.ok(ideal > poor, 'ideal stage mix should score higher');
   assert.ok(ideal <= 100 && poor >= 0);
 });
 
-test('sleepScore does not pin at 100 for an at-target night with ordinary quality', () => {
-  // A full 8h in bed but a mediocre stage mix / low efficiency should land well under 100 now that
+test('sleepScore does not pin at 100 for an 8h night with ordinary quality', () => {
+  // A full ~8h asleep but a mediocre stage mix / low efficiency should land well under 100 now that
   // efficiency and deep+REM quality carry weight (regression: the old duration-only score always 100).
-  const s = Game.sleepScore(456, 480, { deep: 40, rem: 40, light: 376, awake: 60 });
+  const s = Game.sleepScore(456, { deep: 40, rem: 40, light: 376, awake: 60 });
   assert.ok(s < 100 && s > 40, 'ordinary night should score in a realistic band, got ' + s);
   // A restorative night of the same length scores clearly higher.
-  const good = Game.sleepScore(462, 480, { deep: 100, rem: 108, light: 254, awake: 18 });
+  const good = Game.sleepScore(462, { deep: 100, rem: 108, light: 254, awake: 18 });
   assert.ok(good > s, 'restorative night should beat the ordinary one');
 });
 
 test('sleepScoreParts itemises the score (Fitbit-style split) and always agrees with sleepScore', () => {
   const stages = { deep: 100, rem: 108, light: 254, awake: 18 };
-  const p = Game.sleepScoreParts(462, 480, stages);
-  assert.strictEqual(p.score, Game.sleepScore(462, 480, stages), 'parts.score must equal sleepScore');
+  const p = Game.sleepScoreParts(462, stages);
+  assert.strictEqual(p.score, Game.sleepScore(462, stages), 'parts.score must equal sleepScore');
   assert.strictEqual(p.hasStages, true);
   assert.strictEqual(p.parts.length, 4);
   assert.deepStrictEqual(p.parts.map(x => x.key), ['duration', 'efficiency', 'rem', 'deep']);
@@ -434,19 +431,33 @@ test('sleepScoreParts itemises the score (Fitbit-style split) and always agrees 
   p.parts.forEach(x => assert.ok(x.points >= 0 && x.points <= x.max, x.key + ' points within [0,max]'));
   // Deep and REM are scored against their own clinical ranges, so a night short on ONE stage is docked
   // only on that component. Robbing REM (down to ~9%) should cost REM points but leave deep near full.
-  const lowRem = Game.sleepScoreParts(462, 480, { deep: 100, rem: 42, light: 320, awake: 18 });
+  const lowRem = Game.sleepScoreParts(462, { deep: 100, rem: 42, light: 320, awake: 18 });
   const remPart = lowRem.parts.find(x => x.key === 'rem'), deepPart = lowRem.parts.find(x => x.key === 'deep');
   assert.ok(remPart.points < 8, 'a REM-deficient night loses REM points');
   assert.ok(deepPart.points >= 15, 'but healthy deep sleep keeps its points');
   assert.ok(lowRem.score < p.score, 'and the overall score drops');
   // A stage-less night has no quality to itemise: score null, no parts, but hours are still known.
-  const bare = Game.sleepScoreParts(450, 480);
+  const bare = Game.sleepScoreParts(450);
   assert.strictEqual(bare.score, null);
   assert.strictEqual(bare.hasStages, false);
   assert.strictEqual(bare.parts.length, 0);
   assert.strictEqual(bare.asleepMin, 450);
   // No sleep at all still scores 0 (matches sleepScore).
-  assert.strictEqual(Game.sleepScoreParts(0, 480).score, 0);
+  assert.strictEqual(Game.sleepScoreParts(0).score, 0);
+});
+
+test('sleep duration is scored against the science (7-9h), with no editable target', () => {
+  // Identical architecture, three durations: 5h scores low, 7h solid, 8h full duration credit.
+  const arch = { rem: null }; // placeholder overwritten below
+  const mk = (min, deepP, remP) => { const asleep = min; return { deep: Math.round(asleep * deepP), rem: Math.round(asleep * remP), light: asleep - Math.round(asleep * deepP) - Math.round(asleep * remP), awake: Math.round(asleep * 0.06) }; };
+  const five = Game.sleepScoreParts(300, mk(300, 0.18, 0.22));
+  const eight = Game.sleepScoreParts(480, mk(480, 0.18, 0.22));
+  const fiveDur = five.parts.find(x => x.key === 'duration').points;
+  const eightDur = eight.parts.find(x => x.key === 'duration').points;
+  assert.strictEqual(eightDur, 45, '8h earns full duration credit');
+  assert.ok(fiveDur < 20, '5h is heavily docked on duration, got ' + fiveDur);
+  assert.ok(eight.score > five.score, 'more sleep (same architecture) scores higher');
+  void arch;
 });
 
 test('readinessParts explains every signal and agrees with readinessScore', () => {
@@ -494,14 +505,14 @@ test('readiness uses lnRMSSD: HRV is judged log-symmetrically around baseline', 
 test('sleep scoring is strict: an average night lands well under 80, only an excellent one reaches 90+', () => {
   // Average night: 7h asleep of ~7h55 in bed (88% efficiency), stages a touch under ideal. Should NOT
   // flatter the user - lands in the 60s-70s like Fitbit's real-world spread, not the 90s.
-  const avg = Game.sleepScore(420, 480, { deep: 63, rem: 80, light: 277, awake: 55 }); // deep 15%, rem 19%
+  const avg = Game.sleepScore(420, { deep: 63, rem: 80, light: 277, awake: 55 }); // 7h, deep 15%, rem 19%
   assert.ok(avg < 80, 'an average night should score under 80, got ' + avg);
   assert.ok(avg > 45, 'but not punitively low, got ' + avg);
   // Genuinely excellent night: 8h asleep, 95% efficiency, ideal architecture -> 90+.
-  const great = Game.sleepScore(480, 480, { deep: 110, rem: 110, light: 260, awake: 25 });
+  const great = Game.sleepScore(480, { deep: 110, rem: 110, light: 260, awake: 25 });
   assert.ok(great >= 90, 'an excellent night should reach 90+, got ' + great);
   // A poor night is clearly separated below the average one.
-  const poor = Game.sleepScore(330, 480, { deep: 20, rem: 25, light: 250, awake: 70 });
+  const poor = Game.sleepScore(330, { deep: 20, rem: 25, light: 250, awake: 70 });
   assert.ok(poor < avg, 'a poor night scores below an average one');
 });
 

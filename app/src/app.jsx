@@ -353,18 +353,17 @@ function mergeStepsInto(d, steps) {
   return n;
 }
 // Merge a { date: { min, deep?, rem?, light?, awake? } } map (keyed by wake date) from Google Health
-// into d.sleep, scoring each night against the user's target so the morning-catch effect can read it.
+// into d.sleep, scoring each night (against the science, not a target) so the morning-catch effect can read it.
 function mergeSleepInto(d, sleep) {
   if (!sleep) return 0;
   d.sleep = d.sleep || {};
-  const target = (d.profile && d.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
   let n = 0;
   for (const k in sleep) {
     const s = sleep[k]; const min = s && +s.min;
     if (!isFinite(min) || min <= 0) continue;
     const stages = (s.deep != null || s.rem != null || s.light != null || s.awake != null)
       ? { deep: +s.deep || 0, rem: +s.rem || 0, light: +s.light || 0, awake: +s.awake || 0 } : null;
-    const sc = Game.sleepScore(min, target, stages);      // null for a stage-less night (no quality to judge)
+    const sc = Game.sleepScore(min, stages);              // null for a stage-less night (no quality to judge)
     const rec = { min: Math.round(min) };
     if (isFinite(sc)) rec.score = sc;
     if (stages) Object.assign(rec, stages);
@@ -2589,8 +2588,7 @@ function readinessInputsFor(db, dateISO) {
   if (rec && isFinite(rec.min)) {
     const stages = (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
       ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
-    const target = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
-    const sc = Game.sleepScore(rec.min, target, stages);
+    const sc = Game.sleepScore(rec.min, stages);
     if (isFinite(sc)) inp.sleepScore = sc;
   }
   const loadY = +steps[shiftISO(dateISO, -1)] || 0;              // yesterday's steps as a rough load proxy
@@ -3409,15 +3407,14 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const stepGoal = stepGoalFor(db);
   const stepPct = stepGoal ? Math.min(100, Math.round((todaySteps / stepGoal) * 100)) : 0;
   const goalHit = stepGoal > 0 && todaySteps >= stepGoal;
-  // Sleep: last synced night, scored live against the target (which is set in Settings, not here).
+  // Sleep: last synced night, scored live against the science (recommended 7-9h), no editable target.
   const sleep = db.sleep || {};
   const sdates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
   const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
   const rec = lastDate ? sleep[lastDate] : null;
-  const targetMin = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
   const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
     ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
-  const score = rec ? Game.sleepScore(rec.min, targetMin, stages) : null; // null = stage-less night, show hours
+  const score = rec ? Game.sleepScore(rec.min, stages) : null; // null = stage-less night, show hours
   const hasScore = isFinite(score);
   const sHrs = rec ? Math.floor(rec.min / 60) : 0, sMins = rec ? rec.min % 60 : 0;
   const sHrsLabel = sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '');
@@ -3543,16 +3540,15 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
     const sdates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
     const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
     const rec = lastDate ? sleep[lastDate] : null;
-    const targetMin = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
     const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
       ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
-    const p = rec ? Game.sleepScoreParts(rec.min, targetMin, stages) : null;
+    const p = rec ? Game.sleepScoreParts(rec.min, stages) : null;
     const nightLabel = lastDate ? new Date(lastDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }) : null;
     if (!rec) {
       body = (
         <p className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>
           {synced
-            ? "No night has synced yet. Once your device records a night's sleep it'll appear here, scored against your sleep target."
+            ? "No night has synced yet. Once your device records a night's sleep it'll appear here, scored automatically."
             : "Sleep syncs from Google Health. Connect it and we'll score each night automatically."}
           {!synced && ghConfigured() && <span className="block mt-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnect(); }}>Connect Google Health</Btn></span>}
         </p>
@@ -3564,13 +3560,13 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--accent)' }}>{p.score}</div>
             <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>/ 100 · {Game.sleepBand(p.score)}</div>
           </div>
-          <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · {hmLabel(p.asleepMin)} asleep vs {hmLabel(targetMin)} target</div>
+          <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · {hmLabel(p.asleepMin)} asleep · recommended 7-9h</div>
           <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)' }}>How the score is built</div>
           {p.parts.map(part => (
             <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--accent)" />
           ))}
           <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
-            Modelled on the way Fitbit scores sleep: time asleep leads, but efficiency and healthy deep and REM sleep (judged against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed. Change your sleep target in Settings → Daily targets.
+            Modelled on the way Fitbit scores sleep, judged against the science rather than a target you set: adults need 7-9 hours, and efficiency plus healthy deep and REM sleep (measured against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed.
           </p>
         </div>
       );
@@ -3578,9 +3574,9 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
       body = (
         <div>
           <div className="tnum text-4xl font-bold leading-none mb-1" style={{ color: 'var(--accent)' }}>{hmLabel(rec.min)}</div>
-          <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · vs {hmLabel(targetMin)} target</div>
+          <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · asleep · recommended 7-9h</div>
           <p className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>
-            Your device reported how long you slept but not the sleep stages (deep, REM, light, awake), so there's no quality to score yet, so we're showing hours instead of a number out of 100. When your device syncs a staged night you'll get a full score. Change your target in Settings → Daily targets.
+            Your device reported how long you slept but not the sleep stages (deep, REM, light, awake), so there's no quality to score yet, so we're showing hours instead of a number out of 100. When your device syncs a staged night you'll get a full score.
           </p>
         </div>
       );
@@ -4003,8 +3999,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
     // A stage-less night has no quality score (we show hours, not a number), but the morning catch should
     // still happen and stay fair: tier it by duration alone rather than dumping every such night in 'poor'.
-    const catchTarget = (db.profile && db.profile.sleepTargetMin) || Game.SLEEP_TARGET_DEFAULT;
-    const catchScore = isFinite(rec.score) ? rec.score : Math.round(Math.min((rec.min || 0) / catchTarget, 1) * 100);
+    const catchScore = isFinite(rec.score) ? rec.score : Math.round(Math.min((rec.min || 0) / Game.SLEEP_RECOMMENDED_FULL, 1) * 100);
     const band = Game.sleepBand(catchScore);
     const c = Game.sleepCatch(db.game_salt || '', latestSleep, band);
     const style = Game.sleepStyleFor(catchScore, stages);
@@ -5861,7 +5856,7 @@ function GhDebug({ db, update }) {
 }
 function SettingsTab({ db, update }) {
   const p = db.profile;
-  const init = () => ({ checkinDay: p.checkinDay == null ? 1 : p.checkinDay, weight_unit: p.weight_unit, height_unit: p.height_unit, aiKey: p.aiKey || '', reminders: p.reminders !== false, nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour, theme: p.theme || 'light', stepGoal: p.stepGoal || '', sleepTargetHours: p.sleepTargetMin ? +(p.sleepTargetMin / 60).toFixed(2).replace(/\.00$/, '') : '' });
+  const init = () => ({ checkinDay: p.checkinDay == null ? 1 : p.checkinDay, weight_unit: p.weight_unit, height_unit: p.height_unit, aiKey: p.aiKey || '', reminders: p.reminders !== false, nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour, theme: p.theme || 'light', stepGoal: p.stepGoal || '' });
   const [s, setS] = useState(init);
   const sset = (k, v) => setS(x => Object.assign({}, x, { [k]: v }));
   const [saved, setSaved] = useState(false);
@@ -5896,8 +5891,7 @@ function SettingsTab({ db, update }) {
       Object.assign(d.profile, s);
       // Normalise the two Google Health targets: blank means "use the automatic default".
       const sg = Math.round(+s.stepGoal) || 0; if (sg > 0) d.profile.stepGoal = sg; else delete d.profile.stepGoal;
-      const sh = +s.sleepTargetHours || 0; if (sh > 0) d.profile.sleepTargetMin = Math.round(sh * 60); else delete d.profile.sleepTargetMin;
-      delete d.profile.sleepTargetHours; // staging-only field, never persisted
+      delete d.profile.sleepTargetMin; // sleep is scored against the science (7-9h), not an editable target
       d.meal_templates = dm.map((m, i) => { const ex = d.meal_templates.find(x => x.id === m.id); return Object.assign({}, ex || { id: m.id, user_id: Store.USER }, { name: (m.name || '').trim() || 'Meal', sort_order: i }); });
     });
     if (pushOn) pushSyncHour(s.nudgeHour);
@@ -5936,12 +5930,9 @@ function SettingsTab({ db, update }) {
       })()}
     </Section>
     <Section title="Daily targets">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Set your own daily step goal and nightly sleep target. Leave blank to use the automatic default (steps from your activity level, sleep at 8 hours).</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3">Set your own daily step goal. Leave blank to use the automatic default from your activity level. Your sleep score isn't set here, it's scored against the science (adults need 7-9 hours a night).</div>
       <Field label="Step goal" hint={'Blank uses your activity level (' + (withActivity(p).avgSteps || 0).toLocaleString('en-GB') + '/day).'}>
         <NumInput value={s.stepGoal} onChange={e => sset('stepGoal', e.target.value)} placeholder={String(withActivity(p).avgSteps || 8000)} />
-      </Field>
-      <Field label="Sleep target (hours)" hint="Blank uses 8 hours. Your sleep score is measured against this.">
-        <NumInput value={s.sleepTargetHours} onChange={e => sset('sleepTargetHours', e.target.value)} placeholder="8" />
       </Field>
     </Section>
     <Section title="Meals">
@@ -7056,7 +7047,7 @@ function demoState() {
   // tile and the morning Macrodex catch have something to show in the demo.
   s.sleep = {};
   const sleepNights = [[462, null], [405, null], [498, { deep: 118, rem: 96, light: 260, awake: 24 }], [372, null], [510, { deep: 132, rem: 108, light: 246, awake: 24 }], [447, null], [489, { deep: 110, rem: 92, light: 262, awake: 25 }]];
-  sleepNights.forEach(([min, st], i) => { const d = shiftISO(today, -(6 - i)); s.sleep[d] = Object.assign({ min, score: Game.sleepScore(min, 480, st) }, st || {}); });
+  sleepNights.forEach(([min, st], i) => { const d = shiftISO(today, -(6 - i)); s.sleep[d] = Object.assign({ min, score: Game.sleepScore(min, st) }, st || {}); });
   // A week of recovery signals (HRV / resting HR / SpO2) so readiness runs on more than sleep alone and
   // the breakdown shows the full multi-signal picture. Baselines are computed by mergeHealthInto.
   const hrvSeries = [48, 53, 50, 56, 52, 58, 60], rhrSeries = [56, 55, 57, 54, 55, 53, 52], spo2Series = [97, 96, 97, 98, 97, 97, 98];
