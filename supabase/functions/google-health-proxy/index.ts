@@ -206,52 +206,91 @@ function findNum(obj: any, names: string[]): number | null {
   }
   return null;
 }
-// A rollup point's civil date -> 'YYYY-MM-DD', matching fetchSteps.
+// Recursively find a civil date { year, month, day } anywhere in a point -> 'YYYY-MM-DD'. The daily
+// health types nest it under their per-type object (e.g. dailyRestingHeartRate.date), not at the top.
+function findDate(obj: any, depth = 4): string | null {
+  if (obj == null || typeof obj !== 'object') return null;
+  if (obj.year && obj.month && obj.day) return obj.year + '-' + String(obj.month).padStart(2, '0') + '-' + String(obj.day).padStart(2, '0');
+  if (depth <= 0) return null;
+  for (const k of Object.keys(obj)) { const r = findDate(obj[k], depth - 1); if (r) return r; }
+  return null;
+}
+// A rollup / list point's civil date -> 'YYYY-MM-DD'. Handles the civil date object, a nested startTime
+// date object, a plain RFC3339 startTime string, and a per-type nested `date` (daily health points).
 function rollupDate(p: any): string | null {
   const c = p?.civilStartTime?.date || p?.startTime?.date;
   if (c && c.year) return c.year + '-' + String(c.month).padStart(2, '0') + '-' + String(c.day).padStart(2, '0');
-  const ts = p?.civilStartTime?.time ? null : (p?.startTime && typeof p.startTime === 'string' ? p.startTime : null);
-  return ts ? ts.slice(0, 10) : null;
+  const ts = (typeof p?.startTime === 'string' ? p.startTime : (typeof p?.civilStartTime === 'string' ? p.civilStartTime : null));
+  return ts ? ts.slice(0, 10) : findDate(p);
 }
-async function dailyRollup(accessToken: string, dataType: string, startISO: string, endISO: string): Promise<any[]> {
-  const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints:dailyRollUp`;
-  const body = { range: { start: civilMidnight(startISO), end: civilMidnight(isoShift0(endISO, 1)) }, windowSizeDays: 1 };
-  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken, 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || dataType + ' request failed');
-  return data?.rollupDataPoints || data?.dataPoints || [];
+// A shallow structural sketch of a value: object -> { key: shape }, array -> [shape], leaf -> its TYPE
+// (never the value). Used to log what a live Google Health point actually looks like without leaking any
+// health data, so we can see the real field names our parser must read.
+function shapeOf(obj: any, depth = 3): any {
+  if (obj == null) return null;
+  if (typeof obj !== 'object') return typeof obj;
+  if (Array.isArray(obj)) return obj.length ? ['(' + obj.length + ')', shapeOf(obj[0], depth - 1)] : [];
+  if (depth <= 0) return Object.keys(obj);
+  const o: Record<string, any> = {};
+  for (const k of Object.keys(obj)) o[k] = shapeOf(obj[k], depth - 1);
+  return o;
 }
+
 // Daily recovery signals for readiness: HRV (RMSSD), resting heart rate, and SpO2, each keyed by date.
-// These are "Daily" summary types (health_metrics scope). Every metric is wrapped so a missing one or a
-// not-yet-granted scope never fails the others. Field names per the v4 discovery doc; verify vs a live
-// call before trusting the exact nesting (same caveat as sleep).
-async function fetchHealth(accessToken: string, startISO: string, endISO: string): Promise<Record<string, any>> {
+// These are "Daily" summary types (health_metrics scope). Every metric is isolated so a missing one or a
+// not-yet-granted scope never fails the others, and each logs a diagnostic (HTTP status, point count,
+// how many we parsed, and the shape of the first point) so we can see why a metric comes back empty.
+async function fetchHealth(accessToken: string, startISO: string, endISO: string): Promise<{ data: Record<string, any>; diag: Record<string, any> }> {
   const out: Record<string, any> = {};
+  const diag: Record<string, any> = {};
   const put = (dt: string, k: string, v: number) => { (out[dt] = out[dt] || {})[k] = v; };
-  try {
-    for (const p of await dailyRollup(accessToken, 'daily-heart-rate-variability', startISO, endISO)) {
-      const dt = rollupDate(p); if (!dt) continue;
-      const v = findNum(p, ['rootMeanSquareOfSuccessiveDifferencesMilliseconds', 'rmssdMilliseconds', 'rmssd']);
-      if (v != null && v > 0) put(dt, 'hrv', Math.round(v * 10) / 10);
-    }
-  } catch (_) { /* HRV unavailable */ }
-  try {
-    for (const p of await dailyRollup(accessToken, 'daily-resting-heart-rate', startISO, endISO)) {
-      const dt = rollupDate(p); if (!dt) continue;
-      const avg = findNum(p, ['beatsPerMinute', 'beatsPerMinuteAverage', 'averageBeatsPerMinute']);
-      const mn = findNum(p, ['beatsPerMinuteMin']), mx = findNum(p, ['beatsPerMinuteMax']);
-      const v = avg != null ? avg : (mn != null && mx != null ? (mn + mx) / 2 : (mn != null ? mn : mx));
-      if (v != null && v > 0) put(dt, 'rhr', Math.round(v));
-    }
-  } catch (_) { /* resting HR unavailable */ }
-  try {
-    for (const p of await dailyRollup(accessToken, 'daily-oxygen-saturation', startISO, endISO)) {
-      const dt = rollupDate(p); if (!dt) continue;
-      const v = findNum(p, ['averagePercentage', 'average']);
-      if (v != null && v > 0) put(dt, 'spo2', Math.round(v * 10) / 10);
-    }
-  } catch (_) { /* SpO2 unavailable */ }
-  return out;
+  // Pull one daily metric via `list` (the daily-* summary types reject dailyRollUp, and their filter
+  // grammar rejects a start_time member). So list without a server-side filter and keep the points whose
+  // date falls in range, paging newest-first. extract() reads the value; shapeOf records the real point
+  // structure so we can confirm the field names.
+  const inLo = startISO, inHi = isoShift0(endISO, 1);
+  const pull = async (metric: string, dataType: string, extract: (p: any) => number | null) => {
+    const base = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints?pageSize=100`;
+    let pageToken = '', points = 0, inRange = 0, parsed = 0, firstShape: any = null;
+    try {
+      for (let guard = 0; guard < 25; guard++) { // list is time-ordered; early-break once we pass the window
+        const res = await fetch(base + (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''), { headers: { 'Authorization': 'Bearer ' + accessToken } });
+        const data = await res.json();
+        if (!res.ok) { diag[metric] = { status: res.status, error: String(data?.error?.message || data?.error?.status || '').slice(0, 200) }; return; }
+        const pts = data?.dataPoints || [];
+        if (!firstShape && pts.length) firstShape = shapeOf(pts[0]);
+        let sawInRange = false;
+        for (const p of pts) {
+          points++; const dt = rollupDate(p); if (!dt) continue;
+          if (dt < inLo || dt >= inHi) continue;
+          sawInRange = true; inRange++;
+          const v = extract(p); if (v != null && v > 0) { put(dt, metric, v); parsed++; }
+        }
+        pageToken = data?.nextPageToken || '';
+        if (!pageToken) break;
+        if (inRange > 0 && !sawInRange) break; // passed the window (points are ordered by time)
+      }
+      diag[metric] = { points, inRange, parsed, shape: firstShape };
+    } catch (e) { diag[metric] = { error: String((e as Error)?.message || e).slice(0, 200) }; }
+  };
+  // Field names confirmed against a live Pixel Watch response. HRV: the nightly average (RMSSD-based, the
+  // number Fitbit surfaces), falling back to the deep-sleep RMSSD when the average is absent.
+  await pull('hrv', 'daily-heart-rate-variability', (p) => {
+    const v = findNum(p, ['averageHeartRateVariabilityMilliseconds']) ?? findNum(p, ['deepSleepRootMeanSquareOfSuccessiveDifferencesMilliseconds']);
+    return v != null ? Math.round(v * 10) / 10 : null;
+  });
+  await pull('rhr', 'daily-resting-heart-rate', (p) => { // beatsPerMinute is a numeric STRING; findNum coerces it
+    const v = findNum(p, ['beatsPerMinute']);
+    return v != null ? Math.round(v) : null;
+  });
+  await pull('spo2', 'daily-oxygen-saturation', (p) => {
+    const v = findNum(p, ['averagePercentage']);
+    return v != null ? Math.round(v * 10) / 10 : null;
+  });
+  // Structure + counts only, never health values (shapeOf records types, not numbers). The caller
+  // persists this to last_health_diag so we can see exactly why a metric is empty.
+  console.log('[gh-health]', JSON.stringify(diag));
+  return { data: out, diag };
 }
 
 Deno.serve(async (req) => {
@@ -320,12 +359,13 @@ Deno.serve(async (req) => {
         connected_at: nowISO,
         last_sync: nowISO,
       });
-      const [steps, sleep, health] = await Promise.all([
+      const [steps, sleep, healthRes] = await Promise.all([
         fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // never fail the connect on a steps hiccup: the token is saved, sync retries
         fetchSleep(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})),
-        fetchHealth(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // health_metrics scope may not be granted yet
+        fetchHealth(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch((e) => ({ data: {}, diag: { fatal: String((e as Error)?.message || e).slice(0, 160) } })), // health_metrics scope may not be granted yet
       ]);
-      return json({ ok: true, steps, sleep, health, last_sync: nowISO });
+      await table.update({ last_health_diag: (healthRes as any).diag || null }).eq('user_id', userId);
+      return json({ ok: true, steps, sleep, health: (healthRes as any).data || {}, last_sync: nowISO });
     }
 
     if (action === 'sync') {
@@ -346,12 +386,13 @@ Deno.serve(async (req) => {
       const patch: Record<string, unknown> = { last_sync: nowISO };
       if (tok.refresh_token && tok.refresh_token !== conn.refresh_token) patch.refresh_token = tok.refresh_token;
       await table.update(patch).eq('user_id', userId);
-      const [steps, sleep, health] = await Promise.all([
+      const [steps, sleep, healthRes] = await Promise.all([
         fetchSteps(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // a steps hiccup must not fail the whole sync
         fetchSleep(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})),
-        fetchHealth(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // tolerate health_metrics scope not granted
+        fetchHealth(tok.access_token, isoShift(-days), isoShift(0)).catch((e) => ({ data: {}, diag: { fatal: String((e as Error)?.message || e).slice(0, 160) } })), // tolerate health_metrics scope not granted
       ]);
-      return json({ ok: true, steps, sleep, health, last_sync: nowISO });
+      await table.update({ last_health_diag: (healthRes as any).diag || null, last_sync: nowISO }).eq('user_id', userId);
+      return json({ ok: true, steps, sleep, health: (healthRes as any).data || {}, last_sync: nowISO });
     }
 
     return json({ error: { message: 'Unknown action.' } }, 400);
