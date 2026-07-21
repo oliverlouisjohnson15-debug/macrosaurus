@@ -283,13 +283,17 @@
     var currentKcal = opts.currentTargets.kcal;
     var bmr = mifflinBMR(profile);
     var goalDelta = goalDailyDelta(profile.goalType, profile.rateKgPerWeek);
+    // Weight-only lane: the person keeps roughly on plan but doesn't log every bite, so we can't trust
+    // intake for the energy-balance read. The caller instead assumes intake == current target and feeds
+    // an implied burn from the weigh-in trend; we steer purely on the gap between actual and goal rate.
+    var wOnly = opts.mode === 'weightOnly';
 
     var minDays = opts.minDays || 5;
     var periodDays = opts.periodDays || (opts.estimate && opts.estimate.days) || 7;
-    if (opts.adherenceDays < minDays) {
+    if (!wOnly && opts.adherenceDays < minDays) {
       return { changed: false, reason: 'Only ' + opts.adherenceDays + '/' + periodDays + ' days logged this cycle. I\'ll hold your targets. Log a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
     }
-    if (opts.estimate.tdee < bmr * 1.05) {
+    if (!wOnly && opts.estimate.tdee < bmr * 1.05) {
       return { changed: false, underReportFlagged: true, reason: 'Your numbers imply an expenditure (' + opts.estimate.tdee + ' kcal) near or below your BMR (' + round(bmr) + '), which usually means food was under-logged. Trusting your weight trend and holding targets this cycle.', estimate: opts.estimate };
     }
     // Cap each check-in's move PROPORTIONAL to estimated burn (bigger person / bigger adaptation ->
@@ -299,7 +303,8 @@
     // Helms/Nippard practical sizing and MacroFactor's expenditure-scaled, smoothed adjustments.
     var logCov = clamp((opts.adherenceDays || 0) / periodDays, 0, 1);
     var weighCov = clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
-    var conf = clamp(Math.min(logCov, weighCov) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
+    var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
     var confidence = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
     // Smoothed expenditure: when a prior { kcal, n } state is supplied, fold this cycle's raw
     // estimate into it (confidence-scaled) and build the desired target on the SMOOTHED burn,
@@ -326,7 +331,7 @@
     var newKcal = Math.max(kcalFloor(profile), currentKcal + cappedDelta);
     var newTargets = macrosFromKcal(newKcal, profile);
     newTargets.estimatedTDEE = round(burnRef);
-    newTargets.source = 'adaptive';
+    newTargets.source = wOnly ? 'adaptive-weight' : 'adaptive';
     var dir = cappedDelta > 0.5 ? 'up' : (cappedDelta < -0.5 ? 'down' : 'unchanged');
 
     // Menstrual water hold: a premenstrual water rise can masquerade as a stall (or a gain), so never
@@ -365,7 +370,7 @@
       } else {
         why = actual < 0 ? 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ' : 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
       }
-      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, to ' + newKcalR + ' kcal. (Your food and weight point to burning ~' + round(burnRef) + ' kcal a day.) Protein stays ' + newTargets.protein_g + ' g.';
+      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, to ' + newKcalR + ' kcal. (' + (wOnly ? 'Your weigh-ins point' : 'Your food and weight point') + ' to burning ~' + round(burnRef) + ' kcal a day.) Protein stays ' + newTargets.protein_g + ' g.';
     }
     return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed };
   }
@@ -636,8 +641,10 @@
       if (!isCompleteDay(kbd[d], tbd[d])) continue;
       vals.push(kbd[d]); completeDays++;
     }
-    if (vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
-    var avgKcal = mean(vals);
+    var wOnly = opts.mode === 'weightOnly';
+    // Balance lane needs real logged intake; the weight-only lane doesn't, so skip the logs gate there.
+    if (!wOnly && vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
+    var avgKcal = vals.length ? mean(vals) : null;
     // Cycle means diff SMOOTHED trend values (gap-aware EMA), not raw scale weights, so one odd
     // morning or a weigh-in gap cannot swing the read. The decision trend uses a faster alpha (0.3)
     // than the chart's 0.1: it still soaks up day-to-day water noise but lags only ~2 days, so the
@@ -656,7 +663,28 @@
     var curAvg = curVals.length ? mean(curVals) : null;
     var prevAvg = prevVals.length ? mean(prevVals) : null;
     var result;
-    if (prevAvg == null) {
+    if (wOnly) {
+      // Weight-only lane: assume intake tracked the current target and read the trend for the actual
+      // rate. The implied burn (target minus what the scale moved) feeds the same desired-target math;
+      // when on-track the rate gap is ~0 and it holds, so what was actually eaten never needs knowing.
+      var curKcal = opts.currentTargets.kcal;
+      var expW = opts.profile.goalType === 'cut' ? -Math.abs(opts.profile.rateKgPerWeek || 0) : opts.profile.goalType === 'gain' ? Math.abs(opts.profile.rateKgPerWeek || 0) : 0;
+      if (prevAvg == null) {
+        // First cycle on the scale alone is water-heavy and noisy; hold and let a full cycle settle.
+        if (curCycle.length < 3) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
+        var xsW = curCycle.map(function (w) { return daysBetweenISO(cs, w.date); });
+        var ysW = curCycle.map(function (w) { return w.weightKg; });
+        var wChg = theilSen(xsW, ysW).slope * 7;
+        result = { changed: false, earlyPhase: true, direction: 'unchanged', expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(wChg, 3),
+          reason: 'First cycle on weigh-ins alone is a noisy, water-heavy read, so I\'m holding your targets. Keep weighing in across a full cycle and I\'ll steer from your settled trend.',
+          estimate: { tdee: round(curKcal - (wChg * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg, 3), days: cycleDays, weightOnly: true } };
+      } else {
+        if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
+        var wChg2 = ((curAvg - prevAvg) / cycleDays) * 7;
+        var estW = { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
+        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly' });
+      }
+    } else if (prevAvg == null) {
       // First cycle: no previous-cycle baseline. A one-week EMA is still dominated by where it
       // started, so read the slope robustly (Theil-Sen) from the RAW weigh-ins instead; earlyAdjust
       // applies its own heavy water/noise discount on top.

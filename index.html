@@ -844,13 +844,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var currentKcal = opts.currentTargets.kcal;
     var bmr = mifflinBMR(profile);
     var goalDelta = goalDailyDelta(profile.goalType, profile.rateKgPerWeek);
+    // Weight-only lane: the person keeps roughly on plan but doesn't log every bite, so we can't trust
+    // intake for the energy-balance read. The caller instead assumes intake == current target and feeds
+    // an implied burn from the weigh-in trend; we steer purely on the gap between actual and goal rate.
+    var wOnly = opts.mode === 'weightOnly';
 
     var minDays = opts.minDays || 5;
     var periodDays = opts.periodDays || (opts.estimate && opts.estimate.days) || 7;
-    if (opts.adherenceDays < minDays) {
+    if (!wOnly && opts.adherenceDays < minDays) {
       return { changed: false, reason: 'Only ' + opts.adherenceDays + '/' + periodDays + ' days logged this cycle. I\'ll hold your targets. Log a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
     }
-    if (opts.estimate.tdee < bmr * 1.05) {
+    if (!wOnly && opts.estimate.tdee < bmr * 1.05) {
       return { changed: false, underReportFlagged: true, reason: 'Your numbers imply an expenditure (' + opts.estimate.tdee + ' kcal) near or below your BMR (' + round(bmr) + '), which usually means food was under-logged. Trusting your weight trend and holding targets this cycle.', estimate: opts.estimate };
     }
     // Cap each check-in's move PROPORTIONAL to estimated burn (bigger person / bigger adaptation ->
@@ -860,7 +864,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // Helms/Nippard practical sizing and MacroFactor's expenditure-scaled, smoothed adjustments.
     var logCov = clamp((opts.adherenceDays || 0) / periodDays, 0, 1);
     var weighCov = clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
-    var conf = clamp(Math.min(logCov, weighCov) * clamp(periodDays / 7, 0.6, 1), 0, 1);
+    // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
+    var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
     var confidence = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
     // Smoothed expenditure: when a prior { kcal, n } state is supplied, fold this cycle's raw
     // estimate into it (confidence-scaled) and build the desired target on the SMOOTHED burn,
@@ -887,7 +892,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var newKcal = Math.max(kcalFloor(profile), currentKcal + cappedDelta);
     var newTargets = macrosFromKcal(newKcal, profile);
     newTargets.estimatedTDEE = round(burnRef);
-    newTargets.source = 'adaptive';
+    newTargets.source = wOnly ? 'adaptive-weight' : 'adaptive';
     var dir = cappedDelta > 0.5 ? 'up' : (cappedDelta < -0.5 ? 'down' : 'unchanged');
 
     // Menstrual water hold: a premenstrual water rise can masquerade as a stall (or a gain), so never
@@ -926,7 +931,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       } else {
         why = actual < 0 ? 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ' : 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
       }
-      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, to ' + newKcalR + ' kcal. (Your food and weight point to burning ~' + round(burnRef) + ' kcal a day.) Protein stays ' + newTargets.protein_g + ' g.';
+      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, to ' + newKcalR + ' kcal. (' + (wOnly ? 'Your weigh-ins point' : 'Your food and weight point') + ' to burning ~' + round(burnRef) + ' kcal a day.) Protein stays ' + newTargets.protein_g + ' g.';
     }
     return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed };
   }
@@ -1197,8 +1202,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       if (!isCompleteDay(kbd[d], tbd[d])) continue;
       vals.push(kbd[d]); completeDays++;
     }
-    if (vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
-    var avgKcal = mean(vals);
+    var wOnly = opts.mode === 'weightOnly';
+    // Balance lane needs real logged intake; the weight-only lane doesn't, so skip the logs gate there.
+    if (!wOnly && vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
+    var avgKcal = vals.length ? mean(vals) : null;
     // Cycle means diff SMOOTHED trend values (gap-aware EMA), not raw scale weights, so one odd
     // morning or a weigh-in gap cannot swing the read. The decision trend uses a faster alpha (0.3)
     // than the chart's 0.1: it still soaks up day-to-day water noise but lags only ~2 days, so the
@@ -1217,7 +1224,28 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var curAvg = curVals.length ? mean(curVals) : null;
     var prevAvg = prevVals.length ? mean(prevVals) : null;
     var result;
-    if (prevAvg == null) {
+    if (wOnly) {
+      // Weight-only lane: assume intake tracked the current target and read the trend for the actual
+      // rate. The implied burn (target minus what the scale moved) feeds the same desired-target math;
+      // when on-track the rate gap is ~0 and it holds, so what was actually eaten never needs knowing.
+      var curKcal = opts.currentTargets.kcal;
+      var expW = opts.profile.goalType === 'cut' ? -Math.abs(opts.profile.rateKgPerWeek || 0) : opts.profile.goalType === 'gain' ? Math.abs(opts.profile.rateKgPerWeek || 0) : 0;
+      if (prevAvg == null) {
+        // First cycle on the scale alone is water-heavy and noisy; hold and let a full cycle settle.
+        if (curCycle.length < 3) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
+        var xsW = curCycle.map(function (w) { return daysBetweenISO(cs, w.date); });
+        var ysW = curCycle.map(function (w) { return w.weightKg; });
+        var wChg = theilSen(xsW, ysW).slope * 7;
+        result = { changed: false, earlyPhase: true, direction: 'unchanged', expectedKgPerWeek: round(expW, 2), actualKgPerWeek: round(wChg, 3),
+          reason: 'First cycle on weigh-ins alone is a noisy, water-heavy read, so I\'m holding your targets. Keep weighing in across a full cycle and I\'ll steer from your settled trend.',
+          estimate: { tdee: round(curKcal - (wChg * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg, 3), days: cycleDays, weightOnly: true } };
+      } else {
+        if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
+        var wChg2 = ((curAvg - prevAvg) / cycleDays) * 7;
+        var estW = { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
+        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly' });
+      }
+    } else if (prevAvg == null) {
       // First cycle: no previous-cycle baseline. A one-week EMA is still dominated by where it
       // started, so read the slope robustly (Theil-Sen) from the RAW weigh-ins instead; earlyAdjust
       // applies its own heavy water/noise discount on top.
@@ -1334,6 +1362,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
+    trackingLane: 'balance',
   };
 
   // Recursively fill in any keys missing from `target` using `defaults`,
@@ -6180,6 +6209,7 @@ function Wizard({
       highDays: [6],
       deltaPct: 0.15
     },
+    trackingLane: 'balance',
     aiKey: initialKey || '',
     theme: 'light'
   });
@@ -6737,7 +6767,7 @@ function StatusCard({
     className: "text-2xl font-bold"
   }, alreadyToday ? 'Checked in today' : onCheckinDay ? `It's your ${DOW_FULL[cd]} check-in` : due ? 'Check-in due' : ready ? 'Check-in unlocked' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, pending ? 'A new macro suggestion is waiting on you. Review it below.' : alreadyToday ? 'Fresh cycle underway. Keep logging and weighing daily.' : onCheckinDay ? 'Your check-in day is here, with enough days behind it for a clean read.' : due ? 'Recommended cadence reached. Time for your check-in.' : ready ? `Ready now. Waiting for day 7 (${daysToReco} more) gives a steadier read.` : `Runs on a 7-day cycle, unlockable from day 5. Weigh in daily until then.`), /*#__PURE__*/React.createElement("div", {
+  }, pending ? 'A new macro suggestion is waiting on you. Review it below.' : alreadyToday ? db.profile.trackingLane === 'weightOnly' ? 'Fresh cycle underway. Keep weighing in regularly.' : 'Fresh cycle underway. Keep logging and weighing daily.' : onCheckinDay ? 'Your check-in day is here, with enough days behind it for a clean read.' : due ? 'Recommended cadence reached. Time for your check-in.' : ready ? `Ready now. Waiting for day 7 (${daysToReco} more) gives a steadier read.` : `Runs on a 7-day cycle, unlockable from day 5. Weigh in daily until then.`), /*#__PURE__*/React.createElement("div", {
     className: "h-1.5 rounded-full bg-[#262629] mb-4 overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
     className: "h-full rounded-full",
@@ -6820,6 +6850,14 @@ function CheckInModal({
   const [result, setResult] = useState(resume && resume.result ? resume.result : null);
   const [bfPick, setBfPick] = useState(false);
   const [adhered, setAdhered] = useState('yes'); // self-reported: did you actually follow the plan this cycle?
+  // Tracking lane: how completely did they log? "logged_all" trusts intake for the energy-balance read;
+  // "roughly" steers by the scale alone. Pre-filled from this cycle's actual logging (no AI call needed):
+  // near-full complete days -> assume they logged everything; otherwise assume roughly on plan.
+  const heuristicLane = onTrack && loggedDays >= Math.round(logWindow * 0.9) ? 'logged_all' : 'roughly';
+  const [lane, setLane] = useState(heuristicLane);
+  const laneMode = lane === 'roughly' ? 'weightOnly' : 'balance';
+  // Weight-only doesn't need food logs, just enough weigh-ins to read a trend.
+  const readyToAdjust = laneMode === 'weightOnly' ? weighDays >= needWeigh : onTrack;
   const [coach, setCoach] = useState(null); // AI explanation of the check-in result: {loading}|{text}|{error}
   const [bonusCatch, setBonusCatch] = useState(null); // the guaranteed check-in catch, shown on the result screen
   useEffect(() => {
@@ -6927,12 +6965,14 @@ function CheckInModal({
         weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2),
         onTrack: onTrack,
         adhered: adhered === 'yes',
+        lane: lane,
         days: cycleDays,
         logged: loggedDays,
         weighed: weighDays,
         logWindow: logWindow,
         weighWindow: weighWindow
       }]);
+      d.profile.trackingLane = laneMode; // 'balance' or 'weightOnly', remembered for lane-aware copy
       if (!(d.game_awards || {})['checkin_catch:' + today]) {
         d.game_awards = d.game_awards || {};
         d.items = d.items || {};
@@ -6985,10 +7025,10 @@ function CheckInModal({
       });
       return;
     }
-    if (!onTrack) {
+    if (!readyToAdjust) {
       setResult({
         status: 'held',
-        reason: `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.`
+        reason: laneMode === 'weightOnly' ? `You've weighed in on ${weighDays}/${weighWindow} days this cycle so far. I need a few more weigh-ins to read your trend safely, so you'll stay on your current plan. Weigh in a bit more and your next check-in can adjust.` : `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.`
       });
       return;
     }
@@ -7019,7 +7059,8 @@ function CheckInModal({
       earlyCap: 150,
       expenditure: expenditurePrior(db, prof),
       checkins: db.checkins || [],
-      waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh
+      waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
+      mode: laneMode
     });
     // Steps-first coaching: decide which lever to lead with (walk more vs eat less) from this cycle's
     // average daily steps versus last cycle and the activity-band baseline. The engine has ALREADY set
@@ -7210,7 +7251,7 @@ function CheckInModal({
     }
   }, fmtRate(actRate)))), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]"
-  }, result.earlyPhase ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.' : 'Your body is burning about ' + (result.expenditure && result.expenditure.kcal || result.estimate.tdee) + ' kcal a day, worked out from your intake versus how your weight moved.')), result.stepsCoaching && stepsCoachLine(result.stepsCoaching) && /*#__PURE__*/React.createElement("div", {
+  }, result.earlyPhase ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.' : 'Your body is burning about ' + (result.expenditure && result.expenditure.kcal || result.estimate.tdee) + ' kcal a day, ' + (result.estimate && result.estimate.weightOnly ? 'read from how your weight moved against your target.' : 'worked out from your intake versus how your weight moved.'))), result.stepsCoaching && stepsCoachLine(result.stepsCoaching) && /*#__PURE__*/React.createElement("div", {
     className: "mt-3 pixel-box p-3",
     style: {
       background: 'var(--surface3)',
@@ -7325,7 +7366,7 @@ function CheckInModal({
     }, "Start a 7-day diet break"));
   })(), !result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", null, "🗓"), /*#__PURE__*/React.createElement("span", null, "Next check-in around ", fmtShortDay(nextCheckISO), ". Keep logging and weighing daily so it can retune accurately.")), window.MISPREMIUM === false && /*#__PURE__*/React.createElement(PremiumNudge, {
+  }, /*#__PURE__*/React.createElement("span", null, "🗓"), /*#__PURE__*/React.createElement("span", null, "Next check-in around ", fmtShortDay(nextCheckISO), ". ", result.estimate && result.estimate.weightOnly ? 'Keep weighing in regularly so it can retune accurately.' : 'Keep logging and weighing daily so it can retune accurately.')), window.MISPREMIUM === false && /*#__PURE__*/React.createElement(PremiumNudge, {
     db: db,
     update: update,
     className: "mt-3",
@@ -7355,14 +7396,14 @@ function CheckInModal({
   }, /*#__PURE__*/React.createElement(MiniStat, {
     label: "Food logs so far",
     value: loggedDays + '/' + logWindow,
-    ok: loggedDays >= needLogs
+    ok: laneMode === 'weightOnly' ? true : loggedDays >= needLogs
   }), /*#__PURE__*/React.createElement(MiniStat, {
     label: "Weigh-ins so far",
     value: weighDays + '/' + weighWindow,
     ok: weighDays >= needWeigh
-  })), !onTrack && /*#__PURE__*/React.createElement("div", {
+  })), !readyToAdjust && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mb-3"
-  }, "You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle."), wkAvg != null && /*#__PURE__*/React.createElement("div", {
+  }, laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'), wkAvg != null && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 bg-[#1E1E22] rounded-xl px-3 py-2.5"
   }, "This cycle: average ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum font-semibold"
@@ -7399,6 +7440,21 @@ function CheckInModal({
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
   }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement(Field, {
+    label: "How did tracking go this week?",
+    hint: "This sets what your next targets are built from. We pre-filled it from your logging, so change it only if it's off."
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: lane,
+    onChange: setLane,
+    options: [{
+      v: 'logged_all',
+      l: 'Logged everything'
+    }, {
+      v: 'roughly',
+      l: 'Roughly on plan'
+    }]
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, lane === 'logged_all' ? 'We\'ll tune from your food and weigh-ins together, for the most precise targets.' : 'We\'ll steer by your weigh-ins alone. Your food log stays a day-to-day guide, never trusted for the maths.'), /*#__PURE__*/React.createElement(Field, {
     label: "Did you stick to your targets this cycle?",
     hint: "Be honest, an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week."
   }, /*#__PURE__*/React.createElement(Seg, {
@@ -20808,6 +20864,7 @@ function demoState() {
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
     goalWeightKg: 78,
+    trackingLane: 'balance',
     aiKey: ''
   };
   const t = E.computeInitialTargets(withActivity(s.profile));

@@ -22,6 +22,7 @@
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
+    trackingLane: 'balance',
   };
 
   // Recursively fill in any keys missing from `target` using `defaults`,

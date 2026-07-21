@@ -1469,7 +1469,7 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
   const [f, setF] = useState(initial || {
     sex: 'male', age: 32, heightCm: 175, height_unit: 'cm', weightKg: 82, weight_unit: 'st_lb', bodyFatPct: 20,
     activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
-    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, aiKey: initialKey || '', theme: 'light',
+    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', aiKey: initialKey || '', theme: 'light',
   });
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
   const [proteinTouched, setProteinTouched] = useState(false);
@@ -1676,7 +1676,7 @@ function StatusCard({ db, update, onCheckIn, onReview, streak, onOpenProgress })
       <div className="text-[12px] text-[#8A8A90] mb-3">{pending
         ? 'A new macro suggestion is waiting on you. Review it below.'
         : alreadyToday
-          ? 'Fresh cycle underway. Keep logging and weighing daily.'
+          ? (db.profile.trackingLane === 'weightOnly' ? 'Fresh cycle underway. Keep weighing in regularly.' : 'Fresh cycle underway. Keep logging and weighing daily.')
           : onCheckinDay
             ? 'Your check-in day is here, with enough days behind it for a clean read.'
             : due
@@ -1733,6 +1733,14 @@ function CheckInModal({ db, update, onClose, resume }) {
   const [result, setResult] = useState(resume && resume.result ? resume.result : null);
   const [bfPick, setBfPick] = useState(false);
   const [adhered, setAdhered] = useState('yes'); // self-reported: did you actually follow the plan this cycle?
+  // Tracking lane: how completely did they log? "logged_all" trusts intake for the energy-balance read;
+  // "roughly" steers by the scale alone. Pre-filled from this cycle's actual logging (no AI call needed):
+  // near-full complete days -> assume they logged everything; otherwise assume roughly on plan.
+  const heuristicLane = (onTrack && loggedDays >= Math.round(logWindow * 0.9)) ? 'logged_all' : 'roughly';
+  const [lane, setLane] = useState(heuristicLane);
+  const laneMode = lane === 'roughly' ? 'weightOnly' : 'balance';
+  // Weight-only doesn't need food logs, just enough weigh-ins to read a trend.
+  const readyToAdjust = laneMode === 'weightOnly' ? weighDays >= needWeigh : onTrack;
   const [coach, setCoach] = useState(null); // AI explanation of the check-in result: {loading}|{text}|{error}
   const [bonusCatch, setBonusCatch] = useState(null); // the guaranteed check-in catch, shown on the result screen
   useEffect(() => {
@@ -1794,7 +1802,8 @@ function CheckInModal({ db, update, onClose, resume }) {
       if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
-      d.checkins = (d.checkins || []).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2), onTrack: onTrack, adhered: adhered === 'yes', days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
+      d.checkins = (d.checkins || []).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
+      d.profile.trackingLane = laneMode; // 'balance' or 'weightOnly', remembered for lane-aware copy
       if (!(d.game_awards || {})['checkin_catch:' + today]) {
         d.game_awards = d.game_awards || {}; d.items = d.items || {}; d.badges = d.badges || { checkins: 0, inRange: 0 };
         d.game_awards['checkin_catch:' + today] = true;
@@ -1813,7 +1822,9 @@ function CheckInModal({ db, update, onClose, resume }) {
     if (bonus) setBonusCatch(bonus);
     if (dietBreakActive(db, today)) { setResult({ status: 'held', reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.` }); return; }
     if (adhered === 'no') { setResult({ status: 'held', offPlan: true, dinoLine: DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)], reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.` }); return; }
-    if (!onTrack) { setResult({ status: 'held', reason: `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.` }); return; }
+    if (!readyToAdjust) { setResult({ status: 'held', reason: laneMode === 'weightOnly'
+      ? `You've weighed in on ${weighDays}/${weighWindow} days this cycle so far. I need a few more weigh-ins to read your trend safely, so you'll stay on your current plan. Weigh in a bit more and your next check-in can adjust.`
+      : `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.` }); return; }
     // Everything from here is the pure engine pipeline: complete-day filtering, gap-aware trend
     // cycle means, early vs normal adjustment, expenditure smoothing and plateau detection.
     const byDate = {}; db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
@@ -1827,6 +1838,7 @@ function CheckInModal({ db, update, onClose, resume }) {
       weighDays, minDays: needLogs, periodDays: cycleDays, earlyCap: 150,
       expenditure: expenditurePrior(db, prof), checkins: db.checkins || [],
       waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
+      mode: laneMode,
     });
     // Steps-first coaching: decide which lever to lead with (walk more vs eat less) from this cycle's
     // average daily steps versus last cycle and the activity-band baseline. The engine has ALREADY set
@@ -1902,7 +1914,7 @@ function CheckInModal({ db, update, onClose, resume }) {
               </div>
               <div className="text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]">{result.earlyPhase
                 ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.'
-                : 'Your body is burning about ' + ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) + ' kcal a day, worked out from your intake versus how your weight moved.'}</div>
+                : 'Your body is burning about ' + ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) + ' kcal a day, ' + ((result.estimate && result.estimate.weightOnly) ? 'read from how your weight moved against your target.' : 'worked out from your intake versus how your weight moved.')}</div>
             </div>}
             {result.stepsCoaching && stepsCoachLine(result.stepsCoaching) && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--accent)' }}>
               <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Steps first</div>
@@ -1940,7 +1952,7 @@ function CheckInModal({ db, update, onClose, resume }) {
                 {dbStat.eligible && <Btn kind="ghost" className="w-full mt-2" onClick={() => { update(d => { d.diet_break = { start: today, end: shiftISO(today, 6), returnGoal: d.profile.goalType }; d.diet_break_snooze = null; }); onClose(); }}>Start a 7-day diet break</Btn>}
               </div>;
             })()}
-            {!result.accepted && <div className="text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"><span>🗓</span><span>Next check-in around {fmtShortDay(nextCheckISO)}. Keep logging and weighing daily so it can retune accurately.</span></div>}
+            {!result.accepted && <div className="text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"><span>🗓</span><span>Next check-in around {fmtShortDay(nextCheckISO)}. {(result.estimate && result.estimate.weightOnly) ? 'Keep weighing in regularly so it can retune accurately.' : 'Keep logging and weighing daily so it can retune accurately.'}</span></div>}
             {window.MISPREMIUM === false && <PremiumNudge db={db} update={update} className="mt-3" reason="manual" trackKey="checkin_premium" headline="You showed up this week" blurb="Premium adds body-fat photo tracking and unlimited AI logging, so every check-in has more to work with. 7 days free." />}
             {result.status === 'proposed' && result.changed && !result.accepted
               ? <div className="flex gap-2 mt-2"><Btn kind="accent" className="flex-1" onClick={approve}>Approve new macros</Btn><Btn kind="ghost" onClick={reject}>Stick to current</Btn></div>
@@ -1951,13 +1963,19 @@ function CheckInModal({ db, update, onClose, resume }) {
           <div>
             <div className="text-[12px] text-[#8A8A90] mb-3">Compares this cycle's average weight to the previous one, so one odd morning never throws it off.</div>
             <div className="grid grid-cols-2 gap-3 mb-3">
-              <MiniStat label="Food logs so far" value={loggedDays + '/' + logWindow} ok={loggedDays >= needLogs} />
+              <MiniStat label="Food logs so far" value={loggedDays + '/' + logWindow} ok={laneMode === 'weightOnly' ? true : loggedDays >= needLogs} />
               <MiniStat label="Weigh-ins so far" value={weighDays + '/' + weighWindow} ok={weighDays >= needWeigh} />
             </div>
-            {!onTrack && <div className="text-[12px] text-[#F5C542] mb-3">You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.</div>}
+            {!readyToAdjust && <div className="text-[12px] text-[#F5C542] mb-3">{laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'}</div>}
             {wkAvg != null && <div className="text-[12px] text-[#8A8A90] mb-3 bg-[#1E1E22] rounded-xl px-3 py-2.5">This cycle: average <span className="text-white tnum font-semibold">{fmtWeight(wkAvg, unit)}</span></div>}
             <Field label="Today's weight">{unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={kg} onChange={e => setKg(e.target.value)} />}{wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}</Field>
             <Field label="Body fat %" hint="Optional. Leave it blank to keep your last figure. This sets your protein target and lean-mass trend."><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder="optional" /><button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it visually →</button></Field>
+            <Field label="How did tracking go this week?" hint="This sets what your next targets are built from. We pre-filled it from your logging, so change it only if it's off.">
+              <Seg value={lane} onChange={setLane} options={[{ v: 'logged_all', l: 'Logged everything' }, { v: 'roughly', l: 'Roughly on plan' }]} />
+            </Field>
+            <div className="text-[12px] text-[#8A8A90] mb-3">{lane === 'logged_all'
+              ? 'We\'ll tune from your food and weigh-ins together, for the most precise targets.'
+              : 'We\'ll steer by your weigh-ins alone. Your food log stays a day-to-day guide, never trusted for the maths.'}</div>
             <Field label="Did you stick to your targets this cycle?" hint="Be honest, an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week.">
               <Seg value={adhered} onChange={setAdhered} options={[{ v: 'yes', l: 'Yes, on track' }, { v: 'no', l: 'No, off-plan' }]} />
             </Field>
@@ -6820,7 +6838,7 @@ function demoState() {
     weight_unit: 'kg', height_unit: 'cm', theme: 'light', reminders: true, nudgeHour: 14,
     carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
-    program_mode: 'collaborative', proteinGPerKgLBM: 2.0, goalWeightKg: 78, aiKey: '',
+    program_mode: 'collaborative', proteinGPerKgLBM: 2.0, goalWeightKg: 78, trackingLane: 'balance', aiKey: '',
   };
   const t = E.computeInitialTargets(withActivity(s.profile)); t.id = Store.uid(); t.effective_date = shiftISO(today, -14); t.source = 'initial';
   s.targets = [t];

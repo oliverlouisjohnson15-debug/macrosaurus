@@ -417,6 +417,52 @@ test('checkInDecision: first cycle (no baseline) takes the early path and only g
   assert.ok(Math.abs(r.expenditure.kcal - 2600) < 0.1 * Math.abs(r.estimate.tdee - 2600) + 1);
 });
 
+// ---- weight-only lane (roughly-on-plan trackers steer by the scale, not the food log) ----
+test('checkInDecision weight-only: proposes a cut from the scale alone with zero logged days, never flags under-reporting', () => {
+  const d = buildCycleData({ startISO: '2026-06-01', intake: 2000, target: 2000, prevKg: 90, slopePerDay: -0.03 });
+  const r = E.checkInDecision({
+    profile: maleProfile, currentTargets: { kcal: 2000 },
+    weights: d.weights, kcalByDate: {}, targetByDate: {}, // NOTHING logged this cycle
+    cycleStart: d.cycleStart, today: d.today, cycleDays: 7,
+    weighDays: 7, minDays: 5, periodDays: 7,
+    expenditure: { kcal: 2400, n: 3 }, checkins: [], mode: 'weightOnly',
+  });
+  assert.strictEqual(r.status, 'proposed');
+  assert.strictEqual(r.completeDays, 0, 'no complete logged days, and that is fine in this lane');
+  assert.ok(!r.underReportFlagged, 'weight-only must never fire the under-report gate');
+  assert.ok(r.estimate && r.estimate.weightOnly === true);
+  assert.ok(r.estimate.weeklyChangeKg < 0, 'losing, but slower than the 0.5 kg/wk target');
+  assert.strictEqual(r.direction, 'down', 'losing too slow -> cut');
+  assert.ok(r.changed && r.newTargets && r.newTargets.source === 'adaptive-weight');
+});
+
+test('checkInDecision weight-only: on-track with a consistent burn prior holds within the deadband', () => {
+  const d = buildCycleData({ startISO: '2026-06-01', intake: 2000, target: 2000, prevKg: 90, slopePerDay: -0.0714 }); // ~-0.5 kg/wk = target
+  const r = E.checkInDecision({
+    profile: maleProfile, currentTargets: { kcal: 2000 },
+    weights: d.weights, kcalByDate: {}, targetByDate: {},
+    cycleStart: d.cycleStart, today: d.today, cycleDays: 7,
+    weighDays: 7, minDays: 5, periodDays: 7,
+    expenditure: { kcal: 2550, n: 4 }, checkins: [], mode: 'weightOnly', // 2000 + 550 goal deficit
+  });
+  assert.strictEqual(r.status, 'proposed');
+  assert.ok(!r.changed, 'hitting the target rate should hold, not chase noise');
+});
+
+test('checkInDecision weight-only: first cycle holds with a weigh-in reason, not a "days logged" one', () => {
+  const weights = [];
+  for (let i = 0; i < 7; i++) weights.push({ date: isoAdd('2026-06-08', i), kg: +(90 - 0.05 * i).toFixed(2) });
+  const r = E.checkInDecision({
+    profile: maleProfile, currentTargets: { kcal: 2000 },
+    weights, kcalByDate: {}, targetByDate: {},
+    cycleStart: '2026-06-08', today: '2026-06-14', cycleDays: 7,
+    weighDays: 7, minDays: 5, periodDays: 7, mode: 'weightOnly',
+  });
+  assert.strictEqual(r.status, 'proposed');
+  assert.ok(!r.changed && r.earlyPhase);
+  assert.ok(/weigh/i.test(r.reason) && !/days logged/i.test(r.reason));
+});
+
 // ---- item 12: multi-cycle convergence simulation ----
 test('simulation: expenditure converges to true TDEE over 7 cycles without oscillating', () => {
   // Deterministic PRNG (mulberry32) + Box-Muller gaussian noise.
