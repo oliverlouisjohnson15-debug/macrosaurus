@@ -238,7 +238,7 @@ function shapeOf(obj: any, depth = 3): any {
 // These are "Daily" summary types (health_metrics scope). Every metric is isolated so a missing one or a
 // not-yet-granted scope never fails the others, and each logs a diagnostic (HTTP status, point count,
 // how many we parsed, and the shape of the first point) so we can see why a metric comes back empty.
-async function fetchHealth(accessToken: string, startISO: string, endISO: string): Promise<Record<string, any>> {
+async function fetchHealth(accessToken: string, startISO: string, endISO: string): Promise<{ data: Record<string, any>; diag: Record<string, any> }> {
   const out: Record<string, any> = {};
   const diag: Record<string, any> = {};
   const put = (dt: string, k: string, v: number) => { (out[dt] = out[dt] || {})[k] = v; };
@@ -270,9 +270,10 @@ async function fetchHealth(accessToken: string, startISO: string, endISO: string
     const v = findNum(p, ['averagePercentage', 'average', 'percentage', 'oxygenSaturationPercentage']);
     return v != null ? Math.round(v * 10) / 10 : null;
   });
-  // Structure + counts only, never health values (shapeOf logs types, not numbers).
+  // Structure + counts only, never health values (shapeOf records types, not numbers). The caller
+  // persists this to last_health_diag so we can see exactly why a metric is empty.
   console.log('[gh-health]', JSON.stringify(diag));
-  return out;
+  return { data: out, diag };
 }
 
 Deno.serve(async (req) => {
@@ -341,12 +342,13 @@ Deno.serve(async (req) => {
         connected_at: nowISO,
         last_sync: nowISO,
       });
-      const [steps, sleep, health] = await Promise.all([
+      const [steps, sleep, healthRes] = await Promise.all([
         fetchSteps(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // never fail the connect on a steps hiccup: the token is saved, sync retries
         fetchSleep(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})),
-        fetchHealth(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch(() => ({})), // health_metrics scope may not be granted yet
+        fetchHealth(tok.access_token, isoShift(-SYNC_DAYS_DEFAULT), isoShift(0)).catch((e) => ({ data: {}, diag: { fatal: String((e as Error)?.message || e).slice(0, 160) } })), // health_metrics scope may not be granted yet
       ]);
-      return json({ ok: true, steps, sleep, health, last_sync: nowISO });
+      await table.update({ last_health_diag: (healthRes as any).diag || null }).eq('user_id', userId);
+      return json({ ok: true, steps, sleep, health: (healthRes as any).data || {}, last_sync: nowISO });
     }
 
     if (action === 'sync') {
@@ -367,12 +369,13 @@ Deno.serve(async (req) => {
       const patch: Record<string, unknown> = { last_sync: nowISO };
       if (tok.refresh_token && tok.refresh_token !== conn.refresh_token) patch.refresh_token = tok.refresh_token;
       await table.update(patch).eq('user_id', userId);
-      const [steps, sleep, health] = await Promise.all([
+      const [steps, sleep, healthRes] = await Promise.all([
         fetchSteps(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // a steps hiccup must not fail the whole sync
         fetchSleep(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})),
-        fetchHealth(tok.access_token, isoShift(-days), isoShift(0)).catch(() => ({})), // tolerate health_metrics scope not granted
+        fetchHealth(tok.access_token, isoShift(-days), isoShift(0)).catch((e) => ({ data: {}, diag: { fatal: String((e as Error)?.message || e).slice(0, 160) } })), // tolerate health_metrics scope not granted
       ]);
-      return json({ ok: true, steps, sleep, health, last_sync: nowISO });
+      await table.update({ last_health_diag: (healthRes as any).diag || null, last_sync: nowISO }).eq('user_id', userId);
+      return json({ ok: true, steps, sleep, health: (healthRes as any).data || {}, last_sync: nowISO });
     }
 
     return json({ error: { message: 'Unknown action.' } }, 400);
