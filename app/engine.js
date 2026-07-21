@@ -302,7 +302,11 @@
     // the full step; a sparser one moves more cautiously so noise can't drive a big swing. Follows
     // Helms/Nippard practical sizing and MacroFactor's expenditure-scaled, smoothed adjustments.
     var logCov = clamp((opts.adherenceDays || 0) / periodDays, 0, 1);
-    var weighCov = clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
+    // A single weekly weigh-in is full coverage for THAT cadence, just noisier than a daily average, so
+    // treat it as present-but-moderate rather than reading as 1-of-7 days missing.
+    var weighCov = opts.weighCadence === 'single'
+      ? ((opts.weighDays || 0) >= 1 ? 0.7 : 0)
+      : clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
     // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
     var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
     var confidence = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
@@ -662,6 +666,25 @@
     }
     var curAvg = curVals.length ? mean(curVals) : null;
     var prevAvg = prevVals.length ? mean(prevVals) : null;
+    var spanDaysForRate = cycleDays;
+    // Single weigh-in cadence: one reading per cycle, so EMA cycle means over a lone point add nothing.
+    // Diff the two most recent raw weigh-ins directly and measure the rate over their real gap.
+    if (opts.weighCadence === 'single') {
+      var curPts = ws.filter(function (w) { return w.date >= cs && w.date <= today; });
+      var prevPts = ws.filter(function (w) { return w.date < cs; });
+      curAvg = curPts.length ? curPts[curPts.length - 1].kg : null;
+      prevAvg = prevPts.length ? prevPts[prevPts.length - 1].kg : null;
+      curCycle = curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; });
+      if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
+      if (prevAvg == null) {
+        // First single weigh-in ever: nothing to diff, so hold and let this reading set the baseline.
+        return { status: 'proposed', changed: false, earlyPhase: true, direction: 'unchanged', completeDays: completeDays,
+          expectedKgPerWeek: 0, actualKgPerWeek: 0, plateau: { plateau: false, cycles: 0 },
+          reason: 'This weigh-in sets your baseline. On a single weekly weigh-in I need two readings to see a trend, so I\'m holding your targets. Weigh in again on your next check-in and I\'ll retune.',
+          estimate: { tdee: (opts.expenditure && opts.expenditure.kcal) || opts.currentTargets.kcal, avgKcal: opts.currentTargets.kcal, weeklyChangeKg: 0, days: cycleDays, weightOnly: wOnly } };
+      }
+      spanDaysForRate = Math.max(1, daysBetweenISO(prevPts[prevPts.length - 1].date, curPts[curPts.length - 1].date));
+    }
     var result;
     if (wOnly) {
       // Weight-only lane: assume intake tracked the current target and read the trend for the actual
@@ -680,9 +703,9 @@
           estimate: { tdee: round(curKcal - (wChg * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg, 3), days: cycleDays, weightOnly: true } };
       } else {
         if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
-        var wChg2 = ((curAvg - prevAvg) / cycleDays) * 7;
+        var wChg2 = ((curAvg - prevAvg) / spanDaysForRate) * 7;
         var estW = { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
-        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly' });
+        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence });
       }
     } else if (prevAvg == null) {
       // First cycle: no previous-cycle baseline. A one-week EMA is still dominated by where it
@@ -697,8 +720,8 @@
       // The early estimate is water-contaminated, so it nudges the smoothed expenditure only gently.
       if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3);
     } else {
-      var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: cycleDays });
-      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh });
+      var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
+      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence });
     }
     result.status = 'proposed';
     result.completeDays = completeDays;

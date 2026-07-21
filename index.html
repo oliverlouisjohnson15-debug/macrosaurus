@@ -863,7 +863,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // the full step; a sparser one moves more cautiously so noise can't drive a big swing. Follows
     // Helms/Nippard practical sizing and MacroFactor's expenditure-scaled, smoothed adjustments.
     var logCov = clamp((opts.adherenceDays || 0) / periodDays, 0, 1);
-    var weighCov = clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
+    // A single weekly weigh-in is full coverage for THAT cadence, just noisier than a daily average, so
+    // treat it as present-but-moderate rather than reading as 1-of-7 days missing.
+    var weighCov = opts.weighCadence === 'single'
+      ? ((opts.weighDays || 0) >= 1 ? 0.7 : 0)
+      : clamp((opts.weighDays != null ? opts.weighDays : (opts.adherenceDays || 0)) / periodDays, 0, 1);
     // Weight-only leans entirely on weigh-in coverage; the balance lane takes the weaker of the two.
     var conf = clamp((wOnly ? weighCov : Math.min(logCov, weighCov)) * clamp(periodDays / 7, 0.6, 1), 0, 1);
     var confidence = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
@@ -1223,6 +1227,25 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     var curAvg = curVals.length ? mean(curVals) : null;
     var prevAvg = prevVals.length ? mean(prevVals) : null;
+    var spanDaysForRate = cycleDays;
+    // Single weigh-in cadence: one reading per cycle, so EMA cycle means over a lone point add nothing.
+    // Diff the two most recent raw weigh-ins directly and measure the rate over their real gap.
+    if (opts.weighCadence === 'single') {
+      var curPts = ws.filter(function (w) { return w.date >= cs && w.date <= today; });
+      var prevPts = ws.filter(function (w) { return w.date < cs; });
+      curAvg = curPts.length ? curPts[curPts.length - 1].kg : null;
+      prevAvg = prevPts.length ? prevPts[prevPts.length - 1].kg : null;
+      curCycle = curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; });
+      if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
+      if (prevAvg == null) {
+        // First single weigh-in ever: nothing to diff, so hold and let this reading set the baseline.
+        return { status: 'proposed', changed: false, earlyPhase: true, direction: 'unchanged', completeDays: completeDays,
+          expectedKgPerWeek: 0, actualKgPerWeek: 0, plateau: { plateau: false, cycles: 0 },
+          reason: 'This weigh-in sets your baseline. On a single weekly weigh-in I need two readings to see a trend, so I\'m holding your targets. Weigh in again on your next check-in and I\'ll retune.',
+          estimate: { tdee: (opts.expenditure && opts.expenditure.kcal) || opts.currentTargets.kcal, avgKcal: opts.currentTargets.kcal, weeklyChangeKg: 0, days: cycleDays, weightOnly: wOnly } };
+      }
+      spanDaysForRate = Math.max(1, daysBetweenISO(prevPts[prevPts.length - 1].date, curPts[curPts.length - 1].date));
+    }
     var result;
     if (wOnly) {
       // Weight-only lane: assume intake tracked the current target and read the trend for the actual
@@ -1241,9 +1264,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
           estimate: { tdee: round(curKcal - (wChg * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg, 3), days: cycleDays, weightOnly: true } };
       } else {
         if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
-        var wChg2 = ((curAvg - prevAvg) / cycleDays) * 7;
+        var wChg2 = ((curAvg - prevAvg) / spanDaysForRate) * 7;
         var estW = { tdee: round(curKcal - (wChg2 * KCAL_PER_KG) / 7), avgKcal: round(curKcal), weeklyChangeKg: round(wChg2, 3), days: cycleDays, weightOnly: true };
-        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly' });
+        result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estW, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence });
       }
     } else if (prevAvg == null) {
       // First cycle: no previous-cycle baseline. A one-week EMA is still dominated by where it
@@ -1258,8 +1281,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       // The early estimate is water-contaminated, so it nudges the smoothed expenditure only gently.
       if (opts.expenditure && result.estimate) result.expenditure = updateExpenditure(opts.expenditure, result.estimate.tdee, 0.3);
     } else {
-      var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: cycleDays });
-      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh });
+      var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
+      result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence });
     }
     result.status = 'proposed';
     result.completeDays = completeDays;
@@ -6210,6 +6233,7 @@ function Wizard({
       deltaPct: 0.15
     },
     trackingLane: 'balance',
+    weighCadence: 'daily',
     aiKey: initialKey || '',
     theme: 'light'
   });
@@ -6462,6 +6486,37 @@ function Wizard({
         }
       }, "Pace: ", rl.t);
     })()))
+  }, {
+    t: 'Weigh-ins',
+    body: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
+    }, "How often will you weigh in? Your check-in reads your trend either way, so pick whatever you'll actually stick to. You can change it any time."), /*#__PURE__*/React.createElement(Field, {
+      label: "Cadence"
+    }, /*#__PURE__*/React.createElement(Seg, {
+      value: f.weighCadence || 'daily',
+      onChange: v => set('weighCadence', v),
+      options: [{
+        v: 'daily',
+        l: 'Most days'
+      }, {
+        v: 'single',
+        l: 'Once a week'
+      }]
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-4 mt-2 text-[12px]",
+      style: {
+        background: 'var(--card)',
+        boxShadow: 'none'
+      }
+    }, (f.weighCadence || 'daily') === 'daily' ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, /*#__PURE__*/React.createElement("b", {
+      className: "text-[var(--text2)]"
+    }, "Most days."), " We average out the day-to-day water wobble for the most accurate read. Recommended.") : /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, /*#__PURE__*/React.createElement("b", {
+      className: "text-[var(--text2)]"
+    }, "Once a week."), " Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a touch more cautiously.")))
   }, {
     t: 'Nutrition',
     body: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Field, {
@@ -6837,7 +6892,9 @@ function CheckInModal({
   const logWindow = Math.max(1, cycleDays - (todayLogged ? 0 : 1));
   const weighWindow = Math.max(1, cycleDays - (todayWeighed ? 0 : 1));
   const needLogs = Math.max(4, Math.ceil(logWindow * 0.7));
-  const needWeigh = Math.max(3, Math.ceil(weighWindow * 0.5));
+  // Single weigh-in cadence only needs today's reading; daily-averaged wants a fuller spread.
+  const singleWeigh = p.weighCadence === 'single';
+  const needWeigh = singleWeigh ? 1 : Math.max(3, Math.ceil(weighWindow * 0.5));
   const onTrack = loggedDays >= needLogs && weighDays >= needWeigh;
   const wkAvg = avgWeight(db.weight_entries, cs, today);
   const last = db.weight_entries[db.weight_entries.length - 1];
@@ -7060,7 +7117,8 @@ function CheckInModal({
       expenditure: expenditurePrior(db, prof),
       checkins: db.checkins || [],
       waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
-      mode: laneMode
+      mode: laneMode,
+      weighCadence: p.weighCadence
     });
     // Steps-first coaching: decide which lever to lead with (walk more vs eat less) from this cycle's
     // average daily steps versus last cycle and the activity-band baseline. The engine has ALREADY set
@@ -11643,6 +11701,35 @@ function PremiumNudge({
     "aria-label": "Not now"
   }, "×"));
 }
+// One-time nudge for users who onboarded before weigh-in cadence existed: pick it once, then it's gone.
+// New users set it in onboarding, so this only shows while weighCadence is still unset.
+function WeighCadencePrompt({
+  db,
+  update
+}) {
+  const p = db.profile;
+  if (!p || p.weighCadence != null) return null;
+  const pick = v => update(d => {
+    d.profile.weighCadence = v;
+  });
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, "New · Weigh-ins"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-bold mb-1"
+  }, "How often will you weigh in?"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "Your check-in reads your trend either way. Pick whatever you'll stick to, you can change it in Advanced later."), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => pick('daily'),
+    className: "pixel-box py-2.5 px-2 text-[13px] bg-[#1E1E22] text-[var(--text)]"
+  }, "Most days"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => pick('single'),
+    className: "pixel-box py-2.5 px-2 text-[13px] bg-[#1E1E22] text-[var(--text)]"
+  }, "Once a week")));
+}
 function Dashboard({
   db,
   update,
@@ -12242,7 +12329,10 @@ function Dashboard({
       headline: "Log a meal in one snap",
       blurb: "Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days."
     });
-  })(), /*#__PURE__*/React.createElement("div", {
+  })(), /*#__PURE__*/React.createElement(WeighCadencePrompt, {
+    db: db,
+    update: update
+  }), /*#__PURE__*/React.createElement("div", {
     id: "checkin-card"
   }, /*#__PURE__*/React.createElement(StatusCard, {
     db: db,
@@ -17844,8 +17934,9 @@ function AdvancedTab({
     [k]: v
   }));
   const [coach, setCoach] = useState(p.program_mode);
+  const [weigh, setWeigh] = useState(p.weighCadence || 'daily');
   const [saved, setSaved] = useState(false);
-  const dirty = manual.enabled || coach !== p.program_mode || JSON.stringify({
+  const dirty = manual.enabled || coach !== p.program_mode || weigh !== (p.weighCadence || 'daily') || JSON.stringify({
     carry,
     cyc
   }) !== JSON.stringify({
@@ -17862,6 +17953,9 @@ function AdvancedTab({
       d.profile.carryover = carry;
       d.profile.cycling = cyc;
       d.profile.program_mode = coach;
+      // Only write cadence once it's been set or actively changed, so an untouched existing user stays
+      // "unset" and still gets the one-time onboarding prompt rather than a silent default.
+      if (p.weighCadence != null || weigh !== 'daily') d.profile.weighCadence = weigh;
       if (manual.enabled) {
         const kcal = Math.round(+manual.kcal || 0);
         if (kcal > 0) {
@@ -18064,6 +18158,32 @@ function AdvancedTab({
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-4 leading-snug"
   }, "You don't have to be perfect day to day. Your check-in retunes from what you actually ate.")), /*#__PURE__*/React.createElement(Section, {
+    title: "Weigh-ins"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] mb-3"
+  }, "How often you step on the scale. Your check-in reads the trend either way."), /*#__PURE__*/React.createElement(Seg, {
+    value: weigh,
+    onChange: setWeigh,
+    options: [{
+      v: 'daily',
+      l: 'Most days'
+    }, {
+      v: 'single',
+      l: 'Once a week'
+    }]
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mt-3"
+  }, weigh === 'daily' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, "Most days"), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[var(--good)]"
+  }, "· recommended."), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "Weigh in when you can and we average out the daily wobble for the most accurate read.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "font-semibold"
+  }, "Once a week."), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a little more cautiously.")))), /*#__PURE__*/React.createElement(Section, {
     title: "Custom calories & macros"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"

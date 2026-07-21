@@ -1469,7 +1469,7 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
   const [f, setF] = useState(initial || {
     sex: 'male', age: 32, heightCm: 175, height_unit: 'cm', weightKg: 82, weight_unit: 'st_lb', bodyFatPct: 20,
     activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
-    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', aiKey: initialKey || '', theme: 'light',
+    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: 'daily', aiKey: initialKey || '', theme: 'light',
   });
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
   const [proteinTouched, setProteinTouched] = useState(false);
@@ -1532,6 +1532,16 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
           <input type="range" min="0.1" max="1.2" step="0.05" value={f.rateKgPerWeek} onChange={e => set('rateKgPerWeek', +e.target.value)} className="w-full accent-[#4A9EEB]" />
           {(() => { const rl = rateLabel(f.rateKgPerWeek, f.goalType); return <div className="text-[12px] mt-1.5" style={{ color: rl.c }}>Pace: {rl.t}</div>; })()}
         </Field>}
+      </>) },
+    { t: 'Weigh-ins', body: (
+      <>
+        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">How often will you weigh in? Your check-in reads your trend either way, so pick whatever you'll actually stick to. You can change it any time.</div>
+        <Field label="Cadence"><Seg value={f.weighCadence || 'daily'} onChange={v => set('weighCadence', v)} options={[{ v: 'daily', l: 'Most days' }, { v: 'single', l: 'Once a week' }]} /></Field>
+        <div className="pixel-box p-4 mt-2 text-[12px]" style={{ background: 'var(--card)', boxShadow: 'none' }}>
+          {(f.weighCadence || 'daily') === 'daily'
+            ? <span className="text-[#8A8A90]"><b className="text-[var(--text2)]">Most days.</b> We average out the day-to-day water wobble for the most accurate read. Recommended.</span>
+            : <span className="text-[#8A8A90]"><b className="text-[var(--text2)]">Once a week.</b> Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a touch more cautiously.</span>}
+        </div>
       </>) },
     { t: 'Nutrition', body: (
       <>
@@ -1722,7 +1732,9 @@ function CheckInModal({ db, update, onClose, resume }) {
   const logWindow = Math.max(1, cycleDays - (todayLogged ? 0 : 1));
   const weighWindow = Math.max(1, cycleDays - (todayWeighed ? 0 : 1));
   const needLogs = Math.max(4, Math.ceil(logWindow * 0.7));
-  const needWeigh = Math.max(3, Math.ceil(weighWindow * 0.5));
+  // Single weigh-in cadence only needs today's reading; daily-averaged wants a fuller spread.
+  const singleWeigh = p.weighCadence === 'single';
+  const needWeigh = singleWeigh ? 1 : Math.max(3, Math.ceil(weighWindow * 0.5));
   const onTrack = loggedDays >= needLogs && weighDays >= needWeigh;
   const wkAvg = avgWeight(db.weight_entries, cs, today);
   const last = db.weight_entries[db.weight_entries.length - 1];
@@ -1838,7 +1850,7 @@ function CheckInModal({ db, update, onClose, resume }) {
       weighDays, minDays: needLogs, periodDays: cycleDays, earlyCap: 150,
       expenditure: expenditurePrior(db, prof), checkins: db.checkins || [],
       waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
-      mode: laneMode,
+      mode: laneMode, weighCadence: p.weighCadence,
     });
     // Steps-first coaching: decide which lever to lead with (walk more vs eat less) from this cycle's
     // average daily steps versus last cycle and the activity-band baseline. The engine has ALREADY set
@@ -3630,6 +3642,24 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     </div>
   );
 }
+// One-time nudge for users who onboarded before weigh-in cadence existed: pick it once, then it's gone.
+// New users set it in onboarding, so this only shows while weighCadence is still unset.
+function WeighCadencePrompt({ db, update }) {
+  const p = db.profile;
+  if (!p || p.weighCadence != null) return null;
+  const pick = (v) => update(d => { d.profile.weighCadence = v; });
+  return (
+    <Card className="p-4 mb-4">
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">New · Weigh-ins</div>
+      <div className="text-sm font-bold mb-1">How often will you weigh in?</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3">Your check-in reads your trend either way. Pick whatever you'll stick to, you can change it in Advanced later.</div>
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => pick('daily')} className="pixel-box py-2.5 px-2 text-[13px] bg-[#1E1E22] text-[var(--text)]">Most days</button>
+        <button onClick={() => pick('single')} className="pixel-box py-2.5 px-2 text-[13px] bg-[#1E1E22] text-[var(--text)]">Once a week</button>
+      </div>
+    </Card>
+  );
+}
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
   const [span, setSpan] = useState('today');
@@ -3959,6 +3989,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Progress: check-in, weigh-in, the coach line AND the weight-trend spark in one surface.
           (Recipe rails live on the Cook tab now, so Today stays about today's food and progress.) */}
+      <WeighCadencePrompt db={db} update={update} />
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
 
       <DietBreakCard db={db} update={update} />
@@ -5832,8 +5863,9 @@ function AdvancedTab({ db, update }) {
   const [manual, setManual] = useState({ enabled: false, kcal: base ? base.kcal : '', protein_g: base ? base.protein_g : '', carbs_g: base ? base.carbs_g : '', fat_g: base ? base.fat_g : '' });
   const mset = (k, v) => setManual(m => Object.assign({}, m, { [k]: v }));
   const [coach, setCoach] = useState(p.program_mode);
+  const [weigh, setWeigh] = useState(p.weighCadence || 'daily');
   const [saved, setSaved] = useState(false);
-  const dirty = manual.enabled || coach !== p.program_mode || JSON.stringify({ carry, cyc }) !== JSON.stringify({ carry: initCarry(), cyc: initCyc() });
+  const dirty = manual.enabled || coach !== p.program_mode || weigh !== (p.weighCadence || 'daily') || JSON.stringify({ carry, cyc }) !== JSON.stringify({ carry: initCarry(), cyc: initCyc() });
   function save() {
     update(d => {
       // Editing the high/low pattern restarts the carryover window from today: days already eaten
@@ -5842,6 +5874,9 @@ function AdvancedTab({ db, update }) {
       const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
       if (key(prev) !== key(cyc)) d.profile.cyclingChangedAt = Store.todayISO();
       d.profile.carryover = carry; d.profile.cycling = cyc; d.profile.program_mode = coach;
+      // Only write cadence once it's been set or actively changed, so an untouched existing user stays
+      // "unset" and still gets the one-time onboarding prompt rather than a silent default.
+      if (p.weighCadence != null || weigh !== 'daily') d.profile.weighCadence = weigh;
       if (manual.enabled) {
         const kcal = Math.round(+manual.kcal || 0);
         if (kcal > 0) { const cur = currentTargets(d) || {}; d.targets.push({ id: Store.uid(), effective_date: Store.todayISO(), source: 'manual', kcal, protein_g: Math.round(+manual.protein_g || 0), carbs_g: Math.round(+manual.carbs_g || 0), fat_g: Math.round(+manual.fat_g || 0), estimatedTDEE: cur.estimatedTDEE }); }
@@ -5897,6 +5932,15 @@ function AdvancedTab({ db, update }) {
         <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever you pick."><input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry(c => Object.assign({}, c, { capKcal: +e.target.value }))} className="w-full accent-[#4A9EEB]" /></Field>
       </>}
       <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
+    </Section>
+    <Section title="Weigh-ins">
+      <div className="text-[12px] text-[#8A8A90] mb-3">How often you step on the scale. Your check-in reads the trend either way.</div>
+      <Seg value={weigh} onChange={setWeigh} options={[{ v: 'daily', l: 'Most days' }, { v: 'single', l: 'Once a week' }]} />
+      <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mt-3">
+        {weigh === 'daily'
+          ? <><span className="font-semibold">Most days</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Weigh in when you can and we average out the daily wobble for the most accurate read.</span></>
+          : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
+      </div>
     </Section>
     <Section title="Custom calories & macros">
       <div className="text-[12px] text-[#8A8A90] mb-3">Ignore the engine and set your own numbers. Heads up: in Coached mode a check-in can still change these, so set Coaching mode to Manual above to lock them.</div>

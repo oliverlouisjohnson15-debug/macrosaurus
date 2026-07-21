@@ -463,6 +463,32 @@ test('checkInDecision weight-only: first cycle holds with a weigh-in reason, not
   assert.ok(/weigh/i.test(r.reason) && !/days logged/i.test(r.reason));
 });
 
+// ---- single weigh-in cadence (people who weigh once, on their check-in day) ----
+test('checkInDecision single cadence: diffs the two most recent weigh-ins over their real gap', () => {
+  const weights = [{ date: '2026-06-08', kg: 90.5 }, { date: '2026-06-15', kg: 89.6 }]; // -0.9 kg over 7 days
+  const r = E.checkInDecision({
+    profile: maleProfile, currentTargets: { kcal: 2000 },
+    weights, kcalByDate: {}, targetByDate: {},
+    cycleStart: '2026-06-09', today: '2026-06-15', cycleDays: 7,
+    weighDays: 1, minDays: 5, periodDays: 7,
+    expenditure: { kcal: 2550, n: 4 }, checkins: [], mode: 'weightOnly', weighCadence: 'single',
+  });
+  assert.strictEqual(r.status, 'proposed');
+  near(r.estimate.weeklyChangeKg, -0.9, 0.05); // read straight from the two readings, not an EMA
+  assert.strictEqual(r.direction, 'up', 'losing faster than target -> add calories back');
+});
+
+test('checkInDecision single cadence: the very first weigh-in just sets the baseline and holds', () => {
+  const r = E.checkInDecision({
+    profile: maleProfile, currentTargets: { kcal: 2000 },
+    weights: [{ date: '2026-06-15', kg: 90 }], kcalByDate: {}, targetByDate: {},
+    cycleStart: '2026-06-09', today: '2026-06-15', cycleDays: 7,
+    weighDays: 1, minDays: 5, periodDays: 7, mode: 'weightOnly', weighCadence: 'single',
+  });
+  assert.strictEqual(r.status, 'proposed');
+  assert.ok(!r.changed && /baseline/i.test(r.reason));
+});
+
 // ---- item 12: multi-cycle convergence simulation ----
 test('simulation: expenditure converges to true TDEE over 7 cycles without oscillating', () => {
   // Deterministic PRNG (mulberry32) + Box-Muller gaussian noise.
