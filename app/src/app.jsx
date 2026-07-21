@@ -5832,6 +5832,22 @@ function AdvancedTab({ db, update }) {
     setManual(m => Object.assign({}, m, { enabled: false }));
     setSaved(true); setTimeout(() => setSaved(false), 1800);
   }
+  // Quick shapes for the week. "Even" turns cycling off; the rest set canned high days. The weekday
+  // grid stays editable underneath, so hand-tuning just lands you on "Custom".
+  const PLAN_PRESETS = [
+    { id: 'even', label: 'Even', highDays: [] },
+    { id: 'weekend', label: 'Weekend', highDays: [0, 6] },
+    { id: 'training', label: 'Training', highDays: [1, 3, 5] },
+    { id: 'custom', label: 'Custom', highDays: null },
+  ];
+  const sortedHi = cyc.enabled ? cyc.highDays.slice().sort((a, b) => a - b) : [];
+  const hiKey = JSON.stringify(sortedHi);
+  const activePreset = sortedHi.length === 0 ? 'even' : hiKey === '[0,6]' ? 'weekend' : hiKey === '[1,3,5]' ? 'training' : 'custom';
+  const pickPreset = (id) => {
+    if (id === 'even') setCyc(c => Object.assign({}, c, { enabled: false, highDays: [] }));
+    else if (id === 'custom') setCyc(c => Object.assign({}, c, { enabled: true, highDays: c.highDays && c.highDays.length ? c.highDays : [6] }));
+    else { const pr = PLAN_PRESETS.find(x => x.id === id); setCyc(c => Object.assign({}, c, { enabled: true, highDays: pr.highDays.slice() })); }
+  };
   return (<>
     <div className="text-[12px] text-[#8A8A90] mb-4">How your targets are set and adjusted. The defaults work great, so tune these only if you want to.</div>
     <Section title="Coaching mode">
@@ -5839,29 +5855,30 @@ function AdvancedTab({ db, update }) {
       <Seg value={coach} onChange={setCoach} options={COACH_MODES.map(m => ({ v: m.v, l: m.l }))} />
       <div className="mt-3 space-y-2">{COACH_MODES.map(m => (<div key={m.v} className={`pixel-box px-3 py-2.5 text-[12px] transition ${coach === m.v ? 'bg-[#1E1E22]' : 'opacity-45'}`} style={{ boxShadow: 'none' }}><span className="font-semibold">{m.l}.</span> <span className="text-[#8A8A90]">{m.d}</span></div>))}</div>
     </Section>
-    <Section title="Calorie carryover">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Over- or under-eat and the difference gets made up later, so a single off day doesn't derail the week.</div>
-      <RowToggle label="Carry surplus/deficit forward" on={carry.enabled} onClick={() => setCarry(c => Object.assign({}, c, { enabled: !c.enabled }))} />
-      {carry.enabled && <>
-        <Field label="How to make it up"><Seg value={carry.mode} onChange={v => setCarry(c => Object.assign({}, c, { mode: v }))} options={[{ v: 'dispersed', l: 'Dispersed' }, { v: 'aggressive', l: 'Aggressive' }]} /></Field>
-        <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mb-3.5">
-          {carry.mode === 'dispersed'
-            ? <><span className="font-semibold">Dispersed</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Adds up your running surplus/deficit since the last check-in and spreads it evenly across the days left in the week. Gentle: one big day barely nudges any single day.</span></>
-            : <><span className="font-semibold">Aggressive.</span> <span className="text-[#8A8A90]">Dumps your whole running surplus/deficit onto the next day (deficits and surpluses add up day over day), capped below. Faster to clear, but swings each day harder.</span></>}
-        </div>
-        <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever mode you pick."><input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry(c => Object.assign({}, c, { capKcal: +e.target.value }))} className="w-full accent-[#4A9EEB]" /></Field>
-      </>}
-    </Section>
-    <Section title="High / low days">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Eat more on some days and less on others, same weekly total. Handy for weekends or training days.</div>
-      <RowToggle label="Cycle calories across the week" on={cyc.enabled} onClick={() => setCyc(c => Object.assign({}, c, { enabled: !c.enabled }))} />
-      {cyc.enabled && <>
-        <div className="text-[11px] text-[#8A8A90] mb-2">Pick your high days. The rest come down to keep your weekly total the same.</div>
+    <Section title="Weekly plan">
+      <div className="text-[12px] text-[#8A8A90] mb-3">Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.</div>
+      <div className="text-[11px] text-[#8A8A90] mb-2">Shape your week</div>
+      <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>)}</div>
+      {cyc.enabled && <div className="mt-3">
+        <div className="text-[11px] text-[#8A8A90] mb-2">Your high days. The rest come down to keep the weekly total the same.</div>
         <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => { const on = cyc.highDays.includes(i); const locked = lockedWeekdays.has(i); return <button key={i} disabled={locked} onClick={() => { if (locked) return; setCyc(c => Object.assign({}, c, { highDays: on ? c.highDays.filter(x => x !== i) : c.highDays.concat([i]) })); }} title={locked ? 'Already run this check-in period' : ''} className={`flex-1 pixel-box py-2 text-[11px] ${locked ? 'bg-[#141417] text-[#4A4A50] cursor-not-allowed opacity-60' : on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>; })}</div>
         {lockedWeekdays.size > 0 && <div className="text-[11px] text-[#8A8A90] mb-3 leading-snug">Greyed days have already run this check-in period and are locked. New picks shape the days you have left; your check-in resets them all.</div>}
         <Field label={`High-day boost: +${Math.round(cyc.deltaPct * 100)}%`}><input type="range" min="5" max="35" value={Math.round(cyc.deltaPct * 100)} onChange={e => setCyc(c => Object.assign({}, c, { deltaPct: +e.target.value / 100 }))} className="w-full accent-[#4A9EEB]" /></Field>
         {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => { const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal); const hi = cyc.highDays.includes(i); const locked = lockedWeekdays.has(i); return <div key={i} className={`text-center ${locked ? 'opacity-40' : ''}`}><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>; })}</div>}
+      </div>}
+      <div className="h-px bg-[#262629] my-4" />
+      <RowToggle label="Even out over the week" on={carry.enabled} onClick={() => setCarry(c => Object.assign({}, c, { enabled: !c.enabled }))} />
+      {carry.enabled && <>
+        <div className="text-[11px] text-[#8A8A90] mt-2 mb-2">Go over or under, and the difference gets made up. Choose when.</div>
+        <Field label="How to make it up"><Seg value={carry.mode} onChange={v => setCarry(c => Object.assign({}, c, { mode: v }))} options={[{ v: 'dispersed', l: 'Across the week' }, { v: 'aggressive', l: 'Onto the next day' }]} /></Field>
+        <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mb-3.5">
+          {carry.mode === 'dispersed'
+            ? <><span className="font-semibold">Across the week</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your running surplus or deficit spreads evenly over the days you have left. Gentle: one big day barely nudges any single day.</span></>
+            : <><span className="font-semibold">Onto the next day.</span> <span className="text-[#8A8A90]">Your whole running surplus or deficit lands on the next day, capped below. Quicker to clear, bigger day-to-day swings.</span></>}
+        </div>
+        <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever you pick."><input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry(c => Object.assign({}, c, { capKcal: +e.target.value }))} className="w-full accent-[#4A9EEB]" /></Field>
       </>}
+      <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
     </Section>
     <Section title="Custom calories & macros">
       <div className="text-[12px] text-[#8A8A90] mb-3">Ignore the engine and set your own numbers. Heads up: in Coached mode a check-in can still change these, so set Coaching mode to Manual above to lock them.</div>
