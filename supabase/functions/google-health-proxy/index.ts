@@ -206,13 +206,22 @@ function findNum(obj: any, names: string[]): number | null {
   }
   return null;
 }
+// Recursively find a civil date { year, month, day } anywhere in a point -> 'YYYY-MM-DD'. The daily
+// health types nest it under their per-type object (e.g. dailyRestingHeartRate.date), not at the top.
+function findDate(obj: any, depth = 4): string | null {
+  if (obj == null || typeof obj !== 'object') return null;
+  if (obj.year && obj.month && obj.day) return obj.year + '-' + String(obj.month).padStart(2, '0') + '-' + String(obj.day).padStart(2, '0');
+  if (depth <= 0) return null;
+  for (const k of Object.keys(obj)) { const r = findDate(obj[k], depth - 1); if (r) return r; }
+  return null;
+}
 // A rollup / list point's civil date -> 'YYYY-MM-DD'. Handles the civil date object, a nested startTime
-// date object, and a plain RFC3339 startTime string (list points).
+// date object, a plain RFC3339 startTime string, and a per-type nested `date` (daily health points).
 function rollupDate(p: any): string | null {
   const c = p?.civilStartTime?.date || p?.startTime?.date;
   if (c && c.year) return c.year + '-' + String(c.month).padStart(2, '0') + '-' + String(c.day).padStart(2, '0');
   const ts = (typeof p?.startTime === 'string' ? p.startTime : (typeof p?.civilStartTime === 'string' ? p.civilStartTime : null));
-  return ts ? ts.slice(0, 10) : null;
+  return ts ? ts.slice(0, 10) : findDate(p);
 }
 // A shallow structural sketch of a value: object -> { key: shape }, array -> [shape], leaf -> its TYPE
 // (never the value). Used to log what a live Google Health point actually looks like without leaking any
@@ -244,7 +253,7 @@ async function fetchHealth(accessToken: string, startISO: string, endISO: string
     const base = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints?pageSize=100`;
     let pageToken = '', points = 0, inRange = 0, parsed = 0, firstShape: any = null;
     try {
-      for (let guard = 0; guard < 12; guard++) {
+      for (let guard = 0; guard < 25; guard++) { // list is time-ordered; early-break once we pass the window
         const res = await fetch(base + (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''), { headers: { 'Authorization': 'Bearer ' + accessToken } });
         const data = await res.json();
         if (!res.ok) { diag[metric] = { status: res.status, error: String(data?.error?.message || data?.error?.status || '').slice(0, 200) }; return; }
@@ -264,18 +273,18 @@ async function fetchHealth(accessToken: string, startISO: string, endISO: string
       diag[metric] = { points, inRange, parsed, shape: firstShape };
     } catch (e) { diag[metric] = { error: String((e as Error)?.message || e).slice(0, 200) }; }
   };
+  // Field names confirmed against a live Pixel Watch response. HRV: the nightly average (RMSSD-based, the
+  // number Fitbit surfaces), falling back to the deep-sleep RMSSD when the average is absent.
   await pull('hrv', 'daily-heart-rate-variability', (p) => {
-    const v = findNum(p, ['rootMeanSquareOfSuccessiveDifferencesMilliseconds', 'rmssdMilliseconds', 'rmssd', 'heartRateVariabilityMillis', 'millis']);
+    const v = findNum(p, ['averageHeartRateVariabilityMilliseconds']) ?? findNum(p, ['deepSleepRootMeanSquareOfSuccessiveDifferencesMilliseconds']);
     return v != null ? Math.round(v * 10) / 10 : null;
   });
-  await pull('rhr', 'daily-resting-heart-rate', (p) => {
-    const avg = findNum(p, ['beatsPerMinute', 'beatsPerMinuteAverage', 'averageBeatsPerMinute', 'bpm', 'restingHeartRateBpm']);
-    const mn = findNum(p, ['beatsPerMinuteMin', 'minBeatsPerMinute']), mx = findNum(p, ['beatsPerMinuteMax', 'maxBeatsPerMinute']);
-    const v = avg != null ? avg : (mn != null && mx != null ? (mn + mx) / 2 : (mn != null ? mn : mx));
+  await pull('rhr', 'daily-resting-heart-rate', (p) => { // beatsPerMinute is a numeric STRING; findNum coerces it
+    const v = findNum(p, ['beatsPerMinute']);
     return v != null ? Math.round(v) : null;
   });
   await pull('spo2', 'daily-oxygen-saturation', (p) => {
-    const v = findNum(p, ['averagePercentage', 'average', 'percentage', 'oxygenSaturationPercentage']);
+    const v = findNum(p, ['averagePercentage']);
     return v != null ? Math.round(v * 10) / 10 : null;
   });
   // Structure + counts only, never health values (shapeOf records types, not numbers). The caller
