@@ -4074,8 +4074,8 @@ function CarryoverSheet({ et, onClose }) {
           </div>
 
           <div className="text-[10px] text-[#8A8A90] leading-relaxed">{cd.mode === 'dispersed'
-            ? `Dispersed mode spreads this ${sgn(cd.balance)} balance across the ${cd.remaining} day${cd.remaining === 1 ? '' : 's'} left this week, so ${sgn(cd.applied)} lands on today.`
-            : `Aggressive mode applies the whole ${sgn(cd.balance)} balance to today (${sgn(cd.applied)}), capped at ±${cd.cap} kcal a day.`}</div>
+            ? `Evened out across the week: this ${sgn(cd.balance)} balance spreads over the ${cd.remaining} day${cd.remaining === 1 ? '' : 's'} left, so ${sgn(cd.applied)} lands on today.`
+            : `Onto the next day: the whole ${sgn(cd.balance)} balance lands on today (${sgn(cd.applied)}), capped at ±${cd.cap} kcal a day.`}</div>
         </>}
 
         <button onClick={onClose} className="pixel-btn w-full mt-4 py-2.5 text-[11px]" style={{ background: 'var(--surface2)' }}>Got it</button>
