@@ -275,15 +275,19 @@
   // powers a morning catch whose rarity climbs with how well you slept. It rewards recovery, a third
   // signal alongside showing up (breakthrough) and eating well (eggs). Each catch also carries a
   // "sleep style" collected into a small style dex. All deterministic per user + wake date.
-  var SLEEP_TARGET_DEFAULT = 480; // 8h in minutes; per-user override in profile.sleepTargetMin
   var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
+  // Sleep duration is judged against the SCIENCE, not a user-set target: adults need 7-9 hours a night
+  // (Hirshkowitz 2015, National Sleep Foundation consensus). Full duration credit sits at 8h (mid-range,
+  // the classic recommendation); nothing editable feeds this.
+  var SLEEP_RECOMMENDED_FULL = 480; // 8h in minutes -> full duration credit
+  var SLEEP_DURATION_FLOOR = 270;   // 4.5h -> no duration credit below this (severe short sleep)
   // Sleep score 0..100, evidence-based and modelled on Fitbit's published duration / quality / restoration
   // split (Fitbit ~duration 50, quality 25, restoration 25; typical real nights cluster 72-83). We can't
   // measure restlessness or sleeping-HR restoration from Google Health stage minutes, so those points are
   // routed into the signals we CAN measure, and deep / REM are scored against their clinical healthy ranges
-  // (deep/N3 ~13-23% of sleep, REM ~20-25%; sleep efficiency >=85% is "good") rather than one arbitrary
-  // combined target. Points: duration 45, efficiency 20, REM 18, deep 17.
-  //   - Duration 45: time asleep vs the 7-9h target; 0 below 60% of target, full at target (no oversleep bonus).
+  // (deep/N3 ~13-23% of sleep, REM ~20-25%; sleep efficiency >=85% is "good"). Points: duration 45,
+  // efficiency 20, REM 18, deep 17.
+  //   - Duration 45: time asleep vs the recommended 8h; 0 below 4.5h, full at 8h (no oversleep bonus).
   //   - Efficiency 20: asleep / time-in-bed; 0 at 80%, full only at an excellent >=95%.
   //   - REM 18 / Deep 17: share of sleep; full credit only at the good end of the healthy band, 0 well below.
   // The ramps are deliberately STRICT: an average night lands in the 60s-70s and 90+ needs a genuinely
@@ -293,13 +297,13 @@
   // calculation-explainer), sleep architecture NCBI NBK19956, duration/efficiency Hirshkowitz 2015
   // (pubmed 29073412). `durationMin` = time asleep; `stages` = { deep, rem, light, awake } minutes. Pure.
   // sleepScore() is the thin wrapper returning just the number, so the score the UI shows and the breakdown
-  // it explains can never drift. Returns { score, hasStages, durationMin, targetMin, asleepMin, awakeMin,
+  // it explains can never drift. Returns { score, hasStages, durationMin, asleepMin, awakeMin,
   // eff, deepShare, remShare, parts:[{key,label,points,max,detail}] }.
-  function sleepScoreParts(durationMin, targetMin, stages) {
-    var dur = Number(durationMin) || 0; var tgt = Number(targetMin) || SLEEP_TARGET_DEFAULT;
-    var out = { score: null, hasStages: false, durationMin: Math.max(0, Math.round(dur)), targetMin: Math.round(tgt),
+  function sleepScoreParts(durationMin, stages) {
+    var dur = Number(durationMin) || 0;
+    var out = { score: null, hasStages: false, durationMin: Math.max(0, Math.round(dur)),
       asleepMin: 0, awakeMin: 0, eff: null, deepShare: null, remShare: null, parts: [] };
-    if (dur <= 0 || tgt <= 0) { out.score = 0; return out; }
+    if (dur <= 0) { out.score = 0; return out; }
     var deep = stages ? (Number(stages.deep) || 0) : 0, rem = stages ? (Number(stages.rem) || 0) : 0;
     var light = stages ? (Number(stages.light) || 0) : 0, awake = stages ? (Number(stages.awake) || 0) : 0;
     var asleep = deep + rem + light;
@@ -309,7 +313,7 @@
       // Strict ramps: full credit only at the GOOD end of each range, so a merely-average night lands in
       // the 60s-70s (like Fitbit's real-world spread) and 90+ demands a genuinely excellent night. Being
       // barely "not terrible" earns little.
-      var durComp = 45 * clamp01((dur / tgt - 0.6) / (1 - 0.6));       // 0 at <=60% of target, full at target
+      var durComp = 45 * clamp01((dur - SLEEP_DURATION_FLOOR) / (SLEEP_RECOMMENDED_FULL - SLEEP_DURATION_FLOOR)); // 0 at <=4.5h, full at 8h
       var eff = asleep / total;                                        // fraction of the night actually asleep
       var effComp = 20 * clamp01((eff - 0.80) / (0.95 - 0.80));        // 0 at <=80%, full at excellent >=95%
       var deepShare = deep / asleep, remShare = rem / asleep;
@@ -319,7 +323,7 @@
       out.asleepMin = Math.round(asleep); out.awakeMin = Math.round(awake);
       out.eff = eff; out.deepShare = deepShare; out.remShare = remShare;
       out.parts = [
-        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 45, detail: 'vs your ' + Math.round(tgt / 6) / 10 + 'h target' },
+        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 45, detail: Math.round(dur / 6) / 10 + 'h vs the recommended 8h (adults need 7-9h)' },
         { key: 'efficiency', label: 'Efficiency', points: Math.round(effComp), max: 20, detail: Math.round(eff * 100) + '% of the night asleep' },
         { key: 'rem', label: 'REM sleep', points: Math.round(remComp), max: 18, detail: Math.round(remShare * 100) + '% of sleep (healthy 20-25%)' },
         { key: 'deep', label: 'Deep sleep', points: Math.round(deepComp), max: 17, detail: Math.round(deepShare * 100) + '% of sleep (healthy 13-23%)' },
@@ -330,7 +334,7 @@
     out.asleepMin = Math.round(dur); // stage-less: we know the hours but nothing about quality
     return out; // score stays null -> callers fall back to showing hours
   }
-  function sleepScore(durationMin, targetMin, stages) { return sleepScoreParts(durationMin, targetMin, stages).score; }
+  function sleepScore(durationMin, stages) { return sleepScoreParts(durationMin, stages).score; }
   // Score -> rarity band. Every night above the floor still catches something (Pokemon Sleep always
   // gives an encounter); better sleep just reaches rarer pools.
   function sleepBand(score) { var s = Number(score) || 0; return s < 50 ? 'poor' : s < 75 ? 'ok' : s < 90 ? 'good' : 'great'; }
@@ -502,7 +506,8 @@
     eggProgress: eggProgress,
     nextEggTier: nextEggTier,
     eggHatch: eggHatch,
-    SLEEP_TARGET_DEFAULT: SLEEP_TARGET_DEFAULT,
+    SLEEP_RECOMMENDED_FULL: SLEEP_RECOMMENDED_FULL,
+    SLEEP_DURATION_FLOOR: SLEEP_DURATION_FLOOR,
     SLEEP_STYLES: SLEEP_STYLES,
     SLEEP_POOL: SLEEP_POOL,
     sleepScore: sleepScore,
