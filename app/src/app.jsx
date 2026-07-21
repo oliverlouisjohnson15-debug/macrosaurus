@@ -786,6 +786,7 @@ function effectiveTarget(db, date) {
     base, date, floorKcal: E.kcalFloor(p),
     cycling: p.cycling, carryover: p.carryover,
     cycleStart: cs, eatenByDate,
+    cyclingChangedAt: p.cyclingChangedAt || null,
     overrideShiftKcal: (ov && ov.shiftKcal) || 0,
   });
 }
@@ -5811,6 +5812,11 @@ function AdvancedTab({ db, update }) {
   const dirty = manual.enabled || coach !== p.program_mode || JSON.stringify({ carry, cyc }) !== JSON.stringify({ carry: initCarry(), cyc: initCyc() });
   function save() {
     update(d => {
+      // Editing the high/low pattern restarts the carryover window from today: days already eaten
+      // under the old plan stay locked in rather than being re-scored against the new targets.
+      const prev = d.profile.cycling || {};
+      const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
+      if (key(prev) !== key(cyc)) d.profile.cyclingChangedAt = Store.todayISO();
       d.profile.carryover = carry; d.profile.cycling = cyc; d.profile.program_mode = coach;
       if (manual.enabled) {
         const kcal = Math.round(+manual.kcal || 0);

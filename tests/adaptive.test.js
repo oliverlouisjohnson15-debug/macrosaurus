@@ -251,6 +251,36 @@ test('composeDayTarget: negative carryover disperses an overspend across the rem
   assert.strictEqual(r.carryDetail.balance, -800);
 });
 
+test('composeDayTarget: a mid-cycle high/low change locks out earlier days from carryover', () => {
+  const base = { kcal: 1986, protein_g: 163, fat_g: 74, carbs_g: 168 };
+  // Sun 07-19 and Mon 07-20 are now low days (1688) under the new plan, but were eaten before the
+  // change. Without the lock they'd read as a ~613 surplus and claw back today's high day.
+  const opts = {
+    base, date: '2026-07-21', floorKcal: 1500, // Tue = high day
+    cycling: { enabled: true, deltaPct: 0.2, highDays: [2, 3, 4] },
+    carryover: { enabled: true, mode: 'aggressive', capKcal: 500 },
+    cycleStart: '2026-07-19', eatenByDate: { '2026-07-19': 1998, '2026-07-20': 1991 },
+  };
+  const without = E.composeDayTarget(opts);
+  assert.strictEqual(without.carry, -500); // old behaviour: phantom clawback caps out
+  const withLock = E.composeDayTarget(Object.assign({}, opts, { cyclingChangedAt: '2026-07-21' }));
+  assert.strictEqual(withLock.carry, 0);            // locked-out days contribute nothing
+  assert.strictEqual(withLock.carryDetail.balance, 0);
+  near(withLock.eff.kcal, 1986 + 397, 1);           // full high day restored (~2383)
+});
+
+test('composeDayTarget: a change dated before the cycle leaves the whole window intact', () => {
+  const base = { kcal: 2000, protein_g: 160, fat_g: 74, carbs_g: 174 };
+  const r = E.composeDayTarget({
+    base, date: '2026-07-04', floorKcal: 1200, cycling: null,
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    cycleStart: '2026-07-01', cyclingChangedAt: '2026-06-20', // predates the cycle: no-op
+    eatenByDate: { '2026-07-01': 2500, '2026-07-02': 2300 },
+  });
+  assert.strictEqual(r.carryDetail.balance, -800);
+  assert.strictEqual(r.carry, -200);
+});
+
 test('composeDayTarget: incomplete logged days are excluded from the carryover balance', () => {
   const base = { kcal: 2000, protein_g: 160, fat_g: 74, carbs_g: 174 };
   const r = E.composeDayTarget({

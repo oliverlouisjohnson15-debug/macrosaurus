@@ -554,6 +554,8 @@
   //                                                      day AFTER the last check-in (exclusive)
   //   eatenByDate: {iso: kcal},                          logged intake for past days of the cycle
   //   overrideShiftKcal: number                          per-day carb->fat rebalance (0 = none)
+  //   cyclingChangedAt: 'YYYY-MM-DD' | null              day the high/low plan was last edited; days
+  //                                                      eaten before it are locked out of carryover
   // }
   // Returns { base, cyc, carry, eff, carryDetail, floorLimited }.
   function composeDayTarget(opts) {
@@ -575,9 +577,14 @@
         carryDetail = { days: [], balance: 0, mode: co.mode, cap: cap, remaining: 0, applied: 0, cycleStart: opts.cycleStart, expired: true };
       } else {
         var eatenByDate = opts.eatenByDate || {};
+        // A mid-cycle change to the high/low plan locks in the days already eaten under the old plan:
+        // we don't re-score them against the new cycling targets (that would invent a phantom
+        // surplus/deficit). Only eating from the change date forward carries across remaining days.
+        var accrueFrom = opts.cyclingChangedAt || null;
         var acc = 0, days = [];
         for (var i = 0; i < idx; i++) {
           var dISO = shiftISOdays(opts.cycleStart, i);
+          if (accrueFrom && dISO < accrueFrom) continue;
           var e = eatenByDate[dISO];
           if (!(e > 0)) continue;
           var tgt = base.kcal + (cycCfg ? cyclingDelta(cycCfg, wdOf(dISO), base.kcal, floor) : 0);
