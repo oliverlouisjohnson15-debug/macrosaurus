@@ -242,33 +242,46 @@ async function fetchHealth(accessToken: string, startISO: string, endISO: string
   const out: Record<string, any> = {};
   const diag: Record<string, any> = {};
   const put = (dt: string, k: string, v: number) => { (out[dt] = out[dt] || {})[k] = v; };
-  // Pull one daily metric via `list` (the daily-* summary types reject dailyRollUp - they support list /
-  // reconcile). GET dataPoints with a civil-time filter, mirroring fetchSleep; extract() reads the value.
-  // `snake` is the data type in snake_case, required by the filter grammar.
-  const pull = async (metric: string, dataType: string, snake: string, extract: (p: any) => number | null) => {
-    const filter = `${snake}.start_time >= "${startISO}T00:00:00Z" AND ${snake}.start_time < "${isoShift0(endISO, 1)}T00:00:00Z"`;
-    const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints?pageSize=100&filter=${encodeURIComponent(filter)}`;
+  // Pull one daily metric via `list` (the daily-* summary types reject dailyRollUp, and their filter
+  // grammar rejects a start_time member). So list without a server-side filter and keep the points whose
+  // date falls in range, paging newest-first. extract() reads the value; shapeOf records the real point
+  // structure so we can confirm the field names.
+  const inLo = startISO, inHi = isoShift0(endISO, 1);
+  const pull = async (metric: string, dataType: string, extract: (p: any) => number | null) => {
+    const base = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints?pageSize=100`;
+    let pageToken = '', points = 0, inRange = 0, parsed = 0, firstShape: any = null;
     try {
-      const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + accessToken } });
-      const data = await res.json();
-      if (!res.ok) { diag[metric] = { status: res.status, error: String(data?.error?.message || data?.error?.status || '').slice(0, 200) }; return; }
-      const pts = data?.dataPoints || [];
-      let parsed = 0;
-      for (const p of pts) { const dt = rollupDate(p); const v = extract(p); if (dt && v != null && v > 0) { put(dt, metric, v); parsed++; } }
-      diag[metric] = { status: 200, points: pts.length, parsed, shape: pts.length ? shapeOf(pts[0]) : null };
+      for (let guard = 0; guard < 12; guard++) {
+        const res = await fetch(base + (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''), { headers: { 'Authorization': 'Bearer ' + accessToken } });
+        const data = await res.json();
+        if (!res.ok) { diag[metric] = { status: res.status, error: String(data?.error?.message || data?.error?.status || '').slice(0, 200) }; return; }
+        const pts = data?.dataPoints || [];
+        if (!firstShape && pts.length) firstShape = shapeOf(pts[0]);
+        let sawInRange = false;
+        for (const p of pts) {
+          points++; const dt = rollupDate(p); if (!dt) continue;
+          if (dt < inLo || dt >= inHi) continue;
+          sawInRange = true; inRange++;
+          const v = extract(p); if (v != null && v > 0) { put(dt, metric, v); parsed++; }
+        }
+        pageToken = data?.nextPageToken || '';
+        if (!pageToken) break;
+        if (inRange > 0 && !sawInRange) break; // passed the window (points are ordered by time)
+      }
+      diag[metric] = { points, inRange, parsed, shape: firstShape };
     } catch (e) { diag[metric] = { error: String((e as Error)?.message || e).slice(0, 200) }; }
   };
-  await pull('hrv', 'daily-heart-rate-variability', 'daily_heart_rate_variability', (p) => {
+  await pull('hrv', 'daily-heart-rate-variability', (p) => {
     const v = findNum(p, ['rootMeanSquareOfSuccessiveDifferencesMilliseconds', 'rmssdMilliseconds', 'rmssd', 'heartRateVariabilityMillis', 'millis']);
     return v != null ? Math.round(v * 10) / 10 : null;
   });
-  await pull('rhr', 'daily-resting-heart-rate', 'daily_resting_heart_rate', (p) => {
+  await pull('rhr', 'daily-resting-heart-rate', (p) => {
     const avg = findNum(p, ['beatsPerMinute', 'beatsPerMinuteAverage', 'averageBeatsPerMinute', 'bpm', 'restingHeartRateBpm']);
     const mn = findNum(p, ['beatsPerMinuteMin', 'minBeatsPerMinute']), mx = findNum(p, ['beatsPerMinuteMax', 'maxBeatsPerMinute']);
     const v = avg != null ? avg : (mn != null && mx != null ? (mn + mx) / 2 : (mn != null ? mn : mx));
     return v != null ? Math.round(v) : null;
   });
-  await pull('spo2', 'daily-oxygen-saturation', 'daily_oxygen_saturation', (p) => {
+  await pull('spo2', 'daily-oxygen-saturation', (p) => {
     const v = findNum(p, ['averagePercentage', 'average', 'percentage', 'oxygenSaturationPercentage']);
     return v != null ? Math.round(v * 10) / 10 : null;
   });
