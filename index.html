@@ -16737,7 +16737,12 @@ function LabelScanner({
 // on-screen "upload instead" option, matching the nutrition-label scanner. Returns File(s) via onFiles.
 function MealCamera({
   onFiles,
-  onClose
+  onClose,
+  title = 'Photograph your meal',
+  subtitle = "Great for a plate a barcode can't capture",
+  frameHint = 'Fit your whole meal in the frame, then tap to capture.',
+  unavailable = 'Camera unavailable here, upload a photo of your meal instead.',
+  fileName = 'meal.jpg'
 }) {
   useBackClose(onClose); // back dismisses the camera, not the whole sheet
   const videoRef = useRef(null);
@@ -16787,7 +16792,7 @@ function MealCamera({
     c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
     c.toBlob(b => {
-      if (b) onFiles([new File([b], 'meal.jpg', {
+      if (b) onFiles([new File([b], fileName, {
         type: 'image/jpeg'
       })]);
     }, 'image/jpeg', 0.9);
@@ -16801,9 +16806,9 @@ function MealCamera({
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "font-semibold leading-tight"
-  }, "Photograph your meal"), /*#__PURE__*/React.createElement("div", {
+  }, title), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-white/60"
-  }, "Great for a plate a barcode can't capture")), /*#__PURE__*/React.createElement("button", {
+  }, subtitle)), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     "aria-label": "Close",
     className: "w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none",
@@ -16825,7 +16830,7 @@ function MealCamera({
     }
   }), err && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-x-8 text-center text-white/90 text-sm"
-  }, "Camera unavailable here, upload a photo of your meal instead.")), /*#__PURE__*/React.createElement("div", {
+  }, unavailable)), /*#__PURE__*/React.createElement("div", {
     className: "p-5 flex flex-col items-center gap-3"
   }, !err && /*#__PURE__*/React.createElement("button", {
     onClick: capture,
@@ -16837,7 +16842,7 @@ function MealCamera({
     "aria-label": "Capture"
   }), !err && /*#__PURE__*/React.createElement("div", {
     className: "text-white/60 text-[12px]"
-  }, "Fit your whole meal in the frame, then tap to capture."), /*#__PURE__*/React.createElement("label", {
+  }, frameHint), /*#__PURE__*/React.createElement("label", {
     className: "text-white/80 text-[13px] underline cursor-pointer"
   }, "Upload a photo instead", /*#__PURE__*/React.createElement("input", {
     type: "file",
@@ -24903,6 +24908,7 @@ function FridgeScan({
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const [add, setAdd] = useState('');
+  const [cam, setCam] = useState(false); // live camera overlay (same as the meal-photo flow)
   const [community, setCommunity] = useState(null); // Discover library pulled once per scan (premium)
   const [pubSheet, setPubSheet] = useState(null); // a tapped Discover match (preview + actions)
   const commTried = useRef(false);
@@ -25018,6 +25024,18 @@ function FridgeScan({
     });
     showToast(added ? 'Added ' + added + ' to your shopping list' : 'Already on your list or in your pantry');
   }
+  if (cam) return /*#__PURE__*/React.createElement(MealCamera, {
+    onFiles: fs => {
+      addImgs(fs);
+      setCam(false);
+    },
+    onClose: () => setCam(false),
+    title: "Photograph your fridge",
+    subtitle: "Snap a shelf or two of what you've got",
+    frameHint: "Fit a shelf in the frame, then tap to capture. Add more after.",
+    unavailable: "Camera unavailable here, upload a photo of your fridge instead.",
+    fileName: "fridge.jpg"
+  });
   if (busy) return /*#__PURE__*/React.createElement(DinoLoader, {
     label: busy
   });
@@ -25030,14 +25048,18 @@ function FridgeScan({
     className: "text-lg font-bold mb-1"
   }, "Cook from your fridge"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-snug"
-  }, "Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of", isPremium ? ', from your cookbook and the whole Discover library' : '', ". Great for using things up before they go off."), /*#__PURE__*/React.createElement("div", {
-    className: "mb-3"
-  }, /*#__PURE__*/React.createElement(PhotoButton, {
-    label: imgs.length ? 'Add another photo' : 'Take or add a fridge photo',
-    multiple: true,
-    onFiles: addImgs,
-    className: "w-full"
-  })), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of", isPremium ? ', from your cookbook and the whole Discover library' : '', ". Great for using things up before they go off."), imgs.length < 5 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCam(true),
+    className: "w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium",
+    style: {
+      background: 'var(--surface3)',
+      color: 'var(--text)',
+      border: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "18",
+    height: "18"
+  }), " ", imgs.length ? 'Add another photo' : 'Take or upload a photo'), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
     key: i.id,
