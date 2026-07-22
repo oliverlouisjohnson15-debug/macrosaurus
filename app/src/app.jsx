@@ -6087,6 +6087,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
   const base = currentTargets(db);
   const today = Store.todayISO();
   const [showAdv, setShowAdv] = useState(false);
+  const [editPlan, setEditPlan] = useState(false); // the whole goal editor lives in a sheet now, off the main scroll
   const seedGW = kgToStLb(p.goalWeightKg || p.weightKg);
   const [g, setG] = useState({ goalType: p.goalType, rateKgPerWeek: p.rateKgPerWeek, dietStyle: p.dietStyle, proteinGPerKgLBM: p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType) });
   const setg = (k, v) => setG(x => Object.assign({}, x, { [k]: v }));
@@ -6152,15 +6153,24 @@ function Goals({ db, update, showToast, onCheckIn }) {
       <ExpenditureCard db={db} />
       <div className="mb-6"><ConsistencyHeatmap db={db} today={today} /></div>
 
-      {base && <Card className="p-4 mb-5">
+      {/* Current plan is now the read-only summary; the whole editor opens in a sheet off this scroll. */}
+      <Card className="p-4 mb-5">
         <div className="flex items-center justify-between">
-          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div><div className="text-xl font-bold tnum">{base.kcal} kcal</div></div>
-          <div className="text-right text-[13px] tnum"><span style={{ color: PRO }}>P{base.protein_g}</span> <span style={{ color: CARB }}>C{base.carbs_g}</span> <span style={{ color: FAT }}>F{base.fat_g}</span></div>
+          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div>{base ? <div className="text-xl font-bold tnum">{base.kcal} kcal</div> : <div className="text-[15px] font-bold mt-0.5">Not set yet</div>}</div>
+          {base && <div className="text-right text-[13px] tnum"><span style={{ color: PRO }}>P{base.protein_g}</span> <span style={{ color: CARB }}>C{base.carbs_g}</span> <span style={{ color: FAT }}>F{base.fat_g}</span></div>}
         </div>
-        <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>
-        {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
-      </Card>}
+        {base && <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>}
+        {base && base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
+        <button onClick={() => setEditPlan(true)} className="w-full mt-3 pixel-btn py-2.5 text-[10px]" style={{ background: 'var(--surface2)' }}>{base ? 'EDIT PLAN ›' : 'SET YOUR GOAL ›'}</button>
+      </Card>
 
+      {editPlan && <div className="fixed inset-0 z-[85] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+          <button onClick={() => setEditPlan(false)} className="pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}>‹ Back</button>
+          <div className="pf text-[10px]" style={{ color: 'var(--header-text)' }}>EDIT PLAN</div>
+          <span className="w-10" />
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 pt-5 max-w-md lg:max-w-2xl mx-auto w-full" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Goal</div>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <GoalCard active={g.goalType === 'cut'} onClick={() => pickGoal('cut')} glyph="down" title="Fat loss" sub="Lose fat" />
@@ -6203,6 +6213,8 @@ function Goals({ db, update, showToast, onCheckIn }) {
           : <><div className="text-[12px] text-[#8A8A90] mb-3">Going on holiday or taking a break? Pausing stops your check-in clock and holds your macros. Resume any time from the Dashboard.</div><Btn kind="ghost" className="w-full" onClick={() => setPauseOpen(true)}>Pause goal</Btn></>}
       </Section>
       {pauseOpen && <ConfirmDialog title="Pause your goal?" body="Your check-in clock stops and your macros hold steady until you resume from the Dashboard." confirmLabel="Pause goal" confirmKind="accent" onConfirm={pause} onClose={() => setPauseOpen(false)} />}
+        </div>
+      </div>}
     </div>
   );
 }
