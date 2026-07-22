@@ -5433,7 +5433,7 @@ function LabelScanner({ onCapture, onClose }) {
 }
 // Custom in-app camera for the Estimate tab: a live viewfinder to snap a plated meal, with an
 // on-screen "upload instead" option, matching the nutrition-label scanner. Returns File(s) via onFiles.
-function MealCamera({ onFiles, onClose }) {
+function MealCamera({ onFiles, onClose, title = 'Photograph your meal', subtitle = "Great for a plate a barcode can't capture", frameHint = 'Fit your whole meal in the frame, then tap to capture.', unavailable = 'Camera unavailable here, upload a photo of your meal instead.', fileName = 'meal.jpg' }) {
   useBackClose(onClose); // back dismisses the camera, not the whole sheet
   const videoRef = useRef(null); const [err, setErr] = useState(''); const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -5452,19 +5452,19 @@ function MealCamera({ onFiles, onClose }) {
     const v = videoRef.current; if (!v || !v.videoWidth) return;
     const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-    c.toBlob(b => { if (b) onFiles([new File([b], 'meal.jpg', { type: 'image/jpeg' })]); }, 'image/jpeg', 0.9);
+    c.toBlob(b => { if (b) onFiles([new File([b], fileName, { type: 'image/jpeg' })]); }, 'image/jpeg', 0.9);
   }
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">Photograph your meal</div><div className="text-[11px] text-white/60">Great for a plate a barcode can't capture</div></div><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}>×</button></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">{title}</div><div className="text-[11px] text-white/60">{subtitle}</div></div><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}>×</button></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
         {ready && !err && <div className="absolute rounded-2xl" style={{ inset: '1.75rem', border: '2px solid rgba(255,255,255,0.5)' }} />}
-        {err && <div className="absolute inset-x-8 text-center text-white/90 text-sm">Camera unavailable here, upload a photo of your meal instead.</div>}
+        {err && <div className="absolute inset-x-8 text-center text-white/90 text-sm">{unavailable}</div>}
       </div>
       <div className="p-5 flex flex-col items-center gap-3">
         {!err && <button onClick={capture} disabled={!ready} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
-        {!err && <div className="text-white/60 text-[12px]">Fit your whole meal in the frame, then tap to capture.</div>}
+        {!err && <div className="text-white/60 text-[12px]">{frameHint}</div>}
         <label className="text-white/80 text-[13px] underline cursor-pointer">Upload a photo instead<input type="file" accept="image/*" multiple className="hidden" onChange={e => { const fs = Array.from(e.target.files || []); if (fs.length) onFiles(fs); }} /></label>
         <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
       </div>
@@ -8216,6 +8216,7 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const [add, setAdd] = useState('');
+  const [cam, setCam] = useState(false);      // live camera overlay (same as the meal-photo flow)
   const [community, setCommunity] = useState(null); // Discover library pulled once per scan (premium)
   const [pubSheet, setPubSheet] = useState(null);   // a tapped Discover match (preview + actions)
   const commTried = useRef(false);
@@ -8267,12 +8268,13 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
     });
     showToast(added ? ('Added ' + added + ' to your shopping list') : 'Already on your list or in your pantry');
   }
+  if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} title="Photograph your fridge" subtitle="Snap a shelf or two of what you've got" frameHint="Fit a shelf in the frame, then tap to capture. Add more after." unavailable="Camera unavailable here, upload a photo of your fridge instead." fileName="fridge.jpg" />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
     <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
     <div className="text-lg font-bold mb-1">Cook from your fridge</div>
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
-    <div className="mb-3"><PhotoButton label={imgs.length ? 'Add another photo' : 'Take or add a fridge photo'} multiple onFiles={addImgs} className="w-full" /></div>
+    {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     {imgs.length > 0 && items === null && <Btn kind="accent" className="w-full" onClick={scan}>Spot my ingredients</Btn>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 leading-snug">{err}</div>}
