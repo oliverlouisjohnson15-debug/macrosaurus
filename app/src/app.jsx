@@ -400,14 +400,21 @@ function mergeHealthInto(d, health) {
 
 // Call the AI with any number of images + a text prompt; expect one JSON object back.
 // `key` is retained for signature compatibility but is no longer used, the proxy holds the key.
+// opts.cacheText: a big STATIC instruction block (e.g. the meal/label prompt) sent as the first
+// content block with cache_control, so Anthropic prompt-caches it. Because every user's call of the
+// same kind shares this identical prefix on the one server-side key, the fixed prompt is billed at
+// ~10% after the first hit and responses come back faster. Variable bits (notes) stay in `prompt`.
 async function claudeVision(key, files, prompt, opts) {
   opts = opts || {};
   const model = opts.model || AI_MODEL;
   const maxTokens = opts.maxTokens || 2048;
   const maxImg = opts.maxImg || 1024;
   const content = [];
+  // Cacheable static instructions FIRST (the cache breakpoint), so the prefix caches regardless of
+  // the images/notes that follow. Placed before images so the cached span is a stable prefix.
+  if (opts.cacheText) content.push({ type: 'text', text: opts.cacheText, cache_control: { type: 'ephemeral' } });
   for (const f of (files || [])) { const im = await imageToB64(f, maxImg); content.push({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.b64 } }); }
-  content.push({ type: 'text', text: prompt });
+  if (prompt) content.push({ type: 'text', text: prompt });
   const j = await aiRequest({ model, max_tokens: maxTokens, messages: [{ role: 'user', content }] });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return parseModelJSON(txt);
@@ -680,7 +687,27 @@ function normalizeMacros(m, isAlcohol) { const mm = Object.assign({}, m); if (!i
 // the same food is pre-filled with YOUR values instead of the database's. Keyed by normalised name.
 function savedCorrection(db, name) {
   const key = (name || '').trim().toLowerCase(); if (!key) return null;
-  return (db.foods || []).find(x => !x.is_alcohol && x.corrected && x.saved_base && x.name.trim().toLowerCase() === key) || null;
+  const foods = (db.foods || []).filter(x => !x.is_alcohol && x.corrected && x.saved_base);
+  const exact = foods.find(x => x.name.trim().toLowerCase() === key);
+  if (exact) return exact;
+  // Fuzzy fallback: reuse a saved correction when the significant food tokens match exactly, with prep
+  // words dropped, so "grilled chicken breast" reuses your saved "chicken breast". Full set-equality
+  // only (never a subset), so "chicken salad" can't wrongly borrow "chicken" numbers.
+  if (!(Rcp && Rcp.foodTokens)) return null;
+  const q = Rcp.foodTokens(key); if (!q.length) return null;
+  const qs = q.slice().sort().join(' ');
+  return foods.find(x => { const t = Rcp.foodTokens(x.name); return t.length && t.slice().sort().join(' ') === qs; }) || null;
+}
+// A short list of the specific products this user logs most, for the meal-estimate context so the AI
+// anchors to their actual brands (their whey, their bread) instead of a generic guess. Kept small and
+// variable (so it never bloats or breaks the cached static prompt). Empty until they have saved foods.
+function personalFoodHint(db) {
+  const foods = ((db && db.foods) || []).filter(f => f && !f.is_alcohol && f.name && (f.is_favorite || f.corrected || f.barcode));
+  foods.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
+  const seen = {}, names = [];
+  for (const f of foods) { const n = String(f.name).trim(); const k = n.toLowerCase(); if (!n || n.length > 40 || seen[k]) continue; seen[k] = 1; names.push(n); if (names.length >= 8) break; }
+  if (!names.length) return '';
+  return ' The user regularly logs these specific products; if the meal clearly contains one, anchor to it rather than a generic version (ignore any that are not present): ' + names.join(', ') + '.';
 }
 function savedByBarcode(db, code) { return code ? ((db.foods || []).find(x => x.corrected && x.saved_base && x.barcode === code) || null) : null; }
 // Build a confirm-screen payload from community-consensus data (2+ users agreeing on a barcode).
@@ -5207,7 +5234,7 @@ function DescribeTab({ db, onPick, onScan }) {
     r.onend = () => setListening(false);
     setListening(true); try { r.start(); } catch (e) { setListening(false); }
   }
-  const ctx = () => 'Context: food or drink consumed in England.' + (imgs.length ? ' Photos of the food and/or menu are attached.' : '') + ' If a UK chain is named (e.g. Starbucks, Costa, Caffè Nero, Pret, Greggs, McDonald\'s, Nando\'s, Wagamama, Wetherspoons), anchor to that chain\'s PUBLISHED nutrition for the named item(s), adjusting for size and add-ons (syrups, milk type, extra shots, sides).' + (text.trim() ? ' Description: "' + text.trim() + '"' : '');
+  const ctx = () => 'Context: food or drink consumed in England.' + (imgs.length ? ' Photos of the food and/or menu are attached.' : '') + ' If a UK chain is named (e.g. Starbucks, Costa, Caffè Nero, Pret, Greggs, McDonald\'s, Nando\'s, Wagamama, Wetherspoons), anchor to that chain\'s PUBLISHED nutrition for the named item(s), adjusting for size and add-ons (syrups, milk type, extra shots, sides).' + (text.trim() ? ' Description: "' + text.trim() + '"' : '') + personalFoodHint(db);
   async function run() {
     if (!text.trim() && !imgs.length) { setErr('Describe what you had, or add a photo.'); return; }
     // Soft gate: a photo with no words is much less accurate, so nudge for a description first.
@@ -5216,7 +5243,7 @@ function DescribeTab({ db, onPick, onScan }) {
     if (listening) stopMic();
     setBusy(true); setErr('');
     try {
-      const est = await claudeVision(key, imgs.map(i => i.file), AI_PROMPT + '\n\n' + ctx(), { model: AI_MODEL, maxTokens: 2048, maxImg: 768 });
+      const est = await claudeVision(key, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 2048, maxImg: 768, cacheText: AI_PROMPT });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
@@ -5256,7 +5283,7 @@ function DescribeTab({ db, onPick, onScan }) {
   </div>);
 }
 const MEAL_SOURCES = [{ v: 'home', l: 'Home-cooked' }, { v: 'restaurant', l: 'Restaurant' }, { v: 'takeaway', l: 'Takeaway' }];
-function MealEstimate({ apiKey, onPick, onBack, initialFiles }) {
+function MealEstimate({ apiKey, db, onPick, onBack, initialFiles }) {
   const [imgs, setImgs] = useState(() => (initialFiles || []).slice(0, 3).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) }))); // { id, file, url }
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
@@ -5264,11 +5291,11 @@ function MealEstimate({ apiKey, onPick, onBack, initialFiles }) {
   const MAX_PHOTOS = 3;
   function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, MAX_PHOTOS)); }
   function remove(id) { setImgs(x => x.filter(f => f.id !== id)); }
-  function ctx() { return 'Context: a meal eaten in England. If the notes name a UK restaurant or chain, anchor to that chain\'s published nutrition.' + (notes.trim() ? ' Notes: ' + notes.trim() : ''); }
+  function ctx() { return 'Context: a meal eaten in England. If the notes name a UK restaurant or chain, anchor to that chain\'s published nutrition.' + (notes.trim() ? ' Notes: ' + notes.trim() : '') + personalFoodHint(db); }
   async function run() {
     if (!imgs.length && !notes.trim()) { setErr('Add a food photo, a menu photo, or a description.'); return; }
     setBusy(true); setErr('');
-    try { const est = await claudeVision(apiKey, imgs.map(i => i.file), AI_PROMPT + '\n\n' + ctx(), { model: AI_MODEL, maxTokens: 2048, maxImg: 768 }); setResult(est); setVer(v => v + 1); }
+    try { const est = await claudeVision(apiKey, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 2048, maxImg: 768, cacheText: AI_PROMPT }); setResult(est); setVer(v => v + 1); }
     catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
   }
@@ -5391,11 +5418,29 @@ function LiveScanner({ onFound, onClose }) {
     </div>
   );
 }
-// Live in-app camera capture for nutrition labels, mirrors the barcode scanner, but grabs a still
-// frame on tap and hands it to the AI. Falls back to an upload for desktop / no-camera.
-function LabelScanner({ onCapture, onClose }) {
-  useBackClose(onClose); // back dismisses the camera, not the whole sheet
-  const videoRef = useRef(null); const [err, setErr] = useState(''); const [ready, setReady] = useState(false);
+// Downscaled mean-absolute-Laplacian of a captured frame: higher = sharper. Lets us catch a blurry
+// (out-of-focus / motion) shot BEFORE spending an AI call and prompt a retake. Device-relative, so
+// used only as a soft warning below a conservative floor, never a hard block. Errors -> treat as sharp.
+function frameSharpness(canvas) {
+  try {
+    const w = 220, h = Math.max(1, Math.round(canvas.height / canvas.width * 220));
+    const s = document.createElement('canvas'); s.width = w; s.height = h;
+    const cx = s.getContext('2d'); cx.drawImage(canvas, 0, 0, w, h);
+    const d = cx.getImageData(0, 0, w, h).data, g = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+    let sum = 0, n = 0;
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; sum += Math.abs(4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w]); n++; }
+    return n ? sum / n : 999;
+  } catch (_) { return 999; }
+}
+const BLUR_FLOOR = 3.2; // below this a frame reads as soft (conservative, to avoid false alarms in dim light)
+// Shared rear-camera setup for the still-capture cameras (label + meal + fridge). Asks for continuous
+// autofocus so macro shots of labels actually focus, and surfaces a torch toggle where the device
+// supports it (the fix for poor lighting). Returns state + a torch toggle; the component owns capture.
+function useCaptureCamera(videoRef) {
+  const [err, setErr] = useState(''); const [ready, setReady] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false); const [torch, setTorch] = useState(false);
+  const trackRef = useRef(null);
   useEffect(() => {
     let stream, stopped = false;
     (async () => {
@@ -5403,28 +5448,63 @@ function LabelScanner({ onCapture, onClose }) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } });
         if (stopped) { stream.getTracks().forEach(t => t.stop()); return; }
+        const track = stream.getVideoTracks()[0]; trackRef.current = track;
+        try {
+          const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+          if (caps.torch) setHasTorch(true);
+          if (Array.isArray(caps.focusMode) && caps.focusMode.indexOf('continuous') >= 0) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        } catch (_) { /* constraints unsupported - the default focus still works */ }
         videoRef.current.srcObject = stream; await videoRef.current.play(); setReady(true);
       } catch (e) { setErr('blocked'); }
     })();
     return () => { stopped = true; if (stream) stream.getTracks().forEach(t => t.stop()); };
   }, []);
-  function capture() {
+  const toggleTorch = async () => { const t = trackRef.current; if (!t) return; const on = !torch; try { await t.applyConstraints({ advanced: [{ torch: on }] }); setTorch(on); } catch (_) {} };
+  return { err, ready, hasTorch, torch, toggleTorch };
+}
+// A round torch (flash) button for the capture cameras, shown only where the device exposes it.
+function TorchButton({ hasTorch, torch, toggleTorch }) {
+  if (!hasTorch) return null;
+  return <button onClick={toggleTorch} aria-label={torch ? 'Turn flash off' : 'Turn flash on'} aria-pressed={torch} className="w-9 h-9 rounded-full flex items-center justify-center text-lg leading-none" style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.18)', color: torch ? '#111' : '#fff' }}>{torch ? '🔦' : '⚡'}</button>;
+}
+// Soft "looks blurry" prompt shown after a capture whose sharpness is below the floor. Never blocks -
+// the user can always use the shot anyway; it just saves a wasted AI call on an unreadable photo.
+function BlurPrompt({ what, onRetake, onUse }) {
+  return (<div className="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center px-8 text-center">
+    <div className="text-white font-semibold text-[15px] mb-1">That photo looks blurry</div>
+    <div className="text-white/70 text-[13px] leading-snug mb-5">A sharp, well-lit shot reads the {what} far more accurately. Hold steady (or turn on the flash) and try again.</div>
+    <button onClick={onRetake} className="w-full max-w-xs pixel-btn py-3 text-[13px] font-bold mb-2" style={{ background: '#fff', color: '#111' }}>Retake</button>
+    <button onClick={onUse} className="text-white/80 text-[13px] underline">Use this photo anyway</button>
+  </div>);
+}
+// Live in-app camera capture for nutrition labels, mirrors the barcode scanner, but grabs a still
+// frame on tap and hands it to the AI. Falls back to an upload for desktop / no-camera.
+function LabelScanner({ onCapture, onClose }) {
+  useBackClose(onClose); // back dismisses the camera, not the whole sheet
+  const videoRef = useRef(null);
+  const { err, ready, hasTorch, torch, toggleTorch } = useCaptureCamera(videoRef);
+  const [capturing, setCapturing] = useState(false);
+  const [blur, setBlur] = useState(null); // a soft-focus capture awaiting retake / use-anyway
+  function grab() {
     const v = videoRef.current; if (!v || !v.videoWidth) return;
     const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-    c.toBlob(b => { if (b) onCapture(new File([b], 'label.jpg', { type: 'image/jpeg' })); }, 'image/jpeg', 0.9);
+    const sharp = frameSharpness(c);
+    c.toBlob(b => { if (!b) return; const file = new File([b], 'label.jpg', { type: 'image/jpeg' }); if (sharp < BLUR_FLOOR) setBlur({ file }); else onCapture(file); }, 'image/jpeg', 0.9);
   }
+  const shoot = () => { setCapturing(true); setTimeout(() => { setCapturing(false); grab(); }, 350); }; // let autofocus settle
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">Scan nutrition label</div><div className="text-[11px] text-white/60">We'll read the exact numbers off the pack</div></div><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}>×</button></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">Scan nutrition label</div><div className="text-[11px] text-white/60">We'll read the exact numbers off the pack</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}>×</button></div></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
         {ready && !err && <div className="absolute inset-x-8 h-56 border-2 border-white/70 rounded-xl" />}
         {err && <div className="absolute inset-x-8 text-center text-white/90 text-sm">Camera unavailable here, upload a photo of the label instead.</div>}
+        {blur && <BlurPrompt what="label" onRetake={() => setBlur(null)} onUse={() => { const f = blur.file; setBlur(null); onCapture(f); }} />}
       </div>
       <div className="p-5 flex flex-col items-center gap-3">
-        {!err && <button onClick={capture} disabled={!ready} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
-        {!err && <div className="text-white/60 text-[12px]">Line up the nutrition label, then tap to capture. It reads the exact figures.</div>}
+        {!err && <button onClick={shoot} disabled={!ready || capturing} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
+        {!err && <div className="text-white/60 text-[12px]">{capturing ? 'Focusing…' : 'Line up the nutrition label, then tap to capture. It reads the exact figures.'}</div>}
         <label className="text-white/80 text-[13px] underline cursor-pointer">Upload a photo instead<input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) onCapture(e.target.files[0]); }} /></label>
         <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
       </div>
@@ -5435,36 +5515,30 @@ function LabelScanner({ onCapture, onClose }) {
 // on-screen "upload instead" option, matching the nutrition-label scanner. Returns File(s) via onFiles.
 function MealCamera({ onFiles, onClose, title = 'Photograph your meal', subtitle = "Great for a plate a barcode can't capture", frameHint = 'Fit your whole meal in the frame, then tap to capture.', unavailable = 'Camera unavailable here, upload a photo of your meal instead.', fileName = 'meal.jpg' }) {
   useBackClose(onClose); // back dismisses the camera, not the whole sheet
-  const videoRef = useRef(null); const [err, setErr] = useState(''); const [ready, setReady] = useState(false);
-  useEffect(() => {
-    let stream, stopped = false;
-    (async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setErr('nocam'); return; }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } });
-        if (stopped) { stream.getTracks().forEach(t => t.stop()); return; }
-        videoRef.current.srcObject = stream; await videoRef.current.play(); setReady(true);
-      } catch (e) { setErr('blocked'); }
-    })();
-    return () => { stopped = true; if (stream) stream.getTracks().forEach(t => t.stop()); };
-  }, []);
-  function capture() {
+  const videoRef = useRef(null);
+  const { err, ready, hasTorch, torch, toggleTorch } = useCaptureCamera(videoRef);
+  const [capturing, setCapturing] = useState(false);
+  const [blur, setBlur] = useState(null);
+  function grab() {
     const v = videoRef.current; if (!v || !v.videoWidth) return;
     const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-    c.toBlob(b => { if (b) onFiles([new File([b], fileName, { type: 'image/jpeg' })]); }, 'image/jpeg', 0.9);
+    const sharp = frameSharpness(c);
+    c.toBlob(b => { if (!b) return; const file = new File([b], fileName, { type: 'image/jpeg' }); if (sharp < BLUR_FLOOR) setBlur({ file }); else onFiles([file]); }, 'image/jpeg', 0.9);
   }
+  const shoot = () => { setCapturing(true); setTimeout(() => { setCapturing(false); grab(); }, 350); }; // let autofocus settle
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">{title}</div><div className="text-[11px] text-white/60">{subtitle}</div></div><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}>×</button></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">{title}</div><div className="text-[11px] text-white/60">{subtitle}</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}>×</button></div></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
         {ready && !err && <div className="absolute rounded-2xl" style={{ inset: '1.75rem', border: '2px solid rgba(255,255,255,0.5)' }} />}
         {err && <div className="absolute inset-x-8 text-center text-white/90 text-sm">{unavailable}</div>}
+        {blur && <BlurPrompt what="photo" onRetake={() => setBlur(null)} onUse={() => { const f = blur.file; setBlur(null); onFiles([f]); }} />}
       </div>
       <div className="p-5 flex flex-col items-center gap-3">
-        {!err && <button onClick={capture} disabled={!ready} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
-        {!err && <div className="text-white/60 text-[12px]">{frameHint}</div>}
+        {!err && <button onClick={shoot} disabled={!ready || capturing} className="w-16 h-16 rounded-full bg-white active:scale-95 disabled:opacity-40" style={{ boxShadow: '0 0 0 4px rgba(255,255,255,0.35)' }} aria-label="Capture" />}
+        {!err && <div className="text-white/60 text-[12px]">{capturing ? 'Focusing…' : frameHint}</div>}
         <label className="text-white/80 text-[13px] underline cursor-pointer">Upload a photo instead<input type="file" accept="image/*" multiple className="hidden" onChange={e => { const fs = Array.from(e.target.files || []); if (fs.length) onFiles(fs); }} /></label>
         <button onClick={onClose} className="text-white/90 text-[13px] mt-1 px-4 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.14)' }}>Cancel</button>
       </div>
@@ -5496,7 +5570,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
       // Cost-smart OCR at high resolution: read with the cheap fast model first, and only escalate to
       // the strong model when that read looks unreliable (calories not matching macros, values missing,
       // or estimated). Easy labels stay cheap; harder ones automatically get the stronger reader.
-      const read = (model, mt) => claudeVision(key, [file], LABEL_PROMPT, { model, maxTokens: mt, maxImg: 1568 });
+      const read = (model, mt) => claudeVision(key, [file], '', { model, maxTokens: mt, maxImg: 1568, cacheText: LABEL_PROMPT });
       let est = await read(AI_MODEL_FAST, 1200);
       if (!labelReadReliable(est)) { setBusy('Double-checking the label…'); est = await read(AI_MODEL, 1500); }
       const sg = +est.serving_g || null;
@@ -5538,7 +5612,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
     setBusy('');
   }
   if (parsed) return <ConfirmFood {...parsed} asAlcohol={asAlcohol} onAdd={onPick} onCancel={() => { setParsed(null); setMode(null); }} onRescan={(parsed.source === 'off' || parsed.source === 'community') ? () => { setRescan(true); setParsed(null); setMode('label'); } : undefined} onAskAI={onAskAI} />;
-  if (mode === 'meal') return <MealEstimate apiKey={key} onPick={onPick} onBack={() => setMode(null)} />;
+  if (mode === 'meal') return <MealEstimate apiKey={key} db={db} onPick={onPick} onBack={() => setMode(null)} />;
   if (mode === 'scan') return <LiveScanner onFound={lookupBarcode} onClose={() => setMode(null)} />;
   if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => setMode(null)} />;
   if (busy) return <DinoLoader label={busy} />;
@@ -9109,7 +9183,7 @@ function App() {
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="text-[#8A8A90] text-xl leading-none">×</button></div>
           <div className="text-[12px] text-[#8A8A90] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
-          <MealEstimate apiKey={db.profile.aiKey} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} />
+          <MealEstimate apiKey={db.profile.aiKey} db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} />
         </div>
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
