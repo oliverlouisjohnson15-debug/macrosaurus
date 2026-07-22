@@ -898,6 +898,32 @@ function Dropdown({ value, options, onChange }) {
     {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
 }
 function RowToggle({ label, on, onClick }) { return (<button onClick={onClick} className="w-full flex items-center justify-between gap-3 bg-[#1E1E22] pixel-box px-4 py-3 mb-3"><span className="text-sm text-left">{label}</span><span className="pf text-[9px] px-2.5 py-1.5 shrink-0" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>{on ? 'ON' : 'OFF'}</span></button>); }
+// One shared disclosure used app-wide so every "advanced / more / details" block is the SAME single
+// tap, instead of a dozen bespoke expanders. `box` (default) is a full-width pixel row for section-
+// level groups; `inline` is a light text link for tucking a control inside an existing card. `sub` is
+// the closed-state hint: a subtitle under a box label, or the call-to-action text on an inline link.
+function Collapsible({ label, sub, defaultOpen = false, variant = 'box', children, className = '' }) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (variant === 'inline') {
+    return (<div className={className}>
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
+        <span>{label}</span>
+        <span className="pf text-[8px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent)' }}>{open ? 'Hide' : (sub || 'Show')}</span>
+      </button>
+      {open && <div className="fade-in mt-3">{children}</div>}
+    </div>);
+  }
+  return (<div className={'mb-3 ' + className}>
+    <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between gap-3 bg-[#1E1E22] pixel-box px-4 py-3 text-left">
+      <span className="min-w-0 flex-1">
+        <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>{label}</span>
+        {sub && <span className="block text-[11px] text-[#8A8A90] mt-1 truncate">{sub}</span>}
+      </span>
+      <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>{open ? 'Hide' : 'Show'}</span>
+    </button>
+    {open && <div className="mt-3 fade-in">{children}</div>}
+  </div>);
+}
 function Logo({ size = 'text-xl' }) { return (<div className={`${size} font-extrabold tracking-tight flex items-center gap-1.5 text-white`}><PixelDino size={18} color="var(--good)" /><span>Macro<span className="text-[#4A9EEB]">saurus</span></span></div>); }
 function rateLabel(r, goalType) {
   const a = Math.abs(r || 0);
@@ -2825,55 +2851,31 @@ function NeedBar({ label, v, color }) {
     </div>
   );
 }
-// The living buddy: the companion that visibly reflects how you have been eating. Renders the rich
-// buddyProfile (bond / mood / needs / craving / evolution), frames logging as feeding it, and is the
-// one tap into the Buddy & Play hub. This is the emotional core of the retention loop.
-function BuddyCard({ db, bp, streak, freezeReady, onOpenPlay, onFeed }) {
+// Compact companion for the Today screen: sprite + name + mood, with a feed nudge when the buddy is
+// craving. One tap opens the Play hub, where the full buddy detail (hearts, needs, evolution) now lives.
+// Keeps the emotional anchor on Today without the full card's density.
+function CompanionStrip({ db, bp, onOpenPlay, onFeed }) {
   const buddy = db.buddy || {};
-  const named = !!bp.name;
   const asleep = bp.mood === 'asleep';
   const mm = MOOD_META[bp.mood] || MOOD_META.content;
-  const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
   const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
-  const evo = bp.evoInfo;
-  const aff = bp.affinity ? AFFINITY_META[bp.affinity] : null;
-  const who = named ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
+  const who = bp.name ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
   return (
-    <Card className="p-4 mb-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onOpenPlay} aria-label="Open Buddy & Play" className="pixel-box p-2 shrink-0 relative" style={{ background: 'var(--surface3)' }}>
-          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={6} asleep={asleep} />
-          {asleep && <span className="pf absolute" style={{ top: 2, right: 3, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1.5 flex-wrap">
-            <span>YOUR BUDDY</span>
-            {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
-            {aff && <span title={aff[2]} style={{ color: aff[1] }}>{aff[0]}</span>}
-            <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={9} /></span>
-          </div>
-          <div className="text-lg font-bold leading-tight truncate">{who}</div>
-          <div className="text-[10px] leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        <NeedBar label="Fed" v={bp.needs.hunger} color="var(--pro)" />
-        <NeedBar label="Nourish" v={bp.needs.nourish} color="var(--carb)" />
-        <NeedBar label="Energy" v={bp.needs.energy} color="var(--good)" />
-      </div>
-      {craveText
-        ? <button onClick={onFeed} className="w-full mt-3 pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            <PixelGlyph kind="meat" color="currentColor" size={12} /> {who} wants {craveText} · FEED ›
-          </button>
-        : <div className="mt-3 text-[10px] leading-snug" style={{ color: evo.ready ? 'var(--good)' : 'var(--muted)' }}>
-            {evo.atMax ? `${who} is fully grown, a legend of the pit.`
-              : evo.ready ? `${who} is ready to evolve into ${evo.nextName}! Open the hub to see.`
-              : `Well fed today. ${evo.nextName ? `Toward ${evo.nextName}: Lv ${evo.level}/${evo.levelNeed} · ${evo.hearts}/${evo.heartsNeed}♥` : ''}`}
-          </div>}
-      <button onClick={onOpenPlay} className="pixel-btn w-full py-2.5 text-[9px] inline-flex items-center justify-center gap-2 mt-3" style={{ background: 'var(--header)', color: '#fff' }}>
-        {named ? 'BUDDY & PLAY' : 'MEET & NAME YOUR BUDDY'} · CAUGHT {Object.keys(macrodex(db)).length} ›
+    <div className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 mb-4" style={{ background: 'var(--surface3)' }}>
+      <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="flex items-center gap-3 min-w-0 flex-1 text-left">
+        <span className="pixel-box p-1.5 shrink-0 relative" style={{ background: 'var(--card)' }}>
+          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={4} asleep={asleep} />
+          {asleep && <span className="pf absolute" style={{ top: 1, right: 2, fontSize: 7, color: 'var(--carb)' }}>Zz</span>}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-[13px] font-bold truncate block leading-tight">{who}</span>
+          <span className="text-[10px] leading-snug block" style={{ color: mm.color }}>{mm.label}{craveText ? <span className="text-[#8A8A90]"> · peckish</span> : ''}</span>
+        </span>
       </button>
-    </Card>
+      {craveText
+        ? <button onClick={onFeed} className="pixel-btn py-2 px-3 text-[8px] pf shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><PixelGlyph kind="meat" color="currentColor" size={11} /> FEED</button>
+        : <button onClick={onOpenPlay} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Play ›</button>}
+    </div>
   );
 }
 // Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
@@ -2985,15 +2987,62 @@ function DexActiveSection({ db, today }) {
     </div>
   );
 }
+// The full buddy detail, moved off Today into the Play hub's Buddy tab: avatar, name, bond, mood, the
+// three need meters and evolution progress, plus naming and the trophy cabinet. The companion strip on
+// Today is the glanceable version; this is where you come to see how your buddy is really doing.
+function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) {
+  const buddy = db.buddy || {};
+  const named = !!bp.name;
+  const asleep = bp.mood === 'asleep';
+  const mm = MOOD_META[bp.mood] || MOOD_META.content;
+  const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
+  const evo = bp.evoInfo;
+  const aff = bp.affinity ? AFFINITY_META[bp.affinity] : null;
+  const who = named ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
+  return (
+    <div className="fade-in">
+      <div className="flex flex-col items-center text-center mb-4">
+        <div className="pixel-box p-3 mb-3 relative" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={8} asleep={asleep} />
+          {asleep && <span className="pf absolute" style={{ top: 3, right: 4, fontSize: 11, color: 'var(--carb)' }}>Zz</span>}
+        </div>
+        <div className="text-lg font-bold">{who}</div>
+        <div className="text-[10px] mt-1 leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
+        <div className="flex items-center gap-2 mt-2">
+          {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
+          {aff && <span title={aff[2]} style={{ color: aff[1] }}>{aff[0]}</span>}
+          <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={10} /></span>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <NeedBar label="Fed" v={bp.needs.hunger} color="var(--pro)" />
+        <NeedBar label="Nourish" v={bp.needs.nourish} color="var(--carb)" />
+        <NeedBar label="Energy" v={bp.needs.energy} color="var(--good)" />
+      </div>
+      <div className="pixel-box p-3 mb-3 text-[10px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none', color: evo.ready ? 'var(--good)' : 'var(--muted)' }}>
+        {evo.atMax ? `${who} is fully grown, a legend of the pit.`
+          : evo.ready ? `${who} is ready to evolve into ${evo.nextName}! Keep feeding it well.`
+          : (evo.nextName ? `Toward ${evo.nextName}: Lv ${evo.level}/${evo.levelNeed} · ${evo.hearts}/${evo.heartsNeed}♥` : 'Growing steadily on your logged days.')}
+      </div>
+      {onOpenName && !named && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NAME YOUR DINO</button>}
+      <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
+      <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Hit your macros to grow and evolve it.</div>
+    </div>
+  );
+}
 function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
   const dex = macrodex(db); const caught = Object.keys(dex).length;
   const items = db.items || {}; const today = Store.todayISO();
   const boost = (db.dex_boost && db.dex_boost.date === today) ? db.dex_boost : null;
-  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false); const [shop, setShop] = useState(false);
+  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false);
+  const [view, setView] = useState('buddy'); // Buddy | Catch | Battle | Shop: one sub-view at a time so the hub isn't one long stack
   const invIds = ITEM_ORDER.filter(id => (items[id] || 0) > 0);
   const amber = Game.amberBalance(db.amber_ledger);
+  // Buddy profile for the Buddy tab (same derivation the Today companion uses).
+  const bp = buddyProfile(db, streak, Game.buddyView((db.buddy && db.buddy.stage) || 0, streak), buddyLevel(db));
+  const freezeReady = Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today);
   // Buy with Amber: spend appends a negative ledger entry (merge-safe), cosmetics land in buddy.cosmetics
   // (owned once), consumables in the shared item inventory. A purchase is blocked if you can't afford it.
   function buy(id) {
@@ -3022,8 +3071,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        {shop ? <ShopView db={db} amber={amber} buy={buy} onBack={() => setShop(false)} />
-        : trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
+        {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
         : cr ? (() => {
           const form = creatureForm(cr, got ? got.count : 0); const rc = CR_RARITY_COLOR[cr.rarity];
           const cnt = got ? got.count : 0;
@@ -3048,97 +3096,89 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
           </div>;
         })() : (<>
           <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+          {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
+              inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
+          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['catch', 'Catch'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
-          {/* Boss fight, front and centre: this used to be a nameless button lost in a 2-up grid, so
-              nobody knew there was a weekly boss to beat. Now it's the hub's headline call to action,
-              spelling out who the boss is, its weakness (what to eat), and your readiness buff. */}
-          {onOpenFight && (() => {
-            const wk = fightWeekKey();
-            const boss = bossForWeek();
-            const wm = TYPE_META[Game.bossWeakness(wk)] || TYPE_META.balanced;
-            const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
-            const readiness = readinessFor(db, today);
-            const buff = readiness != null ? Game.readinessBuff(readiness) : null;
-            const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today'
-              : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight'
-              : buff ? 'Full strength today' : null;
-            const edge = beaten ? 'var(--good)' : 'var(--danger)';
-            // pixel-box forces a grey border (!important), so the emphasis comes from a danger-tinted
-            // background + the raised shadow (kept) + the red kicker text and filled FIGHT pill.
-            return (
-              <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
-                style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
-                <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-                  <Sprite art={boss.art} colors={boss.colors} px={3.2} />
-                </div>
-                <div className="min-w-0 flex-1 leading-tight">
-                  <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? 'Boss beaten this week ✓' : "This week's boss"}</div>
-                  <div className="text-[13px] font-bold truncate">{boss.name}</div>
-                  <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Weak to <span style={{ color: wm[1] }}>{wm[0]}</span>, so eat {wm[2]}.{buffLine ? ' ' + buffLine + '.' : ''}</div>
-                </div>
-                <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: beaten ? 'var(--surface3)' : 'var(--danger)', color: beaten ? 'var(--muted)' : '#fff' }}>{beaten ? 'REMATCH ›' : 'FIGHT ›'}</span>
-              </button>
-            );
-          })()}
+          {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} />}
 
-          {/* Amber wallet + shop: what your hunts and bosses pay out, and where to spend it. */}
-          <button onClick={() => setShop(true)} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3" style={{ background: 'color-mix(in srgb, var(--fat) 12%, var(--surface2))' }}>
-            <div className="pixel-box p-1.5 shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 34, height: 34 }}>
-              <span style={{ fontSize: 17, color: 'var(--fat)' }}>✦</span>
-            </div>
-            <div className="min-w-0 flex-1 leading-tight">
-              <div className="pf text-[7px] uppercase" style={{ color: 'var(--fat)' }}>Amber balance</div>
-              <div className="text-[15px] font-bold tnum leading-tight">{amber}</div>
-              <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Win it from daily hunts &amp; bosses. Spend on cosmetics &amp; boosts.</div>
-            </div>
-            <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: 'var(--fat)', color: '#1a1400' }}>SHOP ›</span>
-          </button>
-
-          <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
-            <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
-          </div>
-          <div className={'grid gap-2 mb-4 ' + (onOpenName && !(db.buddy && db.buddy.name) ? 'grid-cols-2' : 'grid-cols-1')}>
-            <button onClick={() => setTrophies(true)} className="pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHIES</button>
-            {onOpenName && !(db.buddy && db.buddy.name) && <button onClick={onOpenName} className="pixel-btn py-2.5 text-[10px]" style={{ background: 'var(--surface2)' }}>NAME YOUR DINO</button>}
-          </div>
-          <DexActiveSection db={db} today={today} />
-          {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-            <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
-            {boost && (boost.lure || boost.shiny || boost.rare) && <div className="text-[9px] mb-2" style={{ color: 'var(--good)' }}>Active today:{boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : ''}{boost.rare ? ' · rare boost' : ''}{boost.shiny ? ' · shiny locked' : ''}</div>}
-            <div className="space-y-2">
-              {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
-                return <div key={id} className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
-                  {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--pro)', color: '#fff' }}>USE</button>}
-                </div>;
-              })}
-            </div>
-            {lurePick && <div className="mt-3 fade-in">
-              <div className="text-[9px] text-[#8A8A90] mb-1.5">Point the lure at a biome for today’s catch:</div>
-              <div className="grid grid-cols-2 gap-1.5">{[['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => <button key={v} onClick={() => useItem('lure', v)} className="pixel-box py-2 text-[10px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>{l}</button>)}</div>
-            </div>}
+          {/* Battle: the weekly boss, its weakness (what to eat), and your readiness buff. */}
+          {view === 'battle' && <div className="fade-in">
+            {onOpenFight ? (() => {
+              const wk = fightWeekKey();
+              const boss = bossForWeek();
+              const wm = TYPE_META[Game.bossWeakness(wk)] || TYPE_META.balanced;
+              const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
+              const readiness = readinessFor(db, today);
+              const buff = readiness != null ? Game.readinessBuff(readiness) : null;
+              const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today'
+                : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight'
+                : buff ? 'Full strength today' : null;
+              const edge = beaten ? 'var(--good)' : 'var(--danger)';
+              return (
+                <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
+                  style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
+                  <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                    <Sprite art={boss.art} colors={boss.colors} px={3.2} />
+                  </div>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? 'Boss beaten this week ✓' : "This week's boss"}</div>
+                    <div className="text-[13px] font-bold truncate">{boss.name}</div>
+                    <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Weak to <span style={{ color: wm[1] }}>{wm[0]}</span>, so eat {wm[2]}.{buffLine ? ' ' + buffLine + '.' : ''}</div>
+                  </div>
+                  <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: beaten ? 'var(--surface3)' : 'var(--danger)', color: beaten ? 'var(--muted)' : '#fff' }}>{beaten ? 'REMATCH ›' : 'FIGHT ›'}</span>
+                </button>
+              );
+            })() : <div className="pixel-box p-4 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Battles arrive once you're logging. Keep feeding your buddy.</div>}
+            <div className="text-[10px] text-[#8A8A90] leading-snug">Your eating is your build: the week's macros set your loadout, and each boss has a macro weakness. Losing only teaches, it never sets you back.</div>
           </div>}
-          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Collection</div>
-          {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
-            return <div key={bm.id} className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? ' ✓' : ''}</div>
-                <div className="text-[9px] text-[#8A8A90] tnum">{done}/{list.length}</div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {list.map(c => { const g = dex[c.id]; const form = creatureForm(c, g ? g.count : 0); const rc = CR_RARITY_COLOR[c.rarity]; const strong = g && (c.rarity === 'legendary' || c.rarity === 'mythic' || g.shiny);
-                  return <button key={c.id} onClick={() => setSel(c.id)} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: g ? rc : 'var(--border)', borderWidth: strong ? 4 : 3 }}>
-                    <div className="h-14 flex items-center justify-center" style={g ? crFx(g.shiny, form.aura) : null}>{g ? <Sprite art={form.art} colors={g.shiny ? crShiny(form.colors) : form.colors} px={4} /> : <Sprite art={c.art} colors={crSilhouette()} px={4} />}</div>
-                    <div className="text-[9px] mt-1 truncate w-full">{g ? form.name : '???'}</div>
-                    {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? ' ✦' : ''}</div>
-                       : <div className="text-[7px] uppercase tracking-wide" style={{ color: rc }}>{CR_RARITY_LABEL[c.rarity]}</div>}
-                  </button>;
+
+          {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
+          {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} />}
+
+          {view === 'catch' && <div className="fade-in">
+            <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
+              <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
+            </div>
+            <DexActiveSection db={db} today={today} />
+            {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
+              {boost && (boost.lure || boost.shiny || boost.rare) && <div className="text-[9px] mb-2" style={{ color: 'var(--good)' }}>Active today:{boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : ''}{boost.rare ? ' · rare boost' : ''}{boost.shiny ? ' · shiny locked' : ''}</div>}
+              <div className="space-y-2">
+                {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
+                  return <div key={id} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
+                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--pro)', color: '#fff' }}>USE</button>}
+                  </div>;
                 })}
               </div>
-            </div>;
-          })}
+              {lurePick && <div className="mt-3 fade-in">
+                <div className="text-[9px] text-[#8A8A90] mb-1.5">Point the lure at a biome for today’s catch:</div>
+                <div className="grid grid-cols-2 gap-1.5">{[['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => <button key={v} onClick={() => useItem('lure', v)} className="pixel-box py-2 text-[10px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>{l}</button>)}</div>
+              </div>}
+            </div>}
+            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Collection</div>
+            {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
+              return <div key={bm.id} className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? ' ✓' : ''}</div>
+                  <div className="text-[9px] text-[#8A8A90] tnum">{done}/{list.length}</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {list.map(c => { const g = dex[c.id]; const form = creatureForm(c, g ? g.count : 0); const rc = CR_RARITY_COLOR[c.rarity]; const strong = g && (c.rarity === 'legendary' || c.rarity === 'mythic' || g.shiny);
+                    return <button key={c.id} onClick={() => setSel(c.id)} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: g ? rc : 'var(--border)', borderWidth: strong ? 4 : 3 }}>
+                      <div className="h-14 flex items-center justify-center" style={g ? crFx(g.shiny, form.aura) : null}>{g ? <Sprite art={form.art} colors={g.shiny ? crShiny(form.colors) : form.colors} px={4} /> : <Sprite art={c.art} colors={crSilhouette()} px={4} />}</div>
+                      <div className="text-[9px] mt-1 truncate w-full">{g ? form.name : '???'}</div>
+                      {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? ' ✦' : ''}</div>
+                         : <div className="text-[7px] uppercase tracking-wide" style={{ color: rc }}>{CR_RARITY_LABEL[c.rarity]}</div>}
+                    </button>;
+                  })}
+                </div>
+              </div>;
+            })}
+          </div>}
         </>)}
       </div>
     </div>
@@ -3210,7 +3250,7 @@ function ShopView({ db, amber, buy, onBack }) {
   return (
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
-        <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button>
+        {onBack ? <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button> : <span />}
         <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}>✦ {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
@@ -4107,9 +4147,7 @@ function WeighCadencePrompt({ db, update }) {
   );
 }
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
-  const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
-  const [span, setSpan] = useState('today');
-  const [showStats, setShowStats] = useState(false);
+  const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
@@ -4123,10 +4161,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const weighWk = last7.filter(d => weighSet.has(d)).length; const logWk = last7.filter(d => logSet.has(d)).length;
   const t = currentTargets(db);
   const unit = db.profile.weight_unit;
-  // 7-day average of daily intake (over logged days only)
-  const loggedDates = Array.from(logSet).filter(x => x <= today).sort().slice(-7);
-  const avgTot = loggedDates.length ? (() => { const n = loggedDates.length; const a = loggedDates.map(dd => sumMacros(entriesOn(db, dd))).reduce((x, s) => ({ kcal: x.kcal + s.kcal, protein: x.protein + s.protein, carbs: x.carbs + s.carbs, fat: x.fat + s.fat, fiber: x.fiber + s.fiber }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }); return { kcal: a.kcal / n, protein: a.protein / n, carbs: a.carbs / n, fat: a.fat / n, fiber: a.fiber / n }; })() : todayTot;
-  const tot = span === 'avg' ? avgTot : todayTot;
+  const tot = todayTot;
   // Balance: shift today's leftover calories between carbs and fat (protein fixed). Editable right
   // here on Today now, so the Food log no longer needs to repeat the whole macro card.
   const override = (db.day_overrides || {})[today] || { shiftKcal: 0 };
@@ -4374,17 +4409,40 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
-      <InstallCard />
 
-      {/* flex-wrap: on narrow phones the pixel font is wide, so the pill drops below rather than colliding */}
-      <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 mb-3">
+      {/* Hero: today's macros. One glance (rings + what's left), the daily loop. One lens only
+          (Left/Eaten); Balance is a power tool behind Adjust; everything secondary is in More below. */}
+      <div className="flex items-center justify-between mb-3">
         <div className="text-lg font-bold">Today's macros</div>
-        <Pill value={span} onChange={setSpan} options={[{ v: 'today', l: 'Today' }, { v: 'avg', l: '7d avg' }]} />
+        <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
       </div>
       <Card className="p-5 mb-4">
-        <div className="flex justify-center -mt-1 mb-3"><Pill value={mode} onChange={setMode} options={[{ v: 'consumed', l: 'Consumed' }, { v: 'remaining', l: 'Remaining' }, { v: 'balance', l: 'Balance' }]} /></div>
-        {mode === 'balance' ? (
-          <div className="fade-in">
+        <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} />
+        {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
+        {(et.cyc !== 0 || et.carry !== 0) && (() => {
+          const adj = et.eff.kcal - et.base.kcal;
+          const cd = et.carryDetail;
+          const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
+          const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
+          const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+          return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
+            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
+            {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
+          </div>;
+        })()}
+        {(() => {
+          const dayEntries = entriesOn(db, today);
+          if (!dayEntries.length) return null;
+          const totalKcal = Math.round(sumMacros(dayEntries).kcal);
+          const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
+          return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
+            <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
+            <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
+          </button>;
+        })()}
+        {/* Balance (shift leftover kcal between carbs and fat) is a power feature: behind an Adjust link. */}
+        <div className="mt-3 pt-2.5 border-t border-[#262629]">
+          <Collapsible variant="inline" label="Balance carbs & fat" sub="Adjust ›">
             <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
             <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
             <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
@@ -4393,59 +4451,38 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
               {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
               <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
             </div>
-          </div>
-        ) : (<>
-          <MacroSummaryCard et={et} tot={tot} mode={mode} avg={span === 'avg'} />
-          {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
-          {(et.cyc !== 0 || et.carry !== 0) && (() => {
-            const adj = et.eff.kcal - et.base.kcal;
-            const cd = et.carryDetail;
-            const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
-            const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
-            const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-            return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
-              <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
-              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
-            </div>;
-          })()}
-          {(() => {
-            const dayEntries = entriesOn(db, today);
-            if (!dayEntries.length) return null;
-            const totalKcal = Math.round(sumMacros(dayEntries).kcal);
-            const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
-            return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
-              <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
-              <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
-            </button>;
-          })()}
-        </>)}
+          </Collapsible>
+        </div>
       </Card>
 
-      {/* The living buddy: reflects how you have eaten today (bond, mood, needs) and frames the next
-          log as feeding it. The emotional anchor and the one tap into the Buddy & Play hub. */}
-      <BuddyCard db={db} bp={bp} streak={streak} freezeReady={Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today)} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
+      {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
+          needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
+      <CompanionStrip db={db} bp={bp} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
 
-      {!isPremium && (() => {
-        const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-        return freeLeft <= 3
-          ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
-              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-              blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
-          : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
-              headline="Log a meal in one snap"
-              blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
-      })()}
-
-      {/* Progress: check-in, weigh-in, the coach line AND the weight-trend spark in one surface.
-          (Recipe rails live on the Cook tab now, so Today stays about today's food and progress.) */}
-      <WeighCadencePrompt db={db} update={update} />
+      {/* Weekly loop: self-collapses to a quiet line and expands only when a check-in is actually due. */}
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
 
+      {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
 
-      {/* Today status: Move / Sleep / Ready as three dials (Google Health). The readiness -> Fight
-          payoff moved into the Play hub, so this stays a calm glance. */}
-      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
+      {/* Everything below the fast loop: activity dials, the one-time weigh-cadence question, install +
+          upgrade nudges. Collapsed by default so Today opens as a quick glance, not a wall. */}
+      <Collapsible label="More">
+        {/* Move / Sleep / Ready dials (Google Health). The readiness -> Fight payoff lives in Play. */}
+        <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
+        <WeighCadencePrompt db={db} update={update} />
+        <InstallCard />
+        {!isPremium && (() => {
+          const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+          return freeLeft <= 3
+            ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
+                headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
+                blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
+            : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
+                headline="Log a meal in one snap"
+                blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
+        })()}
+      </Collapsible>
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
@@ -4530,7 +4567,8 @@ function FoodLog({ db, update, openLog, showToast }) {
   const [menu, setMenu] = useState(null);
   const [mealMenu, setMealMenu] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [mode, setMode] = useState('consumed');
+  const [dayMenu, setDayMenu] = useState(false);
+  const swipe = useRef(null); // swipe-between-days: touchstart point, consumed on touchend
   const [editMeal, setEditMeal] = useState(null); const [mealName, setMealName] = useState('');
   const [nameSheet, setNameSheet] = useState(null); // { meal, entries } for "Save as meal"
   const [showCal, setShowCal] = useState(false);
@@ -4670,17 +4708,29 @@ function FoodLog({ db, update, openLog, showToast }) {
   const monthName = new Date(calMonth.y, calMonth.m, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="max-w-md lg:max-w-5xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in" onClick={() => { if (menu) setMenu(null); if (mealMenu) setMealMenu(null); }}>
+    <div className="max-w-md lg:max-w-5xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
+      onClick={() => { if (menu) setMenu(null); if (mealMenu) setMealMenu(null); if (dayMenu) setDayMenu(false); }}
+      onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
+      onTouchEnd={(e) => { if (!swipe.current || drag) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
       <PageHeader kicker="Your food diary" title="Food log" />
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <div className="min-w-0">
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setDate(shiftISO(date, -1))} className="text-[#8A8A90] px-3 py-2 text-lg">‹</button>
-        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#1E1E22] border border-[#262629]">
+      {/* Swipe left/right to change day, or tap the arrows. Tap the date for the month calendar; day-level
+          actions (add a meal, copy the day) live behind the one day menu so nothing stacks below. */}
+      <div className="flex items-center gap-1 mb-4">
+        <button onClick={() => setDate(shiftISO(date, -1))} className="text-[#8A8A90] px-3 py-2 text-lg" aria-label="Previous day">‹</button>
+        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-full bg-[#1E1E22] border border-[#262629]">
           <span className="text-sm font-semibold">{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
           <span className="text-[#8A8A90] text-[10px]">{showCal ? '▲' : '▼'}</span>
         </button>
-        <button onClick={() => setDate(shiftISO(date, 1))} className="text-[#8A8A90] px-3 py-2 text-lg">›</button>
+        <button onClick={() => setDate(shiftISO(date, 1))} className="text-[#8A8A90] px-3 py-2 text-lg" aria-label="Next day">›</button>
+        <div className="relative">
+          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="hit px-2 py-2 text-[#8A8A90]" aria-label="Day options">⋯</button>
+          {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
+            <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
+            {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
+          </div>}
+        </div>
       </div>
       {showCal && <Card className="p-4 mb-4 fade-in">
         <div className="flex items-center justify-between mb-2">
@@ -4720,7 +4770,6 @@ function FoodLog({ db, update, openLog, showToast }) {
         </Card>;
       })()}
 
-      {day.length > 0 && <button onClick={() => setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date })} className="w-full text-[12px] text-[#8A8A90] mb-3 flex items-center justify-center gap-1.5 py-1.5">⧉ Copy this day to another date…</button>}
       </div>
 
       <div className="min-w-0">
@@ -4778,7 +4827,6 @@ function FoodLog({ db, update, openLog, showToast }) {
           {orphans.map(e => renderEntry(e, um, 'var(--muted)'))}
         </Card>);
       })()}
-      <button onClick={addDayMeal} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-3">+ Add a meal to this day</button>
       </div>
       </div>
       {editing && <EditEntryModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)} />}
@@ -4956,7 +5004,7 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
 // Unified "Food" tab: one search box over your own foods AND the Open Food Facts database, your
 // recents/favourites when empty, saved meals, and a manual-entry fallback. Replaces the old
 // separate Recent / Search / Meals / Manual tabs so logging is one clean screen.
-function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
+function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onDrink }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
@@ -5032,6 +5080,11 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Enter it manually</div><div className="text-[11px] text-[#8A8A90]">Type in the macros yourself</div></div>
         <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
       </button>
+      {onDrink && <button onClick={onDrink} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><PixelGlyph kind="drink" color="var(--muted)" size={17} /></div>
+        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Log a drink</div><div className="text-[11px] text-[#8A8A90]">Alcohol, booked against carbs and fat</div></div>
+        <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
+      </button>}
     </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
     {qtyFor && <EditEntryModal title="How much this time?" saveLabel="Add to log" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} />}
@@ -5103,6 +5156,8 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
+  // One stable food flow (Food / Scan / Estimate). Alcohol is a labelled DETOUR entered from inside
+  // Food and left with the back button, not a persistent Type toggle that reshapes the whole tab bar.
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
   useEffect(() => { if (isAlc && tab === 'food') setTabRaw('recent'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw(['photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'); }, [isAlc]);
   return (
@@ -5111,14 +5166,13 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
         <div className="p-5 pb-3 flex-none">
           <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-semibold">Log {isAlc ? 'alcohol' : 'food'}</h2>
+            <h2 className="text-lg font-semibold inline-flex items-center gap-2">{isAlc && <button onClick={() => setIsAlc(false)} className="hit text-[#8A8A90] text-xl leading-none" aria-label="Back to food">‹</button>}Log {isAlc ? 'a drink' : 'food'}</h2>
             <div className="flex items-center gap-4">
-              <button onClick={() => { setTab('photo'); setScanNow(n => n + 1); }} className="hit text-[#8A8A90]" aria-label="Scan a barcode" title="Scan a barcode"><Icon.barcode width="20" height="20" /></button>
+              {!isAlc && <button onClick={() => { setTab('photo'); setScanNow(n => n + 1); }} className="hit text-[#8A8A90]" aria-label="Scan a barcode" title="Scan a barcode"><Icon.barcode width="20" height="20" /></button>}
               <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button>
             </div>
           </div>
           <div className="mb-3"><Field label="Meal"><Dropdown value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} /></Field></div>
-          <div className="mb-3"><Field label="Type"><Seg value={isAlc ? 'alc' : 'food'} onChange={v => setIsAlc(v === 'alc')} options={[{ v: 'food', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="plate" color="currentColor" size={15} /> Food</span> }, { v: 'alc', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="drink" color="currentColor" size={15} /> Alcohol</span> }]} /></Field></div>
           <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl">{tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
         </div>
         <div className="px-5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
@@ -5129,7 +5183,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
               <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Go unlimited ›</span>
             </button>;
           })()}
-          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} />}
+          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onDrink={() => setIsAlc(true)} />}
           {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} />}
           {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onScan={() => setTab('photo')} />}
           {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} />)}
@@ -5982,6 +6036,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
   const base = currentTargets(db);
   const today = Store.todayISO();
   const [showAdv, setShowAdv] = useState(false);
+  const [editPlan, setEditPlan] = useState(false); // the whole goal editor lives in a sheet now, off the main scroll
   const seedGW = kgToStLb(p.goalWeightKg || p.weightKg);
   const [g, setG] = useState({ goalType: p.goalType, rateKgPerWeek: p.rateKgPerWeek, dietStyle: p.dietStyle, proteinGPerKgLBM: p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType) });
   const setg = (k, v) => setG(x => Object.assign({}, x, { [k]: v }));
@@ -6047,15 +6102,24 @@ function Goals({ db, update, showToast, onCheckIn }) {
       <ExpenditureCard db={db} />
       <div className="mb-6"><ConsistencyHeatmap db={db} today={today} /></div>
 
-      {base && <Card className="p-4 mb-5">
+      {/* Current plan is now the read-only summary; the whole editor opens in a sheet off this scroll. */}
+      <Card className="p-4 mb-5">
         <div className="flex items-center justify-between">
-          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div><div className="text-xl font-bold tnum">{base.kcal} kcal</div></div>
-          <div className="text-right text-[13px] tnum"><span style={{ color: PRO }}>P{base.protein_g}</span> <span style={{ color: CARB }}>C{base.carbs_g}</span> <span style={{ color: FAT }}>F{base.fat_g}</span></div>
+          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div>{base ? <div className="text-xl font-bold tnum">{base.kcal} kcal</div> : <div className="text-[15px] font-bold mt-0.5">Not set yet</div>}</div>
+          {base && <div className="text-right text-[13px] tnum"><span style={{ color: PRO }}>P{base.protein_g}</span> <span style={{ color: CARB }}>C{base.carbs_g}</span> <span style={{ color: FAT }}>F{base.fat_g}</span></div>}
         </div>
-        <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>
-        {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
-      </Card>}
+        {base && <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>}
+        {base && base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
+        <button onClick={() => setEditPlan(true)} className="w-full mt-3 pixel-btn py-2.5 text-[10px]" style={{ background: 'var(--surface2)' }}>{base ? 'EDIT PLAN ›' : 'SET YOUR GOAL ›'}</button>
+      </Card>
 
+      {editPlan && <div className="fixed inset-0 z-[85] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+          <button onClick={() => setEditPlan(false)} className="pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}>‹ Back</button>
+          <div className="pf text-[10px]" style={{ color: 'var(--header-text)' }}>EDIT PLAN</div>
+          <span className="w-10" />
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 pt-5 max-w-md lg:max-w-2xl mx-auto w-full" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Goal</div>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <GoalCard active={g.goalType === 'cut'} onClick={() => pickGoal('cut')} glyph="down" title="Fat loss" sub="Lose fat" />
@@ -6098,6 +6162,8 @@ function Goals({ db, update, showToast, onCheckIn }) {
           : <><div className="text-[12px] text-[#8A8A90] mb-3">Going on holiday or taking a break? Pausing stops your check-in clock and holds your macros. Resume any time from the Dashboard.</div><Btn kind="ghost" className="w-full" onClick={() => setPauseOpen(true)}>Pause goal</Btn></>}
       </Section>
       {pauseOpen && <ConfirmDialog title="Pause your goal?" body="Your check-in clock stops and your macros hold steady until you resume from the Dashboard." confirmLabel="Pause goal" confirmKind="accent" onConfirm={pause} onClose={() => setPauseOpen(false)} />}
+        </div>
+      </div>}
     </div>
   );
 }
@@ -6298,7 +6364,7 @@ function SettingsTab({ db, update }) {
       const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
       const setM = (patch) => update(d => { d.menstrual = Object.assign({ enabled: false, lastStart: null, cycleLen: 28 }, d.menstrual, patch); });
       const ph = m.enabled ? E.menstrualPhase(m, Store.todayISO()) : null;
-      return <Section title="Menstrual cycle">
+      return <Collapsible label="Menstrual cycle">
         <div className="text-[12px] text-[#8A8A90] mb-3">Optional. If you track this, Macrosaurus expects the water-weight rise in the week before your period and will not cut your calories on it, so a normal premenstrual bump on the scale does not throw off your plan.</div>
         <RowToggle label="Track my cycle" on={!!m.enabled} onClick={() => setM({ enabled: !m.enabled })} />
         {m.enabled && <>
@@ -6311,7 +6377,7 @@ function SettingsTab({ db, update }) {
           </Field>
           {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : ph.lowWater ? 'var(--good)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase.{ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.'}</div>}
         </>}
-      </Section>;
+      </Collapsible>;
     })()}
     <Section title="AI food logging">
       <div className="text-[13px] text-[var(--text)] mb-1">AI is built in. No setup needed.</div>
@@ -6382,7 +6448,7 @@ function AdvancedTab({ db, update }) {
       <Seg value={coach} onChange={setCoach} options={COACH_MODES.map(m => ({ v: m.v, l: m.l }))} />
       <div className="mt-3 space-y-2">{COACH_MODES.map(m => (<div key={m.v} className={`pixel-box px-3 py-2.5 text-[12px] transition ${coach === m.v ? 'bg-[#1E1E22]' : 'opacity-45'}`} style={{ boxShadow: 'none' }}><span className="font-semibold">{m.l}.</span> <span className="text-[#8A8A90]">{m.d}</span></div>))}</div>
     </Section>
-    <Section title="Weekly plan">
+    <Collapsible label="Weekly plan">
       <div className="text-[12px] text-[#8A8A90] mb-3">Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.</div>
       <div className="text-[11px] text-[#8A8A90] mb-2">Shape your week</div>
       <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>)}</div>
@@ -6406,7 +6472,7 @@ function AdvancedTab({ db, update }) {
         <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever you pick."><input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry(c => Object.assign({}, c, { capKcal: +e.target.value }))} className="w-full accent-[#4A9EEB]" /></Field>
       </>}
       <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
-    </Section>
+    </Collapsible>
     <Section title="Weigh-ins">
       <div className="text-[12px] text-[#8A8A90] mb-3">How often you step on the scale. Your check-in reads the trend either way.</div>
       <Seg value={weigh} onChange={setWeigh} options={[{ v: 'daily', l: 'Most days' }, { v: 'single', l: 'Once a week' }]} />
@@ -6416,7 +6482,7 @@ function AdvancedTab({ db, update }) {
           : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
       </div>
     </Section>
-    <Section title="Custom calories & macros">
+    <Collapsible label="Custom calories & macros">
       <div className="text-[12px] text-[#8A8A90] mb-3">Ignore the engine and set your own numbers. Heads up: in Coached mode a check-in can still change these, so set Coaching mode to Manual above to lock them.</div>
       <RowToggle label="Set my own targets" on={manual.enabled} onClick={() => mset('enabled', !manual.enabled)} />
       {manual.enabled && <div className="grid grid-cols-2 gap-3">
@@ -6425,7 +6491,7 @@ function AdvancedTab({ db, update }) {
         <Field label="Carbs (g)"><NumInput value={manual.carbs_g} onChange={e => mset('carbs_g', e.target.value)} /></Field>
         <Field label="Fat (g)"><NumInput value={manual.fat_g} onChange={e => mset('fat_g', e.target.value)} /></Field>
       </div>}
-    </Section>
+    </Collapsible>
     <SaveBar dirty={dirty} saved={saved} onSave={save} label="Save advanced settings" />
   </>);
 }
@@ -8436,7 +8502,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
 }
 // Faceted filter + sort sheet for the recipe library. Only shows facet values that actually exist in
 // the user's recipes, so at 5 recipes it's tiny and at 500 it's rich, no dead options either way.
-function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClose }) {
+function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClose, filter, setFilter, collections }) {
   const present = k => { const s = new Set(); (db.recipes || []).forEach(r => { const v = (r.tags || {})[k]; if (v) s.add(v); }); return Rcp.TAX[k].filter(x => s.has(x)); };
   const diets = (() => { const s = new Set(); (db.recipes || []).forEach(r => (((r.tags || {}).diet) || []).forEach(d => s.add(d))); return Rcp.TAX.diet.filter(x => s.has(x)); })();
   const Group = ({ label, k, values }) => values.length ? (<div className="mb-4">
@@ -8452,7 +8518,11 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
       <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="text-xl leading-none text-[#8A8A90]" aria-label="Close">×</button></div>
       <div className="mb-4">
         <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Show</div>
-        <div className="flex flex-wrap gap-2"><button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button></div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
+          {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}>★ Favourites</button>}
+          {setFilter && (collections || []).map(c => { const on = filter === c; return <button key={c} onClick={() => setFilter(on ? 'all' : c)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{c}</button>; })}
+        </div>
       </div>
       <Group label="Meal" k="meal" values={present('meal')} />
       <Group label="Cuisine" k="cuisine" values={present('cuisine')} />
@@ -8802,6 +8872,10 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
       <div className="flex items-center justify-between mb-4">
         <PageHeader kicker="Cook" title="Recipes" />
         <div className="flex items-center gap-2 shrink-0">
+          {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
+          <button onClick={() => setScreen('fridge')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} aria-label="Cook from your fridge">
+            <Icon.cam width="18" height="18" />
+          </button>
           <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
             <Icon.calendar width="19" height="19" />
           </button>
@@ -8812,12 +8886,6 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         </div>
       </div>
       <ChefCard db={db} />
-      {/* Always-visible entry to the fridge scanner - the food-waste USP - on both tabs. */}
-      <button onClick={() => setScreen('fridge')} className="w-full mb-4 pixel-box p-3.5 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-        <div className="w-9 h-9 shrink-0 pixel-box flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Icon.cam width="18" height="18" /></div>
-        <div className="min-w-0 flex-1"><div className="text-[14px] font-bold">Cook from your fridge</div><div className="text-[11px] text-[#8A8A90] leading-snug">Snap what you have and see what you can make right now</div></div>
-        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
-      </button>
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
         <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
@@ -8837,13 +8905,9 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
-          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: facetCount ? 'var(--accent)' : 'var(--surface3)', color: facetCount ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
+          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 my-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-          {[['all', 'All'], ['fav', '★ Favourites']].concat(collections.map(c => [c, c])).map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} className="pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0" style={{ background: filter === k ? 'var(--accent)' : 'var(--surface3)', color: filter === k ? '#111' : 'var(--text)', fontWeight: filter === k ? 700 : 400 }}>{l}</button>
-          ))}
-        </div>
+        <div className="my-3" />
         {showRails
           ? <div className="mt-1"><RecipeRails db={db} onOpenRecipe={id => { setActiveId(id); setScreen('detail'); }} limit={4} /></div>
           : recipes.length ? <>
@@ -8852,7 +8916,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </>
           : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent)' }}>Clear filters</button></div>}
       </>}
-      {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} onClear={() => { setFacets({}); setSort('recent'); }} onClose={() => setShowFilters(false)} />}
+      {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} filter={filter} setFilter={setFilter} collections={collections} onClear={() => { setFacets({}); setSort('recent'); setFilter('all'); }} onClose={() => setShowFilters(false)} />}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
