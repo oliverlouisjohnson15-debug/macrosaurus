@@ -281,8 +281,8 @@
   // the classic recommendation); nothing editable feeds this.
   var SLEEP_RECOMMENDED_FULL = 480; // 8h in minutes -> full duration credit
   var SLEEP_DURATION_FLOOR = 270;   // 4.5h -> no duration credit below this (severe short sleep)
-  // Sleep score 0..100, evidence-based and modelled on Fitbit's published duration / quality / restoration
-  // split (Fitbit ~duration 50, quality 25, restoration 25; typical real nights cluster 72-83). We can't
+  // Sleep score 0..100, evidence-based and modelled on the common duration / quality / restoration
+  // split (~duration 50, quality 25, restoration 25; typical real nights cluster 72-83). We can't
   // measure restlessness or sleeping-HR restoration from Google Health stage minutes, so those points are
   // routed into the signals we CAN measure, and deep / REM are scored against their clinical healthy ranges
   // (deep/N3 ~13-23% of sleep, REM ~20-25%; sleep efficiency >=85% is "good"). Points: duration 45,
@@ -293,8 +293,7 @@
   // The ramps are deliberately STRICT: an average night lands in the 60s-70s and 90+ needs a genuinely
   // excellent one, so the score keeps its discriminative power rather than clustering everyone near 100.
   // A stage-less night returns null on purpose (no measured architecture to judge) so callers show raw
-  // hours instead of a fabricated number. Refs: Fitbit sleep score (androidpolice.com/fitbit-sleep-score-
-  // calculation-explainer), sleep architecture NCBI NBK19956, duration/efficiency Hirshkowitz 2015
+  // hours instead of a fabricated number. Refs: sleep architecture NCBI NBK19956, duration/efficiency Hirshkowitz 2015
   // (pubmed 29073412). `durationMin` = time asleep; `stages` = { deep, rem, light, awake } minutes. Pure.
   // sleepScore() is the thin wrapper returning just the number, so the score the UI shows and the breakdown
   // it explains can never drift. Returns { score, hasStages, durationMin, asleepMin, awakeMin,
@@ -311,7 +310,7 @@
     if (asleep > 0 && total > 0) {
       var clamp01 = function (v) { return Math.max(0, Math.min(1, v)); };
       // Strict ramps: full credit only at the GOOD end of each range, so a merely-average night lands in
-      // the 60s-70s (like Fitbit's real-world spread) and 90+ demands a genuinely excellent night. Being
+      // the 60s-70s (matching real-world spread) and 90+ demands a genuinely excellent night. Being
       // barely "not terrible" earns little.
       var durComp = 45 * clamp01((dur - SLEEP_DURATION_FLOOR) / (SLEEP_RECOMMENDED_FULL - SLEEP_DURATION_FLOOR)); // 0 at <=4.5h, full at 8h
       var eff = asleep / total;                                        // fraction of the night actually asleep
@@ -365,10 +364,10 @@
 
   // ---- Readiness (our own recovery score) --------------------------------------------------------
   // No wearable exposes a readiness score through the Google Health API, so we build one the evidence-based
-  // way Whoop / Oura / Fitbit do: baseline-RELATIVE signals (each judged against the user's own rolling
+  // way the recovery-score literature does: baseline-RELATIVE signals (each judged against the user's own rolling
   // average, never an absolute target), weighted with HRV dominant, degrading gracefully to whatever data
   // we actually have. HRV carries the most weight because nocturnal RMSSD is the best-validated autonomic
-  // recovery marker (Buchheit 2014; Plews 2013, pubmed 23852425) and it drives Whoop/Fitbit recovery;
+  // recovery marker (Buchheit 2014; Plews 2013, pubmed 23852425) and it drives most recovery scores;
   // resting HR and sleep corroborate; SpO2 and load are thin/noisy so they only ever MODIFY an
   // anchored score, never produce one (a 96% SpO2 or an easy step day must not pin readiness at 100).
   // Weights when all present: HRV 40, sleep 25, RHR 20, SpO2 7 (modifier), load 8 (modifier).
@@ -393,8 +392,8 @@
     function clamp01(v) { return Math.max(0, Math.min(1, v)); }
     var signals = [];
     // HRV balance (anchor, dominant). lnRMSSD vs baseline: raw RMSSD is right-skewed, so we compare the
-    // LOG of today's value to the log of the baseline (the field standard, Plews/Buchheit; Whoop does the
-    // same). A logistic maps that log-ratio to 0..1: at baseline ~0.5, ~+28% RMSSD ~0.8, ~-20% ~0.2.
+    // LOG of today's value to the log of the baseline (the field standard, Plews/Buchheit). A logistic
+    // maps that log-ratio to 0..1: at baseline ~0.5, ~+28% RMSSD ~0.8, ~-20% ~0.2.
     if (isFinite(inp.hrv) && isFinite(inp.hrvBaseline) && Number(inp.hrv) > 0 && Number(inp.hrvBaseline) > 0) {
       var hd = Math.log(Number(inp.hrv) / Number(inp.hrvBaseline)); var hvv = clamp01(1 / (1 + Math.exp(-6 * hd)));
       sum += READY_WEIGHTS.hrv * hvv; weights += READY_WEIGHTS.hrv; anchored = true;

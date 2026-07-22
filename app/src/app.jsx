@@ -249,8 +249,8 @@ const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/re
 const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/nutrition-analyze';
 // google-health-proxy runs the Google OAuth token exchange (with the app secret) and returns daily
 // step counts via the Google Health API; no Google token ever reaches the browser. GOOGLE_CLIENT_ID
-// is public (it only names the app on the consent screen). Reads Fitbit device data too, since Fitbit
-// now syncs into Google Health. See the google-health-proxy edge function.
+// is public (it only names the app on the consent screen). Reads whatever daily data your devices
+// sync into Google Health. See the google-health-proxy edge function.
 const GH_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/google-health-proxy';
 const GOOGLE_CLIENT_ID = '779915009623-ahbl494cs1psoeilmph4n8ij24goi9jh.apps.googleusercontent.com';
 const GH_SCOPE = 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly https://www.googleapis.com/auth/googlehealth.sleep.readonly https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly';
@@ -2625,7 +2625,7 @@ function stepGoalFor(db) { const g = db.profile && +db.profile.stepGoal; return 
 // A step-goal day: you hit or beat that goal. Days with no step reading never qualify, so this is
 // entirely opt-in and changes nothing until you actually track steps (manually or via Google Health).
 function isStepGoalDay(db, date) { const g = stepGoalFor(db); return g > 0 && (+((db.steps || {})[date]) || 0) >= g; }
-// This morning's readiness: our own recovery score (Oura/Whoop style, baseline-relative). Phase A feeds
+// This morning's readiness: our own recovery score (baseline-relative). Phase A feeds
 // last night's sleep + a training-load proxy from steps; Phase B adds HRV + resting HR from db.health so
 // the same tile just gets sharper. Returns 0..100 or null when there is nothing to score yet.
 // Assemble the readiness inputs for a date from whatever the app has synced. Split out from
@@ -3619,7 +3619,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--accent)" />
           ))}
           <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
-            Modelled on the way Fitbit scores sleep, judged against the science rather than a target you set: adults need 7-9 hours, and efficiency plus healthy deep and REM sleep (measured against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed.
+            Judged against the science rather than a target you set: adults need 7-9 hours, and efficiency plus healthy deep and REM sleep (measured against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed.
           </p>
         </div>
       );
@@ -3668,7 +3668,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             pct={s.present ? s.value : null} tint={rColor} muted={!s.present} />
         ))}
         <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          Readiness is baseline-relative (Oura / Whoop style): each signal is judged against your own rolling average, not a fixed target.
+          Readiness is baseline-relative: each signal is judged against your own rolling average, not a fixed target.
         </p>
         {onOpenPlay && parts.score != null && (
           <button onClick={() => { onClose(); onOpenPlay(); }} className="w-full mt-4 pixel-box py-3 text-[13px] font-semibold" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>See today's Fight buff →</button>
@@ -6053,7 +6053,7 @@ function SettingsTab({ db, update }) {
       <Field label="Height units"><Seg value={s.height_unit} onChange={v => sset('height_unit', v)} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
     </Section>
     <Section title="Connected apps">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Auto-sync your daily steps and sleep from Google Health (Fitbit included). Read-only. Steps feed your dashboard, coaching and egg; a good night's sleep draws a creature into your dex each morning.</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3">Auto-sync your daily steps and sleep from Google Health. Read-only. Steps feed your dashboard, coaching and egg; a good night's sleep draws a creature into your dex each morning.</div>
       {(() => {
         const gh = db.googleHealth;
         if (!ghConfigured()) return <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>;
