@@ -4618,7 +4618,8 @@ function FoodLog({ db, update, openLog, showToast }) {
   const [menu, setMenu] = useState(null);
   const [mealMenu, setMealMenu] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [mode, setMode] = useState('consumed');
+  const [dayMenu, setDayMenu] = useState(false);
+  const swipe = useRef(null); // swipe-between-days: touchstart point, consumed on touchend
   const [editMeal, setEditMeal] = useState(null); const [mealName, setMealName] = useState('');
   const [nameSheet, setNameSheet] = useState(null); // { meal, entries } for "Save as meal"
   const [showCal, setShowCal] = useState(false);
@@ -4758,17 +4759,29 @@ function FoodLog({ db, update, openLog, showToast }) {
   const monthName = new Date(calMonth.y, calMonth.m, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="max-w-md lg:max-w-5xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in" onClick={() => { if (menu) setMenu(null); if (mealMenu) setMealMenu(null); }}>
+    <div className="max-w-md lg:max-w-5xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
+      onClick={() => { if (menu) setMenu(null); if (mealMenu) setMealMenu(null); if (dayMenu) setDayMenu(false); }}
+      onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
+      onTouchEnd={(e) => { if (!swipe.current || drag) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
       <PageHeader kicker="Your food diary" title="Food log" />
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <div className="min-w-0">
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setDate(shiftISO(date, -1))} className="text-[#8A8A90] px-3 py-2 text-lg">‹</button>
-        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#1E1E22] border border-[#262629]">
+      {/* Swipe left/right to change day, or tap the arrows. Tap the date for the month calendar; day-level
+          actions (add a meal, copy the day) live behind the one day menu so nothing stacks below. */}
+      <div className="flex items-center gap-1 mb-4">
+        <button onClick={() => setDate(shiftISO(date, -1))} className="text-[#8A8A90] px-3 py-2 text-lg" aria-label="Previous day">‹</button>
+        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-full bg-[#1E1E22] border border-[#262629]">
           <span className="text-sm font-semibold">{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
           <span className="text-[#8A8A90] text-[10px]">{showCal ? '▲' : '▼'}</span>
         </button>
-        <button onClick={() => setDate(shiftISO(date, 1))} className="text-[#8A8A90] px-3 py-2 text-lg">›</button>
+        <button onClick={() => setDate(shiftISO(date, 1))} className="text-[#8A8A90] px-3 py-2 text-lg" aria-label="Next day">›</button>
+        <div className="relative">
+          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="hit px-2 py-2 text-[#8A8A90]" aria-label="Day options">⋯</button>
+          {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
+            <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
+            {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
+          </div>}
+        </div>
       </div>
       {showCal && <Card className="p-4 mb-4 fade-in">
         <div className="flex items-center justify-between mb-2">
@@ -4808,7 +4821,6 @@ function FoodLog({ db, update, openLog, showToast }) {
         </Card>;
       })()}
 
-      {day.length > 0 && <button onClick={() => setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date })} className="w-full text-[12px] text-[#8A8A90] mb-3 flex items-center justify-center gap-1.5 py-1.5">⧉ Copy this day to another date…</button>}
       </div>
 
       <div className="min-w-0">
@@ -4866,7 +4878,6 @@ function FoodLog({ db, update, openLog, showToast }) {
           {orphans.map(e => renderEntry(e, um, 'var(--muted)'))}
         </Card>);
       })()}
-      <button onClick={addDayMeal} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-3">+ Add a meal to this day</button>
       </div>
       </div>
       {editing && <EditEntryModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)} />}
