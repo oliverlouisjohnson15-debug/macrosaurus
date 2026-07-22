@@ -22502,8 +22502,26 @@ function demoState() {
     hatchedISO: shiftISO(today, -20),
     speciesId: null,
     evoStage: 0,
-    affinity: null
+    affinity: null,
+    cosmetics: ['party_hat']
   };
+  // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
+  s.amber_ledger = [{
+    id: 'demo1',
+    date: shiftISO(today, -2),
+    delta: 60,
+    reason: 'Weekly boss'
+  }, {
+    id: 'demo2',
+    date: shiftISO(today, -1),
+    delta: 15,
+    reason: 'Daily Hunt'
+  }, {
+    id: 'demo3',
+    date: today,
+    delta: 15,
+    reason: 'Daily Hunt'
+  }];
   s.game_salt = 'demo-salt';
   s.onboarding = {
     welcomed: true,

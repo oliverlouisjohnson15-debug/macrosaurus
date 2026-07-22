@@ -7407,7 +7407,9 @@ function demoState() {
       ['1 bagel', '150 g cottage cheese', '2 eggs', '1 tomato', 'salt', 'black pepper'],
       ['Toast the bagel.', 'Boil or fry the eggs.', 'Spread cottage cheese, add sliced tomato and egg.', 'Season and serve.']),
   ];
-  s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null };
+  s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null, cosmetics: ['party_hat'] };
+  // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
+  s.amber_ledger = [{ id: 'demo1', date: shiftISO(today, -2), delta: 60, reason: 'Weekly boss' }, { id: 'demo2', date: shiftISO(today, -1), delta: 15, reason: 'Daily Hunt' }, { id: 'demo3', date: today, delta: 15, reason: 'Daily Hunt' }];
   s.game_salt = 'demo-salt';
   s.onboarding = { welcomed: true, sawDex: true, dismissed: true };
   s._rev = Date.now();
