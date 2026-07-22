@@ -2851,57 +2851,6 @@ function NeedBar({ label, v, color }) {
     </div>
   );
 }
-// The living buddy: the companion that visibly reflects how you have been eating. Renders the rich
-// buddyProfile (bond / mood / needs / craving / evolution), frames logging as feeding it, and is the
-// one tap into the Buddy & Play hub. This is the emotional core of the retention loop.
-function BuddyCard({ db, bp, streak, freezeReady, onOpenPlay, onFeed }) {
-  const buddy = db.buddy || {};
-  const named = !!bp.name;
-  const asleep = bp.mood === 'asleep';
-  const mm = MOOD_META[bp.mood] || MOOD_META.content;
-  const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
-  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
-  const evo = bp.evoInfo;
-  const aff = bp.affinity ? AFFINITY_META[bp.affinity] : null;
-  const who = named ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
-  return (
-    <Card className="p-4 mb-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onOpenPlay} aria-label="Open Buddy & Play" className="pixel-box p-2 shrink-0 relative" style={{ background: 'var(--surface3)' }}>
-          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={6} asleep={asleep} />
-          {asleep && <span className="pf absolute" style={{ top: 2, right: 3, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1.5 flex-wrap">
-            <span>YOUR BUDDY</span>
-            {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
-            {aff && <span title={aff[2]} style={{ color: aff[1] }}>{aff[0]}</span>}
-            <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={9} /></span>
-          </div>
-          <div className="text-lg font-bold leading-tight truncate">{who}</div>
-          <div className="text-[10px] leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        <NeedBar label="Fed" v={bp.needs.hunger} color="var(--pro)" />
-        <NeedBar label="Nourish" v={bp.needs.nourish} color="var(--carb)" />
-        <NeedBar label="Energy" v={bp.needs.energy} color="var(--good)" />
-      </div>
-      {craveText
-        ? <button onClick={onFeed} className="w-full mt-3 pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            <PixelGlyph kind="meat" color="currentColor" size={12} /> {who} wants {craveText} · FEED ›
-          </button>
-        : <div className="mt-3 text-[10px] leading-snug" style={{ color: evo.ready ? 'var(--good)' : 'var(--muted)' }}>
-            {evo.atMax ? `${who} is fully grown, a legend of the pit.`
-              : evo.ready ? `${who} is ready to evolve into ${evo.nextName}! Open the hub to see.`
-              : `Well fed today. ${evo.nextName ? `Toward ${evo.nextName}: Lv ${evo.level}/${evo.levelNeed} · ${evo.hearts}/${evo.heartsNeed}♥` : ''}`}
-          </div>}
-      <button onClick={onOpenPlay} className="pixel-btn w-full py-2.5 text-[9px] inline-flex items-center justify-center gap-2 mt-3" style={{ background: 'var(--header)', color: '#fff' }}>
-        {named ? 'BUDDY & PLAY' : 'MEET & NAME YOUR BUDDY'} · CAUGHT {Object.keys(macrodex(db)).length} ›
-      </button>
-    </Card>
-  );
-}
 // Compact companion for the Today screen: sprite + name + mood, with a feed nudge when the buddy is
 // craving. One tap opens the Play hub, where the full buddy detail (hearts, needs, evolution) now lives.
 // Keeps the emotional anchor on Today without the full card's density.
