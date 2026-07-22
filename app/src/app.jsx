@@ -3722,17 +3722,19 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   // Settings. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
   const [sheet, setSheet] = useState(null);
   const synced = db.googleHealth && db.googleHealth.connected;
-  // No connection and nothing to show would be three dead "-" dials. Slim to a one-line Connect strip
-  // instead, so Move/Sleep/Ready stays glanceable on Today without the clutter when it has no data.
+  // Not connected and no data yet: a prominent invite to connect, so the health integration is a
+  // real call to action on Today rather than three dead "-" dials. Once there's data, show the dials.
   const hasAny = synced || todaySteps > 0 || !!rec || readiness != null;
   if (!hasAny) {
     return (
-      <div className="w-full flex items-center justify-between gap-3 pixel-box px-3 py-2.5 mb-4" style={{ background: 'var(--surface3)' }}>
-        <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Move · Sleep · Ready</span>
+      <Card className="p-4 mb-4" style={{ background: 'var(--accent-dim)' }}>
+        <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--accent)' }}>Move · Sleep · Ready</div>
+        <div className="text-[13px] font-bold mb-1">Track your steps, sleep &amp; recovery</div>
+        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Connect Google Health to see them here every day. Your steps and sleep also feed your dino's daily catches.</div>
         {ghConfigured()
-          ? <button onClick={ghConnectGated} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Connect Health ›</button>
-          : <span className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
-      </div>
+          ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>CONNECT GOOGLE HEALTH</button>
+          : <div className="pf text-[8px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
+      </Card>
     );
   }
   return (
@@ -4472,8 +4474,8 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
       <CompanionStrip db={db} bp={bp} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
 
-      {/* Move / Sleep / Ready glance (Google Health). Self-slims to a Connect strip when there's no
-          data, so it earns its spot on Today. The readiness -> Fight payoff lives in Play. */}
+      {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
+          data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
       <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
 
       {/* Weekly loop: self-collapses to a quiet line and expands only when a check-in is actually due. */}
