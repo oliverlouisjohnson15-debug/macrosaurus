@@ -2902,6 +2902,33 @@ function BuddyCard({ db, bp, streak, freezeReady, onOpenPlay, onFeed }) {
     </Card>
   );
 }
+// Compact companion for the Today screen: sprite + name + mood, with a feed nudge when the buddy is
+// craving. One tap opens the Play hub, where the full buddy detail (hearts, needs, evolution) now lives.
+// Keeps the emotional anchor on Today without the full card's density.
+function CompanionStrip({ db, bp, onOpenPlay, onFeed }) {
+  const buddy = db.buddy || {};
+  const asleep = bp.mood === 'asleep';
+  const mm = MOOD_META[bp.mood] || MOOD_META.content;
+  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
+  const who = bp.name ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
+  return (
+    <div className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 mb-4" style={{ background: 'var(--surface3)' }}>
+      <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="flex items-center gap-3 min-w-0 flex-1 text-left">
+        <span className="pixel-box p-1.5 shrink-0 relative" style={{ background: 'var(--card)' }}>
+          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={4} asleep={asleep} />
+          {asleep && <span className="pf absolute" style={{ top: 1, right: 2, fontSize: 7, color: 'var(--carb)' }}>Zz</span>}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-[13px] font-bold truncate block leading-tight">{who}</span>
+          <span className="text-[10px] leading-snug block" style={{ color: mm.color }}>{mm.label}{craveText ? <span className="text-[#8A8A90]"> · peckish</span> : ''}</span>
+        </span>
+      </button>
+      {craveText
+        ? <button onClick={onFeed} className="pixel-btn py-2 px-3 text-[8px] pf shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><PixelGlyph kind="meat" color="currentColor" size={11} /> FEED</button>
+        : <button onClick={onOpenPlay} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Play ›</button>}
+    </div>
+  );
+}
 // Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
 // incubation) gathered in one place at the top of the dex, each showing its reward reveal on the
 // day it lands. This is what turns the dex from a static grid into the hub of the whole system.
@@ -4133,9 +4160,7 @@ function WeighCadencePrompt({ db, update }) {
   );
 }
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
-  const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
-  const [span, setSpan] = useState('today');
-  const [showStats, setShowStats] = useState(false);
+  const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
@@ -4149,10 +4174,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const weighWk = last7.filter(d => weighSet.has(d)).length; const logWk = last7.filter(d => logSet.has(d)).length;
   const t = currentTargets(db);
   const unit = db.profile.weight_unit;
-  // 7-day average of daily intake (over logged days only)
-  const loggedDates = Array.from(logSet).filter(x => x <= today).sort().slice(-7);
-  const avgTot = loggedDates.length ? (() => { const n = loggedDates.length; const a = loggedDates.map(dd => sumMacros(entriesOn(db, dd))).reduce((x, s) => ({ kcal: x.kcal + s.kcal, protein: x.protein + s.protein, carbs: x.carbs + s.carbs, fat: x.fat + s.fat, fiber: x.fiber + s.fiber }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }); return { kcal: a.kcal / n, protein: a.protein / n, carbs: a.carbs / n, fat: a.fat / n, fiber: a.fiber / n }; })() : todayTot;
-  const tot = span === 'avg' ? avgTot : todayTot;
+  const tot = todayTot;
   // Balance: shift today's leftover calories between carbs and fat (protein fixed). Editable right
   // here on Today now, so the Food log no longer needs to repeat the whole macro card.
   const override = (db.day_overrides || {})[today] || { shiftKcal: 0 };
@@ -4400,17 +4422,40 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
-      <InstallCard />
 
-      {/* flex-wrap: on narrow phones the pixel font is wide, so the pill drops below rather than colliding */}
-      <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 mb-3">
+      {/* Hero: today's macros. One glance (rings + what's left), the daily loop. One lens only
+          (Left/Eaten); Balance is a power tool behind Adjust; everything secondary is in More below. */}
+      <div className="flex items-center justify-between mb-3">
         <div className="text-lg font-bold">Today's macros</div>
-        <Pill value={span} onChange={setSpan} options={[{ v: 'today', l: 'Today' }, { v: 'avg', l: '7d avg' }]} />
+        <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
       </div>
       <Card className="p-5 mb-4">
-        <div className="flex justify-center -mt-1 mb-3"><Pill value={mode} onChange={setMode} options={[{ v: 'consumed', l: 'Consumed' }, { v: 'remaining', l: 'Remaining' }, { v: 'balance', l: 'Balance' }]} /></div>
-        {mode === 'balance' ? (
-          <div className="fade-in">
+        <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} />
+        {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
+        {(et.cyc !== 0 || et.carry !== 0) && (() => {
+          const adj = et.eff.kcal - et.base.kcal;
+          const cd = et.carryDetail;
+          const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
+          const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
+          const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+          return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
+            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
+            {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
+          </div>;
+        })()}
+        {(() => {
+          const dayEntries = entriesOn(db, today);
+          if (!dayEntries.length) return null;
+          const totalKcal = Math.round(sumMacros(dayEntries).kcal);
+          const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
+          return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
+            <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
+            <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
+          </button>;
+        })()}
+        {/* Balance (shift leftover kcal between carbs and fat) is a power feature: behind an Adjust link. */}
+        <div className="mt-3 pt-2.5 border-t border-[#262629]">
+          <Collapsible variant="inline" label="Balance carbs & fat" sub="Adjust ›">
             <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
             <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
             <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
@@ -4419,59 +4464,38 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
               {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
               <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
             </div>
-          </div>
-        ) : (<>
-          <MacroSummaryCard et={et} tot={tot} mode={mode} avg={span === 'avg'} />
-          {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
-          {(et.cyc !== 0 || et.carry !== 0) && (() => {
-            const adj = et.eff.kcal - et.base.kcal;
-            const cd = et.carryDetail;
-            const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
-            const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
-            const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-            return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
-              <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
-              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
-            </div>;
-          })()}
-          {(() => {
-            const dayEntries = entriesOn(db, today);
-            if (!dayEntries.length) return null;
-            const totalKcal = Math.round(sumMacros(dayEntries).kcal);
-            const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
-            return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
-              <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
-              <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
-            </button>;
-          })()}
-        </>)}
+          </Collapsible>
+        </div>
       </Card>
 
-      {/* The living buddy: reflects how you have eaten today (bond, mood, needs) and frames the next
-          log as feeding it. The emotional anchor and the one tap into the Buddy & Play hub. */}
-      <BuddyCard db={db} bp={bp} streak={streak} freezeReady={Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today)} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
+      {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
+          needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
+      <CompanionStrip db={db} bp={bp} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
 
-      {!isPremium && (() => {
-        const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-        return freeLeft <= 3
-          ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
-              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-              blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
-          : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
-              headline="Log a meal in one snap"
-              blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
-      })()}
-
-      {/* Progress: check-in, weigh-in, the coach line AND the weight-trend spark in one surface.
-          (Recipe rails live on the Cook tab now, so Today stays about today's food and progress.) */}
-      <WeighCadencePrompt db={db} update={update} />
+      {/* Weekly loop: self-collapses to a quiet line and expands only when a check-in is actually due. */}
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
 
+      {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
 
-      {/* Today status: Move / Sleep / Ready as three dials (Google Health). The readiness -> Fight
-          payoff moved into the Play hub, so this stays a calm glance. */}
-      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
+      {/* Everything below the fast loop: activity dials, the one-time weigh-cadence question, install +
+          upgrade nudges. Collapsed by default so Today opens as a quick glance, not a wall. */}
+      <Collapsible label="More">
+        {/* Move / Sleep / Ready dials (Google Health). The readiness -> Fight payoff lives in Play. */}
+        <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
+        <WeighCadencePrompt db={db} update={update} />
+        <InstallCard />
+        {!isPremium && (() => {
+          const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+          return freeLeft <= 3
+            ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
+                headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
+                blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
+            : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
+                headline="Log a meal in one snap"
+                blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
+        })()}
+      </Collapsible>
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
