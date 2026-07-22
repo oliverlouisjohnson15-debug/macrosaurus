@@ -6415,7 +6415,7 @@ function SettingsTab({ db, update }) {
       const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
       const setM = (patch) => update(d => { d.menstrual = Object.assign({ enabled: false, lastStart: null, cycleLen: 28 }, d.menstrual, patch); });
       const ph = m.enabled ? E.menstrualPhase(m, Store.todayISO()) : null;
-      return <Section title="Menstrual cycle">
+      return <Collapsible label="Menstrual cycle">
         <div className="text-[12px] text-[#8A8A90] mb-3">Optional. If you track this, Macrosaurus expects the water-weight rise in the week before your period and will not cut your calories on it, so a normal premenstrual bump on the scale does not throw off your plan.</div>
         <RowToggle label="Track my cycle" on={!!m.enabled} onClick={() => setM({ enabled: !m.enabled })} />
         {m.enabled && <>
@@ -6428,7 +6428,7 @@ function SettingsTab({ db, update }) {
           </Field>
           {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : ph.lowWater ? 'var(--good)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase.{ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.'}</div>}
         </>}
-      </Section>;
+      </Collapsible>;
     })()}
     <Section title="AI food logging">
       <div className="text-[13px] text-[var(--text)] mb-1">AI is built in. No setup needed.</div>
@@ -6499,7 +6499,7 @@ function AdvancedTab({ db, update }) {
       <Seg value={coach} onChange={setCoach} options={COACH_MODES.map(m => ({ v: m.v, l: m.l }))} />
       <div className="mt-3 space-y-2">{COACH_MODES.map(m => (<div key={m.v} className={`pixel-box px-3 py-2.5 text-[12px] transition ${coach === m.v ? 'bg-[#1E1E22]' : 'opacity-45'}`} style={{ boxShadow: 'none' }}><span className="font-semibold">{m.l}.</span> <span className="text-[#8A8A90]">{m.d}</span></div>))}</div>
     </Section>
-    <Section title="Weekly plan">
+    <Collapsible label="Weekly plan">
       <div className="text-[12px] text-[#8A8A90] mb-3">Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.</div>
       <div className="text-[11px] text-[#8A8A90] mb-2">Shape your week</div>
       <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>)}</div>
@@ -6523,7 +6523,7 @@ function AdvancedTab({ db, update }) {
         <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever you pick."><input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry(c => Object.assign({}, c, { capKcal: +e.target.value }))} className="w-full accent-[#4A9EEB]" /></Field>
       </>}
       <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
-    </Section>
+    </Collapsible>
     <Section title="Weigh-ins">
       <div className="text-[12px] text-[#8A8A90] mb-3">How often you step on the scale. Your check-in reads the trend either way.</div>
       <Seg value={weigh} onChange={setWeigh} options={[{ v: 'daily', l: 'Most days' }, { v: 'single', l: 'Once a week' }]} />
@@ -6533,7 +6533,7 @@ function AdvancedTab({ db, update }) {
           : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
       </div>
     </Section>
-    <Section title="Custom calories & macros">
+    <Collapsible label="Custom calories & macros">
       <div className="text-[12px] text-[#8A8A90] mb-3">Ignore the engine and set your own numbers. Heads up: in Coached mode a check-in can still change these, so set Coaching mode to Manual above to lock them.</div>
       <RowToggle label="Set my own targets" on={manual.enabled} onClick={() => mset('enabled', !manual.enabled)} />
       {manual.enabled && <div className="grid grid-cols-2 gap-3">
@@ -6542,7 +6542,7 @@ function AdvancedTab({ db, update }) {
         <Field label="Carbs (g)"><NumInput value={manual.carbs_g} onChange={e => mset('carbs_g', e.target.value)} /></Field>
         <Field label="Fat (g)"><NumInput value={manual.fat_g} onChange={e => mset('fat_g', e.target.value)} /></Field>
       </div>}
-    </Section>
+    </Collapsible>
     <SaveBar dirty={dirty} saved={saved} onSave={save} label="Save advanced settings" />
   </>);
 }

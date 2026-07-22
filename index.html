@@ -19450,8 +19450,8 @@ function SettingsTab({
       }, d.menstrual, patch);
     });
     const ph = m.enabled ? E.menstrualPhase(m, Store.todayISO()) : null;
-    return /*#__PURE__*/React.createElement(Section, {
-      title: "Menstrual cycle"
+    return /*#__PURE__*/React.createElement(Collapsible, {
+      label: "Menstrual cycle"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90] mb-3"
     }, "Optional. If you track this, Macrosaurus expects the water-weight rise in the week before your period and will not cut your calories on it, so a normal premenstrual bump on the scale does not throw off your plan."), /*#__PURE__*/React.createElement(RowToggle, {
@@ -19662,8 +19662,8 @@ function AdvancedTab({
     className: "font-semibold"
   }, m.l, "."), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, m.d))))), /*#__PURE__*/React.createElement(Section, {
-    title: "Weekly plan"
+  }, m.d))))), /*#__PURE__*/React.createElement(Collapsible, {
+    label: "Weekly plan"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way."), /*#__PURE__*/React.createElement("div", {
@@ -19804,8 +19804,8 @@ function AdvancedTab({
     className: "font-semibold"
   }, "Once a week."), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, "Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a little more cautiously.")))), /*#__PURE__*/React.createElement(Section, {
-    title: "Custom calories & macros"
+  }, "Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a little more cautiously.")))), /*#__PURE__*/React.createElement(Collapsible, {
+    label: "Custom calories & macros"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Ignore the engine and set your own numbers. Heads up: in Coached mode a check-in can still change these, so set Coaching mode to Manual above to lock them."), /*#__PURE__*/React.createElement(RowToggle, {
