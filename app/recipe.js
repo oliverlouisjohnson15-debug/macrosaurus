@@ -417,6 +417,7 @@
     mixed: 1, baby: 1, wild: 1, lean: 1, thick: 1, thin: 1, warm: 1, room: 1, temperature: 1, semi: 1,
     skimmed: 1, full: 1, natural: 1, and: 1, the: 1, for: 1, plus: 1, into: 1, with: 1, your: 1, few: 1,
     of: 1, splash: 1, dash: 1, pinch: 1, drizzle: 1, squeeze: 1, handful: 1, knob: 1, glug: 1, some: 1,
+    grilled: 1, fried: 1, baked: 1, boiled: 1, steamed: 1, roast: 1, poached: 1, seared: 1, smoked: 1, homemade: 1,
   };
   // Canonical token for common cross-Atlantic / spelling variants, so a US fridge photo ("cilantro",
   // "zucchini", "garbanzo") still matches UK recipe wording ("coriander", "courgette", "chickpea").

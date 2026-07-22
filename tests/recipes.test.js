@@ -413,3 +413,12 @@ test('suggestRecipesFromHave respects maxMissing and minHave', () => {
   assert.strictEqual(Recipe.suggestRecipesFromHave(recipes, ['pasta', 'cherry tomatoes'], { maxMissing: 3 }).length, 1);
   assert.strictEqual(Recipe.suggestRecipesFromHave(recipes, ['ketchup'], { maxMissing: 3 }).length, 0);                  // no real overlap
 });
+
+test('foodTokens drops cooking-method words so prep variants match (powers fuzzy food reuse)', () => {
+  assert.deepStrictEqual(Recipe.foodTokens('grilled chicken breast'), ['chicken', 'breast']);
+  assert.deepStrictEqual(Recipe.foodTokens('fried salmon fillet'), ['salmon', 'fillet']);
+  // set-equality is what the fuzzy saved-correction reuse relies on
+  const key = n => Recipe.foodTokens(n).slice().sort().join(' ');
+  assert.strictEqual(key('grilled chicken breast'), key('chicken breast'));
+  assert.notStrictEqual(key('chicken salad'), key('chicken breast'));   // no wrong reuse
+});
