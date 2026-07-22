@@ -86,6 +86,23 @@ test('mergeStates: a stale copy with a newer _rev can never drop the other copy 
   assert.deepStrictEqual(m2.log_entries.map(e => e.id).sort(), ['a', 'b', 'c']);
 });
 
+test('mergeStates: Amber earned/spent on two devices unions without loss or double-count', () => {
+  const Game = require('../app/game.js');
+  // Device A earned a weekly-boss payout; device B (higher _rev) earned a daily and spent on a crown.
+  const a = { _rev: 100, amber_ledger: [{ id: 'e1', date: '2026-07-20', delta: 60, reason: 'weekly' }] };
+  const b = { _rev: 200, amber_ledger: [
+    { id: 'e2', date: '2026-07-21', delta: 15, reason: 'daily' },
+    { id: 's1', date: '2026-07-21', delta: -260, reason: 'buy:crown' },
+  ] };
+  const m = Store.mergeStates(a, b);
+  assert.deepStrictEqual(m.amber_ledger.map(e => e.id).sort(), ['e1', 'e2', 's1']); // all three survive
+  assert.strictEqual(Game.amberBalance(m.amber_ledger), 0); // 60 + 15 - 260, clamped to 0 (never negative)
+  // order-independent, and a duplicated earn id is de-duped (union keeps one), so no double-count
+  const dup = { _rev: 300, amber_ledger: [{ id: 'e1', date: '2026-07-20', delta: 60, reason: 'weekly' }] };
+  const m2 = Store.mergeStates(m, dup);
+  assert.strictEqual(m2.amber_ledger.filter(e => e.id === 'e1').length, 1);
+});
+
 test('mergeStates: scalar/derived fields come from the higher-_rev copy, edits win on conflict', () => {
   const older = { _rev: 1, profile: { goalType: 'cut' }, last_checkin: '2026-07-01',
     log_entries: [{ id: 'a', date: '2026-07-08', computed_macros: { kcal: 100 } }] };

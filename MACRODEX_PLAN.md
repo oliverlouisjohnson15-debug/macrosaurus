@@ -259,8 +259,20 @@ resolution, leaderboard scoring) lives in a **pure, unit-tested `app/game.js`** 
 - **Phase 3 — Collection depth. ✅ *(shipped)*** A **Monthly Expedition** — a featured creature
   that rotates each calendar month (same for everyone, deterministic), caught by hitting a
   quality-day goal that month: a fresh monthly chase and a guaranteed route to a rare, surfaced
-  in the dex. Biome-completion medals already existed. *Optional later: breeding/fusion and
-  bond/fight cosmetics — a bigger mechanic, best post-launch.*
+  in the dex. Biome-completion medals already existed.
+- **Phase 3.5 — Cohesion overhaul. ✅ *(shipped this session)*** Two gaps closed. **(a) The
+  companion was invisible:** all of Phase 1's bond/mood/needs/craving maths existed and were
+  tested, but `buddyProfile` only drove a hidden evolution gate — `BuddyCard`, mood copy and
+  craving labels were never rendered. Promoted `BuddyCard` to a **living companion** on the
+  dashboard (evolved-species sprite + cosmetics, bond hearts, mood + a mood line, three need
+  meters, a "feed me" craving CTA that opens the log flow), unifying the derived-stage sprite
+  with the real bond-evolved individual. **(b) Bosses now pay something.** Added a **Daily Hunt**
+  (a gentle, deterministic-per-day mini-boss, once a day, retryable after a loss, with its own
+  clear-streak) alongside the weekly boss, and an **Amber currency + shop**: hunts and bosses
+  pay Amber, spent on **buddy cosmetics** (drawn on the buddy) and catch boosts. Amber is an
+  **append-only ledger** (`amber_ledger`), unioned by id in `mergeStates` so it is conflict-free
+  like `catch_log` — never lost or double-counted on a merge. All pure logic (`dailyHunt`,
+  `amberBalance`, `shopPrice`, daily-streak) lives in `app/game.js` and is unit-tested.
 - **Phase 4 — Weekly League.** Supabase table + view + RLS + edge-function recompute; opt-in
   UI; the boards; anti-cheat + privacy.
 - **Phase 5 — Social & polish.** Gifting/parties (co-op accountability), behaviour-triggered

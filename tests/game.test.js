@@ -160,10 +160,14 @@ test('existing persisted state migrates with sensible gamification defaults', ()
   });
   assert.strictEqual(s.fight.rank, 4);                 // existing progress preserved
   assert.strictEqual(s.fight.lastAttemptDate, null);   // new gate field backfilled
+  assert.strictEqual(s.fight.lastDailyDate, null);     // new daily-hunt fields backfilled
+  assert.strictEqual(s.fight.dailyStreak, 0);
+  assert.strictEqual(s.fight.dailyBest, 0);
   assert.strictEqual(s.game_salt, null);               // minted lazily on first run
   assert.deepStrictEqual(s.badges, { checkins: 0, inRange: 0 });
-  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null });
+  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] });
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
+  assert.deepStrictEqual(s.amber_ledger, []);          // new currency ledger backfilled
   assert.strictEqual(s.catch_log['2026-07-01'][0].id, 'nugg'); // locked catches untouched
 });
 
@@ -586,4 +590,69 @@ test('primedCatch is deterministic and draws from the rare primed pool', () => {
     assert.ok(pool.includes(c.id), 'off-pool primed catch: ' + c.id);
     assert.strictEqual(typeof c.shiny, 'boolean');
   }
+});
+
+// ---- Daily Hunt: a deterministic-per-day mini-boss ----
+
+test('dailyHunt is stable for a date and stays inside the roster', () => {
+  const a = Game.dailyHunt('2026-07-22', 7);
+  assert.deepStrictEqual(a, Game.dailyHunt('2026-07-22', 7)); // same all day
+  for (let i = 1; i <= 28; i++) {
+    const h = Game.dailyHunt('2026-07-' + String(i).padStart(2, '0'), 7);
+    assert.ok(h.idx >= 0 && h.idx < 7, 'idx in range');
+    assert.ok(Game.FIGHT_TYPES.includes(h.type), 'valid type');
+    assert.ok(h.power >= 2 && h.power <= 4, 'daily power is gentle (2..4): ' + h.power);
+  }
+});
+
+test('dailyHunt differs across days (not a constant)', () => {
+  const idxs = new Set();
+  for (let i = 1; i <= 28; i++) idxs.add(Game.dailyHunt('2026-07-' + String(i).padStart(2, '0'), 7).idx);
+  assert.ok(idxs.size > 1, 'daily hunt should vary day to day');
+});
+
+test('dailyReady is once per day', () => {
+  assert.strictEqual(Game.dailyReady(null, '2026-07-22'), true);
+  assert.strictEqual(Game.dailyReady('2026-07-21', '2026-07-22'), true);
+  assert.strictEqual(Game.dailyReady('2026-07-22', '2026-07-22'), false);
+});
+
+test('dailyStreakNext extends on consecutive days and resets after a gap', () => {
+  assert.strictEqual(Game.dailyStreakNext(null, 0, '2026-07-22'), 1);          // first clear
+  assert.strictEqual(Game.dailyStreakNext('2026-07-21', 3, '2026-07-22'), 4);  // next day → +1
+  assert.strictEqual(Game.dailyStreakNext('2026-07-19', 3, '2026-07-22'), 1);  // gap → reset to 1
+  assert.strictEqual(Game.dailyStreakNext('2026-07-22', 4, '2026-07-22'), 4);  // already counted today
+});
+
+// ---- Amber currency: append-only ledger, balance = sum(delta) ----
+
+test('amberBalance sums the ledger and never goes negative', () => {
+  assert.strictEqual(Game.amberBalance(null), 0);
+  assert.strictEqual(Game.amberBalance([]), 0);
+  const led = [{ id: 'a', delta: 60 }, { id: 'b', delta: 15 }, { id: 'c', delta: -40 }];
+  assert.strictEqual(Game.amberBalance(led), 35);
+  assert.strictEqual(Game.amberBalance([{ id: 'x', delta: -999 }]), 0); // clamped
+});
+
+test('amberDailyReward tops up every 5th clear in a row', () => {
+  assert.strictEqual(Game.amberDailyReward(1), Game.AMBER_REWARDS.daily);
+  assert.strictEqual(Game.amberDailyReward(4), Game.AMBER_REWARDS.daily);
+  assert.strictEqual(Game.amberDailyReward(5), Game.AMBER_REWARDS.daily + Game.AMBER_REWARDS.dailyStreakBonus);
+  assert.strictEqual(Game.amberDailyReward(10), Game.AMBER_REWARDS.daily + Game.AMBER_REWARDS.dailyStreakBonus);
+});
+
+// ---- Shop: stable prices, affordability from the ledger ----
+
+test('shopPrice covers every cosmetic and consumable, and is null otherwise', () => {
+  Game.COSMETICS.forEach(c => assert.strictEqual(Game.shopPrice(c.id), c.price));
+  Game.SHOP_CONSUMABLES.forEach(c => assert.strictEqual(Game.shopPrice(c.id), c.price));
+  assert.strictEqual(Game.shopPrice('not_a_thing'), null);
+});
+
+test('canAfford reads the balance against the price', () => {
+  const rich = [{ id: 'a', delta: 500 }];
+  const poor = [{ id: 'a', delta: 10 }];
+  assert.strictEqual(Game.canAfford(rich, 'crown'), true);
+  assert.strictEqual(Game.canAfford(poor, 'crown'), false);
+  assert.strictEqual(Game.canAfford(rich, 'not_a_thing'), false); // no price → cannot buy
 });
