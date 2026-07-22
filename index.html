@@ -25761,7 +25761,10 @@ function RecipeFilterSheet({
   sort,
   setSort,
   onClear,
-  onClose
+  onClose,
+  filter,
+  setFilter,
+  collections
 }) {
   const present = k => {
     const s = new Set();
@@ -25833,7 +25836,27 @@ function RecipeFilterSheet({
       color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)',
       fontWeight: facets.badge === 'high-protein' ? 700 : 400
     }
-  }, "High protein"))), /*#__PURE__*/React.createElement(Group, {
+  }, "High protein"), setFilter && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFilter(filter === 'fav' ? 'all' : 'fav'),
+    className: "pixel-box px-2.5 py-1.5 text-[12px]",
+    style: {
+      background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)',
+      color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)',
+      fontWeight: filter === 'fav' ? 700 : 400
+    }
+  }, "★ Favourites"), setFilter && (collections || []).map(c => {
+    const on = filter === c;
+    return /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: () => setFilter(on ? 'all' : c),
+      className: "pixel-box px-2.5 py-1.5 text-[12px]",
+      style: {
+        background: on ? 'var(--accent)' : 'var(--surface3)',
+        color: on ? 'var(--on-accent)' : 'var(--text)',
+        fontWeight: on ? 700 : 400
+      }
+    }, c);
+  }))), /*#__PURE__*/React.createElement(Group, {
     label: "Meal",
     k: "meal",
     values: present('meal')
@@ -26709,6 +26732,17 @@ function Recipes({
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 shrink-0"
   }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setScreen('fridge'),
+    className: "pixel-box w-10 h-10 flex items-center justify-center",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    },
+    "aria-label": "Cook from your fridge"
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "18",
+    height: "18"
+  })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setScreen('plan'),
     className: "pixel-box w-10 h-10 flex items-center justify-center",
     style: {
@@ -26736,35 +26770,7 @@ function Recipes({
     }
   }, shoppingCount)))), /*#__PURE__*/React.createElement(ChefCard, {
     db: db
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setScreen('fridge'),
-    className: "w-full mb-4 pixel-box p-3.5 flex items-center gap-3 text-left active:opacity-90",
-    style: {
-      background: 'var(--accent-dim)',
-      borderColor: 'var(--accent)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-9 h-9 shrink-0 pixel-box flex items-center justify-center",
-    style: {
-      background: 'var(--accent)',
-      color: 'var(--on-accent)'
-    }
-  }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "18",
-    height: "18"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0 flex-1"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[14px] font-bold"
-  }, "Cook from your fridge"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] leading-snug"
-  }, "Snap what you have and see what you can make right now")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
-    style: {
-      color: 'var(--muted)'
-    }
-  })), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 mb-4 pixel-box p-1 text-[12px]",
     style: {
       background: 'var(--surface2)',
@@ -26831,8 +26837,8 @@ function Recipes({
     onClick: () => setShowFilters(true),
     className: "pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]",
     style: {
-      background: facetCount ? 'var(--accent)' : 'var(--surface3)',
-      color: facetCount ? 'var(--on-accent)' : 'var(--text)'
+      background: facetCount || filter !== 'all' ? 'var(--accent)' : 'var(--surface3)',
+      color: facetCount || filter !== 'all' ? 'var(--on-accent)' : 'var(--text)'
     },
     "aria-label": "Filters"
   }, /*#__PURE__*/React.createElement(Icon.sliders, {
@@ -26843,20 +26849,8 @@ function Recipes({
   }, facetCount) : /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
   }, "Filters"))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 overflow-x-auto pb-1 my-3 -mx-1 px-1",
-    style: {
-      scrollbarWidth: 'none'
-    }
-  }, [['all', 'All'], ['fav', '★ Favourites']].concat(collections.map(c => [c, c])).map(([k, l]) => /*#__PURE__*/React.createElement("button", {
-    key: k,
-    onClick: () => setFilter(k),
-    className: "pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0",
-    style: {
-      background: filter === k ? 'var(--accent)' : 'var(--surface3)',
-      color: filter === k ? '#111' : 'var(--text)',
-      fontWeight: filter === k ? 700 : 400
-    }
-  }, l))), showRails ? /*#__PURE__*/React.createElement("div", {
+    className: "my-3"
+  }), showRails ? /*#__PURE__*/React.createElement("div", {
     className: "mt-1"
   }, /*#__PURE__*/React.createElement(RecipeRails, {
     db: db,
@@ -26898,9 +26892,13 @@ function Recipes({
     setFacet: setFacet,
     sort: sort,
     setSort: setSort,
+    filter: filter,
+    setFilter: setFilter,
+    collections: collections,
     onClear: () => {
       setFacets({});
       setSort('recent');
+      setFilter('all');
     },
     onClose: () => setShowFilters(false)
   })), screen === 'import' && /*#__PURE__*/React.createElement(RecipeImport, {

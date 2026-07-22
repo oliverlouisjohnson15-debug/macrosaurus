@@ -8553,7 +8553,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
 }
 // Faceted filter + sort sheet for the recipe library. Only shows facet values that actually exist in
 // the user's recipes, so at 5 recipes it's tiny and at 500 it's rich, no dead options either way.
-function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClose }) {
+function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClose, filter, setFilter, collections }) {
   const present = k => { const s = new Set(); (db.recipes || []).forEach(r => { const v = (r.tags || {})[k]; if (v) s.add(v); }); return Rcp.TAX[k].filter(x => s.has(x)); };
   const diets = (() => { const s = new Set(); (db.recipes || []).forEach(r => (((r.tags || {}).diet) || []).forEach(d => s.add(d))); return Rcp.TAX.diet.filter(x => s.has(x)); })();
   const Group = ({ label, k, values }) => values.length ? (<div className="mb-4">
@@ -8569,7 +8569,11 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
       <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="text-xl leading-none text-[#8A8A90]" aria-label="Close">×</button></div>
       <div className="mb-4">
         <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Show</div>
-        <div className="flex flex-wrap gap-2"><button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button></div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
+          {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}>★ Favourites</button>}
+          {setFilter && (collections || []).map(c => { const on = filter === c; return <button key={c} onClick={() => setFilter(on ? 'all' : c)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{c}</button>; })}
+        </div>
       </div>
       <Group label="Meal" k="meal" values={present('meal')} />
       <Group label="Cuisine" k="cuisine" values={present('cuisine')} />
@@ -8919,6 +8923,10 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
       <div className="flex items-center justify-between mb-4">
         <PageHeader kicker="Cook" title="Recipes" />
         <div className="flex items-center gap-2 shrink-0">
+          {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
+          <button onClick={() => setScreen('fridge')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} aria-label="Cook from your fridge">
+            <Icon.cam width="18" height="18" />
+          </button>
           <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
             <Icon.calendar width="19" height="19" />
           </button>
@@ -8929,12 +8937,6 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         </div>
       </div>
       <ChefCard db={db} />
-      {/* Always-visible entry to the fridge scanner - the food-waste USP - on both tabs. */}
-      <button onClick={() => setScreen('fridge')} className="w-full mb-4 pixel-box p-3.5 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-        <div className="w-9 h-9 shrink-0 pixel-box flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Icon.cam width="18" height="18" /></div>
-        <div className="min-w-0 flex-1"><div className="text-[14px] font-bold">Cook from your fridge</div><div className="text-[11px] text-[#8A8A90] leading-snug">Snap what you have and see what you can make right now</div></div>
-        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
-      </button>
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
         <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
@@ -8954,13 +8956,9 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
-          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: facetCount ? 'var(--accent)' : 'var(--surface3)', color: facetCount ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
+          <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: (facetCount || filter !== 'all') ? 'var(--accent)' : 'var(--surface3)', color: (facetCount || filter !== 'all') ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 my-3 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-          {[['all', 'All'], ['fav', '★ Favourites']].concat(collections.map(c => [c, c])).map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} className="pixel-box px-3 py-1.5 text-[12px] whitespace-nowrap shrink-0" style={{ background: filter === k ? 'var(--accent)' : 'var(--surface3)', color: filter === k ? '#111' : 'var(--text)', fontWeight: filter === k ? 700 : 400 }}>{l}</button>
-          ))}
-        </div>
+        <div className="my-3" />
         {showRails
           ? <div className="mt-1"><RecipeRails db={db} onOpenRecipe={id => { setActiveId(id); setScreen('detail'); }} limit={4} /></div>
           : recipes.length ? <>
@@ -8969,7 +8967,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </>
           : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent)' }}>Clear filters</button></div>}
       </>}
-      {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} onClear={() => { setFacets({}); setSort('recent'); }} onClose={() => setShowFilters(false)} />}
+      {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} filter={filter} setFilter={setFilter} collections={collections} onClear={() => { setFacets({}); setSort('recent'); setFilter('all'); }} onClose={() => setShowFilters(false)} />}
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
