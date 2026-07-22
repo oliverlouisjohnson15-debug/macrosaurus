@@ -25548,16 +25548,6 @@ function Recipes({
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 shrink-0"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setScreen('fridge'),
-    className: "pixel-box w-10 h-10 flex items-center justify-center",
-    style: {
-      background: 'var(--surface3)'
-    },
-    "aria-label": "Cook from your fridge"
-  }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "19",
-    height: "19"
-  })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setScreen('plan'),
     className: "pixel-box w-10 h-10 flex items-center justify-center",
     style: {
@@ -25585,7 +25575,35 @@ function Recipes({
     }
   }, shoppingCount)))), /*#__PURE__*/React.createElement(ChefCard, {
     db: db
-  }), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setScreen('fridge'),
+    className: "w-full mb-4 pixel-box p-3.5 flex items-center gap-3 text-left active:opacity-90",
+    style: {
+      background: 'var(--accent-dim)',
+      borderColor: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-9 h-9 shrink-0 pixel-box flex items-center justify-center",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "18",
+    height: "18"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[14px] font-bold"
+  }, "Cook from your fridge"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug"
+  }, "Snap what you have and see what you can make right now")), /*#__PURE__*/React.createElement(Icon.chevron, {
+    width: "16",
+    height: "16",
+    style: {
+      color: 'var(--muted)'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 mb-4 pixel-box p-1 text-[12px]",
     style: {
       background: 'var(--surface2)',
@@ -25620,25 +25638,7 @@ function Recipes({
     kind: "accent",
     className: "w-full mb-3",
     onClick: () => setScreen('import')
-  }, "Import a recipe from a video"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setScreen('fridge'),
-    className: "w-full mb-3 pixel-box p-3 flex items-center gap-3 text-left active:opacity-90",
-    style: {
-      background: 'var(--surface3)'
-    }
-  }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "20",
-    height: "20",
-    style: {
-      color: 'var(--accent)'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] font-bold"
-  }, "Cook from your fridge"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] leading-snug"
-  }, "Snap what you have and find what to make"))), /*#__PURE__*/React.createElement(ShareTip, {
+  }, "Import a recipe from a video"), /*#__PURE__*/React.createElement(ShareTip, {
     className: "mb-4"
   }), /*#__PURE__*/React.createElement(Card, {
     className: "p-6 text-center"
@@ -25654,26 +25654,11 @@ function Recipes({
     className: "text-[14px] font-semibold mb-1"
   }, "Your cookbook is empty"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto"
-  }, "Import a cooking Reel or Short, or upload your own, and it becomes ingredients, a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep."))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 mb-3"
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }, "Import a cooking Reel or Short, or upload your own, and it becomes ingredients, a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep."))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
-    className: "flex-1",
+    className: "w-full mb-3",
     onClick: () => setScreen('import')
-  }, "Import a recipe"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setScreen('fridge'),
-    className: "pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]",
-    style: {
-      background: 'var(--surface3)',
-      color: 'var(--text)'
-    },
-    "aria-label": "Cook from your fridge"
-  }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "15",
-    height: "15"
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "hidden sm:inline"
-  }, "From your fridge"))), /*#__PURE__*/React.createElement("div", {
+  }, "Import a recipe from a video"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 items-stretch"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex-1 min-w-0"

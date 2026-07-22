@@ -8488,9 +8488,6 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
       <div className="flex items-center justify-between mb-4">
         <PageHeader kicker="Cook" title="Recipes" />
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => setScreen('fridge')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Cook from your fridge">
-            <Icon.cam width="19" height="19" />
-          </button>
           <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
             <Icon.calendar width="19" height="19" />
           </button>
@@ -8501,6 +8498,12 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         </div>
       </div>
       <ChefCard db={db} />
+      {/* Always-visible entry to the fridge scanner - the food-waste USP - on both tabs. */}
+      <button onClick={() => setScreen('fridge')} className="w-full mb-4 pixel-box p-3.5 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
+        <div className="w-9 h-9 shrink-0 pixel-box flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Icon.cam width="18" height="18" /></div>
+        <div className="min-w-0 flex-1"><div className="text-[14px] font-bold">Cook from your fridge</div><div className="text-[11px] text-[#8A8A90] leading-snug">Snap what you have and see what you can make right now</div></div>
+        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
+      </button>
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
         <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
@@ -8510,7 +8513,6 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
         : !allRecipes.length ? <>
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
-        <button onClick={() => setScreen('fridge')} className="w-full mb-3 pixel-box p-3 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--surface3)' }}><Icon.cam width="20" height="20" style={{ color: 'var(--accent)' }} /><div className="min-w-0"><div className="text-[13px] font-bold">Cook from your fridge</div><div className="text-[11px] text-[#8A8A90] leading-snug">Snap what you have and find what to make</div></div></button>
         <ShareTip className="mb-4" />
         <Card className="p-6 text-center">
           <div className="mb-3 flex justify-center"><Icon.recipe width="32" height="32" style={{ color: 'var(--muted)' }} /></div>
@@ -8518,10 +8520,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Import a cooking Reel or Short, or upload your own, and it becomes ingredients, a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep.</div>
         </Card>
       </> : <>
-        <div className="flex gap-2 mb-3">
-          <Btn kind="accent" className="flex-1" onClick={() => setScreen('import')}>Import a recipe</Btn>
-          <button onClick={() => setScreen('fridge')} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: 'var(--surface3)', color: 'var(--text)' }} aria-label="Cook from your fridge"><Icon.cam width="15" height="15" /><span className="hidden sm:inline">From your fridge</span></button>
-        </div>
+        <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
         <div className="flex gap-2 items-stretch">
           <div className="flex-1 min-w-0"><TextInput placeholder="Search your recipes…" value={q} onChange={e => setQ(e.target.value)} /></div>
           <button onClick={() => setShowFilters(true)} className="pixel-box px-3 flex items-center gap-1.5 shrink-0 text-[12px]" style={{ background: facetCount ? 'var(--accent)' : 'var(--surface3)', color: facetCount ? 'var(--on-accent)' : 'var(--text)' }} aria-label="Filters"><Icon.sliders width="15" height="15" />{facetCount ? <span className="pf text-[8px]">{facetCount}</span> : <span className="hidden sm:inline">Filters</span>}</button>
