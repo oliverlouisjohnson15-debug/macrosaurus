@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1{margin-top:.25rem;margin-bottom:.25rem}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.collapse{visibility:collapse}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-bottom-0\.5{bottom:-.125rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1{margin-top:.25rem;margin-bottom:.25rem}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-1\.5{row-gap:.375rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-black\/50{--tw-shadow-color:rgba(0,0,0,.5);--tw-shadow:var(--tw-shadow-colored)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -1459,10 +1459,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       items: {},          // shared item inventory: { itemId: count }
       dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
       game_awards: {},    // idempotency keys for one-time item / milestone grants
-      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null }, // ladder + weekly boss + prestige; one ladder attempt per logged day
+      amber_ledger: [],   // append-only Amber-currency ledger: [{ id, date, delta, reason }]; balance = sum(delta). Append-only so a merge can never lose or double-count winnings (see mergeStates)
+      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null, lastDailyDate: null, dailyStreak: 0, dailyBest: 0 }, // ladder + weekly boss + daily hunt + prestige; one ladder/daily attempt per logged day
       game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
-      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path
+      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought overlays (owned + equipped)
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
@@ -1547,6 +1548,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     out.meal_plan      = unionBy(newer.meal_plan,      older.meal_plan,      byId);
     out.targets        = unionBy(newer.targets,        older.targets,        byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
+    // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
+    // offline can never have its Amber lost or double-counted. Balance is recomputed from this.
+    out.amber_ledger   = unionBy(newer.amber_ledger,   older.amber_ledger,   byId);
     // date-keyed maps: union keys, newer wins on a shared date
     out.day_meals     = Object.assign({}, older.day_meals || {},     newer.day_meals || {});
     out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});
@@ -2079,6 +2083,67 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'primedshiny#' + date) % 5 === 0 };
   }
 
+  // ---- Daily Hunt: a small, deterministic-per-day mini-boss, tuned easier than the weekly boss ----
+  // The visual roster lives in app.jsx; here we pick a STABLE index + type + power for a date so the
+  // same hunt shows all day and differs day to day (power 2..4 vs the weekly boss's 6..7).
+  function dailyHunt(date, rosterLen) {
+    var n = Math.max(1, rosterLen || 1);
+    return {
+      idx: seedFor('dailyhunt', date) % n,
+      type: FIGHT_TYPES[seedFor('dailytype', date) % FIGHT_TYPES.length],
+      power: 2 + (seedFor('dailypow', date) % 3), // 2..4
+    };
+  }
+  // Daily hunt is available once per calendar day.
+  function dailyReady(lastDailyDate, today) { return lastDailyDate !== today; }
+  // Daily-clear streak: consecutive days you beat the hunt. Beating it the very next day extends the
+  // streak; a gap of more than a day gently resets to 1 (never below, never a punishment).
+  function dailyStreakNext(lastDailyDate, curStreak, today) {
+    if (!lastDailyDate) return 1;
+    if (lastDailyDate === today) return curStreak || 1; // already counted today
+    return daysBetween(lastDailyDate, today) === 1 ? (curStreak || 0) + 1 : 1;
+  }
+
+  // ---- Amber: the spendable currency, an APPEND-ONLY LEDGER so it merges conflict-free (like catch_log) ----
+  // Never store Amber as a bare mutable number: the state merge unions append-only collections, so a
+  // ledger of {id, date, delta, reason} entries can never be lost or double-counted. Balance = sum(delta).
+  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8 };
+  // The daily hunt pays a little; every 5th clear in a row tops up, so consistency compounds.
+  function amberDailyReward(streak) {
+    var base = AMBER_REWARDS.daily;
+    if (streak > 0 && streak % 5 === 0) base += AMBER_REWARDS.dailyStreakBonus;
+    return base;
+  }
+  function amberBalance(ledger) {
+    var b = 0; (ledger || []).forEach(function (e) { b += (e && Number(e.delta)) || 0; });
+    return Math.max(0, Math.round(b));
+  }
+
+  // ---- Shop: spend Amber on buddy cosmetics + catch boosts. Prices are pure and stable. ----
+  // Cosmetics are buddy sprite overlays (drawn in app.jsx), owned/equipped in db.buddy.cosmetics.
+  // Consumables reuse the existing item system (they flow into db.items and the dex_boost loop).
+  var COSMETICS = [
+    { id: 'flower', name: 'Head Bloom', kind: 'hat', price: 60, desc: 'A little bloom that sits between the eyes.' },
+    { id: 'party_hat', name: 'Party Hat', kind: 'hat', price: 90, desc: 'A jaunty cone for a well-fed buddy.' },
+    { id: 'shades', name: 'Cool Shades', kind: 'face', price: 120, desc: 'Too cool for extinction.' },
+    { id: 'scarf', name: 'Cosy Scarf', kind: 'neck', price: 140, desc: 'For the warm and well-nourished.' },
+    { id: 'crown', name: 'Gold Crown', kind: 'hat', price: 260, desc: 'Rule the pit in style.' },
+    { id: 'aura_ember', name: 'Ember Aura', kind: 'aura', price: 320, desc: 'A blazing glow that follows your buddy.' },
+  ];
+  var COSMETIC_BY_ID = {}; COSMETICS.forEach(function (c) { COSMETIC_BY_ID[c.id] = c; });
+  // Buyable consumables (existing item ids) and their Amber price.
+  var SHOP_CONSUMABLES = [
+    { id: 'lure', price: 40 },
+    { id: 'incubator', price: 70 },
+    { id: 'golden_steak', price: 100 },
+  ];
+  var CONSUMABLE_PRICE = {}; SHOP_CONSUMABLES.forEach(function (c) { CONSUMABLE_PRICE[c.id] = c.price; });
+  function shopPrice(id) {
+    if (COSMETIC_BY_ID[id]) return COSMETIC_BY_ID[id].price;
+    return CONSUMABLE_PRICE[id] != null ? CONSUMABLE_PRICE[id] : null;
+  }
+  function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -2145,6 +2210,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     readinessBuff: readinessBuff,
     PRIMED_POOL: PRIMED_POOL,
     primedCatch: primedCatch,
+    dailyHunt: dailyHunt,
+    dailyReady: dailyReady,
+    dailyStreakNext: dailyStreakNext,
+    AMBER_REWARDS: AMBER_REWARDS,
+    amberDailyReward: amberDailyReward,
+    amberBalance: amberBalance,
+    COSMETICS: COSMETICS,
+    COSMETIC_BY_ID: COSMETIC_BY_ID,
+    SHOP_CONSUMABLES: SHOP_CONSUMABLES,
+    shopPrice: shopPrice,
+    canAfford: canAfford,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
@@ -9604,38 +9680,167 @@ const CRAVE_LABEL = {
   fibre: 'fibre',
   fuel: 'more fuel'
 };
+
+// ---- Buddy cosmetics: shop-bought overlays drawn on the buddy sprite ----
+// Physical items are emoji (crisp at any size, no new pixel art needed); auras are a CSS glow.
+// Stored (owned) in db.buddy.cosmetics; one per slot is shown, the last bought winning its slot.
+const COSMETIC_EMOJI = {
+  flower: '🌸',
+  party_hat: '🎉',
+  shades: '🕶️',
+  scarf: '🧣',
+  crown: '👑'
+};
+function equippedCosmetics(list) {
+  const bySlot = {};
+  (list || []).forEach(id => {
+    const c = Game.COSMETIC_BY_ID[id];
+    if (c) bySlot[c.kind] = id;
+  });
+  return bySlot;
+}
+// The buddy avatar: the bond-evolved species sprite + day/night aura + any equipped cosmetics.
+function BuddyAvatar({
+  form,
+  affinity,
+  cosmetics,
+  px = 6,
+  asleep
+}) {
+  if (!form) return /*#__PURE__*/React.createElement(Sprite, {
+    art: "egg",
+    colors: crC('#EAD9A0', '#C77D3A'),
+    px: px
+  });
+  const eq = equippedCosmetics(cosmetics);
+  const base = crFx(false, form.aura, affinity) || {};
+  const filters = [base.filter];
+  if (eq.aura === 'aura_ember') filters.push('drop-shadow(0 0 7px #ff7a1a) drop-shadow(0 0 3px #ffb15a)');
+  if (asleep) filters.push('grayscale(0.85)');
+  const style = {
+    filter: filters.filter(Boolean).join(' ') || undefined,
+    opacity: asleep ? 0.5 : 1
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "relative inline-block leading-none"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: style
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: form.art,
+    colors: form.colors,
+    px: px
+  })), eq.hat && /*#__PURE__*/React.createElement("span", {
+    className: "absolute pointer-events-none",
+    style: {
+      top: -px * 0.9,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      fontSize: px * 2.5,
+      lineHeight: 1
+    }
+  }, COSMETIC_EMOJI[eq.hat]), eq.face && /*#__PURE__*/React.createElement("span", {
+    className: "absolute pointer-events-none",
+    style: {
+      top: '34%',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      fontSize: px * 2,
+      lineHeight: 1
+    }
+  }, COSMETIC_EMOJI[eq.face]), eq.neck && /*#__PURE__*/React.createElement("span", {
+    className: "absolute pointer-events-none",
+    style: {
+      bottom: '4%',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      fontSize: px * 1.9,
+      lineHeight: 1
+    }
+  }, COSMETIC_EMOJI[eq.neck]));
+}
+// Bond hearts: the friendship meter, filled ♥ / empty ♡ (Pokemon-style affection).
+function BondHearts({
+  n,
+  max,
+  size = 12
+}) {
+  return /*#__PURE__*/React.createElement("span", {
+    className: "tnum",
+    style: {
+      letterSpacing: 1
+    }
+  }, Array.from({
+    length: max || 0
+  }, (_, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
+    style: {
+      color: i < n ? 'var(--danger)' : 'var(--border)',
+      fontSize: size
+    }
+  }, i < n ? '♥' : '♡')));
+}
+// A small 0..1 need meter (Fed / Nourished / Energy), topped up by eating well today.
+function NeedBar({
+  label,
+  v,
+  color
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1.5"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[6.5px] uppercase text-[#8A8A90] w-9 shrink-0"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-bar flex-1",
+    style: {
+      height: 7,
+      borderWidth: 2
+    }
+  }, /*#__PURE__*/React.createElement("i", {
+    style: {
+      width: Math.round(Math.max(0, Math.min(1, v || 0)) * 100) + '%',
+      background: color,
+      transition: 'width .4s'
+    }
+  })));
+}
+// The living buddy: the companion that visibly reflects how you have been eating. Renders the rich
+// buddyProfile (bond / mood / needs / craving / evolution), frames logging as feeding it, and is the
+// one tap into the Buddy & Play hub. This is the emotional core of the retention loop.
 function BuddyCard({
   db,
+  bp,
   streak,
-  buddy,
   freezeReady,
-  onOpenDex
+  onOpenPlay,
+  onFeed
 }) {
-  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
-  const dex = macrodex(db);
-  const caught = Object.keys(dex).length;
-  const next = BUDDY_STAGES[buddy.stage + 1] || null;
-  const toNext = next ? Math.max(1, next.min - streak) : 0;
+  const buddy = db.buddy || {};
+  const named = !!bp.name;
+  const asleep = bp.mood === 'asleep';
+  const mm = MOOD_META[bp.mood] || MOOD_META.content;
+  const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
+  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
+  const evo = bp.evoInfo;
+  const aff = bp.affinity ? AFFINITY_META[bp.affinity] : null;
+  const who = named ? bp.name : bp.form ? bp.form.name : 'Your buddy';
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-3 mb-3"
+    className: "flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: onOpenDex,
+    onClick: onOpenPlay,
+    "aria-label": "Open Buddy & Play",
     className: "pixel-box p-2 shrink-0 relative",
     style: {
       background: 'var(--surface3)'
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: buddy.asleep ? {
-      filter: 'grayscale(0.85)',
-      opacity: 0.45
-    } : null
-  }, /*#__PURE__*/React.createElement(Sprite, {
-    art: st.art,
-    colors: st.colors,
-    px: 6
-  })), buddy.asleep && /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+    form: bp.form,
+    affinity: bp.affinity,
+    cosmetics: buddy.cosmetics,
+    px: 6,
+    asleep: asleep
+  }), asleep && /*#__PURE__*/React.createElement("span", {
     className: "pf absolute",
     style: {
       top: 2,
@@ -9646,29 +9851,73 @@ function BuddyCard({
   }, "Zz")), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] text-[#8A8A90] flex items-center gap-1.5"
-  }, "YOUR BUDDY · STREAK ", streak, /*#__PURE__*/React.createElement("span", {
-    className: "inline-flex items-center gap-0.5",
-    title: freezeReady ? 'Streak freeze ready, one missed day is forgiven this month' : 'Streak freeze already used this month',
+    className: "text-[9px] text-[#8A8A90] flex items-center gap-1.5 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", null, "YOUR BUDDY"), named && /*#__PURE__*/React.createElement(BondHearts, {
+    n: bp.bond.hearts,
+    max: bp.bond.maxHearts
+  }), aff && /*#__PURE__*/React.createElement("span", {
+    title: aff[2],
+    style: {
+      color: aff[1]
+    }
+  }, aff[0]), /*#__PURE__*/React.createElement("span", {
+    className: "inline-flex items-center",
+    title: freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month',
     style: {
       opacity: freezeReady ? 1 : 0.35
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "snow",
     color: "var(--carb)",
-    size: 10
+    size: 9
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold leading-tight"
-  }, st.name, buddy.asleep ? ' (napping)' : ''), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] leading-snug"
-  }, buddy.asleep ? `${buddy.wakeIn} more logged day${buddy.wakeIn === 1 ? '' : 's'} wakes ${st.name} up.` : next ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to evolve.` : 'Fully evolved. Legend status.'))), /*#__PURE__*/React.createElement("button", {
-    onClick: onOpenDex,
-    className: "pixel-btn w-full py-2.5 text-[9px] inline-flex items-center justify-center gap-2",
+    className: "text-lg font-bold leading-tight truncate"
+  }, who), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] leading-snug"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: mm.color
+    }
+  }, mm.label), " · ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, line)))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-3 gap-2 mt-3"
+  }, /*#__PURE__*/React.createElement(NeedBar, {
+    label: "Fed",
+    v: bp.needs.hunger,
+    color: "var(--pro)"
+  }), /*#__PURE__*/React.createElement(NeedBar, {
+    label: "Nourish",
+    v: bp.needs.nourish,
+    color: "var(--carb)"
+  }), /*#__PURE__*/React.createElement(NeedBar, {
+    label: "Energy",
+    v: bp.needs.energy,
+    color: "var(--good)"
+  })), craveText ? /*#__PURE__*/React.createElement("button", {
+    onClick: onFeed,
+    className: "w-full mt-3 pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "meat",
+    color: "currentColor",
+    size: 12
+  }), " ", who, " wants ", craveText, " · FEED ›") : /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 text-[10px] leading-snug",
+    style: {
+      color: evo.ready ? 'var(--good)' : 'var(--muted)'
+    }
+  }, evo.atMax ? `${who} is fully grown, a legend of the pit.` : evo.ready ? `${who} is ready to evolve into ${evo.nextName}! Open the hub to see.` : `Well fed today. ${evo.nextName ? `Toward ${evo.nextName}: Lv ${evo.level}/${evo.levelNeed} · ${evo.hearts}/${evo.heartsNeed}♥` : ''}`), /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenPlay,
+    className: "pixel-btn w-full py-2.5 text-[9px] inline-flex items-center justify-center gap-2 mt-3",
     style: {
       background: 'var(--header)',
       color: '#fff'
     }
-  }, "MACRODEX · CAUGHT ", caught, " ›"));
+  }, named ? 'BUDDY & PLAY' : 'MEET & NAME YOUR BUDDY', " · CAUGHT ", Object.keys(macrodex(db)).length, " ›"));
 }
 // Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
 // incubation) gathered in one place at the top of the dex, each showing its reward reveal on the
@@ -9958,7 +10207,35 @@ function MacrodexModal({
   const [sel, setSel] = useState(null);
   const [lurePick, setLurePick] = useState(false);
   const [trophies, setTrophies] = useState(false);
+  const [shop, setShop] = useState(false);
   const invIds = ITEM_ORDER.filter(id => (items[id] || 0) > 0);
+  const amber = Game.amberBalance(db.amber_ledger);
+  // Buy with Amber: spend appends a negative ledger entry (merge-safe), cosmetics land in buddy.cosmetics
+  // (owned once), consumables in the shared item inventory. A purchase is blocked if you can't afford it.
+  function buy(id) {
+    const price = Game.shopPrice(id);
+    if (price == null) return;
+    update(d => {
+      d.amber_ledger = d.amber_ledger || [];
+      if (Game.amberBalance(d.amber_ledger) < price) return;
+      const cos = Game.COSMETIC_BY_ID[id];
+      if (cos) {
+        d.buddy = d.buddy || {};
+        d.buddy.cosmetics = d.buddy.cosmetics || [];
+        if (d.buddy.cosmetics.indexOf(id) >= 0) return;
+        d.buddy.cosmetics.push(id);
+      } else {
+        d.items = d.items || {};
+        d.items[id] = (d.items[id] || 0) + 1;
+      }
+      d.amber_ledger.push({
+        id: Store.uid(),
+        date: today,
+        delta: -price,
+        reason: 'buy:' + id
+      });
+    });
+  }
   function useItem(id, macro) {
     update(d => {
       if (!(d.items && d.items[id] > 0)) return;
@@ -9990,7 +10267,12 @@ function MacrodexModal({
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4"
-  }), trophies ? /*#__PURE__*/React.createElement(TrophyCabinet, {
+  }), shop ? /*#__PURE__*/React.createElement(ShopView, {
+    db: db,
+    amber: amber,
+    buy: buy,
+    onBack: () => setShop(false)
+  }) : trophies ? /*#__PURE__*/React.createElement(TrophyCabinet, {
     db: db,
     streak: streak,
     onBack: () => setTrophies(false)
@@ -10121,7 +10403,43 @@ function MacrodexModal({
         color: beaten ? 'var(--muted)' : '#fff'
       }
     }, beaten ? 'REMATCH ›' : 'FIGHT ›'));
-  })(), /*#__PURE__*/React.createElement("div", {
+  })(), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShop(true),
+    className: "w-full text-left pixel-box p-3 mb-3 flex items-center gap-3",
+    style: {
+      background: 'color-mix(in srgb, var(--fat) 12%, var(--surface2))'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1.5 shrink-0 inline-flex items-center justify-center",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      width: 34,
+      height: 34
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 17,
+      color: 'var(--fat)'
+    }
+  }, "✦")), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1 leading-tight"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "Amber balance"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[15px] font-bold tnum leading-tight"
+  }, amber), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9.5px] text-[#8A8A90] leading-snug mt-0.5"
+  }, "Win it from daily hunts & bosses. Spend on cosmetics & boosts.")), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] px-2.5 py-2.5 shrink-0",
+    style: {
+      background: 'var(--fat)',
+      color: '#1a1400'
+    }
+  }, "SHOP ›")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
   }, "Every logged day catches a creature. Tap one for its lore."), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-3"
@@ -10445,6 +10763,125 @@ function TrophyCabinet({
     className: "text-[10px] text-[#8A8A90]"
   }, "No shinies yet. A perfect macro day has a chance to gleam gold."));
 }
+// The Amber shop: spend hard-won currency on buddy cosmetics (shown on your buddy) and catch boosts
+// (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
+function ShopView({
+  db,
+  amber,
+  buy,
+  onBack
+}) {
+  const owned = db.buddy && db.buddy.cosmetics || [];
+  const items = db.items || {};
+  const Row = ({
+    id,
+    name,
+    desc,
+    price,
+    preview,
+    ownedLabel
+  }) => {
+    const afford = amber >= price;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-3 flex items-center gap-3",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box shrink-0 inline-flex items-center justify-center",
+      style: {
+        background: 'var(--surface2)',
+        boxShadow: 'none',
+        width: 40,
+        height: 40
+      }
+    }, preview), /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0 flex-1 leading-tight"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] font-bold truncate"
+    }, name), /*#__PURE__*/React.createElement("div", {
+      className: "text-[9px] text-[#8A8A90] leading-snug"
+    }, desc)), ownedLabel ? /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[8px] px-2 py-1.5 shrink-0",
+      style: {
+        background: 'var(--surface2)',
+        color: 'var(--good)'
+      }
+    }, ownedLabel) : /*#__PURE__*/React.createElement("button", {
+      onClick: () => buy(id),
+      disabled: !afford,
+      className: "pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1",
+      style: {
+        background: afford ? 'var(--fat)' : 'var(--surface2)',
+        color: afford ? '#1a1400' : 'var(--muted)',
+        opacity: afford ? 1 : 0.7
+      }
+    }, "✦ ", price));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "text-[11px] text-[#8A8A90]"
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[10px]",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "✦ ", amber, " Amber")), /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold mb-1"
+  }, "Amber Shop"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] mb-4 leading-snug"
+  }, "Win Amber from daily hunts and weekly bosses, then treat your buddy."), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Buddy cosmetics"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-5"
+  }, Game.COSMETICS.map(c => /*#__PURE__*/React.createElement(Row, {
+    key: c.id,
+    id: c.id,
+    name: c.name,
+    desc: c.desc,
+    price: c.price,
+    preview: c.kind === 'aura' ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 18,
+        filter: 'drop-shadow(0 0 5px #ff7a1a)'
+      }
+    }, "✦") : /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 20,
+        lineHeight: 1
+      }
+    }, COSMETIC_EMOJI[c.id] || '✦'),
+    ownedLabel: owned.indexOf(c.id) >= 0 ? 'OWNED' : null
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Catch boosts"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, Game.SHOP_CONSUMABLES.map(c => {
+    const it = ITEMS[c.id] || {};
+    const have = items[c.id] || 0;
+    return /*#__PURE__*/React.createElement(Row, {
+      key: c.id,
+      id: c.id,
+      name: it.name + (have > 0 ? ' (×' + have + ')' : ''),
+      desc: it.desc,
+      price: c.price,
+      preview: /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 16,
+          color: 'var(--pro)'
+        }
+      }, "◈"),
+      ownedLabel: null
+    });
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-3 leading-snug"
+  }, "Boosts stack in your items and apply to today's catch from the hub."));
+}
 /* ---- Auto-battle: your buddy (stats from your recent eating) vs a rival ladder + rotating weekly boss ---- */
 const FIGHT_LADDER = [{
   name: 'Dinky',
@@ -10538,6 +10975,37 @@ const ABIL_LABEL = {
   heal: 'Regrows wounds',
   rage: 'Frenzies when hurt'
 };
+// Daily Hunt roster: smaller, wilder critters than the weekly bosses, tuned easier (power comes from
+// Game.dailyHunt). A fresh one each day gives a low-stakes reason to log and fight every single day.
+const DAILY_BOSSES = [{
+  name: 'Snappet',
+  art: 'raptor',
+  colors: crC('#6BBF59', '#3a7a2f')
+}, {
+  name: 'Gnasher',
+  art: 'boulder',
+  colors: crC('#B98A5E', '#7a5636')
+}, {
+  name: 'Bramblor',
+  art: 'sprout',
+  colors: crC('#3FA66B', '#256b43')
+}, {
+  name: 'Mudloom',
+  art: 'blob',
+  colors: crC('#7C8B57', '#4d5836')
+}, {
+  name: 'Cindertooth',
+  art: 'saur',
+  colors: crC('#D96A3A', '#8e4020')
+}, {
+  name: 'Frostnip',
+  art: 'longneck',
+  colors: crC('#5EA6C9', '#356b85')
+}, {
+  name: 'Thornback',
+  art: 'stego',
+  colors: crC('#9A6BB0', '#603f75')
+}];
 function fightWeekKey() {
   const t = new Date();
   const on = new Date(t.getFullYear(), 0, 1);
@@ -10546,6 +11014,16 @@ function fightWeekKey() {
 }
 function bossForWeek() {
   return FIGHT_BOSSES[crHash(fightWeekKey()) % FIGHT_BOSSES.length];
+}
+// Today's Daily Hunt: a deterministic-per-day mini-boss (visual from the roster, maths from game.js).
+function dailyBossForDay(date) {
+  const h = Game.dailyHunt(date, DAILY_BOSSES.length);
+  const base = DAILY_BOSSES[h.idx];
+  return Object.assign({}, base, {
+    power: h.power,
+    ability: 'none',
+    type: h.type
+  });
 }
 function buddyStageIndex(streak) {
   let si = 0;
@@ -10679,9 +11157,20 @@ function FightModal({
     stats: rivalStats(weekBoss, FIGHT_LADDER.length, fight.prestige || 0)
   });
   const bossReady = fight.lastBossWeek !== fightWeekKey();
+  // Daily Hunt: a fresh, gentle mini-boss each day. Its own once-a-day gate (separate from the ladder's),
+  // still needing food logged today. Stats scale with your daily-clear streak but stay winnable.
+  const dailyBase = dailyBossForDay(today);
+  const dailyRank = 2 + Math.min(fight.dailyStreak || 0, 5); // creeps up as your streak grows, capped
+  const daily = Object.assign({}, dailyBase, {
+    stats: rivalStats(dailyBase, dailyRank, fight.prestige || 0)
+  });
+  const dailyReady = Game.dailyReady(fight.lastDailyDate, today);
+  const dailyAmber = Game.amberDailyReward(Game.dailyStreakNext(fight.lastDailyDate, fight.dailyStreak || 0, today));
   const [phase, setPhase] = useState(si === 0 ? 'egg' : 'select');
   const [opp, setOpp] = useState(null);
   const [isBoss, setIsBoss] = useState(false);
+  const [isDaily, setIsDaily] = useState(false);
+  const [amberEarned, setAmberEarned] = useState(0);
   const [hpA, setHpA] = useState(100);
   const [hpB, setHpB] = useState(100);
   const [maxA, setMaxA] = useState(100);
@@ -10705,8 +11194,9 @@ function FightModal({
   // The fight opens like a monster battle: both fighters slide onto their platforms and a VS flashes,
   // then the auto-battle begins. `intro` holds the combat loop until the entrance finishes. The buddy's
   // attack is scaled by the type matchup (and the boss-weakness bonus when exploited) before the bout.
-  function start(opponent, boss) {
-    const mult = Game.fightAtkMult(buddyType, opponent.type, !!boss, weaknessExploited);
+  function start(opponent, kind) {
+    const isBossFight = kind === 'weekly'; // only the weekly boss grants the weakness-exploit bonus + trophy
+    const mult = Game.fightAtkMult(buddyType, opponent.type, isBossFight, weaknessExploited);
     const sm = Game.stanceMult(stance);
     const spec = useSpecial && loadout.special > 0 ? Game.SPECIAL_ATK : 1;
     const eff = Object.assign({}, fighter.stats, {
@@ -10717,7 +11207,8 @@ function FightModal({
     effRef.current = eff;
     setLastMult(mult);
     setOpp(opponent);
-    setIsBoss(!!boss);
+    setIsBoss(isBossFight);
+    setIsDaily(kind === 'daily');
     setMaxA(eff.hp);
     setMaxB(opponent.stats.hp);
     setHpA(eff.hp);
@@ -10725,6 +11216,7 @@ function FightModal({
     setLog([]);
     setWinner(null);
     setDrops([]);
+    setAmberEarned(0);
     rewarded.current = false;
     setIntro(true);
     setPhase('fight');
@@ -10827,6 +11319,7 @@ function FightModal({
     rewarded.current = true;
     if (winner === 'you') {
       const got = [];
+      let amber = 0;
       update(d => {
         d.fight = d.fight || {
           rank: 0,
@@ -10838,15 +11331,36 @@ function FightModal({
         d.fight.wins = (d.fight.wins || 0) + 1;
         d.items = d.items || {};
         d.game_awards = d.game_awards || {};
+        d.amber_ledger = d.amber_ledger || [];
         const give = id => {
           d.items[id] = (d.items[id] || 0) + 1;
           got.push(id);
         };
-        if (isBoss) {
+        // Amber is minted through the append-only ledger, idempotent by key, so a re-render or a merge
+        // can never pay twice. (See store.js mergeStates: the ledger unions by entry id.)
+        const earn = (key, delta, reason) => {
+          if (d.game_awards[key]) return;
+          d.game_awards[key] = true;
+          d.amber_ledger.push({
+            id: key,
+            date: today,
+            delta: delta,
+            reason: reason
+          });
+          amber += delta;
+        };
+        if (isDaily) {
+          const ns = Game.dailyStreakNext(d.fight.lastDailyDate, d.fight.dailyStreak || 0, today);
+          d.fight.lastDailyDate = today;
+          d.fight.dailyStreak = ns;
+          d.fight.dailyBest = Math.max(d.fight.dailyBest || 0, ns);
+          earn('amber:daily:' + today, Game.amberDailyReward(ns), 'Daily Hunt');
+        } else if (isBoss) {
           d.fight.trophies = (d.fight.trophies || 0) + 1;
           d.fight.lastBossWeek = fightWeekKey();
           give('amber');
           if (crHash(fightWeekKey() + 's') % 2 === 0) give('golden_steak');
+          earn('amber:weekly:' + fightWeekKey(), Game.AMBER_REWARDS.weekly, 'Weekly boss');
         } else if ((d.fight.rank || 0) < FIGHT_LADDER.length) {
           d.fight.rank = (d.fight.rank || 0) + 1;
           if (d.fight.rank % 3 === 0) give('lure');
@@ -10854,8 +11368,10 @@ function FightModal({
             d.game_awards['belt'] = true;
             give('belt');
           }
+          earn('amber:rung:' + today, Game.AMBER_REWARDS.ladderRung, 'Ladder rung');
         }
       });
+      setAmberEarned(amber);
       setDrops(got);
     }
   }, [phase, winner]);
@@ -11095,7 +11611,7 @@ function FightModal({
     style: {
       color: 'var(--text)'
     }
-  }, readyBuff.atk > 1 ? readyBuff.label + ', +' + Math.round((readyBuff.atk - 1) * 100) + '% attack' : readyBuff.atk < 1 ? readyBuff.label + ', +' + Math.round((readyBuff.def - 1) * 100) + '% defence & a heal' : 'steady, no change')), (gate.can || bossReady) && /*#__PURE__*/React.createElement("div", {
+  }, readyBuff.atk > 1 ? readyBuff.label + ', +' + Math.round((readyBuff.atk - 1) * 100) + '% attack' : readyBuff.atk < 1 ? readyBuff.label + ', +' + Math.round((readyBuff.def - 1) * 100) + '% defence & a heal' : 'steady, no change')), (gate.can || bossReady || dailyReady && loggedToday) && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3.5 mb-3.5",
     style: {
       background: 'var(--surface2)',
@@ -11147,7 +11663,7 @@ function FightModal({
         };
         d.fight.lastAttemptDate = today;
       });
-      start(rival, false);
+      start(rival, 'ladder');
     }
   }, "Fight ", rival.name, " · 1 attempt today") : /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3.5 text-center text-[11px] text-[#8A8A90]",
@@ -11155,7 +11671,69 @@ function FightModal({
       background: 'var(--surface3)',
       boxShadow: 'none'
     }
-  }, gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt, a fed buddy fights best.'), (() => {
+  }, gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt, a fed buddy fights best.'), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3.5 mb-3.5",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none',
+      border: '2px solid ' + (dailyReady ? 'var(--accent)' : 'var(--border)')
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-2 gap-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Daily Hunt · ", daily.name), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase inline-flex items-center gap-1 text-[#8A8A90] shrink-0"
+  }, "type ", /*#__PURE__*/React.createElement(TypeChip, {
+    t: daily.type
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1.5 shrink-0",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: daily.art,
+    colors: daily.colors,
+    px: 3.2
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] leading-snug text-[#8A8A90] flex-1"
+  }, (fight.dailyStreak || 0) > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "▲ ", fight.dailyStreak, "-day hunt streak · "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
+    className: "font-bold",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "✦ ", dailyAmber, " Amber"), ". A new hunt roams in tomorrow.")), dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "w-full inline-flex items-center justify-center gap-2",
+    onClick: () => start(daily, 'daily')
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "glove",
+    color: "currentColor",
+    size: 14
+  }), " Hunt ", daily.name) : /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, "Log a meal today to arm the hunt.") : /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-center pixel-box p-2",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      color: 'var(--good)'
+    }
+  }, "Hunt cleared today ✓ A fresh one lands tomorrow.")), (() => {
     const s = fighter.stats;
     const rows = [{
       label: 'Protein',
@@ -11242,7 +11820,7 @@ function FightModal({
   }, "Raise a ", TYPE_META[weakness][0], " buddy or eat ", TYPE_META[weakness][2], ", ", weakDays, "/4 days hit this week for +35% attack.")), /*#__PURE__*/React.createElement(Btn, {
     kind: "danger",
     className: "w-full inline-flex items-center justify-center gap-2",
-    onClick: () => start(boss, true)
+    onClick: () => start(boss, 'weekly')
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "glove",
     color: "currentColor",
@@ -11286,7 +11864,12 @@ function FightModal({
     }
   }, winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
-  }, winner === 'you' ? isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!' : 'Your buddy needs a good feed, come back tomorrow and go again.'), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, winner === 'you' ? isDaily ? 'Daily Hunt cleared!' : isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!' : 'Your buddy needs a good feed, come back tomorrow and go again.'), winner === 'you' && amberEarned > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[14px] mb-2 font-bold",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "✦ +", amberEarned, " Amber"), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-3",
     style: {
       color: 'var(--good)'
@@ -12965,7 +13548,14 @@ function Dashboard({
         color: 'var(--accent)'
       }
     }, "Food log ›"));
-  })())), !isPremium && (() => {
+  })())), /*#__PURE__*/React.createElement(BuddyCard, {
+    db: db,
+    bp: bp,
+    streak: streak,
+    freezeReady: Game.freezeReady(new Set(db.freezes && db.freezes.frozen || []), today),
+    onOpenPlay: onOpenPlay,
+    onFeed: () => onQuickAdd(false)
+  }), !isPremium && (() => {
     const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
     return freeLeft <= 3 ? /*#__PURE__*/React.createElement(PremiumNudge, {
       db: db,
@@ -13003,34 +13593,7 @@ function Dashboard({
     db: db,
     update: update,
     onOpenPlay: onOpenPlay
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: onOpenPlay,
-    className: "w-full text-left bg-[#161618] pixel-box p-4 mb-4 flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "shrink-0"
-  }, /*#__PURE__*/React.createElement(PixelDino, {
-    size: 30,
-    color: "var(--good)"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 min-w-0 leading-tight"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-baseline gap-2"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[9px] uppercase"
-  }, "Play"), db.buddy && db.buddy.name && /*#__PURE__*/React.createElement("span", {
-    className: "text-[11px] font-bold truncate"
-  }, db.buddy.name)), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] tnum truncate"
-  }, streak > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--fat)'
-    }
-  }, "▲ ", streak, "d"), " · "), egg && eggProg && /*#__PURE__*/React.createElement(React.Fragment, null, "egg ", eggProg.steps, "/", eggProg.tier, " · "), Object.keys(macrodex(db)).length, " in Macrodex")), /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] shrink-0",
-    style: {
-      color: 'var(--accent)'
-    }
-  }, "Open ›")), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"
   }, quote), showCarry && /*#__PURE__*/React.createElement(CarryoverSheet, {
     et: et,
@@ -21939,8 +22502,26 @@ function demoState() {
     hatchedISO: shiftISO(today, -20),
     speciesId: null,
     evoStage: 0,
-    affinity: null
+    affinity: null,
+    cosmetics: ['party_hat']
   };
+  // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
+  s.amber_ledger = [{
+    id: 'demo1',
+    date: shiftISO(today, -2),
+    delta: 60,
+    reason: 'Weekly boss'
+  }, {
+    id: 'demo2',
+    date: shiftISO(today, -1),
+    delta: 15,
+    reason: 'Daily Hunt'
+  }, {
+    id: 'demo3',
+    date: today,
+    delta: 15,
+    reason: 'Daily Hunt'
+  }];
   s.game_salt = 'demo-salt';
   s.onboarding = {
     welcomed: true,

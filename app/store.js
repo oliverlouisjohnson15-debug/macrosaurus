@@ -96,10 +96,11 @@
       items: {},          // shared item inventory: { itemId: count }
       dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
       game_awards: {},    // idempotency keys for one-time item / milestone grants
-      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null }, // ladder + weekly boss + prestige; one ladder attempt per logged day
+      amber_ledger: [],   // append-only Amber-currency ledger: [{ id, date, delta, reason }]; balance = sum(delta). Append-only so a merge can never lose or double-count winnings (see mergeStates)
+      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null, lastDailyDate: null, dailyStreak: 0, dailyBest: 0 }, // ladder + weekly boss + daily hunt + prestige; one ladder/daily attempt per logged day
       game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
-      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path
+      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought overlays (owned + equipped)
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
@@ -184,6 +185,9 @@
     out.meal_plan      = unionBy(newer.meal_plan,      older.meal_plan,      byId);
     out.targets        = unionBy(newer.targets,        older.targets,        byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
+    // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
+    // offline can never have its Amber lost or double-counted. Balance is recomputed from this.
+    out.amber_ledger   = unionBy(newer.amber_ledger,   older.amber_ledger,   byId);
     // date-keyed maps: union keys, newer wins on a shared date
     out.day_meals     = Object.assign({}, older.day_meals || {},     newer.day_meals || {});
     out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});

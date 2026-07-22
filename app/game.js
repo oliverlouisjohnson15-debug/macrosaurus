@@ -456,6 +456,67 @@
     return { id: pool[h % pool.length], shiny: seedFor(salt, 'primedshiny#' + date) % 5 === 0 };
   }
 
+  // ---- Daily Hunt: a small, deterministic-per-day mini-boss, tuned easier than the weekly boss ----
+  // The visual roster lives in app.jsx; here we pick a STABLE index + type + power for a date so the
+  // same hunt shows all day and differs day to day (power 2..4 vs the weekly boss's 6..7).
+  function dailyHunt(date, rosterLen) {
+    var n = Math.max(1, rosterLen || 1);
+    return {
+      idx: seedFor('dailyhunt', date) % n,
+      type: FIGHT_TYPES[seedFor('dailytype', date) % FIGHT_TYPES.length],
+      power: 2 + (seedFor('dailypow', date) % 3), // 2..4
+    };
+  }
+  // Daily hunt is available once per calendar day.
+  function dailyReady(lastDailyDate, today) { return lastDailyDate !== today; }
+  // Daily-clear streak: consecutive days you beat the hunt. Beating it the very next day extends the
+  // streak; a gap of more than a day gently resets to 1 (never below, never a punishment).
+  function dailyStreakNext(lastDailyDate, curStreak, today) {
+    if (!lastDailyDate) return 1;
+    if (lastDailyDate === today) return curStreak || 1; // already counted today
+    return daysBetween(lastDailyDate, today) === 1 ? (curStreak || 0) + 1 : 1;
+  }
+
+  // ---- Amber: the spendable currency, an APPEND-ONLY LEDGER so it merges conflict-free (like catch_log) ----
+  // Never store Amber as a bare mutable number: the state merge unions append-only collections, so a
+  // ledger of {id, date, delta, reason} entries can never be lost or double-counted. Balance = sum(delta).
+  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8 };
+  // The daily hunt pays a little; every 5th clear in a row tops up, so consistency compounds.
+  function amberDailyReward(streak) {
+    var base = AMBER_REWARDS.daily;
+    if (streak > 0 && streak % 5 === 0) base += AMBER_REWARDS.dailyStreakBonus;
+    return base;
+  }
+  function amberBalance(ledger) {
+    var b = 0; (ledger || []).forEach(function (e) { b += (e && Number(e.delta)) || 0; });
+    return Math.max(0, Math.round(b));
+  }
+
+  // ---- Shop: spend Amber on buddy cosmetics + catch boosts. Prices are pure and stable. ----
+  // Cosmetics are buddy sprite overlays (drawn in app.jsx), owned/equipped in db.buddy.cosmetics.
+  // Consumables reuse the existing item system (they flow into db.items and the dex_boost loop).
+  var COSMETICS = [
+    { id: 'flower', name: 'Head Bloom', kind: 'hat', price: 60, desc: 'A little bloom that sits between the eyes.' },
+    { id: 'party_hat', name: 'Party Hat', kind: 'hat', price: 90, desc: 'A jaunty cone for a well-fed buddy.' },
+    { id: 'shades', name: 'Cool Shades', kind: 'face', price: 120, desc: 'Too cool for extinction.' },
+    { id: 'scarf', name: 'Cosy Scarf', kind: 'neck', price: 140, desc: 'For the warm and well-nourished.' },
+    { id: 'crown', name: 'Gold Crown', kind: 'hat', price: 260, desc: 'Rule the pit in style.' },
+    { id: 'aura_ember', name: 'Ember Aura', kind: 'aura', price: 320, desc: 'A blazing glow that follows your buddy.' },
+  ];
+  var COSMETIC_BY_ID = {}; COSMETICS.forEach(function (c) { COSMETIC_BY_ID[c.id] = c; });
+  // Buyable consumables (existing item ids) and their Amber price.
+  var SHOP_CONSUMABLES = [
+    { id: 'lure', price: 40 },
+    { id: 'incubator', price: 70 },
+    { id: 'golden_steak', price: 100 },
+  ];
+  var CONSUMABLE_PRICE = {}; SHOP_CONSUMABLES.forEach(function (c) { CONSUMABLE_PRICE[c.id] = c.price; });
+  function shopPrice(id) {
+    if (COSMETIC_BY_ID[id]) return COSMETIC_BY_ID[id].price;
+    return CONSUMABLE_PRICE[id] != null ? CONSUMABLE_PRICE[id] : null;
+  }
+  function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -522,6 +583,17 @@
     readinessBuff: readinessBuff,
     PRIMED_POOL: PRIMED_POOL,
     primedCatch: primedCatch,
+    dailyHunt: dailyHunt,
+    dailyReady: dailyReady,
+    dailyStreakNext: dailyStreakNext,
+    AMBER_REWARDS: AMBER_REWARDS,
+    amberDailyReward: amberDailyReward,
+    amberBalance: amberBalance,
+    COSMETICS: COSMETICS,
+    COSMETIC_BY_ID: COSMETIC_BY_ID,
+    SHOP_CONSUMABLES: SHOP_CONSUMABLES,
+    shopPrice: shopPrice,
+    canAfford: canAfford,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;

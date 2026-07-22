@@ -2784,27 +2784,95 @@ function buddyProfile(db, streak, buddy, level) {
 // What the buddy is craving, in words, framing the day's macro gap as a thing to feed it.
 const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fibre', fuel: 'more fuel' };
 
-function BuddyCard({ db, streak, buddy, freezeReady, onOpenDex }) {
-  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
-  const dex = macrodex(db); const caught = Object.keys(dex).length;
-  const next = BUDDY_STAGES[buddy.stage + 1] || null;
-  const toNext = next ? Math.max(1, next.min - streak) : 0;
+// ---- Buddy cosmetics: shop-bought overlays drawn on the buddy sprite ----
+// Physical items are emoji (crisp at any size, no new pixel art needed); auras are a CSS glow.
+// Stored (owned) in db.buddy.cosmetics; one per slot is shown, the last bought winning its slot.
+const COSMETIC_EMOJI = { flower: '🌸', party_hat: '🎉', shades: '🕶️', scarf: '🧣', crown: '👑' };
+function equippedCosmetics(list) {
+  const bySlot = {};
+  (list || []).forEach(id => { const c = Game.COSMETIC_BY_ID[id]; if (c) bySlot[c.kind] = id; });
+  return bySlot;
+}
+// The buddy avatar: the bond-evolved species sprite + day/night aura + any equipped cosmetics.
+function BuddyAvatar({ form, affinity, cosmetics, px = 6, asleep }) {
+  if (!form) return <Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={px} />;
+  const eq = equippedCosmetics(cosmetics);
+  const base = crFx(false, form.aura, affinity) || {};
+  const filters = [base.filter];
+  if (eq.aura === 'aura_ember') filters.push('drop-shadow(0 0 7px #ff7a1a) drop-shadow(0 0 3px #ffb15a)');
+  if (asleep) filters.push('grayscale(0.85)');
+  const style = { filter: filters.filter(Boolean).join(' ') || undefined, opacity: asleep ? 0.5 : 1 };
+  return (
+    <div className="relative inline-block leading-none">
+      <div style={style}><Sprite art={form.art} colors={form.colors} px={px} /></div>
+      {eq.hat && <span className="absolute pointer-events-none" style={{ top: -px * 0.9, left: '50%', transform: 'translateX(-50%)', fontSize: px * 2.5, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
+      {eq.face && <span className="absolute pointer-events-none" style={{ top: '34%', left: '50%', transform: 'translateX(-50%)', fontSize: px * 2, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
+      {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '4%', left: '50%', transform: 'translateX(-50%)', fontSize: px * 1.9, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
+    </div>
+  );
+}
+// Bond hearts: the friendship meter, filled ♥ / empty ♡ (Pokemon-style affection).
+function BondHearts({ n, max, size = 12 }) {
+  return <span className="tnum" style={{ letterSpacing: 1 }}>{Array.from({ length: max || 0 }, (_, i) =>
+    <span key={i} style={{ color: i < n ? 'var(--danger)' : 'var(--border)', fontSize: size }}>{i < n ? '♥' : '♡'}</span>)}</span>;
+}
+// A small 0..1 need meter (Fed / Nourished / Energy), topped up by eating well today.
+function NeedBar({ label, v, color }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="pf text-[6.5px] uppercase text-[#8A8A90] w-9 shrink-0">{label}</span>
+      <div className="pixel-bar flex-1" style={{ height: 7, borderWidth: 2 }}><i style={{ width: Math.round(Math.max(0, Math.min(1, v || 0)) * 100) + '%', background: color, transition: 'width .4s' }} /></div>
+    </div>
+  );
+}
+// The living buddy: the companion that visibly reflects how you have been eating. Renders the rich
+// buddyProfile (bond / mood / needs / craving / evolution), frames logging as feeding it, and is the
+// one tap into the Buddy & Play hub. This is the emotional core of the retention loop.
+function BuddyCard({ db, bp, streak, freezeReady, onOpenPlay, onFeed }) {
+  const buddy = db.buddy || {};
+  const named = !!bp.name;
+  const asleep = bp.mood === 'asleep';
+  const mm = MOOD_META[bp.mood] || MOOD_META.content;
+  const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
+  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
+  const evo = bp.evoInfo;
+  const aff = bp.affinity ? AFFINITY_META[bp.affinity] : null;
+  const who = named ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
   return (
     <Card className="p-4 mb-4">
-      <div className="flex items-center gap-3 mb-3">
-        <button onClick={onOpenDex} className="pixel-box p-2 shrink-0 relative" style={{ background: 'var(--surface3)' }}>
-          <div style={buddy.asleep ? { filter: 'grayscale(0.85)', opacity: 0.45 } : null}><Sprite art={st.art} colors={st.colors} px={6} /></div>
-          {buddy.asleep && <span className="pf absolute" style={{ top: 2, right: 3, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
+      <div className="flex items-center gap-3">
+        <button onClick={onOpenPlay} aria-label="Open Buddy & Play" className="pixel-box p-2 shrink-0 relative" style={{ background: 'var(--surface3)' }}>
+          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={6} asleep={asleep} />
+          {asleep && <span className="pf absolute" style={{ top: 2, right: 3, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
         </button>
         <div className="min-w-0 flex-1">
-          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1.5">YOUR BUDDY · STREAK {streak}<span className="inline-flex items-center gap-0.5" title={freezeReady ? 'Streak freeze ready, one missed day is forgiven this month' : 'Streak freeze already used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={10} /></span></div>
-          <div className="text-lg font-bold leading-tight">{st.name}{buddy.asleep ? ' (napping)' : ''}</div>
-          <div className="text-[11px] text-[#8A8A90] leading-snug">{buddy.asleep
-            ? `${buddy.wakeIn} more logged day${buddy.wakeIn === 1 ? '' : 's'} wakes ${st.name} up.`
-            : next ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to evolve.` : 'Fully evolved. Legend status.'}</div>
+          <div className="text-[9px] text-[#8A8A90] flex items-center gap-1.5 flex-wrap">
+            <span>YOUR BUDDY</span>
+            {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
+            {aff && <span title={aff[2]} style={{ color: aff[1] }}>{aff[0]}</span>}
+            <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={9} /></span>
+          </div>
+          <div className="text-lg font-bold leading-tight truncate">{who}</div>
+          <div className="text-[10px] leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
         </div>
       </div>
-      <button onClick={onOpenDex} className="pixel-btn w-full py-2.5 text-[9px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--header)', color: '#fff' }}>MACRODEX · CAUGHT {caught} ›</button>
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        <NeedBar label="Fed" v={bp.needs.hunger} color="var(--pro)" />
+        <NeedBar label="Nourish" v={bp.needs.nourish} color="var(--carb)" />
+        <NeedBar label="Energy" v={bp.needs.energy} color="var(--good)" />
+      </div>
+      {craveText
+        ? <button onClick={onFeed} className="w-full mt-3 pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+            <PixelGlyph kind="meat" color="currentColor" size={12} /> {who} wants {craveText} · FEED ›
+          </button>
+        : <div className="mt-3 text-[10px] leading-snug" style={{ color: evo.ready ? 'var(--good)' : 'var(--muted)' }}>
+            {evo.atMax ? `${who} is fully grown, a legend of the pit.`
+              : evo.ready ? `${who} is ready to evolve into ${evo.nextName}! Open the hub to see.`
+              : `Well fed today. ${evo.nextName ? `Toward ${evo.nextName}: Lv ${evo.level}/${evo.levelNeed} · ${evo.hearts}/${evo.heartsNeed}♥` : ''}`}
+          </div>}
+      <button onClick={onOpenPlay} className="pixel-btn w-full py-2.5 text-[9px] inline-flex items-center justify-center gap-2 mt-3" style={{ background: 'var(--header)', color: '#fff' }}>
+        {named ? 'BUDDY & PLAY' : 'MEET & NAME YOUR BUDDY'} · CAUGHT {Object.keys(macrodex(db)).length} ›
+      </button>
     </Card>
   );
 }
@@ -2923,8 +2991,22 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
   const dex = macrodex(db); const caught = Object.keys(dex).length;
   const items = db.items || {}; const today = Store.todayISO();
   const boost = (db.dex_boost && db.dex_boost.date === today) ? db.dex_boost : null;
-  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false);
+  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false); const [shop, setShop] = useState(false);
   const invIds = ITEM_ORDER.filter(id => (items[id] || 0) > 0);
+  const amber = Game.amberBalance(db.amber_ledger);
+  // Buy with Amber: spend appends a negative ledger entry (merge-safe), cosmetics land in buddy.cosmetics
+  // (owned once), consumables in the shared item inventory. A purchase is blocked if you can't afford it.
+  function buy(id) {
+    const price = Game.shopPrice(id); if (price == null) return;
+    update(d => {
+      d.amber_ledger = d.amber_ledger || [];
+      if (Game.amberBalance(d.amber_ledger) < price) return;
+      const cos = Game.COSMETIC_BY_ID[id];
+      if (cos) { d.buddy = d.buddy || {}; d.buddy.cosmetics = d.buddy.cosmetics || []; if (d.buddy.cosmetics.indexOf(id) >= 0) return; d.buddy.cosmetics.push(id); }
+      else { d.items = d.items || {}; d.items[id] = (d.items[id] || 0) + 1; }
+      d.amber_ledger.push({ id: Store.uid(), date: today, delta: -price, reason: 'buy:' + id });
+    });
+  }
   function useItem(id, macro) {
     update(d => {
       if (!(d.items && d.items[id] > 0)) return;
@@ -2940,7 +3022,8 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
+        {shop ? <ShopView db={db} amber={amber} buy={buy} onBack={() => setShop(false)} />
+        : trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
         : cr ? (() => {
           const form = creatureForm(cr, got ? got.count : 0); const rc = CR_RARITY_COLOR[cr.rarity];
           const cnt = got ? got.count : 0;
@@ -2997,6 +3080,19 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
               </button>
             );
           })()}
+
+          {/* Amber wallet + shop: what your hunts and bosses pay out, and where to spend it. */}
+          <button onClick={() => setShop(true)} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3" style={{ background: 'color-mix(in srgb, var(--fat) 12%, var(--surface2))' }}>
+            <div className="pixel-box p-1.5 shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 34, height: 34 }}>
+              <span style={{ fontSize: 17, color: 'var(--fat)' }}>✦</span>
+            </div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="pf text-[7px] uppercase" style={{ color: 'var(--fat)' }}>Amber balance</div>
+              <div className="text-[15px] font-bold tnum leading-tight">{amber}</div>
+              <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Win it from daily hunts &amp; bosses. Spend on cosmetics &amp; boosts.</div>
+            </div>
+            <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: 'var(--fat)', color: '#1a1400' }}>SHOP ›</span>
+          </button>
 
           <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
           <div className="flex items-center gap-2 mb-3">
@@ -3091,6 +3187,55 @@ function TrophyCabinet({ db, streak, onBack }) {
       : <div className="text-[10px] text-[#8A8A90]">No shinies yet. A perfect macro day has a chance to gleam gold.</div>}
   </div>;
 }
+// The Amber shop: spend hard-won currency on buddy cosmetics (shown on your buddy) and catch boosts
+// (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
+function ShopView({ db, amber, buy, onBack }) {
+  const owned = (db.buddy && db.buddy.cosmetics) || [];
+  const items = db.items || {};
+  const Row = ({ id, name, desc, price, preview, ownedLabel }) => {
+    const afford = amber >= price;
+    return (
+      <div className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface2)', boxShadow: 'none', width: 40, height: 40 }}>{preview}</div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="text-[11px] font-bold truncate">{name}</div>
+          <div className="text-[9px] text-[#8A8A90] leading-snug">{desc}</div>
+        </div>
+        {ownedLabel
+          ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>{ownedLabel}</span>
+          : <button onClick={() => buy(id)} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}>✦ {price}</button>}
+      </div>
+    );
+  };
+  return (
+    <div className="fade-in">
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button>
+        <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}>✦ {amber} Amber</div>
+      </div>
+      <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
+      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from daily hunts and weekly bosses, then treat your buddy.</div>
+
+      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Buddy cosmetics</div>
+      <div className="space-y-2 mb-5">
+        {Game.COSMETICS.map(c => <Row key={c.id} id={c.id} name={c.name} desc={c.desc} price={c.price}
+          preview={c.kind === 'aura'
+            ? <span style={{ fontSize: 18, filter: 'drop-shadow(0 0 5px #ff7a1a)' }}>✦</span>
+            : <span style={{ fontSize: 20, lineHeight: 1 }}>{COSMETIC_EMOJI[c.id] || '✦'}</span>}
+          ownedLabel={owned.indexOf(c.id) >= 0 ? 'OWNED' : null} />)}
+      </div>
+
+      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Catch boosts</div>
+      <div className="space-y-2">
+        {Game.SHOP_CONSUMABLES.map(c => { const it = ITEMS[c.id] || {}; const have = items[c.id] || 0;
+          return <Row key={c.id} id={c.id} name={it.name + (have > 0 ? ' (×' + have + ')' : '')} desc={it.desc} price={c.price}
+            preview={<span style={{ fontSize: 16, color: 'var(--pro)' }}>◈</span>}
+            ownedLabel={null} />; })}
+      </div>
+      <div className="text-[9px] text-[#8A8A90] mt-3 leading-snug">Boosts stack in your items and apply to today's catch from the hub.</div>
+    </div>
+  );
+}
 /* ---- Auto-battle: your buddy (stats from your recent eating) vs a rival ladder + rotating weekly boss ---- */
 const FIGHT_LADDER = [
   { name: 'Dinky', art: 'hatch', colors: crC('#7FD46B', '#3f8e2f'), power: 1, ability: 'none' },
@@ -3111,8 +3256,21 @@ const FIGHT_BOSSES = [
   { name: 'GRIMHORN', art: 'trike', colors: crC('#34506B', '#1f3243'), power: 7, ability: 'rage' },
 ];
 const ABIL_LABEL = { none: '', dodge: 'Nimble, darts aside', heal: 'Regrows wounds', rage: 'Frenzies when hurt' };
+// Daily Hunt roster: smaller, wilder critters than the weekly bosses, tuned easier (power comes from
+// Game.dailyHunt). A fresh one each day gives a low-stakes reason to log and fight every single day.
+const DAILY_BOSSES = [
+  { name: 'Snappet', art: 'raptor', colors: crC('#6BBF59', '#3a7a2f') },
+  { name: 'Gnasher', art: 'boulder', colors: crC('#B98A5E', '#7a5636') },
+  { name: 'Bramblor', art: 'sprout', colors: crC('#3FA66B', '#256b43') },
+  { name: 'Mudloom', art: 'blob', colors: crC('#7C8B57', '#4d5836') },
+  { name: 'Cindertooth', art: 'saur', colors: crC('#D96A3A', '#8e4020') },
+  { name: 'Frostnip', art: 'longneck', colors: crC('#5EA6C9', '#356b85') },
+  { name: 'Thornback', art: 'stego', colors: crC('#9A6BB0', '#603f75') },
+];
 function fightWeekKey() { const t = new Date(); const on = new Date(t.getFullYear(), 0, 1); const days = Math.floor((t - on) / 86400000); return t.getFullYear() + '-' + Math.floor((days + on.getDay()) / 7); }
 function bossForWeek() { return FIGHT_BOSSES[crHash(fightWeekKey()) % FIGHT_BOSSES.length]; }
+// Today's Daily Hunt: a deterministic-per-day mini-boss (visual from the roster, maths from game.js).
+function dailyBossForDay(date) { const h = Game.dailyHunt(date, DAILY_BOSSES.length); const base = DAILY_BOSSES[h.idx]; return Object.assign({}, base, { power: h.power, ability: 'none', type: h.type }); }
 function buddyStageIndex(streak) { let si = 0; BUDDY_STAGES.forEach((x, i) => { if (streak >= x.min) si = i; }); return si; }
 // Buddy fight stats grow from the last 7 days of eating: protein → attack, fibre → defence, consistency → HP.
 function buddyStats(db, streak, siOverride) {
@@ -3165,9 +3323,16 @@ function FightModal({ db, update, streak, onClose }) {
   const weekBoss = bossForWeek();
   const boss = Object.assign({}, weekBoss, { type: Game.typeForName(weekBoss.name), stats: rivalStats(weekBoss, FIGHT_LADDER.length, fight.prestige || 0) });
   const bossReady = fight.lastBossWeek !== fightWeekKey();
+  // Daily Hunt: a fresh, gentle mini-boss each day. Its own once-a-day gate (separate from the ladder's),
+  // still needing food logged today. Stats scale with your daily-clear streak but stay winnable.
+  const dailyBase = dailyBossForDay(today);
+  const dailyRank = 2 + Math.min((fight.dailyStreak || 0), 5); // creeps up as your streak grows, capped
+  const daily = Object.assign({}, dailyBase, { stats: rivalStats(dailyBase, dailyRank, fight.prestige || 0) });
+  const dailyReady = Game.dailyReady(fight.lastDailyDate, today);
+  const dailyAmber = Game.amberDailyReward(Game.dailyStreakNext(fight.lastDailyDate, fight.dailyStreak || 0, today));
 
   const [phase, setPhase] = useState(si === 0 ? 'egg' : 'select');
-  const [opp, setOpp] = useState(null); const [isBoss, setIsBoss] = useState(false);
+  const [opp, setOpp] = useState(null); const [isBoss, setIsBoss] = useState(false); const [isDaily, setIsDaily] = useState(false); const [amberEarned, setAmberEarned] = useState(0);
   const [hpA, setHpA] = useState(100); const [hpB, setHpB] = useState(100);
   const [maxA, setMaxA] = useState(100); const [maxB, setMaxB] = useState(100);
   const [log, setLog] = useState([]); const [winner, setWinner] = useState(null); const [drops, setDrops] = useState([]);
@@ -3183,8 +3348,9 @@ function FightModal({ db, update, streak, onClose }) {
   // The fight opens like a monster battle: both fighters slide onto their platforms and a VS flashes,
   // then the auto-battle begins. `intro` holds the combat loop until the entrance finishes. The buddy's
   // attack is scaled by the type matchup (and the boss-weakness bonus when exploited) before the bout.
-  function start(opponent, boss) {
-    const mult = Game.fightAtkMult(buddyType, opponent.type, !!boss, weaknessExploited);
+  function start(opponent, kind) {
+    const isBossFight = kind === 'weekly'; // only the weekly boss grants the weakness-exploit bonus + trophy
+    const mult = Game.fightAtkMult(buddyType, opponent.type, isBossFight, weaknessExploited);
     const sm = Game.stanceMult(stance);
     const spec = (useSpecial && loadout.special > 0) ? Game.SPECIAL_ATK : 1;
     const eff = Object.assign({}, fighter.stats, {
@@ -3193,7 +3359,7 @@ function FightModal({ db, update, streak, onClose }) {
       hp: Math.max(1, Math.round(fighter.stats.hp * (1 + (readyBuff.heal || 0)))), // a recovery day starts you tankier
     });
     effRef.current = eff; setLastMult(mult);
-    setOpp(opponent); setIsBoss(!!boss); setMaxA(eff.hp); setMaxB(opponent.stats.hp); setHpA(eff.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it);
+    setOpp(opponent); setIsBoss(isBossFight); setIsDaily(kind === 'daily'); setMaxA(eff.hp); setMaxB(opponent.stats.hp); setHpA(eff.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); setAmberEarned(0); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it);
   }
   function prestige() { update(d => { d.fight = d.fight || {}; d.fight.rank = 0; d.fight.prestige = (d.fight.prestige || 0) + 1; }); setPhase('select'); }
 
@@ -3233,18 +3399,29 @@ function FightModal({ db, update, streak, onClose }) {
     if (phase !== 'done' || winner == null || rewarded.current) return;
     rewarded.current = true;
     if (winner === 'you') {
-      const got = [];
+      const got = []; let amber = 0;
       update(d => {
         d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 };
-        d.fight.wins = (d.fight.wins || 0) + 1; d.items = d.items || {}; d.game_awards = d.game_awards || {};
+        d.fight.wins = (d.fight.wins || 0) + 1; d.items = d.items || {}; d.game_awards = d.game_awards || {}; d.amber_ledger = d.amber_ledger || [];
         const give = (id) => { d.items[id] = (d.items[id] || 0) + 1; got.push(id); };
-        if (isBoss) { d.fight.trophies = (d.fight.trophies || 0) + 1; d.fight.lastBossWeek = fightWeekKey(); give('amber'); if (crHash(fightWeekKey() + 's') % 2 === 0) give('golden_steak'); }
-        else if ((d.fight.rank || 0) < FIGHT_LADDER.length) {
+        // Amber is minted through the append-only ledger, idempotent by key, so a re-render or a merge
+        // can never pay twice. (See store.js mergeStates: the ledger unions by entry id.)
+        const earn = (key, delta, reason) => { if (d.game_awards[key]) return; d.game_awards[key] = true; d.amber_ledger.push({ id: key, date: today, delta: delta, reason: reason }); amber += delta; };
+        if (isDaily) {
+          const ns = Game.dailyStreakNext(d.fight.lastDailyDate, d.fight.dailyStreak || 0, today);
+          d.fight.lastDailyDate = today; d.fight.dailyStreak = ns; d.fight.dailyBest = Math.max(d.fight.dailyBest || 0, ns);
+          earn('amber:daily:' + today, Game.amberDailyReward(ns), 'Daily Hunt');
+        } else if (isBoss) {
+          d.fight.trophies = (d.fight.trophies || 0) + 1; d.fight.lastBossWeek = fightWeekKey(); give('amber'); if (crHash(fightWeekKey() + 's') % 2 === 0) give('golden_steak');
+          earn('amber:weekly:' + fightWeekKey(), Game.AMBER_REWARDS.weekly, 'Weekly boss');
+        } else if ((d.fight.rank || 0) < FIGHT_LADDER.length) {
           d.fight.rank = (d.fight.rank || 0) + 1;
           if (d.fight.rank % 3 === 0) give('lure');
           if (d.fight.rank >= FIGHT_LADDER.length && !d.game_awards['belt']) { d.game_awards['belt'] = true; give('belt'); }
+          earn('amber:rung:' + today, Game.AMBER_REWARDS.ladderRung, 'Ladder rung');
         }
       });
+      setAmberEarned(amber);
       setDrops(got);
     }
   }, [phase, winner]);
@@ -3325,7 +3502,7 @@ function FightModal({ db, update, streak, onClose }) {
           </div>}
 
           {/* battle plan: your one tactical choice before the bout */}
-          {(gate.can || bossReady) && <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+          {(gate.can || bossReady || (dailyReady && loggedToday)) && <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
             <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Battle plan</div>
             <div className="flex gap-2">
               {[['press', 'Press', '+ATK'], ['steady', 'Steady', 'balanced'], ['dig', 'Dig in', '+DEF']].map(([k, label, hint]) => (
@@ -3344,8 +3521,29 @@ function FightModal({ db, update, streak, onClose }) {
           {ladderCleared
             ? <Btn kind="accent" className="w-full mb-3.5" onClick={prestige}>Prestige ↑, tougher ladder, better drops</Btn>
             : gate.can
-              ? <Btn kind="accent" className="w-full mb-3.5" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, false); }}>Fight {rival.name} · 1 attempt today</Btn>
+              ? <Btn kind="accent" className="w-full mb-3.5" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}>Fight {rival.name} · 1 attempt today</Btn>
               : <div className="pixel-box p-3 mb-3.5 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt, a fed buddy fights best.'}</div>}
+
+          {/* Daily Hunt: a fresh, gentle mini-boss every day that pays Amber. Its own once-a-day gate,
+              separate from the ladder attempt, and retryable after a loss (never a punishment). */}
+          <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (dailyReady ? 'var(--accent)' : 'var(--border)') }}>
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Daily Hunt · {daily.name}</span>
+              <span className="pf text-[7px] uppercase inline-flex items-center gap-1 text-[#8A8A90] shrink-0">type <TypeChip t={daily.type} /></span>
+            </div>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><Sprite art={daily.art} colors={daily.colors} px={3.2} /></div>
+              <div className="text-[10px] leading-snug text-[#8A8A90] flex-1">
+                {(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day hunt streak · </span>}
+                Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}>✦ {dailyAmber} Amber</span>. A new hunt roams in tomorrow.
+              </div>
+            </div>
+            {dailyReady
+              ? (loggedToday
+                  ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Hunt {daily.name}</Btn>
+                  : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Log a meal today to arm the hunt.</div>)
+              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today ✓ A fresh one lands tomorrow.</div>}
+          </div>
 
           {/* how the week armed the fighter */}
           {(() => {
@@ -3374,7 +3572,7 @@ function FightModal({ db, update, streak, onClose }) {
                 <div className="text-[10px] leading-snug mb-3">{weaknessExploited
                   ? <span style={{ color: 'var(--good)' }}>Weakness exploited: your buddy strikes at +35% this week. Take it down!</span>
                   : <span className="text-[#8A8A90]">Raise a {TYPE_META[weakness][0]} buddy or eat {TYPE_META[weakness][2]}, {weakDays}/4 days hit this week for +35% attack.</span>}</div>
-                <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, true)}><PixelGlyph kind="glove" color="currentColor" size={14} /> Challenge {boss.name}</Btn>
+                <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, 'weekly')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Challenge {boss.name}</Btn>
               </div>
             : <div className="text-[11px] text-[#8A8A90] text-center">Weekly boss beaten, a new challenger arrives next week.</div>}
         </div>}
@@ -3388,7 +3586,8 @@ function FightModal({ db, update, streak, onClose }) {
           <div className="pixel-box p-2 mb-3 text-[10px] text-[#8A8A90] leading-relaxed" style={{ background: 'var(--surface3)', minHeight: 56 }}>{log.map((l, i) => <div key={i} style={{ opacity: 1 - i * 0.16 }}>› {l}</div>)}</div>
           {phase === 'done' && <div className="text-center fade-in">
             <div className="pf text-2xl mb-1" style={{ color: winner === 'you' ? 'var(--good)' : 'var(--danger)' }}>{winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'}</div>
-            <div className="text-[11px] text-[#8A8A90] mb-2">{winner === 'you' ? (isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!') : 'Your buddy needs a good feed, come back tomorrow and go again.'}</div>
+            <div className="text-[11px] text-[#8A8A90] mb-2">{winner === 'you' ? (isDaily ? 'Daily Hunt cleared!' : isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!') : 'Your buddy needs a good feed, come back tomorrow and go again.'}</div>
+            {winner === 'you' && amberEarned > 0 && <div className="text-[14px] mb-2 font-bold" style={{ color: 'var(--fat)' }}>✦ +{amberEarned} Amber</div>}
             {winner === 'you' && drops.length > 0 && <div className="text-[11px] mb-3" style={{ color: 'var(--good)' }}>Loot: {drops.map(id => ITEMS[id].name).join(', ')}</div>}
             <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setPhase('select')}>Back</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Done</Btn></div>
           </div>}
@@ -4222,6 +4421,10 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         </>)}
       </Card>
 
+      {/* The living buddy: reflects how you have eaten today (bond, mood, needs) and frames the next
+          log as feeding it. The emotional anchor and the one tap into the Buddy & Play hub. */}
+      <BuddyCard db={db} bp={bp} streak={streak} freezeReady={Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today)} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
+
       {!isPremium && (() => {
         const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
         return freeLeft <= 3
@@ -4243,24 +4446,6 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Today status: Move / Sleep / Ready as three dials (Google Health). The readiness -> Fight
           payoff moved into the Play hub, so this stays a calm glance. */}
       <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
-
-      {/* Play: the game lives behind the dino now. One compact entry into the full hub, so the
-          dashboard stays about today's food and progress. Fight + naming stay reachable here. */}
-      <button onClick={onOpenPlay} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4 flex items-center gap-3">
-        <div className="shrink-0"><PixelDino size={30} color="var(--good)" /></div>
-        <div className="flex-1 min-w-0 leading-tight">
-          <div className="flex items-baseline gap-2">
-            <span className="pf text-[9px] uppercase">Play</span>
-            {db.buddy && db.buddy.name && <span className="text-[11px] font-bold truncate">{db.buddy.name}</span>}
-          </div>
-          <div className="text-[10px] text-[#8A8A90] tnum truncate">
-            {streak > 0 && <><span style={{ color: 'var(--fat)' }}>▲ {streak}d</span> · </>}
-            {egg && eggProg && <>egg {eggProg.steps}/{eggProg.tier} · </>}
-            {Object.keys(macrodex(db)).length} in Macrodex
-          </div>
-        </div>
-        <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>Open ›</span>
-      </button>
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
@@ -7222,7 +7407,9 @@ function demoState() {
       ['1 bagel', '150 g cottage cheese', '2 eggs', '1 tomato', 'salt', 'black pepper'],
       ['Toast the bagel.', 'Boil or fry the eggs.', 'Spread cottage cheese, add sliced tomato and egg.', 'Season and serve.']),
   ];
-  s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null };
+  s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null, cosmetics: ['party_hat'] };
+  // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
+  s.amber_ledger = [{ id: 'demo1', date: shiftISO(today, -2), delta: 60, reason: 'Weekly boss' }, { id: 'demo2', date: shiftISO(today, -1), delta: 15, reason: 'Daily Hunt' }, { id: 'demo3', date: today, delta: 15, reason: 'Daily Hunt' }];
   s.game_salt = 'demo-salt';
   s.onboarding = { welcomed: true, sawDex: true, dismissed: true };
   s._rev = Date.now();
