@@ -3469,6 +3469,19 @@ async function ghConnect() {
   u.searchParams.set('redirect_uri', ghRedirectUri());
   window.location.href = u.toString();
 }
+// Google requires a prominent in-app disclosure of what health data we access and why, shown BEFORE the
+// Google permission screen, for the restricted Google Health scopes. Every "Connect" entry point goes
+// through this: it opens the disclosure sheet (registered by App), which only calls ghConnect() once the
+// user affirmatively agrees. Falls back to a direct connect if the opener isn't mounted for any reason.
+function ghConnectGated() {
+  try {
+    if (typeof window !== 'undefined' && typeof window.MGHCONNECT === 'function') {
+      window.MGHCONNECT();
+      return;
+    }
+  } catch (_) {}
+  ghConnect();
+}
 async function ghPost(action, body) {
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
   const token = sess && sess.access_token;
@@ -11457,7 +11470,7 @@ function StepsSleepCard({
       color: 'var(--good)'
     }
   }, "✓ Synced") : ghConfigured() ? /*#__PURE__*/React.createElement("button", {
-    onClick: ghConnect,
+    onClick: ghConnectGated,
     className: "pf text-[7px] uppercase",
     style: {
       color: 'var(--accent)'
@@ -11655,7 +11668,7 @@ function MetricBreakdownSheet({
       className: "w-full",
       onClick: () => {
         onClose();
-        ghConnect();
+        ghConnectGated();
       }
     }, "Connect Google Health") : /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 text-[12px]",
@@ -11695,7 +11708,7 @@ function MetricBreakdownSheet({
         className: "w-full",
         onClick: () => {
           onClose();
-          ghConnect();
+          ghConnectGated();
         }
       }, "Connect Google Health")));
     } else if (p.hasStages) {
@@ -11798,7 +11811,7 @@ function MetricBreakdownSheet({
       className: "w-full",
       onClick: () => {
         onClose();
-        ghConnect();
+        ghConnectGated();
       }
     }, "Connect Google Health"))), /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase mb-1",
@@ -11852,6 +11865,99 @@ function MetricBreakdownSheet({
     "aria-label": "Close",
     className: "text-[#8A8A90] text-2xl leading-none"
   }, "×")), body));
+}
+
+// Prominent disclosure shown BEFORE the Google permission screen (required by Google for the restricted
+// Google Health scopes). It names exactly what read-only data we access and what each is used for, states
+// we never sell / share / advertise with / train models on it, links the privacy policy, and only
+// proceeds to Google on an affirmative tap. onAgree runs the real OAuth redirect; onClose cancels.
+function GoogleHealthDisclosure({
+  onClose,
+  onAgree
+}) {
+  useBackClose(onClose);
+  const Row = ({
+    label,
+    detail
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-3 py-2.5 border-b",
+    style: {
+      borderColor: 'var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0 mt-0.5",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "✓"), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-semibold"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, detail)));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-1"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-bold"
+  }, "Connect Google Health"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    "aria-label": "Close",
+    className: "text-[#8A8A90] text-2xl leading-none"
+  }, "×")), /*#__PURE__*/React.createElement("p", {
+    className: "text-[13px] leading-snug mb-3",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, "With your permission, Macrosaurus reads the following from Google Health (read-only) to power features in the app:"), /*#__PURE__*/React.createElement(Row, {
+    label: "Activity: daily steps",
+    detail: "Your Move ring, step-goal streaks, and activity-aware calorie targets."
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Sleep: time asleep and sleep stages",
+    detail: "Your nightly sleep-quality score and sleep insights."
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Health metrics: HRV, resting heart rate, blood oxygen",
+    detail: "Your daily recovery / readiness score, which adapts your coaching."
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-[12px] leading-snug mt-4",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Access is ", /*#__PURE__*/React.createElement("b", null, "read-only"), ", and we never change your Google Health data. It's used ", /*#__PURE__*/React.createElement("b", null, "only"), " for the features above. We never sell it, share it, use it for advertising, or use it to train AI models. You can disconnect any time in Settings. See our ", /*#__PURE__*/React.createElement("a", {
+    href: "https://macrosaurus.com/privacy",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "Privacy Policy"), "."), /*#__PURE__*/React.createElement("p", {
+    className: "text-[12px] leading-snug mt-3",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Tap Connect and Google will ask you to choose your account and approve this access."), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mt-5"
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    className: "flex-1",
+    onClick: onClose
+  }, "Not now"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "accent",
+    className: "flex-1",
+    onClick: onAgree
+  }, "Connect Google Health"))));
 }
 
 // Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
@@ -18413,7 +18519,7 @@ function SettingsTab({
     return /*#__PURE__*/React.createElement(Btn, {
       kind: "accent",
       className: "w-full",
-      onClick: ghConnect
+      onClick: ghConnectGated
     }, "Connect Google Health");
   })()), /*#__PURE__*/React.createElement(Section, {
     title: "Daily targets"
@@ -26141,6 +26247,7 @@ function App() {
   const [sub, setSub] = useState(null); // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0); // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null); // { reason } when the upsell sheet is open
+  const [ghConsentOpen, setGhConsentOpen] = useState(false); // Google Health prominent-disclosure sheet
   const [rewards, setRewards] = useState(null); // { code, link, referrals_count, bonus_ai_remaining }
   const rewardsSyncedRef = useRef(false);
   const isPremium = !!sub && (sub.status === 'active' || sub.status === 'trialing');
@@ -26289,9 +26396,17 @@ function App() {
         reason: reason
       });
     };
+    // Google Health connect goes through the prominent-disclosure sheet first (ghConnectGated calls this).
+    window.MGHCONNECT = function () {
+      setGhConsentOpen(true);
+      try {
+        window.MTRACK && MTRACK('gh_disclosure_view');
+      } catch (_) {}
+    };
     return function () {
       try {
         delete window.MPAYWALL;
+        delete window.MGHCONNECT;
       } catch (_) {}
     };
   }, []);
@@ -27321,6 +27436,15 @@ function App() {
     reason: paywall.reason,
     onCheckout: startCheckout,
     onClose: () => setPaywall(null)
+  }), ghConsentOpen && /*#__PURE__*/React.createElement(GoogleHealthDisclosure, {
+    onClose: () => setGhConsentOpen(false),
+    onAgree: () => {
+      setGhConsentOpen(false);
+      try {
+        window.MTRACK && MTRACK('gh_disclosure_agree');
+      } catch (_) {}
+      ghConnect();
+    }
   }), dexOpen && /*#__PURE__*/React.createElement(MacrodexModal, {
     db: db,
     update: update,

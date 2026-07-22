@@ -331,6 +331,14 @@ async function ghConnect() {
   u.searchParams.set('redirect_uri', ghRedirectUri());
   window.location.href = u.toString();
 }
+// Google requires a prominent in-app disclosure of what health data we access and why, shown BEFORE the
+// Google permission screen, for the restricted Google Health scopes. Every "Connect" entry point goes
+// through this: it opens the disclosure sheet (registered by App), which only calls ghConnect() once the
+// user affirmatively agrees. Falls back to a direct connect if the opener isn't mounted for any reason.
+function ghConnectGated() {
+  try { if (typeof window !== 'undefined' && typeof window.MGHCONNECT === 'function') { window.MGHCONNECT(); return; } } catch (_) {}
+  ghConnect();
+}
 async function ghPost(action, body) {
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
   const token = sess && sess.access_token;
@@ -3482,7 +3490,7 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
         {synced
           ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ Synced</span>
           : ghConfigured()
-            ? <button onClick={ghConnect} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect Health ›</button>
+            ? <button onClick={ghConnectGated} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect Health ›</button>
             : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
       </div>
 
@@ -3572,7 +3580,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
               Your steps sync automatically from Google Health. Connect it once and your daily movement, step-goal streak and steps-first coaching all fill in on their own. There's no manual step entry.
             </p>
             {ghConfigured()
-              ? <Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnect(); }}>Connect Google Health</Btn>
+              ? <Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn>
               : <div className="pixel-box p-3 text-[12px]" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>Google Health connection is coming soon.</div>}
           </div>
         )}
@@ -3595,7 +3603,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
           {synced
             ? "No night has synced yet. Once your device records a night's sleep it'll appear here, scored automatically."
             : "Sleep syncs from Google Health. Connect it and we'll score each night automatically."}
-          {!synced && ghConfigured() && <span className="block mt-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnect(); }}>Connect Google Health</Btn></span>}
+          {!synced && ghConfigured() && <span className="block mt-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn></span>}
         </p>
       );
     } else if (p.hasStages) {
@@ -3650,7 +3658,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             <p className="text-[13px] leading-snug mb-4" style={{ color: 'var(--text2)' }}>
               We can't score your readiness yet. It needs at least one real recovery signal: last night's sleep quality (a night with sleep stages), HRV, or resting heart rate. Steps alone aren't enough to anchor it.
             </p>
-            {!synced && ghConfigured() && <div className="mb-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnect(); }}>Connect Google Health</Btn></div>}
+            {!synced && ghConfigured() && <div className="mb-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn></div>}
           </div>
         )}
         <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Recovery signals</div>
@@ -3677,6 +3685,49 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
           <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
         </div>
         {body}
+      </div>
+    </div>
+  );
+}
+
+// Prominent disclosure shown BEFORE the Google permission screen (required by Google for the restricted
+// Google Health scopes). It names exactly what read-only data we access and what each is used for, states
+// we never sell / share / advertise with / train models on it, links the privacy policy, and only
+// proceeds to Google on an affirmative tap. onAgree runs the real OAuth redirect; onClose cancels.
+function GoogleHealthDisclosure({ onClose, onAgree }) {
+  useBackClose(onClose);
+  const Row = ({ label, detail }) => (
+    <div className="flex gap-3 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className="shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>✓</div>
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold">{label}</div>
+        <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{detail}</div>
+      </div>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-1">
+          <h2 className="text-lg font-bold">Connect Google Health</h2>
+          <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
+        </div>
+        <p className="text-[13px] leading-snug mb-3" style={{ color: 'var(--text2)' }}>
+          With your permission, Macrosaurus reads the following from Google Health (read-only) to power features in the app:
+        </p>
+        <Row label="Activity: daily steps" detail="Your Move ring, step-goal streaks, and activity-aware calorie targets." />
+        <Row label="Sleep: time asleep and sleep stages" detail="Your nightly sleep-quality score and sleep insights." />
+        <Row label="Health metrics: HRV, resting heart rate, blood oxygen" detail="Your daily recovery / readiness score, which adapts your coaching." />
+        <p className="text-[12px] leading-snug mt-4" style={{ color: 'var(--muted)' }}>
+          Access is <b>read-only</b>, and we never change your Google Health data. It's used <b>only</b> for the features above. We never sell it, share it, use it for advertising, or use it to train AI models. You can disconnect any time in Settings. See our <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>Privacy Policy</a>.
+        </p>
+        <p className="text-[12px] leading-snug mt-3" style={{ color: 'var(--muted)' }}>
+          Tap Connect and Google will ask you to choose your account and approve this access.
+        </p>
+        <div className="flex gap-2 mt-5">
+          <Btn kind="ghost" className="flex-1" onClick={onClose}>Not now</Btn>
+          <Btn kind="accent" className="flex-1" onClick={onAgree}>Connect Google Health</Btn>
+        </div>
       </div>
     </div>
   );
@@ -6018,7 +6069,7 @@ function SettingsTab({ db, update }) {
             <GhDebug db={db} update={update} />
           </div>
         );
-        return <Btn kind="accent" className="w-full" onClick={ghConnect}>Connect Google Health</Btn>;
+        return <Btn kind="accent" className="w-full" onClick={ghConnectGated}>Connect Google Health</Btn>;
       })()}
     </Section>
     <Section title="Daily targets">
@@ -8711,6 +8762,7 @@ function App() {
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
+  const [ghConsentOpen, setGhConsentOpen] = useState(false); // Google Health prominent-disclosure sheet
   const [rewards, setRewards] = useState(null);   // { code, link, referrals_count, bonus_ai_remaining }
   const rewardsSyncedRef = useRef(false);
   const isPremium = !!sub && (sub.status === 'active' || sub.status === 'trialing');
@@ -8784,7 +8836,9 @@ function App() {
   // Let aiRequest (a top-level helper) open the paywall when the proxy reports a limit/premium error.
   useEffect(() => {
     window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; setPaywall({ reason: reason }); window.MTRACK && MTRACK('paywall_view', { reason: reason }); };
-    return function () { try { delete window.MPAYWALL; } catch (_) {} };
+    // Google Health connect goes through the prominent-disclosure sheet first (ghConnectGated calls this).
+    window.MGHCONNECT = function () { setGhConsentOpen(true); try { window.MTRACK && MTRACK('gh_disclosure_view'); } catch (_) {} };
+    return function () { try { delete window.MPAYWALL; delete window.MGHCONNECT; } catch (_) {} };
   }, []);
   // Referrals: once signed in with data loaded, claim any pending ?ref code, fetch our own link and
   // tally, and drain any creature rewards (ours, or ones a friend just earned us) into the dex. Runs
@@ -9187,6 +9241,7 @@ function App() {
         </div>
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
+      {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenFight={() => setFightOpen(true)} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
       {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
