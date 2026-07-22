@@ -349,3 +349,67 @@ test('matchesFilters ANDs facets and uses live badges', () => {
   assert.ok(!Recipe.matchesFilters(r, { meal: 'breakfast' }));
   assert.ok(!Recipe.matchesFilters(r, { diet: 'vegan' }));
 });
+
+// ---- "Cook from what you have": fridge-photo / pantry matching --------------------------------
+const R = (title, lines, extra) => Object.assign({ id: 't_' + title.replace(/\s/g, ''), title, ingredients: lines.map((l, i) => ({ id: 'i' + i, line: l, name: Recipe.nameFromLine(l) })) }, extra || {});
+
+test('foodTokens strips amounts, prep words, plurals and normalises spelling', () => {
+  assert.deepStrictEqual(Recipe.foodTokens('2 large free-range eggs'), ['egg']);
+  assert.deepStrictEqual(Recipe.foodTokens('150 g cottage cheese'), ['cottage', 'cheese']);
+  assert.deepStrictEqual(Recipe.foodTokens('3 ripe tomatoes, chopped'), ['tomato']);
+  assert.deepStrictEqual(Recipe.foodTokens('1 cup cilantro'), ['coriander']);     // US -> UK
+  assert.deepStrictEqual(Recipe.foodTokens('2 zucchini'), ['courgette']);
+  assert.deepStrictEqual(Recipe.foodTokens('salt and pepper to taste'), ['salt', 'pepper']);
+});
+
+test('isBasicStaple waves through store-cupboard basics but never real veg', () => {
+  const st = n => Recipe.isBasicStaple(Recipe.foodTokens(n));
+  assert.ok(st('salt'));
+  assert.ok(st('freshly ground black pepper'));
+  assert.ok(st('2 tbsp olive oil'));
+  assert.ok(st('a splash of water'));
+  assert.ok(!st('1 red pepper'));        // a vegetable, not seasoning
+  assert.ok(!st('200 g chicken'));
+});
+
+test('matchRecipeToHave splits ingredients into have / missing / staples', () => {
+  const idx = Recipe.buildHaveIndex(['chicken breast', 'onion', 'rice']);
+  const m = Recipe.matchRecipeToHave(R('Curry', ['2 chicken breasts', '1 diced onion', '200 g basmati rice', '2 tbsp curry paste', 'salt']), idx);
+  assert.deepStrictEqual(m.have.sort(), ['basmati rice', 'chicken breasts', 'diced onion'].sort());
+  assert.strictEqual(m.missing.length, 1);
+  assert.strictEqual(m.missing[0].name, 'curry paste');
+  assert.deepStrictEqual(m.staples, ['salt']);        // salt excluded from missing
+  assert.strictEqual(m.makeable, false);
+  assert.strictEqual(m.missingCount, 1);
+});
+
+test('matchRecipeToHave is makeable when only staples are unlisted', () => {
+  const idx = Recipe.buildHaveIndex(['eggs', 'spinach', 'feta']);
+  const m = Recipe.matchRecipeToHave(R('Omelette', ['3 eggs', 'handful spinach', '50 g feta', 'salt', 'black pepper', '1 tbsp olive oil']), idx);
+  assert.strictEqual(m.missing.length, 0);
+  assert.strictEqual(m.makeable, true);
+  assert.strictEqual(m.staples.length, 3);
+  assert.strictEqual(m.matchPct, 100);
+});
+
+test('suggestRecipesFromHave ranks make-now first, then fewest missing, drops irrelevant', () => {
+  const recipes = [
+    R('Egg fried rice', ['2 eggs', '250 g cooked rice', '1 spring onion', '2 tbsp soy sauce']),   // have all but soy -> missing 1
+    R('Omelette', ['3 eggs', '50 g cheese', 'salt']),                                             // have all -> make now
+    R('Beef wellington', ['800 g beef fillet', '250 g mushrooms', 'puff pastry', 'pate']),        // no overlap -> dropped
+    R('Tomato pasta', ['200 g pasta', '400 g tomatoes', 'garlic', 'basil', 'parmesan']),          // have pasta+tomato -> missing 3
+  ];
+  const have = ['eggs', 'cheddar cheese', 'cooked rice', 'spring onions', 'pasta', 'cherry tomatoes'];
+  const res = Recipe.suggestRecipesFromHave(recipes, have, { maxMissing: 3 });
+  assert.deepStrictEqual(res.map(r => r.recipe.title), ['Omelette', 'Egg fried rice', 'Tomato pasta']);
+  assert.strictEqual(res[0].makeable, true);
+  assert.strictEqual(res[1].missingCount, 1);
+  assert.strictEqual(res[1].missing[0].name, 'soy sauce');
+});
+
+test('suggestRecipesFromHave respects maxMissing and minHave', () => {
+  const recipes = [R('Tomato pasta', ['200 g pasta', '400 g tomatoes', 'garlic', 'basil', 'parmesan'])];
+  assert.strictEqual(Recipe.suggestRecipesFromHave(recipes, ['pasta', 'cherry tomatoes'], { maxMissing: 2 }).length, 0); // 3 missing > cap
+  assert.strictEqual(Recipe.suggestRecipesFromHave(recipes, ['pasta', 'cherry tomatoes'], { maxMissing: 3 }).length, 1);
+  assert.strictEqual(Recipe.suggestRecipesFromHave(recipes, ['ketchup'], { maxMissing: 3 }).length, 0);                  // no real overlap
+});

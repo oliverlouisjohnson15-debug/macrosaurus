@@ -489,6 +489,24 @@ async function structureRecipeFromImages(files, meta, hint) {
   const raw = await claudeVision(null, files, RECIPE_PROMPT + '\n\nThe recipe is shown in the attached image(s) (a video cover frame or screenshot); read any on-screen text carefully. If the image genuinely shows no recipe, return empty ingredients.' + ctx, { model: AI_MODEL_FAST, maxTokens: 4096, maxImg: 1024 });
   return Rcp.normalize(raw, meta || {});
 }
+// Vision path: read the ingredients visible in one or more fridge / cupboard / worktop photos, so the
+// "cook from what you have" flow can match them against your recipes. Returns a de-duplicated list of
+// plain food names (no amounts) that the user then confirms/edits - vision is a starting point, never
+// the final word (packaged jars, things behind other things and quantities are unreliable).
+const FRIDGE_PROMPT = 'You are looking at photo(s) of the inside of a fridge, freezer, cupboard or kitchen worktop. List every distinct FOOD or DRINK ingredient you can identify. Rules: use the plain everyday food name only, no quantities, no brand names, no packaging words (e.g. "milk" not "1 pint of milk", "chicken" not "pack of chicken thighs"). One item per food. Ignore non-food objects, condiment sachets and anything you cannot identify with reasonable confidence. British English. Respond ONLY with compact JSON: {"items":["eggs","cheddar cheese","spinach", ...]}.';
+async function scanFridgeItems(files) {
+  const raw = await claudeVision(null, files, FRIDGE_PROMPT, { model: AI_MODEL, maxTokens: 700, maxImg: 1024 });
+  const items = Array.isArray(raw && raw.items) ? raw.items : [];
+  const seen = {}, out = [];
+  items.forEach(function (it) {
+    const name = String(it || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!name || name.length > 40) return;
+    const key = Rcp._norm(Rcp.nameFromLine(name));
+    if (!key || seen[key]) return; seen[key] = 1;
+    out.push(name);
+  });
+  return out;
+}
 // ---- Nutrition analysis (ingredient lines -> macros) ----------------------------------------
 // AI fallback for when the nutrition database is unavailable: one cheap Haiku call estimates the
 // macros for the AMOUNT in each ingredient line. Returns the same shape as the Edamam proxy.
@@ -7060,17 +7078,24 @@ function demoState() {
   const lnCatch = Game.sleepCatch(s.game_salt, lastNight, Game.sleepBand(lnRec.score)); const lnStyle = Game.sleepStyleFor(lnRec.score, lnStages);
   s.sleepDex = { claimed: Object.fromEntries(Object.keys(s.sleep).map(d => [d, true])), lastDate: lastNight, lastId: lnCatch.id, lastShiny: lnCatch.shiny, lastStyle: lnStyle };
   s.catch_log = s.catch_log || {}; s.catch_log[today] = (s.catch_log[today] || []).concat([{ id: lnCatch.id, shiny: lnCatch.shiny, sleep: lastNight, style: lnStyle }]);
-  const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort) => ({
+  const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort, ings, steps) => ({
     id: Store.uid(), user_id: Store.USER, title, source_platform: platform, source_url: 'https://example.com/' + encodeURIComponent(title),
-    thumbnail: null, servings: 2, ingredients: [{ id: Store.uid(), name: '1 portion', quantity: 1, unit: 'x', grams: 100, have: false }],
-    steps: ['Prep the ingredients.', 'Cook and plate up.'], macros_per_serving: { kcal, protein: p, carbs: c, fat: f, fiber: fib },
+    thumbnail: null, servings: 2, ingredients: (ings || ['1 portion']).map(line => ({ id: Store.uid(), line, name: Rcp.nameFromLine(line), grams: 0, macros: null, resolved: null, have: false })),
+    steps: steps || ['Prep the ingredients.', 'Cook and plate up.'], macros_per_serving: { kcal, protein: p, carbs: c, fat: f, fiber: fib },
+    macros_source: 'stated', stated_macros: { kcal, protein: p, carbs: c, fat: f, fiber: fib },
     macros_confidence: 'high', tags: { meal, cuisine: 'british', main, effort, diet: p >= 30 ? ['high-protein'] : [] },
     private: false, created_at: Date.now(), updated_at: Date.now(),
   });
   s.recipes = [
-    rcp('High-protein chicken pesto pasta', 'instagram', 540, 46, 58, 14, 6, 'dinner', 'chicken', 'quick'),
-    rcp('Smash burger tacos', 'tiktok', 620, 38, 44, 30, 4, 'dinner', 'beef', 'standard'),
-    rcp('Cottage cheese protein bagel', 'youtube', 310, 28, 40, 4, 5, 'breakfast', 'cheese', 'quick'),
+    rcp('High-protein chicken pesto pasta', 'instagram', 540, 46, 58, 14, 6, 'dinner', 'chicken', 'quick',
+      ['250 g pasta', '2 chicken breasts', '3 tbsp green pesto', '100 g cherry tomatoes', '30 g parmesan', 'salt', 'black pepper'],
+      ['Boil the pasta until al dente.', 'Fry the sliced chicken for 6 min until cooked through.', 'Toss pasta, chicken, pesto and halved tomatoes together.', 'Top with grated parmesan and serve.']),
+    rcp('Smash burger tacos', 'tiktok', 620, 38, 44, 30, 4, 'dinner', 'beef', 'standard',
+      ['400 g beef mince', '4 small tortillas', '2 slices cheese', '1 onion', '2 tbsp burger sauce', 'salt'],
+      ['Press mince onto each tortilla.', 'Smash-fry beef-side down for 3 min.', 'Flip, add cheese and diced onion.', 'Fold and finish with burger sauce.']),
+    rcp('Cottage cheese protein bagel', 'youtube', 310, 28, 40, 4, 5, 'breakfast', 'cheese', 'quick',
+      ['1 bagel', '150 g cottage cheese', '2 eggs', '1 tomato', 'salt', 'black pepper'],
+      ['Toast the bagel.', 'Boil or fry the eggs.', 'Spread cottage cheese, add sliced tomato and egg.', 'Season and serve.']),
   ];
   s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null };
   s.game_salt = 'demo-salt';
@@ -7418,7 +7443,7 @@ function RecipeReview({ recipe, onSave, onCancel }) {
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
-    <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your Cook library, you can work out the macros or cook it whenever.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your cookbook, you can work out the macros or cook it whenever.</div>
     {priced && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Macros per serving</div><RecipeMacroStrip macros={d.macros_per_serving} per /></Card>}
     {priced && (() => { const s = Rcp.macroSanity(d); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg}</div> : null; })()}
     <Field label="Title"><input value={d.title} onChange={e => set({ title: e.target.value })} className={inputCls} /></Field>
@@ -7436,7 +7461,7 @@ function RecipeReview({ recipe, onSave, onCancel }) {
     <Field label="Method (one step per line)">
       <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
     </Field>
-    <Btn kind="accent" className="w-full mt-1" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.some(x => Rcp.lineOf(x).trim())}>Save to my recipes</Btn>
+    <Btn kind="accent" className="w-full mt-1" onClick={() => onSave(d)} disabled={!d.title.trim() || !d.ingredients.some(x => Rcp.lineOf(x).trim())}>Save to cookbook</Btn>
   </div>);
 }
 // Open Food Facts search-by-name, for the per-ingredient brand override. Returns per-100g options.
@@ -7928,7 +7953,7 @@ function PublicRecipeCard({ pub, onOpen }) {
 // The global recipe hub: a Mob-style library of every recipe the community has imported, credited to
 // the original creator. Browsing it is the paid feature (free users get a blurred taste + upsell);
 // importing and cooking your own is always free. Rendered as a tab, so no header/back of its own.
-function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, onGoMine }) {
+function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, onImport, onGoMine }) {
   const consent = db.profile ? db.profile.shareRecipes : undefined;
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
@@ -7975,7 +8000,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
         <div className="grid grid-cols-2 gap-3" style={{ filter: 'blur(3px)', opacity: 0.85, pointerEvents: 'none' }}>{teaser.slice(0, 4).map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => {}} />)}</div>
         <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}>🔒 Unlock the library</span></div>
       </div>}
-      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug">Free forever: import and cook your own recipes. <span style={{ color: 'var(--accent)' }}>My recipes ›</span></button>
+      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--accent)' }}>Your cookbook ›</span></button>
     </div>);
   }
 
@@ -8009,7 +8034,9 @@ function RecipeHub({ db, isPremium, onSaveCopy, onConsent, showToast, onImport, 
         <div className="text-[13px] font-bold mb-1">Ingredients</div>
         <ul className="space-y-1 mb-3 text-[13px]">{(preview.ingredients || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
         {(preview.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{preview.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[9px] mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
-        <Btn kind="accent" className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to my recipes</Btn>
+        {(preview.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => { onCook(preview); setPreview(null); }}><Icon.recipe width="17" height="17" /> Start cooking</Btn>}
+        <Btn kind={(preview.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to cookbook</Btn>
+        <div className="text-[11px] text-center text-[#8A8A90] mt-2 leading-snug">Cook it now, no need to save. Save only the ones you want to keep.</div>
         {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
       </div>
     </div>}
@@ -8131,6 +8158,181 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
     </div>
   </div>);
 }
+// One "cook from what you have" match: a recipe you can make now or are a couple of ingredients short of.
+function FridgeMatchCard({ m, onOpen, onAddMissing }) {
+  const r = m.recipe;
+  const kcal = (r.macros_per_serving || {}).kcal;
+  return (<div className="pixel-box overflow-hidden" style={{ background: 'var(--card)' }}>
+    <button onClick={onOpen} className="w-full flex items-stretch text-left active:opacity-90">
+      <div className="relative w-24 shrink-0" style={{ background: 'var(--surface3)' }}><RecipeImg src={r.photo || r.thumbnail} iconSize={22} /></div>
+      <div className="flex-1 min-w-0 p-3">
+        <div className="flex items-start gap-2 mb-1">
+          <div className="font-bold text-[14px] leading-tight flex-1" style={clamp2}>{r.title}</div>
+          {m.source === 'discover' && <span className="pf text-[7px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>Discover</span>}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#8A8A90]">
+          {kcal > 0 && <span className="tnum">{Math.round(kcal)} kcal</span>}
+          {kcal > 0 && <span>·</span>}
+          {m.makeable
+            ? <span style={{ color: 'var(--good)' }}>You have everything</span>
+            : <span style={{ color: '#F5C542' }}>{m.missingCount} to grab</span>}
+          <span>·</span><span>uses {m.haveCount} you have</span>
+        </div>
+        {!m.makeable && <div className="text-[11px] mt-1.5 leading-snug"><span className="text-[#8A8A90]">Missing: </span><span className="text-[var(--text)]">{m.missing.map(x => x.name).join(', ')}</span></div>}
+      </div>
+    </button>
+    {!m.makeable && <button onClick={onAddMissing} className="w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}><Icon.cart width="13" height="13" /> Add {m.missingCount === 1 ? 'it' : 'them'} to shopping list</button>}
+  </div>);
+}
+// Log a serving of a recipe you cooked without saving it (e.g. straight from Discover). Same portion +
+// meal picker as the saved-recipe log, but transient: nothing is added to your cookbook unless you ask.
+function TransientCookLog({ recipe, meals, onLog, onClose }) {
+  useBackClose(onClose);
+  const [portion, setPortion] = useState(1);
+  const m = recipe.macros_per_serving || {};
+  return (<div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <BackClose onClose={onClose} />
+    <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="text-base font-bold mb-1">Nice one. Log {recipe.title}?</div>
+      <div className="text-[12px] text-[#8A8A90] mb-3">{portion === 1 ? '1 serving' : portion + ' servings'} · {Math.round((m.kcal || 0) * portion)} kcal · P{Math.round((m.protein || 0) * portion)}</div>
+      {m.kcal > 0 ? <>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much</div>
+        <div className="flex items-center gap-2 mb-4 flex-wrap">{[0.5, 1, 1.5, 2].map(pp => <button key={pp} onClick={() => setPortion(pp)} className="pixel-box px-3 py-2 text-[13px]" style={{ background: portion === pp ? 'var(--accent)' : 'var(--surface3)', color: portion === pp ? '#111' : 'var(--text)', fontWeight: portion === pp ? 700 : 400 }}>{pp === 1 ? '1' : pp}×</button>)}<input type="number" step="0.25" min="0.25" value={portion} onChange={e => setPortion(Math.max(0.25, +e.target.value || 1))} className={inputCls + ' w-20 py-2 text-center tnum'} aria-label="Custom portion" /></div>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">To which meal</div>
+        <div className="space-y-2">{meals.map(mm => <button key={mm.id} onClick={() => onLog(mm.id, portion)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{mm.name}</button>)}</div>
+      </> : <div className="text-[12px] text-[#8A8A90] leading-snug">No macros on this one yet. Add it to your cookbook to work them out and log it.</div>}
+      <button onClick={onClose} className="w-full text-center text-[12px] text-[#8A8A90] mt-4">Not now</button>
+    </div>
+  </div>);
+}
+// "Cook from your fridge": snap a photo (or a few), we spot the ingredients, then match them against
+// your recipes to show what you can cook now and what you're only a couple of ingredients short of.
+// Promotes using what you have and cutting food waste. Detection is a confirmable draft, never silent:
+// vision misses things behind things, packaged jars and quantities, so the user edits before matching.
+function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, onCookPublic, onSavePublic }) {
+  useBackClose(onBack);
+  const [imgs, setImgs] = useState([]);       // { id, file, url }
+  const [items, setItems] = useState(null);   // null = not scanned; array = editable detected list
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const [add, setAdd] = useState('');
+  const [community, setCommunity] = useState(null); // Discover library pulled once per scan (premium)
+  const [pubSheet, setPubSheet] = useState(null);   // a tapped Discover match (preview + actions)
+  const commTried = useRef(false);
+  const pantry = db.pantry || [];
+  const recipes = db.recipes || [];
+  function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, 5)); }
+  function removeImg(id) { setImgs(x => x.filter(f => f.id !== id)); }
+  async function scan() {
+    if (!imgs.length) { setErr('Add at least one photo of your fridge or cupboard first.'); return; }
+    setErr(''); setBusy('Spotting your ingredients…');
+    try { const found = await scanFridgeItems(imgs.map(i => i.file)); setItems(found); if (!found.length) setErr('Could not spot anything clearly. Add what you have by hand below.'); }
+    catch (e) { setItems([]); setErr(e.message || 'Could not read those photos.'); }
+    setBusy('');
+  }
+  const removeItem = (i) => setItems(x => x.filter((_, k) => k !== i));
+  const addItem = () => { const n = add.trim().toLowerCase(); if (!n) { return; } setItems(x => { const cur = x || []; return cur.some(y => Rcp._norm(y) === Rcp._norm(n)) ? cur : cur.concat([n]); }); setAdd(''); };
+  // Once the user has scanned, premium members also match against the whole Discover library, so a thin
+  // cookbook is never a dead end. One broad fetch (no filters) then matched locally, same as your own.
+  useEffect(() => {
+    if (items === null || !isPremium || commTried.current) return;
+    commTried.current = true;
+    browsePublicRecipes({ limit: 120 }).then(rows => setCommunity(rows || []), () => setCommunity([]));
+  }, [items === null, isPremium]);
+  // A Discover row (ingredients are plain lines) as a matchable recipe, tagged so taps route to a
+  // preview/cook sheet rather than the saved-recipe detail.
+  const mapPublic = (pub) => ({
+    id: 'pub_' + (pub.source_url || pub.title), title: pub.title, thumbnail: pub.thumbnail, photo: null,
+    steps: pub.steps || [], ingredients: (pub.ingredients || []).map(l => ({ line: l })),
+    macros_per_serving: { kcal: pub.kcal, protein: pub.protein, carbs: pub.carbs, fat: pub.fat, fiber: pub.fiber },
+    servings: pub.servings, source_platform: pub.source_platform, source_url: pub.source_url, source_author: pub.source_author, _pub: pub,
+  });
+  const have = (items || []).concat(pantry);
+  const mine = (items ? Rcp.suggestRecipesFromHave(recipes, have, { maxMissing: 3 }) : []).map(m => (m.source = 'mine', m));
+  const savedTitles = {}; recipes.forEach(r => { savedTitles[Rcp._norm(r.title)] = 1; });
+  const comm = (items && isPremium && community ? Rcp.suggestRecipesFromHave((community || []).map(mapPublic), have, { maxMissing: 3 }) : [])
+    .filter(m => !savedTitles[Rcp._norm(m.recipe.title)]).map(m => (m.source = 'discover', m));
+  const bySort = (a, b) => (a.source === 'mine' ? 0 : 1) - (b.source === 'mine' ? 0 : 1) || (a.missingCount - b.missingCount) || (b.haveCount - a.haveCount);
+  const results = mine.concat(comm);
+  const ready = results.filter(r => r.makeable).sort(bySort);
+  const almost = results.filter(r => !r.makeable).sort(bySort);
+  const commLoading = items !== null && isPremium && community === null;
+  const openMatch = (m) => m.source === 'mine' ? onOpenRecipe(m.id) : setPubSheet(m);
+  function addMissing(m) {
+    let added = 0;
+    update(d => {
+      const pan = {}; (d.pantry || []).forEach(n => { pan[n] = 1; });
+      const res = Rcp.addToShoppingList(d.shopping_list || [], m.missing.map(x => ({ line: x.line, recipe_id: m.id })), { uid: Store.uid, pantry: pan, now: Date.now() });
+      added = res.added; d.shopping_list = res.list;
+    });
+    showToast(added ? ('Added ' + added + ' to your shopping list') : 'Already on your list or in your pantry');
+  }
+  if (busy) return <DinoLoader label={busy} />;
+  return (<div className="fade-in">
+    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
+    <div className="text-lg font-bold mb-1">Cook from your fridge</div>
+    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
+    <div className="mb-3"><PhotoButton label={imgs.length ? 'Add another photo' : 'Take or add a fridge photo'} multiple onFiles={addImgs} className="w-full" /></div>
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
+    {imgs.length > 0 && items === null && <Btn kind="accent" className="w-full" onClick={scan}>Spot my ingredients</Btn>}
+    {err && <div className="text-[12px] text-[#F5C542] mt-3 leading-snug">{err}</div>}
+    {items !== null && <div className="mt-4 fade-in">
+      <div className="text-[13px] font-bold mb-1">We spotted these</div>
+      <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">Tap × to remove anything we got wrong, and add anything we missed (things behind other things, or in jars, are easy to miss). Your pantry staples are already assumed.</div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {(items || []).map((it, i) => <span key={i} className="pixel-box pl-2.5 pr-1.5 py-1 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}>{it}<button onClick={() => removeItem(i)} className="text-[#8A8A90] text-sm leading-none" aria-label="Remove">×</button></span>)}
+        {!(items || []).length && <span className="text-[12px] text-[#8A8A90]">Nothing yet - add what you have below.</span>}
+      </div>
+      <div className="flex gap-2 mb-5"><input value={add} onChange={e => setAdd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} className={inputCls + ' flex-1'} placeholder="Add an ingredient…" /><Btn kind="ghost" onClick={addItem}>Add</Btn></div>
+      {results.length > 0 && <>
+        {ready.length > 0 && <div className="mb-5">
+          <div className="flex items-baseline gap-2 mb-2"><div className="text-lg font-bold">Ready to cook</div><span className="text-[11px] text-[#8A8A90]">you have everything</span></div>
+          <div className="space-y-2.5">{ready.map(m => <FridgeMatchCard key={m.id} m={m} onOpen={() => openMatch(m)} onAddMissing={() => addMissing(m)} />)}</div>
+        </div>}
+        {almost.length > 0 && <div className="mb-4">
+          <div className="flex items-baseline gap-2 mb-2"><div className="text-lg font-bold">Almost there</div><span className="text-[11px] text-[#8A8A90]">a couple of bits short</span></div>
+          <div className="space-y-2.5">{almost.map(m => <FridgeMatchCard key={m.id} m={m} onOpen={() => openMatch(m)} onAddMissing={() => addMissing(m)} />)}</div>
+        </div>}
+      </>}
+      {commLoading && <div className="flex items-center gap-2 text-[12px] mb-3" style={{ color: 'var(--accent)' }}><PixelDino size={16} color="var(--accent)" /> Checking the Discover library…</div>}
+      {!results.length && !commLoading && <Card className="p-5 text-center">
+        {!recipes.length && !isPremium
+          ? <><div className="text-[13px] font-semibold mb-1">No recipes to match yet</div><div className="text-[12px] text-[#8A8A90] leading-relaxed">Import or add a few recipes and we'll tell you which ones you can cook from what's in your fridge.</div></>
+          : <><div className="text-[13px] font-semibold mb-1">Nothing's a close match</div><div className="text-[12px] text-[#8A8A90] leading-relaxed">Nothing's within reach of these ingredients. Add a few more of what you have{isPremium ? '' : ', or import more recipes'}.</div></>}
+      </Card>}
+      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[#8A8A90] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--accent)' }}>Discover library</span> to what's in your fridge ›</button>}
+    </div>}
+    {pubSheet && <FridgePublicSheet m={pubSheet} onClose={() => setPubSheet(null)}
+      onCook={(pub) => { setPubSheet(null); onCookPublic(pub); }}
+      onSave={(pub) => { setPubSheet(null); onSavePublic(pub); }}
+      onAddMissing={(m) => { addMissing(m); setPubSheet(null); }} />}
+  </div>);
+}
+// A tapped Discover match from the fridge scan: the community recipe with its make-now / missing status,
+// ingredients and method, plus the same cook-now (no save) / save-to-cookbook / add-missing actions as
+// the Discover preview. Keeps community results first-class without forcing a save.
+function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
+  useBackClose(onClose);
+  const r = m.recipe, pub = r._pub, mm = r.macros_per_serving || {};
+  return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <BackClose onClose={onClose} />
+    <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
+      <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={40} /><span className="absolute top-2 left-2 pf text-[8px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
+      <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
+      {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent)' }}>via {creditName(pub)}</div> : null}
+      <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
+      {mm.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {r.servings}</div><RecipeMacroStrip macros={mm} per /></Card>}
+      {!m.makeable && <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)' }}><span className="text-[#8A8A90]">Missing: </span>{m.missing.map(x => x.name).join(', ')}</div>}
+      <div className="text-[13px] font-bold mb-1">Ingredients</div>
+      <ul className="space-y-1 mb-3 text-[13px]">{(r.ingredients || []).map((ing, i) => <li key={i}>{Rcp.lineOf(ing)}</li>)}</ul>
+      {(r.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{r.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[9px] mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
+      {!m.makeable && <Btn kind="ghost" className="w-full mb-2" onClick={() => onAddMissing(m)}>Add {m.missingCount} missing to shopping list</Btn>}
+      {(r.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => onCook(pub)}><Icon.recipe width="17" height="17" /> Start cooking</Btn>}
+      <Btn kind={(r.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => onSave(pub)}>Save to cookbook</Btn>
+      {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" className="block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
+    </div>
+  </div>);
+}
 function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onLogOn, onSaveMeal, isPremium }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover | plan
   const [activeId, setActiveId] = useState(null);
@@ -8140,6 +8342,8 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
   const [sort, setSort] = useState('recent'); // recent | protein | kcal | quick
   const [showFilters, setShowFilters] = useState(false);
   const [hubTab, setHubTab] = useState('discover'); // discover (the community hub) | mine (your own recipes)
+  const [cookRec, setCookRec] = useState(null); // a transient (unsaved) recipe being cooked from Discover
+  const [logRec, setLogRec] = useState(null);   // a transient recipe pending a serving-log after cooking
   const facetCount = Object.values(facets).filter(Boolean).length;
   const setFacet = (k, v) => setFacets(f => { const n = Object.assign({}, f); if (n[k] === v) delete n[k]; else n[k] = v; return n; });
   // Arriving from a share: jump straight into the importer with the shared link.
@@ -8243,20 +8447,29 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     // Contribute to the shared library if the user has opted in and it is not marked private.
     if (!(db.profile && db.profile.shareRecipes === false) && !saved.private) submitPublicRecipe(saved);
   }
-  // Save a copy of a Discover recipe into the user's own collection. It is already priced, so keep
-  // the stated per-serving macros. Mark it as a copy so it is not re-submitted as if it were ours.
-  function saveCopyFromPublic(pub) {
-    const rec = Rcp.normalize({
+  // A Discover recipe as a normalised recipe object (already priced, so keep its stated per-serving
+  // macros). Used both for saving a copy and for cooking one straight away without saving.
+  function publicToRecipe(pub) {
+    return Rcp.normalize({
       title: pub.title, servings: pub.servings, ingredients: pub.ingredients || [], steps: pub.steps || [],
       stated_macros_per_serving: { kcal: pub.kcal, protein_g: pub.protein, carbs_g: pub.carbs, fat_g: pub.fat, fiber_g: pub.fiber },
       source_platform: pub.source_platform, tags: { meal: pub.meal, cuisine: pub.cuisine, main: pub.main, effort: pub.effort },
     }, { platform: pub.source_platform, url: pub.source_url, author: pub.source_author || '', thumbnail: pub.thumbnail || '' });
+  }
+  // Save a copy of a Discover recipe into the user's own cookbook. Mark it private so it is not
+  // re-submitted as if it were ours.
+  function saveCopyFromPublic(pub) {
+    const rec = publicToRecipe(pub);
     rec.private = true; // a saved copy stays private - the original submitter already seeded it
     const id = Store.uid();
     update(d => { d.recipes = (d.recipes || []).concat([Object.assign({}, rec, { id, user_id: Store.USER, created_at: Date.now(), updated_at: Date.now() })]); });
     setActiveId(id); setScreen('detail');
-    showToast('Saved ' + rec.title);
+    showToast('Saved ' + rec.title + ' to your cookbook');
   }
+  // Cook a Discover recipe WITHOUT saving it: cooking should never require a save. We keep a transient
+  // copy in memory just for the Cook Mode + optional serving-log; nothing touches the cookbook unless
+  // the user chooses to save it afterwards.
+  function cookPublic(pub) { const rec = publicToRecipe(pub); rec.id = 'tmp_' + Store.uid(); rec._public = pub; setCookRec(rec); }
   // Record the one-time sharing choice. Turning it on backfills the pool with existing priced recipes.
   function setShareConsent(on) {
     update(d => { d.profile = d.profile || {}; d.profile.shareRecipes = !!on; });
@@ -8285,20 +8498,26 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         </div>
       </div>
       <ChefCard db={db} />
+      {/* Always-visible entry to the fridge scanner - the food-waste USP - on both tabs. */}
+      <button onClick={() => setScreen('fridge')} className="w-full mb-4 pixel-box p-3.5 flex items-center gap-3 text-left active:opacity-90" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
+        <div className="w-9 h-9 shrink-0 pixel-box flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Icon.cam width="18" height="18" /></div>
+        <div className="min-w-0 flex-1"><div className="text-[14px] font-bold">Cook from your fridge</div><div className="text-[11px] text-[#8A8A90] leading-snug">Snap what you have and see what you can make right now</div></div>
+        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
+      </button>
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
         <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
-        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>My recipes</button>
+        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Cookbook</button>
       </div>
       {hubTab === 'discover'
-        ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
+        ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
         : !allRecipes.length ? <>
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
         <ShareTip className="mb-4" />
         <Card className="p-6 text-center">
           <div className="mb-3 flex justify-center"><Icon.recipe width="32" height="32" style={{ color: 'var(--muted)' }} /></div>
-          <div className="text-[14px] font-semibold mb-1">No recipes yet</div>
-          <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Send a cooking Reel or Short here and it turns into ingredients, a method and per-serving macros you can log.</div>
+          <div className="text-[14px] font-semibold mb-1">Your cookbook is empty</div>
+          <div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">Import a cooking Reel or Short, or upload your own, and it becomes ingredients, a method and per-serving macros. You can cook any recipe straight away, favourite the ones you want to keep.</div>
         </Card>
       </> : <>
         <Btn kind="accent" className="w-full mb-3" onClick={() => setScreen('import')}>Import a recipe from a video</Btn>
@@ -8323,6 +8542,11 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
     </>}
     {screen === 'import' && <RecipeImport initialUrl={importUrl || ''} onSaved={saveRecipe} onCancel={cancelImport} />}
     {screen === 'detail' && active && <RecipeDetail recipe={active} db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onDelete={() => deleteRecipe(active.id)} onLogRecipe={onLogRecipe} onSaveMeal={onSaveMeal} />}
+    {screen === 'fridge' && <FridgeScan db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onOpenRecipe={(id) => { setActiveId(id); setScreen('detail'); }} isPremium={isPremium} onCookPublic={cookPublic} onSavePublic={saveCopyFromPublic} />}
+    {cookRec && <CookMode recipe={cookRec} onClose={() => setCookRec(null)} onLogDone={() => { const r = cookRec; setCookRec(null); setLogRec(r); }} />}
+    {logRec && <TransientCookLog recipe={logRec} meals={mealsForDay(db, Store.todayISO())}
+      onLog={(mealId, portion) => { onLogRecipe(mealId, logRec, 'single', portion); const pub = logRec._public; setLogRec(null); showToast('Logged ' + logRec.title, 'Save to cookbook', pub ? () => saveCopyFromPublic(pub) : null); }}
+      onClose={() => setLogRec(null)} />}
     {screen === 'shopping' && <ShoppingListView db={db} update={update} showToast={showToast} onBack={() => setScreen("list")} />}
     {screen === 'plan' && <PlannerView db={db} update={update} showToast={showToast} onBack={() => setScreen('list')} onOpenRecipe={(id) => { setActiveId(id); setScreen('detail'); }} onLogOn={onLogOn} />}
   </div>);

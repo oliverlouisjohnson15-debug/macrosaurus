@@ -399,6 +399,112 @@
     return { fitsKcal: over <= 0, overKcal: Math.round(over), proteinPer100kcal: +(proteinDensity * 100).toFixed(0), label: label };
   }
 
+  // ---- "Cook from what you have": match recipes to the ingredients you've got ------------------
+  // Powers the fridge-photo feature (and any "what can I make" surface): from a set of ingredient
+  // names you own - scanned from a fridge photo, plus your pantry - work out which recipes you can
+  // cook right now and which you're only a couple of ingredients away from, listing exactly what's
+  // missing so it can go straight on the shopping list. Pure + unit-tested so the matching never
+  // drifts from the UI. Promotes using what you have instead of letting food go to waste.
+
+  // Words that carry no food identity - preparation, size, quality, packaging - so "2 large free-range
+  // eggs" and "eggs" match on the token that matters. Leading amounts + units are stripped by nameFromLine.
+  var FOOD_STOPWORDS = {
+    fresh: 1, dried: 1, frozen: 1, ground: 1, chopped: 1, sliced: 1, diced: 1, minced: 1, grated: 1,
+    crushed: 1, whole: 1, large: 1, small: 1, medium: 1, ripe: 1, boneless: 1, skinless: 1, free: 1,
+    range: 1, organic: 1, raw: 1, cooked: 1, taste: 1, extra: 1, virgin: 1, plain: 1, light: 1, low: 1,
+    fat: 1, reduced: 1, unsalted: 1, salted: 1, finely: 1, roughly: 1, thinly: 1, peeled: 1, deseeded: 1,
+    drained: 1, rinsed: 1, roasted: 1, toasted: 1, ready: 1, optional: 1, cut: 1, good: 1, quality: 1,
+    mixed: 1, baby: 1, wild: 1, lean: 1, thick: 1, thin: 1, warm: 1, room: 1, temperature: 1, semi: 1,
+    skimmed: 1, full: 1, natural: 1, and: 1, the: 1, for: 1, plus: 1, into: 1, with: 1, your: 1, few: 1,
+    of: 1, splash: 1, dash: 1, pinch: 1, drizzle: 1, squeeze: 1, handful: 1, knob: 1, glug: 1, some: 1,
+  };
+  // Canonical token for common cross-Atlantic / spelling variants, so a US fridge photo ("cilantro",
+  // "zucchini", "garbanzo") still matches UK recipe wording ("coriander", "courgette", "chickpea").
+  var FOOD_SYNONYMS = {
+    cilantro: 'coriander', eggplant: 'aubergine', zucchini: 'courgette', garbanzo: 'chickpea',
+    shrimp: 'prawn', arugula: 'rocket', scallion: 'springonion', chickpeas: 'chickpea',
+    yoghurt: 'yogurt', capsicum: 'pepper', mange: 'mangetout',
+  };
+  // Words that only ever describe a store-cupboard basic everyone is assumed to have, so a recipe is
+  // "makeable" without them. A real vegetable like "red pepper" keeps "red" (not in here) so it is NOT
+  // waved through - only ingredients whose every token is a staple word count as assumed-present.
+  var STAPLE_VOCAB = { salt: 1, pepper: 1, water: 1, oil: 1, olive: 1, vegetable: 1, sunflower: 1, rapeseed: 1, sea: 1, black: 1, cracked: 1, freshly: 1, table: 1 };
+
+  function singularToken(t) {
+    if (t.length <= 3) return t;
+    if (/ies$/.test(t)) return t.slice(0, -3) + 'y';        // berries -> berry
+    if (/(ches|shes|sses|xes|zes)$/.test(t)) return t.slice(0, -2); // glasses -> glass
+    if (/oes$/.test(t)) return t.slice(0, -2);              // tomatoes -> tomato, potatoes -> potato
+    if (/ss$/.test(t)) return t;                            // watercress stays
+    if (/s$/.test(t)) return t.slice(0, -1);               // eggs -> egg, onions -> onion
+    return t;
+  }
+  // The meaningful food tokens of an ingredient name: amount/unit stripped, lowercased, de-pluralised,
+  // spelling-normalised, with prep/size words dropped. "2 large ripe avocados" -> ["avocado"].
+  function foodTokens(name) {
+    var s = norm(nameFromLine(name)).replace(/[^a-z\s]/g, ' ');
+    var out = [], seen = {};
+    s.split(/\s+/).forEach(function (w) {
+      if (!w) return;
+      w = FOOD_SYNONYMS[w] || singularToken(w);
+      w = FOOD_SYNONYMS[w] || w;
+      if (w.length < 3 || FOOD_STOPWORDS[w]) return;
+      if (!seen[w]) { seen[w] = 1; out.push(w); }
+    });
+    return out;
+  }
+  // An ingredient whose every token is a store-cupboard basic (salt, black pepper, olive oil, water).
+  function isBasicStaple(toks) { return toks.length > 0 && toks.every(function (t) { return STAPLE_VOCAB[t]; }); }
+  // A token index of everything you have (fridge scan + pantry), for O(1) ingredient lookups.
+  function buildHaveIndex(names) {
+    var idx = {};
+    (names || []).forEach(function (n) { foodTokens(n).forEach(function (t) { idx[t] = 1; }); });
+    return idx;
+  }
+  // Classify one recipe's ingredients against what you have: { have, missing, staples, makeable, ... }.
+  // Staples are assumed-present and excluded from both counts (you don't shop for salt). An ingredient
+  // is "have" when any of its food tokens is in your have-index; otherwise it's missing (with its line
+  // kept, so it can drop straight onto the shopping list).
+  function matchRecipeToHave(recipe, haveIndex) {
+    var have = [], missing = [], staples = [];
+    ((recipe && recipe.ingredients) || []).forEach(function (ing) {
+      var line = lineOf(ing);
+      var name = (ing && ing.name) || nameFromLine(line);
+      var toks = foodTokens(name);
+      if (isBasicStaple(toks)) { staples.push(name); return; }
+      if (toks.length && toks.some(function (t) { return haveIndex[t]; })) have.push(name);
+      else missing.push({ line: line, name: name });
+    });
+    var real = have.length + missing.length;
+    return {
+      id: recipe && recipe.id, recipe: recipe, have: have, missing: missing, staples: staples,
+      haveCount: have.length, missingCount: missing.length, total: real,
+      makeable: missing.length === 0 && have.length > 0,
+      matchPct: real > 0 ? Math.round(have.length / real * 100) : 0,
+    };
+  }
+  // Rank recipes by how cookable they are from what you have. Returns matches (best first) filtered to
+  // those you can make now or are within `maxMissing` ingredients of. `haveNames` are raw item names
+  // (from the fridge photo and your pantry). Recipes with no real overlap are dropped as irrelevant.
+  function suggestRecipesFromHave(recipes, haveNames, opts) {
+    opts = opts || {};
+    var maxMissing = opts.maxMissing == null ? 3 : opts.maxMissing;
+    var minHave = opts.minHave == null ? 1 : opts.minHave;
+    var haveIndex = buildHaveIndex(haveNames);
+    var out = [];
+    (recipes || []).forEach(function (r) {
+      if (!r || !(r.ingredients && r.ingredients.length)) return;
+      var m = matchRecipeToHave(r, haveIndex);
+      if (m.total === 0 || m.haveCount < minHave || m.missingCount > maxMissing) return;
+      out.push(m);
+    });
+    out.sort(function (a, b) {
+      return (a.missingCount - b.missingCount) || (b.haveCount - a.haveCount) || (b.matchPct - a.matchPct)
+        || String((a.recipe || {}).title || '').localeCompare(String((b.recipe || {}).title || ''));
+    });
+    return out;
+  }
+
   // ---- Taxonomy: how recipes are found at scale ----------------------------------------------
   // A controlled vocabulary (not free text) so filters stay clean with thousands of recipes. The AI
   // structurer maps each recipe onto these values at import; normTags validates so a bad value can
@@ -465,6 +571,8 @@
     addToShoppingList: addToShoppingList, CATEGORY_ORDER: CATEGORY_ORDER,
     macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
     planMacros: planMacros, batchLeft: batchLeft,
+    foodTokens: foodTokens, isBasicStaple: isBasicStaple, buildHaveIndex: buildHaveIndex,
+    matchRecipeToHave: matchRecipeToHave, suggestRecipesFromHave: suggestRecipesFromHave,
     _norm: norm,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Recipe;
