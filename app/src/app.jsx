@@ -3038,15 +3038,62 @@ function DexActiveSection({ db, today }) {
     </div>
   );
 }
+// The full buddy detail, moved off Today into the Play hub's Buddy tab: avatar, name, bond, mood, the
+// three need meters and evolution progress, plus naming and the trophy cabinet. The companion strip on
+// Today is the glanceable version; this is where you come to see how your buddy is really doing.
+function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) {
+  const buddy = db.buddy || {};
+  const named = !!bp.name;
+  const asleep = bp.mood === 'asleep';
+  const mm = MOOD_META[bp.mood] || MOOD_META.content;
+  const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
+  const evo = bp.evoInfo;
+  const aff = bp.affinity ? AFFINITY_META[bp.affinity] : null;
+  const who = named ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
+  return (
+    <div className="fade-in">
+      <div className="flex flex-col items-center text-center mb-4">
+        <div className="pixel-box p-3 mb-3 relative" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={8} asleep={asleep} />
+          {asleep && <span className="pf absolute" style={{ top: 3, right: 4, fontSize: 11, color: 'var(--carb)' }}>Zz</span>}
+        </div>
+        <div className="text-lg font-bold">{who}</div>
+        <div className="text-[10px] mt-1 leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
+        <div className="flex items-center gap-2 mt-2">
+          {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
+          {aff && <span title={aff[2]} style={{ color: aff[1] }}>{aff[0]}</span>}
+          <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={10} /></span>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <NeedBar label="Fed" v={bp.needs.hunger} color="var(--pro)" />
+        <NeedBar label="Nourish" v={bp.needs.nourish} color="var(--carb)" />
+        <NeedBar label="Energy" v={bp.needs.energy} color="var(--good)" />
+      </div>
+      <div className="pixel-box p-3 mb-3 text-[10px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none', color: evo.ready ? 'var(--good)' : 'var(--muted)' }}>
+        {evo.atMax ? `${who} is fully grown, a legend of the pit.`
+          : evo.ready ? `${who} is ready to evolve into ${evo.nextName}! Keep feeding it well.`
+          : (evo.nextName ? `Toward ${evo.nextName}: Lv ${evo.level}/${evo.levelNeed} · ${evo.hearts}/${evo.heartsNeed}♥` : 'Growing steadily on your logged days.')}
+      </div>
+      {onOpenName && !named && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NAME YOUR DINO</button>}
+      <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
+      <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Hit your macros to grow and evolve it.</div>
+    </div>
+  );
+}
 function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
   const dex = macrodex(db); const caught = Object.keys(dex).length;
   const items = db.items || {}; const today = Store.todayISO();
   const boost = (db.dex_boost && db.dex_boost.date === today) ? db.dex_boost : null;
-  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false); const [shop, setShop] = useState(false);
+  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false);
+  const [view, setView] = useState('buddy'); // Buddy | Catch | Battle | Shop: one sub-view at a time so the hub isn't one long stack
   const invIds = ITEM_ORDER.filter(id => (items[id] || 0) > 0);
   const amber = Game.amberBalance(db.amber_ledger);
+  // Buddy profile for the Buddy tab (same derivation the Today companion uses).
+  const bp = buddyProfile(db, streak, Game.buddyView((db.buddy && db.buddy.stage) || 0, streak), buddyLevel(db));
+  const freezeReady = Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today);
   // Buy with Amber: spend appends a negative ledger entry (merge-safe), cosmetics land in buddy.cosmetics
   // (owned once), consumables in the shared item inventory. A purchase is blocked if you can't afford it.
   function buy(id) {
@@ -3075,8 +3122,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        {shop ? <ShopView db={db} amber={amber} buy={buy} onBack={() => setShop(false)} />
-        : trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
+        {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
         : cr ? (() => {
           const form = creatureForm(cr, got ? got.count : 0); const rc = CR_RARITY_COLOR[cr.rarity];
           const cnt = got ? got.count : 0;
@@ -3101,97 +3147,89 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
           </div>;
         })() : (<>
           <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+          {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
+              inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
+          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['catch', 'Catch'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
-          {/* Boss fight, front and centre: this used to be a nameless button lost in a 2-up grid, so
-              nobody knew there was a weekly boss to beat. Now it's the hub's headline call to action,
-              spelling out who the boss is, its weakness (what to eat), and your readiness buff. */}
-          {onOpenFight && (() => {
-            const wk = fightWeekKey();
-            const boss = bossForWeek();
-            const wm = TYPE_META[Game.bossWeakness(wk)] || TYPE_META.balanced;
-            const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
-            const readiness = readinessFor(db, today);
-            const buff = readiness != null ? Game.readinessBuff(readiness) : null;
-            const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today'
-              : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight'
-              : buff ? 'Full strength today' : null;
-            const edge = beaten ? 'var(--good)' : 'var(--danger)';
-            // pixel-box forces a grey border (!important), so the emphasis comes from a danger-tinted
-            // background + the raised shadow (kept) + the red kicker text and filled FIGHT pill.
-            return (
-              <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
-                style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
-                <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-                  <Sprite art={boss.art} colors={boss.colors} px={3.2} />
-                </div>
-                <div className="min-w-0 flex-1 leading-tight">
-                  <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? 'Boss beaten this week ✓' : "This week's boss"}</div>
-                  <div className="text-[13px] font-bold truncate">{boss.name}</div>
-                  <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Weak to <span style={{ color: wm[1] }}>{wm[0]}</span>, so eat {wm[2]}.{buffLine ? ' ' + buffLine + '.' : ''}</div>
-                </div>
-                <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: beaten ? 'var(--surface3)' : 'var(--danger)', color: beaten ? 'var(--muted)' : '#fff' }}>{beaten ? 'REMATCH ›' : 'FIGHT ›'}</span>
-              </button>
-            );
-          })()}
+          {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} />}
 
-          {/* Amber wallet + shop: what your hunts and bosses pay out, and where to spend it. */}
-          <button onClick={() => setShop(true)} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3" style={{ background: 'color-mix(in srgb, var(--fat) 12%, var(--surface2))' }}>
-            <div className="pixel-box p-1.5 shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 34, height: 34 }}>
-              <span style={{ fontSize: 17, color: 'var(--fat)' }}>✦</span>
-            </div>
-            <div className="min-w-0 flex-1 leading-tight">
-              <div className="pf text-[7px] uppercase" style={{ color: 'var(--fat)' }}>Amber balance</div>
-              <div className="text-[15px] font-bold tnum leading-tight">{amber}</div>
-              <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Win it from daily hunts &amp; bosses. Spend on cosmetics &amp; boosts.</div>
-            </div>
-            <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: 'var(--fat)', color: '#1a1400' }}>SHOP ›</span>
-          </button>
-
-          <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
-            <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
-          </div>
-          <div className={'grid gap-2 mb-4 ' + (onOpenName && !(db.buddy && db.buddy.name) ? 'grid-cols-2' : 'grid-cols-1')}>
-            <button onClick={() => setTrophies(true)} className="pixel-btn py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHIES</button>
-            {onOpenName && !(db.buddy && db.buddy.name) && <button onClick={onOpenName} className="pixel-btn py-2.5 text-[10px]" style={{ background: 'var(--surface2)' }}>NAME YOUR DINO</button>}
-          </div>
-          <DexActiveSection db={db} today={today} />
-          {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-            <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
-            {boost && (boost.lure || boost.shiny || boost.rare) && <div className="text-[9px] mb-2" style={{ color: 'var(--good)' }}>Active today:{boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : ''}{boost.rare ? ' · rare boost' : ''}{boost.shiny ? ' · shiny locked' : ''}</div>}
-            <div className="space-y-2">
-              {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
-                return <div key={id} className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
-                  {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--pro)', color: '#fff' }}>USE</button>}
-                </div>;
-              })}
-            </div>
-            {lurePick && <div className="mt-3 fade-in">
-              <div className="text-[9px] text-[#8A8A90] mb-1.5">Point the lure at a biome for today’s catch:</div>
-              <div className="grid grid-cols-2 gap-1.5">{[['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => <button key={v} onClick={() => useItem('lure', v)} className="pixel-box py-2 text-[10px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>{l}</button>)}</div>
-            </div>}
+          {/* Battle: the weekly boss, its weakness (what to eat), and your readiness buff. */}
+          {view === 'battle' && <div className="fade-in">
+            {onOpenFight ? (() => {
+              const wk = fightWeekKey();
+              const boss = bossForWeek();
+              const wm = TYPE_META[Game.bossWeakness(wk)] || TYPE_META.balanced;
+              const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
+              const readiness = readinessFor(db, today);
+              const buff = readiness != null ? Game.readinessBuff(readiness) : null;
+              const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today'
+                : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight'
+                : buff ? 'Full strength today' : null;
+              const edge = beaten ? 'var(--good)' : 'var(--danger)';
+              return (
+                <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
+                  style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
+                  <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                    <Sprite art={boss.art} colors={boss.colors} px={3.2} />
+                  </div>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? 'Boss beaten this week ✓' : "This week's boss"}</div>
+                    <div className="text-[13px] font-bold truncate">{boss.name}</div>
+                    <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Weak to <span style={{ color: wm[1] }}>{wm[0]}</span>, so eat {wm[2]}.{buffLine ? ' ' + buffLine + '.' : ''}</div>
+                  </div>
+                  <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: beaten ? 'var(--surface3)' : 'var(--danger)', color: beaten ? 'var(--muted)' : '#fff' }}>{beaten ? 'REMATCH ›' : 'FIGHT ›'}</span>
+                </button>
+              );
+            })() : <div className="pixel-box p-4 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Battles arrive once you're logging. Keep feeding your buddy.</div>}
+            <div className="text-[10px] text-[#8A8A90] leading-snug">Your eating is your build: the week's macros set your loadout, and each boss has a macro weakness. Losing only teaches, it never sets you back.</div>
           </div>}
-          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Collection</div>
-          {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
-            return <div key={bm.id} className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? ' ✓' : ''}</div>
-                <div className="text-[9px] text-[#8A8A90] tnum">{done}/{list.length}</div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {list.map(c => { const g = dex[c.id]; const form = creatureForm(c, g ? g.count : 0); const rc = CR_RARITY_COLOR[c.rarity]; const strong = g && (c.rarity === 'legendary' || c.rarity === 'mythic' || g.shiny);
-                  return <button key={c.id} onClick={() => setSel(c.id)} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: g ? rc : 'var(--border)', borderWidth: strong ? 4 : 3 }}>
-                    <div className="h-14 flex items-center justify-center" style={g ? crFx(g.shiny, form.aura) : null}>{g ? <Sprite art={form.art} colors={g.shiny ? crShiny(form.colors) : form.colors} px={4} /> : <Sprite art={c.art} colors={crSilhouette()} px={4} />}</div>
-                    <div className="text-[9px] mt-1 truncate w-full">{g ? form.name : '???'}</div>
-                    {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? ' ✦' : ''}</div>
-                       : <div className="text-[7px] uppercase tracking-wide" style={{ color: rc }}>{CR_RARITY_LABEL[c.rarity]}</div>}
-                  </button>;
+
+          {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
+          {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} />}
+
+          {view === 'catch' && <div className="fade-in">
+            <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
+              <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
+            </div>
+            <DexActiveSection db={db} today={today} />
+            {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
+              {boost && (boost.lure || boost.shiny || boost.rare) && <div className="text-[9px] mb-2" style={{ color: 'var(--good)' }}>Active today:{boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : ''}{boost.rare ? ' · rare boost' : ''}{boost.shiny ? ' · shiny locked' : ''}</div>}
+              <div className="space-y-2">
+                {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
+                  return <div key={id} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
+                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--pro)', color: '#fff' }}>USE</button>}
+                  </div>;
                 })}
               </div>
-            </div>;
-          })}
+              {lurePick && <div className="mt-3 fade-in">
+                <div className="text-[9px] text-[#8A8A90] mb-1.5">Point the lure at a biome for today’s catch:</div>
+                <div className="grid grid-cols-2 gap-1.5">{[['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => <button key={v} onClick={() => useItem('lure', v)} className="pixel-box py-2 text-[10px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>{l}</button>)}</div>
+              </div>}
+            </div>}
+            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Collection</div>
+            {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
+              return <div key={bm.id} className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? ' ✓' : ''}</div>
+                  <div className="text-[9px] text-[#8A8A90] tnum">{done}/{list.length}</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {list.map(c => { const g = dex[c.id]; const form = creatureForm(c, g ? g.count : 0); const rc = CR_RARITY_COLOR[c.rarity]; const strong = g && (c.rarity === 'legendary' || c.rarity === 'mythic' || g.shiny);
+                    return <button key={c.id} onClick={() => setSel(c.id)} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: g ? rc : 'var(--border)', borderWidth: strong ? 4 : 3 }}>
+                      <div className="h-14 flex items-center justify-center" style={g ? crFx(g.shiny, form.aura) : null}>{g ? <Sprite art={form.art} colors={g.shiny ? crShiny(form.colors) : form.colors} px={4} /> : <Sprite art={c.art} colors={crSilhouette()} px={4} />}</div>
+                      <div className="text-[9px] mt-1 truncate w-full">{g ? form.name : '???'}</div>
+                      {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? ' ✦' : ''}</div>
+                         : <div className="text-[7px] uppercase tracking-wide" style={{ color: rc }}>{CR_RARITY_LABEL[c.rarity]}</div>}
+                    </button>;
+                  })}
+                </div>
+              </div>;
+            })}
+          </div>}
         </>)}
       </div>
     </div>
@@ -3263,7 +3301,7 @@ function ShopView({ db, amber, buy, onBack }) {
   return (
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
-        <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button>
+        {onBack ? <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button> : <span />}
         <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}>✦ {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
