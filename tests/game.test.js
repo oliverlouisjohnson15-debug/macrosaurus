@@ -419,7 +419,7 @@ test('sleepScore does not pin at 100 for an 8h night with ordinary quality', () 
   assert.ok(good > s, 'restorative night should beat the ordinary one');
 });
 
-test('sleepScoreParts itemises the score (Fitbit-style split) and always agrees with sleepScore', () => {
+test('sleepScoreParts itemises the score (duration / quality split) and always agrees with sleepScore', () => {
   const stages = { deep: 100, rem: 108, light: 254, awake: 18 };
   const p = Game.sleepScoreParts(462, stages);
   assert.strictEqual(p.score, Game.sleepScore(462, stages), 'parts.score must equal sleepScore');
@@ -504,7 +504,7 @@ test('readiness uses lnRMSSD: HRV is judged log-symmetrically around baseline', 
 
 test('sleep scoring is strict: an average night lands well under 80, only an excellent one reaches 90+', () => {
   // Average night: 7h asleep of ~7h55 in bed (88% efficiency), stages a touch under ideal. Should NOT
-  // flatter the user - lands in the 60s-70s like Fitbit's real-world spread, not the 90s.
+  // flatter the user - lands in the 60s-70s matching real-world spread, not the 90s.
   const avg = Game.sleepScore(420, { deep: 63, rem: 80, light: 277, awake: 55 }); // 7h, deep 15%, rem 19%
   assert.ok(avg < 80, 'an average night should score under 80, got ' + avg);
   assert.ok(avg > 45, 'but not punitively low, got ' + avg);

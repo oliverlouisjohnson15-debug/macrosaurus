@@ -273,8 +273,8 @@ async function fetchHealth(accessToken: string, startISO: string, endISO: string
       diag[metric] = { points, inRange, parsed, shape: firstShape };
     } catch (e) { diag[metric] = { error: String((e as Error)?.message || e).slice(0, 200) }; }
   };
-  // Field names confirmed against a live Pixel Watch response. HRV: the nightly average (RMSSD-based, the
-  // number Fitbit surfaces), falling back to the deep-sleep RMSSD when the average is absent.
+  // Field names confirmed against a live Pixel Watch response. HRV: the nightly average (RMSSD-based),
+  // falling back to the deep-sleep RMSSD when the average is absent.
   await pull('hrv', 'daily-heart-rate-variability', (p) => {
     const v = findNum(p, ['averageHeartRateVariabilityMilliseconds']) ?? findNum(p, ['deepSleepRootMeanSquareOfSuccessiveDifferencesMilliseconds']);
     return v != null ? Math.round(v * 10) / 10 : null;
