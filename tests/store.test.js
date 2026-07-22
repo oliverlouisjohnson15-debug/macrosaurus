@@ -8,7 +8,7 @@ const Store = require('../app/store.js');
 test('defaultState ships the standard meal names', () => {
   const s = Store.defaultState();
   const names = s.meal_templates.map(m => m.name);
-  assert.deepStrictEqual(names, ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Other']);
+  assert.deepStrictEqual(names, ['Breakfast', 'Lunch', 'Dinner', 'Snacks']);
 });
 
 test('migrate backfills missing keys without touching existing data', () => {
