@@ -4687,6 +4687,59 @@ function RowToggle({
     }
   }, on ? 'ON' : 'OFF'));
 }
+// One shared disclosure used app-wide so every "advanced / more / details" block is the SAME single
+// tap, instead of a dozen bespoke expanders. `box` (default) is a full-width pixel row for section-
+// level groups; `inline` is a light text link for tucking a control inside an existing card. `sub` is
+// the closed-state hint: a subtitle under a box label, or the call-to-action text on an inline link.
+function Collapsible({
+  label,
+  sub,
+  defaultOpen = false,
+  variant = 'box',
+  children,
+  className = ''
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (variant === 'inline') {
+    return /*#__PURE__*/React.createElement("div", {
+      className: className
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setOpen(o => !o),
+      "aria-expanded": open,
+      className: "w-full flex items-center justify-between text-[11px] text-[#8A8A90]"
+    }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[8px] uppercase shrink-0 ml-2",
+      style: {
+        color: 'var(--accent)'
+      }
+    }, open ? 'Hide' : sub || 'Show')), open && /*#__PURE__*/React.createElement("div", {
+      className: "fade-in mt-3"
+    }, children));
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: 'mb-3 ' + className
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpen(o => !o),
+    "aria-expanded": open,
+    className: "w-full flex items-center justify-between gap-3 bg-[#1E1E22] pixel-box px-4 py-3 text-left"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] uppercase block",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, label), sub && /*#__PURE__*/React.createElement("span", {
+    className: "block text-[11px] text-[#8A8A90] mt-1 truncate"
+  }, sub)), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, open ? 'Hide' : 'Show')), open && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 fade-in"
+  }, children));
+}
 function Logo({
   size = 'text-xl'
 }) {
@@ -15127,7 +15180,8 @@ function FoodTab({
   mealName,
   onPick,
   onLogMeal,
-  onAskAI
+  onAskAI,
+  onDrink
 }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]);
@@ -15436,6 +15490,26 @@ function FoodTab({
     className: "text-[11px] text-[#8A8A90]"
   }, "Type in the macros yourself")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
+  }, "›")), onDrink && /*#__PURE__*/React.createElement("button", {
+    onClick: onDrink,
+    className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+    style: {
+      background: 'rgba(255,255,255,0.05)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "drink",
+    color: "var(--muted)",
+    size: 17
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-medium"
+  }, "Log a drink"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, "Alcohol, booked against carbs and fat")), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90] shrink-0 text-lg leading-none"
   }, "›"))), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Delete "' + confirmDel.name + '"?',
     body: "This removes the saved meal. Food already logged from it stays in your diary.",
@@ -15558,6 +15632,8 @@ function LogSheet({
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
+  // One stable food flow (Food / Scan / Estimate). Alcohol is a labelled DETOUR entered from inside
+  // Food and left with the back button, not a persistent Type toggle that reshapes the whole tab bar.
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
   useEffect(() => {
     if (isAlc && tab === 'food') setTabRaw('recent');
@@ -15576,10 +15652,14 @@ function LogSheet({
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-3"
   }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-lg font-semibold"
-  }, "Log ", isAlc ? 'alcohol' : 'food'), /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-semibold inline-flex items-center gap-2"
+  }, isAlc && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setIsAlc(false),
+    className: "hit text-[#8A8A90] text-xl leading-none",
+    "aria-label": "Back to food"
+  }, "‹"), "Log ", isAlc ? 'a drink' : 'food'), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-4"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, !isAlc && /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setTab('photo');
       setScanNow(n => n + 1);
@@ -15605,32 +15685,6 @@ function LogSheet({
       v: m.id,
       l: m.name
     }))
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "mb-3"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Type"
-  }, /*#__PURE__*/React.createElement(Seg, {
-    value: isAlc ? 'alc' : 'food',
-    onChange: v => setIsAlc(v === 'alc'),
-    options: [{
-      v: 'food',
-      l: /*#__PURE__*/React.createElement("span", {
-        className: "inline-flex items-center justify-center gap-2"
-      }, /*#__PURE__*/React.createElement(PixelGlyph, {
-        kind: "plate",
-        color: "currentColor",
-        size: 15
-      }), " Food")
-    }, {
-      v: 'alc',
-      l: /*#__PURE__*/React.createElement("span", {
-        className: "inline-flex items-center justify-center gap-2"
-      }, /*#__PURE__*/React.createElement(PixelGlyph, {
-        kind: "drink",
-        color: "currentColor",
-        size: 15
-      }), " Alcohol")
-    }]
   }))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 bg-[#1E1E22] p-1 rounded-2xl"
   }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
@@ -15674,7 +15728,8 @@ function LogSheet({
     mealName: (meals.find(m => m.id === mealId) || {}).name,
     onPick: i => onAdd(mealId, i),
     onLogMeal: items => onAddMeal(mealId, items),
-    onAskAI: () => setTab('describe')
+    onAskAI: () => setTab('describe'),
+    onDrink: () => setIsAlc(true)
   }), tab === 'recent' && /*#__PURE__*/React.createElement(RecentTab, {
     db: db,
     update: update,

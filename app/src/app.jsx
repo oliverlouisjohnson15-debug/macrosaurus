@@ -898,6 +898,32 @@ function Dropdown({ value, options, onChange }) {
     {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
 }
 function RowToggle({ label, on, onClick }) { return (<button onClick={onClick} className="w-full flex items-center justify-between gap-3 bg-[#1E1E22] pixel-box px-4 py-3 mb-3"><span className="text-sm text-left">{label}</span><span className="pf text-[9px] px-2.5 py-1.5 shrink-0" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>{on ? 'ON' : 'OFF'}</span></button>); }
+// One shared disclosure used app-wide so every "advanced / more / details" block is the SAME single
+// tap, instead of a dozen bespoke expanders. `box` (default) is a full-width pixel row for section-
+// level groups; `inline` is a light text link for tucking a control inside an existing card. `sub` is
+// the closed-state hint: a subtitle under a box label, or the call-to-action text on an inline link.
+function Collapsible({ label, sub, defaultOpen = false, variant = 'box', children, className = '' }) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (variant === 'inline') {
+    return (<div className={className}>
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
+        <span>{label}</span>
+        <span className="pf text-[8px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent)' }}>{open ? 'Hide' : (sub || 'Show')}</span>
+      </button>
+      {open && <div className="fade-in mt-3">{children}</div>}
+    </div>);
+  }
+  return (<div className={'mb-3 ' + className}>
+    <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between gap-3 bg-[#1E1E22] pixel-box px-4 py-3 text-left">
+      <span className="min-w-0 flex-1">
+        <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>{label}</span>
+        {sub && <span className="block text-[11px] text-[#8A8A90] mt-1 truncate">{sub}</span>}
+      </span>
+      <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>{open ? 'Hide' : 'Show'}</span>
+    </button>
+    {open && <div className="mt-3 fade-in">{children}</div>}
+  </div>);
+}
 function Logo({ size = 'text-xl' }) { return (<div className={`${size} font-extrabold tracking-tight flex items-center gap-1.5 text-white`}><PixelDino size={18} color="var(--good)" /><span>Macro<span className="text-[#4A9EEB]">saurus</span></span></div>); }
 function rateLabel(r, goalType) {
   const a = Math.abs(r || 0);
@@ -4956,7 +4982,7 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
 // Unified "Food" tab: one search box over your own foods AND the Open Food Facts database, your
 // recents/favourites when empty, saved meals, and a manual-entry fallback. Replaces the old
 // separate Recent / Search / Meals / Manual tabs so logging is one clean screen.
-function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
+function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onDrink }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
@@ -5032,6 +5058,11 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Enter it manually</div><div className="text-[11px] text-[#8A8A90]">Type in the macros yourself</div></div>
         <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
       </button>
+      {onDrink && <button onClick={onDrink} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><PixelGlyph kind="drink" color="var(--muted)" size={17} /></div>
+        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Log a drink</div><div className="text-[11px] text-[#8A8A90]">Alcohol, booked against carbs and fat</div></div>
+        <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
+      </button>}
     </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
     {qtyFor && <EditEntryModal title="How much this time?" saveLabel="Add to log" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} />}
@@ -5103,6 +5134,8 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
+  // One stable food flow (Food / Scan / Estimate). Alcohol is a labelled DETOUR entered from inside
+  // Food and left with the back button, not a persistent Type toggle that reshapes the whole tab bar.
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
   useEffect(() => { if (isAlc && tab === 'food') setTabRaw('recent'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw(['photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'); }, [isAlc]);
   return (
@@ -5111,14 +5144,13 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
         <div className="p-5 pb-3 flex-none">
           <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-semibold">Log {isAlc ? 'alcohol' : 'food'}</h2>
+            <h2 className="text-lg font-semibold inline-flex items-center gap-2">{isAlc && <button onClick={() => setIsAlc(false)} className="hit text-[#8A8A90] text-xl leading-none" aria-label="Back to food">‹</button>}Log {isAlc ? 'a drink' : 'food'}</h2>
             <div className="flex items-center gap-4">
-              <button onClick={() => { setTab('photo'); setScanNow(n => n + 1); }} className="hit text-[#8A8A90]" aria-label="Scan a barcode" title="Scan a barcode"><Icon.barcode width="20" height="20" /></button>
+              {!isAlc && <button onClick={() => { setTab('photo'); setScanNow(n => n + 1); }} className="hit text-[#8A8A90]" aria-label="Scan a barcode" title="Scan a barcode"><Icon.barcode width="20" height="20" /></button>}
               <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button>
             </div>
           </div>
           <div className="mb-3"><Field label="Meal"><Dropdown value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} /></Field></div>
-          <div className="mb-3"><Field label="Type"><Seg value={isAlc ? 'alc' : 'food'} onChange={v => setIsAlc(v === 'alc')} options={[{ v: 'food', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="plate" color="currentColor" size={15} /> Food</span> }, { v: 'alc', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="drink" color="currentColor" size={15} /> Alcohol</span> }]} /></Field></div>
           <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl">{tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
         </div>
         <div className="px-5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
@@ -5129,7 +5161,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
               <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Go unlimited ›</span>
             </button>;
           })()}
-          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} />}
+          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onDrink={() => setIsAlc(true)} />}
           {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} />}
           {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onScan={() => setTab('photo')} />}
           {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} />)}
