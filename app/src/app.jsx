@@ -4106,25 +4106,10 @@ function WeighCadencePrompt({ db, update }) {
     </Card>
   );
 }
-// Progressive disclosure for the lower half of Today. The fast loop (macros, buddy, check-in) sits
-// above this; the glanceable-but-secondary cards live inside, collapsed by default, so a quick logger
-// gets a short screen and only taps in for the extra detail. Children self-hide as usual, and the
-// activity dials always render, so this never opens to an empty section.
-function MoreToday({ children }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mb-4">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between pixel-box px-4 py-3" style={{ background: 'var(--surface3)' }} aria-expanded={open}>
-        <span className="pf text-[9px] uppercase text-[#8A8A90]">More</span>
-        <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>{open ? 'Hide' : 'Show'}</span>
-      </button>
-      {open && <div className="mt-3 fade-in">{children}</div>}
-    </div>
-  );
-}
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Consumed/Remaining lens, shared with the Food log card
-  const [showBalance, setShowBalance] = useState(false); // Balance (carb/fat shift) is progressive: tucked behind an Adjust link so Today stays a quick glance
+  const [span, setSpan] = useState('today');
+  const [showStats, setShowStats] = useState(false);
   const [showCarry, setShowCarry] = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
@@ -4138,7 +4123,10 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const weighWk = last7.filter(d => weighSet.has(d)).length; const logWk = last7.filter(d => logSet.has(d)).length;
   const t = currentTargets(db);
   const unit = db.profile.weight_unit;
-  const tot = todayTot;
+  // 7-day average of daily intake (over logged days only)
+  const loggedDates = Array.from(logSet).filter(x => x <= today).sort().slice(-7);
+  const avgTot = loggedDates.length ? (() => { const n = loggedDates.length; const a = loggedDates.map(dd => sumMacros(entriesOn(db, dd))).reduce((x, s) => ({ kcal: x.kcal + s.kcal, protein: x.protein + s.protein, carbs: x.carbs + s.carbs, fat: x.fat + s.fat, fiber: x.fiber + s.fiber }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }); return { kcal: a.kcal / n, protein: a.protein / n, carbs: a.carbs / n, fat: a.fat / n, fiber: a.fiber / n }; })() : todayTot;
+  const tot = span === 'avg' ? avgTot : todayTot;
   // Balance: shift today's leftover calories between carbs and fat (protein fixed). Editable right
   // here on Today now, so the Food log no longer needs to repeat the whole macro card.
   const override = (db.day_overrides || {})[today] || { shiftKcal: 0 };
@@ -4386,85 +4374,78 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
-      {/* Hero: today's macros. The whole fast loop sits above the fold now so a quick logger sees
-          what's left, taps +, and is out. The extra depth (Balance, activity, nudges) is one tap away. */}
-      <div className="text-lg font-bold mb-3">Today's macros</div>
+      <InstallCard />
+
+      {/* flex-wrap: on narrow phones the pixel font is wide, so the pill drops below rather than colliding */}
+      <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 mb-3">
+        <div className="text-lg font-bold">Today's macros</div>
+        <Pill value={span} onChange={setSpan} options={[{ v: 'today', l: 'Today' }, { v: 'avg', l: '7d avg' }]} />
+      </div>
       <Card className="p-5 mb-4">
-        <div className="flex justify-center -mt-1 mb-3"><Pill value={mode} onChange={setMode} options={[{ v: 'consumed', l: 'Consumed' }, { v: 'remaining', l: 'Remaining' }]} /></div>
-        <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} />
-        {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
-        {(et.cyc !== 0 || et.carry !== 0) && (() => {
-          const adj = et.eff.kcal - et.base.kcal;
-          const cd = et.carryDetail;
-          const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
-          const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
-          const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-          return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
-            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
-            {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
-          </div>;
-        })()}
-        {(() => {
-          const dayEntries = entriesOn(db, today);
-          if (!dayEntries.length) return null;
-          const totalKcal = Math.round(sumMacros(dayEntries).kcal);
-          const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
-          return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
-            <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
-            <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
-          </button>;
-        })()}
-        {/* Balance is a power feature (shift leftover kcal between carbs and fat), so it hides behind an
-            Adjust link instead of sitting as a third tab that competes for attention on first glance. */}
-        <div className="mt-3 pt-2.5 border-t border-[#262629]">
-          <button onClick={() => setShowBalance(b => !b)} className="w-full flex items-center justify-between text-[11px] text-[#8A8A90]" aria-expanded={showBalance}>
-            <span>Balance carbs &amp; fat</span>
-            <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>{showBalance ? 'Hide' : 'Adjust ›'}</span>
-          </button>
-          {showBalance && (
-            <div className="fade-in mt-3">
-              <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
-              <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
-              <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
-              <div className="flex justify-between items-center mt-3">
-                <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
-                {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
-                <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
-              </div>
+        <div className="flex justify-center -mt-1 mb-3"><Pill value={mode} onChange={setMode} options={[{ v: 'consumed', l: 'Consumed' }, { v: 'remaining', l: 'Remaining' }, { v: 'balance', l: 'Balance' }]} /></div>
+        {mode === 'balance' ? (
+          <div className="fade-in">
+            <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
+            <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
+            <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
+            <div className="flex justify-between items-center mt-3">
+              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
+              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
+              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (<>
+          <MacroSummaryCard et={et} tot={tot} mode={mode} avg={span === 'avg'} />
+          {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
+          {(et.cyc !== 0 || et.carry !== 0) && (() => {
+            const adj = et.eff.kcal - et.base.kcal;
+            const cd = et.carryDetail;
+            const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
+            const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
+            const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+            return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
+              <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
+              {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
+            </div>;
+          })()}
+          {(() => {
+            const dayEntries = entriesOn(db, today);
+            if (!dayEntries.length) return null;
+            const totalKcal = Math.round(sumMacros(dayEntries).kcal);
+            const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
+            return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
+              <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
+              <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
+            </button>;
+          })()}
+        </>)}
       </Card>
 
       {/* The living buddy: reflects how you have eaten today (bond, mood, needs) and frames the next
           log as feeding it. The emotional anchor and the one tap into the Buddy & Play hub. */}
       <BuddyCard db={db} bp={bp} streak={streak} freezeReady={Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today)} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
 
-      {/* Weekly loop: check-in / weigh-in / coach line. Self-collapses to a quiet line when nothing is
-          due and expands only when it's genuinely check-in time, so it earns its place above the fold. */}
+      {!isPremium && (() => {
+        const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+        return freeLeft <= 3
+          ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
+              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
+              blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
+          : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
+              headline="Log a meal in one snap"
+              blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
+      })()}
+
+      {/* Progress: check-in, weigh-in, the coach line AND the weight-trend spark in one surface.
+          (Recipe rails live on the Cook tab now, so Today stays about today's food and progress.) */}
+      <WeighCadencePrompt db={db} update={update} />
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
 
-      {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
 
-      {/* Everything below the fast loop: activity dials, the one-time weigh-cadence question, and the
-          install + upgrade nudges. Collapsed by default so Today opens as a quick glance, not a wall. */}
-      <MoreToday>
-        {/* Move / Sleep / Ready dials (Google Health). The readiness -> Fight payoff lives in Play. */}
-        <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
-        <WeighCadencePrompt db={db} update={update} />
-        <InstallCard />
-        {!isPremium && (() => {
-          const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-          return freeLeft <= 3
-            ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
-                headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-                blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
-            : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
-                headline="Log a meal in one snap"
-                blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
-        })()}
-      </MoreToday>
+      {/* Today status: Move / Sleep / Ready as three dials (Google Health). The readiness -> Fight
+          payoff moved into the Play hub, so this stays a calm glance. */}
+      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
