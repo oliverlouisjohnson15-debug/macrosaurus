@@ -36,7 +36,7 @@ a{color:var(--purple);}
 <nav class="nav"><div class="nav-in"><a class="brand" href="/"><span class="dino">&#129430;</span> MACROSAURUS</a></div></nav>
 <main class="wrap">
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: 18 July 2026</p>
+  <p class="updated">Last updated: 22 July 2026</p>
   <div class="note">This is a plain-English summary of how Macrosaurus handles your data. If anything is unclear, email <a href="mailto:olly@macrosaurus.com">olly@macrosaurus.com</a>.</div>
 
   <p>Macrosaurus (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is an adaptive macro and body-composition tracker. We try to collect as little as we need to run the app, and to keep what we do hold under your control.</p>
@@ -45,6 +45,7 @@ a{color:var(--purple);}
   <ul>
     <li><b>Account details</b> &mdash; the email address you sign up with, used to sign you in and contact you about your account.</li>
     <li><b>Your tracking data</b> &mdash; the food, weight, check-ins, recipes and goals you enter, so the app can show your progress and retune your targets.</li>
+    <li><b>Connected Google Health data (optional)</b> &mdash; if you connect Google Health, a limited set of read-only fitness and health signals (see &ldquo;Connecting Google Health&rdquo; below). This is entirely optional and off until you connect.</li>
     <li><b>Basic technical data</b> &mdash; the minimum needed to keep you signed in and to keep the service secure and working.</li>
   </ul>
 
@@ -59,6 +60,24 @@ a{color:var(--purple);}
 
   <h2>AI photo &amp; label features</h2>
   <p>The optional AI features (label scan, meal estimate) use a Google Gemini API key that you provide and that is stored on your account. When you use them, the photo or text you submit is sent to Google&rsquo;s Gemini API to return an estimate. We do not use your content to train our own models. Google&rsquo;s handling of that request is covered by Google&rsquo;s terms for the API.</p>
+
+  <h2>Connecting Google Health</h2>
+  <p>Connecting Google Health is optional. If you choose to connect it, Macrosaurus requests <b>read-only</b> access to a limited set of daily fitness and health signals so it can show your movement, sleep and recovery and adapt your coaching:</p>
+  <ul>
+    <li><b>Activity</b> &mdash; daily step counts.</li>
+    <li><b>Sleep</b> &mdash; time asleep and, where your device reports them, sleep stages (deep, REM, light, awake).</li>
+    <li><b>Health metrics</b> &mdash; heart-rate variability (HRV), resting heart rate, and blood-oxygen (SpO&#8322;).</li>
+  </ul>
+  <p>We use this data <b>only</b> to power features you can see in the app &mdash; your Move, Sleep and Readiness dials, your sleep and readiness scores, streaks and coaching. Specifically:</p>
+  <ul>
+    <li>Access is <b>read-only</b>. We never write to, or change, your Google Health data.</li>
+    <li>Your Google sign-in tokens are held securely on our server and are never exposed to the app or to any third party. The health readings are stored on your own account under row-level security, readable only by you.</li>
+    <li>We do <b>not</b> sell this data, use it for advertising, or share it with third parties, and we do <b>not</b> use it to train AI or machine-learning models.</li>
+    <li>You can disconnect at any time from Settings in the app, or revoke access directly at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. Disconnecting stops all future syncing and deletes the stored Google connection.</li>
+  </ul>
+
+  <h2>Limited Use of Google user data</h2>
+  <p>Macrosaurus&rsquo;s use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the <b>Limited Use</b> requirements, and to any additional requirements that apply to Google Health and Fitness data. In particular, information obtained through Google Health is used only to provide and improve the user-facing features described above; is not transferred to others except as necessary to provide those features, with your consent, or as required for security or law; is not used for advertising; and is not read by humans unless you have given consent, it is necessary for security or to comply with the law, or the data has been aggregated and anonymised.</p>
 
   <h2>Cookies &amp; analytics</h2>
   <p>We use the storage needed to keep you signed in. We do not run third-party advertising trackers. If we add privacy-respecting analytics later, we will update this page first.</p>
