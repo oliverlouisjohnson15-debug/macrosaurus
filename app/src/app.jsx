@@ -3722,6 +3722,19 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   // Settings. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
   const [sheet, setSheet] = useState(null);
   const synced = db.googleHealth && db.googleHealth.connected;
+  // No connection and nothing to show would be three dead "-" dials. Slim to a one-line Connect strip
+  // instead, so Move/Sleep/Ready stays glanceable on Today without the clutter when it has no data.
+  const hasAny = synced || todaySteps > 0 || !!rec || readiness != null;
+  if (!hasAny) {
+    return (
+      <div className="w-full flex items-center justify-between gap-3 pixel-box px-3 py-2.5 mb-4" style={{ background: 'var(--surface3)' }}>
+        <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Move · Sleep · Ready</span>
+        {ghConfigured()
+          ? <button onClick={ghConnectGated} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Connect Health ›</button>
+          : <span className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
+      </div>
+    );
+  }
   return (
     <Card className="p-3 mb-4">
       <div className="flex items-center justify-between mb-0.5 px-1">
@@ -4418,6 +4431,19 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       </div>
       <Card className="p-5 mb-4">
         <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} />
+        {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
+        <div className="mt-3 pt-2.5 border-t border-[#262629]">
+          <Collapsible variant="inline" label="Balance carbs & fat" sub="Adjust ›">
+            <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
+            <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
+            <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
+            <div className="flex justify-between items-center mt-3">
+              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
+              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
+              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
+            </div>
+          </Collapsible>
+        </div>
         {/* Footers share one grid: muted label on the left, an accent tap-through on the right. */}
         {(et.cyc !== 0 || et.carry !== 0) && (() => {
           const adj = et.eff.kcal - et.base.kcal;
@@ -4440,24 +4466,15 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
             <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
           </button>;
         })()}
-        {/* Balance (shift leftover kcal between carbs and fat) is a power feature: behind an Adjust link. */}
-        <div className="mt-3 pt-2.5 border-t border-[#262629]">
-          <Collapsible variant="inline" label="Balance carbs & fat" sub="Adjust ›">
-            <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
-            <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
-            <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
-            <div className="flex justify-between items-center mt-3">
-              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
-              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
-              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
-            </div>
-          </Collapsible>
-        </div>
       </Card>
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
       <CompanionStrip db={db} bp={bp} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
+
+      {/* Move / Sleep / Ready glance (Google Health). Self-slims to a Connect strip when there's no
+          data, so it earns its spot on Today. The readiness -> Fight payoff lives in Play. */}
+      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
 
       {/* Weekly loop: self-collapses to a quiet line and expands only when a check-in is actually due. */}
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
@@ -4465,11 +4482,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
 
-      {/* Everything below the fast loop: activity dials, the one-time weigh-cadence question, install +
-          upgrade nudges. Collapsed by default so Today opens as a quick glance, not a wall. */}
-      <Collapsible label="More">
-        {/* Move / Sleep / Ready dials (Google Health). The readiness -> Fight payoff lives in Play. */}
-        <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
+      {/* The one-time weigh-cadence question plus install + upgrade nudges. Collapsed by default, and
+          only shown when it would actually hold something. Install also lives in Account. */}
+      {(!isPremium || db.profile.weighCadence == null) && <Collapsible label="More">
         <WeighCadencePrompt db={db} update={update} />
         <InstallCard />
         {!isPremium && (() => {

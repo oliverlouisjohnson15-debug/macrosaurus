@@ -71,7 +71,6 @@
         { id: 'm_2', user_id: USER, name: 'Lunch', sort_order: 1 },
         { id: 'm_3', user_id: USER, name: 'Dinner', sort_order: 2 },
         { id: 'm_s', user_id: USER, name: 'Snacks', sort_order: 3 },
-        { id: 'm_o', user_id: USER, name: 'Other', sort_order: 4 },
       ],
       day_meals: {},      // per-date meal lists overriding meal_templates: { 'YYYY-MM-DD': [{id,user_id,name,sort_order}] }
       foods: [],          // saved foods: favorites (is_favorite) + recents (updated_at); remembered serving
