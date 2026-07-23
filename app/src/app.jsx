@@ -3837,8 +3837,10 @@ function StatDial({ label, fill, big, status, sub, color, active, onTap }) {
 }
 
 // The recovery card: Move / Sleep / Ready as three comparable dials, last night's sleep architecture, and
-// one adaptive coaching line. Tapping a dial opens a read-only breakdown of how its number was reached,
-// never an editor: steps aren't hand-entered, and the step goal + sleep target are set in Settings.
+// one adaptive coaching line kept behind a compact "Today's focus" row (progressive disclosure: the dials
+// and numbers are what matter most, the sentence is on-demand). Tapping a dial opens a read-only breakdown
+// of how its number was reached, never an editor: steps aren't hand-entered, and the step goal + sleep
+// target are set in Settings.
 function StepsSleepCard({ db, update, onOpenPlay }) {
   const today = Store.todayISO();
   const kShort = n => n >= 1000 ? (Math.round(n / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(Math.round(n));
@@ -3864,6 +3866,9 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
   // Tapping a dial opens a read-only breakdown. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
   const [sheet, setSheet] = useState(null);
+  // The coaching sentence is collapsed by default so it doesn't crowd the card; the band-coloured trigger
+  // still carries today's verdict at a glance (green = push, amber = ease off) so the row keeps its scent.
+  const [coachOpen, setCoachOpen] = useState(false);
   const synced = db.googleHealth && db.googleHealth.connected;
   // Not connected and no data yet: a prominent invite to connect, so the health integration is a real
   // call to action on Today rather than three dead "-" dials. Once there's data, show the dials.
@@ -3927,9 +3932,15 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
         </button>
       )}
 
-      {/* Adaptive recovery coaching line: the one thing to do with today's numbers */}
-      <div className="mt-3 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + coach.color }}>
-        <div className="text-[11px] leading-snug" style={{ color: 'var(--text2)' }}>{coach.text}</div>
+      {/* Adaptive recovery coaching, behind a compact "Today's focus" row (progressive disclosure). The
+          band colour on the collapsed trigger is the at-a-glance verdict; tapping reveals the full sentence. */}
+      <div className="mt-3 pixel-box" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + coach.color }}>
+        <button type="button" onClick={() => setCoachOpen(o => !o)} aria-expanded={coachOpen}
+          className="w-full flex items-center justify-between p-2.5" style={{ background: 'transparent', border: 0 }}>
+          <span className="pf uppercase" style={{ fontSize: 8, color: coach.color }}>Today's focus</span>
+          <span className="pf" style={{ fontSize: 10, color: 'var(--muted)', display: 'inline-block', transform: coachOpen ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>›</span>
+        </button>
+        {coachOpen && <div className="px-2.5 pb-2.5 -mt-0.5 text-[11px] leading-snug fade-in" style={{ color: 'var(--text2)' }}>{coach.text}</div>}
       </div>
 
       {streak >= 3 && (
