@@ -450,18 +450,23 @@ test('sleepScoreParts itemises the score (duration / quality split) and always a
   assert.strictEqual(Game.sleepScoreParts(0).score, 0);
 });
 
-test('sleep duration is scored against the science (7-9h), with no editable target', () => {
-  // Identical architecture, three durations: 5h scores low, 7h solid, 8h full duration credit.
-  const arch = { rem: null }; // placeholder overwritten below
+test('sleep duration is scored against the science (7-9h band), with no editable target', () => {
+  // Identical architecture, several durations: 5h scores low, and the WHOLE recommended 7-9h band earns
+  // full duration credit (crediting the guideline range, not a single 8h point, is the realism fix).
   const mk = (min, deepP, remP) => { const asleep = min; return { deep: Math.round(asleep * deepP), rem: Math.round(asleep * remP), light: asleep - Math.round(asleep * deepP) - Math.round(asleep * remP), awake: Math.round(asleep * 0.06) }; };
+  const durOf = min => Game.sleepScoreParts(min, mk(min, 0.18, 0.22)).parts.find(x => x.key === 'duration').points;
   const five = Game.sleepScoreParts(300, mk(300, 0.18, 0.22));
   const eight = Game.sleepScoreParts(480, mk(480, 0.18, 0.22));
-  const fiveDur = five.parts.find(x => x.key === 'duration').points;
-  const eightDur = eight.parts.find(x => x.key === 'duration').points;
-  assert.strictEqual(eightDur, 45, '8h earns full duration credit');
-  assert.ok(fiveDur < 20, '5h is heavily docked on duration, got ' + fiveDur);
+  assert.strictEqual(durOf(420), 45, '7h (bottom of the band) earns full duration credit');
+  assert.strictEqual(durOf(480), 45, '8h earns full duration credit');
+  assert.strictEqual(durOf(540), 45, '9h (top of the band) earns full duration credit');
+  assert.ok(durOf(300) < 20, '5h is heavily docked on duration, got ' + durOf(300));
   assert.ok(eight.score > five.score, 'more sleep (same architecture) scores higher');
-  void arch;
+  // Over-sleep is a soft negative, never a bonus: 11h loses duration credit vs a clean 8h night, but
+  // gently (it still keeps ~three-quarters of the points, ~34/45).
+  const elevenDur = durOf(660);
+  assert.ok(elevenDur < 45, 'over-sleeping past 9h no longer earns full duration credit, got ' + elevenDur);
+  assert.ok(elevenDur >= 33 && elevenDur <= 35, 'but the over-sleep taper is gentle (~34/45), got ' + elevenDur);
 });
 
 test('readinessParts explains every signal and agrees with readinessScore', () => {
@@ -506,18 +511,20 @@ test('readiness uses lnRMSSD: HRV is judged log-symmetrically around baseline', 
   assert.ok(up > 50 && down < 50);
 });
 
-test('sleep scoring is strict: an average night lands well under 80, only an excellent one reaches 90+', () => {
-  // Average night: 7h asleep of ~7h55 in bed (88% efficiency), stages a touch under ideal. Should NOT
-  // flatter the user - lands in the 60s-70s matching real-world spread, not the 90s.
+test('sleep scoring is realistic: a solid-but-ordinary night lands in the good band, only an excellent one reaches 90+', () => {
+  // Ordinary night: 7h asleep of ~7h55 in bed (88% efficiency), stages a touch under ideal. Hitting the
+  // recommended duration range earns full duration credit, so this lands in the "good" band (high 70s /
+  // low 80s, matching real-world spread) - not flattered into the 90s, but no longer punished for a
+  // perfectly normal 7h night either.
   const avg = Game.sleepScore(420, { deep: 63, rem: 80, light: 277, awake: 55 }); // 7h, deep 15%, rem 19%
-  assert.ok(avg < 80, 'an average night should score under 80, got ' + avg);
-  assert.ok(avg > 45, 'but not punitively low, got ' + avg);
+  assert.ok(avg >= 75 && avg <= 86, 'an ordinary night should land in the good band (~78-83), got ' + avg);
   // Genuinely excellent night: 8h asleep, 95% efficiency, ideal architecture -> 90+.
   const great = Game.sleepScore(480, { deep: 110, rem: 110, light: 260, awake: 25 });
   assert.ok(great >= 90, 'an excellent night should reach 90+, got ' + great);
-  // A poor night is clearly separated below the average one.
+  assert.ok(great > avg, 'and clearly beats the ordinary night');
+  // A poor night (short + fragmented + thin architecture) is clearly separated below the ordinary one.
   const poor = Game.sleepScore(330, { deep: 20, rem: 25, light: 250, awake: 70 });
-  assert.ok(poor < avg, 'a poor night scores below an average one');
+  assert.ok(poor < 60 && poor < avg, 'a poor night scores in the poor band, below an ordinary one, got ' + poor);
 });
 
 test('sleepBand splits poor/ok/good/great at the right thresholds', () => {

@@ -3655,22 +3655,172 @@ function HomeWeightSpark({ db, onOpen }) {
   );
 }
 
-// Move & rest: today's steps (vs your activity-band goal) and last night's sleep (score ring vs
-// target) share one compact tile so the dashboard carries a single activity card. Both sync from
-// Google Health; steps stay hand-loggable, sleep's one editable is the nightly target. Steps also feed
-// the check-in's steps-first coaching. The morning-catch line and one sync status sit along the bottom.
-// One dial in the Today status card: the headline number with room to breathe, over an ascending
-// pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
+// ---------------------------------------------------------------------------------------------------
+// Recovery card ("Train hard, rest harder"): Move / Sleep / Ready as three comparable dials, reframed so
+// recovery reads as a pillar alongside food and training rather than a passive stats readout. All three
+// are driven by the Google Health integration; steps and the nightly target are set in Settings, never
+// here. Tapping a dial opens a read-only breakdown (with a 7-day trend and, for sleep, the stage mix) of
+// how its number was reached. One adaptive coaching line under the dials turns the numbers into a call to
+// action for the day.
+// ---------------------------------------------------------------------------------------------------
+
+// Sleep-band -> everyday word (Fitbit-style language) shared by the card and the sheet so they never drift.
+const SLEEP_BAND_WORD = { poor: 'Poor', ok: 'Fair', good: 'Good', great: 'Great' };
+// Day-of-week initial for the 7-day trend strips, keyed off the real weekday of each date.
+const REC_DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+function recLast7(today) { return Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i))); }
+function recDow(iso) { return REC_DOW[new Date(iso + 'T00:00:00').getDay()]; }
+
+// Sleep-stage identity used by the stacked stage bar and its legend, in the order they stack.
+const SLEEP_STAGE_META = [
+  { key: 'deep', label: 'Deep', color: 'var(--sleep-deep)' },
+  { key: 'rem', label: 'REM', color: 'var(--sleep-rem)' },
+  { key: 'light', label: 'Light', color: 'var(--sleep-light)' },
+  { key: 'awake', label: 'Awake', color: 'var(--sleep-awake)' },
+];
+// A single stacked bar of a night's sleep architecture (deep / REM / light / awake by proportion).
+function StageBar({ stages, height = 14 }) {
+  const total = SLEEP_STAGE_META.reduce((a, s) => a + (Number(stages[s.key]) || 0), 0) || 1;
+  return (
+    <div className="flex w-full overflow-hidden" style={{ height, border: '2px solid var(--border)' }} aria-hidden="true">
+      {SLEEP_STAGE_META.map(s => {
+        const pct = (Number(stages[s.key]) || 0) / total * 100;
+        return pct > 0 ? <div key={s.key} style={{ width: pct + '%', background: s.color }} /> : null;
+      })}
+    </div>
+  );
+}
+// Legend rows for the stage bar: swatch + stage name + its figure. Deep / REM / light are shown as a
+// share of time ASLEEP (deep + REM + light) so they match the clinical ranges and the score breakdown
+// exactly (which also use share-of-sleep); awake has no place in that denominator, so it shows as a
+// duration instead. Keeping the same denominator as the score is what stops the two from drifting.
+function StageLegend({ stages }) {
+  const asleep = (Number(stages.deep) || 0) + (Number(stages.rem) || 0) + (Number(stages.light) || 0) || 1;
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+      {SLEEP_STAGE_META.map(s => {
+        const m = Number(stages[s.key]) || 0;
+        const val = s.key === 'awake'
+          ? (Math.floor(m / 60) ? Math.floor(m / 60) + 'h ' : '') + Math.round(m % 60) + 'm'
+          : Math.round(m / asleep * 100) + '%';
+        return (
+          <div key={s.key} className="flex items-center gap-1.5">
+            <span style={{ width: 9, height: 9, background: s.color, display: 'inline-block', border: '1px solid var(--border)' }} />
+            <span className="text-[11px]" style={{ color: 'var(--muted)' }}>{s.label} <span className="tnum" style={{ color: 'var(--text2)' }}>{val}</span></span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// A 7-day trend strip: one bar per day, height = fill (0..1), the most recent day highlighted. Missing
+// days show a faint stub so gaps read as "no data" rather than zero, and an optional dashed line marks a
+// goal/threshold.
+function DayBars({ items, color, height = 40, goalFill }) {
+  return (
+    <div>
+      <div className="flex items-end gap-1.5 relative" style={{ height }}>
+        {goalFill != null && goalFill > 0 && goalFill <= 1 && (
+          <div className="absolute left-0 right-0" style={{ bottom: (goalFill * 100) + '%', borderTop: '2px dashed var(--muted2)', opacity: 0.7 }} />
+        )}
+        {items.map((it, i) => (
+          <div key={i} className="flex-1 flex items-end h-full">
+            <div className="w-full" title={it.title || ''} style={{
+              height: it.fill != null ? Math.max(7, Math.round(Math.min(1, it.fill) * 100)) + '%' : '7%',
+              background: it.fill == null ? 'var(--track)' : (it.last ? color : 'var(--surface2)'),
+              border: '2px solid ' + (it.fill == null ? 'var(--border)' : color),
+              opacity: it.fill == null ? 1 : (it.last ? 1 : 0.6),
+              transition: 'height .3s',
+            }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-1.5 mt-1">
+        {items.map((it, i) => (
+          <div key={i} className="flex-1 text-center pf" style={{ fontSize: 7, color: it.last ? color : 'var(--muted2)' }}>{it.dow}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Last night's scored sleep record (or null), shared by the card, the coaching line and the sheet so the
+// three can never disagree. Returns { date, rec, stages|null, score } where score is null for a stage-less
+// night (no architecture to judge).
+function lastSleepNight(db) {
+  const sleep = db.sleep || {};
+  const dates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
+  const date = dates.length ? dates[dates.length - 1] : null;
+  const rec = date ? sleep[date] : null;
+  if (!rec) return null;
+  const stages = (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
+    ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
+  return { date, rec, stages, score: Game.sleepScore(rec.min, stages) };
+}
+// Consecutive days (ending today, or yesterday if today's steps haven't reached the goal yet) that hit the
+// step goal. Today being mid-day and short shouldn't break a real streak, so we don't count it against you.
+function stepStreak(db, today) {
+  if (stepGoalFor(db) <= 0) return 0;
+  let d = isStepGoalDay(db, today) ? today : shiftISO(today, -1);
+  let n = 0;
+  while (isStepGoalDay(db, d)) { n++; d = shiftISO(d, -1); }
+  return n;
+}
+
+// The one adaptive line under the dials. It reads readiness (the recovery verdict) first, then colours it
+// with last night's sleep and today's steps, so the card always says something useful for the day ahead
+// and leans into "recovery is a pillar" rather than just showing three numbers.
+function recoveryCoachLine(db, today) {
+  const band = Game.readinessBand(readinessFor(db, today));
+  const night = lastSleepNight(db);
+  const sBand = night && isFinite(night.score) ? Game.sleepBand(night.score) : null;
+  const restedWell = sBand === 'good' || sBand === 'great';
+  const roughNight = sBand === 'poor' || sBand === 'ok';
+  const goal = stepGoalFor(db);
+  const goalHit = goal > 0 && (+((db.steps || {})[today]) || 0) >= goal;
+  if (band === 'apex') return {
+    color: 'var(--good)',
+    text: restedWell
+      ? "Apex readiness. Last night's sleep is paying off, so this is a strong day to push your training hard."
+      : "Apex readiness. Recovery is on your side today, a good day to train hard.",
+  };
+  if (band === 'drowsy') return {
+    color: 'var(--warn)',
+    text: roughNight
+      ? "Drowsy. A short night is catching up with you, so go gentle today and aim for an earlier bedtime. Rest is training too."
+      : "Drowsy. Your body is asking for a lighter day, so keep it easy and protect your sleep tonight. Rest is training too.",
+  };
+  if (band === 'prowling') return {
+    color: 'var(--accent)',
+    text: goalHit
+      ? "Steady readiness, a normal training day. Steps are already on target, so train as planned and protect tonight's 7 to 9 hours."
+      : "Steady readiness, a normal training day. Keep moving, and aim for a full 7 to 9 hours tonight.",
+  };
+  // No readiness score yet.
+  if (night && isFinite(night.score)) return {
+    color: 'var(--muted)',
+    text: "Add a wearable that reports HRV or resting heart rate to unlock a daily readiness score on top of your sleep.",
+  };
+  return {
+    color: 'var(--muted)',
+    text: "Recovery is a pillar alongside food and training. Connect Google Health to score your sleep and readiness each morning.",
+  };
+}
+
+// One dial in the recovery card: the headline number with room to breathe, a short status word, and an
+// ascending pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
 // Move / Sleep / Ready so the three read as one glanceable row on mobile.
 const DIAL_SEGMENTS = 7;
-function StatDial({ label, fill, big, sub, color, subColor, active, onTap }) {
+function StatDial({ label, fill, big, status, sub, color, active, onTap }) {
   const has = fill != null;
   const lit = has ? Math.round(Math.max(0, Math.min(100, fill)) / 100 * DIAL_SEGMENTS) : 0;
   return (
     <button type="button" onClick={onTap} className="flex-1 min-w-0 flex flex-col items-center text-center py-1.5 px-1"
       style={{ background: 'transparent', border: 0 }}>
       <div className="pf text-[8px] uppercase truncate w-full" style={{ color: active ? color : 'var(--muted)' }}>{label}</div>
-      <div className="tnum font-bold leading-none mt-2 mb-2.5" style={{ fontSize: 25, color: has ? 'var(--text)' : 'var(--muted)' }}>{big}</div>
+      <div className="tnum font-bold leading-none mt-2 mb-1.5" style={{ fontSize: 25, color: has ? 'var(--text)' : 'var(--muted)' }}>{big}</div>
+      <div className="pf uppercase truncate w-full mb-2" style={{ fontSize: 7, minHeight: 9, color: color }}>{status || ''}</div>
       <div className="flex gap-[3px] w-full justify-center items-end" style={{ height: 18 }} aria-hidden="true">
         {Array.from({ length: DIAL_SEGMENTS }).map((_, i) => (
           <div key={i} style={{
@@ -3681,66 +3831,63 @@ function StatDial({ label, fill, big, sub, color, subColor, active, onTap }) {
           }} />
         ))}
       </div>
-      <div className="text-[9.5px] tnum truncate w-full mt-2 leading-tight" style={{ color: subColor || 'var(--muted)' }}>{sub}</div>
+      <div className="text-[9.5px] tnum truncate w-full mt-2 leading-tight" style={{ color: 'var(--muted)' }}>{sub}</div>
     </button>
   );
 }
 
-// Today status: Move / Sleep / Ready as three comparable dials, all driven by the Google Health
-// integration. Tapping a dial opens a read-only breakdown of how its number was reached, never an
-// editor: steps aren't hand-entered, and the step goal + sleep target are set in Settings.
+// The recovery card: Move / Sleep / Ready as three comparable dials, last night's sleep architecture, and
+// one adaptive coaching line. Tapping a dial opens a read-only breakdown of how its number was reached,
+// never an editor: steps aren't hand-entered, and the step goal + sleep target are set in Settings.
 function StepsSleepCard({ db, update, onOpenPlay }) {
   const today = Store.todayISO();
   const kShort = n => n >= 1000 ? (Math.round(n / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(Math.round(n));
-  // Steps: today vs the activity-band (or custom) goal. Google Health is the only source; the tap-through
-  // sheet explains the number rather than letting the user type one in.
+  // Move: today vs the activity-band (or custom) goal. Google Health is the only source.
   const steps = db.steps || {};
   const todaySteps = +steps[today] || 0;
   const stepGoal = stepGoalFor(db);
   const stepPct = stepGoal ? Math.min(100, Math.round((todaySteps / stepGoal) * 100)) : 0;
   const goalHit = stepGoal > 0 && todaySteps >= stepGoal;
+  const streak = stepStreak(db, today);
   // Sleep: last synced night, scored live against the science (recommended 7-9h), no editable target.
-  const sleep = db.sleep || {};
-  const sdates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
-  const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
-  const rec = lastDate ? sleep[lastDate] : null;
-  const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
-    ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
-  const score = rec ? Game.sleepScore(rec.min, stages) : null; // null = stage-less night, show hours
+  const night = lastSleepNight(db);
+  const score = night ? night.score : null; // null = stage-less night, show hours
   const hasScore = isFinite(score);
-  const sHrs = rec ? Math.floor(rec.min / 60) : 0, sMins = rec ? rec.min % 60 : 0;
+  const sBand = hasScore ? Game.sleepBand(score) : null;
+  const sHrs = night ? Math.floor(night.rec.min / 60) : 0, sMins = night ? night.rec.min % 60 : 0;
   const sHrsLabel = sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '');
-  // Readiness: our recovery score + the band it grants. The Fight buff it powers now lives in the
-  // Play hub's boss card, so this dial just shows the band and taps through to Play.
+  // Readiness: our recovery score + the band it grants (Apex / Prowling / Drowsy).
   const readiness = readinessFor(db, today);
   const rBand = Game.readinessBand(readiness);
   const rInfo = rBand ? Game.READY_BAND[rBand] : null;
   const R_COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
-  // Tapping a dial opens a read-only breakdown of how that number was reached, never an editor.
-  // Steps come only from the Google Health integration; the sleep target and step goal are set in
-  // Settings. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
+  // Tapping a dial opens a read-only breakdown. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
   const [sheet, setSheet] = useState(null);
   const synced = db.googleHealth && db.googleHealth.connected;
-  // Not connected and no data yet: a prominent invite to connect, so the health integration is a
-  // real call to action on Today rather than three dead "-" dials. Once there's data, show the dials.
-  const hasAny = synced || todaySteps > 0 || !!rec || readiness != null;
+  // Not connected and no data yet: a prominent invite to connect, so the health integration is a real
+  // call to action on Today rather than three dead "-" dials. Once there's data, show the dials.
+  const hasAny = synced || todaySteps > 0 || !!night || readiness != null;
   if (!hasAny) {
     return (
       <Card className="p-4 mb-4" style={{ background: 'var(--accent-dim)' }}>
-        <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--accent)' }}>Move · Sleep · Ready</div>
-        <div className="text-[13px] font-bold mb-1">Track your steps, sleep &amp; recovery</div>
-        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Connect Google Health to see them here every day. Your steps and sleep also feed your dino's daily catches.</div>
+        <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--sleep)' }}>Recovery</div>
+        <div className="text-[13px] font-bold mb-1">Train hard, rest harder</div>
+        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. Connect Google Health to track your steps, sleep and readiness here every day. Your steps and sleep also feed your dino's daily catches.</div>
         {ghConfigured()
           ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>CONNECT GOOGLE HEALTH</button>
           : <div className="pf text-[8px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
       </Card>
     );
   }
+  const coach = recoveryCoachLine(db, today);
   return (
     <Card className="p-3 mb-4">
-      <div className="flex items-center justify-between mb-0.5 px-1">
-        <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Today</div>
+      <div className="flex items-center justify-between mb-1 px-1">
+        <div>
+          <div className="pf text-[9px] uppercase leading-none" style={{ color: 'var(--sleep)' }}>Recovery</div>
+          <div className="pf uppercase mt-1.5" style={{ fontSize: 7, color: 'var(--muted2)' }}>Train hard, rest harder</div>
+        </div>
         {synced
           ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ Synced</span>
           : ghConfigured()
@@ -3749,22 +3896,45 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
       </div>
 
       {/* Three dials: Move / Sleep / Ready, all 0..100 so they read as one row */}
-      <div className="flex items-stretch">
+      <div className="flex items-stretch mt-1">
         <StatDial label="Move" fill={stepGoal > 0 && synced ? stepPct : null} color="var(--good)"
           big={synced ? (stepGoal > 0 ? (goalHit ? '✓' : stepPct) : '–') : '–'}
+          status={goalHit ? 'Goal hit' : (synced && stepGoal > 0 && todaySteps > 0 ? stepPct + '%' : '')}
           sub={synced ? (todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'No steps yet') : 'Not connected'}
           onTap={() => setSheet('move')} />
         <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
-        <StatDial label="Sleep" fill={hasScore ? Math.min(100, score) : null} color="var(--accent)"
-          big={rec ? (hasScore ? score : sHrsLabel) : '–'}
-          sub={rec ? (hasScore ? sHrsLabel : 'Hours only · no stages') : (synced ? 'No data' : 'Not connected')}
+        <StatDial label="Sleep" fill={hasScore ? Math.min(100, score) : null} color="var(--sleep)"
+          big={night ? (hasScore ? score : sHrsLabel) : '–'}
+          status={hasScore ? SLEEP_BAND_WORD[sBand] : ''}
+          sub={night ? (hasScore ? sHrsLabel : 'Hours only') : (synced ? 'No data' : 'Not connected')}
           onTap={() => setSheet('sleep')} />
         <div style={{ width: 1, background: 'var(--border)' }} className="my-2" />
         <StatDial label="Ready" fill={readiness != null ? Math.min(100, readiness) : null} color={rColor}
           big={readiness != null ? readiness : '–'} active={!!rBand}
-          sub={readiness != null ? (rInfo ? rInfo.label : '') : (synced ? 'Not enough data' : 'Not connected')} subColor={rBand ? rColor : 'var(--muted)'}
+          status={rInfo ? rInfo.label : ''}
+          sub={readiness != null ? '' : (synced ? 'Not enough data' : 'Not connected')}
           onTap={() => setSheet('ready')} />
       </div>
+
+      {/* Last night's sleep architecture, full width so the stage mix reads at a glance and taps through */}
+      {night && night.stages && (
+        <button type="button" onClick={() => setSheet('sleep')} className="w-full text-left mt-2.5 px-1" style={{ background: 'transparent', border: 0 }}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted)' }}>Last night</span>
+            <span className="tnum text-[9.5px]" style={{ color: 'var(--muted)' }}>{sHrsLabel} asleep</span>
+          </div>
+          <StageBar stages={night.stages} />
+        </button>
+      )}
+
+      {/* Adaptive recovery coaching line: the one thing to do with today's numbers */}
+      <div className="mt-3 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + coach.color }}>
+        <div className="text-[11px] leading-snug" style={{ color: 'var(--text2)' }}>{coach.text}</div>
+      </div>
+
+      {streak >= 3 && (
+        <div className="text-center mt-2 pf uppercase" style={{ fontSize: 7, color: 'var(--good)' }}>Step-goal streak · {streak} days</div>
+      )}
 
       {sheet && <MetricBreakdownSheet metric={sheet} db={db} onClose={() => setSheet(null)} onOpenPlay={onOpenPlay} />}
     </Card>
@@ -3785,7 +3955,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
   const hmLabel = min => { const h = Math.floor(min / 60), m = Math.round(min % 60); return h + 'h' + (m ? ' ' + m + 'm' : ''); };
 
   const TITLE = { move: 'Move', sleep: 'Sleep', ready: 'Readiness' };
-  const TINT = { move: 'var(--good)', sleep: 'var(--accent)', ready: 'var(--text)' };
+  const TINT = { move: 'var(--good)', sleep: 'var(--sleep)', ready: 'var(--text)' };
 
   // A single labelled contribution row (points bar for sleep, weight/value for readiness).
   function PartRow({ label, detail, value, max, pct, tint, muted }) {
@@ -3813,6 +3983,12 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
     const stepGoal = stepGoalFor(db);
     const custom = db.profile && +db.profile.stepGoal > 0;
     const pct = stepGoal ? Math.round((todaySteps / stepGoal) * 100) : 0;
+    const streak = stepStreak(db, today);
+    // 7-day steps trend, bars scaled to the greater of the goal or the busiest day, with the goal marked.
+    const dates = recLast7(today);
+    const vals = dates.map(dt => +steps[dt] || 0);
+    const scale = Math.max(stepGoal || 0, ...vals, 1);
+    const trend = dates.map((dt, i) => ({ dow: recDow(dt), last: dt === today, fill: vals[i] > 0 ? vals[i] / scale : null, title: k(vals[i]) + ' steps' }));
     body = (
       <div>
         {synced ? (
@@ -3821,9 +3997,14 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
               <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--good)' }}>{k(todaySteps)}</div>
               <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>steps today{stepGoal > 0 ? ' · ' + pct + '% of goal' : ''}</div>
             </div>
-            {stepGoal > 0 && <div className="pixel-bar mb-4" style={{ height: 10 }}><i style={{ width: Math.max(0, Math.min(100, pct)) + '%', background: 'var(--good)' }} /></div>}
-            <PartRow label="Steps today" detail={'Read from Google Health' + (lastSyncLabel ? ' · synced ' + lastSyncLabel : '')} value={k(todaySteps)} tint="var(--good)" />
-            {stepGoal > 0 && <PartRow label="Daily goal" detail={custom ? 'Your custom goal, set in Settings' : 'From your activity level, set in Settings'} value={k(stepGoal)} tint="var(--good)" />}
+            {stepGoal > 0 && <div className="pixel-bar mb-2" style={{ height: 10 }}><i style={{ width: Math.max(0, Math.min(100, pct)) + '%', background: 'var(--good)' }} /></div>}
+            {streak >= 2 && <div className="pf uppercase mb-1" style={{ fontSize: 8, color: 'var(--good)' }}>Step-goal streak · {streak} days</div>}
+            <div className="pf text-[8px] uppercase mb-2 mt-5" style={{ color: 'var(--muted)' }}>Last 7 days{stepGoal > 0 ? ' · dashed line is your goal' : ''}</div>
+            <DayBars items={trend} color="var(--good)" goalFill={stepGoal > 0 ? Math.min(1, stepGoal / scale) : null} />
+            <div className="mt-5">
+              <PartRow label="Steps today" detail={'Read from Google Health' + (lastSyncLabel ? ' · synced ' + lastSyncLabel : '')} value={k(todaySteps)} tint="var(--good)" />
+              {stepGoal > 0 && <PartRow label="Daily goal" detail={custom ? 'Your custom goal, set in Settings' : 'From your activity level, set in Settings'} value={k(stepGoal)} tint="var(--good)" />}
+            </div>
             <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
               Steps sync automatically from Google Health, so Macrosaurus never asks you to count them by hand, and everything tied to movement (your step-goal streak and steps-first coaching) follows this figure.
             </p>
@@ -3844,13 +4025,28 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
 
   if (metric === 'sleep') {
     const sleep = db.sleep || {};
-    const sdates = Object.keys(sleep).filter(dt => ((sleep[dt] || {}).min > 0)).sort();
-    const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
-    const rec = lastDate ? sleep[lastDate] : null;
-    const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
-      ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
+    const night = lastSleepNight(db);
+    const rec = night ? night.rec : null;
+    const stages = night ? night.stages : null;
     const p = rec ? Game.sleepScoreParts(rec.min, stages) : null;
-    const nightLabel = lastDate ? new Date(lastDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }) : null;
+    const nightLabel = night ? new Date(night.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }) : null;
+    // 7-night score trend, recomputed from stages the same way the dial is, so it never drifts.
+    const dates = recLast7(today);
+    const trend = dates.map(dt => {
+      const r = sleep[dt];
+      if (!r || !(r.min > 0)) return { dow: recDow(dt), fill: null, last: night && dt === night.date };
+      const st = (r.deep != null || r.rem != null || r.light != null || r.awake != null)
+        ? { deep: r.deep || 0, rem: r.rem || 0, light: r.light || 0, awake: r.awake || 0 } : null;
+      const sc = Game.sleepScore(r.min, st);
+      return { dow: recDow(dt), last: night && dt === night.date, fill: isFinite(sc) ? sc / 100 : Math.min(1, r.min / 600), title: isFinite(sc) ? sc + '/100' : hmLabel(r.min) };
+    });
+    const hasTrend = trend.filter(t => t.fill != null).length >= 2;
+    const TrendBlock = hasTrend ? (
+      <div className="mt-5">
+        <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 nights</div>
+        <DayBars items={trend} color="var(--sleep)" />
+      </div>
+    ) : null;
     if (!rec) {
       body = (
         <p className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>
@@ -3864,27 +4060,32 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
       body = (
         <div>
           <div className="flex items-end gap-2 mb-1">
-            <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--accent)' }}>{p.score}</div>
-            <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>/ 100 · {Game.sleepBand(p.score)}</div>
+            <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--sleep)' }}>{p.score}</div>
+            <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>/ 100 · {SLEEP_BAND_WORD[Game.sleepBand(p.score)]}</div>
           </div>
           <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · {hmLabel(p.asleepMin)} asleep · recommended 7-9h</div>
-          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)' }}>How the score is built</div>
+          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: 'var(--muted)' }}>Sleep stages</div>
+          <StageBar stages={stages} height={18} />
+          <StageLegend stages={stages} />
+          {TrendBlock}
+          <div className="pf text-[8px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>How the score is built</div>
           {p.parts.map(part => (
-            <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--accent)" />
+            <PartRow key={part.key} label={part.label} detail={part.detail} value={part.points} max={part.max} pct={part.points / part.max * 100} tint="var(--sleep)" />
           ))}
           <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
-            Judged against the science rather than a target you set: adults need 7-9 hours, and efficiency plus healthy deep and REM sleep (measured against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed.
+            Judged against the science rather than a target you set. Any night inside the recommended 7 to 9 hours earns full duration credit; efficiency and healthy deep and REM sleep (measured against clinical ranges) decide the rest, so a top score still needs a genuinely restorative night, not just time in bed.
           </p>
         </div>
       );
     } else {
       body = (
         <div>
-          <div className="tnum text-4xl font-bold leading-none mb-1" style={{ color: 'var(--accent)' }}>{hmLabel(rec.min)}</div>
+          <div className="tnum text-4xl font-bold leading-none mb-1" style={{ color: 'var(--sleep)' }}>{hmLabel(rec.min)}</div>
           <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>{nightLabel} · asleep · recommended 7-9h</div>
           <p className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>
             Your device reported how long you slept but not the sleep stages (deep, REM, light, awake), so there's no quality to score yet, so we're showing hours instead of a number out of 100. When your device syncs a staged night you'll get a full score.
           </p>
+          {TrendBlock}
         </div>
       );
     }
@@ -3896,15 +4097,27 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
     const info = band ? Game.READY_BAND[band] : null;
     const R_COLOR = { apex: 'var(--good)', prowling: 'var(--accent)', drowsy: 'var(--warn)' };
     const rColor = band ? R_COLOR[band] : 'var(--muted)';
+    // 7-day readiness trend, each day recomputed the same way today's is.
+    const dates = recLast7(today);
+    const trend = dates.map(dt => { const sc = readinessFor(db, dt); return { dow: recDow(dt), last: dt === today, fill: sc != null ? sc / 100 : null, title: sc != null ? String(sc) : '' }; });
+    const hasTrend = trend.filter(t => t.fill != null).length >= 2;
     body = (
       <div>
         {parts.score != null ? (
           <div>
-            <div className="flex items-end gap-2 mb-1">
+            <div className="flex items-end gap-2 mb-2">
               <div className="tnum text-4xl font-bold leading-none" style={{ color: rColor }}>{parts.score}</div>
               <div className="text-[13px] pb-1" style={{ color: rColor }}>{info ? info.label : ''}</div>
             </div>
-            <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{info ? info.blurb : ''} Based on {parts.anchorCount} of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it.</div>
+            {info && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + rColor }}>
+              <div className="pf uppercase mb-1" style={{ fontSize: 7, color: rColor }}>Today</div>
+              <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>{info.blurb}</div>
+            </div>}
+            <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>Based on {parts.anchorCount} of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it.</div>
+            {hasTrend && <div className="mt-4">
+              <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Last 7 days</div>
+              <DayBars items={trend} color={rColor} />
+            </div>}
           </div>
         ) : (
           <div>
@@ -3915,7 +4128,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
             {!synced && ghConfigured() && <div className="mb-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn></div>}
           </div>
         )}
-        <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--muted)' }}>Recovery signals</div>
+        <div className="pf text-[8px] uppercase mb-1 mt-5" style={{ color: 'var(--muted)' }}>Recovery signals</div>
         {parts.signals.map(s => (
           <PartRow key={s.key} label={s.label + ' · ' + s.weightPct + '%' + (s.modifierOnly ? ' (modifier)' : '')}
             detail={s.present ? s.note : s.note} value={s.present ? s.value : 'Off'} max={s.present ? 100 : null}

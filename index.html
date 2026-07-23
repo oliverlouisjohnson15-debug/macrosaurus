@@ -69,6 +69,12 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --weight: #B388FF;
   --danger: #FF5555;
   --good: #39FF14;
+  --warn: #FFB020;           /* amber: "drowsy" readiness, over/under a target, take-it-easy */
+  --sleep: #B388FF;          /* sleep identity: soft violet (night) */
+  --sleep-deep: #7C5CFF;     /* deep / N3: indigo */
+  --sleep-rem: #00F3FF;      /* REM: cyan */
+  --sleep-light: #4B4B7A;    /* light: muted blue-grey */
+  --sleep-awake: #FFB020;    /* awake: amber */
   --shadow: #000000;
 }
 .theme-light {
@@ -95,6 +101,12 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --weight: #7c3aed;
   --danger: #E5342A;
   --good: #17A398;
+  --warn: #B26A00;           /* darker amber: readable on white (4.5:1) */
+  --sleep: #7c3aed;          /* sleep identity: violet */
+  --sleep-deep: #5B3FCF;     /* deep / N3: indigo */
+  --sleep-rem: #1C8FA8;      /* REM: teal-cyan (readable on white) */
+  --sleep-light: #9A9AC0;    /* light: muted blue-grey */
+  --sleep-awake: #B26A00;    /* awake: amber */
   --shadow: #1e1e1e;
 }
 
@@ -1903,24 +1915,33 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // "sleep style" collected into a small style dex. All deterministic per user + wake date.
   var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
   // Sleep duration is judged against the SCIENCE, not a user-set target: adults need 7-9 hours a night
-  // (Hirshkowitz 2015, National Sleep Foundation consensus). Full duration credit sits at 8h (mid-range,
-  // the classic recommendation); nothing editable feeds this.
-  var SLEEP_RECOMMENDED_FULL = 480; // 8h in minutes -> full duration credit
+  // (Hirshkowitz 2015, National Sleep Foundation consensus). Rather than pinning "full credit" to a single
+  // 8h point, we credit the WHOLE recommended 7-9h band in full - hitting the guideline is the thing the
+  // duration component rewards, and docking someone for sleeping 7h (squarely in range) was the old model's
+  // biggest unrealism. Below 7h duration ramps down to a 4.5h floor; above 9h a gentle taper treats
+  // habitual over-sleep as a soft negative (long sleep tracks worse outcomes / fragmented rest, so 11h+ is
+  // not "better" than 8h). Nothing editable feeds any of this.
+  var SLEEP_RECOMMENDED_MIN = 420;  // 7h -> full duration credit begins (bottom of the recommended band)
+  var SLEEP_RECOMMENDED_MAX = 540;  // 9h -> full duration credit ends (top of the recommended band)
   var SLEEP_DURATION_FLOOR = 270;   // 4.5h -> no duration credit below this (severe short sleep)
+  var SLEEP_OVERSLEEP_FLOOR = 660;  // 11h -> over-sleep taper bottoms out here (retains 75% of duration credit)
+  var SLEEP_RECOMMENDED_FULL = 480; // 8h, a "reference full night" kept for the stage-less catch-score fallback
   // Sleep score 0..100, evidence-based and modelled on the common duration / quality / restoration
-  // split (~duration 50, quality 25, restoration 25; typical real nights cluster 72-83). We can't
-  // measure restlessness or sleeping-HR restoration from Google Health stage minutes, so those points are
-  // routed into the signals we CAN measure, and deep / REM are scored against their clinical healthy ranges
-  // (deep/N3 ~13-23% of sleep, REM ~20-25%; sleep efficiency >=85% is "good"). Points: duration 45,
-  // efficiency 20, REM 18, deep 17.
-  //   - Duration 45: time asleep vs the recommended 8h; 0 below 4.5h, full at 8h (no oversleep bonus).
-  //   - Efficiency 20: asleep / time-in-bed; 0 at 80%, full only at an excellent >=95%.
+  // split (~duration 45, quality 55; typical real nights cluster 72-83). We can't measure restlessness or
+  // sleeping-HR restoration from Google Health stage minutes, so those points are routed into the signals
+  // we CAN measure, and deep / REM are scored against their clinical healthy ranges (deep/N3 ~13-23% of
+  // sleep, REM ~20-25%; sleep efficiency >=85% is "good"). Points: duration 45, efficiency 20, REM 18, deep 17.
+  //   - Duration 45: time asleep vs the recommended range; full across 7-9h, 0 below 4.5h, tapering to 75%
+  //     credit by 11h+ (over-sleep is a soft negative, never a bonus).
+  //   - Efficiency 20: asleep / time-in-bed; 0 at 78%, full at very-healthy >=93% (85%+ is "good", per the sleep-efficiency literature).
   //   - REM 18 / Deep 17: share of sleep; full credit only at the good end of the healthy band, 0 well below.
-  // The ramps are deliberately STRICT: an average night lands in the 60s-70s and 90+ needs a genuinely
-  // excellent one, so the score keeps its discriminative power rather than clustering everyone near 100.
+  // The QUALITY ramps (efficiency, REM, deep) are deliberately STRICT so the score keeps its discriminative
+  // power: crediting the recommended duration range in full lifts a solid-but-ordinary night into the good
+  // band (high 70s / low 80s, matching real-world spread), while 90+ still demands genuinely excellent
+  // efficiency and architecture rather than just time in bed.
   // A stage-less night returns null on purpose (no measured architecture to judge) so callers show raw
   // hours instead of a fabricated number. Refs: sleep architecture NCBI NBK19956, duration/efficiency Hirshkowitz 2015
-  // (pubmed 29073412). `durationMin` = time asleep; `stages` = { deep, rem, light, awake } minutes. Pure.
+  // (pubmed 29073412), long-sleep risk Jike 2018 (pmid 28890167). `durationMin` = time asleep; `stages` = { deep, rem, light, awake } minutes. Pure.
   // sleepScore() is the thin wrapper returning just the number, so the score the UI shows and the breakdown
   // it explains can never drift. Returns { score, hasStages, durationMin, asleepMin, awakeMin,
   // eff, deepShare, remShare, parts:[{key,label,points,max,detail}] }.
@@ -1935,12 +1956,21 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var total = asleep + awake;
     if (asleep > 0 && total > 0) {
       var clamp01 = function (v) { return Math.max(0, Math.min(1, v)); };
-      // Strict ramps: full credit only at the GOOD end of each range, so a merely-average night lands in
-      // the 60s-70s (matching real-world spread) and 90+ demands a genuinely excellent night. Being
-      // barely "not terrible" earns little.
-      var durComp = 45 * clamp01((dur - SLEEP_DURATION_FLOOR) / (SLEEP_RECOMMENDED_FULL - SLEEP_DURATION_FLOOR)); // 0 at <=4.5h, full at 8h
+      // Duration: full across the recommended 7-9h band, ramping down below 7h to a 4.5h floor, then a
+      // gentle over-sleep taper above 9h (bottoming at 75% credit by 11h+). Rewarding the whole guideline
+      // range - not a single 8h point - is the key realism fix: a 7h night no longer reads as a shortfall.
+      var durComp;
+      if (dur >= SLEEP_RECOMMENDED_MIN && dur <= SLEEP_RECOMMENDED_MAX) {
+        durComp = 45;                                                 // 7-9h: full credit (hit the guideline)
+      } else if (dur < SLEEP_RECOMMENDED_MIN) {
+        durComp = 45 * clamp01((dur - SLEEP_DURATION_FLOOR) / (SLEEP_RECOMMENDED_MIN - SLEEP_DURATION_FLOOR)); // 0 at <=4.5h -> full at 7h
+      } else {
+        durComp = 45 * (1 - 0.25 * clamp01((dur - SLEEP_RECOMMENDED_MAX) / (SLEEP_OVERSLEEP_FLOOR - SLEEP_RECOMMENDED_MAX))); // >9h taper, floors at 0.75*45 by 11h
+      }
+      // Quality ramps stay strict: full credit only at the GOOD end of each range, so ordinary quality
+      // earns partial credit and 90+ needs a genuinely excellent night rather than just time in bed.
       var eff = asleep / total;                                        // fraction of the night actually asleep
-      var effComp = 20 * clamp01((eff - 0.80) / (0.95 - 0.80));        // 0 at <=80%, full at excellent >=95%
+      var effComp = 20 * clamp01((eff - 0.78) / (0.93 - 0.78));        // 0 at <=78%, full at very-healthy >=93% (85%+ is the healthy threshold, 90%+ excellent)
       var deepShare = deep / asleep, remShare = rem / asleep;
       var remComp = 18 * clamp01((remShare - 0.12) / (0.22 - 0.12));   // 0 at <=12%, full at healthy >=22%
       var deepComp = 17 * clamp01((deepShare - 0.09) / (0.18 - 0.09)); // 0 at <=9%, full at healthy >=18%
@@ -1948,7 +1978,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       out.asleepMin = Math.round(asleep); out.awakeMin = Math.round(awake);
       out.eff = eff; out.deepShare = deepShare; out.remShare = remShare;
       out.parts = [
-        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 45, detail: Math.round(dur / 6) / 10 + 'h vs the recommended 8h (adults need 7-9h)' },
+        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 45, detail: Math.round(dur / 6) / 10 + 'h asleep (full credit across the recommended 7-9h)' },
         { key: 'efficiency', label: 'Efficiency', points: Math.round(effComp), max: 20, detail: Math.round(eff * 100) + '% of the night asleep' },
         { key: 'rem', label: 'REM sleep', points: Math.round(remComp), max: 18, detail: Math.round(remShare * 100) + '% of sleep (healthy 20-25%)' },
         { key: 'deep', label: 'Deep sleep', points: Math.round(deepComp), max: 17, detail: Math.round(deepShare * 100) + '% of sleep (healthy 13-23%)' },
@@ -2193,7 +2223,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     nextEggTier: nextEggTier,
     eggHatch: eggHatch,
     SLEEP_RECOMMENDED_FULL: SLEEP_RECOMMENDED_FULL,
+    SLEEP_RECOMMENDED_MIN: SLEEP_RECOMMENDED_MIN,
+    SLEEP_RECOMMENDED_MAX: SLEEP_RECOMMENDED_MAX,
     SLEEP_DURATION_FLOOR: SLEEP_DURATION_FLOOR,
+    SLEEP_OVERSLEEP_FLOOR: SLEEP_OVERSLEEP_FLOOR,
     SLEEP_STYLES: SLEEP_STYLES,
     SLEEP_POOL: SLEEP_POOL,
     sleepScore: sleepScore,
@@ -2849,8 +2882,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   root.Recipe = Recipe;
 })(typeof window !== 'undefined' ? window : this);
 </script>
-<script>function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
-const {
+<script>const {
   useState,
   useEffect,
   useMemo,
@@ -3197,7 +3229,7 @@ function IOSInstallSheet({
     onClick: onClose,
     className: "text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon."), /*#__PURE__*/React.createElement("div", {
     className: "space-y-3"
@@ -3273,7 +3305,7 @@ function InstallCard() {
     onClick: dismiss,
     "aria-label": "Dismiss",
     className: "text-[#8A8A90] text-lg leading-none shrink-0"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug"
   }, isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'), /*#__PURE__*/React.createElement("button", {
     onClick: onInstall,
@@ -4471,11 +4503,11 @@ function NumInput(props) {
     onFocus,
     ...rest
   } = props;
-  return /*#__PURE__*/React.createElement("input", _extends({
+  return /*#__PURE__*/React.createElement("input", {
     type: "number",
     inputMode: "decimal",
-    className: inputCls
-  }, rest, {
+    className: inputCls,
+    ...rest,
     onChange: onChange,
     onFocus: e => {
       const v = props.value;
@@ -4490,13 +4522,14 @@ function NumInput(props) {
       }
       if (onFocus) onFocus(e);
     }
-  }));
+  });
 }
 function TextInput(props) {
-  return /*#__PURE__*/React.createElement("input", _extends({
+  return /*#__PURE__*/React.createElement("input", {
     type: "text",
-    className: inputCls
-  }, props));
+    className: inputCls,
+    ...props
+  });
 }
 function Field({
   label,
@@ -4524,10 +4557,11 @@ function Btn({
     ghost: 'bg-[#1E1E22] text-[var(--text)]',
     danger: 'bg-[#ff6b6b] text-black font-bold'
   };
-  return /*#__PURE__*/React.createElement("button", _extends({
+  return /*#__PURE__*/React.createElement("button", {
     onClick: onClick,
-    className: `pixel-btn px-4 py-3 ${s[kind]} ${className}`
-  }, rest), children);
+    className: `pixel-btn px-4 py-3 ${s[kind]} ${className}`,
+    ...rest
+  }, children);
 }
 // One consistent "Add photo" control used across every photo/AI add-food flow. No `capture` flag,
 // so the native picker offers Camera, Photo Library and Files in a single tap, same on all flows.
@@ -4563,9 +4597,10 @@ function Card({
   className = '',
   ...rest
 }) {
-  return /*#__PURE__*/React.createElement("div", _extends({
-    className: `bg-[#161618] pixel-box ${className}`
-  }, rest), children);
+  return /*#__PURE__*/React.createElement("div", {
+    className: `bg-[#161618] pixel-box ${className}`,
+    ...rest
+  }, children);
 }
 function Section({
   title,
@@ -4654,7 +4689,7 @@ function Dropdown({
     className: "truncate"
   }, cur ? cur.l : 'Select'), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] ml-2"
-  }, "\u25BE")), open && /*#__PURE__*/React.createElement("div", {
+  }, "▾")), open && /*#__PURE__*/React.createElement("div", {
     className: "absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl"
   }, options.map(o => /*#__PURE__*/React.createElement("button", {
     key: o.v,
@@ -4876,10 +4911,11 @@ function BackClose({
 
 /* ---------- icons ---------- */
 const Icon = {
-  dash: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  dash: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("rect", {
+  }, /*#__PURE__*/React.createElement("rect", {
     x: "3",
     y: "3",
     width: "8",
@@ -4904,20 +4940,22 @@ const Icon = {
     height: "8",
     rx: "2"
   })),
-  food: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  food: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M12 21c4.5 0 7-3.6 7-8.5C19 8 16 4 12 4S5 8 5 12.5C5 17.4 7.5 21 12 21z"
   }), /*#__PURE__*/React.createElement("path", {
     d: "M12 4c0-1 .5-2 1.5-2.5"
   })),
-  strategy: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  strategy: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "7",
     cy: "7",
     r: "2.4"
@@ -4934,12 +4972,13 @@ const Icon = {
     cy: "17",
     r: "2.4"
   })),
-  goal: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  goal: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "12",
     cy: "12",
     r: "8"
@@ -4953,10 +4992,11 @@ const Icon = {
     r: "0.6",
     fill: "currentColor"
   })),
-  more: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  more: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "currentColor"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "5",
     cy: "12",
     r: "2"
@@ -4969,54 +5009,60 @@ const Icon = {
     cy: "12",
     r: "2"
   })),
-  plus: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  plus: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2.6"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M12 5v14M5 12h14"
   })),
-  cam: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  cam: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"
   }), /*#__PURE__*/React.createElement("circle", {
     cx: "12",
     cy: "13",
     r: "3.2"
   })),
-  barcode: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  barcode: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M3 6v12M7 6v12M11 6v12M15 6v12M19 6v12"
   })),
-  star: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  star: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M12 3l2.6 5.6 6 .7-4.4 4.1 1.2 6-5.4-3-5.4 3 1.2-6L3.4 9.3l6-.7z"
   })),
-  chevron: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  chevron: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "2"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M9 6l6 6-6 6"
   })),
-  mic: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  mic: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8",
     strokeLinecap: "round"
-  }), /*#__PURE__*/React.createElement("rect", {
+  }, /*#__PURE__*/React.createElement("rect", {
     x: "9",
     y: "3",
     width: "6",
@@ -5027,26 +5073,28 @@ const Icon = {
   }), /*#__PURE__*/React.createElement("path", {
     d: "M12 17v4M9 21h6"
   })),
-  recipe: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  recipe: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8",
     strokeLinecap: "round",
     strokeLinejoin: "round"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M6 3h9a3 3 0 0 1 3 3v15H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
   }), /*#__PURE__*/React.createElement("path", {
     d: "M9 7h6M9 11h6M9 15h4"
   })),
-  cart: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  cart: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8",
     strokeLinecap: "round",
     strokeLinejoin: "round"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M3 4h2l2.2 11.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20.5 8H6"
   }), /*#__PURE__*/React.createElement("circle", {
     cx: "9",
@@ -5057,12 +5105,13 @@ const Icon = {
     cy: "20",
     r: "1.3"
   })),
-  gear: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  gear: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "12",
     cy: "12",
     r: "3.2"
@@ -5070,14 +5119,15 @@ const Icon = {
     d: "M12 2.5v2.2M12 19.3v2.2M4.2 7l1.9 1.1M17.9 15.9l1.9 1.1M4.2 17l1.9-1.1M17.9 8.1l1.9-1.1",
     strokeLinecap: "round"
   })),
-  share: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  share: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8",
     strokeLinecap: "round",
     strokeLinejoin: "round"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "18",
     cy: "5",
     r: "2.6"
@@ -5092,28 +5142,30 @@ const Icon = {
   }), /*#__PURE__*/React.createElement("path", {
     d: "M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3"
   })),
-  compass: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  compass: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8",
     strokeLinecap: "round",
     strokeLinejoin: "round"
-  }), /*#__PURE__*/React.createElement("circle", {
+  }, /*#__PURE__*/React.createElement("circle", {
     cx: "12",
     cy: "12",
     r: "9"
   }), /*#__PURE__*/React.createElement("path", {
     d: "M15.5 8.5l-2 5-5 2 2-5z"
   })),
-  sliders: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  sliders: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8",
     strokeLinecap: "round",
     strokeLinejoin: "round"
-  }), /*#__PURE__*/React.createElement("path", {
+  }, /*#__PURE__*/React.createElement("path", {
     d: "M4 6h11M18 6h2M4 12h2M9 12h11M4 18h7M14 18h6"
   }), /*#__PURE__*/React.createElement("circle", {
     cx: "16",
@@ -5128,14 +5180,15 @@ const Icon = {
     cy: "18",
     r: "1.8"
   })),
-  calendar: a => /*#__PURE__*/React.createElement("svg", _extends({}, a, {
+  calendar: a => /*#__PURE__*/React.createElement("svg", {
+    ...a,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
     strokeWidth: "1.8",
     strokeLinecap: "round",
     strokeLinejoin: "round"
-  }), /*#__PURE__*/React.createElement("rect", {
+  }, /*#__PURE__*/React.createElement("rect", {
     x: "3.5",
     y: "5",
     width: "17",
@@ -5404,7 +5457,7 @@ function ConsistencyHeatmap({
     }
   }), " logged and weighed"), /*#__PURE__*/React.createElement("span", {
     className: "ml-auto tnum"
-  }, "This week: ", logWk, "/7 logged \xB7 ", weighWk, "/7 weighed")));
+  }, "This week: ", logWk, "/7 logged · ", weighWk, "/7 weighed")));
 }
 // Adaptive weight-app chart. FEW points → your ACTUAL weight is the bold line with markers, so real
 // movement shows. MANY points (long range) → the smoothed TREND becomes the bold line (a moving
@@ -5692,7 +5745,7 @@ function TrendCard({
     style: {
       color: 'var(--accent)'
     }
-  }, "Try free \u203A")), valid.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "Try free ›")), valid.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "text-center py-8 px-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center mb-3 opacity-40"
@@ -6032,7 +6085,7 @@ function LegalDoc({
     onClick: onClose,
     "aria-label": "Close",
     className: "text-[#8A8A90] text-2xl leading-none shrink-0 ml-3"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "px-5 py-4 overflow-y-auto flex-1 min-h-0 space-y-3.5",
     style: {
       paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))'
@@ -6312,7 +6365,7 @@ function Auth() {
       setExisting(false);
     },
     className: "w-full text-[11px] text-[#8A8A90] mt-5 text-center"
-  }, "\u2190 Back to log in") : /*#__PURE__*/React.createElement("button", {
+  }, "← Back to log in") : /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setMode(mode === 'signup' ? 'login' : 'signup');
       setMsg('');
@@ -6474,14 +6527,14 @@ function BodyFatPicker({
   }, "Estimate body fat"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), mode === 'bands' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, "×")), mode === 'bands' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos."), /*#__PURE__*/React.createElement("button", {
     onClick: () => setMode('photos'),
     className: "w-full flex items-center gap-3 bg-[#4A9EEB]/12 border border-[#4A9EEB]/40 rounded-2xl p-3.5 mb-4 active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-2xl"
-  }, "\uD83D\uDCF8"), /*#__PURE__*/React.createElement("div", {
+  }, "📸"), /*#__PURE__*/React.createElement("div", {
     className: "text-left"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-semibold text-sm"
@@ -6531,7 +6584,7 @@ function BodyFatPicker({
   }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => setMode('bands'),
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Back"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and ", /*#__PURE__*/React.createElement("span", {
     className: "text-white"
@@ -6803,7 +6856,7 @@ function Wizard({
     }), /*#__PURE__*/React.createElement("button", {
       onClick: () => setBfPick(true),
       className: "text-[12px] text-[#4A9EEB] mt-1.5"
-    }, "Not sure? Estimate it visually \u2192")))
+    }, "Not sure? Estimate it visually →")))
   }, {
     t: 'Activity level',
     body: /*#__PURE__*/React.createElement("div", {
@@ -6964,9 +7017,9 @@ function Wizard({
       className: "uppercase tracking-widest text-[10px]"
     }, "How this was worked out"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text2)]"
-    }, "Calories:"), " maintenance \u2248 ", preview.estimatedTDEE, " kcal (Mifflin\u2013St Jeor BMR + your steps + training), ", f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal/day for a ${f.rateKgPerWeek} kg/week ${f.goalType}`, "."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
+    }, "Calories:"), " maintenance ≈ ", preview.estimatedTDEE, " kcal (Mifflin–St Jeor BMR + your steps + training), ", f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal/day for a ${f.rateKgPerWeek} kg/week ${f.goalType}`, "."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text2)]"
-    }, "Protein:"), " ", f.proteinManualG ? `${preview.protein_g} g (manual)` : `${(+f.proteinGPerKgLBM || 2.2).toFixed(1)} g/kg lean mass = ${preview.protein_g} g`, ". Based on Helms 2014 (2.3\u20133.1 g/kg lean in a deficit) and Jeff Nippard (1.8\u20132.7 g/kg bodyweight cutting)."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
+    }, "Protein:"), " ", f.proteinManualG ? `${preview.protein_g} g (manual)` : `${(+f.proteinGPerKgLBM || 2.2).toFixed(1)} g/kg lean mass = ${preview.protein_g} g`, ". Based on Helms 2014 (2.3–3.1 g/kg lean in a deficit) and Jeff Nippard (1.8–2.7 g/kg bodyweight cutting)."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text2)]"
     }, "Fat & carbs:"), " fat from your diet style (", f.dietStyle.replace('_', ' '), "), carbs fill the rest."), /*#__PURE__*/React.createElement("div", null, "Everything retunes automatically from your weekly check-ins."))) : /*#__PURE__*/React.createElement("div", null)
   }];
@@ -7144,7 +7197,7 @@ function StatusCard({
     style: {
       color: 'var(--accent)'
     }
-  }, "Progress \u203A")) : null;
+  }, "Progress ›")) : null;
   if (db.paused) return /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
@@ -7235,9 +7288,9 @@ function StatusCard({
     className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
   }, "This cycle: ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum"
-  }, logged, "/", cycleDays), " logged \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, logged, "/", cycleDays), " logged · ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum"
-  }, weighed, "/", cycleDays), " weighed", trendStr ? /*#__PURE__*/React.createElement(React.Fragment, null, " \xB7 trend ", /*#__PURE__*/React.createElement("span", {
+  }, weighed, "/", cycleDays), " weighed", trendStr ? /*#__PURE__*/React.createElement(React.Fragment, null, " · trend ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum"
   }, trendStr), " vs last") : null, ".", alreadyToday ? '' : ready ? onTrack ? ' Enough data, run your check-in.' : ` Aim for ${needLogs} logged, ${needWeigh} weigh-ins.` : ''), TrendSpark);
 }
@@ -7601,7 +7654,7 @@ function CheckInModal({
   }, "Check-in"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "hit text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), proposalShown && /*#__PURE__*/React.createElement("div", {
+  }, "×")), proposalShown && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-2"
   }, "This suggestion stays saved on your dashboard until you approve it or stick with your current macros."), result ? /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -7658,7 +7711,7 @@ function CheckInModal({
       style: {
         color: 'var(--fat)'
       }
-    }, " \u2726 shiny") : '', " joined your dex"), /*#__PURE__*/React.createElement("div", {
+    }, " ✦ shiny") : '', " joined your dex"), /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] leading-snug"
     }, "Showing up for the check-in is the win, whatever the scale said.")));
   })(), result.estimate && /*#__PURE__*/React.createElement("div", {
@@ -7707,7 +7760,7 @@ function CheckInModal({
     color: "var(--good)"
   }), " Coach's take"), coach.loading ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90]"
-  }, "Reading your week\u2026") : coach.error ? /*#__PURE__*/React.createElement("div", {
+  }, "Reading your week…") : coach.error ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90]"
   }, "Couldn't reach the AI coach this time, your numbers above are all set.") : /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] leading-snug"
@@ -7762,7 +7815,7 @@ function CheckInModal({
       style: {
         color: d > 0 ? 'var(--good)' : 'var(--fat)'
       }
-    }, d > 0 ? '+' : '', d, r.suf, " \xB7 was ", r.now, r.suf) : /*#__PURE__*/React.createElement("div", {
+    }, d > 0 ? '+' : '', d, r.suf, " · was ", r.now, r.suf) : /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] tnum text-[#8A8A90]"
     }, "no change"));
   })), result.newTargets.squeezed && /*#__PURE__*/React.createElement("div", {
@@ -7797,7 +7850,7 @@ function CheckInModal({
     }, "Start a 7-day diet break"));
   })(), !result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDDD3"), /*#__PURE__*/React.createElement("span", null, "Next check-in around ", fmtShortDay(nextCheckISO), ". ", result.estimate && result.estimate.weightOnly ? 'Keep weighing in regularly so it can retune accurately.' : 'Keep logging and weighing daily so it can retune accurately.')), window.MISPREMIUM === false && /*#__PURE__*/React.createElement(PremiumNudge, {
+  }, /*#__PURE__*/React.createElement("span", null, "🗓"), /*#__PURE__*/React.createElement("span", null, "Next check-in around ", fmtShortDay(nextCheckISO), ". ", result.estimate && result.estimate.weightOnly ? 'Keep weighing in regularly so it can retune accurately.' : 'Keep logging and weighing daily so it can retune accurately.')), window.MISPREMIUM === false && /*#__PURE__*/React.createElement(PremiumNudge, {
     db: db,
     update: update,
     className: "mt-3",
@@ -7820,7 +7873,7 @@ function CheckInModal({
     onClick: onClose
   }, "Done"), result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "text-[#34D399] text-sm mt-3"
-  }, "\u2713 New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "✓ New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Compares this cycle's average weight to the previous one, so one odd morning never throws it off."), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
@@ -7870,7 +7923,7 @@ function CheckInModal({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
-  }, "Not sure? Estimate it visually \u2192")), /*#__PURE__*/React.createElement(Field, {
+  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement(Field, {
     label: "How did tracking go this week?",
     hint: "This sets what your next targets are built from. We pre-filled it from your logging, so change it only if it's off."
   }, /*#__PURE__*/React.createElement(Seg, {
@@ -7887,7 +7940,7 @@ function CheckInModal({
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, lane === 'logged_all' ? 'We\'ll tune from your food and weigh-ins together, for the most precise targets.' : 'We\'ll steer by your weigh-ins alone. Your food log stays a day-to-day guide, never trusted for the maths.'), /*#__PURE__*/React.createElement(Field, {
     label: "Did you stick to your targets this cycle?",
-    hint: "Be honest, an adjustment only makes sense off a week you actually followed. Say \u201Coff-plan\u201D and I'll hold your macros rather than chase a misleading week."
+    hint: "Be honest, an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week."
   }, /*#__PURE__*/React.createElement(Seg, {
     value: adhered,
     onChange: setAdhered,
@@ -8001,7 +8054,7 @@ function WeighInEditModal({
   }, isNew ? 'Add weigh-in' : 'Edit weigh-in'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), isNew ? /*#__PURE__*/React.createElement(Field, {
+  }, "×")), isNew ? /*#__PURE__*/React.createElement(Field, {
     label: "Date"
   }, /*#__PURE__*/React.createElement("input", {
     type: "date",
@@ -8033,7 +8086,7 @@ function WeighInEditModal({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
-  }, "Not sure? Estimate it visually \u2192")), /*#__PURE__*/React.createElement("div", {
+  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -8087,7 +8140,7 @@ function WeighInLog({
     }
   }, "+ Add")), !entries.length ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] py-2"
-  }, "No weigh-ins yet. Weigh in from the dashboard, or add a past day with \u201C+ Add\u201D.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
+  }, "No weigh-ins yet. Weigh in from the dashboard, or add a past day with “+ Add”.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
     const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
     return /*#__PURE__*/React.createElement("div", {
       key: e.id || e.date,
@@ -8103,11 +8156,11 @@ function WeighInLog({
       className: "text-[13px] tnum font-semibold"
     }, fmtWeight(e.scale_weight, unit))), e.bodyfat != null && /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum mt-0.5"
-    }, e.bodyfat, "% bf \xB7 lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
+    }, e.bodyfat, "% bf · lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(e),
       className: "hit text-[#8A8A90] pl-3 pr-1 text-xl leading-none shrink-0",
       "aria-label": "Delete"
-    }, "\xD7"));
+    }, "×"));
   }), entries.length > CAP && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowAll(s => !s),
     className: "text-[12px] text-[#8A8A90] pt-2.5 border-t border-[#262629] w-full text-left"
@@ -8198,7 +8251,7 @@ function CheckInHistory({
       className: "text-[12px] text-[#C9C9CF]"
     }, periodDays ? `${fmtShortDay(startISO)} – ${fmtShortDay(c.date)}` : fmtShortDay(c.date), periodDays ? /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, " \xB7 ", periodDays, " days") : ''), /*#__PURE__*/React.createElement("span", {
+    }, " · ", periodDays, " days") : ''), /*#__PURE__*/React.createElement("span", {
       className: "pf text-[8px] px-2 py-1",
       style: {
         background: c.onTrack ? 'var(--accent-dim)' : 'transparent',
@@ -8230,7 +8283,7 @@ function CheckInHistory({
       }
     }, c.onTrack ? 'Compliant' : 'Short')), avgIn != null && wkRate != null && /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] tnum mt-1"
-    }, "Ate ~", avgIn.toLocaleString(), " kcal/day \u2192 trended ", fmtWeightDelta(wkRate, unit, '/wk')));
+    }, "Ate ~", avgIn.toLocaleString(), " kcal/day → trended ", fmtWeightDelta(wkRate, unit, '/wk')));
   }), rows.length > CAP && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowAll(s => !s),
     className: "text-[12px] text-[#8A8A90] pt-1 w-full text-left"
@@ -8361,7 +8414,7 @@ function ExpenditureCard({
     className: "text-[11px] text-[#8A8A90]"
   }, "kcal / day")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 tnum"
-  }, "most likely ", est.low.toLocaleString(), "\u2013", est.high.toLocaleString()), (() => {
+  }, "most likely ", est.low.toLocaleString(), "–", est.high.toLocaleString()), (() => {
     const adj = Math.abs(Math.round(est.weeklyChangeKg * E.KCAL_PER_KG / 7)); // kcal/day the weight trend is worth
     const sign = est.direction === 'up' ? '−' : '+'; // gaining => burn is below intake; losing => above
     return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
@@ -8378,7 +8431,7 @@ function ExpenditureCard({
         display: 'inline-block',
         transform: showMath ? 'rotate(180deg)' : 'none'
       }
-    }, "\u2304")), showMath && /*#__PURE__*/React.createElement("div", {
+    }, "⌄")), showMath && /*#__PURE__*/React.createElement("div", {
       className: "fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5"
     }, /*#__PURE__*/React.createElement("div", null, "Over the last ", est.windowDays, " days you ate about ", /*#__PURE__*/React.createElement("span", {
       className: "text-[var(--text)] tnum"
@@ -8388,7 +8441,7 @@ function ExpenditureCard({
       className: "text-[var(--text)] tnum"
     }, adj.toLocaleString()), " kcal a day ", est.direction === 'up' ? 'of surplus you stored' : 'you burned beyond what you ate', "."), /*#__PURE__*/React.createElement("div", {
       className: "pt-1 tnum"
-    }, est.avgKcal.toLocaleString(), " ", est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' ', "\u2248 ", /*#__PURE__*/React.createElement("span", {
+    }, est.avgKcal.toLocaleString(), " ", est.direction === 'flat' ? '' : sign + ' ' + adj.toLocaleString() + ' ', "≈ ", /*#__PURE__*/React.createElement("span", {
       className: "font-semibold",
       style: {
         color: 'var(--hero)'
@@ -9888,7 +9941,7 @@ function CompanionStrip({
     }
   }, mm.label, craveText ? /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, " \xB7 peckish") : ''))), craveText ? /*#__PURE__*/React.createElement("button", {
+  }, " · peckish") : ''))), craveText ? /*#__PURE__*/React.createElement("button", {
     onClick: onFeed,
     className: "pixel-btn py-2 px-3 text-[8px] pf shrink-0 inline-flex items-center gap-1.5",
     style: {
@@ -9905,7 +9958,7 @@ function CompanionStrip({
     style: {
       color: 'var(--accent)'
     }
-  }, "Play \u203A"));
+  }, "Play ›"));
 }
 // Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
 // incubation) gathered in one place at the top of the dex, each showing its reward reveal on the
@@ -9974,7 +10027,7 @@ function DexActiveSection({
     style: {
       color: 'var(--fat)'
     }
-  }, " \u2726") : ''), /*#__PURE__*/React.createElement("div", {
+  }, " ✦") : ''), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase",
     style: {
       color: CR_RARITY_COLOR[tcr.rarity]
@@ -10040,7 +10093,7 @@ function DexActiveSection({
     className: "flex items-center justify-between mb-0.5"
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase text-[#8A8A90]"
-  }, "This month\u2019s expedition"), /*#__PURE__*/React.createElement("span", {
+  }, "This month’s expedition"), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
       color: CR_RARITY_COLOR[expCr.rarity]
@@ -10222,7 +10275,7 @@ function PlayBuddyView({
     style: {
       color: mm.color
     }
-  }, mm.label), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, mm.label), " · ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
   }, line)), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mt-2"
@@ -10390,7 +10443,7 @@ function MacrodexModal({
     }, /*#__PURE__*/React.createElement("button", {
       onClick: () => setSel(null),
       className: "text-[11px] text-[#8A8A90] mb-3"
-    }, "\u2039 Back to dex"), /*#__PURE__*/React.createElement("div", {
+    }, "‹ Back to dex"), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-col items-center text-center"
     }, /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 mb-3",
@@ -10416,12 +10469,12 @@ function MacrodexModal({
       style: {
         color: 'var(--fat)'
       }
-    }, " \u2726") : ''), /*#__PURE__*/React.createElement("div", {
+    }, " ✦") : ''), /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase mt-1",
       style: {
         color: rc
       }
-    }, CR_RARITY_LABEL[cr.rarity], cr.migratory ? ' · Migratory' : '', " \xB7 ", bm.name)), /*#__PURE__*/React.createElement("div", {
+    }, CR_RARITY_LABEL[cr.rarity], cr.migratory ? ' · Migratory' : '', " · ", bm.name)), /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 mt-4 text-[11px]",
       style: {
         background: 'var(--surface3)',
@@ -10455,7 +10508,7 @@ function MacrodexModal({
   }, "Play"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4"
   }, [['buddy', 'Buddy'], ['catch', 'Catch'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
@@ -10578,7 +10631,7 @@ function MacrodexModal({
       className: "text-[11px] font-bold"
     }, it.name, " ", /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "\xD7", n)), /*#__PURE__*/React.createElement("div", {
+    }, "×", n)), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] leading-snug"
     }, it.desc)), it.kind === 'dex' && /*#__PURE__*/React.createElement("button", {
       onClick: () => id === 'lure' ? setLurePick(v => !v) : useItem(id),
@@ -10592,7 +10645,7 @@ function MacrodexModal({
     className: "mt-3 fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mb-1.5"
-  }, "Point the lure at a biome for today\u2019s catch:"), /*#__PURE__*/React.createElement("div", {
+  }, "Point the lure at a biome for today’s catch:"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-1.5"
   }, [['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
     key: v,
@@ -10721,14 +10774,14 @@ function TrophyCabinet({
       }
     })), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] tnum"
-    }, count, " so far", t.next != null ? ` · next tier at ${t.next}` : ' · maxed out', " \xB7 ", hint));
+    }, count, " so far", t.next != null ? ` · next tier at ${t.next}` : ' · maxed out', " · ", hint));
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[11px] text-[#8A8A90] mb-3"
-  }, "\u2039 Back to dex"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back to dex"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-3"
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
@@ -10799,7 +10852,7 @@ function TrophyCabinet({
       className: "text-[11px] font-bold"
     }, it.name, " ", /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "\xD7", items[id])), /*#__PURE__*/React.createElement("div", {
+    }, "×", items[id])), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] leading-snug"
     }, it.desc)));
   })) : /*#__PURE__*/React.createElement("div", {
@@ -10832,7 +10885,7 @@ function TrophyCabinet({
       style: {
         color: 'var(--fat)'
       }
-    }, "\u2726")));
+    }, "✦")));
   })) : /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
   }, "No shinies yet. A perfect macro day has a chance to gleam gold."));
@@ -10891,7 +10944,7 @@ function ShopView({
         color: afford ? '#1a1400' : 'var(--muted)',
         opacity: afford ? 1 : 0.7
       }
-    }, "\u2726 ", price));
+    }, "✦ ", price));
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -10900,12 +10953,12 @@ function ShopView({
   }, onBack ? /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[11px] text-[#8A8A90]"
-  }, "\u2039 Back") : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back") : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px]",
     style: {
       color: 'var(--fat)'
     }
-  }, "\u2726 ", amber, " Amber")), /*#__PURE__*/React.createElement("h2", {
+  }, "✦ ", amber, " Amber")), /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-1"
   }, "Amber Shop"), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-4 leading-snug"
@@ -10924,7 +10977,7 @@ function ShopView({
         fontSize: 18,
         filter: 'drop-shadow(0 0 5px #ff7a1a)'
       }
-    }, "\u2726") : /*#__PURE__*/React.createElement("span", {
+    }, "✦") : /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 20,
         lineHeight: 1
@@ -10949,7 +11002,7 @@ function ShopView({
           fontSize: 16,
           color: 'var(--pro)'
         }
-      }, "\u25C8"),
+      }, "◈"),
       ownedLabel: null
     });
   })), /*#__PURE__*/React.createElement("div", {
@@ -11557,7 +11610,7 @@ function FightModal({
     s
   }) => /*#__PURE__*/React.createElement("div", {
     className: "text-[8px] text-[#8A8A90] tnum"
-  }, "HP ", s.hp, " \xB7 ATK ", s.atk, " \xB7 DEF ", s.def);
+  }, "HP ", s.hp, " · ATK ", s.atk, " · DEF ", s.def);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center",
     onClick: onClose
@@ -11574,7 +11627,7 @@ function FightModal({
   }, "Dino fight"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), phase === 'egg' && /*#__PURE__*/React.createElement("div", {
+  }, "×")), phase === 'egg' && /*#__PURE__*/React.createElement("div", {
     className: "text-center py-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center mb-3"
@@ -11598,7 +11651,7 @@ function FightModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "Prestige ", fight.prestige, " \xB7"), /*#__PURE__*/React.createElement("span", null, ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`, " \xB7 ", fight.wins || 0, " wins \xB7 ", fight.trophies || 0), /*#__PURE__*/React.createElement(PixelGlyph, {
+  }, "Prestige ", fight.prestige, " ·"), /*#__PURE__*/React.createElement("span", null, ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0), /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
     size: 11
@@ -11723,7 +11776,7 @@ function FightModal({
     kind: "accent",
     className: "w-full mb-3.5",
     onClick: prestige
-  }, "Prestige \u2191, tougher ladder, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
+  }, "Prestige ↑, tougher ladder, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-3.5",
     onClick: () => {
@@ -11739,7 +11792,7 @@ function FightModal({
       });
       start(rival, 'ladder');
     }
-  }, "Fight ", rival.name, " \xB7 1 attempt today") : /*#__PURE__*/React.createElement("div", {
+  }, "Fight ", rival.name, " · 1 attempt today") : /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3.5 text-center text-[11px] text-[#8A8A90]",
     style: {
       background: 'var(--surface3)',
@@ -11759,7 +11812,7 @@ function FightModal({
     style: {
       color: 'var(--accent)'
     }
-  }, "Daily Hunt \xB7 ", daily.name), /*#__PURE__*/React.createElement("span", {
+  }, "Daily Hunt · ", daily.name), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase inline-flex items-center gap-1 text-[#8A8A90] shrink-0"
   }, "type ", /*#__PURE__*/React.createElement(TypeChip, {
     t: daily.type
@@ -11781,12 +11834,12 @@ function FightModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "\u25B2 ", fight.dailyStreak, "-day hunt streak \xB7 "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
+  }, "▲ ", fight.dailyStreak, "-day hunt streak · "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
     className: "font-bold",
     style: {
       color: 'var(--fat)'
     }
-  }, "\u2726 ", dailyAmber, " Amber"), ". A new hunt roams in tomorrow.")), dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
+  }, "✦ ", dailyAmber, " Amber"), ". A new hunt roams in tomorrow.")), dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full inline-flex items-center justify-center gap-2",
     onClick: () => start(daily, 'daily')
@@ -11807,7 +11860,7 @@ function FightModal({
       boxShadow: 'none',
       color: 'var(--good)'
     }
-  }, "Hunt cleared today \u2713 A fresh one lands tomorrow.")), (() => {
+  }, "Hunt cleared today ✓ A fresh one lands tomorrow.")), (() => {
     const s = fighter.stats;
     const rows = [{
       label: 'Protein',
@@ -11879,7 +11932,7 @@ function FightModal({
     style: {
       color: 'var(--danger)'
     }
-  }, "Weekly boss \xB7 ", boss.name), /*#__PURE__*/React.createElement("span", {
+  }, "Weekly boss · ", boss.name), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase inline-flex items-center gap-1 text-[#8A8A90] shrink-0"
   }, "weak ", /*#__PURE__*/React.createElement(TypeChip, {
     t: weakness
@@ -11929,7 +11982,7 @@ function FightModal({
     style: {
       opacity: 1 - i * 0.16
     }
-  }, "\u203A ", l))), phase === 'done' && /*#__PURE__*/React.createElement("div", {
+  }, "› ", l))), phase === 'done' && /*#__PURE__*/React.createElement("div", {
     className: "text-center fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-2xl mb-1",
@@ -11943,7 +11996,7 @@ function FightModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "\u2726 +", amberEarned, " Amber"), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "✦ +", amberEarned, " Amber"), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-3",
     style: {
       color: 'var(--good)'
@@ -11983,7 +12036,7 @@ function HomeWeightSpark({
     style: {
       color: 'var(--accent)'
     }
-  }, "Progress \u203A")), /*#__PURE__*/React.createElement("div", {
+  }, "Progress ›")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-end gap-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "shrink-0 leading-none"
@@ -11997,21 +12050,239 @@ function HomeWeightSpark({
   }))));
 }
 
-// Move & rest: today's steps (vs your activity-band goal) and last night's sleep (score ring vs
-// target) share one compact tile so the dashboard carries a single activity card. Both sync from
-// Google Health; steps stay hand-loggable, sleep's one editable is the nightly target. Steps also feed
-// the check-in's steps-first coaching. The morning-catch line and one sync status sit along the bottom.
-// One dial in the Today status card: the headline number with room to breathe, over an ascending
-// pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
+// ---------------------------------------------------------------------------------------------------
+// Recovery card ("Train hard, rest harder"): Move / Sleep / Ready as three comparable dials, reframed so
+// recovery reads as a pillar alongside food and training rather than a passive stats readout. All three
+// are driven by the Google Health integration; steps and the nightly target are set in Settings, never
+// here. Tapping a dial opens a read-only breakdown (with a 7-day trend and, for sleep, the stage mix) of
+// how its number was reached. One adaptive coaching line under the dials turns the numbers into a call to
+// action for the day.
+// ---------------------------------------------------------------------------------------------------
+
+// Sleep-band -> everyday word (Fitbit-style language) shared by the card and the sheet so they never drift.
+const SLEEP_BAND_WORD = {
+  poor: 'Poor',
+  ok: 'Fair',
+  good: 'Good',
+  great: 'Great'
+};
+// Day-of-week initial for the 7-day trend strips, keyed off the real weekday of each date.
+const REC_DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+function recLast7(today) {
+  return Array.from({
+    length: 7
+  }, (_, i) => shiftISO(today, -(6 - i)));
+}
+function recDow(iso) {
+  return REC_DOW[new Date(iso + 'T00:00:00').getDay()];
+}
+
+// Sleep-stage identity used by the stacked stage bar and its legend, in the order they stack.
+const SLEEP_STAGE_META = [{
+  key: 'deep',
+  label: 'Deep',
+  color: 'var(--sleep-deep)'
+}, {
+  key: 'rem',
+  label: 'REM',
+  color: 'var(--sleep-rem)'
+}, {
+  key: 'light',
+  label: 'Light',
+  color: 'var(--sleep-light)'
+}, {
+  key: 'awake',
+  label: 'Awake',
+  color: 'var(--sleep-awake)'
+}];
+// A single stacked bar of a night's sleep architecture (deep / REM / light / awake by proportion).
+function StageBar({
+  stages,
+  height = 14
+}) {
+  const total = SLEEP_STAGE_META.reduce((a, s) => a + (Number(stages[s.key]) || 0), 0) || 1;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex w-full overflow-hidden",
+    style: {
+      height,
+      border: '2px solid var(--border)'
+    },
+    "aria-hidden": "true"
+  }, SLEEP_STAGE_META.map(s => {
+    const pct = (Number(stages[s.key]) || 0) / total * 100;
+    return pct > 0 ? /*#__PURE__*/React.createElement("div", {
+      key: s.key,
+      style: {
+        width: pct + '%',
+        background: s.color
+      }
+    }) : null;
+  }));
+}
+// Legend rows for the stage bar: swatch + stage name + its figure. Deep / REM / light are shown as a
+// share of time ASLEEP (deep + REM + light) so they match the clinical ranges and the score breakdown
+// exactly (which also use share-of-sleep); awake has no place in that denominator, so it shows as a
+// duration instead. Keeping the same denominator as the score is what stops the two from drifting.
+function StageLegend({
+  stages
+}) {
+  const asleep = (Number(stages.deep) || 0) + (Number(stages.rem) || 0) + (Number(stages.light) || 0) || 1;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-x-3 gap-y-1 mt-2"
+  }, SLEEP_STAGE_META.map(s => {
+    const m = Number(stages[s.key]) || 0;
+    const val = s.key === 'awake' ? (Math.floor(m / 60) ? Math.floor(m / 60) + 'h ' : '') + Math.round(m % 60) + 'm' : Math.round(m / asleep * 100) + '%';
+    return /*#__PURE__*/React.createElement("div", {
+      key: s.key,
+      className: "flex items-center gap-1.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 9,
+        height: 9,
+        background: s.color,
+        display: 'inline-block',
+        border: '1px solid var(--border)'
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-[11px]",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, s.label, " ", /*#__PURE__*/React.createElement("span", {
+      className: "tnum",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, val)));
+  }));
+}
+
+// A 7-day trend strip: one bar per day, height = fill (0..1), the most recent day highlighted. Missing
+// days show a faint stub so gaps read as "no data" rather than zero, and an optional dashed line marks a
+// goal/threshold.
+function DayBars({
+  items,
+  color,
+  height = 40,
+  goalFill
+}) {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-end gap-1.5 relative",
+    style: {
+      height
+    }
+  }, goalFill != null && goalFill > 0 && goalFill <= 1 && /*#__PURE__*/React.createElement("div", {
+    className: "absolute left-0 right-0",
+    style: {
+      bottom: goalFill * 100 + '%',
+      borderTop: '2px dashed var(--muted2)',
+      opacity: 0.7
+    }
+  }), items.map((it, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "flex-1 flex items-end h-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "w-full",
+    title: it.title || '',
+    style: {
+      height: it.fill != null ? Math.max(7, Math.round(Math.min(1, it.fill) * 100)) + '%' : '7%',
+      background: it.fill == null ? 'var(--track)' : it.last ? color : 'var(--surface2)',
+      border: '2px solid ' + (it.fill == null ? 'var(--border)' : color),
+      opacity: it.fill == null ? 1 : it.last ? 1 : 0.6,
+      transition: 'height .3s'
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 mt-1"
+  }, items.map((it, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "flex-1 text-center pf",
+    style: {
+      fontSize: 7,
+      color: it.last ? color : 'var(--muted2)'
+    }
+  }, it.dow))));
+}
+
+// Last night's scored sleep record (or null), shared by the card, the coaching line and the sheet so the
+// three can never disagree. Returns { date, rec, stages|null, score } where score is null for a stage-less
+// night (no architecture to judge).
+function lastSleepNight(db) {
+  const sleep = db.sleep || {};
+  const dates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort();
+  const date = dates.length ? dates[dates.length - 1] : null;
+  const rec = date ? sleep[date] : null;
+  if (!rec) return null;
+  const stages = rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null ? {
+    deep: rec.deep || 0,
+    rem: rec.rem || 0,
+    light: rec.light || 0,
+    awake: rec.awake || 0
+  } : null;
+  return {
+    date,
+    rec,
+    stages,
+    score: Game.sleepScore(rec.min, stages)
+  };
+}
+// Consecutive days (ending today, or yesterday if today's steps haven't reached the goal yet) that hit the
+// step goal. Today being mid-day and short shouldn't break a real streak, so we don't count it against you.
+function stepStreak(db, today) {
+  if (stepGoalFor(db) <= 0) return 0;
+  let d = isStepGoalDay(db, today) ? today : shiftISO(today, -1);
+  let n = 0;
+  while (isStepGoalDay(db, d)) {
+    n++;
+    d = shiftISO(d, -1);
+  }
+  return n;
+}
+
+// The one adaptive line under the dials. It reads readiness (the recovery verdict) first, then colours it
+// with last night's sleep and today's steps, so the card always says something useful for the day ahead
+// and leans into "recovery is a pillar" rather than just showing three numbers.
+function recoveryCoachLine(db, today) {
+  const band = Game.readinessBand(readinessFor(db, today));
+  const night = lastSleepNight(db);
+  const sBand = night && isFinite(night.score) ? Game.sleepBand(night.score) : null;
+  const restedWell = sBand === 'good' || sBand === 'great';
+  const roughNight = sBand === 'poor' || sBand === 'ok';
+  const goal = stepGoalFor(db);
+  const goalHit = goal > 0 && (+(db.steps || {})[today] || 0) >= goal;
+  if (band === 'apex') return {
+    color: 'var(--good)',
+    text: restedWell ? "Apex readiness. Last night's sleep is paying off, so this is a strong day to push your training hard." : "Apex readiness. Recovery is on your side today, a good day to train hard."
+  };
+  if (band === 'drowsy') return {
+    color: 'var(--warn)',
+    text: roughNight ? "Drowsy. A short night is catching up with you, so go gentle today and aim for an earlier bedtime. Rest is training too." : "Drowsy. Your body is asking for a lighter day, so keep it easy and protect your sleep tonight. Rest is training too."
+  };
+  if (band === 'prowling') return {
+    color: 'var(--accent)',
+    text: goalHit ? "Steady readiness, a normal training day. Steps are already on target, so train as planned and protect tonight's 7 to 9 hours." : "Steady readiness, a normal training day. Keep moving, and aim for a full 7 to 9 hours tonight."
+  };
+  // No readiness score yet.
+  if (night && isFinite(night.score)) return {
+    color: 'var(--muted)',
+    text: "Add a wearable that reports HRV or resting heart rate to unlock a daily readiness score on top of your sleep."
+  };
+  return {
+    color: 'var(--muted)',
+    text: "Recovery is a pillar alongside food and training. Connect Google Health to score your sleep and readiness each morning."
+  };
+}
+
+// One dial in the recovery card: the headline number with room to breathe, a short status word, and an
+// ascending pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
 // Move / Sleep / Ready so the three read as one glanceable row on mobile.
 const DIAL_SEGMENTS = 7;
 function StatDial({
   label,
   fill,
   big,
+  status,
   sub,
   color,
-  subColor,
   active,
   onTap
 }) {
@@ -12031,12 +12302,19 @@ function StatDial({
       color: active ? color : 'var(--muted)'
     }
   }, label), /*#__PURE__*/React.createElement("div", {
-    className: "tnum font-bold leading-none mt-2 mb-2.5",
+    className: "tnum font-bold leading-none mt-2 mb-1.5",
     style: {
       fontSize: 25,
       color: has ? 'var(--text)' : 'var(--muted)'
     }
   }, big), /*#__PURE__*/React.createElement("div", {
+    className: "pf uppercase truncate w-full mb-2",
+    style: {
+      fontSize: 7,
+      minHeight: 9,
+      color: color
+    }
+  }, status || ''), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-[3px] w-full justify-center items-end",
     style: {
       height: 18
@@ -12057,14 +12335,14 @@ function StatDial({
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[9.5px] tnum truncate w-full mt-2 leading-tight",
     style: {
-      color: subColor || 'var(--muted)'
+      color: 'var(--muted)'
     }
   }, sub));
 }
 
-// Today status: Move / Sleep / Ready as three comparable dials, all driven by the Google Health
-// integration. Tapping a dial opens a read-only breakdown of how its number was reached, never an
-// editor: steps aren't hand-entered, and the step goal + sleep target are set in Settings.
+// The recovery card: Move / Sleep / Ready as three comparable dials, last night's sleep architecture, and
+// one adaptive coaching line. Tapping a dial opens a read-only breakdown of how its number was reached,
+// never an editor: steps aren't hand-entered, and the step goal + sleep target are set in Settings.
 function StepsSleepCard({
   db,
   update,
@@ -12072,31 +12350,22 @@ function StepsSleepCard({
 }) {
   const today = Store.todayISO();
   const kShort = n => n >= 1000 ? (Math.round(n / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(Math.round(n));
-  // Steps: today vs the activity-band (or custom) goal. Google Health is the only source; the tap-through
-  // sheet explains the number rather than letting the user type one in.
+  // Move: today vs the activity-band (or custom) goal. Google Health is the only source.
   const steps = db.steps || {};
   const todaySteps = +steps[today] || 0;
   const stepGoal = stepGoalFor(db);
   const stepPct = stepGoal ? Math.min(100, Math.round(todaySteps / stepGoal * 100)) : 0;
   const goalHit = stepGoal > 0 && todaySteps >= stepGoal;
+  const streak = stepStreak(db, today);
   // Sleep: last synced night, scored live against the science (recommended 7-9h), no editable target.
-  const sleep = db.sleep || {};
-  const sdates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort();
-  const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
-  const rec = lastDate ? sleep[lastDate] : null;
-  const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null) ? {
-    deep: rec.deep || 0,
-    rem: rec.rem || 0,
-    light: rec.light || 0,
-    awake: rec.awake || 0
-  } : null;
-  const score = rec ? Game.sleepScore(rec.min, stages) : null; // null = stage-less night, show hours
+  const night = lastSleepNight(db);
+  const score = night ? night.score : null; // null = stage-less night, show hours
   const hasScore = isFinite(score);
-  const sHrs = rec ? Math.floor(rec.min / 60) : 0,
-    sMins = rec ? rec.min % 60 : 0;
+  const sBand = hasScore ? Game.sleepBand(score) : null;
+  const sHrs = night ? Math.floor(night.rec.min / 60) : 0,
+    sMins = night ? night.rec.min % 60 : 0;
   const sHrsLabel = sHrs + 'h' + (sMins ? ' ' + sMins + 'm' : '');
-  // Readiness: our recovery score + the band it grants. The Fight buff it powers now lives in the
-  // Play hub's boss card, so this dial just shows the band and taps through to Play.
+  // Readiness: our recovery score + the band it grants (Apex / Prowling / Drowsy).
   const readiness = readinessFor(db, today);
   const rBand = Game.readinessBand(readiness);
   const rInfo = rBand ? Game.READY_BAND[rBand] : null;
@@ -12106,70 +12375,81 @@ function StepsSleepCard({
     drowsy: 'var(--warn)'
   };
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
-  // Tapping a dial opens a read-only breakdown of how that number was reached, never an editor.
-  // Steps come only from the Google Health integration; the sleep target and step goal are set in
-  // Settings. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
+  // Tapping a dial opens a read-only breakdown. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
   const [sheet, setSheet] = useState(null);
   const synced = db.googleHealth && db.googleHealth.connected;
-  // No connection and nothing to show would be three dead "-" dials. Slim to a one-line Connect strip
-  // instead, so Move/Sleep/Ready stays glanceable on Today without the clutter when it has no data.
-  const hasAny = synced || todaySteps > 0 || !!rec || readiness != null;
+  // Not connected and no data yet: a prominent invite to connect, so the health integration is a real
+  // call to action on Today rather than three dead "-" dials. Once there's data, show the dials.
+  const hasAny = synced || todaySteps > 0 || !!night || readiness != null;
   if (!hasAny) {
-    return /*#__PURE__*/React.createElement("div", {
-      className: "w-full flex items-center justify-between gap-3 pixel-box px-3 py-2.5 mb-4",
+    return /*#__PURE__*/React.createElement(Card, {
+      className: "p-4 mb-4",
       style: {
-        background: 'var(--surface3)'
+        background: 'var(--accent-dim)'
       }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "pf text-[9px] uppercase",
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase mb-1.5",
       style: {
-        color: 'var(--muted)'
+        color: 'var(--sleep)'
       }
-    }, "Move \xB7 Sleep \xB7 Ready"), ghConfigured() ? /*#__PURE__*/React.createElement("button", {
+    }, "Recovery"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] font-bold mb-1"
+    }, "Train hard, rest harder"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] leading-snug mb-3"
+    }, "Recovery is a pillar alongside food and training. Connect Google Health to track your steps, sleep and readiness here every day. Your steps and sleep also feed your dino's daily catches."), ghConfigured() ? /*#__PURE__*/React.createElement("button", {
       onClick: ghConnectGated,
-      className: "pf text-[8px] uppercase",
+      className: "pixel-btn w-full py-2.5 text-[10px]",
       style: {
-        color: 'var(--accent)'
+        background: 'var(--accent)',
+        color: 'var(--on-accent)'
       }
-    }, "Connect Health \u203A") : /*#__PURE__*/React.createElement("span", {
-      className: "pf text-[8px] uppercase",
+    }, "CONNECT GOOGLE HEALTH") : /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase text-center",
       style: {
         color: 'var(--muted)'
       }
-    }, "Health soon"));
+    }, "Health sync coming soon"));
   }
+  const coach = recoveryCoachLine(db, today);
   return /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-0.5 px-1"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase",
+    className: "flex items-center justify-between mb-1 px-1"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase leading-none",
     style: {
-      color: 'var(--muted)'
+      color: 'var(--sleep)'
     }
-  }, "Today"), synced ? /*#__PURE__*/React.createElement("span", {
+  }, "Recovery"), /*#__PURE__*/React.createElement("div", {
+    className: "pf uppercase mt-1.5",
+    style: {
+      fontSize: 7,
+      color: 'var(--muted2)'
+    }
+  }, "Train hard, rest harder")), synced ? /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
       color: 'var(--good)'
     }
-  }, "\u2713 Synced") : ghConfigured() ? /*#__PURE__*/React.createElement("button", {
+  }, "✓ Synced") : ghConfigured() ? /*#__PURE__*/React.createElement("button", {
     onClick: ghConnectGated,
     className: "pf text-[7px] uppercase",
     style: {
       color: 'var(--accent)'
     }
-  }, "Connect Health \u203A") : /*#__PURE__*/React.createElement("span", {
+  }, "Connect Health ›") : /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
       color: 'var(--muted)'
     }
   }, "Health soon")), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-stretch"
+    className: "flex items-stretch mt-1"
   }, /*#__PURE__*/React.createElement(StatDial, {
     label: "Move",
     fill: stepGoal > 0 && synced ? stepPct : null,
     color: "var(--good)",
     big: synced ? stepGoal > 0 ? goalHit ? '✓' : stepPct : '–' : '–',
+    status: goalHit ? 'Goal hit' : synced && stepGoal > 0 && todaySteps > 0 ? stepPct + '%' : '',
     sub: synced ? todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'No steps yet' : 'Not connected',
     onTap: () => setSheet('move')
   }), /*#__PURE__*/React.createElement("div", {
@@ -12181,9 +12461,10 @@ function StepsSleepCard({
   }), /*#__PURE__*/React.createElement(StatDial, {
     label: "Sleep",
     fill: hasScore ? Math.min(100, score) : null,
-    color: "var(--accent)",
-    big: rec ? hasScore ? score : sHrsLabel : '–',
-    sub: rec ? hasScore ? sHrsLabel : 'Hours only · no stages' : synced ? 'No data' : 'Not connected',
+    color: "var(--sleep)",
+    big: night ? hasScore ? score : sHrsLabel : '–',
+    status: hasScore ? SLEEP_BAND_WORD[sBand] : '',
+    sub: night ? hasScore ? sHrsLabel : 'Hours only' : synced ? 'No data' : 'Not connected',
     onTap: () => setSheet('sleep')
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -12197,10 +12478,51 @@ function StepsSleepCard({
     color: rColor,
     big: readiness != null ? readiness : '–',
     active: !!rBand,
-    sub: readiness != null ? rInfo ? rInfo.label : '' : synced ? 'Not enough data' : 'Not connected',
-    subColor: rBand ? rColor : 'var(--muted)',
+    status: rInfo ? rInfo.label : '',
+    sub: readiness != null ? '' : synced ? 'Not enough data' : 'Not connected',
     onTap: () => setSheet('ready')
-  })), sheet && /*#__PURE__*/React.createElement(MetricBreakdownSheet, {
+  })), night && night.stages && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setSheet('sleep'),
+    className: "w-full text-left mt-2.5 px-1",
+    style: {
+      background: 'transparent',
+      border: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf uppercase",
+    style: {
+      fontSize: 7,
+      color: 'var(--muted)'
+    }
+  }, "Last night"), /*#__PURE__*/React.createElement("span", {
+    className: "tnum text-[9.5px]",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, sHrsLabel, " asleep")), /*#__PURE__*/React.createElement(StageBar, {
+    stages: night.stages
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 pixel-box p-2.5",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      borderLeft: '4px solid ' + coach.color
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] leading-snug",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, coach.text)), streak >= 3 && /*#__PURE__*/React.createElement("div", {
+    className: "text-center mt-2 pf uppercase",
+    style: {
+      fontSize: 7,
+      color: 'var(--good)'
+    }
+  }, "Step-goal streak · ", streak, " days"), sheet && /*#__PURE__*/React.createElement(MetricBreakdownSheet, {
     metric: sheet,
     db: db,
     onClose: () => setSheet(null),
@@ -12238,7 +12560,7 @@ function MetricBreakdownSheet({
   };
   const TINT = {
     move: 'var(--good)',
-    sleep: 'var(--accent)',
+    sleep: 'var(--sleep)',
     ready: 'var(--text)'
   };
 
@@ -12304,6 +12626,17 @@ function MetricBreakdownSheet({
     const stepGoal = stepGoalFor(db);
     const custom = db.profile && +db.profile.stepGoal > 0;
     const pct = stepGoal ? Math.round(todaySteps / stepGoal * 100) : 0;
+    const streak = stepStreak(db, today);
+    // 7-day steps trend, bars scaled to the greater of the goal or the busiest day, with the goal marked.
+    const dates = recLast7(today);
+    const vals = dates.map(dt => +steps[dt] || 0);
+    const scale = Math.max(stepGoal || 0, ...vals, 1);
+    const trend = dates.map((dt, i) => ({
+      dow: recDow(dt),
+      last: dt === today,
+      fill: vals[i] > 0 ? vals[i] / scale : null,
+      title: k(vals[i]) + ' steps'
+    }));
     body = /*#__PURE__*/React.createElement("div", null, synced ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "flex items-end gap-2 mb-3"
     }, /*#__PURE__*/React.createElement("div", {
@@ -12317,7 +12650,7 @@ function MetricBreakdownSheet({
         color: 'var(--muted)'
       }
     }, "steps today", stepGoal > 0 ? ' · ' + pct + '% of goal' : '')), stepGoal > 0 && /*#__PURE__*/React.createElement("div", {
-      className: "pixel-bar mb-4",
+      className: "pixel-bar mb-2",
       style: {
         height: 10
       }
@@ -12326,7 +12659,24 @@ function MetricBreakdownSheet({
         width: Math.max(0, Math.min(100, pct)) + '%',
         background: 'var(--good)'
       }
-    })), /*#__PURE__*/React.createElement(PartRow, {
+    })), streak >= 2 && /*#__PURE__*/React.createElement("div", {
+      className: "pf uppercase mb-1",
+      style: {
+        fontSize: 8,
+        color: 'var(--good)'
+      }
+    }, "Step-goal streak · ", streak, " days"), /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-2 mt-5",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Last 7 days", stepGoal > 0 ? ' · dashed line is your goal' : ''), /*#__PURE__*/React.createElement(DayBars, {
+      items: trend,
+      color: "var(--good)",
+      goalFill: stepGoal > 0 ? Math.min(1, stepGoal / scale) : null
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "mt-5"
+    }, /*#__PURE__*/React.createElement(PartRow, {
       label: "Steps today",
       detail: 'Read from Google Health' + (lastSyncLabel ? ' · synced ' + lastSyncLabel : ''),
       value: k(todaySteps),
@@ -12336,7 +12686,7 @@ function MetricBreakdownSheet({
       detail: custom ? 'Your custom goal, set in Settings' : 'From your activity level, set in Settings',
       value: k(stepGoal),
       tint: "var(--good)"
-    }), /*#__PURE__*/React.createElement("p", {
+    })), /*#__PURE__*/React.createElement("p", {
       className: "text-[12px] mt-4 leading-snug",
       style: {
         color: 'var(--muted)'
@@ -12363,21 +12713,50 @@ function MetricBreakdownSheet({
   }
   if (metric === 'sleep') {
     const sleep = db.sleep || {};
-    const sdates = Object.keys(sleep).filter(dt => (sleep[dt] || {}).min > 0).sort();
-    const lastDate = sdates.length ? sdates[sdates.length - 1] : null;
-    const rec = lastDate ? sleep[lastDate] : null;
-    const stages = rec && (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null) ? {
-      deep: rec.deep || 0,
-      rem: rec.rem || 0,
-      light: rec.light || 0,
-      awake: rec.awake || 0
-    } : null;
+    const night = lastSleepNight(db);
+    const rec = night ? night.rec : null;
+    const stages = night ? night.stages : null;
     const p = rec ? Game.sleepScoreParts(rec.min, stages) : null;
-    const nightLabel = lastDate ? new Date(lastDate).toLocaleDateString('en-GB', {
+    const nightLabel = night ? new Date(night.date).toLocaleDateString('en-GB', {
       weekday: 'long',
       day: 'numeric',
       month: 'short'
     }) : null;
+    // 7-night score trend, recomputed from stages the same way the dial is, so it never drifts.
+    const dates = recLast7(today);
+    const trend = dates.map(dt => {
+      const r = sleep[dt];
+      if (!r || !(r.min > 0)) return {
+        dow: recDow(dt),
+        fill: null,
+        last: night && dt === night.date
+      };
+      const st = r.deep != null || r.rem != null || r.light != null || r.awake != null ? {
+        deep: r.deep || 0,
+        rem: r.rem || 0,
+        light: r.light || 0,
+        awake: r.awake || 0
+      } : null;
+      const sc = Game.sleepScore(r.min, st);
+      return {
+        dow: recDow(dt),
+        last: night && dt === night.date,
+        fill: isFinite(sc) ? sc / 100 : Math.min(1, r.min / 600),
+        title: isFinite(sc) ? sc + '/100' : hmLabel(r.min)
+      };
+    });
+    const hasTrend = trend.filter(t => t.fill != null).length >= 2;
+    const TrendBlock = hasTrend ? /*#__PURE__*/React.createElement("div", {
+      className: "mt-5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-2",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Last 7 nights"), /*#__PURE__*/React.createElement(DayBars, {
+      items: trend,
+      color: "var(--sleep)"
+    })) : null;
     if (!rec) {
       body = /*#__PURE__*/React.createElement("p", {
         className: "text-[13px] leading-snug",
@@ -12400,20 +12779,30 @@ function MetricBreakdownSheet({
       }, /*#__PURE__*/React.createElement("div", {
         className: "tnum text-4xl font-bold leading-none",
         style: {
-          color: 'var(--accent)'
+          color: 'var(--sleep)'
         }
       }, p.score), /*#__PURE__*/React.createElement("div", {
         className: "text-[13px] pb-1",
         style: {
           color: 'var(--muted)'
         }
-      }, "/ 100 \xB7 ", Game.sleepBand(p.score))), /*#__PURE__*/React.createElement("div", {
+      }, "/ 100 · ", SLEEP_BAND_WORD[Game.sleepBand(p.score)])), /*#__PURE__*/React.createElement("div", {
         className: "text-[12px] mb-4",
         style: {
           color: 'var(--muted)'
         }
-      }, nightLabel, " \xB7 ", hmLabel(p.asleepMin), " asleep \xB7 recommended 7-9h"), /*#__PURE__*/React.createElement("div", {
-        className: "pf text-[8px] uppercase mb-1",
+      }, nightLabel, " · ", hmLabel(p.asleepMin), " asleep · recommended 7-9h"), /*#__PURE__*/React.createElement("div", {
+        className: "pf text-[8px] uppercase mb-1.5",
+        style: {
+          color: 'var(--muted)'
+        }
+      }, "Sleep stages"), /*#__PURE__*/React.createElement(StageBar, {
+        stages: stages,
+        height: 18
+      }), /*#__PURE__*/React.createElement(StageLegend, {
+        stages: stages
+      }), TrendBlock, /*#__PURE__*/React.createElement("div", {
+        className: "pf text-[8px] uppercase mb-1 mt-5",
         style: {
           color: 'var(--muted)'
         }
@@ -12424,30 +12813,30 @@ function MetricBreakdownSheet({
         value: part.points,
         max: part.max,
         pct: part.points / part.max * 100,
-        tint: "var(--accent)"
+        tint: "var(--sleep)"
       })), /*#__PURE__*/React.createElement("p", {
         className: "text-[12px] mt-4 leading-snug",
         style: {
           color: 'var(--muted)'
         }
-      }, "Judged against the science rather than a target you set: adults need 7-9 hours, and efficiency plus healthy deep and REM sleep (measured against clinical ranges) all count, so a great score needs a genuinely good night, not just time in bed."));
+      }, "Judged against the science rather than a target you set. Any night inside the recommended 7 to 9 hours earns full duration credit; efficiency and healthy deep and REM sleep (measured against clinical ranges) decide the rest, so a top score still needs a genuinely restorative night, not just time in bed."));
     } else {
       body = /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
         className: "tnum text-4xl font-bold leading-none mb-1",
         style: {
-          color: 'var(--accent)'
+          color: 'var(--sleep)'
         }
       }, hmLabel(rec.min)), /*#__PURE__*/React.createElement("div", {
         className: "text-[12px] mb-4",
         style: {
           color: 'var(--muted)'
         }
-      }, nightLabel, " \xB7 asleep \xB7 recommended 7-9h"), /*#__PURE__*/React.createElement("p", {
+      }, nightLabel, " · asleep · recommended 7-9h"), /*#__PURE__*/React.createElement("p", {
         className: "text-[13px] leading-snug",
         style: {
           color: 'var(--text2)'
         }
-      }, "Your device reported how long you slept but not the sleep stages (deep, REM, light, awake), so there's no quality to score yet, so we're showing hours instead of a number out of 100. When your device syncs a staged night you'll get a full score."));
+      }, "Your device reported how long you slept but not the sleep stages (deep, REM, light, awake), so there's no quality to score yet, so we're showing hours instead of a number out of 100. When your device syncs a staged night you'll get a full score."), TrendBlock);
     }
   }
   if (metric === 'ready') {
@@ -12460,8 +12849,20 @@ function MetricBreakdownSheet({
       drowsy: 'var(--warn)'
     };
     const rColor = band ? R_COLOR[band] : 'var(--muted)';
+    // 7-day readiness trend, each day recomputed the same way today's is.
+    const dates = recLast7(today);
+    const trend = dates.map(dt => {
+      const sc = readinessFor(db, dt);
+      return {
+        dow: recDow(dt),
+        last: dt === today,
+        fill: sc != null ? sc / 100 : null,
+        title: sc != null ? String(sc) : ''
+      };
+    });
+    const hasTrend = trend.filter(t => t.fill != null).length >= 2;
     body = /*#__PURE__*/React.createElement("div", null, parts.score != null ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      className: "flex items-end gap-2 mb-1"
+      className: "flex items-end gap-2 mb-2"
     }, /*#__PURE__*/React.createElement("div", {
       className: "tnum text-4xl font-bold leading-none",
       style: {
@@ -12472,17 +12873,45 @@ function MetricBreakdownSheet({
       style: {
         color: rColor
       }
-    }, info ? info.label : '')), /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] mb-4 leading-snug",
+    }, info ? info.label : '')), info && /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-3 mb-3",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none',
+        borderLeft: '4px solid ' + rColor
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf uppercase mb-1",
+      style: {
+        fontSize: 7,
+        color: rColor
+      }
+    }, "Today"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] leading-snug",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, info.blurb)), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mb-2 leading-snug",
       style: {
         color: 'var(--muted)'
       }
-    }, info ? info.blurb : '', " Based on ", parts.anchorCount, " of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, "Based on ", parts.anchorCount, " of 3 recovery signals. The score renormalises to whatever's tracked, so more signals sharpen it."), hasTrend && /*#__PURE__*/React.createElement("div", {
+      className: "mt-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-2",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Last 7 days"), /*#__PURE__*/React.createElement(DayBars, {
+      items: trend,
+      color: rColor
+    }))) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "tnum text-4xl font-bold leading-none mb-2",
       style: {
         color: 'var(--muted)'
       }
-    }, "\u2013"), /*#__PURE__*/React.createElement("p", {
+    }, "–"), /*#__PURE__*/React.createElement("p", {
       className: "text-[13px] leading-snug mb-4",
       style: {
         color: 'var(--text2)'
@@ -12497,7 +12926,7 @@ function MetricBreakdownSheet({
         ghConnectGated();
       }
     }, "Connect Google Health"))), /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[8px] uppercase mb-1",
+      className: "pf text-[8px] uppercase mb-1 mt-5",
       style: {
         color: 'var(--muted)'
       }
@@ -12525,7 +12954,7 @@ function MetricBreakdownSheet({
         background: 'var(--surface2)',
         boxShadow: 'none'
       }
-    }, "See today's Fight buff \u2192"));
+    }, "See today's Fight buff →"));
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center",
@@ -12547,7 +12976,7 @@ function MetricBreakdownSheet({
     onClick: onClose,
     "aria-label": "Close",
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), body));
+  }, "×")), body));
 }
 
 // Prominent disclosure shown BEFORE the Google permission screen (required by Google for the restricted
@@ -12572,7 +13001,7 @@ function GoogleHealthDisclosure({
     style: {
       color: 'var(--accent)'
     }
-  }, "\u2713"), /*#__PURE__*/React.createElement("div", {
+  }, "✓"), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold"
@@ -12599,7 +13028,7 @@ function GoogleHealthDisclosure({
     onClick: onClose,
     "aria-label": "Close",
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("p", {
+  }, "×")), /*#__PURE__*/React.createElement("p", {
     className: "text-[13px] leading-snug mb-3",
     style: {
       color: 'var(--text2)'
@@ -12715,9 +13144,9 @@ function NameBuddyModal({
     px: 5
   }))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90]"
-  }, form.name, (b.evoStage || 0) > 0 && b.affinity ? ' ' + AFFINITY_META[b.affinity][0] : '', " \xB7 ", pers.label), /*#__PURE__*/React.createElement("div", {
+  }, form.name, (b.evoStage || 0) > 0 && b.affinity ? ' ' + AFFINITY_META[b.affinity][0] : '', " · ", pers.label), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-1 leading-snug"
-  }, pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1), ". Give it a name, it\u2019s yours to raise.")), /*#__PURE__*/React.createElement("input", {
+  }, pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1), ". Give it a name, it’s yours to raise.")), /*#__PURE__*/React.createElement("input", {
     value: name,
     onChange: e => setName(e.target.value),
     maxLength: 16,
@@ -12783,7 +13212,7 @@ function RecipeMini({
     style: {
       color: CAL
     }
-  }, Math.round(r.macros_per_serving.kcal)), " kcal \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, Math.round(r.macros_per_serving.kcal)), " kcal · ", /*#__PURE__*/React.createElement("span", {
     className: "font-bold",
     style: {
       color: PRO
@@ -13035,11 +13464,11 @@ function PremiumNudge({
     style: {
       color: 'var(--accent)'
     }
-  }, "Try Premium free \u203A"), /*#__PURE__*/React.createElement("button", {
+  }, "Try Premium free ›"), /*#__PURE__*/React.createElement("button", {
     onClick: dismiss,
     className: "hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5",
     "aria-label": "Not now"
-  }, "\xD7"));
+  }, "×"));
 }
 // One-time nudge for users who onboarded before weigh-in cadence existed: pick it once, then it's gone.
 // New users set it in onboarding, so this only shows while weighCadence is still unset.
@@ -13056,7 +13485,7 @@ function WeighCadencePrompt({
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
-  }, "New \xB7 Weigh-ins"), /*#__PURE__*/React.createElement("div", {
+  }, "New · Weigh-ins"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold mb-1"
   }, "How often will you weigh in?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
@@ -13528,7 +13957,7 @@ function Dashboard({
   }, /*#__PURE__*/React.createElement(Collapsible, {
     variant: "inline",
     label: "Balance carbs & fat",
-    sub: "Adjust \u203A"
+    sub: "Adjust ›"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Shift today's leftover calories between carbs and fat. Protein stays fixed."), /*#__PURE__*/React.createElement("div", {
@@ -13589,7 +14018,7 @@ function Dashboard({
       style: {
         color: 'var(--accent)'
       }
-    }, "Details \u203A"));
+    }, "Details ›"));
   })(), (() => {
     const dayEntries = entriesOn(db, today);
     if (!dayEntries.length) return null;
@@ -13600,7 +14029,7 @@ function Dashboard({
       className: "mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]"
     }, /*#__PURE__*/React.createElement("span", {
       className: "truncate"
-    }, nMeals, " meal", nMeals === 1 ? '' : 's', " \xB7 ", /*#__PURE__*/React.createElement("span", {
+    }, nMeals, " meal", nMeals === 1 ? '' : 's', " · ", /*#__PURE__*/React.createElement("span", {
       className: "tnum font-bold",
       style: {
         color: 'var(--text)'
@@ -13610,7 +14039,7 @@ function Dashboard({
       style: {
         color: 'var(--accent)'
       }
-    }, "Food log \u203A"));
+    }, "Food log ›"));
   })()), /*#__PURE__*/React.createElement(CompanionStrip, {
     db: db,
     bp: bp,
@@ -13715,7 +14144,7 @@ function CarryoverSheet({
   }, "Today's target"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 leading-snug"
   }, "Where today's ", et.eff.kcal, " kcal comes from."), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-4",
@@ -13742,7 +14171,7 @@ function CarryoverSheet({
     bold: true
   }))), cd && cd.days.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-3"
-  }, "This week \xB7 since ", dd(cd.cycleStart)), /*#__PURE__*/React.createElement("div", {
+  }, "This week · since ", dd(cd.cycleStart)), /*#__PURE__*/React.createElement("div", {
     className: "flex items-end gap-1.5 mb-2",
     style: {
       height: '64px'
@@ -13780,11 +14209,11 @@ function CarryoverSheet({
     style: {
       color: 'var(--good)'
     }
-  }, "\u25A0"), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+  }, "■"), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--fat)'
     }
-  }, "\u25A0"), " over target")), /*#__PURE__*/React.createElement("div", {
+  }, "■"), " over target")), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3 flex justify-between items-center tnum text-[11px]",
     style: {
       background: 'var(--surface3)',
@@ -14233,7 +14662,7 @@ function FoodLog({
       },
       className: "hit px-2 text-[#8A8A90] shrink-0",
       "aria-label": "Entry options"
-    }, "\u22EF"), menu === e.id && /*#__PURE__*/React.createElement("div", {
+    }, "⋯"), menu === e.id && /*#__PURE__*/React.createElement("div", {
       className: "absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl",
       onClick: ev => ev.stopPropagation()
     }, /*#__PURE__*/React.createElement("button", {
@@ -14257,7 +14686,7 @@ function FoodLog({
         setMenu(null);
       },
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Copy to\u2026"), /*#__PURE__*/React.createElement("button", {
+    }, "Copy to…"), /*#__PURE__*/React.createElement("button", {
       onClick: () => del(e),
       className: "block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]"
     }, "Delete")));
@@ -14315,7 +14744,7 @@ function FoodLog({
     onClick: () => setDate(shiftISO(date, -1)),
     className: "text-[#8A8A90] px-3 py-2 text-lg",
     "aria-label": "Previous day"
-  }, "\u2039"), /*#__PURE__*/React.createElement("button", {
+  }, "‹"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (!showCal) {
         const d = new Date(date + 'T00:00:00');
@@ -14339,7 +14768,7 @@ function FoodLog({
     onClick: () => setDate(shiftISO(date, 1)),
     className: "text-[#8A8A90] px-3 py-2 text-lg",
     "aria-label": "Next day"
-  }, "\u203A"), /*#__PURE__*/React.createElement("div", {
+  }, "›"), /*#__PURE__*/React.createElement("div", {
     className: "relative"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: ev => {
@@ -14350,7 +14779,7 @@ function FoodLog({
     },
     className: "hit px-2 py-2 text-[#8A8A90]",
     "aria-label": "Day options"
-  }, "\u22EF"), dayMenu && /*#__PURE__*/React.createElement("div", {
+  }, "⋯"), dayMenu && /*#__PURE__*/React.createElement("div", {
     className: "absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44",
     onClick: ev => ev.stopPropagation()
   }, /*#__PURE__*/React.createElement("button", {
@@ -14369,7 +14798,7 @@ function FoodLog({
       setDayMenu(false);
     },
     className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-  }, "Copy this day to\u2026")))), showCal && /*#__PURE__*/React.createElement(Card, {
+  }, "Copy this day to…")))), showCal && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4 fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-2"
@@ -14385,7 +14814,7 @@ function FoodLog({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u2039"), /*#__PURE__*/React.createElement("div", {
+  }, "‹"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold"
   }, monthName), /*#__PURE__*/React.createElement("button", {
     onClick: () => setCalMonth(c => {
@@ -14399,7 +14828,7 @@ function FoodLog({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u203A")), /*#__PURE__*/React.createElement("div", {
+  }, "›")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
     key: i
@@ -14481,7 +14910,7 @@ function FoodLog({
     className: "text-[11px] text-[#8A8A90] leading-relaxed"
   }, "Tap ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#4A9EEB] font-medium"
-  }, "+ Add food"), " on any meal below, or the big \u271A button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.")), meals.map((m, mi) => {
+  }, "+ Add food"), " on any meal below, or the big ✚ button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.")), meals.map((m, mi) => {
     const me = day.filter(e => e.meal_id === m.id);
     const ms = sumMacros(me);
     const mc = [PRO, CARB, FAT, 'var(--accent)', 'var(--weight)'][mi % 5];
@@ -14508,7 +14937,7 @@ function FoodLog({
       },
       className: "hit text-[#8A8A90] leading-none text-[10px] px-1 py-1.5",
       title: "Move up"
-    }, "\u25B2"), /*#__PURE__*/React.createElement("button", {
+    }, "▲"), /*#__PURE__*/React.createElement("button", {
       onClick: () => moveMeal(m, 1),
       disabled: mi === meals.length - 1,
       style: {
@@ -14516,7 +14945,7 @@ function FoodLog({
       },
       className: "hit text-[#8A8A90] leading-none text-[10px] px-1 py-1.5",
       title: "Move down"
-    }, "\u25BC")), editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
+    }, "▼")), editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
       autoFocus: true,
       value: mealName,
       onChange: e => setMealName(e.target.value),
@@ -14537,7 +14966,7 @@ function FoodLog({
       className: "truncate"
     }, m.name), /*#__PURE__*/React.createElement("span", {
       className: "text-[#5A5A62] text-[11px] shrink-0"
-    }, "\u270E"))), /*#__PURE__*/React.createElement("div", {
+    }, "✎"))), /*#__PURE__*/React.createElement("div", {
       className: "flex items-start gap-1.5"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum text-right leading-tight pt-0.5"
@@ -14565,7 +14994,7 @@ function FoodLog({
       },
       className: "hit px-1 text-[#8A8A90]",
       "aria-label": "Meal options"
-    }, "\u22EF"), mealMenu === m.id && /*#__PURE__*/React.createElement("div", {
+    }, "⋯"), mealMenu === m.id && /*#__PURE__*/React.createElement("div", {
       className: "absolute right-0 top-7 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-40",
       onClick: ev => ev.stopPropagation()
     }, me.length > 0 && /*#__PURE__*/React.createElement("button", {
@@ -14583,7 +15012,7 @@ function FoodLog({
         setMealMenu(null);
       },
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
-    }, "Copy to\u2026"), me.length > 0 && /*#__PURE__*/React.createElement("button", {
+    }, "Copy to…"), me.length > 0 && /*#__PURE__*/React.createElement("button", {
       onClick: () => clearMeal(m, me),
       className: "block w-full text-left px-4 py-2 hover:bg-[#262629]"
     }, "Clear food"), /*#__PURE__*/React.createElement("button", {
@@ -14833,7 +15262,7 @@ function NameSheet({
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "hit text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), hint && /*#__PURE__*/React.createElement("div", {
+  }, "×")), hint && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-snug"
   }, hint), /*#__PURE__*/React.createElement(TextInput, {
     autoFocus: true,
@@ -14951,7 +15380,7 @@ function EditEntryModal({
   }, title || 'Edit food'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "hit text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement(Field, {
+  }, "×")), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: name,
@@ -14967,7 +15396,7 @@ function EditEntryModal({
       boxShadow: 'none',
       background: 'var(--surface2)'
     }
-  }, "\u2212"), /*#__PURE__*/React.createElement("input", {
+  }, "−"), /*#__PURE__*/React.createElement("input", {
     value: amount,
     onChange: e => setAmount(e.target.value),
     inputMode: "decimal",
@@ -15021,7 +15450,7 @@ function EditEntryModal({
     className: "w-full accent-[#4A9EEB]"
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-[#8A8A90] mt-2 tnum"
-  }, "= ", total.carbs, "g carbs \xB7 ", total.fat, "g fat"))), /*#__PURE__*/React.createElement("button", {
+  }, "= ", total.carbs, "g carbs · ", total.fat, "g fat"))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setEdit(e => !e),
     className: "text-[11px] text-[#8A8A90] mb-2"
   }, edit ? '▲ Hide exact macros' : '▾ Numbers off? Edit exact macros'), edit && /*#__PURE__*/React.createElement("div", {
@@ -15128,14 +15557,14 @@ function CopyToModal({
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none shrink-0"
-  }, "\xD7")), count > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "×")), count > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] tnum mb-3",
     style: {
       color: 'var(--text2)'
     }
   }, count, count === 1 ? ' item' : ' items', " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#5A5A62]"
-  }, "\xB7"), " ", /*#__PURE__*/React.createElement("span", {
+  }, "·"), " ", /*#__PURE__*/React.createElement("span", {
     className: "font-semibold",
     style: {
       color: 'var(--accent)'
@@ -15180,7 +15609,7 @@ function CopyToModal({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u2039"), /*#__PURE__*/React.createElement("div", {
+  }, "‹"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold"
   }, monthName), /*#__PURE__*/React.createElement("button", {
     onClick: () => setCm(c => {
@@ -15194,7 +15623,7 @@ function CopyToModal({
       };
     }),
     className: "text-[#8A8A90] px-2 py-1"
-  }, "\u203A")), /*#__PURE__*/React.createElement("div", {
+  }, "›")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
     key: i
@@ -15360,11 +15789,12 @@ function FoodTab({
   };
   if (sel) {
     const sc = savedCorrection(db, sel.name);
-    if (sc) return /*#__PURE__*/React.createElement(ConfirmFood, _extends({}, parsedFromSaved(sc, 'Using the values you saved for this food.'), {
+    if (sc) return /*#__PURE__*/React.createElement(ConfirmFood, {
+      ...parsedFromSaved(sc, 'Using the values you saved for this food.'),
       onAdd: onPick,
       onCancel: () => setSel(null),
       onAskAI: onAskAI
-    }));
+    });
     return /*#__PURE__*/React.createElement(ConfirmFood, {
       note: "From the food database. Check it looks right before logging.",
       per100: true,
@@ -15409,9 +15839,9 @@ function FoodTab({
       textUnderlineOffset: 3
     },
     title: "Adjust the amount"
-  }, " \xB7 ", f.last_qty) : ''), /*#__PURE__*/React.createElement("div", {
+  }, " · ", f.last_qty) : ''), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] tnum"
-  }, Math.round(f.macros.kcal), " kcal \xB7 P", f.macros.protein, " C", f.macros.carbs, " F", f.macros.fat)), /*#__PURE__*/React.createElement("button", {
+  }, Math.round(f.macros.kcal), " kcal · P", f.macros.protein, " C", f.macros.carbs, " F", f.macros.fat)), /*#__PURE__*/React.createElement("button", {
     onClick: () => star(f),
     className: "hit px-2 shrink-0",
     style: {
@@ -15426,7 +15856,7 @@ function FoodTab({
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] mt-4 mb-2"
   }, t);
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TextInput, {
-    placeholder: "Search your foods and the database\u2026",
+    placeholder: "Search your foods and the database…",
     value: q,
     onChange: e => setQ(e.target.value)
   }), !query && /*#__PURE__*/React.createElement(React.Fragment, null, favs.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, Head('Favourites'), /*#__PURE__*/React.createElement("div", {
@@ -15447,13 +15877,13 @@ function FoodTab({
       className: "text-sm truncate"
     }, sm.name, " ", /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, "\xB7 ", sm.items.length, " item", sm.items.length === 1 ? '' : 's')), /*#__PURE__*/React.createElement("div", {
+    }, "· ", sm.items.length, " item", sm.items.length === 1 ? '' : 's')), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum"
-    }, Math.round(t.kcal), " kcal \xB7 P", Math.round(t.protein), " C", Math.round(t.carbs), " F", Math.round(t.fat))), /*#__PURE__*/React.createElement("button", {
+    }, Math.round(t.kcal), " kcal · P", Math.round(t.protein), " C", Math.round(t.carbs), " F", Math.round(t.fat))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(sm),
       className: "hit px-2 shrink-0 text-[#8A8A90] text-lg leading-none",
       "aria-label": "Delete saved meal"
-    }, "\xD7"));
+    }, "×"));
   }))), !favs.length && !myShown.length && !savedMeals.length && /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[#8A8A90] text-sm py-8"
   }, /*#__PURE__*/React.createElement("div", {
@@ -15465,7 +15895,7 @@ function FoodTab({
     className: "space-y-2"
   }, myShown.map(MyRow))), Head('Food database'), dbLoading && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#4A9EEB] py-2"
-  }, "Searching\u2026"), !dbLoading && dbResults.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Searching…"), !dbLoading && dbResults.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
   }, dbResults.map((r, idx) => /*#__PURE__*/React.createElement("button", {
     key: 'db' + idx,
@@ -15477,15 +15907,15 @@ function FoodTab({
     className: "text-sm truncate"
   }, r.name, r.brand ? /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, " \xB7 ", r.brand.split(',')[0]) : ''), /*#__PURE__*/React.createElement("div", {
+  }, " · ", r.brand.split(',')[0]) : ''), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] tnum"
-  }, Math.round(r.per100.kcal), " kcal \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, Math.round(r.per100.kcal), " kcal · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: PRO
     }
   }, "P ", Math.round(r.per100.protein), "g"), " / 100 g")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
-  }, "\u203A")))), !dbLoading && !dbResults.length && !dbErr && /*#__PURE__*/React.createElement("div", {
+  }, "›")))), !dbLoading && !dbResults.length && !dbErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] py-1"
   }, "No database matches."), dbErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] py-1"
@@ -15522,7 +15952,7 @@ function FoodTab({
     className: "text-[11px] text-[#8A8A90]"
   }, "Estimate a meal from text, voice or a photo")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
-  }, "\u203A")), /*#__PURE__*/React.createElement("button", {
+  }, "›")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setManual(true),
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
@@ -15544,7 +15974,7 @@ function FoodTab({
     className: "text-[11px] text-[#8A8A90]"
   }, "Type in the macros yourself")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
-  }, "\u203A"))), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, "›"))), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Delete "' + confirmDel.name + '"?',
     body: "This removes the saved meal. Food already logged from it stays in your diary.",
     confirmLabel: "Delete",
@@ -15704,7 +16134,7 @@ function LogSheet({
     onClick: onClose,
     className: "hit text-[#8A8A90] text-2xl leading-none",
     "aria-label": "Close"
-  }, "\xD7"))), /*#__PURE__*/React.createElement("div", {
+  }, "×"))), /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Meal"
@@ -15777,7 +16207,7 @@ function LogSheet({
       style: {
         color: 'var(--accent)'
       }
-    }, "Go unlimited \u203A"));
+    }, "Go unlimited ›"));
   })(), tab === 'food' && /*#__PURE__*/React.createElement(FoodTab, {
     db: db,
     update: update,
@@ -15885,9 +16315,9 @@ function RecentTab({
       textUnderlineOffset: 3
     },
     title: "Adjust the amount"
-  }, " \xB7 ", f.last_qty) : ''), /*#__PURE__*/React.createElement("div", {
+  }, " · ", f.last_qty) : ''), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] tnum"
-  }, Math.round(f.macros.kcal), " kcal \xB7 P", f.macros.protein, " C", f.macros.carbs, " F", f.macros.fat)), /*#__PURE__*/React.createElement("button", {
+  }, Math.round(f.macros.kcal), " kcal · P", f.macros.protein, " C", f.macros.carbs, " F", f.macros.fat)), /*#__PURE__*/React.createElement("button", {
     onClick: () => star(f),
     className: "hit px-2 shrink-0",
     style: {
@@ -15899,7 +16329,7 @@ function RecentTab({
     fill: "currentColor"
   })));
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TextInput, {
-    placeholder: "Search your foods\u2026",
+    placeholder: "Search your foods…",
     value: q,
     onChange: e => setQ(e.target.value)
   }), /*#__PURE__*/React.createElement("div", {
@@ -16001,14 +16431,15 @@ function ManualTab({
       });
     }
   }
-  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, _extends({}, parsed, {
+  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, {
+    ...parsed,
     onAdd: onPick,
     onCancel: () => setParsed(null)
-  }));
+  });
   return /*#__PURE__*/React.createElement("div", null, onCancel && /*#__PURE__*/React.createElement("button", {
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Back"), /*#__PURE__*/React.createElement(Field, {
+  }, "‹ Back"), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
@@ -16265,7 +16696,7 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] mb-2"
-  }, "\u2039 Back"), estimated ? /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), estimated ? /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
     style: {
       background: 'var(--accent-dim)',
@@ -16339,7 +16770,7 @@ function ConfirmFood({
     onClick: () => stepBy(-step),
     className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
     "aria-label": "Less"
-  }, "\u2212"), /*#__PURE__*/React.createElement("div", {
+  }, "−"), /*#__PURE__*/React.createElement("div", {
     className: "flex-1"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: amount,
@@ -16368,15 +16799,15 @@ function ConfirmFood({
     }
   }, final.kcal), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] text-[#8A8A90]"
-  }, "kcal"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, "kcal"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: PRO
     }
-  }, final.protein, "g P"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, final.protein, "g P"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: CARB
     }
-  }, final.carbs, "g C"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, final.carbs, "g C"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: FAT
     }
@@ -16429,7 +16860,7 @@ function ConfirmFood({
     style: {
       color: 'var(--accent)'
     }
-  }, "\u21BA Calculate calories from the macros (", atwaterK, " kcal)")), (onRescan || onAskAI) && !dodgy && /*#__PURE__*/React.createElement("div", {
+  }, "↺ Calculate calories from the macros (", atwaterK, " kcal)")), (onRescan || onAskAI) && !dodgy && /*#__PURE__*/React.createElement("div", {
     className: "mt-4 mb-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3 mb-2.5"
@@ -16464,7 +16895,7 @@ function ConfirmFood({
     className: "text-[11px] text-[#8A8A90]"
   }, "Wrong product, or the numbers look off")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
-  }, "\u203A")), onAskAI && /*#__PURE__*/React.createElement("button", {
+  }, "›")), onAskAI && /*#__PURE__*/React.createElement("button", {
     onClick: onAskAI,
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition"
   }, /*#__PURE__*/React.createElement("div", {
@@ -16481,7 +16912,7 @@ function ConfirmFood({
     className: "text-[11px] text-[#8A8A90]"
   }, "Not packaged, or nothing to scan")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
-  }, "\u203A"))), kcalHigh && /*#__PURE__*/React.createElement("div", {
+  }, "›"))), kcalHigh && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mt-3 mb-2",
     style: {
       background: 'var(--surface3)',
@@ -16648,7 +17079,7 @@ function AiConfirm({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] mb-2"
-  }, "\u2039 Start over"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Start over"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-snug"
@@ -16671,7 +17102,7 @@ function AiConfirm({
     onClick: () => setGrams(0, String(Math.max(0, (+only.grams || 0) - gStep(+only.grams || 0)))),
     className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
     "aria-label": "Less"
-  }, "\u2212"), /*#__PURE__*/React.createElement("div", {
+  }, "−"), /*#__PURE__*/React.createElement("div", {
     className: "flex-1"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: only.grams,
@@ -16689,7 +17120,7 @@ function AiConfirm({
     onClick: () => stepP(-0.25),
     className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
     "aria-label": "Less"
-  }, "\u2212"), /*#__PURE__*/React.createElement("div", {
+  }, "−"), /*#__PURE__*/React.createElement("div", {
     className: "flex-1"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: portion,
@@ -16701,7 +17132,7 @@ function AiConfirm({
     "aria-label": "More"
   }, "+"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] shrink-0 w-16 text-center"
-  }, "\xD7 meal")), /*#__PURE__*/React.createElement("div", {
+  }, "× meal")), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 my-3",
     style: {
       background: 'var(--surface3)',
@@ -16718,15 +17149,15 @@ function AiConfirm({
     }
   }, final.kcal), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] text-[#8A8A90]"
-  }, "kcal"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, "kcal"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: PRO
     }
-  }, final.protein, "g P"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, final.protein, "g P"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: CARB
     }
-  }, final.carbs, "g C"), " \xB7 ", /*#__PURE__*/React.createElement("span", {
+  }, final.carbs, "g C"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: FAT
     }
@@ -16745,7 +17176,7 @@ function AiConfirm({
     style: {
       color: 'var(--muted)'
     }
-  }, "Honest range: ", low, "\u2013", high, " kcal. Logging your total, no sugar-coating."), src.assumptions && /*#__PURE__*/React.createElement("div", {
+  }, "Honest range: ", low, "–", high, " kcal. Logging your total, no sugar-coating."), src.assumptions && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
   }, "Assumed: ", src.assumptions), hadItems && !single && /*#__PURE__*/React.createElement("button", {
     onClick: () => setEdit(e => !e),
@@ -16771,7 +17202,7 @@ function AiConfirm({
     }
   }, "YOU SAID")), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] tnum"
-  }, Math.round(it.kcal), " kcal \xB7 P", it.protein, " C", it.carbs, " F", it.fat)), /*#__PURE__*/React.createElement("input", {
+  }, Math.round(it.kcal), " kcal · P", it.protein, " C", it.carbs, " F", it.fat)), /*#__PURE__*/React.createElement("input", {
     type: "number",
     inputMode: "decimal",
     value: it.grams,
@@ -16783,9 +17214,9 @@ function AiConfirm({
     onClick: () => removeItem(i),
     className: "text-[#8A8A90] pl-1 text-lg leading-none shrink-0",
     "aria-label": `Remove ${it.name}`
-  }, "\xD7")), it.assumption && /*#__PURE__*/React.createElement("div", {
+  }, "×")), it.assumption && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
-  }, "\u21B3 ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "↳ ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] py-1"
   }, "All items removed. Tell the AI what to fix below, or start over.")), onRefine && /*#__PURE__*/React.createElement("div", {
     className: "rounded-2xl p-3 mb-3 border border-[#262629]",
@@ -17044,7 +17475,7 @@ function DescribeTab({
     style: {
       background: FAT
     }
-  }), "Listening\u2026 tap the mic again to stop."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }), "Listening… tap the mic again to stop."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mt-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
     key: i.id,
@@ -17055,7 +17486,7 @@ function DescribeTab({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => remImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
-  }, "\xD7")))), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("button", {
+  }, "×")))), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("button", {
     onClick: () => setCam(true),
     className: "w-full flex items-center justify-center gap-2 mt-3 pixel-btn py-3 text-[13px] font-medium",
     style: {
@@ -17217,7 +17648,7 @@ function MealEstimate({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Back"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Add a photo of the food or menu, plus any notes. The AI proposes what you ate, then you confirm or correct it. For a known chain it anchors to their published nutrition."), /*#__PURE__*/React.createElement("div", {
     className: "mb-1"
@@ -17239,7 +17670,7 @@ function MealEstimate({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => remove(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
-  }, "\xD7")))), /*#__PURE__*/React.createElement(Field, {
+  }, "×")))), /*#__PURE__*/React.createElement(Field, {
     label: "Notes (optional)",
     hint: "Name the place or dish for the best guess, plus size, sides and sauces."
   }, /*#__PURE__*/React.createElement("textarea", {
@@ -17402,7 +17833,7 @@ function LiveScanner({
     style: {
       background: 'rgba(255,255,255,0.18)'
     }
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
     ref: videoRef,
@@ -17656,7 +18087,7 @@ function LabelScanner({
     style: {
       background: 'rgba(255,255,255,0.18)'
     }
-  }, "\xD7"))), /*#__PURE__*/React.createElement("div", {
+  }, "×"))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
     ref: videoRef,
@@ -17775,7 +18206,7 @@ function MealCamera({
     style: {
       background: 'rgba(255,255,255,0.18)'
     }
-  }, "\xD7"))), /*#__PURE__*/React.createElement("div", {
+  }, "×"))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
     ref: videoRef,
@@ -18000,7 +18431,8 @@ function PhotoTab({
     }
     setBusy('');
   }
-  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, _extends({}, parsed, {
+  if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, {
+    ...parsed,
     asAlcohol: asAlcohol,
     onAdd: onPick,
     onCancel: () => {
@@ -18013,7 +18445,7 @@ function PhotoTab({
       setMode('label');
     } : undefined,
     onAskAI: onAskAI
-  }));
+  });
   if (mode === 'meal') return /*#__PURE__*/React.createElement(MealEstimate, {
     apiKey: key,
     db: db,
@@ -18332,7 +18764,7 @@ function AlcoholTab({
     onClick: () => setCount(c => Math.max(1, (+c || 1) - 1)),
     className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
     "aria-label": "Fewer"
-  }, "\u2212"), /*#__PURE__*/React.createElement("div", {
+  }, "−"), /*#__PURE__*/React.createElement("div", {
     className: "flex-1"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: count,
@@ -18361,7 +18793,7 @@ function AlcoholTab({
     className: "text-[12px] text-[#8A8A90]"
   }, "kcal"), n > 1 && /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] text-[#8A8A90]"
-  }, " \xB7 ", perDrink, " each"))), /*#__PURE__*/React.createElement("div", {
+  }, " · ", perDrink, " each"))), /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement(Seg, {
     value: manual ? 'manual' : 'auto',
@@ -18385,7 +18817,7 @@ function AlcoholTab({
     className: "w-full accent-[#4A9EEB]"
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-[#8A8A90] mt-2 tnum"
-  }, "= ", autoCarbs.toFixed(1), "g carbs \xB7 ", autoFat.toFixed(1), "g fat")) : /*#__PURE__*/React.createElement("div", {
+  }, "= ", autoCarbs.toFixed(1), "g carbs · ", autoFat.toFixed(1), "g fat")) : /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-3"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Protein"
@@ -18641,7 +19073,7 @@ function Goals({
     style: {
       color: 'var(--header-text)'
     }
-  }, "\u2039 Back"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px]",
     style: {
       color: 'var(--header-text)'
@@ -18711,7 +19143,7 @@ function Goals({
       style: {
         color: 'var(--fat)'
       }
-    }, "That's ~", rg.pctOfBW, "% of your bodyweight a week. The evidence favours \u2264 ~", mk, "/week (", rg.pctCap * 100, "% of bodyweight) ", g.goalType === 'gain' ? 'to keep the gain lean' : 'to protect muscle and stay sustainable', ".");
+    }, "That's ~", rg.pctOfBW, "% of your bodyweight a week. The evidence favours ≤ ~", mk, "/week (", rg.pctCap * 100, "% of bodyweight) ", g.goalType === 'gain' ? 'to keep the gain lean' : 'to protect muscle and stay sustainable', ".");
   })()), /*#__PURE__*/React.createElement(Field, {
     label: "Target weight",
     hint: "Optional. Shows your progress towards it."
@@ -18986,7 +19418,7 @@ function GhDebug({
     style: {
       color: 'var(--muted)'
     }
-  }, "Sleep \xB7 last synced nights"), sdates.length ? sdates.map(dt => {
+  }, "Sleep · last synced nights"), sdates.length ? sdates.map(dt => {
     const r = sleep[dt];
     return /*#__PURE__*/React.createElement("div", {
       key: dt,
@@ -18996,7 +19428,7 @@ function GhDebug({
       style: {
         color: 'var(--text)'
       }
-    }, dt), " \xB7 ", hm(r.min), " \xB7 ", hasStages(r) ? /*#__PURE__*/React.createElement("span", null, "deep ", r.deep || 0, " / rem ", r.rem || 0, " / light ", r.light || 0, " / awake ", r.awake || 0, " to score ", /*#__PURE__*/React.createElement("b", {
+    }, dt), " · ", hm(r.min), " · ", hasStages(r) ? /*#__PURE__*/React.createElement("span", null, "deep ", r.deep || 0, " / rem ", r.rem || 0, " / light ", r.light || 0, " / awake ", r.awake || 0, " to score ", /*#__PURE__*/React.createElement("b", {
       style: {
         color: 'var(--accent)'
       }
@@ -19012,7 +19444,7 @@ function GhDebug({
     style: {
       color: 'var(--muted)'
     }
-  }, "Recovery signals \xB7 HRV / resting HR"), hdates.length ? hdates.map(dt => {
+  }, "Recovery signals · HRV / resting HR"), hdates.length ? hdates.map(dt => {
     const h = health[dt];
     return /*#__PURE__*/React.createElement("div", {
       key: dt,
@@ -19022,7 +19454,7 @@ function GhDebug({
       style: {
         color: 'var(--text)'
       }
-    }, dt), " \xB7 HRV ", h.hrv != null ? h.hrv : '-', h.hrvBaseline != null ? ' (base ' + h.hrvBaseline + ')' : '', " \xB7 RHR ", h.rhr != null ? h.rhr : '-', h.rhrBaseline != null ? ' (base ' + h.rhrBaseline + ')' : '');
+    }, dt), " · HRV ", h.hrv != null ? h.hrv : '-', h.hrvBaseline != null ? ' (base ' + h.hrvBaseline + ')' : '', " · RHR ", h.rhr != null ? h.rhr : '-', h.rhrBaseline != null ? ' (base ' + h.rhrBaseline + ')' : '');
   }) : /*#__PURE__*/React.createElement("div", {
     style: row
   }, "No HRV / resting-HR synced yet - readiness needs ~14 days of these to build a baseline.")));
@@ -19199,7 +19631,7 @@ function SettingsTab({
       }
     }, "Google Health connected"), gh.lastSync ? /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
-    }, " \xB7 synced ", new Date(gh.lastSync).toLocaleDateString('en-GB', {
+    }, " · synced ", new Date(gh.lastSync).toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short'
     })) : ''), /*#__PURE__*/React.createElement("div", {
@@ -19258,7 +19690,7 @@ function SettingsTab({
     },
     className: "hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5",
     title: "Move up"
-  }, "\u25B2"), /*#__PURE__*/React.createElement("button", {
+  }, "▲"), /*#__PURE__*/React.createElement("button", {
     onClick: () => moveDef(m.id, 1),
     disabled: i === dm.length - 1,
     style: {
@@ -19266,7 +19698,7 @@ function SettingsTab({
     },
     className: "hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5",
     title: "Move down"
-  }, "\u25BC")), /*#__PURE__*/React.createElement(TextInput, {
+  }, "▼")), /*#__PURE__*/React.createElement(TextInput, {
     value: m.name,
     onChange: e => renameDef(m.id, e.target.value)
   }), /*#__PURE__*/React.createElement("button", {
@@ -19277,7 +19709,7 @@ function SettingsTab({
     },
     className: "hit px-2 text-[#8A8A90] text-lg leading-none shrink-0",
     title: "Remove"
-  }, "\xD7"))), /*#__PURE__*/React.createElement("button", {
+  }, "×"))), /*#__PURE__*/React.createElement("button", {
     onClick: addDef,
     className: "w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1"
   }, "+ Add default meal")), /*#__PURE__*/React.createElement(Section, {
@@ -19644,7 +20076,7 @@ function AdvancedTab({
     className: "font-semibold"
   }, "Across the week"), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--good)]"
-  }, "\xB7 recommended."), " ", /*#__PURE__*/React.createElement("span", {
+  }, "· recommended."), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
   }, "Your running surplus or deficit spreads evenly over the days you have left. Gentle: one big day barely nudges any single day.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
@@ -19685,7 +20117,7 @@ function AdvancedTab({
     className: "font-semibold"
   }, "Most days"), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[var(--good)]"
-  }, "\xB7 recommended."), " ", /*#__PURE__*/React.createElement("span", {
+  }, "· recommended."), " ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
   }, "Weigh in when you can and we average out the daily wobble for the most accurate read.")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "font-semibold"
@@ -20130,7 +20562,7 @@ function FeedbackSheet({
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none",
     "aria-label": "Close"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Report a bug, request a feature, or ask a question. We read every message", email ? ' and may reply to ' + email : '', "."), /*#__PURE__*/React.createElement(Field, {
     label: "Type"
@@ -20192,7 +20624,7 @@ function FeedbackSheet({
       }
     }, st.label), /*#__PURE__*/React.createElement("span", {
       className: "text-[10px] text-[#8A8A90]"
-    }, ticketKindLabel(t.kind), " \xB7 ", adminFmtWhen(t.created_at))), /*#__PURE__*/React.createElement("div", {
+    }, ticketKindLabel(t.kind), " · ", adminFmtWhen(t.created_at))), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] whitespace-pre-wrap break-words"
     }, t.body), t.admin_reply && /*#__PURE__*/React.createElement("div", {
       className: "mt-2 pixel-box p-2.5 bg-[#0F0F12]",
@@ -20422,7 +20854,7 @@ function More({
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]/70 pt-4 text-center"
-  }, BRAND, " \xB7 your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, BRAND, " · your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Reset all data & start over?",
     body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy.",
     confirmLabel: "Reset everything",
@@ -20757,7 +21189,7 @@ function AdminTicketCard({
     }
   }, st.label), /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] text-[#8A8A90]"
-  }, ticketKindLabel(t.kind), " \xB7 ", adminFmtWhen(t.created_at))), /*#__PURE__*/React.createElement("div", {
+  }, ticketKindLabel(t.kind), " · ", adminFmtWhen(t.created_at))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-1 break-all"
   }, t.email || 'unknown'), /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] whitespace-pre-wrap break-words mb-3"
@@ -20777,7 +21209,7 @@ function AdminTicketCard({
     rows: 2,
     maxLength: 4000,
     className: inputCls + ' resize-y leading-relaxed text-[12px]',
-    placeholder: "Write a reply (the user sees this; sending resolves the ticket)\u2026"
+    placeholder: "Write a reply (the user sees this; sending resolves the ticket)…"
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mt-2 gap-2"
   }, err ? /*#__PURE__*/React.createElement("span", {
@@ -21045,9 +21477,9 @@ function AdminAudit() {
     className: "font-medium"
   }, r.target_email.split('@')[0])), r.meta && r.meta.cap != null && /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, " \u2192 $", Number(r.meta.cap).toFixed(2)), r.meta && r.meta.default_cap_usd != null && /*#__PURE__*/React.createElement("span", {
+  }, " → $", Number(r.meta.cap).toFixed(2)), r.meta && r.meta.default_cap_usd != null && /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, " \u2192 $", Number(r.meta.default_cap_usd).toFixed(2))), /*#__PURE__*/React.createElement("div", {
+  }, " → $", Number(r.meta.default_cap_usd).toFixed(2))), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-0.5"
   }, adminFmtWhen(r.created_at)))));
 }
@@ -21203,9 +21635,9 @@ function AdminAiLogDetail({
   }, aiFeatureLabel(log.feature)), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 break-words"
-  }, log.email || 'unknown', " \xB7 ", adminFmtWhen(log.created_at), " \xB7 ", modelLabel(log.model), log.status === 'error' ? ' · error' : ''), log.images && log.images.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, log.email || 'unknown', " · ", adminFmtWhen(log.created_at), " · ", modelLabel(log.model), log.status === 'error' ? ' · error' : ''), log.images && log.images.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
@@ -21236,7 +21668,7 @@ function AdminAiLogDetail({
     }
   }, resultDisplay)), /*#__PURE__*/React.createElement("details", null, /*#__PURE__*/React.createElement("summary", {
     className: "pf text-[8px] uppercase text-[#8A8A90] cursor-pointer"
-  }, "Prompt sent \u25BE"), /*#__PURE__*/React.createElement("pre", {
+  }, "Prompt sent ▾"), /*#__PURE__*/React.createElement("pre", {
     className: "text-[10px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2",
     style: {
       boxShadow: 'none',
@@ -21354,7 +21786,7 @@ function AdminPanel({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[12px] text-[#8A8A90] mb-2"
-  }, "\u2190 Back to menu"), /*#__PURE__*/React.createElement(PageHeader, {
+  }, "← Back to menu"), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Admin",
     title: "Control room"
   }), /*#__PURE__*/React.createElement("div", {
@@ -21387,11 +21819,11 @@ function AdminPanel({
     value: total,
     sub: unconfirmed ? unconfirmed + ' unconfirmed' : 'all confirmed'
   }), /*#__PURE__*/React.createElement(AdminStat, {
-    label: "New \xB7 7 days",
+    label: "New · 7 days",
     value: signups7,
     sub: active7 + ' active this wk'
   }), /*#__PURE__*/React.createElement(AdminStat, {
-    label: "AI spend \xB7 mo",
+    label: "AI spend · mo",
     value: '$' + totalSpend.toFixed(2),
     sub: totalCalls + ' call' + (totalCalls === 1 ? '' : 's')
   }), /*#__PURE__*/React.createElement(AdminStat, {
@@ -21408,7 +21840,7 @@ function AdminPanel({
     className: "flex items-center justify-between text-[12px]"
   }, /*#__PURE__*/React.createElement("span", null, modelLabel(m.model)), /*#__PURE__*/React.createElement("span", {
     className: "tnum text-[#8A8A90]"
-  }, "$", (+m.spend_usd).toFixed(3), " \xB7 ", m.calls, " call", m.calls === 1 ? '' : 's')))), /*#__PURE__*/React.createElement("div", {
+  }, "$", (+m.spend_usd).toFixed(3), " · ", m.calls, " call", m.calls === 1 ? '' : 's')))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3"
   }, "Haiku runs the cheap label OCR; Sonnet runs meal estimates and body-fat reads. Tracked from this update, so it can sit below the historical total above.")), /*#__PURE__*/React.createElement(Section, {
     title: "Cost controls",
@@ -21433,7 +21865,7 @@ function AdminPanel({
     }
   }, capMsg), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3"
-  }, "Current default $", defaultCap.toFixed(2), "/mo \xB7 total spend across all users this month $", totalSpend.toFixed(2), ".")), /*#__PURE__*/React.createElement(AdminTiers, null), /*#__PURE__*/React.createElement(Section, {
+  }, "Current default $", defaultCap.toFixed(2), "/mo · total spend across all users this month $", totalSpend.toFixed(2), ".")), /*#__PURE__*/React.createElement(AdminTiers, null), /*#__PURE__*/React.createElement(Section, {
     title: "Dev tools",
     className: "mt-6"
   }, /*#__PURE__*/React.createElement("div", {
@@ -21451,7 +21883,7 @@ function AdminPanel({
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: q,
     onChange: e => setQ(e.target.value),
-    placeholder: "Search by email\u2026"
+    placeholder: "Search by email…"
   }), /*#__PURE__*/React.createElement("div", {
     className: "mt-4 space-y-2"
   }, filtered.map(u => /*#__PURE__*/React.createElement("button", {
@@ -21484,7 +21916,7 @@ function AdminPanel({
     }
   }, "unconfirmed")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
-  }, u.hasProfile ? u.goal || 'profile set' : 'no profile', " \xB7 joined ", adminFmtDate(u.created_at))), /*#__PURE__*/React.createElement("div", {
+  }, u.hasProfile ? u.goal || 'profile set' : 'no profile', " · joined ", adminFmtDate(u.created_at))), /*#__PURE__*/React.createElement("div", {
     className: "text-right shrink-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] tnum",
@@ -21779,8 +22211,8 @@ function AdminUserDetail({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[12px] text-[#8A8A90] mb-2"
-  }, "\u2190 All users"), /*#__PURE__*/React.createElement(PageHeader, {
-    kicker: "Admin \xB7 user",
+  }, "← All users"), /*#__PURE__*/React.createElement(PageHeader, {
+    kicker: "Admin · user",
     title: u.email
   }), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3",
@@ -22309,7 +22741,7 @@ function InviteSheet({
     onClick: onClose,
     className: "text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Share your link. When a friend joins with it, you ", /*#__PURE__*/React.createElement("b", {
     style: {
@@ -22930,12 +23362,12 @@ function MobileHeader({
     style: {
       color: 'var(--fat)'
     }
-  }, "\u25B2 ", streak, "d"), /*#__PURE__*/React.createElement("span", {
+  }, "▲ ", streak, "d"), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
       color: 'var(--accent)'
     }
-  }, "Play \u203A")))), /*#__PURE__*/React.createElement("button", {
+  }, "Play ›")))), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenYou,
     "aria-label": "You and settings",
     className: "pixel-box flex items-center gap-1.5 h-9 px-2.5",
@@ -23090,7 +23522,7 @@ function OnboardingChecklist({
     }),
     className: "text-[#8A8A90] text-lg leading-none",
     "aria-label": "Dismiss"
-  }, "\xD7"))), /*#__PURE__*/React.createElement("div", {
+  }, "×"))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2.5 leading-snug"
   }, "Tap a task to jump straight to it. Each one ticks off on its own once you have done it."), /*#__PURE__*/React.createElement("div", {
     className: "space-y-0.5"
@@ -23116,7 +23548,7 @@ function OnboardingChecklist({
     style: {
       color: 'var(--accent)'
     }
-  }, "DO IT \u203A")))));
+  }, "DO IT ›")))));
 }
 
 /* ========================== Recipes module ==========================
@@ -23279,7 +23711,7 @@ function RecipeCard({
     }
   }, c.label))), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]"
-  }, /*#__PURE__*/React.createElement("span", null, Rcp.platformLabel(recipe.source_platform)), /*#__PURE__*/React.createElement("span", null, "\xB7"), /*#__PURE__*/React.createElement("span", null, "serves ", recipe.servings), m.protein > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, "\xB7"), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, Rcp.platformLabel(recipe.source_platform)), /*#__PURE__*/React.createElement("span", null, "·"), /*#__PURE__*/React.createElement("span", null, "serves ", recipe.servings), m.protein > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, "·"), /*#__PURE__*/React.createElement("span", {
     className: "tnum font-semibold",
     style: {
       color: PRO
@@ -23446,7 +23878,7 @@ function RecipeImport({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Back"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-3"
   }, "Import a recipe"), /*#__PURE__*/React.createElement(ShareTip, {
     className: "mb-4"
@@ -23502,7 +23934,7 @@ function RecipeImport({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => removeImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
-  }, "\xD7")))), imgs.length > 0 && /*#__PURE__*/React.createElement(Btn, {
+  }, "×")))), imgs.length > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
     onClick: fromImages
@@ -23554,7 +23986,7 @@ function RecipeReview({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Start over"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Start over"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
   }, "Check the recipe"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-snug"
@@ -23609,7 +24041,7 @@ function RecipeReview({
     onClick: () => delIng(i),
     className: "text-[#8A8A90] text-lg leading-none px-1",
     "aria-label": "Remove"
-  }, "\xD7")))), /*#__PURE__*/React.createElement("button", {
+  }, "×")))), /*#__PURE__*/React.createElement("button", {
     onClick: addIng,
     className: "text-[12px] mb-4",
     style: {
@@ -23734,10 +24166,10 @@ function IngredientMacroSheet({
     className: "flex items-center justify-between mb-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-base font-bold truncate pr-2"
-  }, "Macros for \u201C", line, "\u201D"), /*#__PURE__*/React.createElement("button", {
+  }, "Macros for “", line, "”"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-[#8A8A90] text-xl leading-none shrink-0"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3"
   }, "Set exact numbers for this ingredient if the automatic ones look off."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-3"
@@ -23788,7 +24220,7 @@ function IngredientMacroSheet({
     className: "text-[13px] font-semibold truncate"
   }, p.name), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] truncate"
-  }, p.brand ? p.brand + ' · ' : '', p.per100.kcal, " kcal / 100 g \xB7 P", Math.round(p.per100.protein), " C", Math.round(p.per100.carbs), " F", Math.round(p.per100.fat)))))), tab === 'manual' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, p.brand ? p.brand + ' · ' : '', p.per100.kcal, " kcal / 100 g · P", Math.round(p.per100.protein), " C", Math.round(p.per100.carbs), " F", Math.round(p.per100.fat)))))), tab === 'manual' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-2"
   }, "The macros for this whole ingredient (your own food or off a label)."), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-5 gap-2 mb-3"
@@ -23909,7 +24341,7 @@ function CookMode({
     onClick: onClose,
     className: "text-2xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "h-1 mx-5 mb-2 rounded-full",
     style: {
       background: 'var(--surface3)'
@@ -24006,7 +24438,7 @@ function CookMode({
   }, "Ingredients"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowIng(false),
     className: "text-xl leading-none text-[#8A8A90]"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "space-y-0.5"
   }, recipe.ingredients.map(ing => /*#__PURE__*/React.createElement("button", {
     key: ing.id,
@@ -24274,7 +24706,7 @@ function RecipeDetail({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[13px] text-[#8A8A90]"
-  }, "\u2039 Recipes"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => onSaveMeal(recipe),
@@ -24352,7 +24784,7 @@ function RecipeDetail({
     target: "_blank",
     rel: "noreferrer",
     className: "underline"
-  }, "watch original"), " \xB7 tap anything to make it yours"), /*#__PURE__*/React.createElement("div", {
+  }, "watch original"), " · tap anything to make it yours"), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap items-center gap-2 mb-1"
   }, (recipe.collections || []).map(c => /*#__PURE__*/React.createElement("span", {
     key: c,
@@ -24372,7 +24804,7 @@ function RecipeDetail({
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
-  }, "Macros per serving \xB7 ", srcNote), fit && hasMacros && /*#__PURE__*/React.createElement("span", {
+  }, "Macros per serving · ", srcNote), fit && hasMacros && /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px] uppercase px-2 py-1 rounded",
     style: {
       color: fitColor,
@@ -24383,7 +24815,7 @@ function RecipeDetail({
     per: true
   }) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90]"
-  }, "Tap \u201CWork out the macros\u201D below."), fit && rem && hasMacros && /*#__PURE__*/React.createElement("div", {
+  }, "Tap “Work out the macros” below."), fit && rem && hasMacros && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
   }, "A serving is ", Math.round(recipe.macros_per_serving.kcal), " kcal; you have ", Math.max(0, Math.round(rem.kcal)), " kcal and ", Math.max(0, Math.round(rem.protein)), " g protein left today.")), hasMacros && (() => {
     const s = Rcp.macroSanity(recipe);
@@ -24474,7 +24906,7 @@ function RecipeDetail({
     onClick: () => removeIng(ing.id),
     className: "text-[#8A8A90] text-xl leading-none px-1 shrink-0",
     "aria-label": "Remove"
-  }, "\xD7")))), /*#__PURE__*/React.createElement("button", {
+  }, "×")))), /*#__PURE__*/React.createElement("button", {
     onClick: addIng,
     className: "text-[12px] mb-2",
     style: {
@@ -24493,15 +24925,15 @@ function RecipeDetail({
     style: {
       color: 'var(--good)'
     }
-  }, "\u25CF"), " database"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+  }, "●"), " database"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
       color: '#F5C542'
     }
-  }, "\u25CF"), " AI estimate"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+  }, "●"), " AI estimate"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--accent)'
     }
-  }, "\u25CF"), " your number")), /*#__PURE__*/React.createElement("div", {
+  }, "●"), " your number")), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2.5 mb-4"
   }, recipe.ingredients.map(ing => /*#__PURE__*/React.createElement("div", {
     key: ing.id,
@@ -24533,9 +24965,9 @@ function RecipeDetail({
     style: {
       color: srcDot[ing.resolved.source] || MUTED
     }
-  }, "\u25CF"), ing.macros ? /*#__PURE__*/React.createElement("span", {
+  }, "●"), ing.macros ? /*#__PURE__*/React.createElement("span", {
     className: "tnum"
-  }, Math.round(ing.macros.kcal), " kcal \xB7 P", Math.round(ing.macros.protein), " C", Math.round(ing.macros.carbs), " F", Math.round(ing.macros.fat), " \xB7 edit") : /*#__PURE__*/React.createElement("span", null, "Set macros \u203A"))))))), /*#__PURE__*/React.createElement(Btn, {
+  }, Math.round(ing.macros.kcal), " kcal · P", Math.round(ing.macros.protein), " C", Math.round(ing.macros.carbs), " F", Math.round(ing.macros.fat), " · edit") : /*#__PURE__*/React.createElement("span", null, "Set macros ›"))))))), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full mb-5",
     onClick: addMissingToShopping,
@@ -24627,7 +25059,7 @@ function RecipeDetail({
     className: "text-base font-bold mb-1"
   }, "Log ", recipe.title), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, portion === 1 ? '1 serving' : portion + ' servings', " \xB7 ", Math.round((recipe.macros_per_serving.kcal || 0) * portion), " kcal \xB7 P", Math.round((recipe.macros_per_serving.protein || 0) * portion), pickMeal.mode === 'items' ? ' · itemised' : ''), pickMeal.batch && /*#__PURE__*/React.createElement("div", {
+  }, portion === 1 ? '1 serving' : portion + ' servings', " · ", Math.round((recipe.macros_per_serving.kcal || 0) * portion), " kcal · P", Math.round((recipe.macros_per_serving.protein || 0) * portion), pickMeal.mode === 'items' ? ' · itemised' : ''), pickMeal.batch && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
     style: {
       background: 'var(--surface3)',
@@ -24646,9 +25078,9 @@ function RecipeDetail({
       }
     }, /*#__PURE__*/React.createElement("span", {
       className: "font-bold"
-    }, "Fit my day \xB7 ", fp, "\xD7"), /*#__PURE__*/React.createElement("span", {
+    }, "Fit my day · ", fp, "×"), /*#__PURE__*/React.createElement("span", {
       className: "tnum"
-    }, Math.round((recipe.macros_per_serving.kcal || 0) * fp), " kcal \xB7 P", Math.round((recipe.macros_per_serving.protein || 0) * fp))) : null;
+    }, Math.round((recipe.macros_per_serving.kcal || 0) * fp), " kcal · P", Math.round((recipe.macros_per_serving.protein || 0) * fp))) : null;
   })(), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-4 flex-wrap"
   }, [0.5, 1, 1.5, 2].map(pp => /*#__PURE__*/React.createElement("button", {
@@ -24660,7 +25092,7 @@ function RecipeDetail({
       color: portion === pp ? '#111' : 'var(--text)',
       fontWeight: portion === pp ? 700 : 400
     }
-  }, pp === 1 ? '1' : pp, "\xD7")), /*#__PURE__*/React.createElement("input", {
+  }, pp === 1 ? '1' : pp, "×")), /*#__PURE__*/React.createElement("input", {
     type: "number",
     step: "0.25",
     min: "0.25",
@@ -24709,7 +25141,7 @@ function RecipeDetail({
   }, "Collections"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowColl(false),
     className: "text-xl leading-none text-[#8A8A90]"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways)."), /*#__PURE__*/React.createElement("div", {
     className: "space-y-1.5 mb-4"
@@ -24919,13 +25351,13 @@ function ShoppingListView({
     onClick: () => removeItem(it.id),
     "aria-label": "Remove",
     className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0"
-  }, "\xD7"));
+  }, "×"));
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Recipes"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3 gap-3"
   }, /*#__PURE__*/React.createElement("h1", {
     className: "text-xl font-bold"
@@ -25004,7 +25436,7 @@ function ShoppingListView({
       color: 'var(--muted)',
       border: '1px solid var(--border)'
     }
-  }, n, " \xD7"))))));
+  }, n, " ×"))))));
 }
 // The Cook game layer: cooking recipes climbs a Chef level, so the gamification spans the recipe hub
 // and reinforces the two moats (fun + recipes). Progression only for now; a Chef-exclusive Macrodex
@@ -25039,7 +25471,7 @@ function ChefCard({
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase tracking-widest text-[#8A8A90]"
-  }, "Community cookbook \xB7 Lvl ", bt.level), /*#__PURE__*/React.createElement("div", {
+  }, "Community cookbook · Lvl ", bt.level), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold truncate"
   }, name)), /*#__PURE__*/React.createElement("div", {
     className: "text-right shrink-0 pl-3"
@@ -25130,7 +25562,7 @@ function PublicRecipeCard({
     style: {
       color: 'rgba(255,255,255,0.72)'
     }
-  }, "\xB7 ", creditName(pub)) : null)))));
+  }, "· ", creditName(pub)) : null)))));
 }
 // The global recipe hub: a Mob-style library of every recipe the community has imported, credited to
 // the original creator. Browsing it is the paid feature (free users get a blurred taste + upsell);
@@ -25245,14 +25677,14 @@ function RecipeHub({
         background: 'var(--bg)',
         color: 'var(--text)'
       }
-    }, "\uD83D\uDD12 Unlock the library"))), /*#__PURE__*/React.createElement("button", {
+    }, "🔒 Unlock the library"))), /*#__PURE__*/React.createElement("button", {
       onClick: onGoMine,
       className: "w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug"
     }, "Free forever: import, upload and cook your own recipes. ", /*#__PURE__*/React.createElement("span", {
       style: {
         color: 'var(--accent)'
       }
-    }, "Your cookbook \u203A")));
+    }, "Your cookbook ›")));
   }
 
   // Lead with the axes that actually help you decide what to cook (Mob-style): fit, protein, speed,
@@ -25275,7 +25707,7 @@ function RecipeHub({
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement(TextInput, {
-    placeholder: "Search recipes or creators\u2026",
+    placeholder: "Search recipes or creators…",
     value: q,
     onChange: e => setQ(e.target.value)
   }), /*#__PURE__*/React.createElement("div", {
@@ -25357,7 +25789,7 @@ function RecipeHub({
   }, preview.title), /*#__PURE__*/React.createElement("button", {
     onClick: () => setPreview(null),
     className: "text-xl leading-none text-[#8A8A90] shrink-0"
-  }, "\xD7")), preview.source_author ? /*#__PURE__*/React.createElement("div", {
+  }, "×")), preview.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
       color: 'var(--accent)'
@@ -25366,7 +25798,7 @@ function RecipeHub({
     className: "p-3 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
-  }, "Per serving \xB7 serves ", preview.servings), /*#__PURE__*/React.createElement(RecipeMacroStrip, {
+  }, "Per serving · serves ", preview.servings), /*#__PURE__*/React.createElement(RecipeMacroStrip, {
     macros: pm,
     per: true
   })), /*#__PURE__*/React.createElement("div", {
@@ -25502,7 +25934,7 @@ function PlannerView({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Recipes"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Cook",
@@ -25516,7 +25948,7 @@ function PlannerView({
       background: 'var(--surface3)'
     },
     "aria-label": "Previous week"
-  }, "\u2039"), /*#__PURE__*/React.createElement("button", {
+  }, "‹"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setWeekStart(today),
     className: "pixel-box px-2.5 h-9 text-[11px] flex items-center",
     style: {
@@ -25529,7 +25961,7 @@ function PlannerView({
       background: 'var(--surface3)'
     },
     "aria-label": "Next week"
-  }, "\u203A"))), plannedCount > 0 && /*#__PURE__*/React.createElement(Btn, {
+  }, "›"))), plannedCount > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full mb-4 flex items-center justify-center gap-2",
     onClick: addWeekToShopping
@@ -25594,7 +26026,7 @@ function PlannerView({
         onClick: () => removeFromPlan(p.id),
         className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0",
         "aria-label": "Remove"
-      }, "\xD7"));
+      }, "×"));
     })), /*#__PURE__*/React.createElement("button", {
       onClick: () => setPick(d),
       className: "text-[12px]",
@@ -25622,7 +26054,7 @@ function PlannerView({
   })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setPick(null),
     className: "text-xl leading-none text-[#8A8A90]"
-  }, "\xD7")), priced.length ? /*#__PURE__*/React.createElement("div", {
+  }, "×")), priced.length ? /*#__PURE__*/React.createElement("div", {
     className: "space-y-1.5"
   }, priced.map(r => /*#__PURE__*/React.createElement("button", {
     key: r.id,
@@ -25709,7 +26141,7 @@ function RecipeFilterSheet({
     onClick: onClose,
     className: "text-xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
@@ -25731,7 +26163,7 @@ function RecipeFilterSheet({
       color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)',
       fontWeight: filter === 'fav' ? 700 : 400
     }
-  }, "\u2605 Favourites"), setFilter && (collections || []).map(c => {
+  }, "★ Favourites"), setFilter && (collections || []).map(c => {
     const on = filter === c;
     return /*#__PURE__*/React.createElement("button", {
       key: c,
@@ -25846,7 +26278,7 @@ function FridgeMatchCard({
     className: "flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#8A8A90]"
   }, kcal > 0 && /*#__PURE__*/React.createElement("span", {
     className: "tnum"
-  }, Math.round(kcal), " kcal"), kcal > 0 && /*#__PURE__*/React.createElement("span", null, "\xB7"), m.makeable ? /*#__PURE__*/React.createElement("span", {
+  }, Math.round(kcal), " kcal"), kcal > 0 && /*#__PURE__*/React.createElement("span", null, "·"), m.makeable ? /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--good)'
     }
@@ -25854,7 +26286,7 @@ function FridgeMatchCard({
     style: {
       color: '#F5C542'
     }
-  }, m.missingCount, " to grab"), /*#__PURE__*/React.createElement("span", null, "\xB7"), /*#__PURE__*/React.createElement("span", null, "uses ", m.haveCount, " you have")), !m.makeable && /*#__PURE__*/React.createElement("div", {
+  }, m.missingCount, " to grab"), /*#__PURE__*/React.createElement("span", null, "·"), /*#__PURE__*/React.createElement("span", null, "uses ", m.haveCount, " you have")), !m.makeable && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5 leading-snug"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
@@ -25898,7 +26330,7 @@ function TransientCookLog({
     className: "text-base font-bold mb-1"
   }, "Nice one. Log ", recipe.title, "?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, portion === 1 ? '1 serving' : portion + ' servings', " \xB7 ", Math.round((m.kcal || 0) * portion), " kcal \xB7 P", Math.round((m.protein || 0) * portion)), m.kcal > 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, portion === 1 ? '1 serving' : portion + ' servings', " · ", Math.round((m.kcal || 0) * portion), " kcal · P", Math.round((m.protein || 0) * portion)), m.kcal > 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
   }, "How much"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-4 flex-wrap"
@@ -25911,7 +26343,7 @@ function TransientCookLog({
       color: portion === pp ? '#111' : 'var(--text)',
       fontWeight: portion === pp ? 700 : 400
     }
-  }, pp === 1 ? '1' : pp, "\xD7")), /*#__PURE__*/React.createElement("input", {
+  }, pp === 1 ? '1' : pp, "×")), /*#__PURE__*/React.createElement("input", {
     type: "number",
     step: "0.25",
     min: "0.25",
@@ -26093,7 +26525,7 @@ function FridgeScan({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "text-[13px] text-[#8A8A90] mb-3"
-  }, "\u2039 Recipes"), /*#__PURE__*/React.createElement("div", {
+  }, "‹ Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
   }, "Cook from your fridge"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-snug"
@@ -26119,7 +26551,7 @@ function FridgeScan({
   }), /*#__PURE__*/React.createElement("button", {
     onClick: () => removeImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
-  }, "\xD7")))), imgs.length > 0 && items === null && /*#__PURE__*/React.createElement(Btn, {
+  }, "×")))), imgs.length > 0 && items === null && /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
     onClick: scan
@@ -26131,7 +26563,7 @@ function FridgeScan({
     className: "text-[13px] font-bold mb-1"
   }, "We spotted these"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-snug"
-  }, "Tap \xD7 to remove anything we got wrong, and add anything we missed (things behind other things, or in jars, are easy to miss). Your pantry staples are already assumed."), /*#__PURE__*/React.createElement("div", {
+  }, "Tap × to remove anything we got wrong, and add anything we missed (things behind other things, or in jars, are easy to miss). Your pantry staples are already assumed."), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap gap-2 mb-3"
   }, (items || []).map((it, i) => /*#__PURE__*/React.createElement("span", {
     key: i,
@@ -26143,7 +26575,7 @@ function FridgeScan({
     onClick: () => removeItem(i),
     className: "text-[#8A8A90] text-sm leading-none",
     "aria-label": "Remove"
-  }, "\xD7"))), !(items || []).length && /*#__PURE__*/React.createElement("span", {
+  }, "×"))), !(items || []).length && /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] text-[#8A8A90]"
   }, "Nothing yet - add what you have below.")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mb-5"
@@ -26152,7 +26584,7 @@ function FridgeScan({
     onChange: e => setAdd(e.target.value),
     onKeyDown: e => e.key === 'Enter' && addItem(),
     className: inputCls + ' flex-1',
-    placeholder: "Add an ingredient\u2026"
+    placeholder: "Add an ingredient…"
   }), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     onClick: addItem
@@ -26194,7 +26626,7 @@ function FridgeScan({
   }, /*#__PURE__*/React.createElement(PixelDino, {
     size: 16,
     color: "var(--accent)"
-  }), " Checking the Discover library\u2026"), !results.length && !commLoading && /*#__PURE__*/React.createElement(Card, {
+  }), " Checking the Discover library…"), !results.length && !commLoading && /*#__PURE__*/React.createElement(Card, {
     className: "p-5 text-center"
   }, !recipes.length && !isPremium ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold mb-1"
@@ -26217,7 +26649,7 @@ function FridgeScan({
     style: {
       color: 'var(--accent)'
     }
-  }, "Discover library"), " to what's in your fridge \u203A")), pubSheet && /*#__PURE__*/React.createElement(FridgePublicSheet, {
+  }, "Discover library"), " to what's in your fridge ›")), pubSheet && /*#__PURE__*/React.createElement(FridgePublicSheet, {
     m: pubSheet,
     onClose: () => setPubSheet(null),
     onCook: pub => {
@@ -26281,7 +26713,7 @@ function FridgePublicSheet({
   }, r.title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "text-xl leading-none text-[#8A8A90] shrink-0"
-  }, "\xD7")), pub && pub.source_author ? /*#__PURE__*/React.createElement("div", {
+  }, "×")), pub && pub.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
       color: 'var(--accent)'
@@ -26295,7 +26727,7 @@ function FridgePublicSheet({
     className: "p-3 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
-  }, "Per serving \xB7 serves ", r.servings), /*#__PURE__*/React.createElement(RecipeMacroStrip, {
+  }, "Per serving · serves ", r.servings), /*#__PURE__*/React.createElement(RecipeMacroStrip, {
     macros: mm,
     per: true
   })), !m.makeable && /*#__PURE__*/React.createElement("div", {
@@ -26673,7 +27105,7 @@ function Recipes({
     style: {
       opacity: 0.7
     }
-  }, "\uD83D\uDD12")), /*#__PURE__*/React.createElement("button", {
+  }, "🔒")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setHubTab('mine'),
     className: `flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`,
     style: {
@@ -26717,7 +27149,7 @@ function Recipes({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex-1 min-w-0"
   }, /*#__PURE__*/React.createElement(TextInput, {
-    placeholder: "Search your recipes\u2026",
+    placeholder: "Search your recipes…",
     value: q,
     onChange: e => setQ(e.target.value)
   })), /*#__PURE__*/React.createElement("button", {
@@ -26893,7 +27325,7 @@ function Paywall({
     onClick: onClose,
     "aria-label": "Close",
     className: "text-[#8A8A90] text-2xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("h2", {
+  }, "×")), /*#__PURE__*/React.createElement("h2", {
     className: "text-xl font-bold mb-1"
   }, headline), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed mb-4"
@@ -26907,7 +27339,7 @@ function Paywall({
     style: {
       color: 'var(--good)'
     }
-  }, "\u2713"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "✓"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold"
   }, t), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-snug"
@@ -27963,14 +28395,14 @@ function App() {
     setView('dashboard');
   }
   if (session === undefined) return /*#__PURE__*/React.createElement(Loading, {
-    text: "Waking the Macrosaurus\u2026"
+    text: "Waking the Macrosaurus…"
   });
   if (recovering) return /*#__PURE__*/React.createElement(ResetPassword, {
     onDone: () => setRecovering(false)
   });
   if (!session) return /*#__PURE__*/React.createElement(Auth, null);
   if (!db) return /*#__PURE__*/React.createElement(Loading, {
-    text: "Digging up your data\u2026"
+    text: "Digging up your data…"
   });
   if (fresh) return /*#__PURE__*/React.createElement(Wizard, {
     initial: db.profile,
@@ -28145,7 +28577,7 @@ function App() {
   }, "Log shared photo", shared.files.length === 1 ? '' : 's'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShared(null),
     className: "text-[#8A8A90] text-xl leading-none"
-  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(MealEstimate, {
     apiKey: db.profile.aiKey,
