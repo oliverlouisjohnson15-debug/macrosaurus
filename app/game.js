@@ -277,24 +277,33 @@
   // "sleep style" collected into a small style dex. All deterministic per user + wake date.
   var SLEEP_STYLES = ['Dozing', 'Snoozing', 'Slumbering'];
   // Sleep duration is judged against the SCIENCE, not a user-set target: adults need 7-9 hours a night
-  // (Hirshkowitz 2015, National Sleep Foundation consensus). Full duration credit sits at 8h (mid-range,
-  // the classic recommendation); nothing editable feeds this.
-  var SLEEP_RECOMMENDED_FULL = 480; // 8h in minutes -> full duration credit
+  // (Hirshkowitz 2015, National Sleep Foundation consensus). Rather than pinning "full credit" to a single
+  // 8h point, we credit the WHOLE recommended 7-9h band in full - hitting the guideline is the thing the
+  // duration component rewards, and docking someone for sleeping 7h (squarely in range) was the old model's
+  // biggest unrealism. Below 7h duration ramps down to a 4.5h floor; above 9h a gentle taper treats
+  // habitual over-sleep as a soft negative (long sleep tracks worse outcomes / fragmented rest, so 11h+ is
+  // not "better" than 8h). Nothing editable feeds any of this.
+  var SLEEP_RECOMMENDED_MIN = 420;  // 7h -> full duration credit begins (bottom of the recommended band)
+  var SLEEP_RECOMMENDED_MAX = 540;  // 9h -> full duration credit ends (top of the recommended band)
   var SLEEP_DURATION_FLOOR = 270;   // 4.5h -> no duration credit below this (severe short sleep)
+  var SLEEP_OVERSLEEP_FLOOR = 660;  // 11h -> over-sleep taper bottoms out here (retains 75% of duration credit)
+  var SLEEP_RECOMMENDED_FULL = 480; // 8h, a "reference full night" kept for the stage-less catch-score fallback
   // Sleep score 0..100, evidence-based and modelled on the common duration / quality / restoration
-  // split (~duration 50, quality 25, restoration 25; typical real nights cluster 72-83). We can't
-  // measure restlessness or sleeping-HR restoration from Google Health stage minutes, so those points are
-  // routed into the signals we CAN measure, and deep / REM are scored against their clinical healthy ranges
-  // (deep/N3 ~13-23% of sleep, REM ~20-25%; sleep efficiency >=85% is "good"). Points: duration 45,
-  // efficiency 20, REM 18, deep 17.
-  //   - Duration 45: time asleep vs the recommended 8h; 0 below 4.5h, full at 8h (no oversleep bonus).
-  //   - Efficiency 20: asleep / time-in-bed; 0 at 80%, full only at an excellent >=95%.
+  // split (~duration 45, quality 55; typical real nights cluster 72-83). We can't measure restlessness or
+  // sleeping-HR restoration from Google Health stage minutes, so those points are routed into the signals
+  // we CAN measure, and deep / REM are scored against their clinical healthy ranges (deep/N3 ~13-23% of
+  // sleep, REM ~20-25%; sleep efficiency >=85% is "good"). Points: duration 45, efficiency 20, REM 18, deep 17.
+  //   - Duration 45: time asleep vs the recommended range; full across 7-9h, 0 below 4.5h, tapering to 75%
+  //     credit by 11h+ (over-sleep is a soft negative, never a bonus).
+  //   - Efficiency 20: asleep / time-in-bed; 0 at 78%, full at very-healthy >=93% (85%+ is "good", per the sleep-efficiency literature).
   //   - REM 18 / Deep 17: share of sleep; full credit only at the good end of the healthy band, 0 well below.
-  // The ramps are deliberately STRICT: an average night lands in the 60s-70s and 90+ needs a genuinely
-  // excellent one, so the score keeps its discriminative power rather than clustering everyone near 100.
+  // The QUALITY ramps (efficiency, REM, deep) are deliberately STRICT so the score keeps its discriminative
+  // power: crediting the recommended duration range in full lifts a solid-but-ordinary night into the good
+  // band (high 70s / low 80s, matching real-world spread), while 90+ still demands genuinely excellent
+  // efficiency and architecture rather than just time in bed.
   // A stage-less night returns null on purpose (no measured architecture to judge) so callers show raw
   // hours instead of a fabricated number. Refs: sleep architecture NCBI NBK19956, duration/efficiency Hirshkowitz 2015
-  // (pubmed 29073412). `durationMin` = time asleep; `stages` = { deep, rem, light, awake } minutes. Pure.
+  // (pubmed 29073412), long-sleep risk Jike 2018 (pmid 28890167). `durationMin` = time asleep; `stages` = { deep, rem, light, awake } minutes. Pure.
   // sleepScore() is the thin wrapper returning just the number, so the score the UI shows and the breakdown
   // it explains can never drift. Returns { score, hasStages, durationMin, asleepMin, awakeMin,
   // eff, deepShare, remShare, parts:[{key,label,points,max,detail}] }.
@@ -309,12 +318,21 @@
     var total = asleep + awake;
     if (asleep > 0 && total > 0) {
       var clamp01 = function (v) { return Math.max(0, Math.min(1, v)); };
-      // Strict ramps: full credit only at the GOOD end of each range, so a merely-average night lands in
-      // the 60s-70s (matching real-world spread) and 90+ demands a genuinely excellent night. Being
-      // barely "not terrible" earns little.
-      var durComp = 45 * clamp01((dur - SLEEP_DURATION_FLOOR) / (SLEEP_RECOMMENDED_FULL - SLEEP_DURATION_FLOOR)); // 0 at <=4.5h, full at 8h
+      // Duration: full across the recommended 7-9h band, ramping down below 7h to a 4.5h floor, then a
+      // gentle over-sleep taper above 9h (bottoming at 75% credit by 11h+). Rewarding the whole guideline
+      // range - not a single 8h point - is the key realism fix: a 7h night no longer reads as a shortfall.
+      var durComp;
+      if (dur >= SLEEP_RECOMMENDED_MIN && dur <= SLEEP_RECOMMENDED_MAX) {
+        durComp = 45;                                                 // 7-9h: full credit (hit the guideline)
+      } else if (dur < SLEEP_RECOMMENDED_MIN) {
+        durComp = 45 * clamp01((dur - SLEEP_DURATION_FLOOR) / (SLEEP_RECOMMENDED_MIN - SLEEP_DURATION_FLOOR)); // 0 at <=4.5h -> full at 7h
+      } else {
+        durComp = 45 * (1 - 0.25 * clamp01((dur - SLEEP_RECOMMENDED_MAX) / (SLEEP_OVERSLEEP_FLOOR - SLEEP_RECOMMENDED_MAX))); // >9h taper, floors at 0.75*45 by 11h
+      }
+      // Quality ramps stay strict: full credit only at the GOOD end of each range, so ordinary quality
+      // earns partial credit and 90+ needs a genuinely excellent night rather than just time in bed.
       var eff = asleep / total;                                        // fraction of the night actually asleep
-      var effComp = 20 * clamp01((eff - 0.80) / (0.95 - 0.80));        // 0 at <=80%, full at excellent >=95%
+      var effComp = 20 * clamp01((eff - 0.78) / (0.93 - 0.78));        // 0 at <=78%, full at very-healthy >=93% (85%+ is the healthy threshold, 90%+ excellent)
       var deepShare = deep / asleep, remShare = rem / asleep;
       var remComp = 18 * clamp01((remShare - 0.12) / (0.22 - 0.12));   // 0 at <=12%, full at healthy >=22%
       var deepComp = 17 * clamp01((deepShare - 0.09) / (0.18 - 0.09)); // 0 at <=9%, full at healthy >=18%
@@ -322,7 +340,7 @@
       out.asleepMin = Math.round(asleep); out.awakeMin = Math.round(awake);
       out.eff = eff; out.deepShare = deepShare; out.remShare = remShare;
       out.parts = [
-        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 45, detail: Math.round(dur / 6) / 10 + 'h vs the recommended 8h (adults need 7-9h)' },
+        { key: 'duration', label: 'Time asleep', points: Math.round(durComp), max: 45, detail: Math.round(dur / 6) / 10 + 'h asleep (full credit across the recommended 7-9h)' },
         { key: 'efficiency', label: 'Efficiency', points: Math.round(effComp), max: 20, detail: Math.round(eff * 100) + '% of the night asleep' },
         { key: 'rem', label: 'REM sleep', points: Math.round(remComp), max: 18, detail: Math.round(remShare * 100) + '% of sleep (healthy 20-25%)' },
         { key: 'deep', label: 'Deep sleep', points: Math.round(deepComp), max: 17, detail: Math.round(deepShare * 100) + '% of sleep (healthy 13-23%)' },
@@ -567,7 +585,10 @@
     nextEggTier: nextEggTier,
     eggHatch: eggHatch,
     SLEEP_RECOMMENDED_FULL: SLEEP_RECOMMENDED_FULL,
+    SLEEP_RECOMMENDED_MIN: SLEEP_RECOMMENDED_MIN,
+    SLEEP_RECOMMENDED_MAX: SLEEP_RECOMMENDED_MAX,
     SLEEP_DURATION_FLOOR: SLEEP_DURATION_FLOOR,
+    SLEEP_OVERSLEEP_FLOOR: SLEEP_OVERSLEEP_FLOOR,
     SLEEP_STYLES: SLEEP_STYLES,
     SLEEP_POOL: SLEEP_POOL,
     sleepScore: sleepScore,

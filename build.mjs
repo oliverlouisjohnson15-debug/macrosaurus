@@ -78,8 +78,19 @@ if (html.includes('<script>\n/*\n * recipe.js')) {
   if (qEnd < '</script>'.length) throw new Error('quantity block end not found for recipe.js insertion');
   html = html.slice(0, qEnd) + '\n' + recipeBlock + html.slice(qEnd);
 }
-// app block (transpiled)
-spliceBlock('<script>const {', '<script>' + transpiled + '\n</script>', '</script>');
+// app block (transpiled): the script holding the React app. Babel's output start can vary between
+// versions (some hoist an `_extends` helper before `const { ... } = React`), so we don't match on the
+// first line. Instead we locate the block by the render call it always contains and splice the whole
+// enclosing <script>...</script>.
+{
+  const marker = 'ReactDOM.createRoot';
+  const mi = html.indexOf(marker);
+  if (mi === -1) throw new Error('app render marker not found: ' + marker);
+  const start = html.lastIndexOf('<script>', mi);
+  const end = html.indexOf('</script>', mi);
+  if (start === -1 || end === -1) throw new Error('app script bounds not found');
+  html = html.slice(0, start) + '<script>' + transpiled + '\n</script>' + html.slice(end + '</script>'.length);
+}
 
 // sanity checks
 if (html.includes('—')) throw new Error('em dash found in bundle');

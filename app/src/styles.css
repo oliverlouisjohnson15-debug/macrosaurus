@@ -26,6 +26,12 @@
   --weight: #B388FF;
   --danger: #FF5555;
   --good: #39FF14;
+  --warn: #FFB020;           /* amber: "drowsy" readiness, over/under a target, take-it-easy */
+  --sleep: #B388FF;          /* sleep identity: soft violet (night) */
+  --sleep-deep: #7C5CFF;     /* deep / N3: indigo */
+  --sleep-rem: #00F3FF;      /* REM: cyan */
+  --sleep-light: #4B4B7A;    /* light: muted blue-grey */
+  --sleep-awake: #FFB020;    /* awake: amber */
   --shadow: #000000;
 }
 .theme-light {
@@ -52,6 +58,12 @@
   --weight: #7c3aed;
   --danger: #E5342A;
   --good: #17A398;
+  --warn: #B26A00;           /* darker amber: readable on white (4.5:1) */
+  --sleep: #7c3aed;          /* sleep identity: violet */
+  --sleep-deep: #5B3FCF;     /* deep / N3: indigo */
+  --sleep-rem: #1C8FA8;      /* REM: teal-cyan (readable on white) */
+  --sleep-light: #9A9AC0;    /* light: muted blue-grey */
+  --sleep-awake: #B26A00;    /* awake: amber */
   --shadow: #1e1e1e;
 }
 
