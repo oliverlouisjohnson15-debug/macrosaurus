@@ -3809,20 +3809,20 @@ function recoveryCoachLine(db, today) {
   if (band === 'apex') return {
     color: 'var(--good)',
     text: restedWell
-      ? "Readiness " + score + " out of 100, high. Last night's sleep is paying off, so this is a strong day to push your training hard."
-      : "Readiness " + score + " out of 100, high. Recovery is on your side today, a good day to train hard.",
+      ? "Readiness " + score + " out of 100, high. Last night's sleep is paying off, so let's push hard today. I'm right behind you."
+      : "Readiness " + score + " out of 100, high. Recovery is on your side, so today's a good one to train hard. Go get it.",
   };
   if (band === 'drowsy') return {
     color: 'var(--warn)',
     text: roughNight
-      ? "Readiness " + score + " out of 100, low. A short night is catching up with you, so go gentle today and aim for an earlier bedtime. Rest is training too."
-      : "Readiness " + score + " out of 100, low. Your body is asking for a lighter day, so keep it easy and protect your sleep tonight. Rest is training too.",
+      ? "Readiness " + score + " out of 100, low. A short night's catching up with you, so let's go gentle today and get an early one tonight. Rest is training too."
+      : "Readiness " + score + " out of 100, low. Your body's asking for a lighter day, so we'll keep it easy and protect your sleep tonight. Rest is training too.",
   };
   if (band === 'prowling') return {
     color: 'var(--accent)',
     text: goalHit
-      ? "Readiness " + score + " out of 100, steady. Steps are already on target, so train as planned and protect tonight's 7 to 9 hours."
-      : "Readiness " + score + " out of 100, steady. Keep moving, and aim for a full 7 to 9 hours tonight.",
+      ? "Readiness " + score + " out of 100, steady. Steps are already on target, so train as planned and let's protect tonight's 7 to 9 hours."
+      : "Readiness " + score + " out of 100, steady. Keep us moving, and aim for a full 7 to 9 hours tonight.",
   };
   // No readiness score yet.
   if (night && isFinite(night.score)) return {
@@ -3846,21 +3846,22 @@ function readinessRecap(db, today) {
     const sBand = isFinite(night.score) ? Game.sleepBand(night.score) : null;
     const hrs = Math.floor(night.rec.min / 60), mins = night.rec.min % 60;
     const dur = hrs + 'h' + (mins ? ' ' + mins + 'm' : '');
-    if (sBand === 'great' || sBand === 'good') items.push({ key: 'sleep', tone: 'good', text: 'You slept well, ' + dur + (isFinite(night.score) ? ' (score ' + night.score + ')' : '') + '. That sets you up nicely for the day.' });
-    else if (sBand === 'ok') items.push({ key: 'sleep', tone: 'warn', text: 'A middling night, ' + dur + '. A steady wind-down and a cooler, darker room tonight would help.' });
-    else if (sBand === 'poor') items.push({ key: 'sleep', tone: 'warn', text: 'A rough night, ' + dur + '. Go a bit easy today and try for an earlier bedtime. Rest counts as training.' });
-    else items.push({ key: 'sleep', tone: 'muted', text: 'Last night: ' + dur + ' in bed. Connect a wearable with sleep stages for a proper score.' });
+    // The buddy speaks these, so they carry a bit of "I / we" warmth rather than reading like a report.
+    if (sBand === 'great' || sBand === 'good') items.push({ key: 'sleep', tone: 'good', text: 'You slept well, ' + dur + (isFinite(night.score) ? ' (score ' + night.score + ')' : '') + '. I like you rested, let’s make it count today.' });
+    else if (sBand === 'ok') items.push({ key: 'sleep', tone: 'warn', text: 'A middling night, ' + dur + '. Wind down earlier and cool the room tonight, and I’ll get a better read on you tomorrow.' });
+    else if (sBand === 'poor') items.push({ key: 'sleep', tone: 'warn', text: 'Rough night, ' + dur + '. Go easy today and grab an early one tonight, rest is training too. I’ve got you.' });
+    else items.push({ key: 'sleep', tone: 'muted', text: dur + ' in bed last night. Hook up a wearable with sleep stages and I can score it properly for you.' });
   }
   const goal = stepGoalFor(db);
   const ySteps = +((db.steps || {})[yesterday]) || 0;
   if (goal > 0 && ySteps > 0) {
-    if (ySteps >= goal) items.push({ key: 'steps', tone: 'good', text: 'Nice work, ' + ySteps.toLocaleString() + ' steps yesterday, past your ' + goal.toLocaleString() + ' goal.' });
-    else items.push({ key: 'steps', tone: 'warn', text: ySteps.toLocaleString() + ' steps yesterday, a little under your ' + goal.toLocaleString() + ' goal. A short walk today evens it out.' });
+    if (ySteps >= goal) items.push({ key: 'steps', tone: 'good', text: 'Smashed it, ' + ySteps.toLocaleString() + ' steps yesterday, past your ' + goal.toLocaleString() + ' goal. Keep that up and I grow strong.' });
+    else items.push({ key: 'steps', tone: 'warn', text: ySteps.toLocaleString() + ' steps yesterday, a touch under your ' + goal.toLocaleString() + ' goal. A short walk today and we’re square.' });
   }
   const rc = recoveryCoachLine(db, today);
   items.push({ key: 'ready', tone: Game.readinessBand(readinessFor(db, today)) === 'drowsy' ? 'warn' : 'good', text: rc.text });
   const weighNeeded = !(db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
-  if (weighNeeded) items.push({ key: 'weigh', tone: 'accent', text: "Haven't weighed this week? Same time each morning, after the loo and before food or drink, gives the truest trend, just the once." });
+  if (weighNeeded) items.push({ key: 'weigh', tone: 'accent', text: "Not weighed this week? Same time each morning, after the loo and before food or drink, gives me the truest trend, just the once." });
   return { items: items, weighNeeded: weighNeeded };
 }
 // The buddy delivers the daily readiness read on its own little screen: the dino, then a line each on
