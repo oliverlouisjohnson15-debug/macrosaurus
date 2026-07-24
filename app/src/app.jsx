@@ -2355,6 +2355,52 @@ function Sprite({ art, colors, px = 6 }) {
   return <svg width={w * cell} height={h * cell} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges">{rects}</svg>;
 }
 
+/* ---------- Animated buddy (PNG sprite sheets) ----------
+   The purchased buddy art (app/download, served from /sprites) is 24x24 pixel dinos laid out as
+   horizontal strips: frameCount = imageWidth / 24. Frame counts are uniform across all 24 variants
+   (12 species x 2 palettes), so we hard-map them here rather than probing each PNG at runtime.
+   SpriteSheet renders one strip and plays it with a single frame-count-agnostic CSS keyframe
+   (`sprite-play` in styles.css): translateX(-100%) of the strip's own width, stepped into `frames`
+   whole-frame jumps. This is the ONE rich, animated element inside the otherwise-pixel UI. */
+const SPRITE_FRAMES = {
+  base: { idle: 3, move: 6, jump: 4, dash: 6, bite: 3, kick: 3, avoid: 3, hurt: 4, scan: 6, dead: 5 },
+  egg: { crack: 4, hatch: 4, move: 4 },
+  ghost: { idle: 3, move: 4 },
+};
+// Which base anims the incomplete male palettes are missing (doux/mort/tard/vita); the customize
+// step uses this to hide those species+palette combos so we never request a 404 strip.
+const SPRITE_INCOMPLETE_MALE = ['doux', 'mort', 'tard', 'vita'];
+function spriteHasAnim(palette, species, group, anim) {
+  if (palette === 'male' && group === 'base' && SPRITE_INCOMPLETE_MALE.includes(species)
+    && ['idle', 'move', 'dash', 'hurt', 'kick'].includes(anim)) return false;
+  return !!((SPRITE_FRAMES[group] || {})[anim]);
+}
+// One animated 24x24 sprite. `px` is the integer pixel scale (rendered size = 24*px square).
+// loop=false plays once and fires onEnd (used for the hatch sequence and one-shot reactions).
+function SpriteSheet({ palette = 'female', species = 'doux', group = 'base', anim = 'idle', px = 5, fps = 6, loop = true, onEnd, className, style }) {
+  const frames = (SPRITE_FRAMES[group] || {})[anim] || 1;
+  const size = 24 * px;
+  const dur = Math.max(0.1, frames / fps);
+  const url = '/sprites/' + palette + '/' + species + '/' + group + '/' + anim + '.png';
+  return (
+    <div className={className} style={Object.assign({ width: size, height: size, overflow: 'hidden' }, style)}>
+      <img src={url} alt="" aria-hidden="true" draggable="false"
+        style={{ height: size, width: 'auto', maxWidth: 'none', display: 'block', imageRendering: 'pixelated',
+          animation: 'sprite-play ' + dur + 's steps(' + frames + ') ' + (loop ? 'infinite' : '1 forwards') }}
+        onAnimationEnd={loop ? undefined : onEnd} />
+    </div>
+  );
+}
+// Map a BUDDY_STAGES index to an animated sprite descriptor. Stage 0 is the egg (idle wobble);
+// grown stages share the chosen body's idle. Species/palette come from the buddy record once the
+// customize step exists (Phase 3); until then they fall back to a complete default variant.
+function buddyStageSprite(stageIndex, buddy) {
+  const palette = (buddy && buddy.palette) || 'female';
+  const species = (buddy && buddy.species) || 'doux';
+  if (stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
+  return { palette, species, group: 'base', anim: 'idle', fps: 5 };
+}
+
 /* ---------- Share card (streak -> shareable image) ----------
    Turns a user's streak + buddy into a 1080x1080 PNG they can drop into a Story, WhatsApp or a group
    chat. Uses the Web Share API with a file where supported (mobile), and falls back to a download plus
@@ -3928,6 +3974,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Today" />
+      {/* Phase 1: first taste of the animated buddy on Today (Phase 4 grows this into the full,
+          always-present, proactive presence). Uses the new /sprites art via SpriteSheet. */}
+      <div className="flex justify-center mb-3">{(() => { const s = buddyStageSprite(buddy.stage, db.buddy); return <div style={buddy.asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null}><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={4} fps={s.fps} /></div>; })()}</div>
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       <InstallCard />
 

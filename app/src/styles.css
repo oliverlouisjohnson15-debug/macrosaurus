@@ -83,6 +83,10 @@ input, select { color-scheme: dark; }
 .pf { font-family: 'Press Start 2P', ui-monospace, monospace; line-height: 1.45; letter-spacing: 0; }
 
 /* ---- FIGHT easter-egg: Chrome-dino jump ---- */
+/* Animated buddy sprite sheets: one keyframe drives every strip. translateX(-100%) is the strip's
+   own full width; steps(frames) subdivides it into whole-frame jumps, so it is frame-count- and
+   scale-agnostic (see SpriteSheet in app.jsx). */
+@keyframes sprite-play { from { transform: translateX(0); } to { transform: translateX(-100%); } }
 @keyframes dinojump { 0%, 100% { transform: translateY(0); } 32%, 58% { transform: translateY(-34px); } }
 .dinojump { animation: dinojump .85s cubic-bezier(.3,.7,.25,1) infinite; }
 @keyframes cactusrun { from { transform: translateX(680px); } to { transform: translateX(-28px); } }
