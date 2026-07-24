@@ -67,9 +67,6 @@
       var latestCheckin = s.checkins.reduce(function (m, c) { return (c && c.date && c.date > m) ? c.date : m; }, '');
       if (latestCheckin && (!s.last_checkin || latestCheckin > s.last_checkin)) s.last_checkin = latestCheckin;
     }
-    // Drop retired game fields so a legacy save never resurrects the removed systems (the Fight was
-    // cut; the collection/catch fields follow). deepDefaults preserves existing keys, so strip explicitly.
-    delete s.fight;
     return healMacros(s);
   }
 
@@ -107,6 +104,7 @@
       dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
       game_awards: {},    // idempotency keys for one-time item / milestone grants
       amber_ledger: [],   // append-only Amber-currency ledger: [{ id, date, delta, reason }]; balance = sum(delta). Append-only so a merge can never lose or double-count winnings (see mergeStates)
+      fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null, lastDailyDate: null, dailyStreak: 0, dailyBest: 0 }, // ladder + weekly boss + daily hunt + prestige; one ladder/daily attempt per logged day
       game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
       buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought overlays (owned + equipped)
@@ -297,6 +295,28 @@
       welcomed: !!(oa.welcomed || ob.welcomed), sawDex: !!(oa.sawDex || ob.sawDex), dismissed: !!(oa.dismissed || ob.dismissed),
     });
 
+    // Dino-fight progress has no append-only ledger, so a wholesale copy loses wins/rank earned on the
+    // other device. Reconcile field-wise: prestige and the cumulative counters are monotonic (max);
+    // ladder rank counts only WITHIN the top prestige tier (prestiging resets rank to 0, so a
+    // lower-prestige copy's larger rank must not win); date gates take the later value; the daily
+    // streak follows whichever copy logged the more recent daily win.
+    if (a.fight || b.fight) {
+      var fa = a.fight || {}, fb = b.fight || {};
+      var prestige = maxNum(fa.prestige, fb.prestige);
+      var rankAt = function (f) { return (+f.prestige || 0) === prestige ? (+f.rank || 0) : 0; };
+      var dailyFrom = (fa.lastDailyDate || '') >= (fb.lastDailyDate || '') ? fa : fb;
+      out.fight = Object.assign({}, newer.fight, {
+        prestige: prestige,
+        rank: Math.max(rankAt(fa), rankAt(fb)),
+        wins: maxNum(fa.wins, fb.wins),
+        trophies: maxNum(fa.trophies, fb.trophies),
+        dailyBest: maxNum(fa.dailyBest, fb.dailyBest),
+        dailyStreak: (+dailyFrom.dailyStreak || 0),
+        lastDailyDate: laterStr(fa.lastDailyDate, fb.lastDailyDate),
+        lastAttemptDate: laterStr(fa.lastAttemptDate, fb.lastAttemptDate),
+        lastBossWeek: laterStr(fa.lastBossWeek, fb.lastBossWeek),
+      });
+    }
     out._rev = Math.max(ra, rb);
     out._wipe = wipe; // carry the reset watermark forward so it keeps protecting later merges
     return out;
