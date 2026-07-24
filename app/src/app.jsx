@@ -2007,7 +2007,8 @@ function CheckInModal({ db, update, onClose, resume }) {
               </div>;
             })()}
             {!result.accepted && <div className="text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"><span>🗓</span><span>Next check-in around {fmtShortDay(nextCheckISO)}. {(result.estimate && result.estimate.weightOnly) ? 'Keep weighing in regularly so it can retune accurately.' : 'Keep logging and weighing daily so it can retune accurately.'}</span></div>}
-            {window.MISPREMIUM === false && <PremiumNudge db={db} update={update} className="mt-3" reason="manual" trackKey="checkin_premium" headline="You showed up this week" blurb="Premium adds body-fat photo tracking and unlimited AI logging, so every check-in has more to work with. 7 days free." />}
+            {/* No upsell here: rewarding a completed check-in with a body-fat-scan pitch felt off. The
+                top-of-Today Premium box and the low-AI nudge already cover the upgrade path. */}
             {result.status === 'proposed' && result.changed && !result.accepted
               ? <div className="flex gap-2 mt-2"><Btn kind="accent" className="flex-1" onClick={approve}>Approve new macros</Btn><Btn kind="ghost" onClick={reject}>Stick to current</Btn></div>
               : <Btn kind="accent" className="w-full mt-2" onClick={onClose}>Done</Btn>}
@@ -2662,7 +2663,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
           </div>
           {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
         </button>
-        <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left">
+        <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left flex items-center gap-1.5">
+         <div className="min-w-0 flex-1">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
           <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
           {incubating
@@ -2673,8 +2675,18 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
                   ? <><div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
                       <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
                   : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
+         </div>
+         <span className="pf shrink-0 self-center" style={{ color: 'var(--accent)', fontSize: 15 }}>›</span>
         </button>
       </div>
+      {/* Discoverability: name what's behind the tap so people know the buddy opens Buddy, Battle & Shop
+          (a signposted affordance beats a card that just looks like a static display). */}
+      {!incubating && <button onClick={onOpenPlay} className="w-full mt-2.5 pt-2.5 flex items-center justify-center gap-2" style={{ borderTop: '2px solid var(--border)' }}>
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">Buddy</span><span className="text-[#8A8A90] opacity-40">·</span>
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">Battle</span><span className="text-[#8A8A90] opacity-40">·</span>
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">Shop</span>
+        <span className="pf" style={{ color: 'var(--accent)', fontSize: 12 }}>›</span>
+      </button>}
       {incubating && tasks && (
         <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: '2px solid var(--border)' }}>
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Do these to hatch</div>
@@ -3074,7 +3086,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
         <div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
         <div className="text-[9px] text-[#8A8A90] mt-1.5">{nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`}</div>
       </div>}
-      {onOpenName && !incubating && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: named ? 'var(--surface2)' : 'var(--accent)', color: named ? undefined : 'var(--on-accent)' }}>{named ? 'RENAME · ' + RENAME_COST + ' AMBER' : 'NAME YOUR DINO'}</button>}
+      {/* Rename lives in the Shop now (an Amber spend), so it isn't duplicated here. */}
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
       {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
       {!incubating && <div className="pixel-box p-2.5 mt-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -4581,7 +4593,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     if (!(db.log_entries || []).some(e => e.date === today)) return;
     if ((db.amber_ledger || []).some(e => e.id === key)) return;
     update(d => { d.amber_ledger = d.amber_ledger || []; if (d.amber_ledger.some(e => e.id === key)) return; d.amber_ledger.push({ id: key, date: today, delta: Game.AMBER_REWARDS.dailyLog, reason: 'Logged today' }); });
-    if (showToast) showToast('+' + Game.AMBER_REWARDS.dailyLog + ' Amber for logging today');
+    if (showToast) showToast(((db.buddy && db.buddy.name) || 'Your buddy') + ' found ' + Game.AMBER_REWARDS.dailyLog + ' Amber for today’s log', 'Shop', () => onOpenPlay && onOpenPlay());
   }, [db.log_entries, today]);
   const freezeAvail = freezeReady(frozenSet, today);
   const newFrozenKey = streakInfo.newFrozen.join(',');
@@ -4699,7 +4711,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
           it never nags). Hidden during egg incubation so onboarding stays focused on hatching. */}
       {!isPremium && !eggIncubating && <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="today_top"
         headline="Log a meal in one snap"
-        blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />}
+        blurb="Premium unlocks unlimited AI logging: snap a photo, scan a label, or just describe your meal. Try it free for 7 days." />}
 
       {/* Hero: today's macros. One glance (rings + what's left), the daily loop. One lens only
           (Left/Eaten); Balance is a power tool behind Adjust; everything secondary is in More below. */}
@@ -4759,7 +4771,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         return freeLeft <= 3
           ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
               headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-              blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
+              blurb="Premium is unlimited photo, label and describe logging, so you never run out mid-month. 7 days free, then cancel anytime." />
           : null;
       })()}
 
@@ -7793,14 +7805,15 @@ function tombstone(d, ids) { d.deleted = d.deleted || {}; var t = Date.now(); id
 function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id) { if (id != null) delete d.deleted[id]; }); }
 
 // (CatchReveal removed with the Macrodex: logging no longer reveals a "catch".)
-function Toast({ toast }) {
+function Toast({ toast, onClose }) {
   if (!toast) return null;
   return (
     <div className="fixed left-0 right-0 z-[60] flex justify-center px-4" style={{ bottom: 86 }}>
-      <div className="pixel-box px-4 py-3 flex items-center gap-4 fade-in" style={{ background: 'var(--surface2)' }}>
+      <div className="pixel-box px-4 py-3 flex items-center gap-3 fade-in" style={{ background: 'var(--surface2)' }}>
         <span className="text-sm">{toast.msg}</span>
         {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.action2Label}</button>}
         {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.actionLabel}</button>}
+        {onClose && <button onClick={onClose} className="hit text-[#8A8A90] text-lg leading-none shrink-0 -mr-1" aria-label="Dismiss">×</button>}
       </div>
     </div>
   );
@@ -9760,7 +9773,7 @@ function App() {
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenFight={() => setFightOpen(true)} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
       {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
-      <Toast toast={toast} />
+      <Toast toast={toast} onClose={() => setToast(null)} />
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
     </div>
   );
