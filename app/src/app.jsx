@@ -44,6 +44,8 @@ const PX_ICONS = {
   trophy: ['#.##.#', '######', '.####.', '..##..', '..##..', '.####.'],
   cup: ['######', '#....#', '#....#', '.####.', '.####.', '..##..'],
   snow: ['#.#.#.', '.###..', '######', '.###..', '#.#.#.', '..#...'],
+  check: ['......', '.....#', '....##', '#..##.', '.###..', '..#...'],
+  star: ['#.##.#', '.####.', '######', '######', '.####.', '#.##.#'],
 };
 function foodKind(name, isAlc) {
   if (isAlc) return 'drink';
@@ -61,6 +63,10 @@ function PixelGlyph({ kind, color, size }) {
   g.forEach((row, y) => row.split('').forEach((c, x) => { if (c === '#') rects.push(<rect key={x + '_' + y} x={x} y={y} width="1" height="1" />); }));
   return <svg viewBox={`0 0 ${w} ${h}`} width={size || 20} height={size || 20} fill={color} style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges' }}>{rects}</svg>;
 }
+// Inline pixel glyphs for use inside running text, replacing the Unicode ✓/✦ (which Press Start 2P
+// lacks and the browser renders in a fallback font). They inherit the surrounding text colour.
+function Tick({ size = 11, style }) { return <span style={{ display: 'inline-block', verticalAlign: 'middle', lineHeight: 0, ...style }}><PixelGlyph kind="check" color="currentColor" size={size} /></span>; }
+function Spark({ size = 11, style }) { return <span style={{ display: 'inline-block', verticalAlign: 'middle', lineHeight: 0, ...style }}><PixelGlyph kind="star" color="currentColor" size={size} /></span>; }
 // The Macrosaurus mascot: an original multi-colour pixel dino, our brand logo, drawn in the
 // same crisp sprite style as the Macrodex creatures. `color` is accepted for call-site
 // compatibility but ignored (the mascot carries its own fixed palette so it reads on any
@@ -1058,7 +1064,7 @@ function MacroSummaryCard({ et, tot, mode, avg }) {
     <PixelBar label="PROT" eaten={tot.protein} target={et.eff.protein_g} color={PRO} mode={mode} />
     <PixelBar label="CARB" eaten={tot.carbs} target={et.eff.carbs_g} color={CARB} mode={mode} />
     <PixelBar label="FATS" eaten={tot.fat} target={et.eff.fat_g} color={FAT} mode={mode} />
-    <div className="text-[11px] mt-2" style={{ color: fibreOk ? 'var(--good)' : 'var(--muted)' }}>FIBRE {Math.round(tot.fiber)} / {ft.min}g{fibreOk ? ' ✓' : ` · ${ft.min - Math.round(tot.fiber)} to go`}</div>
+    <div className="text-[11px] mt-2" style={{ color: fibreOk ? 'var(--good)' : 'var(--muted)' }}>FIBRE {Math.round(tot.fiber)} / {ft.min}g{fibreOk ? <>{' '}<Tick size={10} /></> : ` · ${ft.min - Math.round(tot.fiber)} to go`}</div>
   </>);
 }
 const DINO_QUOTES = [
@@ -1993,7 +1999,7 @@ function CheckInModal({ db, update, onClose, resume }) {
                 <div className="shrink-0" style={crFx(bonusCatch.shiny, null)}><Sprite art={bcr.art} colors={bonusCatch.shiny ? crShiny(bcr.colors) : bcr.colors} px={5} /></div>
                 <div className="min-w-0">
                   <div className="text-[9px]" style={{ color: 'var(--good)' }}>CHECK-IN CATCH! <span className="pf uppercase" style={{ color: CR_RARITY_COLOR[bcr.rarity] }}>{CR_RARITY_LABEL[bcr.rarity]}</span></div>
-                  <div className="text-sm font-bold">{bcr.name}{bonusCatch.shiny ? <span style={{ color: 'var(--fat)' }}> ✦ shiny</span> : ''} joined your dex</div>
+                  <div className="text-sm font-bold">{bcr.name}{bonusCatch.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /> shiny</span> : ''} joined your dex</div>
                   <div className="text-[10px] text-[#8A8A90] leading-snug">Showing up for the check-in is the win, whatever the scale said.</div>
                 </div>
               </div>; })()}
@@ -2047,7 +2053,7 @@ function CheckInModal({ db, update, onClose, resume }) {
             {result.status === 'proposed' && result.changed && !result.accepted
               ? <div className="flex gap-2 mt-2"><Btn kind="accent" className="flex-1" onClick={approve}>Approve new macros</Btn><Btn kind="ghost" onClick={reject}>Stick to current</Btn></div>
               : <Btn kind="accent" className="w-full mt-2" onClick={onClose}>Done</Btn>}
-            {result.accepted && <div className="text-[#34D399] text-sm mt-3">✓ New macros applied.</div>}
+            {result.accepted && <div className="text-[#34D399] text-sm mt-3"><Tick size={11} /> New macros applied.</div>}
           </div>
         ) : (
           <div>
@@ -2228,7 +2234,7 @@ function ProgressPanel({ db, update }) {
   return (
     <div className="mb-2">
       <div className="flex gap-1 mb-3 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-        {tabs.map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>{l}</button>)}
+        {tabs.map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>{l}</button>)}
       </div>
       {view === 'graph' && <TrendCard db={db} />}
       {view === 'daily' && <WeighInLog db={db} update={update} />}
@@ -2908,7 +2914,7 @@ function DexActiveSection({ db, today }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="pf text-[7px] uppercase text-[#8A8A90] mb-0.5">Today's catch</div>
-            {tcr ? <><div className="text-[11px] font-bold leading-tight">{tcr.name}{tc.shiny ? <span style={{ color: 'var(--fat)' }}> ✦</span> : ''}</div><div className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[tcr.rarity] }}>{CR_RARITY_LABEL[tcr.rarity]}</div></>
+            {tcr ? <><div className="text-[11px] font-bold leading-tight">{tcr.name}{tc.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /></span> : ''}</div><div className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[tcr.rarity] }}>{CR_RARITY_LABEL[tcr.rarity]}</div></>
               : <div className="text-[10px] text-[#8A8A90] leading-snug">Log a meal today to catch one. The macros you hit decide which.</div>}
           </div>
         </div>
@@ -2921,7 +2927,7 @@ function DexActiveSection({ db, today }) {
         <BreakthroughMeter state={btState} size={12} />
         {btJust && btCr ? <div className="flex items-center gap-2 mt-2 fade-in">
           <div className="shrink-0" style={crFx(bt.lastShiny, null)}><Sprite art={btCr.art} colors={bt.lastShiny ? crShiny(btCr.colors) : btCr.colors} px={2} /></div>
-          <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Breakthrough! </span><b>{btCr.name}{bt.lastShiny ? ' ✦' : ''}</b> joined your dex.</div>
+          <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Breakthrough! </span><b>{btCr.name}{bt.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</div>
         </div>
         : <div className="text-[9px] text-[#8A8A90] mt-1.5">Log {btState.toNext} more {btState.toNext === 1 ? 'day' : 'days'} for a guaranteed rare+ catch.</div>}
       </div>
@@ -2954,7 +2960,7 @@ function DexActiveSection({ db, today }) {
               <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
             </div>
             <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
-            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{eggJust && eggCr ? <span><span style={{ color: 'var(--good)' }}>Hatched!</span> <b>{eggCr.name}{eggs.lastShiny ? ' ✦' : ''}</b> joined your dex.</span> : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.'}</div>
+            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{eggJust && eggCr ? <span><span style={{ color: 'var(--good)' }}>Hatched!</span> <b>{eggCr.name}{eggs.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</span> : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.'}</div>
           </div>
         </div>
       </div>}
@@ -2980,7 +2986,7 @@ function DexActiveSection({ db, today }) {
                 </div>;
               })}
             </div>
-            <div className="text-[9px] text-[#8A8A90] mt-1.5 leading-snug">{just && jcr ? <span><span style={{ color: 'var(--good)' }}>Slept well!</span> A {sdex.lastStyle} <b>{jcr.name}{sdex.lastShiny ? ' ✦' : ''}</b> joined your dex.</span> : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'}</div>
+            <div className="text-[9px] text-[#8A8A90] mt-1.5 leading-snug">{just && jcr ? <span><span style={{ color: 'var(--good)' }}>Slept well!</span> A {sdex.lastStyle} <b>{jcr.name}{sdex.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</span> : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'}</div>
           </div>
         );
       })()}
@@ -3083,7 +3089,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
             <button onClick={() => setSel(null)} className="text-[11px] text-[#8A8A90] mb-3">‹ Back to dex</button>
             <div className="flex flex-col items-center text-center">
               <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: got ? rc : 'var(--border)', borderWidth: 4 }}><div style={got ? crFx(got.shiny, form.aura) : null}>{got ? <Sprite art={form.art} colors={got.shiny ? crShiny(form.colors) : form.colors} px={7} /> : <Sprite art={cr.art} colors={crSilhouette()} px={7} />}</div></div>
-              <div className="text-lg font-bold">{got ? form.name : '???'}{got && got.shiny ? <span style={{ color: 'var(--fat)' }}> ✦</span> : ''}</div>
+              <div className="text-lg font-bold">{got ? form.name : '???'}{got && got.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /></span> : ''}</div>
               <div className="pf text-[8px] uppercase mt-1" style={{ color: rc }}>{CR_RARITY_LABEL[cr.rarity]}{cr.migratory ? ' · Migratory' : ''} · {bm.name}</div>
             </div>
             <div className="pixel-box p-3 mt-4 text-[11px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -3092,7 +3098,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
             </div>
             <div className="mt-3 text-[11px] leading-relaxed">{got ? cr.lore : <span className="text-[#8A8A90]">Not yet caught. Meet the condition above on any logged day and it joins your dex, its lore unlocks then.</span>}</div>
             {got && migMonths.length > 0 && <div className="mt-2 text-[10px]" style={{ color: 'var(--carb)' }}>Migrated through: {migMonths.map(m => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })).join(', ')}</div>}
-            {got && <div className="mt-3 text-[10px] text-[#8A8A90]">Caught <b className="text-[var(--text)]">Lv {got.count}</b>{evoNote}{got.shiny ? ' · ✦ shiny' : ''}</div>}
+            {got && <div className="mt-3 text-[10px] text-[#8A8A90]">Caught <b className="text-[var(--text)]">Lv {got.count}</b>{evoNote}{got.shiny ? <> · <Spark size={9} /> shiny</> : null}</div>}
           </div>;
         })() : (<>
           <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
@@ -3122,7 +3128,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
                     <Sprite art={boss.art} colors={boss.colors} px={3.2} />
                   </div>
                   <div className="min-w-0 flex-1 leading-tight">
-                    <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? 'Boss beaten this week ✓' : "This week's boss"}</div>
+                    <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? <>Boss beaten this week <Tick size={9} /></> : "This week's boss"}</div>
                     <div className="text-[13px] font-bold truncate">{boss.name}</div>
                     <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Weak to <span style={{ color: wm[1] }}>{wm[0]}</span>, so eat {wm[2]}.{buffLine ? ' ' + buffLine + '.' : ''}</div>
                   </div>
@@ -3150,7 +3156,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
                 {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
                   return <div key={id} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
-                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--pro)', color: '#fff' }}>USE</button>}
+                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>USE</button>}
                   </div>;
                 })}
               </div>
@@ -3163,7 +3169,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
             {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
               return <div key={bm.id} className="mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? ' ✓' : ''}</div>
+                  <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? <>{' '}<Tick size={9} /></> : null}</div>
                   <div className="text-[9px] text-[#8A8A90] tnum">{done}/{list.length}</div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -3171,7 +3177,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
                     return <button key={c.id} onClick={() => setSel(c.id)} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: g ? rc : 'var(--border)', borderWidth: strong ? 4 : 3 }}>
                       <div className="h-14 flex items-center justify-center" style={g ? crFx(g.shiny, form.aura) : null}>{g ? <Sprite art={form.art} colors={g.shiny ? crShiny(form.colors) : form.colors} px={4} /> : <Sprite art={c.art} colors={crSilhouette()} px={4} />}</div>
                       <div className="text-[9px] mt-1 truncate w-full">{g ? form.name : '???'}</div>
-                      {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? ' ✦' : ''}</div>
+                      {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? <>{' '}<Spark size={9} /></> : null}</div>
                          : <div className="text-[7px] uppercase tracking-wide" style={{ color: rc }}>{CR_RARITY_LABEL[c.rarity]}</div>}
                     </button>;
                   })}
@@ -3222,7 +3228,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     {shinies.length ? <div className="grid grid-cols-3 gap-2">{shinies.map(c => { const g = dex[c.id]; const form = creatureForm(c, g.count);
       return <div key={c.id} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
         <div className="h-14 flex items-center justify-center" style={crFx(true, form.aura)}><Sprite art={form.art} colors={crShiny(form.colors)} px={4} /></div>
-        <div className="text-[9px] mt-1 truncate w-full">{form.name} <span style={{ color: 'var(--fat)' }}>✦</span></div>
+        <div className="text-[9px] mt-1 truncate w-full">{form.name} <span style={{ color: 'var(--fat)' }}><Spark size={9} /></span></div>
       </div>; })}</div>
       : <div className="text-[10px] text-[#8A8A90]">No shinies yet. A perfect macro day has a chance to gleam gold.</div>}
   </div>;
@@ -3243,7 +3249,7 @@ function ShopView({ db, amber, buy, onBack }) {
         </div>
         {ownedLabel
           ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>{ownedLabel}</span>
-          : <button onClick={() => buy(id)} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}>✦ {price}</button>}
+          : <button onClick={() => buy(id)} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}><Spark size={9} /> {price}</button>}
       </div>
     );
   };
@@ -3251,7 +3257,7 @@ function ShopView({ db, amber, buy, onBack }) {
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
         {onBack ? <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button> : <span />}
-        <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}>✦ {amber} Amber</div>
+        <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}><Spark size={9} /> {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
       <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from daily hunts and weekly bosses, then treat your buddy.</div>
@@ -3260,8 +3266,8 @@ function ShopView({ db, amber, buy, onBack }) {
       <div className="space-y-2 mb-5">
         {Game.COSMETICS.map(c => <Row key={c.id} id={c.id} name={c.name} desc={c.desc} price={c.price}
           preview={c.kind === 'aura'
-            ? <span style={{ fontSize: 18, filter: 'drop-shadow(0 0 5px #ff7a1a)' }}>✦</span>
-            : <span style={{ fontSize: 20, lineHeight: 1 }}>{COSMETIC_EMOJI[c.id] || '✦'}</span>}
+            ? <span style={{ filter: 'drop-shadow(0 0 5px #ff7a1a)' }}><Spark size={18} /></span>
+            : <span style={{ fontSize: 20, lineHeight: 1 }}>{COSMETIC_EMOJI[c.id] || <Spark size={16} />}</span>}
           ownedLabel={owned.indexOf(c.id) >= 0 ? 'OWNED' : null} />)}
       </div>
 
@@ -3553,7 +3559,7 @@ function FightModal({ db, update, streak, onClose }) {
               ))}
             </div>
             {loadout.special > 0 && <button onClick={() => setUseSpecial(s => !s)} className="w-full pixel-btn py-2 mt-2" style={{ background: useSpecial ? 'var(--fat)' : 'var(--surface3)', color: useSpecial ? '#1a1400' : 'var(--text)' }}>
-              <span className="pf text-[8px]">{useSpecial ? '✦ Special armed · +30% ATK' : 'Unleash perfect-day Special · +30% ATK'}</span>
+              <span className="pf text-[8px]">{useSpecial ? <><Spark size={8} /> Special armed · +30% ATK</> : 'Unleash perfect-day Special · +30% ATK'}</span>
             </button>}
           </div>}
 
@@ -3575,14 +3581,14 @@ function FightModal({ db, update, streak, onClose }) {
               <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><Sprite art={daily.art} colors={daily.colors} px={3.2} /></div>
               <div className="text-[10px] leading-snug text-[#8A8A90] flex-1">
                 {(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day hunt streak · </span>}
-                Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}>✦ {dailyAmber} Amber</span>. A new hunt roams in tomorrow.
+                Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A new hunt roams in tomorrow.
               </div>
             </div>
             {dailyReady
               ? (loggedToday
                   ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Hunt {daily.name}</Btn>
                   : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Log a meal today to arm the hunt.</div>)
-              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today ✓ A fresh one lands tomorrow.</div>}
+              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today <Tick size={9} /> A fresh one lands tomorrow.</div>}
           </div>
 
           {/* how the week armed the fighter */}
@@ -3627,7 +3633,7 @@ function FightModal({ db, update, streak, onClose }) {
           {phase === 'done' && <div className="text-center fade-in">
             <div className="pf text-2xl mb-1" style={{ color: winner === 'you' ? 'var(--good)' : 'var(--danger)' }}>{winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'}</div>
             <div className="text-[11px] text-[#8A8A90] mb-2">{winner === 'you' ? (isDaily ? 'Daily Hunt cleared!' : isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!') : 'Your buddy needs a good feed, come back tomorrow and go again.'}</div>
-            {winner === 'you' && amberEarned > 0 && <div className="text-[14px] mb-2 font-bold" style={{ color: 'var(--fat)' }}>✦ +{amberEarned} Amber</div>}
+            {winner === 'you' && amberEarned > 0 && <div className="text-[14px] mb-2 font-bold" style={{ color: 'var(--fat)' }}><Spark size={11} /> +{amberEarned} Amber</div>}
             {winner === 'you' && drops.length > 0 && <div className="text-[11px] mb-3" style={{ color: 'var(--good)' }}>Loot: {drops.map(id => ITEMS[id].name).join(', ')}</div>}
             <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setPhase('select')}>Back</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Done</Btn></div>
           </div>}
@@ -3889,7 +3895,7 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
     );
   }
   const coach = recoveryCoachLine(db, today);
-  const moveBig = synced ? (stepGoal > 0 ? (goalHit ? '✓' : stepPct) : '–') : '–';
+  const moveBig = synced ? (stepGoal > 0 ? (goalHit ? <Tick size={12} /> : stepPct) : '–') : '–';
   const sleepBig = night ? (hasScore ? score : sHrsLabel) : '–';
   const readyBig = readiness != null ? readiness : '–';
   const Chip = (k, v, c) => (
@@ -3919,7 +3925,7 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
       <div className="flex items-center justify-between mb-1 px-1">
         <div className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted2)' }}>Train hard, rest harder</div>
         {synced
-          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}>✓ Synced</span>
+          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}><Tick size={8} /> Synced</span>
           : ghConfigured()
             ? <button onClick={ghConnectGated} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect Health ›</button>
             : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
@@ -3928,7 +3934,7 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
       {/* Three dials: Move / Sleep / Ready, all 0..100 so they read as one row */}
       <div className="flex items-stretch mt-1">
         <StatDial label="Move" fill={stepGoal > 0 && synced ? stepPct : null} color="var(--good)"
-          big={synced ? (stepGoal > 0 ? (goalHit ? '✓' : stepPct) : '–') : '–'}
+          big={synced ? (stepGoal > 0 ? (goalHit ? <Tick size={22} /> : stepPct) : '–') : '–'}
           status={goalHit ? 'Goal hit' : (synced && stepGoal > 0 && todaySteps > 0 ? stepPct + '%' : '')}
           sub={synced ? (todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'No steps yet') : 'Not connected'}
           onTap={() => setSheet('move')} />
@@ -4202,7 +4208,7 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
   useBackClose(onClose);
   const Row = ({ label, detail }) => (
     <div className="flex gap-3 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
-      <div className="shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>✓</div>
+      <div className="shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}><Tick size={12} /></div>
       <div className="min-w-0">
         <div className="text-[13px] font-semibold">{label}</div>
         <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{detail}</div>
@@ -4418,10 +4424,12 @@ function heroFocusLine(et, tot) {
   const remK = Math.round(et.eff.kcal - tot.kcal);
   const remP = Math.round(et.eff.protein_g - tot.protein);
   if (tot.kcal <= 0) return null;
-  if (remK < -60) return { color: 'var(--warn)', text: Math.abs(remK) + ' kcal over today. An easy day tomorrow evens it out.' };
-  if (remP >= 25) return { color: 'var(--warn)', text: remP + 'g under on protein. A shake or chicken at dinner lands it.' };
+  // Lead with the next move, not the number: the hero already shows calories left and the bars show
+  // protein, so this line stays a nudge rather than a third readout of the same figures.
+  if (remK < -60) return { color: 'var(--warn)', text: 'Over on calories today. An easy day tomorrow evens it out.' };
+  if (remP >= 25) return { color: 'var(--warn)', text: 'Protein’s the gap. A shake or chicken at dinner lands it.' };
   if (remK <= 160 && remP <= 12) return { color: 'var(--good)', text: 'Dialled in. Protein hit, calories on target. Nice work.' };
-  return { color: 'var(--accent)', text: Math.max(0, remK) + ' kcal and ' + Math.max(0, remP) + 'g protein left, you’re on pace.' };
+  return { color: 'var(--accent)', text: 'On pace. Keep the evening light and you’re there.' };
 }
 // Thin status strip: the game hooks (streak, dex, Amber) compressed into one glanceable bar, the
 // Duolingo move, so they anchor Today without each taking a full card that competes with the macro hero.
@@ -4431,13 +4439,11 @@ function DashStatusStrip({ streak, dex, dexTotal, amber, onOpenPlay }) {
     <button type="button" onClick={onOpenPlay} aria-label="Open Play"
       className="w-full flex items-center justify-between pixel-box px-3 py-2 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <span className="flex items-center gap-2.5 pf uppercase" style={{ fontSize: 8 }}>
-        <span style={{ color: 'var(--accent)' }}>Streak <b className="tnum">{streak}</b></span>
-        <span style={{ color: 'var(--muted2)' }}>·</span>
         <span style={{ color: 'var(--carb)' }}>Dex <b className="tnum">{dex}/{dexTotal}</b></span>
         <span style={{ color: 'var(--muted2)' }}>·</span>
-        <span style={{ color: 'var(--fat)' }}>✦ <b className="tnum">{amber}</b></span>
+        <span style={{ color: 'var(--fat)' }}><Spark size={9} /> <b className="tnum">{amber}</b></span>
       </span>
-      <span className="pf uppercase shrink-0" style={{ fontSize: 8, color: 'var(--muted)' }}>Play ›</span>
+      <span className="pf uppercase shrink-0" style={{ fontSize: 8, color: 'var(--muted)' }}>›</span>
     </button>
   );
 }
@@ -6222,7 +6228,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
         <Btn kind="ghost" onClick={() => { setNotFound(false); setMode('scan'); }}>Try again</Btn>
       </div>
     </div>}
-    <button onClick={() => { setNotFound(false); setMode('scan'); }} className="w-full flex items-center gap-3 rounded-2xl p-4 text-left active:scale-[.99] transition" style={{ background: 'var(--accent)', color: '#0d0d0d' }}>
+    <button onClick={() => { setNotFound(false); setMode('scan'); }} className="w-full flex items-center gap-3 rounded-2xl p-4 text-left active:scale-[.99] transition" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(0,0,0,0.12)' }}><Icon.barcode width="22" height="22" /></div>
       <div className="min-w-0"><div className="text-sm font-bold">Scan a barcode</div><div className="text-[11px]" style={{ opacity: 0.85 }}>The quickest, most accurate way to log packaged food.</div></div>
     </button>
@@ -6479,7 +6485,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
    MORE (personal details + settings)
    ===================================================================== */
 function SaveBar({ dirty, saved, onSave, label }) {
-  return <div className="mt-1 mb-2"><Btn kind="accent" className="w-full" disabled={!dirty && !saved} style={{ opacity: (dirty || saved) ? 1 : .5 }} onClick={onSave}>{saved ? '✓ Saved' : (label || 'Save changes')}</Btn></div>;
+  return <div className="mt-1 mb-2"><Btn kind="accent" className="w-full" disabled={!dirty && !saved} style={{ opacity: (dirty || saved) ? 1 : .5 }} onClick={onSave}>{saved ? <><Tick size={11} /> Saved</> : (label || 'Save changes')}</Btn></div>;
 }
 
 const COACH_MODES = [
@@ -7846,7 +7852,7 @@ function CatchReveal({ c }) {
               <div className="crpop shrink-0" style={crFx(c.shiny, null)}><Sprite art={cr.art} colors={c.shiny ? crShiny(cr.colors) : cr.colors} px={5} /></div>
               <div className="min-w-0">
                 <div className="pf text-[8px] uppercase text-[#8A8A90] mb-0.5">Catch on the line</div>
-                <div className="pf text-[10px]" style={{ color: CR_RARITY_COLOR[cr.rarity] }}>{cr.name}{c.shiny ? ' ✦' : ''}</div>
+                <div className="pf text-[10px]" style={{ color: CR_RARITY_COLOR[cr.rarity] }}>{cr.name}{c.shiny ? <>{' '}<Spark size={9} /></> : null}</div>
               </div>
             </>
           : <>
@@ -7861,7 +7867,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className="fixed left-0 right-0 z-[60] flex justify-center px-4" style={{ bottom: 86 }}>
-      <div className="bg-[#1E1E22] border border-[#262629] rounded-2xl px-4 py-3 flex items-center gap-4 shadow-xl shadow-black/50 fade-in">
+      <div className="pixel-box px-4 py-3 flex items-center gap-4 fade-in" style={{ background: 'var(--surface2)' }}>
         <span className="text-sm">{toast.msg}</span>
         {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.action2Label}</button>}
         {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.actionLabel}</button>}
@@ -7980,7 +7986,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     <div className="space-y-0.5">
       {items.map(it => (
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
-          <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.done ? '✓' : ''}</span>
+          <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.done ? <Tick size={12} /> : null}</span>
           <span className="text-[13px] flex-1 min-w-0" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
           {!it.done && <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>DO IT ›</span>}
         </button>
@@ -8269,7 +8275,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
         <div className="pf text-[11px] mb-4" style={{ color: 'var(--accent)' }}>STEP {i + 1}</div>
         <div className="font-bold leading-snug" style={{ fontSize: 'clamp(1.4rem, 5vw, 2rem)' }}>{steps[i]}</div>
         {durMin > 0 && <div className="mt-6">
-          {(!timer) ? <button onClick={startTimer} className="pixel-btn px-4 py-3 text-[14px] font-bold" style={{ background: 'var(--accent)', color: '#111' }}>Start {durMin} min timer</button>
+          {(!timer) ? <button onClick={startTimer} className="pixel-btn px-4 py-3 text-[14px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Start {durMin} min timer</button>
             : <div className="flex items-center gap-3"><div className="tnum text-3xl font-bold" style={{ color: timer.left <= 0 ? 'var(--good)' : 'var(--text)' }}>{timer.left <= 0 ? 'Done!' : mmss(timer.left)}</div>
               <button onClick={() => setTimer(x => x && Object.assign({}, x, { on: !x.on }))} className="pixel-box px-3 py-2 text-[13px]" style={{ background: 'var(--surface3)' }}>{timer.on && timer.left > 0 ? 'Pause' : 'Resume'}</button>
               <button onClick={() => setTimer(null)} className="text-[13px] text-[#8A8A90] underline">Clear</button></div>}
@@ -8286,7 +8292,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
         <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="text-xl leading-none text-[#8A8A90]">×</button></div>
         <div className="space-y-0.5">{recipe.ingredients.map(ing => (
           <button key={ing.id} onClick={() => setChecked(c => Object.assign({}, c, { [ing.id]: !c[ing.id] }))} className="w-full flex items-center gap-3 text-left py-2">
-            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: '#fff' }}>{checked[ing.id] ? '✓' : ''}</span>
+            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: '#fff' }}>{checked[ing.id] ? <Tick size={12} /> : null}</span>
             <span className="text-[14px]" style={{ color: checked[ing.id] ? 'var(--muted)' : 'var(--text)', textDecoration: checked[ing.id] ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</span>
           </button>))}</div>
       </div>
@@ -8444,7 +8450,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <div className="space-y-2.5 mb-4">
         {recipe.ingredients.map((ing) => (
           <div key={ing.id} className="flex items-start gap-2.5">
-            <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 mt-0.5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? '✓' : ''}</button>
+            <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 mt-0.5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? <Tick size={12} /> : null}</button>
             <div className="flex-1 min-w-0">
               <button onClick={() => toggleHave(ing.id)} className="block w-full text-left text-[14px]" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
               <button onClick={() => setMacrosIng(ing)} className="text-[11px] flex items-center gap-1.5 mt-0.5" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent)' }}>
@@ -8469,7 +8475,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     {resolved > 0 && hasMacros && <button onClick={() => doLog('items')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log itemised (one diary entry per ingredient)</button>}
     {hasMacros && Rcp.batchLeft(recipe) === 0 && <button onClick={() => doLog('single', { batch: true })} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Batch cooking? Log a serving and keep the rest as leftovers</button>}
     {shareOn && recipe.source_url && <button onClick={togglePrivate} className="w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4">
-      <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: '#111' }}>{recipe.private ? '✓' : ''}</span>
+      <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: 'var(--on-accent)' }}>{recipe.private ? <Tick size={10} /> : null}</span>
       Keep this recipe private (off Discover)
     </button>}
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
@@ -8501,7 +8507,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div className="text-[12px] text-[#8A8A90] mb-3">Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways).</div>
         <div className="space-y-1.5 mb-4">{allCollections.map(c => { const on = (recipe.collections || []).includes(c); return (
           <button key={c} onClick={() => toggleColl(c)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>
-            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'), background: on ? 'var(--good)' : 'transparent', color: '#fff' }}>{on ? '✓' : ''}</span>{c}
+            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'), background: on ? 'var(--good)' : 'transparent', color: '#fff' }}>{on ? <Tick size={12} /> : null}</span>{c}
           </button>); })}</div>
         <div className="flex gap-2"><input value={newColl} onChange={e => setNewColl(e.target.value)} className={inputCls + ' flex-1'} placeholder="New collection" /><Btn kind="accent" onClick={() => { const n = newColl.trim(); if (n) { toggleColl(n); setNewColl(''); } }}>Add</Btn></div>
       </div>
@@ -8559,7 +8565,7 @@ function ShoppingListView({ db, update, showToast, onBack }) {
 
   const row = (it) => (
     <div key={it.id} className="flex items-center gap-2.5 py-2">
-      <button onClick={() => toggle(it.id)} aria-label={it.checked ? 'Untick' : 'Tick'} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.checked ? '✓' : ''}</button>
+      <button onClick={() => toggle(it.id)} aria-label={it.checked ? 'Untick' : 'Tick'} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.checked ? <Tick size={12} /> : null}</button>
       <button onClick={() => toggle(it.id)} className="flex-1 min-w-0 text-left">
         <div className="text-[14px] truncate" style={{ color: it.checked ? 'var(--muted)' : 'var(--text)', textDecoration: it.checked ? 'line-through' : 'none' }}>{it.name}</div>
         {!it.checked && attrOf(it) && <div className="text-[11px] text-[#8A8A90] truncate">{attrOf(it)}</div>}
@@ -9224,15 +9230,15 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </button>
           <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
             <Icon.cart width="20" height="20" />
-            {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#111' }}>{shoppingCount}</span>}
+            {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{shoppingCount}</span>}
           </button>
         </div>
       </div>
       <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-        <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
-        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Cookbook</button>
+        <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
+        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>Cookbook</button>
       </div>
       {hubTab === 'discover'
         ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
@@ -9305,7 +9311,7 @@ function Paywall({ reason, onCheckout, onClose }) {
           <div className="space-y-2.5 mb-4">
             {benefits.map(([t, d], i) => (
               <div key={i} className="flex gap-2.5 items-start">
-                <div className="mt-0.5 shrink-0 font-bold" style={{ color: 'var(--good)' }}>✓</div>
+                <div className="mt-0.5 shrink-0 font-bold" style={{ color: 'var(--good)' }}><Tick size={12} /></div>
                 <div><div className="text-[13px] font-semibold">{t}</div><div className="text-[11px] text-[#8A8A90] leading-snug">{d}</div></div>
               </div>
             ))}
@@ -9813,7 +9819,7 @@ function App() {
         <div className="pixel-box w-full max-w-md flex items-center gap-3 p-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--accent)' }}>
           <PixelDino size={20} color="var(--accent)" />
           <div className="min-w-0 flex-1 text-[12px]">A new version is ready.</div>
-          <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: '#111' }}>Reload</button>
+          <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
