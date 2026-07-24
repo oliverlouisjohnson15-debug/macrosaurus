@@ -2910,6 +2910,7 @@ const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fib
 // glow colour applied to the buddy sprite. Owned/equipped in db.buddy.cosmetics.
 const AURA_GLOW = { aura_ember: '#ff7a1a', aura_frost: '#3fd0ff', aura_spark: '#ffd400', aura_toxic: '#39FF14' };
 const RENAME_COST = 40; // Amber to rename the buddy after hatch (the hatch naming itself is free).
+const COLOUR_COST = 60; // Amber to recolour the buddy (switch its palette / colourway) after hatch.
 function auraFilter(eq) { const c = eq && eq.aura && AURA_GLOW[eq.aura]; return c ? 'drop-shadow(0 0 6px ' + c + ') drop-shadow(0 0 3px ' + c + ')' : null; }
 function equippedCosmetics(list) {
   const bySlot = {};
@@ -3047,7 +3048,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
           </div>}
 
           {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
-          {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} />}
+          {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} update={update} onRename={onOpenName} />}
         </>)}
       </div>
     </div>
@@ -3090,9 +3091,12 @@ function TrophyCabinet({ db, streak, onBack }) {
 }
 // The Amber shop: spend hard-won currency on buddy cosmetics (FX auras shown on your buddy)
 // (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
-function ShopView({ db, amber, buy, onBack }) {
+function ShopView({ db, amber, buy, update, onRename, onBack }) {
   const owned = (db.buddy && db.buddy.cosmetics) || [];
-  const Row = ({ id, name, desc, price, preview, ownedLabel }) => {
+  const [colourOpen, setColourOpen] = useState(false);
+  // onBuy overrides the default cosmetic purchase, so the same Row renders one-off actions (rename,
+  // recolour) that open a flow instead of buying an owned item.
+  const Row = ({ id, name, desc, price, preview, ownedLabel, onBuy }) => {
     const afford = amber >= price;
     return (
       <div className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -3103,10 +3107,13 @@ function ShopView({ db, amber, buy, onBack }) {
         </div>
         {ownedLabel
           ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>{ownedLabel}</span>
-          : <button onClick={() => buy(id)} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}><Spark size={9} /> {price}</button>}
+          : <button onClick={onBuy || (() => buy(id))} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}><Spark size={9} /> {price}</button>}
       </div>
     );
   };
+  const buddy = db.buddy || {};
+  const hatched = buddy.hatched !== false; // no buddy actions on an unhatched egg
+  const canRecolour = hatched && buddy.species && spritePalettes(buddy.species).length > 1;
   return (
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
@@ -3116,11 +3123,63 @@ function ShopView({ db, amber, buy, onBack }) {
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
       <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from your buddy's fights, then treat it to something nice.</div>
 
+      {hatched && (onRename || canRecolour) && <>
+        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your buddy</div>
+        <div className="space-y-2 mb-5">
+          {onRename && <Row name="Rename" desc="Give your buddy a new name." price={RENAME_COST} onBuy={onRename}
+            preview={<span className="pf text-[13px] font-bold" style={{ color: 'var(--accent)' }}>Aa</span>} />}
+          {canRecolour && <Row name="Change colour" desc="Switch your buddy's colourway." price={COLOUR_COST} onBuy={() => setColourOpen(true)}
+            preview={<div className="pixel-box p-0.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={1.2} /></div>} />}
+        </div>
+      </>}
+
       <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Buddy cosmetics</div>
       <div className="space-y-2">
         {Game.COSMETICS.map(c => <Row key={c.id} id={c.id} name={c.name} desc={c.desc} price={c.price}
           preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat)' }}><Spark size={18} /></span>}
           ownedLabel={owned.indexOf(c.id) >= 0 ? 'OWNED' : null} />)}
+      </div>
+      {colourOpen && update && <BuddyColourModal db={db} update={update} onClose={() => setColourOpen(false)} />}
+    </div>
+  );
+}
+// Recolour the hatched buddy for Amber: pick a colourway (its species' available palettes), pay once.
+// Visual pick, no colour names, since the palettes are the same egg colourways chosen at hatch.
+function BuddyColourModal({ db, update, onClose }) {
+  useBackClose(onClose);
+  const b = db.buddy || {};
+  const species = b.species || 'doux';
+  const options = spritePalettes(species);
+  const current = b.palette || options[0];
+  const amber = Game.amberBalance(db.amber_ledger);
+  const [pick, setPick] = useState(current);
+  const changed = pick !== current;
+  const canAfford = amber >= COLOUR_COST;
+  function save() {
+    if (!changed) { onClose(); return; }
+    if (!canAfford) return;
+    update(d => {
+      d.buddy = d.buddy || {}; d.buddy.palette = pick;
+      d.amber_ledger = d.amber_ledger || [];
+      d.amber_ledger.push({ id: Store.uid(), date: Store.todayISO(), delta: -COLOUR_COST, reason: 'recolour' });
+    });
+    onClose();
+  }
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1"><div className="text-[15px] font-bold">Change colour</div><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
+        <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Pick a new colourway for {b.name || 'your buddy'}. Costs {COLOUR_COST} Amber (you have {amber}).</div>
+        <div className="flex gap-3 justify-center mb-4">
+          {options.map(pal => (
+            <button key={pal} onClick={() => setPick(pal)} className="pixel-box p-2 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', border: '3px solid ' + (pick === pal ? 'var(--accent)' : 'transparent'), width: 96, height: 96 }}>
+              <SpriteSheet palette={pal} species={species} group="base" anim="idle" px={2.6} fps={5} />
+            </button>
+          ))}
+        </div>
+        <button onClick={save} disabled={changed && !canAfford} className="pixel-btn w-full py-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (!changed || canAfford) ? 1 : 0.5 }}>
+          <span className="pf text-[10px]">{!changed ? 'KEEP CURRENT' : canAfford ? 'RECOLOUR · ' + COLOUR_COST + ' AMBER' : 'NOT ENOUGH AMBER'}</span>
+        </button>
       </div>
     </div>
   );
