@@ -5052,7 +5052,9 @@ if (typeof window !== 'undefined') {
 function useBackClose(onClose) {
   const ref = useRef(onClose);
   ref.current = onClose;
+  const armed = !!onClose; // when embedded in another sheet, pass null so we don't add a stray back layer
   useEffect(() => {
+    if (!armed) return;
     const layer = {
       close: () => {
         if (ref.current) ref.current();
@@ -5073,7 +5075,7 @@ function useBackClose(onClose) {
         }
       }
     };
-  }, []);
+  }, [armed]);
 }
 // For inline layers (JSX without a dedicated component): mounts the back-close hook and nothing else.
 function BackClose({
@@ -10536,66 +10538,13 @@ function MacrodexModal({
     freezeReady: freezeReady,
     onOpenName: onOpenName,
     onTrophies: () => setTrophies(true)
-  }), view === 'battle' && /*#__PURE__*/React.createElement("div", {
-    className: "fade-in"
-  }, onOpenFight ? (() => {
-    const wk = fightWeekKey();
-    const boss = bossForWeek();
-    const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
-    const readiness = readinessFor(db, today);
-    const buff = readiness != null ? Game.readinessBuff(readiness) : null;
-    const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today' : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight' : buff ? 'Full strength today' : null;
-    const edge = beaten ? 'var(--good)' : 'var(--danger)';
-    return /*#__PURE__*/React.createElement("button", {
-      onClick: onOpenFight,
-      className: "w-full text-left pixel-box p-3 mb-3 flex items-center gap-3",
-      style: {
-        background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pixel-box p-1.5 shrink-0",
-      style: {
-        background: 'var(--surface3)',
-        boxShadow: 'none'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        display: 'inline-block',
-        transform: 'scaleX(-1)'
-      }
-    }, /*#__PURE__*/React.createElement(EnemySprite, {
-      name: boss.name,
-      anim: "idle",
-      px: 2.6
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "min-w-0 flex-1 leading-tight"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[7px] uppercase",
-      style: {
-        color: edge
-      }
-    }, beaten ? /*#__PURE__*/React.createElement(React.Fragment, null, "Boss beaten this week ", /*#__PURE__*/React.createElement(Tick, {
-      size: 9
-    })) : "This week's boss"), /*#__PURE__*/React.createElement("div", {
-      className: "text-[13px] font-bold truncate"
-    }, boss.name), /*#__PURE__*/React.createElement("div", {
-      className: "text-[9.5px] text-[#8A8A90] leading-snug mt-0.5"
-    }, "The week's toughest fight, best rewards.", buffLine ? ' ' + buffLine + '.' : '')), /*#__PURE__*/React.createElement("span", {
-      className: "pf text-[9px] px-2.5 py-2.5 shrink-0",
-      style: {
-        background: beaten ? 'var(--surface3)' : 'var(--danger)',
-        color: beaten ? 'var(--muted)' : '#fff'
-      }
-    }, beaten ? 'REMATCH ›' : 'FIGHT ›'));
-  })() : /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-4 text-center text-[11px] text-[#8A8A90]",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
-    }
-  }, "Battles arrive once you're logging. Keep feeding your buddy."), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] leading-snug"
-  }, "Your eating is your build: the week's protein, fibre and perfect days set your buddy's attack, defence and health. Losing only teaches, it never sets you back.")), view === 'shop' && /*#__PURE__*/React.createElement(ShopView, {
+  }), view === 'battle' && /*#__PURE__*/React.createElement(FightModal, {
+    db: db,
+    update: update,
+    streak: streak,
+    onClose: onClose,
+    embedded: true
+  }), view === 'shop' && /*#__PURE__*/React.createElement(ShopView, {
     db: db,
     amber: amber,
     buy: buy,
@@ -11254,9 +11203,10 @@ function FightModal({
   db,
   update,
   streak,
-  onClose
+  onClose,
+  embedded
 }) {
-  useBackClose(onClose);
+  useBackClose(embedded ? null : onClose); // embedded in the Play hub's Battle tab, the hub owns back/close
   const fight = db.fight || {
     rank: 0,
     wins: 0,
@@ -11647,6 +11597,7 @@ function FightModal({
   const FightCard = ({
     tag,
     tagColor,
+    attemptTag,
     enemy,
     reward,
     action,
@@ -11659,11 +11610,19 @@ function FightModal({
       border: '2px solid ' + (border || 'var(--border)')
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase mb-2.5",
+    className: "flex items-center justify-between gap-2 mb-2.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase",
     style: {
       color: tagColor || 'var(--muted)'
     }
-  }, tag), /*#__PURE__*/React.createElement("div", {
+  }, tag), attemptTag && /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase px-1.5 py-1 shrink-0",
+    style: {
+      background: 'var(--surface3)',
+      color: 'var(--muted)'
+    }
+  }, attemptTag)), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box shrink-0 inline-flex items-center justify-center",
@@ -11696,23 +11655,7 @@ function FightModal({
   }, ABIL_LABEL[enemy.ability]), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mt-1 leading-snug"
   }, reward))), action);
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center",
-    onClick: onClose
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
-    style: {
-      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
-    },
-    onClick: e => e.stopPropagation()
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between items-center mb-3"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-lg font-semibold"
-  }, "Dino fight"), /*#__PURE__*/React.createElement("button", {
-    onClick: onClose,
-    className: "text-[#8A8A90] text-2xl leading-none"
-  }, "×")), phase === 'egg' && /*#__PURE__*/React.createElement("div", {
+  const body = /*#__PURE__*/React.createElement(React.Fragment, null, phase === 'egg' && /*#__PURE__*/React.createElement("div", {
     className: "text-center py-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center mb-3"
@@ -11736,7 +11679,7 @@ function FightModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "Prestige ", fight.prestige, " ·"), /*#__PURE__*/React.createElement("span", null, ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0), /*#__PURE__*/React.createElement(PixelGlyph, {
+  }, "Prestige ", fight.prestige, " ·"), /*#__PURE__*/React.createElement("span", null, ladderCleared ? 'All bosses cleared' : `Boss ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0), /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
     size: 11
@@ -11771,43 +11714,12 @@ function FightModal({
     }
   }, readyBuff.band ? readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today' : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today' : 'Steady readiness today' : 'Built from your week’s protein, fibre and perfect days'))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
-  }, "Choose your battle"), /*#__PURE__*/React.createElement(FightCard, {
-    tag: ladderCleared ? 'Ladder · cleared' : 'Ladder · Rung ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length,
-    tagColor: "var(--accent)",
-    enemy: rival,
-    reward: "Climb the ranks for Amber, loot and the Champion Belt.",
-    action: ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
-      kind: "accent",
-      className: "w-full",
-      onClick: prestige
-    }, "Prestige ↑ · tougher ladder, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
-      kind: "accent",
-      className: "w-full",
-      onClick: () => {
-        update(d => {
-          d.fight = d.fight || {
-            rank: 0,
-            wins: 0,
-            trophies: 0,
-            lastBossWeek: null,
-            prestige: 0
-          };
-          d.fight.lastAttemptDate = today;
-        });
-        start(rival, 'ladder');
-      }
-    }, "Fight ", rival.name, " · 1 attempt today") : /*#__PURE__*/React.createElement("div", {
-      className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
-      style: {
-        background: 'var(--surface3)',
-        boxShadow: 'none'
-      }
-    }, gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.')
-  }), /*#__PURE__*/React.createElement(FightCard, {
+  }, "Your battles"), /*#__PURE__*/React.createElement(FightCard, {
     tag: "Daily Hunt",
     tagColor: "var(--accent)",
-    enemy: daily,
     border: dailyReady ? 'var(--accent)' : 'var(--border)',
+    enemy: daily,
+    attemptTag: dailyReady ? loggedToday ? 'ready' : 'log to arm' : 'cleared today',
     reward: /*#__PURE__*/React.createElement(React.Fragment, null, (fight.dailyStreak || 0) > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
         color: 'var(--fat)'
@@ -11828,7 +11740,7 @@ function FightModal({
       kind: "glove",
       color: "currentColor",
       size: 14
-    }), " Hunt ", daily.name) : /*#__PURE__*/React.createElement("div", {
+    }), " Hunt") : /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
       style: {
         background: 'var(--surface3)',
@@ -11844,28 +11756,45 @@ function FightModal({
     }, "Hunt cleared today ", /*#__PURE__*/React.createElement(Tick, {
       size: 9
     }), " A fresh one lands tomorrow.")
-  }), bossReady ? /*#__PURE__*/React.createElement(FightCard, {
-    tag: 'Weekly Boss · ' + boss.name,
+  }), /*#__PURE__*/React.createElement(FightCard, {
+    tag: ladderCleared ? 'Boss Climb · all cleared' : 'Boss Climb · Rank ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length,
     tagColor: "var(--danger)",
     border: "var(--danger)",
-    enemy: boss,
-    reward: "The week’s toughest fight, and the best Amber and loot going.",
-    action: /*#__PURE__*/React.createElement(Btn, {
+    enemy: rival,
+    attemptTag: ladderCleared ? null : gate.can ? '1 attempt today' : gate.reason === 'used' ? 'used today' : 'log to unlock',
+    reward: "Climb the bosses for Amber, loot and the Champion Belt. Losing only teaches, never sets you back.",
+    action: ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
+      kind: "accent",
+      className: "w-full",
+      onClick: prestige
+    }, "Prestige ↑ · tougher climb, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
       kind: "danger",
       className: "w-full inline-flex items-center justify-center gap-2",
-      onClick: () => start(boss, 'weekly')
+      onClick: () => {
+        update(d => {
+          d.fight = d.fight || {
+            rank: 0,
+            wins: 0,
+            trophies: 0,
+            lastBossWeek: null,
+            prestige: 0
+          };
+          d.fight.lastAttemptDate = today;
+        });
+        start(rival, 'ladder');
+      }
     }, /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: "glove",
       color: "currentColor",
       size: 14
-    }), " Challenge ", boss.name)
-  }) : /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] text-center pixel-box p-3",
-    style: {
-      background: 'var(--surface2)',
-      boxShadow: 'none'
-    }
-  }, "Weekly boss beaten, a new challenger arrives next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
+    }), " Fight") : /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none'
+      }
+    }, gate.reason === 'used' ? 'Today’s attempt is used, a fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.')
+  })), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-2"
@@ -11924,7 +11853,27 @@ function FightModal({
     kind: "accent",
     className: "flex-1",
     onClick: onClose
-  }, "Done"))))));
+  }, "Done")))));
+  if (embedded) return /*#__PURE__*/React.createElement("div", {
+    className: "fade-in"
+  }, body);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mb-3"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold"
+  }, "Dino fight"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-[#8A8A90] text-2xl leading-none"
+  }, "×")), body));
 }
 // Slim weight-trend teaser for the dashboard: latest weight + a sparkline, taps through to
 // the Goal tab where the full trend, weigh-in log and burn estimate live.
@@ -27584,7 +27533,6 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
-  const [fightOpen, setFightOpen] = useState(false); // boss fight, launched from inside the Play hub
   const [nameOpen, setNameOpen] = useState(false); // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -28773,14 +28721,8 @@ function App() {
     db: db,
     update: update,
     streak: appStreak,
-    onOpenFight: () => setFightOpen(true),
     onOpenName: () => setNameOpen(true),
     onClose: () => setDexOpen(false)
-  }), fightOpen && /*#__PURE__*/React.createElement(FightModal, {
-    db: db,
-    update: update,
-    streak: appStreak,
-    onClose: () => setFightOpen(false)
   }), nameOpen && /*#__PURE__*/React.createElement(NameBuddyModal, {
     db: db,
     update: update,
