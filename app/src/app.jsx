@@ -7044,7 +7044,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           </div>
         </div>
       </div>}
-      {guide && <WelcomeCarousel reviewing theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
+      {guide && <WelcomeCarousel reviewing buddy={db.buddy} theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
       {feedback && <FeedbackSheet email={email} onClose={() => setFeedback(false)} />}
       {invite && <InviteSheet rewards={rewards} onClose={() => setInvite(false)} toast={showToast} />}
     </div>
@@ -7857,34 +7857,31 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
 
 // First-run welcome tour: a few full-screen slides teaching the core concepts. Shown once to new
 // users after setup, and replayable from the menu (reviewing=true just changes the button labels).
-const WELCOME_SLIDES = [
-  { title: 'Welcome to Macrosaurus', body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week." },
-  { title: 'Logging is quick', body: "Tap the plus to add food by photo, voice or barcode. The AI does the maths, you just confirm." },
-  { title: 'Weigh in, then relax', body: "A few times a week is plenty. Macrosaurus follows your trend, not one noisy day, and adjusts your targets weekly." },
-  { title: 'Meet your buddy', body: "Your dino grows as you build real habits, coaches you toward your next step, and gets stronger for a fight. Tap it any time to check in." },
-];
-function WelcomeCarousel({ onDone, reviewing, theme }) {
+// One warm closing beat after setup, in the buddy's voice, then it takes over. The old four-slide tour
+// (logging, weigh-ins, "meet your buddy", weekly adapting) was too much: the buddy now drips all of that
+// over the first hours and days through its coach line, curriculum lessons, morning read and check-in
+// prompts, right when each moment actually arrives.
+function WelcomeCarousel({ onDone, reviewing, theme, buddy }) {
   useBackClose(onDone);
-  const [i, setI] = useState(0);
-  const last = i === WELCOME_SLIDES.length - 1;
-  const s = WELCOME_SLIDES[i];
   const dark = theme === 'dark';
   const brand = dark ? 'var(--accent)' : 'var(--header)';   // --header is black in dark, so use accent
   const onBrand = dark ? '#111' : '#fff';
+  const bs = buddyStageSprite((buddy && buddy.stage) || 0, buddy);
+  const incubating = !(buddy && buddy.hatched !== false);
   return (<div className={'fixed inset-0 z-[95] ' + (dark ? 'theme-dark' : 'theme-light') + ' flex flex-col'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex justify-between items-center px-5 py-4">
       <span className="pf text-[11px]" style={{ color: brand }}>MACROSAURUS</span>
       <button onClick={onDone} className="text-[12px] text-[#8A8A90]">{reviewing ? 'Close' : 'Skip'}</button>
     </div>
     <div className="flex-1 flex flex-col justify-center items-center text-center px-8 max-w-sm mx-auto">
-      <div className="pixel-box p-6 mb-6" style={{ background: brand, borderColor: 'var(--border)' }}><PixelDino size={64} color={onBrand} /></div>
-      <h2 className="pf text-base mb-3 leading-relaxed" style={{ color: brand }}>{s.title}</h2>
-      <p className="text-[14px] leading-relaxed">{s.body}</p>
+      <div className="pixel-box p-6 mb-6 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', borderColor: 'var(--border)' }}><SpriteSheet palette={bs.palette} species={bs.species} group={bs.group} anim={bs.anim} px={4} fps={bs.fps} /></div>
+      <h2 className="pf text-base mb-3 leading-relaxed" style={{ color: brand }}>You're all set!</h2>
+      <p className="text-[14px] leading-relaxed">{incubating
+        ? "I'm still an egg for now. Log your first meal and I'll start growing, then I'll guide you from here, one nudge at a time. No need to learn it all at once."
+        : "That's your plan sorted. Log as you go and I'll coach you through the rest, one nudge at a time. No need to learn it all at once."}</p>
     </div>
     <div className="px-6 pb-10 max-w-sm mx-auto w-full">
-      <div className="flex justify-center gap-1.5 mb-5">{WELCOME_SLIDES.map((_, k) => <div key={k} className="h-1.5 rounded-full transition-all" style={{ width: k === i ? 18 : 6, background: k === i ? brand : 'var(--border)' }} />)}</div>
-      <button onClick={() => last ? onDone() : setI(i + 1)} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: brand, color: onBrand }}>{last ? (reviewing ? 'DONE' : 'START TRACKING') : 'NEXT'}</button>
-      {i > 0 && <button onClick={() => setI(i - 1)} className="w-full text-[11px] text-[#8A8A90] mt-3">Back</button>}
+      <button onClick={onDone} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: brand, color: onBrand }}>{reviewing ? 'DONE' : "LET'S GO"}</button>
     </div>
   </div>);
 }
@@ -9765,7 +9762,7 @@ function App() {
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} onClose={() => setToast(null)} />
-      {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
+      {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} buddy={db.buddy} onDone={() => setShowWelcome(false)} />}
     </div>
   );
 }
