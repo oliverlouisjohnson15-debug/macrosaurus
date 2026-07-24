@@ -454,7 +454,7 @@
   function readinessScore(inp) { return readinessParts(inp).score; }
   // Dino-flavoured bands. Apex = roaring and ready; Drowsy = a recovery day, not a failure.
   function readinessBand(score) { if (score == null) return null; var s = Number(score); if (!isFinite(s)) return null; return s >= 80 ? 'apex' : s >= 55 ? 'prowling' : 'drowsy'; }
-  var READY_BAND = { apex: { label: 'Apex', blurb: 'Roaring and ready. Push today.' }, prowling: { label: 'Prowling', blurb: 'Steady. A normal day.' }, drowsy: { label: 'Drowsy', blurb: 'Recover. Go gentle today.' } };
+  var READY_BAND = { apex: { label: 'High', blurb: 'Roaring and ready. Push today.' }, prowling: { label: 'Steady', blurb: 'Steady. A normal day.' }, drowsy: { label: 'Low', blurb: 'Recover. Go gentle today.' } };
   // The daily Fight buff a readiness band grants. Good sleep + recovery earns a real edge; a rough night
   // gives a defensive, self-healing stance so a recovery day still helps rather than only punishing.
   function readinessBuff(score) {
