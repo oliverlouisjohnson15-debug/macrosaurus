@@ -2530,11 +2530,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, coach }) {
           <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
           <div className="absolute" style={{ left: '50%', bottom: 12, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
           <div className="absolute" style={Object.assign({ left: '50%', bottom: 4, transform: 'translateX(-50%)' }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
-            <div className="relative inline-block leading-none">
+            <div className="inline-block leading-none" style={{ filter: auraFilter(eq) || undefined }}>
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />
-              {eq.hat && <span className="absolute pointer-events-none" style={{ top: 0, left: '50%', transform: 'translateX(-50%)', fontSize: 22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
-              {eq.face && <span className="absolute pointer-events-none" style={{ top: '32%', left: '50%', transform: 'translateX(-50%)', fontSize: 17, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
-              {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '6%', left: '50%', transform: 'translateX(-50%)', fontSize: 16, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
             </div>
           </div>
           {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
@@ -2871,9 +2868,11 @@ function buddyProfile(db, streak, buddy, level) {
 const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fibre', fuel: 'more fuel' };
 
 // ---- Buddy cosmetics: shop-bought overlays drawn on the buddy sprite ----
-// Physical items are emoji (crisp at any size, no new pixel art needed); auras are a CSS glow.
-// Stored (owned) in db.buddy.cosmetics; one per slot is shown, the last bought winning its slot.
-const COSMETIC_EMOJI = { flower: '🌸', party_hat: '🎉', shades: '🕶️', scarf: '🧣', crown: '👑' };
+// Cosmetics are FX auras only now (emoji hats read poorly over the pixel art). Each aura is a CSS
+// glow colour applied to the buddy sprite. Owned/equipped in db.buddy.cosmetics.
+const AURA_GLOW = { aura_ember: '#ff7a1a', aura_frost: '#3fd0ff', aura_spark: '#ffd400', aura_toxic: '#39FF14' };
+const RENAME_COST = 40; // Amber to rename the buddy after hatch (the hatch naming itself is free).
+function auraFilter(eq) { const c = eq && eq.aura && AURA_GLOW[eq.aura]; return c ? 'drop-shadow(0 0 6px ' + c + ') drop-shadow(0 0 3px ' + c + ')' : null; }
 function equippedCosmetics(list) {
   const bySlot = {};
   (list || []).forEach(id => { const c = Game.COSMETIC_BY_ID[id]; if (c) bySlot[c.kind] = id; });
@@ -2885,13 +2884,10 @@ function equippedCosmetics(list) {
 function BuddyAvatar({ buddy, px = 4, asleep }) {
   const s = buddyStageSprite((buddy && buddy.stage) || 0, buddy);
   const eq = (buddy && buddy.hatched === false) ? {} : equippedCosmetics(buddy && buddy.cosmetics);
-  const cw = 24 * px;
+  const filters = [asleep ? 'grayscale(0.85)' : null, auraFilter(eq)].filter(Boolean).join(' ');
   return (
-    <div className="relative inline-block leading-none" style={asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null}>
+    <div className="inline-block leading-none" style={{ filter: filters || undefined, opacity: asleep ? 0.5 : 1 }}>
       <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={px} fps={s.fps} />
-      {eq.hat && <span className="absolute pointer-events-none" style={{ top: -cw * 0.04, left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.3, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
-      {eq.face && <span className="absolute pointer-events-none" style={{ top: '32%', left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.23, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
-      {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '6%', left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
     </div>
   );
 }
@@ -2939,7 +2935,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
         <div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
         <div className="text-[9px] text-[#8A8A90] mt-1.5">{nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`}</div>
       </div>}
-      {onOpenName && !incubating && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: named ? 'var(--surface2)' : 'var(--accent)', color: named ? undefined : 'var(--on-accent)' }}>{named ? 'RENAME' : 'NAME YOUR DINO'}</button>}
+      {onOpenName && !incubating && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: named ? 'var(--surface2)' : 'var(--accent)', color: named ? undefined : 'var(--on-accent)' }}>{named ? 'RENAME · ' + RENAME_COST + ' AMBER' : 'NAME YOUR DINO'}</button>}
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
       {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
     </div>
@@ -3054,7 +3050,7 @@ function TrophyCabinet({ db, streak, onBack }) {
       : <div className="text-[10px] text-[#8A8A90] mb-4">No trophies yet. Beat the weekly boss for Amber and clear the ladder for the Champion Belt.</div>}
   </div>;
 }
-// The Amber shop: spend hard-won currency on buddy cosmetics (shown on your buddy) and catch boosts
+// The Amber shop: spend hard-won currency on buddy cosmetics (FX auras shown on your buddy)
 // (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
 function ShopView({ db, amber, buy, onBack }) {
   const owned = (db.buddy && db.buddy.cosmetics) || [];
@@ -3085,9 +3081,7 @@ function ShopView({ db, amber, buy, onBack }) {
       <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Buddy cosmetics</div>
       <div className="space-y-2">
         {Game.COSMETICS.map(c => <Row key={c.id} id={c.id} name={c.name} desc={c.desc} price={c.price}
-          preview={c.kind === 'aura'
-            ? <span style={{ filter: 'drop-shadow(0 0 5px #ff7a1a)' }}><Spark size={18} /></span>
-            : <span style={{ fontSize: 20, lineHeight: 1 }}>{COSMETIC_EMOJI[c.id] || <Spark size={16} />}</span>}
+          preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat)' }}><Spark size={18} /></span>}
           ownedLabel={owned.indexOf(c.id) >= 0 ? 'OWNED' : null} />)}
       </div>
     </div>
@@ -4129,10 +4123,18 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
 function NameBuddyModal({ db, update, buddy, onClose }) {
   useBackClose(onClose);
   const b = db.buddy || {};
+  const isRename = !!b.name;
+  const amber = Game.amberBalance(db.amber_ledger);
+  const canAfford = !isRename || amber >= RENAME_COST;
   const [name, setName] = useState(b.name || '');
   function save() {
     const nm = name.trim().slice(0, 16); if (!nm) return;
-    update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; });
+    if (isRename && nm === b.name) { onClose(); return; }   // no change, no charge
+    if (isRename && !canAfford) return;
+    update(d => {
+      d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm;
+      if (isRename) { d.amber_ledger = d.amber_ledger || []; d.amber_ledger.push({ id: Store.uid(), date: Store.todayISO(), delta: -RENAME_COST, reason: 'rename' }); }
+    });
     onClose();
   }
   return (
@@ -4140,12 +4142,12 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
       <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex flex-col items-center text-center mb-4">
           <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><BuddyAvatar buddy={b} px={3} /></div>
-          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">Give your buddy a name, it’s yours to raise.</div>
+          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{isRename ? 'Rename your buddy. Costs ' + RENAME_COST + ' Amber (you have ' + amber + ').' : 'Give your buddy a name, it’s yours to raise.'}</div>
         </div>
         <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
           className={inputCls + ' text-center'} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
-        <button onClick={save} disabled={!name.trim()} className="pixel-btn w-full py-3 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: name.trim() ? 1 : 0.5 }}>
-          <span className="pf text-[10px]">{b.name ? 'RENAME' : 'HATCH'}</span>
+        <button onClick={save} disabled={!name.trim() || !canAfford} className="pixel-btn w-full py-3 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (name.trim() && canAfford) ? 1 : 0.5 }}>
+          <span className="pf text-[10px]">{isRename ? (canAfford ? 'RENAME · ' + RENAME_COST + ' AMBER' : 'NOT ENOUGH AMBER') : 'HATCH'}</span>
         </button>
       </div>
     </div>

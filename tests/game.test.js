@@ -650,16 +650,15 @@ test('amberDailyReward tops up every 5th clear in a row', () => {
 
 // ---- Shop: stable prices, affordability from the ledger ----
 
-test('shopPrice covers every cosmetic and consumable, and is null otherwise', () => {
+test('shopPrice covers every cosmetic, and is null otherwise', () => {
   Game.COSMETICS.forEach(c => assert.strictEqual(Game.shopPrice(c.id), c.price));
-  Game.SHOP_CONSUMABLES.forEach(c => assert.strictEqual(Game.shopPrice(c.id), c.price));
   assert.strictEqual(Game.shopPrice('not_a_thing'), null);
 });
 
 test('canAfford reads the balance against the price', () => {
   const rich = [{ id: 'a', delta: 500 }];
   const poor = [{ id: 'a', delta: 10 }];
-  assert.strictEqual(Game.canAfford(rich, 'crown'), true);
-  assert.strictEqual(Game.canAfford(poor, 'crown'), false);
+  assert.strictEqual(Game.canAfford(rich, 'aura_ember'), true);   // aura_ember = 180
+  assert.strictEqual(Game.canAfford(poor, 'aura_ember'), false);
   assert.strictEqual(Game.canAfford(rich, 'not_a_thing'), false); // no price → cannot buy
 });

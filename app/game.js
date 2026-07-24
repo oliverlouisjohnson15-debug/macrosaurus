@@ -511,28 +511,18 @@
   }
 
   // ---- Shop: spend Amber on buddy cosmetics + catch boosts. Prices are pure and stable. ----
-  // Cosmetics are buddy sprite overlays (drawn in app.jsx), owned/equipped in db.buddy.cosmetics.
-  // Consumables reuse the existing item system (they flow into db.items and the dex_boost loop).
+  // Cosmetics are FX auras that glow around the buddy sprite (drawn in app.jsx from AURA_GLOW),
+  // owned/equipped in db.buddy.cosmetics. Aura-only for now: emoji hats/faces read poorly over the
+  // pixel art, so we stick to art-native "sparkle and follow" effects until proper worn art exists.
   var COSMETICS = [
-    { id: 'flower', name: 'Head Bloom', kind: 'hat', price: 60, desc: 'A little bloom that sits between the eyes.' },
-    { id: 'party_hat', name: 'Party Hat', kind: 'hat', price: 90, desc: 'A jaunty cone for a well-fed buddy.' },
-    { id: 'shades', name: 'Cool Shades', kind: 'face', price: 120, desc: 'Too cool for extinction.' },
-    { id: 'scarf', name: 'Cosy Scarf', kind: 'neck', price: 140, desc: 'For the warm and well-nourished.' },
-    { id: 'crown', name: 'Gold Crown', kind: 'hat', price: 260, desc: 'Rule the pit in style.' },
-    { id: 'aura_ember', name: 'Ember Aura', kind: 'aura', price: 320, desc: 'A blazing glow that follows your buddy.' },
+    { id: 'aura_ember', name: 'Ember Aura', kind: 'aura', price: 180, desc: 'A warm ember glow that follows your buddy.' },
+    { id: 'aura_frost', name: 'Frost Aura', kind: 'aura', price: 180, desc: 'A cool blue shimmer that trails your buddy.' },
+    { id: 'aura_spark', name: 'Spark Aura', kind: 'aura', price: 220, desc: 'A golden sparkle that dances around your buddy.' },
+    { id: 'aura_toxic', name: 'Toxic Aura', kind: 'aura', price: 220, desc: 'An eerie green haze, for the apex predator.' },
   ];
   var COSMETIC_BY_ID = {}; COSMETICS.forEach(function (c) { COSMETIC_BY_ID[c.id] = c; });
   // Buyable consumables (existing item ids) and their Amber price.
-  var SHOP_CONSUMABLES = [
-    { id: 'lure', price: 40 },
-    { id: 'incubator', price: 70 },
-    { id: 'golden_steak', price: 100 },
-  ];
-  var CONSUMABLE_PRICE = {}; SHOP_CONSUMABLES.forEach(function (c) { CONSUMABLE_PRICE[c.id] = c.price; });
-  function shopPrice(id) {
-    if (COSMETIC_BY_ID[id]) return COSMETIC_BY_ID[id].price;
-    return CONSUMABLE_PRICE[id] != null ? CONSUMABLE_PRICE[id] : null;
-  }
+  function shopPrice(id) { return COSMETIC_BY_ID[id] ? COSMETIC_BY_ID[id].price : null; }
   function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
 
   var Game = {
@@ -612,7 +602,6 @@
     amberBalance: amberBalance,
     COSMETICS: COSMETICS,
     COSMETIC_BY_ID: COSMETIC_BY_ID,
-    SHOP_CONSUMABLES: SHOP_CONSUMABLES,
     shopPrice: shopPrice,
     canAfford: canAfford,
   };
