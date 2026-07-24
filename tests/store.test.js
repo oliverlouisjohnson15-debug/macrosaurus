@@ -139,6 +139,62 @@ test('mergeStates: a resume can keep last_checkin ahead of the newest checkins e
   assert.strictEqual(Store.mergeStates(resumed, older).last_checkin, '2026-07-24');
 });
 
+test('mergeStates: adaptive expenditure follows the most recently learned copy, not the higher _rev', () => {
+  // The higher-_rev copy never ran the latest check-in, so its learned TDEE is older.
+  const staleHigherRev = { _rev: 9, expenditure: { kcal: 2400, n: 3, updated: '2026-07-10' } };
+  const freshLearned    = { _rev: 4, expenditure: { kcal: 2650, n: 5, updated: '2026-07-24' } };
+  assert.strictEqual(Store.mergeStates(staleHigherRev, freshLearned).expenditure.kcal, 2650);
+  assert.strictEqual(Store.mergeStates(freshLearned, staleHigherRev).expenditure.kcal, 2650); // order-independent
+});
+
+test('mergeStates: monotonic counters (badges, longest streak) take the max, never regress', () => {
+  const a = { _rev: 9, badges: { checkins: 2, inRange: 1 }, records: { longestStreak: 4 } };
+  const b = { _rev: 3, badges: { checkins: 5, inRange: 3 }, records: { longestStreak: 12 } };
+  const m = Store.mergeStates(a, b);
+  assert.strictEqual(m.badges.checkins, 5);
+  assert.strictEqual(m.badges.inRange, 3);
+  assert.strictEqual(m.records.longestStreak, 12);
+});
+
+test('mergeStates: buddy stage is a high-water mark and never naps backward on merge', () => {
+  const grown = { _rev: 2, buddy: { stage: 5, name: 'Rex' } };
+  const behind = { _rev: 8, buddy: { stage: 1, name: 'Rex' } }; // higher _rev but lower stage
+  assert.strictEqual(Store.mergeStates(grown, behind).buddy.stage, 5);
+  assert.strictEqual(Store.mergeStates(behind, grown).buddy.stage, 5);
+});
+
+test('mergeStates: onboarding flags OR together so a stale copy cannot re-trigger the tour', () => {
+  const done = { _rev: 1, onboarding: { welcomed: true, sawDex: true, dismissed: true } };
+  const fresh = { _rev: 9, onboarding: { welcomed: false, sawDex: false, dismissed: false } };
+  const m = Store.mergeStates(done, fresh);
+  assert.strictEqual(m.onboarding.welcomed, true);
+  assert.strictEqual(m.onboarding.sawDex, true);
+  assert.strictEqual(m.onboarding.dismissed, true);
+});
+
+test('mergeStates: dino-fight progress reconciles field-wise instead of losing a device\'s wins', () => {
+  // Same prestige: rank/wins/trophies take the max; date gates take the later value.
+  const deviceA = { _rev: 3, fight: { prestige: 0, rank: 6, wins: 10, trophies: 2, dailyBest: 4, dailyStreak: 4, lastDailyDate: '2026-07-24', lastAttemptDate: '2026-07-24', lastBossWeek: '2026-W30' } };
+  const deviceB = { _rev: 9, fight: { prestige: 0, rank: 3, wins: 7, trophies: 1, dailyBest: 2, dailyStreak: 1, lastDailyDate: '2026-07-20', lastAttemptDate: '2026-07-23', lastBossWeek: '2026-W29' } };
+  const m = Store.mergeStates(deviceA, deviceB);
+  assert.strictEqual(m.fight.rank, 6);
+  assert.strictEqual(m.fight.wins, 10);
+  assert.strictEqual(m.fight.trophies, 2);
+  assert.strictEqual(m.fight.dailyBest, 4);
+  assert.strictEqual(m.fight.dailyStreak, 4);          // from the more recent daily win
+  assert.strictEqual(m.fight.lastAttemptDate, '2026-07-24');
+});
+
+test('mergeStates: a prestige reset is not undone by the other copy\'s larger pre-reset rank', () => {
+  // Device A prestiged (rank back to 0, prestige 1). Device B is still grinding the first ladder.
+  const prestiged = { _rev: 4, fight: { prestige: 1, rank: 1, wins: 20 } };
+  const grinding  = { _rev: 2, fight: { prestige: 0, rank: 9, wins: 15 } };
+  const m = Store.mergeStates(prestiged, grinding);
+  assert.strictEqual(m.fight.prestige, 1);
+  assert.strictEqual(m.fight.rank, 1);   // NOT 9 - B's rank is at a lower prestige tier
+  assert.strictEqual(m.fight.wins, 20);  // cumulative wins still max
+});
+
 test('mergeStates: a live Google Health link survives a higher-_rev copy that never connected', () => {
   // The bug: a stale device/tab with a higher _rev but no googleHealth wiped a live connection on
   // merge, flipping the UI to "not connected" while the server was still synced.
