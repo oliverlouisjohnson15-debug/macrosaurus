@@ -2464,7 +2464,11 @@ function SpriteSheet({ palette = 'female', species = 'doux', group = 'base', ani
 function buddyStageSprite(stageIndex, buddy) {
   const palette = (buddy && buddy.palette) || 'female';
   const species = (buddy && buddy.species) || 'doux';
-  if (stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
+  // Show the egg until the buddy has hatched (a new account picks an egg and hatches it by doing the
+  // onboarding staples). `hatched === false` means still incubating; absent/true means already out
+  // (existing accounts predate the flag, so they render their dino as before).
+  const hatched = !(buddy && buddy.hatched === false);
+  if (!hatched || stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
   return { palette, species, group: 'base', anim: 'idle', fps: 5 };
 }
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
@@ -2484,7 +2488,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay }) {
   const s = buddyStageSprite(buddy.stage, db.buddy);
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
-  const eq = equippedCosmetics((db.buddy || {}).cosmetics);
+  // No cosmetics on an unhatched egg.
+  const eq = (db.buddy && db.buddy.hatched === false) ? {} : equippedCosmetics((db.buddy || {}).cosmetics);
   const who = bp.name || (bp.form ? bp.form.name : st.name);
   return (
     <Card className="p-3 mb-4">
@@ -2505,11 +2510,14 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay }) {
         <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
           <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
-          <div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
-          {next
-            ? <><div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
-                <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
-            : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}
+          {(db.buddy && db.buddy.hatched === false)
+            ? <><div className="text-[11px] leading-snug mb-2 truncate" style={{ color: 'var(--carb)' }}>Incubating…</div>
+                <div className="text-[9px] text-[#8A8A90] leading-snug">Do the getting-started tasks to hatch it.</div></>
+            : <><div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
+                {next
+                  ? <><div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
+                      <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
+                  : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
         </button>
       </div>
     </Card>
@@ -4014,74 +4022,72 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
   );
 }
 
-// First-run HATCH + CUSTOMIZE: the Pokemon-starter moment. The egg wobbles, you crack it, it
-// hatches, then you choose your buddy's look and name it. Writes buddy.species/palette/name and
-// onboarding.hatched. This is the emotional hook and the buddy's first hello as your coach.
-function HatchOnboarding({ update, onDone }) {
-  const [step, setStep] = useState('egg'); // egg -> crack -> hatch -> customize
+// First-run EGG PICK: you choose your egg's colour and name your buddy, but you never see the dino.
+// It incubates on Today and HATCHES later as a reward, once you've done the core staples (the hatch
+// trigger lives in Dashboard). Mystery up front, a real payoff for a real habit. Sets
+// buddy.species/palette/name + onboarding.eggPicked; buddy.hatched stays false until it cracks open.
+function EggPickerOnboarding({ update, onDone }) {
   const [species, setSpecies] = useState('doux');
-  const [palette, setPalette] = useState('female');
   const [name, setName] = useState('');
-  const palettes = spritePalettes(species);
-  useEffect(() => { if (palettes.indexOf(palette) < 0) setPalette(palettes[0]); }, [species]);
-  const label = (SPRITE_SPECIES.find(s => s.id === species) || {}).label || 'your buddy';
   function finish() {
-    const nm = name.trim() || label;
+    const nm = name.trim() || 'Buddy';
     update(d => {
       d.buddy = d.buddy || { stage: 0 };
-      d.buddy.name = nm; d.buddy.species = species; d.buddy.palette = palette;
+      d.buddy.name = nm; d.buddy.species = species; d.buddy.palette = 'female'; d.buddy.hatched = false;
       d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
       if (d.buddy.stage == null) d.buddy.stage = 0;
-      d.onboarding = d.onboarding || {}; d.onboarding.hatched = true;
+      d.onboarding = d.onboarding || {}; d.onboarding.eggPicked = true;
     });
     onDone();
   }
   return (
     <div className="fixed inset-0 z-[90] overflow-y-auto" style={{ background: 'var(--bg)' }}>
+      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center text-center">
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
+        <div className="pixel-box p-5 mb-3 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 150, minHeight: 150 }}>
+          <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
+        </div>
+        <div className="text-lg font-bold mb-1">Choose your egg</div>
+        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy, a coach that grows as you build habits.</div>
+        <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
+          {SPRITE_SPECIES.map(s => (
+            <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+              <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
+            </button>
+          ))}
+        </div>
+        <input value={name} onChange={e => setName(e.target.value)} maxLength={16} placeholder="Name your buddy" className={inputCls + ' text-center mb-3'} />
+        <Btn onClick={finish} className="w-full">{name.trim() ? "This one's " + name.trim() : 'This one'}</Btn>
+      </div>
+    </div>
+  );
+}
+
+// The HATCH moment, fired from Today once the onboarding staples are done: the egg wobbles, cracks
+// and hatches, revealing the dino for the very first time. onDone marks the buddy hatched.
+function HatchCelebration({ buddy, onDone }) {
+  const [step, setStep] = useState('wobble'); // wobble -> crack -> hatch -> reveal
+  useEffect(() => { if (step !== 'wobble') return; const t = setTimeout(() => setStep('crack'), 1300); return () => clearTimeout(t); }, [step]);
+  const palette = (buddy && buddy.palette) || 'female';
+  const species = (buddy && buddy.species) || 'doux';
+  const nm = (buddy && buddy.name) || 'your buddy';
+  return (
+    <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center">
-        {step !== 'customize' ? (
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-6">{step === 'reveal' ? 'Say hello' : "It's hatching!"}</div>
+        <div className="pixel-box p-6 mb-6 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 180, minHeight: 180 }}>
+          {step === 'wobble' && <div className="crwobble"><SpriteSheet palette={palette} species={species} group="egg" anim="move" px={7} fps={5} /></div>}
+          {step === 'crack' && <SpriteSheet palette={palette} species={species} group="egg" anim="crack" px={7} fps={6} loop={false} onEnd={() => setStep('hatch')} />}
+          {step === 'hatch' && <SpriteSheet palette={palette} species={species} group="egg" anim="hatch" px={7} fps={6} loop={false} onEnd={() => setStep('reveal')} />}
+          {step === 'reveal' && <div className="crpop"><SpriteSheet palette={palette} species={species} group="base" anim="idle" px={7} fps={5} /></div>}
+        </div>
+        {step === 'reveal' ? (
           <>
-            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-6">Your buddy</div>
-            <div className="pixel-box p-6 mb-6 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 168, minHeight: 168 }}>
-              {step === 'egg' && <SpriteSheet palette="female" species="doux" group="egg" anim="move" px={6} fps={4} />}
-              {step === 'crack' && <SpriteSheet palette="female" species="doux" group="egg" anim="crack" px={6} fps={6} loop={false} onEnd={() => setStep('hatch')} />}
-              {step === 'hatch' && <SpriteSheet palette="female" species="doux" group="egg" anim="hatch" px={6} fps={6} loop={false} onEnd={() => setStep('customize')} />}
-            </div>
-            {step === 'egg' ? (
-              <>
-                <div className="text-lg font-bold mb-1">Something's stirring</div>
-                <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-6 max-w-xs">There's an egg with your name on it. Your buddy grows as you build real habits, and it's here to help you along the way.</div>
-                <Btn onClick={() => setStep('crack')} className="w-full max-w-xs">Hatch it</Btn>
-              </>
-            ) : <div className="text-[12px] text-[#8A8A90]">Hatching…</div>}
+            <div className="text-xl font-bold mb-1">Meet {nm}!</div>
+            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-6 max-w-xs">Your buddy's hatched. Keep logging to help it grow, and it'll coach you along the way.</div>
+            <Btn onClick={onDone} className="w-full max-w-xs">Hello {nm}</Btn>
           </>
-        ) : (
-          <>
-            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">Make it yours</div>
-            <div className="pixel-box p-5 mb-4 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 168, minHeight: 168 }}>
-              <SpriteSheet palette={palette} species={species} group="base" anim="idle" px={6} fps={5} />
-            </div>
-            <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2 self-start">Pick a look</div>
-            <div className="grid grid-cols-6 gap-1.5 w-full mb-3">
-              {SPRITE_SPECIES.map(s => (
-                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={s.label} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
-                  <SpriteSheet palette="female" species={s.id} group="base" anim="idle" px={1.6} fps={4} />
-                </button>
-              ))}
-            </div>
-            {palettes.length > 1 && (
-              <div className="flex gap-2 justify-center mb-3">
-                {palettes.map(p => (
-                  <button key={p} onClick={() => setPalette(p)} aria-label={'colour ' + p} className="pixel-box p-2 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: palette === p ? 'var(--accent)' : 'var(--border)', borderWidth: palette === p ? 3 : 2 }}>
-                    <SpriteSheet palette={p} species={species} group="base" anim="idle" px={2} fps={4} />
-                  </button>
-                ))}
-              </div>
-            )}
-            <input value={name} onChange={e => setName(e.target.value)} maxLength={16} placeholder="Name your buddy" className={inputCls + ' text-center mb-3'} />
-            <Btn onClick={finish} className="w-full">{name.trim() ? 'Nice to meet you, ' + name.trim() : "That's the one"}</Btn>
-          </>
-        )}
+        ) : <div className="text-[12px] text-[#8A8A90]">{nm} is on the way…</div>}
       </div>
     </div>
   );
@@ -4295,6 +4301,17 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const buddy = Game.buddyView(buddyHw, streak);
   const buddyLvl = useMemo(() => buddyLevel(db), [db.log_entries]);
   const bp = buddyProfile(db, streak, buddy, buddyLvl);
+  // Hatch trigger: once a brand-new account has done the onboarding staples (logged a meal, tried a
+  // Photo/Describe estimate, and hit today's protein target), the incubating egg hatches - the first
+  // real payoff for the core habit. One-shot; buddy.hatched is set when the celebration finishes.
+  const [hatching, setHatching] = useState(false);
+  const eggIncubating = !!(db.buddy && db.buddy.hatched === false);
+  const hatchEt = effectiveTarget(db, today);
+  const hatchProteinTgt = hatchEt ? hatchEt.eff.protein : 0;
+  const hatchTriedAI = (db.log_entries || []).some(e => e.source === 'ai_estimate' || e.source === 'label');
+  const hatchStaplesDone = (db.log_entries || []).length > 0 && hatchTriedAI && hatchProteinTgt > 0 && sumMacros(entriesOn(db, today)).protein >= hatchProteinTgt;
+  const forceHatchNow = DEMO && new URLSearchParams(window.location.search).has('hatchnow');
+  useEffect(() => { if (forceHatchNow || (eggIncubating && hatchStaplesDone)) setHatching(true); }, [eggIncubating, hatchStaplesDone, forceHatchNow]);
   useEffect(() => {
     const longest = (db.records && db.records.longestStreak) || 0;
     if (!buddy.ratchet && streak <= longest) return;
@@ -4341,6 +4358,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
+      {hatching && <HatchCelebration buddy={db.buddy} onDone={() => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast('Your buddy hatched! Keep logging to help it grow.'); }} />}
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
 
@@ -7550,16 +7568,16 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     { k: 'meal', label: 'Log your first meal', done: db.log_entries.length > 0, go: onLog },
     { k: 'ai', label: 'Try a Photo or Describe estimate', done: db.log_entries.some(e => e.source === 'ai_estimate' || e.source === 'label'), go: onLog },
     { k: 'protein', label: 'Hit your protein target today', done: proteinTgt > 0 && todayProtein >= proteinTgt, go: onLog },
-    { k: 'dex', label: 'Meet your buddy', done: !!ob.sawDex, go: onOpenDex },
   ];
+  const incubating = !!(db.buddy && db.buddy.hatched === false);
   const doneCount = items.filter(x => x.done).length;
   if (doneCount === items.length) return null;
   return (<Card className="p-4 mb-4 fade-in">
     <div className="flex justify-between items-center mb-2">
-      <div className="text-sm font-bold">Getting started</div>
+      <div className="text-sm font-bold">{incubating ? 'Hatch your buddy' : 'Getting started'}</div>
       <div className="flex items-center gap-2"><span className="text-[11px] text-[#8A8A90]">{doneCount}/{items.length}</span><button onClick={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.dismissed = true; })} className="text-[#8A8A90] text-lg leading-none" aria-label="Dismiss">×</button></div>
     </div>
-    <div className="text-[11px] text-[#8A8A90] mb-2.5 leading-snug">Tap a task to jump straight to it. Each one ticks off on its own once you have done it.</div>
+    <div className="text-[11px] text-[#8A8A90] mb-2.5 leading-snug">{incubating ? 'Your egg is incubating. Do these staples and it cracks open into your buddy.' : 'Tap a task to jump straight to it. Each one ticks off on its own once you have done it.'}</div>
     <div className="space-y-0.5">
       {items.map(it => (
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
@@ -9357,12 +9375,12 @@ function App() {
   if (!db) return <Loading text="Digging up your data…" />;
   if (fresh) return <Wizard initial={db.profile} onDone={(pr) => saveProfile(pr, false)} onCancel={() => setFresh(false)} />;
   if (!db.profile) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} />;
-  // First-run hatch: a brand-new account (profile set, nothing logged, buddy unnamed) hatches and
-  // customizes its buddy before reaching Today. Existing accounts skip it (they have logs or a name).
-  // `?demo&hatch` forces it on the in-memory demo account for previewing the flow.
-  const forceHatch = DEMO && new URLSearchParams(window.location.search).has('hatch');
-  if (forceHatch || (!(db.onboarding && db.onboarding.hatched) && !(db.log_entries || []).length && !(db.buddy && db.buddy.name))) {
-    return <HatchOnboarding update={update} onDone={() => { if (forceHatch) window.history.replaceState({}, '', '?demo'); }} />;
+  // First-run egg pick: a brand-new account (profile set, nothing logged, no egg chosen) picks and
+  // names its egg before reaching Today; it hatches later once the onboarding staples are done.
+  // Existing accounts skip it (they have logs or a named buddy). `?demo&egg` previews the picker.
+  const forceEgg = DEMO && new URLSearchParams(window.location.search).has('egg');
+  if (forceEgg || (!(db.onboarding && db.onboarding.eggPicked) && !(db.log_entries || []).length && !(db.buddy && db.buddy.name))) {
+    return <EggPickerOnboarding update={update} onDone={() => { if (forceEgg) window.history.replaceState({}, '', '?demo'); }} />;
   }
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
