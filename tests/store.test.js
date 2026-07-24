@@ -116,6 +116,29 @@ test('mergeStates: scalar/derived fields come from the higher-_rev copy, edits w
   assert.strictEqual(m._rev, 2);
 });
 
+test('mergeStates: last_checkin tracks the unioned checkins ledger, not just the higher-_rev scalar', () => {
+  // Tab A checked in today (lower _rev). Tab B is an older session that never saw it (last_checkin
+  // stale) but bumped _rev higher doing something else. The union must keep today's check-in AND move
+  // last_checkin forward to match, or the app reads "not checked in today" despite a saved check-in.
+  const checkedIn = { _rev: 5, last_checkin: '2026-07-24',
+    checkins: [{ date: '2026-07-24', weightKg: 91.6 }] };
+  const staleHigherRev = { _rev: 9, last_checkin: '2026-07-19', checkins: [] };
+  const m = Store.mergeStates(checkedIn, staleHigherRev);
+  assert.strictEqual(m.checkins.length, 1);
+  assert.strictEqual(m.checkins[0].date, '2026-07-24'); // ledger keeps the check-in (union)
+  assert.strictEqual(m.last_checkin, '2026-07-24');      // pointer reconciled to the ledger
+  const m2 = Store.mergeStates(staleHigherRev, checkedIn); // order must not matter
+  assert.strictEqual(m2.last_checkin, '2026-07-24');
+});
+
+test('mergeStates: a resume can keep last_checkin ahead of the newest checkins entry', () => {
+  // Resuming from a pause stamps last_checkin without pushing a checkins row, so the pointer may sit
+  // ahead of the ledger. The reconcile must take the max, never drag it back to the last entry date.
+  const resumed = { _rev: 2, last_checkin: '2026-07-24', checkins: [{ date: '2026-07-10' }] };
+  const older = { _rev: 1, last_checkin: '2026-07-10', checkins: [{ date: '2026-07-10' }] };
+  assert.strictEqual(Store.mergeStates(resumed, older).last_checkin, '2026-07-24');
+});
+
 test('mergeStates: a live Google Health link survives a higher-_rev copy that never connected', () => {
   // The bug: a stale device/tab with a higher _rev but no googleHealth wiped a live connection on
   // merge, flipping the UI to "not connected" while the server was still synced.
