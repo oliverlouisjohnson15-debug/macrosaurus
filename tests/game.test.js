@@ -158,11 +158,7 @@ test('existing persisted state migrates with sensible gamification defaults', ()
     fight: { rank: 4, wins: 9, trophies: 1, lastBossWeek: '2026-27', prestige: 0 },
     catch_log: { '2026-07-01': [{ id: 'nugg', shiny: false }] },
   });
-  assert.strictEqual(s.fight.rank, 4);                 // existing progress preserved
-  assert.strictEqual(s.fight.lastAttemptDate, null);   // new gate field backfilled
-  assert.strictEqual(s.fight.lastDailyDate, null);     // new daily-hunt fields backfilled
-  assert.strictEqual(s.fight.dailyStreak, 0);
-  assert.strictEqual(s.fight.dailyBest, 0);
+  assert.strictEqual(s.fight, undefined);              // Fight system removed; legacy field stripped on load
   assert.strictEqual(s.game_salt, null);               // minted lazily on first run
   assert.deepStrictEqual(s.badges, { checkins: 0, inRange: 0 });
   assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] });

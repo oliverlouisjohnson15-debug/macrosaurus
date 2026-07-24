@@ -3036,7 +3036,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
     </div>
   );
 }
-function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName }) {
+function MacrodexModal({ db, update, streak, onClose, onOpenName }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
   const dex = macrodex(db); const caught = Object.keys(dex).length;
@@ -3104,40 +3104,9 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
           <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
           {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
-          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['catch', 'Catch'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['catch', 'Catch'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
           {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} />}
-
-          {/* Battle: the weekly boss, its weakness (what to eat), and your readiness buff. */}
-          {view === 'battle' && <div className="fade-in">
-            {onOpenFight ? (() => {
-              const wk = fightWeekKey();
-              const boss = bossForWeek();
-              const wm = TYPE_META[Game.bossWeakness(wk)] || TYPE_META.balanced;
-              const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
-              const readiness = readinessFor(db, today);
-              const buff = readiness != null ? Game.readinessBuff(readiness) : null;
-              const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today'
-                : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight'
-                : buff ? 'Full strength today' : null;
-              const edge = beaten ? 'var(--good)' : 'var(--danger)';
-              return (
-                <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
-                  style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
-                  <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-                    <Sprite art={boss.art} colors={boss.colors} px={3.2} />
-                  </div>
-                  <div className="min-w-0 flex-1 leading-tight">
-                    <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? <>Boss beaten this week <Tick size={9} /></> : "This week's boss"}</div>
-                    <div className="text-[13px] font-bold truncate">{boss.name}</div>
-                    <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">Weak to <span style={{ color: wm[1] }}>{wm[0]}</span>, so eat {wm[2]}.{buffLine ? ' ' + buffLine + '.' : ''}</div>
-                  </div>
-                  <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: beaten ? 'var(--surface3)' : 'var(--danger)', color: beaten ? 'var(--muted)' : '#fff' }}>{beaten ? 'REMATCH ›' : 'FIGHT ›'}</span>
-                </button>
-              );
-            })() : <div className="pixel-box p-4 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Battles arrive once you're logging. Keep feeding your buddy.</div>}
-            <div className="text-[10px] text-[#8A8A90] leading-snug">Your eating is your build: the week's macros set your loadout, and each boss has a macro weakness. Losing only teaches, it never sets you back.</div>
-          </div>}
 
           {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
           {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} />}
@@ -3282,368 +3251,11 @@ function ShopView({ db, amber, buy, onBack }) {
     </div>
   );
 }
-/* ---- Auto-battle: your buddy (stats from your recent eating) vs a rival ladder + rotating weekly boss ---- */
-const FIGHT_LADDER = [
-  { name: 'Dinky', art: 'hatch', colors: crC('#7FD46B', '#3f8e2f'), power: 1, ability: 'none' },
-  { name: 'Pebble', art: 'boulder', colors: crC('#9FB8C9', '#5f7d90'), power: 1, ability: 'none' },
-  { name: 'Carbo', art: 'saur', colors: crC('#4A90E2', '#2f66b0'), power: 2, ability: 'dodge' },
-  { name: 'Sprowl', art: 'sprout', colors: crC('#5FBF4A', '#2f7a24'), power: 2, ability: 'heal' },
-  { name: 'Fatzilla', art: 'blob', colors: crC('#F5C518', '#c99a10'), power: 3, ability: 'rage' },
-  { name: 'Protops', art: 'longneck', colors: crC('#E5556B', '#a83145'), power: 3, ability: 'dodge' },
-  { name: 'Triceros', art: 'trike', colors: crC('#E0975B', '#a8642f'), power: 4, ability: 'heal' },
-  { name: 'Platealon', art: 'stego', colors: crC('#2FB0A0', '#1e7a70'), power: 4, ability: 'rage' },
-  { name: 'Veloci', art: 'raptor', colors: crC('#B06BE0', '#7a3fb0'), power: 5, ability: 'dodge' },
-  { name: 'Rexosaur', art: 'rex', colors: crC('#6B5FC0', '#3a3170'), power: 6, ability: 'rage' },
-];
-const FIGHT_BOSSES = [
-  { name: 'KING REX', art: 'rex', colors: crC('#E5342A', '#8e1e18'), power: 6, ability: 'rage' },
-  { name: 'TITANOPS', art: 'longneck', colors: crC('#C0392B', '#7a2018'), power: 6, ability: 'heal' },
-  { name: 'DREADPLATE', art: 'stego', colors: crC('#8E44AD', '#5b2c6f'), power: 6, ability: 'dodge' },
-  { name: 'GRIMHORN', art: 'trike', colors: crC('#34506B', '#1f3243'), power: 7, ability: 'rage' },
-];
-const ABIL_LABEL = { none: '', dodge: 'Nimble, darts aside', heal: 'Regrows wounds', rage: 'Frenzies when hurt' };
-// Daily Hunt roster: smaller, wilder critters than the weekly bosses, tuned easier (power comes from
-// Game.dailyHunt). A fresh one each day gives a low-stakes reason to log and fight every single day.
-const DAILY_BOSSES = [
-  { name: 'Snappet', art: 'raptor', colors: crC('#6BBF59', '#3a7a2f') },
-  { name: 'Gnasher', art: 'boulder', colors: crC('#B98A5E', '#7a5636') },
-  { name: 'Bramblor', art: 'sprout', colors: crC('#3FA66B', '#256b43') },
-  { name: 'Mudloom', art: 'blob', colors: crC('#7C8B57', '#4d5836') },
-  { name: 'Cindertooth', art: 'saur', colors: crC('#D96A3A', '#8e4020') },
-  { name: 'Frostnip', art: 'longneck', colors: crC('#5EA6C9', '#356b85') },
-  { name: 'Thornback', art: 'stego', colors: crC('#9A6BB0', '#603f75') },
-];
 function fightWeekKey() { const t = new Date(); const on = new Date(t.getFullYear(), 0, 1); const days = Math.floor((t - on) / 86400000); return t.getFullYear() + '-' + Math.floor((days + on.getDay()) / 7); }
-function bossForWeek() { return FIGHT_BOSSES[crHash(fightWeekKey()) % FIGHT_BOSSES.length]; }
-// Today's Daily Hunt: a deterministic-per-day mini-boss (visual from the roster, maths from game.js).
-function dailyBossForDay(date) { const h = Game.dailyHunt(date, DAILY_BOSSES.length); const base = DAILY_BOSSES[h.idx]; return Object.assign({}, base, { power: h.power, ability: 'none', type: h.type }); }
-function buddyStageIndex(streak) { let si = 0; BUDDY_STAGES.forEach((x, i) => { if (streak >= x.min) si = i; }); return si; }
-// Buddy fight stats grow from the last 7 days of eating: protein → attack, fibre → defence, consistency → HP.
-function buddyStats(db, streak, siOverride) {
-  const today = Store.todayISO(); let pro = 0, fib = 0, per = 0;
-  for (let i = 0; i < 7; i++) { const q = dayQuality(db, shiftISO(today, -i)); if (q) { if (q.proteinHit) pro++; if (q.fiberHit) fib++; if (q.perfect) per++; } }
-  const si = siOverride != null ? siOverride : buddyStageIndex(streak);
-  return { hp: Math.min(220, 90 + streak * 2 + per * 5), atk: 10 + si * 2 + pro * 2 + per, def: 4 + fib * 2 + si, si, pro, fib, per, ability: 'none' };
-}
-function rivalStats(rival, rank, prestige) {
-  const sc = 1 + (prestige || 0) * 0.4;
-  return { hp: Math.round((80 + rank * 12) * sc), atk: Math.round((9 + rival.power * 3 + rank) * sc), def: Math.round((3 + rival.power * 2) * sc), ability: rival.ability || 'none' };
-}
-const FIGHT_HIT = ['{x} chomps down', '{x} swings its tail', '{x} rakes with its claws', '{x} headbutts hard', '{x} lets out a roar', '{x} snaps its jaws', '{x} gores with its horns', '{x} stomps in'];
 // Macro types for the fight: label + colour + the macro that feeds them.
 const TYPE_META = { power: ['Power', 'var(--pro)', 'protein'], guard: ['Guard', 'var(--fat)', 'fats'], swift: ['Swift', 'var(--carb)', 'carbs'], renew: ['Renew', 'var(--good)', 'fibre'], balanced: ['Balanced', 'var(--muted)', 'a balance'] };
 function TypeChip({ t }) { const m = TYPE_META[t] || TYPE_META.balanced; return <span className="pf text-[7px] uppercase px-1 py-0.5 rounded" style={{ color: m[1], background: 'color-mix(in srgb, ' + m[1] + ' 16%, transparent)' }}>{m[0]}</span>; }
 
-function FightModal({ db, update, streak, onClose }) {
-  useBackClose(onClose);
-  const fight = db.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 };
-  const today = Store.todayISO();
-  // Fighter fights at the buddy's high-water stage; a nap never shrinks it back to the egg.
-  const si = Math.max(buddyStageIndex(streak), (db.buddy && db.buddy.stage) || 0);
-  const b = BUDDY_STAGES[Math.min(si, BUDDY_STAGES.length - 1)];
-  // Once hatched, the fighter wears the buddy's actual species + bond-evolved form (stats unchanged).
-  const fSpecies = CR_BY_ID[(db.buddy && db.buddy.speciesId) || ''];
-  const fForm = fSpecies ? buddyForm(fSpecies, (db.buddy && db.buddy.evoStage) || 0, 0) : null;
-  const vis = (si > 0 && fForm) ? fForm : b;
-  const fighter = { name: vis.name, art: vis.art, colors: vis.colors, stats: buddyStats(db, streak, si) };
-  // Fight 2.0: macros are types. The buddy fights as its habitat; the week's eating is its loadout.
-  const buddyType = Game.typeForBiome(fSpecies && fSpecies.biome);
-  const loadout = Game.weeklyLoadout(fighter.stats.pro, fighter.stats.fib, fighter.stats.per);
-  const weekKey = fightWeekKey();
-  const weakness = Game.bossWeakness(weekKey);            // type/macro that turns the boss fight
-  const weakMacro = Game.TYPE_MACRO[weakness];
-  let weakDays = 0;
-  for (let i = 0; i < 7; i++) { const q = dayQuality(db, shiftISO(today, -i)); if (q) { const hit = weakMacro === 'protein' ? q.proteinHit : weakMacro === 'fat' ? q.fatHit : weakMacro === 'carbs' ? q.carbHit : q.fiberHit; if (hit) weakDays++; } }
-  const weaknessExploited = buddyType === weakness || weakDays >= 4;
-  // Readiness buff: a well-rested, recovered morning makes the dino hit harder today; a rough night
-  // gives a defensive, self-healing stance instead of a penalty. Rewards good sleep + recovery.
-  const readiness = readinessFor(db, today);
-  const readyBuff = readiness != null ? Game.readinessBuff(readiness) : { band: null, atk: 1, def: 1, heal: 0, label: null };
-  const rivalMult = Game.typeMult(buddyType, Game.typeForName(FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)].name));
-  // Ladder gating: one attempt per day, and only on a day with food logged. Weekly boss unchanged.
-  const loggedToday = (db.log_entries || []).some(e => e.date === today);
-  const gate = Game.fightGate(fight.lastAttemptDate, loggedToday, today);
-  const ladderCleared = (fight.rank || 0) >= FIGHT_LADDER.length;
-  const rivalBase = FIGHT_LADDER[Math.min(fight.rank || 0, FIGHT_LADDER.length - 1)];
-  const rival = Object.assign({}, rivalBase, { type: Game.typeForName(rivalBase.name), stats: rivalStats(rivalBase, fight.rank || 0, fight.prestige || 0) });
-  const weekBoss = bossForWeek();
-  const boss = Object.assign({}, weekBoss, { type: Game.typeForName(weekBoss.name), stats: rivalStats(weekBoss, FIGHT_LADDER.length, fight.prestige || 0) });
-  const bossReady = fight.lastBossWeek !== fightWeekKey();
-  // Daily Hunt: a fresh, gentle mini-boss each day. Its own once-a-day gate (separate from the ladder's),
-  // still needing food logged today. Stats scale with your daily-clear streak but stay winnable.
-  const dailyBase = dailyBossForDay(today);
-  const dailyRank = 2 + Math.min((fight.dailyStreak || 0), 5); // creeps up as your streak grows, capped
-  const daily = Object.assign({}, dailyBase, { stats: rivalStats(dailyBase, dailyRank, fight.prestige || 0) });
-  const dailyReady = Game.dailyReady(fight.lastDailyDate, today);
-  const dailyAmber = Game.amberDailyReward(Game.dailyStreakNext(fight.lastDailyDate, fight.dailyStreak || 0, today));
-
-  const [phase, setPhase] = useState(si === 0 ? 'egg' : 'select');
-  const [opp, setOpp] = useState(null); const [isBoss, setIsBoss] = useState(false); const [isDaily, setIsDaily] = useState(false); const [amberEarned, setAmberEarned] = useState(0);
-  const [hpA, setHpA] = useState(100); const [hpB, setHpB] = useState(100);
-  const [maxA, setMaxA] = useState(100); const [maxB, setMaxB] = useState(100);
-  const [log, setLog] = useState([]); const [winner, setWinner] = useState(null); const [drops, setDrops] = useState([]);
-  const [lungeA, setLungeA] = useState(false); const [lungeB, setLungeB] = useState(false);
-  const [pop, setPop] = useState(null); const [shake, setShake] = useState(false); const [intro, setIntro] = useState(false);
-  const rewarded = useRef(false); const timers = useRef([]);
-  const effRef = useRef(null);          // buddy's effective stats for the current fight (type/weakness applied)
-  const [lastMult, setLastMult] = useState(1);
-  const [stance, setStance] = useState('steady');   // pre-fight tactical choice
-  const [useSpecial, setUseSpecial] = useState(false);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
-
-  // The fight opens like a monster battle: both fighters slide onto their platforms and a VS flashes,
-  // then the auto-battle begins. `intro` holds the combat loop until the entrance finishes. The buddy's
-  // attack is scaled by the type matchup (and the boss-weakness bonus when exploited) before the bout.
-  function start(opponent, kind) {
-    const isBossFight = kind === 'weekly'; // only the weekly boss grants the weakness-exploit bonus + trophy
-    const mult = Game.fightAtkMult(buddyType, opponent.type, isBossFight, weaknessExploited);
-    const sm = Game.stanceMult(stance);
-    const spec = (useSpecial && loadout.special > 0) ? Game.SPECIAL_ATK : 1;
-    const eff = Object.assign({}, fighter.stats, {
-      atk: Math.max(1, Math.round(fighter.stats.atk * mult * sm.atk * spec * readyBuff.atk)),
-      def: Math.max(1, Math.round(fighter.stats.def * sm.def * readyBuff.def)),
-      hp: Math.max(1, Math.round(fighter.stats.hp * (1 + (readyBuff.heal || 0)))), // a recovery day starts you tankier
-    });
-    effRef.current = eff; setLastMult(mult);
-    setOpp(opponent); setIsBoss(isBossFight); setIsDaily(kind === 'daily'); setMaxA(eff.hp); setMaxB(opponent.stats.hp); setHpA(eff.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); setAmberEarned(0); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it);
-  }
-  function prestige() { update(d => { d.fight = d.fight || {}; d.fight.rank = 0; d.fight.prestige = (d.fight.prestige || 0) + 1; }); setPhase('select'); }
-
-  useEffect(() => {
-    if (phase !== 'fight' || !opp || intro) return;
-    const my = effRef.current || fighter.stats, rv = opp.stats;
-    let a = my.hp, d2 = rv.hp, round = 0, alive = true;
-    const rnd = (n) => Math.floor(Math.random() * n);
-    const step = () => {
-      if (!alive) return; round++;
-      if (rv.ability === 'heal' && d2 > 0 && d2 < rv.hp * 0.7) { d2 = Math.min(rv.hp, d2 + Math.round(rv.hp * 0.06)); setHpB(d2); }
-      const aAtk = Math.random() < my.atk / (my.atk + rv.atk);
-      const atk = aAtk ? my : rv, def = aAtk ? rv : my;
-      const defAbil = aAtk ? rv.ability : my.ability;
-      if (defAbil === 'dodge' && Math.random() < 0.22) {
-        setLog(l => [(aAtk ? opp.name : fighter.name) + ' darts aside!', ...l].slice(0, 5));
-      } else {
-        let dmg = Math.max(3, atk.atk - Math.round(def.def / 2) + rnd(7));
-        const atkHp = aAtk ? a : d2, atkMax = aAtk ? my.hp : rv.hp;
-        if (atk.ability === 'rage' && atkHp < atkMax * 0.35) dmg = Math.round(dmg * 1.5);
-        const big = dmg >= 22;
-        const hitTxt = big ? 'CRUNCH!' : (round % 3 === 0 ? 'CHOMP!' : round % 3 === 1 ? 'SMASH!' : 'THWACK!');
-        if (big) { setShake(true); const shk = setTimeout(() => setShake(false), 320); timers.current.push(shk); }
-        if (aAtk) { d2 = Math.max(0, d2 - dmg); setHpB(d2); setLungeA(true); const lt = setTimeout(() => setLungeA(false), 350); timers.current.push(lt); setPop({ side: 'r', text: hitTxt, num: dmg, big, id: round }); }
-        else { a = Math.max(0, a - dmg); setHpA(a); setLungeB(true); const lt = setTimeout(() => setLungeB(false), 350); timers.current.push(lt); setPop({ side: 'l', text: hitTxt, num: dmg, big, id: round }); }
-        const nm = aAtk ? fighter.name : opp.name;
-        setLog(l => [FIGHT_HIT[rnd(FIGHT_HIT.length)].replace('{x}', nm) + (big ? '! Big one!' : '.'), ...l].slice(0, 5));
-      }
-      if (a <= 0 || d2 <= 0 || round >= 32) { alive = false; const win = d2 <= 0 ? true : a <= 0 ? false : (a / my.hp) >= (d2 / rv.hp); const et = setTimeout(() => { setWinner(win ? 'you' : 'them'); setPhase('done'); }, 750); timers.current.push(et); return; }
-      const t = setTimeout(step, 760); timers.current.push(t);
-    };
-    const t0 = setTimeout(step, 300); timers.current.push(t0);
-    return () => { alive = false; };
-  }, [phase, opp, intro]);
-
-  useEffect(() => {
-    if (phase !== 'done' || winner == null || rewarded.current) return;
-    rewarded.current = true;
-    if (winner === 'you') {
-      const got = []; let amber = 0;
-      update(d => {
-        d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 };
-        d.fight.wins = (d.fight.wins || 0) + 1; d.items = d.items || {}; d.game_awards = d.game_awards || {}; d.amber_ledger = d.amber_ledger || [];
-        const give = (id) => { d.items[id] = (d.items[id] || 0) + 1; got.push(id); };
-        // Amber is minted through the append-only ledger, idempotent by key, so a re-render or a merge
-        // can never pay twice. (See store.js mergeStates: the ledger unions by entry id.)
-        const earn = (key, delta, reason) => { if (d.game_awards[key]) return; d.game_awards[key] = true; d.amber_ledger.push({ id: key, date: today, delta: delta, reason: reason }); amber += delta; };
-        if (isDaily) {
-          const ns = Game.dailyStreakNext(d.fight.lastDailyDate, d.fight.dailyStreak || 0, today);
-          d.fight.lastDailyDate = today; d.fight.dailyStreak = ns; d.fight.dailyBest = Math.max(d.fight.dailyBest || 0, ns);
-          earn('amber:daily:' + today, Game.amberDailyReward(ns), 'Daily Hunt');
-        } else if (isBoss) {
-          d.fight.trophies = (d.fight.trophies || 0) + 1; d.fight.lastBossWeek = fightWeekKey(); give('amber'); if (crHash(fightWeekKey() + 's') % 2 === 0) give('golden_steak');
-          earn('amber:weekly:' + fightWeekKey(), Game.AMBER_REWARDS.weekly, 'Weekly boss');
-        } else if ((d.fight.rank || 0) < FIGHT_LADDER.length) {
-          d.fight.rank = (d.fight.rank || 0) + 1;
-          if (d.fight.rank % 3 === 0) give('lure');
-          if (d.fight.rank >= FIGHT_LADDER.length && !d.game_awards['belt']) { d.game_awards['belt'] = true; give('belt'); }
-          earn('amber:rung:' + today, Game.AMBER_REWARDS.ladderRung, 'Ladder rung');
-        }
-      });
-      setAmberEarned(amber);
-      setDrops(got);
-    }
-  }, [phase, winner]);
-
-  const HpBar = ({ hp, max, color, align }) => (
-    <div className={align === 'r' ? 'text-right' : ''}>
-      <div className="pixel-bar" style={{ height: 12, borderWidth: 2 }}><i style={{ width: Math.max(0, Math.min(100, hp / max * 100)) + '%', background: color, transition: 'width .3s' }} /></div>
-    </div>
-  );
-  const Ring = () => (
-    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'linear-gradient(var(--surface3) 0%, var(--surface3) 61%, var(--surface2) 61%)' }}>
-      {/* horizon line where sky meets ground */}
-      <div className="absolute left-0 right-0" style={{ top: '61%', height: 3, background: 'var(--border)' }} />
-      {/* opponent battle platform (far, upper right) */}
-      <div className="absolute" style={{ top: 82, right: 16, width: 98, height: 15, background: 'var(--surface2)', border: '3px solid var(--border)', borderRadius: '50%' }} />
-      {/* player battle platform (near, lower left) */}
-      <div className="absolute" style={{ bottom: 11, left: 12, width: 118, height: 20, background: 'var(--surface3)', border: '3px solid var(--border)', borderRadius: '50%' }} />
-      {/* opponent, smaller (further away), facing the player, feet resting on its platform */}
-      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 25, right: 34 }}><Sprite art={opp.art} colors={opp.colors} px={5.5} /></div>
-      {/* player, larger (nearer) */}
-      <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 22, left: 26 }}><Sprite art={fighter.art} colors={fighter.colors} px={7} /></div>
-      {/* VS flash on entry */}
-      {intro && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="pf fvs" style={{ fontSize: 26, color: 'var(--fat)', WebkitTextStroke: '1px var(--border)' }}>VS</div></div>}
-      {/* damage / hit pops */}
-      {pop && <div key={pop.id} className="absolute text-center" style={{ top: 40, [pop.side === 'r' ? 'right' : 'left']: 34 }}>
-        <div className="pf fpop" style={{ fontSize: pop.big ? 15 : 12, color: 'var(--fat)' }}>{pop.text}</div>
-        {pop.num != null && <div className="pf fdmg tnum" style={{ fontSize: pop.big ? 16 : 12, color: 'var(--danger)' }}>-{pop.num}</div>}
-      </div>}
-    </div>
-  );
-  const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
-
-        {phase === 'egg' && <div className="text-center py-6">
-          <div className="flex justify-center mb-3"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={7} /></div>
-          <div className="text-sm font-bold mb-1">Your buddy is still an egg</div>
-          <div className="text-[12px] text-[#8A8A90] mb-4">Log a day to hatch a fighter, then step into the pit.</div>
-          <Btn kind="accent" className="w-full" onClick={onClose}>Got it</Btn>
-        </div>}
-
-        {phase === 'select' && <div className="fade-in">
-          {/* progress eyebrow */}
-          <div className="text-center pf text-[8px] uppercase text-[#8A8A90] mb-3 inline-flex items-center justify-center gap-1.5 w-full flex-wrap">
-            {(fight.prestige || 0) > 0 && <span style={{ color: 'var(--fat)' }}>Prestige {fight.prestige} ·</span>}
-            <span>{ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0}</span>
-            <PixelGlyph kind="trophy" color="var(--fat)" size={11} />
-          </div>
-
-          {/* VS matchup, with the type verdict beneath */}
-          <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="flex items-center gap-2">
-              <div className="text-center flex-1 min-w-0">
-                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><div style={crFx(false, null, (db.buddy && (db.buddy.evoStage || 0) > 0) ? db.buddy.affinity : null)}><Sprite art={fighter.art} colors={fighter.colors} px={5} /></div></div>
-                <div className="text-[11px] mt-2 font-bold truncate">{fighter.name}</div>
-                <div className="my-1"><TypeChip t={buddyType} /></div>
-                <StatLine s={fighter.stats} />
-              </div>
-              <div className="pf text-[13px] text-[#8A8A90] self-center shrink-0">VS</div>
-              <div className="text-center flex-1 min-w-0">
-                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Sprite art={rival.art} colors={rival.colors} px={5} /></span></div>
-                <div className="text-[11px] mt-2 font-bold truncate">{rival.name}</div>
-                <div className="my-1"><TypeChip t={rival.type} /></div>
-                <StatLine s={rival.stats} />
-                {rival.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}
-              </div>
-            </div>
-            {!ladderCleared && rivalMult !== 1 && <div className="text-[10px] text-center mt-3 pt-2.5" style={{ borderTop: '2px solid var(--border)', color: rivalMult > 1 ? 'var(--good)' : 'var(--danger)' }}>{rivalMult > 1 ? `${TYPE_META[buddyType][0]} is super-effective here, +25% attack` : `${rival.name} resists your type, −20% attack`}</div>}
-          </div>
-
-          {/* readiness buff: today's recovery turned into a battle edge */}
-          {readyBuff.band && <div className="text-center mb-3.5 pixel-box p-2" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--border)') }}>
-            <span className="pf text-[8px] uppercase" style={{ color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--text)' }}>Readiness {Game.READY_BAND[readyBuff.band].label}</span>
-            <span className="text-[10px] ml-1.5" style={{ color: 'var(--text)' }}>{readyBuff.atk > 1 ? readyBuff.label + ', +' + Math.round((readyBuff.atk - 1) * 100) + '% attack' : readyBuff.atk < 1 ? readyBuff.label + ', +' + Math.round((readyBuff.def - 1) * 100) + '% defence & a heal' : 'steady, no change'}</span>
-          </div>}
-
-          {/* battle plan: your one tactical choice before the bout */}
-          {(gate.can || bossReady || (dailyReady && loggedToday)) && <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Battle plan</div>
-            <div className="flex gap-2">
-              {[['press', 'Press', '+ATK'], ['steady', 'Steady', 'balanced'], ['dig', 'Dig in', '+DEF']].map(([k, label, hint]) => (
-                <button key={k} onClick={() => setStance(k)} className="flex-1 pixel-btn py-2 px-1" style={{ background: stance === k ? 'var(--accent)' : 'var(--surface3)', color: stance === k ? 'var(--on-accent)' : 'var(--text)' }}>
-                  <div className="pf text-[9px] leading-tight">{label}</div>
-                  <div className="text-[7px] mt-0.5" style={{ opacity: 0.8 }}>{hint}</div>
-                </button>
-              ))}
-            </div>
-            {loadout.special > 0 && <button onClick={() => setUseSpecial(s => !s)} className="w-full pixel-btn py-2 mt-2" style={{ background: useSpecial ? 'var(--fat)' : 'var(--surface3)', color: useSpecial ? '#1a1400' : 'var(--text)' }}>
-              <span className="pf text-[8px]">{useSpecial ? <><Spark size={8} /> Special armed · +30% ATK</> : 'Unleash perfect-day Special · +30% ATK'}</span>
-            </button>}
-          </div>}
-
-          {/* primary action */}
-          {ladderCleared
-            ? <Btn kind="accent" className="w-full mb-3.5" onClick={prestige}>Prestige ↑, tougher ladder, better drops</Btn>
-            : gate.can
-              ? <Btn kind="accent" className="w-full mb-3.5" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}>Fight {rival.name} · 1 attempt today</Btn>
-              : <div className="pixel-box p-3 mb-3.5 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt, a fed buddy fights best.'}</div>}
-
-          {/* Daily Hunt: a fresh, gentle mini-boss every day that pays Amber. Its own once-a-day gate,
-              separate from the ladder attempt, and retryable after a loss (never a punishment). */}
-          <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (dailyReady ? 'var(--accent)' : 'var(--border)') }}>
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Daily Hunt · {daily.name}</span>
-              <span className="pf text-[7px] uppercase inline-flex items-center gap-1 text-[#8A8A90] shrink-0">type <TypeChip t={daily.type} /></span>
-            </div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><Sprite art={daily.art} colors={daily.colors} px={3.2} /></div>
-              <div className="text-[10px] leading-snug text-[#8A8A90] flex-1">
-                {(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day hunt streak · </span>}
-                Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A new hunt roams in tomorrow.
-              </div>
-            </div>
-            {dailyReady
-              ? (loggedToday
-                  ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Hunt {daily.name}</Btn>
-                  : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Log a meal today to arm the hunt.</div>)
-              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today <Tick size={9} /> A fresh one lands tomorrow.</div>}
-          </div>
-
-          {/* how the week armed the fighter */}
-          {(() => {
-            const s = fighter.stats;
-            const rows = [
-              { label: 'Protein', n: s.pro, add: s.pro * 2, unit: 'ATK', color: 'var(--pro)' },
-              { label: 'Fibre', n: s.fib, add: s.fib * 2, unit: 'DEF', color: 'var(--carb)' },
-              { label: 'Perfect', n: s.per, add: s.per * 5, unit: 'HP', color: 'var(--good)' },
-            ];
-            return <div className="pixel-box p-3.5 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2.5 flex items-center justify-between"><span>This week armed you</span><span style={{ color: TYPE_META[buddyType][1] }}>fed by {TYPE_META[buddyType][2]}</span></div>
-              <div className="space-y-2">
-                {rows.map(r => <div key={r.label} className="flex items-center gap-2 text-[9px]">
-                  <span className="w-16 shrink-0 text-[#8A8A90] tnum">{r.label} {r.n}/7</span>
-                  <div className="pixel-bar flex-1" style={{ height: 10, borderWidth: 2 }}><i style={{ width: (r.n / 7 * 100) + '%', background: r.color, transition: 'width .4s' }} /></div>
-                  <span className="w-12 shrink-0 text-right tnum" style={{ color: r.add > 0 ? 'var(--text)' : 'var(--muted)' }}>+{r.add} {r.unit}</span>
-                </div>)}
-              </div>
-            </div>;
-          })()}
-
-          {/* weekly boss: weakness and challenge in one card */}
-          {bossReady
-            ? <div className="pixel-box p-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (weaknessExploited ? 'var(--good)' : 'var(--border)') }}>
-                <div className="flex items-center justify-between mb-2 gap-2"><span className="pf text-[8px] uppercase" style={{ color: 'var(--danger)' }}>Weekly boss · {boss.name}</span><span className="pf text-[7px] uppercase inline-flex items-center gap-1 text-[#8A8A90] shrink-0">weak <TypeChip t={weakness} /></span></div>
-                <div className="text-[10px] leading-snug mb-3">{weaknessExploited
-                  ? <span style={{ color: 'var(--good)' }}>Weakness exploited: your buddy strikes at +35% this week. Take it down!</span>
-                  : <span className="text-[#8A8A90]">Raise a {TYPE_META[weakness][0]} buddy or eat {TYPE_META[weakness][2]}, {weakDays}/4 days hit this week for +35% attack.</span>}</div>
-                <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, 'weekly')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Challenge {boss.name}</Btn>
-              </div>
-            : <div className="text-[11px] text-[#8A8A90] text-center">Weekly boss beaten, a new challenger arrives next week.</div>}
-        </div>}
-
-        {(phase === 'fight' || phase === 'done') && opp && <div className="fade-in">
-          <div className="grid grid-cols-2 gap-3 mb-2">
-            <div><div className="text-[9px] mb-1 font-bold truncate">{fighter.name}</div><HpBar hp={hpA} max={maxA} color="var(--good)" /></div>
-            <div><div className="text-[9px] mb-1 font-bold text-right truncate">{opp.name}</div><HpBar hp={hpB} max={maxB} color="var(--danger)" align="r" /></div>
-          </div>
-          <Ring />
-          <div className="pixel-box p-2 mb-3 text-[10px] text-[#8A8A90] leading-relaxed" style={{ background: 'var(--surface3)', minHeight: 56 }}>{log.map((l, i) => <div key={i} style={{ opacity: 1 - i * 0.16 }}>› {l}</div>)}</div>
-          {phase === 'done' && <div className="text-center fade-in">
-            <div className="pf text-2xl mb-1" style={{ color: winner === 'you' ? 'var(--good)' : 'var(--danger)' }}>{winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'}</div>
-            <div className="text-[11px] text-[#8A8A90] mb-2">{winner === 'you' ? (isDaily ? 'Daily Hunt cleared!' : isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!') : 'Your buddy needs a good feed, come back tomorrow and go again.'}</div>
-            {winner === 'you' && amberEarned > 0 && <div className="text-[14px] mb-2 font-bold" style={{ color: 'var(--fat)' }}><Spark size={11} /> +{amberEarned} Amber</div>}
-            {winner === 'you' && drops.length > 0 && <div className="text-[11px] mb-3" style={{ color: 'var(--good)' }}>Loot: {drops.map(id => ITEMS[id].name).join(', ')}</div>}
-            <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setPhase('select')}>Back</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Done</Btn></div>
-          </div>}
-        </div>}
-      </div>
-    </div>
-  );
-}
-// Slim weight-trend teaser for the dashboard: latest weight + a sparkline, taps through to
-// the Goal tab where the full trend, weigh-in log and burn estimate live.
 function HomeWeightSpark({ db, onOpen }) {
   const unit = db.profile.weight_unit;
   const ws = db.weight_entries.slice(-21);
@@ -4180,9 +3792,6 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
         <p className="text-[12px] mt-4 leading-snug" style={{ color: 'var(--muted)' }}>
           Readiness is baseline-relative: each signal is judged against your own rolling average, not a fixed target.
         </p>
-        {onOpenPlay && parts.score != null && (
-          <button onClick={() => { onClose(); onOpenPlay(); }} className="w-full mt-4 pixel-box py-3 text-[13px] font-semibold" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>See today's Fight buff →</button>
-        )}
       </div>
     );
   }
@@ -7313,7 +6922,6 @@ function AdminPanel({ onBack, adminEmail, update }) {
   useEffect(() => { adminSupport('open_count').then(j => setSupportOpen(j.open || 0), () => {}); }, [tab]);
   // Reset the Dino Fight day-gate on your OWN account, through the normal sync path, so a fresh
   // ladder attempt (and this week's boss) is available again for testing.
-  function resetBattle() { update(d => { d.fight = d.fight || {}; d.fight.lastAttemptDate = null; d.fight.lastBossWeek = null; }); setDevMsg("Done. Today's ladder attempt and this week's boss are available again on your account."); }
   const [users, setUsers] = useState([]); const [defaultCap, setDefaultCap] = useState(1); const [modelUsage, setModelUsage] = useState([]);
   const [q, setQ] = useState(''); const [sel, setSel] = useState(null); const [selLoading, setSelLoading] = useState(false);
   const [planFilter, setPlanFilter] = useState('all'); // all | premium | free (Users tab)
@@ -7384,7 +6992,6 @@ function AdminPanel({ onBack, adminEmail, update }) {
           <AdminTiers />
           <Section title="Dev tools" className="mt-6">
             <div className="text-[12px] text-[#8A8A90] mb-2">Reset the Dino Fight day-gate on your own account so you can test again. This clears today's ladder attempt and re-arms this week's boss, nothing else changes.</div>
-            <Btn kind="accent" onClick={resetBattle}>Reset today's battle</Btn>
             {devMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--good)' }}>{devMsg}</div>}
           </Section>
         </div>}
@@ -9287,7 +8894,6 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
-  const [fightOpen, setFightOpen] = useState(false); // boss fight, launched from inside the Play hub
   const [nameOpen, setNameOpen] = useState(false);   // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -9788,8 +9394,7 @@ function App() {
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
-      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenFight={() => setFightOpen(true)} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
-      {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
+      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} />
       {reveal && <CatchReveal c={reveal} />}
