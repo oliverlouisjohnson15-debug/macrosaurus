@@ -195,6 +195,32 @@ test('mergeStates: a prestige reset is not undone by the other copy\'s larger pr
   assert.strictEqual(m.fight.wins, 20);  // cumulative wins still max
 });
 
+test('mergeStates: meal_templates union keeps a rename and an added meal, and honors a deletion', () => {
+  const higherRev = { _rev: 9, meal_templates: [
+    { id: 'm_1', name: 'Breakfast', sort_order: 0 },
+    { id: 'm_2', name: 'Brunch', sort_order: 1 },       // renamed on this device
+    { id: 'm_3', name: 'Dinner', sort_order: 2 },
+  ] };
+  const lowerRev = { _rev: 3,
+    meal_templates: [
+      { id: 'm_1', name: 'Breakfast', sort_order: 0 },
+      { id: 'm_2', name: 'Lunch', sort_order: 1 },      // stale name
+      { id: 'm_3', name: 'Dinner', sort_order: 2 },
+      { id: 'm_4', name: 'Supper', sort_order: 3 },      // added on the lower-_rev device
+    ],
+    deleted: { m_3: 1720000000000 },                     // and Dinner deleted here (tombstoned)
+  };
+  const m = Store.mergeStates(higherRev, lowerRev);
+  const byId = Object.fromEntries(m.meal_templates.map(x => [x.id, x]));
+  assert.strictEqual(byId.m_2.name, 'Brunch');           // rename (higher-_rev) wins
+  assert.ok(byId.m_4 && byId.m_4.name === 'Supper');     // added meal is not lost
+  assert.ok(!byId.m_3, 'deleted meal stays deleted, not resurrected by the union');
+  const orders = m.meal_templates.map(x => x.sort_order);
+  assert.deepStrictEqual(orders, orders.slice().sort((x, y) => x - y)); // sorted by sort_order
+  // order-independent
+  assert.ok(!Object.fromEntries(Store.mergeStates(lowerRev, higherRev).meal_templates.map(x => [x.id, x])).m_3);
+});
+
 test('mergeStates: a live Google Health link survives a higher-_rev copy that never connected', () => {
   // The bug: a stale device/tab with a higher _rev but no googleHealth wiped a live connection on
   // merge, flipping the UI to "not connected" while the server was still synced.

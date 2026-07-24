@@ -6593,6 +6593,11 @@ function SettingsTab({ db, update }) {
       // Normalise the two Google Health targets: blank means "use the automatic default".
       const sg = Math.round(+s.stepGoal) || 0; if (sg > 0) d.profile.stepGoal = sg; else delete d.profile.stepGoal;
       delete d.profile.sleepTargetMin; // sleep is scored against the science (7-9h), not an editable target
+      // Tombstone any meal removed in the editor so the deletion survives a cross-device merge
+      // (meal_templates is unioned by id now, so without a tombstone the union would resurrect it).
+      const keepIds = dm.map(m => m.id);
+      const removedIds = (d.meal_templates || []).map(m => m.id).filter(id => keepIds.indexOf(id) === -1);
+      if (removedIds.length) tombstone(d, removedIds);
       d.meal_templates = dm.map((m, i) => { const ex = d.meal_templates.find(x => x.id === m.id); return Object.assign({}, ex || { id: m.id, user_id: Store.USER }, { name: (m.name || '').trim() || 'Meal', sort_order: i }); });
     });
     if (pushOn) pushSyncHour(s.nudgeHour);

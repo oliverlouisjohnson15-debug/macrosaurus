@@ -190,6 +190,11 @@
     out.shopping_list  = unionBy(newer.shopping_list,  older.shopping_list,  byId);
     out.pantry         = Array.from(new Set([].concat(older.pantry || [], newer.pantry || [])));
     out.meal_plan      = unionBy(newer.meal_plan,      older.meal_plan,      byId);
+    // Meal names/order: union by id so a rename or added meal on one device isn't lost to a
+    // higher-_rev copy that never saw it. Removals are tombstoned at save time (see the settings
+    // editor), so the alive() filter below drops a meal deleted on either device rather than letting
+    // the union resurrect it. Re-sorted by sort_order after the union so the merged order stays sane.
+    out.meal_templates = unionBy(newer.meal_templates, older.meal_templates, byId);
     out.targets        = unionBy(newer.targets,        older.targets,        byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
     // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
@@ -242,6 +247,8 @@
     out.recipes        = alive(out.recipes);
     out.shopping_list  = alive(out.shopping_list);
     out.meal_plan      = alive(out.meal_plan);
+    out.meal_templates = alive(out.meal_templates)
+      .slice().sort(function (x, y) { return ((x && x.sort_order) || 0) - ((y && y.sort_order) || 0); });
     // Cap tombstones to the 1000 most recent so the map can't grow without bound.
     var dids = Object.keys(del);
     if (dids.length > 1000) { dids.sort(function (x, y) { return del[y] - del[x]; }); var cap = {}; dids.slice(0, 1000).forEach(function (id) { cap[id] = del[id]; }); del = cap; }
