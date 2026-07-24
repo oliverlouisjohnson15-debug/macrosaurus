@@ -437,9 +437,10 @@ async function claudeVision(key, files, prompt, opts) {
 // into a warm, plain-English explanation + one tip. Guardrailed so it can't invent numbers or give
 // medical/extreme advice, and it's optional (needs a key, degrades gracefully offline). Returns text.
 async function coachNarrative(key, payload) {
-  const rules = 'You are Macrosaurus, a warm but honest UK body-composition coach. A deterministic engine has ALREADY decided this week\'s calorie change from the user\'s weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. In 2-3 short sentences, explain in plain UK English what this week\'s result means for the user, then give ONE concrete, evidence-aligned tip for the coming week (e.g. logging consistency, hitting the protein target, weighing in daily, or being patient with the weight trend). STEPS-FIRST COACHING: if steps_recommendedLever is "steps", make that one tip about daily activity, getting steps back up toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly that the loss slowed but so did the steps; a good coach lifts steps before cutting food. If steps_recommendedLever is "calories", note the steps are already solid (around steps_avgThisCycle a day) so the small calorie change is the right move this time. If the step fields are null, ignore steps entirely. No medical or supplement advice, no crash-dieting or extreme measures, no emojis, no headings, no bullet points, no markdown, no em dashes. Address the user directly as "you".';
-  const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nCoach\'s take:';
-  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 240, messages: [{ role: 'user', content: prompt }] });
+  const who = (payload && payload.buddy_name) || 'Your buddy';
+  const rules = 'You are ' + who + ', the user\'s pixel dinosaur, acting as their warm but honest coach. A deterministic engine has ALREADY decided this week\'s calorie change from their weight trend and intake. Do NOT invent, recalculate, or contradict any number, refer only to the figures given. Speak AS the dinosaur, with a little personality, and keep it TIGHT: at most 2 short sentences, ideally one. Say in plain UK English what this week means, and if it helps, one quick nudge for next week. STEPS-FIRST: if steps_recommendedLever is "steps", make the nudge about walking more, back toward steps_suggestTargetPerDay a day, and if steps_avgThisCycle is below steps_avgPrevCycle say plainly the loss slowed but so did the steps. If steps_recommendedLever is "calories", note steps are already solid so the small calorie move is right. If the step fields are null, ignore steps. No medical or supplement advice, no crash-dieting, no emojis, no headings, no bullet points, no markdown, no em dashes. Address them as "you".';
+  const prompt = rules + '\n\nThis week\'s check-in result (JSON):\n' + JSON.stringify(payload) + '\n\nYour take (one or two short sentences):';
+  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 140, messages: [{ role: 'user', content: prompt }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
 // Deterministic steps-first line for the check-in result screen. Shows even when the AI coach is
@@ -1820,6 +1821,7 @@ function CheckInModal({ db, update, onClose, resume }) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     let cancelled = false; setCoach({ loading: true });
     const payload = {
+      buddy_name: (db.buddy && db.buddy.name) || 'Your buddy',
       goal: p.goalType,
       targetRatePerWeek_kg: p.goalType === 'maintain' ? 0 : (p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0)),
       actualRatePerWeek_kg: result.estimate ? result.estimate.weeklyChangeKg : null,
@@ -1961,16 +1963,23 @@ function CheckInModal({ db, update, onClose, resume }) {
                 ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.'
                 : 'Your body is burning about ' + ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) + ' kcal a day, ' + ((result.estimate && result.estimate.weightOnly) ? 'read from how your weight moved against your target.' : 'worked out from your intake versus how your weight moved.')}</div>
             </div>}
-            {result.stepsCoaching && stepsCoachLine(result.stepsCoaching) && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--accent)' }}>
-              <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5">Steps first</div>
-              <div className="text-[13px] leading-snug">{stepsCoachLine(result.stepsCoaching)}</div>
-            </div>}
-            {coach && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--good)' }}>
-              <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5 flex items-center gap-1.5"><PixelDino size={13} color="var(--good)" /> Coach's take</div>
-              {coach.loading ? <div className="text-[12px] text-[#8A8A90]">Reading your week…</div>
-                : coach.error ? <div className="text-[12px] text-[#8A8A90]">Couldn't reach the AI coach this time, your numbers above are all set.</div>
-                : <div className="text-[13px] leading-snug">{coach.text}</div>}
-            </div>}
+            {/* One buddy note instead of two stacked coaching blocks: the dino gives a concise take
+                (AI when available), falling back to the deterministic steps-first line offline. */}
+            {(() => {
+              const steps = result.stepsCoaching && stepsCoachLine(result.stepsCoaching);
+              const body = (coach && coach.text) ? coach.text : steps || null;
+              const loading = coach && coach.loading;
+              if (!body && !loading) return null;
+              const who = (db.buddy && db.buddy.name) || 'Your buddy';
+              return <div className="mt-3 pixel-box p-3 flex items-start gap-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--good)' }}>
+                <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={1.6} /></div>
+                <div className="min-w-0">
+                  <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--good)' }}>{who} says</div>
+                  {loading ? <div className="text-[12px] text-[#8A8A90]">Reading your week…</div>
+                    : <div className="text-[12.5px] leading-snug">{body}</div>}
+                </div>
+              </div>;
+            })()}
             {result.status === 'proposed' && result.changed && !result.accepted && <div className="my-3">
               <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5">New daily targets</div>
               <div className="grid grid-cols-2 min-[381px]:grid-cols-4 gap-2">{[
@@ -2488,6 +2497,9 @@ function engagementNudge(db, today) {
   const fightIdle = loggedToday && (!lastFight || Game.daysBetween(lastFight, today) >= 3);
   if (fightIdle && fresh('nudge_fight', 3)) cands.push({ key: 'nudge_fight', text: who + " is itching for a scrap. Take this week's eating into a fight and win some Amber.", cta: 'To battle', action: 'fight' });
   if (fresh('nudge_amber', 6)) cands.push({ key: 'nudge_amber', text: "Did you know I earn you Amber? A little for logging each day, more for winning fights. Spend it in the shop to kit me out.", cta: 'See shop', action: 'shop' });
+  // Buy-me-something: a friendly explainer of how the shop works, so the Amber has an obvious payoff.
+  const amber = Game.amberBalance(db.amber_ledger);
+  if (amber >= 60 && fresh('nudge_shop', 7)) cands.push({ key: 'nudge_shop', text: "Psst, you've got " + amber + " Amber. Open the Shop from the Play hub and treat me to a glowing aura or a whole new colour.", cta: 'Buy me something', action: 'shop' });
   if (fresh('nudge_cook', 6)) cands.push({ key: 'nudge_cook', text: "Fancy something new? The Cook tab has quick high-protein ideas you can log in a tap.", cta: 'Open Cook', action: 'cook' });
   if (fresh('nudge_ig', 9)) cands.push({ key: 'nudge_ig', text: "Find me on Instagram @macrosaurus.app for tips, recipes and a daily nudge.", cta: 'Follow', action: 'instagram' });
   if (fresh('nudge_feedback', 12)) cands.push({ key: 'nudge_feedback', text: "Got an idea to make me better? Pop it in Settings, the team reads every one.", cta: 'Suggest', action: 'feedback' });
