@@ -21226,6 +21226,42 @@ async function adminUsage() {
 function modelLabel(m) {
   return !m ? 'Other' : m.indexOf('haiku') !== -1 ? 'Haiku (label OCR)' : m.indexOf('sonnet') !== -1 ? 'Sonnet (estimates)' : m;
 }
+// Classify a user's subscription for the admin views. Premium = active/trialing sub; comp = a free
+// grant (plan='comp'); trial = Stripe trial; a canceled row that once paid reads as "churned".
+function userPlanMeta(u) {
+  if (u.premium) {
+    if (u.sub_comp) return {
+      premium: true,
+      key: 'comp',
+      label: 'Comp',
+      color: 'var(--accent)'
+    };
+    if (u.sub_status === 'trialing') return {
+      premium: true,
+      key: 'trial',
+      label: 'Trial',
+      color: 'var(--carb)'
+    };
+    return {
+      premium: true,
+      key: 'paid',
+      label: 'Premium',
+      color: 'var(--good)'
+    };
+  }
+  if (u.sub_status === 'canceled') return {
+    premium: false,
+    key: 'churned',
+    label: 'Churned',
+    color: 'var(--fat)'
+  };
+  return {
+    premium: false,
+    key: 'free',
+    label: 'Free',
+    color: 'var(--muted)'
+  };
+}
 function adminFmtDate(s) {
   try {
     return s ? new Date(s).toLocaleDateString('en-GB', {
@@ -21917,6 +21953,7 @@ function AdminPanel({
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(null);
   const [selLoading, setSelLoading] = useState(false);
+  const [planFilter, setPlanFilter] = useState('all'); // all | premium | free (Users tab)
   const [capInput, setCapInput] = useState('');
   const [capBusy, setCapBusy] = useState(false);
   const [capMsg, setCapMsg] = useState('');
@@ -21990,7 +22027,14 @@ function AdminPanel({
   const totalSpend = users.reduce((a, u) => a + (u.spend_usd || 0), 0);
   const totalCalls = users.reduce((a, u) => a + (u.calls || 0), 0);
   const overCap = users.filter(u => u.spend_usd >= u.cap_usd && (u.email || '').toLowerCase() !== meLower).length;
-  const filtered = users.filter(u => !q || (u.email || '').toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.spend_usd - a.spend_usd);
+  // Subscription breakdown across all users (drives the Overview stat + Users filter counts).
+  const premiumUsers = users.filter(u => u.premium);
+  const premiumCount = premiumUsers.length;
+  const freeCount = total - premiumCount;
+  const paidCount = premiumUsers.filter(u => userPlanMeta(u).key === 'paid').length;
+  const trialCount = premiumUsers.filter(u => u.sub_status === 'trialing').length;
+  const compCount = premiumUsers.filter(u => u.sub_comp).length;
+  const filtered = users.filter(u => planFilter === 'all' || (planFilter === 'premium' ? u.premium : !u.premium)).filter(u => !q || (u.email || '').toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.premium - a.premium || b.spend_usd - a.spend_usd);
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
   }, /*#__PURE__*/React.createElement("button", {
@@ -22033,14 +22077,35 @@ function AdminPanel({
     value: signups7,
     sub: active7 + ' active this wk'
   }), /*#__PURE__*/React.createElement(AdminStat, {
+    label: "Premium",
+    value: premiumCount,
+    sub: total ? Math.round(premiumCount / total * 100) + '% of users' : 'no users yet'
+  }), /*#__PURE__*/React.createElement(AdminStat, {
     label: "AI spend · mo",
     value: '$' + totalSpend.toFixed(2),
     sub: totalCalls + ' call' + (totalCalls === 1 ? '' : 's')
-  }), /*#__PURE__*/React.createElement(AdminStat, {
-    label: "At/over cap",
-    value: overCap,
-    sub: "this month"
-  })), modelUsage.length > 0 && /*#__PURE__*/React.createElement(Section, {
+  })), /*#__PURE__*/React.createElement(Section, {
+    title: "Subscriptions",
+    className: "mt-6"
+  }, /*#__PURE__*/React.createElement(Row2, {
+    k: "Premium (total)",
+    v: premiumCount
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "· Paid (Stripe)",
+    v: paidCount
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "· On trial",
+    v: trialCount
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "· Complimentary",
+    v: compCount
+  }), /*#__PURE__*/React.createElement(Row2, {
+    k: "Free",
+    v: freeCount,
+    last: true
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-3"
+  }, "Premium = an active or trialing subscription. Tap into the Users tab and filter by Premium or Free to see exactly who's on each. At/over AI cap this month: ", overCap, ".")), modelUsage.length > 0 && /*#__PURE__*/React.createElement(Section, {
     title: "Spend by model",
     className: "mt-6"
   }, /*#__PURE__*/React.createElement("div", {
@@ -22095,49 +22160,67 @@ function AdminPanel({
     onChange: e => setQ(e.target.value),
     placeholder: "Search by email…"
   }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1 mt-3 overflow-x-auto"
+  }, [['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setPlanFilter(k),
+    className: `pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
+    style: {
+      border: '2px solid var(--border)'
+    }
+  }, l, " · ", n))), /*#__PURE__*/React.createElement("div", {
     className: "mt-4 space-y-2"
-  }, filtered.map(u => /*#__PURE__*/React.createElement("button", {
-    key: u.id,
-    onClick: () => openUser(u.id),
-    className: "w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between items-center gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-medium truncate"
-  }, u.email, u.is_admin && /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] ml-1.5 px-1 rounded",
-    style: {
-      background: 'var(--pro)',
-      color: '#fff'
-    }
-  }, "admin"), u.banned && /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] ml-1.5 px-1 rounded",
-    style: {
-      background: 'var(--danger)',
-      color: '#fff'
-    }
-  }, "suspended"), !u.confirmed && /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] ml-1.5 px-1 rounded",
-    style: {
-      background: 'var(--fat)',
-      color: '#fff'
-    }
-  }, "unconfirmed")), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90]"
-  }, u.hasProfile ? u.goal || 'profile set' : 'no profile', " · joined ", adminFmtDate(u.created_at))), /*#__PURE__*/React.createElement("div", {
-    className: "text-right shrink-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] tnum",
-    style: {
-      color: u.spend_usd >= u.cap_usd ? 'var(--danger)' : 'var(--muted)'
-    }
-  }, "$", u.spend_usd.toFixed(2), "/$", u.cap_usd.toFixed(2)), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90]"
-  }, u.calls, " call", u.calls === 1 ? '' : 's', " this mo."))))), !filtered.length && /*#__PURE__*/React.createElement("div", {
+  }, filtered.map(u => {
+    const pm = userPlanMeta(u);
+    return /*#__PURE__*/React.createElement("button", {
+      key: u.id,
+      onClick: () => openUser(u.id),
+      className: "w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex justify-between items-center gap-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-medium truncate"
+    }, u.email, u.is_admin && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] ml-1.5 px-1 rounded",
+      style: {
+        background: 'var(--pro)',
+        color: '#fff'
+      }
+    }, "admin"), u.banned && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] ml-1.5 px-1 rounded",
+      style: {
+        background: 'var(--danger)',
+        color: '#fff'
+      }
+    }, "suspended"), !u.confirmed && /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] ml-1.5 px-1 rounded",
+      style: {
+        background: 'var(--fat)',
+        color: '#fff'
+      }
+    }, "unconfirmed")), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[7px] uppercase px-1 py-0.5",
+      style: {
+        color: pm.color,
+        border: '1.5px solid ' + pm.color
+      }
+    }, pm.label), /*#__PURE__*/React.createElement("span", null, u.hasProfile ? u.goal || 'profile set' : 'no profile', " · joined ", adminFmtDate(u.created_at)))), /*#__PURE__*/React.createElement("div", {
+      className: "text-right shrink-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] tnum",
+      style: {
+        color: u.spend_usd >= u.cap_usd ? 'var(--danger)' : 'var(--muted)'
+      }
+    }, "$", u.spend_usd.toFixed(2), "/$", u.cap_usd.toFixed(2)), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90]"
+    }, u.calls, " call", u.calls === 1 ? '' : 's', " this mo."))));
+  }), !filtered.length && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mt-4"
-  }, "No matching users."))), tab === 'support' && /*#__PURE__*/React.createElement(AdminSupport, null), tab === 'ailogs' && /*#__PURE__*/React.createElement(AdminAiLogs, null), tab === 'audit' && /*#__PURE__*/React.createElement(AdminAudit, null)), selLoading && /*#__PURE__*/React.createElement("div", {
+  }, q || planFilter !== 'all' ? 'No users match this filter.' : 'No users yet.'))), tab === 'support' && /*#__PURE__*/React.createElement(AdminSupport, null), tab === 'ailogs' && /*#__PURE__*/React.createElement(AdminAiLogs, null), tab === 'audit' && /*#__PURE__*/React.createElement(AdminAudit, null)), selLoading && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-black/50 z-[70] flex items-center justify-center"
   }, /*#__PURE__*/React.createElement(DinoLoader, {
     label: "Opening account"
