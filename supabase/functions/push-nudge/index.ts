@@ -59,9 +59,17 @@ Deno.serve(async (req) => {
         if (d.buddy && d.buddy.name) buddyName = String(d.buddy.name).slice(0, 24);
       }
 
+      // The buddy speaks in the first person, and the line rotates by day so a daily nudge never reads
+      // like the same robotic reminder. Keeps the app's copy voice: warm, British, no em dashes.
+      const nudgeLines = [
+        "I have not eaten yet today. Log a meal and I will grow a little stronger.",
+        "Nothing logged yet. Pop your last meal in and I will do the maths for you.",
+        "Feed me before the day slips away. A quick log keeps us both on track.",
+      ];
+      const dayIdx = parseInt(String(localDate).slice(-2), 10) || 0;
       const payload = JSON.stringify({
         title: buddyName + " is peckish",
-        body: "You have not logged today. Tap to feed it before the day slips away.",
+        body: nudgeLines[dayIdx % nudgeLines.length],
         url: "/?action=log",
         tag: "macrosaurus-nudge-" + localDate,
       });
