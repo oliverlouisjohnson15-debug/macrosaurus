@@ -1838,7 +1838,6 @@ function CheckInModal({ db, update, onClose, resume }) {
   // Weight-only doesn't need food logs, just enough weigh-ins to read a trend.
   const readyToAdjust = laneMode === 'weightOnly' ? weighDays >= needWeigh : onTrack;
   const [coach, setCoach] = useState(null); // AI explanation of the check-in result: {loading}|{text}|{error}
-  const [bonusCatch, setBonusCatch] = useState(null); // the guaranteed check-in catch, shown on the result screen
   useEffect(() => {
     if (!result || result.accepted) return;
     if (!['proposed', 'held', 'needdata'].includes(result.status)) return;
@@ -1880,16 +1879,6 @@ function CheckInModal({ db, update, onClose, resume }) {
     const entries = db.weight_entries.filter(w => w.date !== today).concat([todayEntry]);
     const curAvg = avgWeight(entries, cs, today);
     const prevAvg = avgWeight(entries, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
-    // Check-in rewards (any outcome, including a hold, counts as showing up). Idempotent per date.
-    const firstGrant = !(db.game_awards || {})['checkin_catch:' + today];
-    const bonus = firstGrant ? Game.checkinCatch(db.game_salt || '', today) : null;
-    // Honest Rex: this cycle contains a day logged at >=20% OVER target, and they checked in anyway.
-    // (Over-target only: honesty about a big day, never a reward for under-eating.)
-    let honestOver = false;
-    for (let hd = cs; hd <= today; hd = shiftISO(hd, 1)) {
-      const tk = plannedKcalOn(db, hd); const dayK = sumMacros(entriesOn(db, hd)).kcal;
-      if (tk > 0 && dayK >= tk * 1.2) { honestOver = true; break; }
-    }
     update(d => {
       const ex = d.weight_entries.find(x => x.date === today);
       if (ex) { ex.scale_weight = +weightKg.toFixed(2); if (bfVal != null) ex.bodyfat = bfVal; } else { const ne = { id: Store.uid(), date: today, scale_weight: +weightKg.toFixed(2) }; if (bfVal != null) ne.bodyfat = bfVal; d.weight_entries.push(ne); }
@@ -1900,22 +1889,15 @@ function CheckInModal({ db, update, onClose, resume }) {
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
       d.checkins = (d.checkins || []).concat([{ date: today, weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2), onTrack: onTrack, adhered: adhered === 'yes', lane: lane, days: cycleDays, logged: loggedDays, weighed: weighDays, logWindow: logWindow, weighWindow: weighWindow }]);
       d.profile.trackingLane = laneMode; // 'balance' or 'weightOnly', remembered for lane-aware copy
+      // Check-in counts as showing up (any outcome, including a hold). Idempotent per date via a
+      // game_awards guard so re-checking-in the same day never double-counts the badge track.
       if (!(d.game_awards || {})['checkin_catch:' + today]) {
-        d.game_awards = d.game_awards || {}; d.items = d.items || {}; d.badges = d.badges || { checkins: 0, inRange: 0 };
+        d.game_awards = d.game_awards || {}; d.badges = d.badges || { checkins: 0, inRange: 0 };
         d.game_awards['checkin_catch:' + today] = true;
         d.badges.checkins = (d.badges.checkins || 0) + 1;
-        // Guaranteed catch from a boosted, at-least-rare pool, recorded straight into the catch log.
-        if (bonus) { d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || []; if (!arr.some(x => x.id === bonus.id && x.src === 'checkin')) arr.push({ id: bonus.id, shiny: !!bonus.shiny, src: 'checkin' }); d.catch_log[today] = arr; }
-        // Rare consistency awards: a 4-in-a-row check-in chain (each within 9 days) hatches an
-        // Incubator; weighing in 5+ days this cycle earns a Macro Lure.
-        const chain = Game.checkinChainLen((d.checkins || []).map(c => c.date));
-        if (chain >= 4 && chain % 4 === 0) d.items.incubator = (d.items.incubator || 0) + 1;
-        if (weighDays >= 5) d.items.lure = (d.items.lure || 0) + 1;
-        if (honestOver && !d.game_awards['honest_rex']) { d.game_awards['honest_rex'] = true; d.items.honest_rex = (d.items.honest_rex || 0) + 1; }
       }
     });
     window.MTRACK && MTRACK('checkin_completed', { on_track: !!onTrack, adhered: adhered === 'yes' });
-    if (bonus) setBonusCatch(bonus);
     if (dietBreakActive(db, today)) { setResult({ status: 'held', reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.` }); return; }
     if (adhered === 'no') { setResult({ status: 'held', offPlan: true, dinoLine: DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)], reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.` }); return; }
     if (!readyToAdjust) { setResult({ status: 'held', reason: laneMode === 'weightOnly'
@@ -1994,15 +1976,6 @@ function CheckInModal({ db, update, onClose, resume }) {
               <div className="text-[13px] font-semibold leading-snug">{result.dinoLine}</div>
             </div>}
             <p className="text-sm">{result.reason}</p>
-            {bonusCatch && (() => { const bcr = CR_BY_ID[bonusCatch.id]; if (!bcr) return null;
-              return <div className="flex items-center gap-3 mt-3 pixel-box p-3 fade-in" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: CR_RARITY_COLOR[bcr.rarity], borderWidth: 3 }}>
-                <div className="shrink-0" style={crFx(bonusCatch.shiny, null)}><Sprite art={bcr.art} colors={bonusCatch.shiny ? crShiny(bcr.colors) : bcr.colors} px={5} /></div>
-                <div className="min-w-0">
-                  <div className="text-[9px]" style={{ color: 'var(--good)' }}>CHECK-IN CATCH! <span className="pf uppercase" style={{ color: CR_RARITY_COLOR[bcr.rarity] }}>{CR_RARITY_LABEL[bcr.rarity]}</span></div>
-                  <div className="text-sm font-bold">{bcr.name}{bonusCatch.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /> shiny</span> : ''} joined your dex</div>
-                  <div className="text-[10px] text-[#8A8A90] leading-snug">Showing up for the check-in is the win, whatever the scale said.</div>
-                </div>
-              </div>; })()}
             {result.estimate && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
               <div className="grid grid-cols-2 gap-2">
                 <div><div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">Aiming for</div><div className="text-[13px] tnum font-semibold">{fmtRate(tgtRate)}</div></div>
@@ -2439,6 +2412,100 @@ function Sprite({ art, colors, px = 6 }) {
   return <svg width={w * cell} height={h * cell} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges">{rects}</svg>;
 }
 
+/* ---------- Animated buddy (PNG sprite sheets) ----------
+   The purchased buddy art (served from /sprites) is 24x24 pixel dinos laid out as horizontal
+   strips: frameCount = imageWidth / 24. Frame counts are uniform across all 24 variants (12 species
+   x 2 palettes), so we hard-map them here rather than probing each PNG at runtime. SpriteSheet plays
+   one strip with a single frame-count-agnostic CSS keyframe (`sprite-play` in styles.css):
+   translateX(-100%) of the strip's own width, stepped into `frames` whole-frame jumps. This is the
+   ONE rich, animated element inside the otherwise-pixel UI. */
+const SPRITE_FRAMES = {
+  base: { idle: 3, move: 6, jump: 4, dash: 6, bite: 3, kick: 3, avoid: 3, hurt: 4, scan: 6, dead: 5 },
+  egg: { crack: 4, hatch: 4, move: 4 },
+  ghost: { idle: 3, move: 4 },
+};
+// The male palettes of these species are missing idle/move/dash/hurt/kick; the customize step uses
+// this to hide those species+palette combos so we never request a 404 strip.
+const SPRITE_INCOMPLETE_MALE = ['doux', 'mort', 'tard', 'vita'];
+function spriteHasAnim(palette, species, group, anim) {
+  if (palette === 'male' && group === 'base' && SPRITE_INCOMPLETE_MALE.includes(species)
+    && ['idle', 'move', 'dash', 'hurt', 'kick'].includes(anim)) return false;
+  return !!((SPRITE_FRAMES[group] || {})[anim]);
+}
+// One animated 24x24 sprite. `px` is the integer pixel scale (rendered size = 24*px square).
+// loop=false plays once and fires onEnd (used for the hatch sequence and one-shot reactions).
+function SpriteSheet({ palette = 'female', species = 'doux', group = 'base', anim = 'idle', px = 5, fps = 6, loop = true, onEnd, className, style }) {
+  const frames = (SPRITE_FRAMES[group] || {})[anim] || 1;
+  const size = 24 * px;
+  const dur = Math.max(0.1, frames / fps);
+  const url = '/sprites/' + palette + '/' + species + '/' + group + '/' + anim + '.png';
+  return (
+    <div className={className} style={Object.assign({ width: size, height: size, overflow: 'hidden' }, style)}>
+      <img src={url} alt="" aria-hidden="true" draggable="false"
+        style={{ height: size, width: 'auto', maxWidth: 'none', display: 'block', imageRendering: 'pixelated',
+          animation: 'sprite-play ' + dur + 's steps(' + frames + ') ' + (loop ? 'infinite' : '1 forwards') }}
+        onAnimationEnd={loop ? undefined : onEnd} />
+    </div>
+  );
+}
+// Map a BUDDY_STAGES index to an animated sprite descriptor. Stage 0 is the egg (idle wobble);
+// grown stages share the chosen body's idle. Species/palette come from the buddy record once the
+// customize step exists (Phase 3); until then they fall back to a complete default variant.
+function buddyStageSprite(stageIndex, buddy) {
+  const palette = (buddy && buddy.palette) || 'female';
+  const species = (buddy && buddy.species) || 'doux';
+  if (stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
+  return { palette, species, group: 'base', anim: 'idle', fps: 5 };
+}
+// The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
+// animated dino is standing somewhere rather than floating, paired with its name/stage, a warm mood
+// line, and a next-stage progress bar. Replaces the old CompanionStrip: taps through to the Play
+// hub's Buddy tab, with its equipped emoji cosmetics overlaid on the animated sprite. The trailing
+// action is deliberately left clear so the buddy's proactive coach line (Phase 5, the dead showNudge
+// slot) has room to speak here. The one rich, animated element in the pixel UI. (Refs BUDDY_STAGES/
+// MOOD_META below, resolved at render time.)
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay }) {
+  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const next = BUDDY_STAGES[buddy.stage + 1] || null;
+  // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
+  // buddy sits at a high-water stage above what the current streak supports (e.g. after a slip).
+  const prog = next ? Math.max(0.04, Math.min(1, streak / next.min)) : 1;
+  const toNext = next ? Math.max(1, next.min - streak) : 0;
+  const s = buddyStageSprite(buddy.stage, db.buddy);
+  const asleep = bp.mood === 'asleep' || buddy.asleep;
+  const mood = MOOD_META[bp.mood] || MOOD_META.content;
+  const eq = equippedCosmetics((db.buddy || {}).cosmetics);
+  const who = bp.name || (bp.form ? bp.form.name : st.name);
+  return (
+    <Card className="p-3 mb-4">
+      <div className="flex items-center gap-2.5">
+        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="relative shrink-0 pixel-box overflow-hidden" style={{ width: 90, height: 94, background: 'var(--surface3)', boxShadow: 'none' }}>
+          <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
+          <div className="absolute" style={{ left: '50%', bottom: 14, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+          <div className="absolute" style={Object.assign({ left: '50%', bottom: 15, transform: 'translateX(-50%)' }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
+            <div className="relative inline-block leading-none">
+              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />
+              {eq.hat && <span className="absolute pointer-events-none" style={{ top: 0, left: '50%', transform: 'translateX(-50%)', fontSize: 22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
+              {eq.face && <span className="absolute pointer-events-none" style={{ top: '32%', left: '50%', transform: 'translateX(-50%)', fontSize: 17, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
+              {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '6%', left: '50%', transform: 'translateX(-50%)', fontSize: 16, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
+            </div>
+          </div>
+          {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
+        </button>
+        <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left">
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
+          <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
+          <div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
+          {next
+            ? <><div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
+                <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
+            : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 /* ---------- Share card (streak -> shareable image) ----------
    Turns a user's streak + buddy into a 1080x1080 PNG they can drop into a Story, WhatsApp or a group
    chat. Uses the Web Share API with a file where supported (mobile), and falls back to a download plus
@@ -2518,23 +2585,6 @@ async function shareStreak(payload, toast) {
   } catch (_) { toast && toast('Could not share right now'); }
 }
 
-const BIOMES = [
-  { id: 'nursery', name: 'The Nursery', blurb: 'Where every log begins. Show up and something hatches.' },
-  { id: 'protein', name: 'Protein Peaks', blurb: 'High, hard country. Only the well-fed climb it.' },
-  { id: 'carb', name: 'Carb Canyon', blurb: 'Fast rivers of slow-release energy.' },
-  { id: 'fat', name: 'Fat Flats', blurb: 'Rich, golden country. Steady does it.' },
-  { id: 'fibre', name: 'Fibre Forest', blurb: 'Green, thriving and quietly smug.' },
-  { id: 'apex', name: 'Apex Ridge', blurb: 'The summit. Only a perfect day reaches it.' },
-  { id: 'mythic', name: 'The Wilds', blurb: 'Off every map. Legends roam here for those who never miss.' },
-];
-const RARITY_RANK = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 };
-const CR_RARITY_COLOR = { common: 'var(--muted)', uncommon: 'var(--good)', rare: 'var(--carb)', epic: 'var(--weight)', legendary: 'var(--header)', mythic: 'var(--fat)' };
-const CR_RARITY_LABEL = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic' };
-// Egg tiers (quality days to hatch), colour-coded by the rarity band they crack open.
-const EGG_TIER_COLOR = { 2: 'var(--good)', 5: 'var(--carb)', 10: 'var(--weight)' };
-const EGG_TIER_LABEL = { 2: 'Common', 5: 'Uncommon+', 10: 'Rare+' };
-const EGG_TIER_EGGCOLORS = { 2: crC('#9FE08A', '#4f8e3a'), 5: crC('#7FD9E5', '#3f9aa8'), 10: crC('#C9A8F0', '#7a4fb0') };
-const BIOME_COLOR = { nursery: 'var(--muted)', protein: 'var(--pro)', carb: 'var(--carb)', fat: 'var(--fat)', fibre: 'var(--good)', apex: 'var(--weight)', mythic: 'var(--header)' };
 const CREATURES = [
   // The Nursery, any logged day
   { id: 'nugg', name: 'Nugg', art: 'egg', colors: crC('#EAD9A0', '#C77D3A'), biome: 'nursery', rarity: 'common', cond: 'Log any food on any day.', lore: 'A speckled egg kept warm by good habits. Nobody knows what hatches from it, and that is rather the point. Feed it enough days and it makes up its own mind.', evo: [{ at: 5, name: 'Nuggle', art: 'hatch', colors: crC('#EAD9A0', '#C77D3A') }, { at: 10, name: 'Nuggosaur', art: 'saur', colors: crC('#E6C878', '#b8862f') }] },
@@ -2567,7 +2617,6 @@ const CR_BY_ID = {}; CREATURES.forEach(c => CR_BY_ID[c.id] = c);
 // The evolved form of a creature at a given re-catch count (levels): picks the highest unlocked
 // stage. Post-17 content: evo lines gain an Elder (Lv25) and Ancient (Lv50) aura tier, rendered
 // as a glow on the top sprite rather than new pixel art.
-function creatureForm(cr, count) { if (!cr) return null; let f = { name: cr.name, art: cr.art, colors: cr.colors, aura: null }; if (cr.evo) { cr.evo.forEach(e => { if ((count || 0) >= e.at) f = { name: e.name, art: e.art || cr.art, colors: e.colors || cr.colors, aura: null }; }); if ((count || 0) >= 50) { f.aura = 'gold'; f.name = 'Ancient ' + f.name; } else if ((count || 0) >= 25) { f.aura = 'silver'; f.name = 'Elder ' + f.name; } } return f; }
 // Combined sprite glow: shiny, the Lv25/Lv50 aura tiers, and the day/night evolution path.
 function crFx(shiny, aura, affinity) { const fx = []; if (shiny) fx.push('drop-shadow(0 0 5px var(--fat))'); if (aura === 'silver') fx.push('drop-shadow(0 0 4px #cfd6e0)'); if (aura === 'gold') fx.push('drop-shadow(0 0 6px #FFD400)'); if (affinity === 'day') fx.push('drop-shadow(0 0 5px rgba(255,201,84,0.85))'); if (affinity === 'night') fx.push('drop-shadow(0 0 5px rgba(126,156,255,0.9))'); return fx.length ? { filter: fx.join(' ') } : null; }
 // Day/night path display: badge glyph, colour and label (set at evolution, reflects when you eat).
@@ -2595,24 +2644,17 @@ function buddyLevel(db) {
   for (let i = 0; i < dates.length && n < 60; i++) { const d = dates[i]; if (!seen[d]) { seen[d] = 1; if (isQualityDay(db, d)) n++; } }
   return n;
 }
-// The species the buddy is raised from: the creature you've caught most that has an evolution
-// line (the one you've bonded with), falling back to Dinky, the day-one hatchling.
+// The species the buddy is raised from. With the Macrodex removed there is no "most-caught"
+// creature to derive it from, so it's simply Dinky, the day-one hatchling. (The whole species/evo
+// axis is retired in the buddy-central phase, where the buddy renders from the new sprite art.)
 function buddySpeciesId(db) {
-  const dex = macrodex(db); let best = null, bestCount = -1;
-  Object.keys(dex).forEach(id => { const cr = CR_BY_ID[id]; if (cr && cr.evo && cr.evo.length && (dex[id].count || 0) > bestCount) { best = id; bestCount = dex[id].count || 0; } });
-  return best || 'dinky';
+  return 'dinky';
 }
 // ---- Shared item system (earned from streaks, perfect weeks, biome sets and boss/ladder wins) ----
 const ITEMS = {
-  lure: { name: 'Macro Lure', kind: 'dex', desc: 'Point it at a macro to make today’s catch favour that biome.' },
-  golden_steak: { name: 'Golden Steak', kind: 'dex', desc: 'Your next perfect day is guaranteed to catch a shiny.' },
-  incubator: { name: 'Incubator', kind: 'dex', desc: 'Makes today’s catch a guaranteed rare or better, if you qualify for one.' },
-  honest_rex: { name: 'Honest Rex', kind: 'dex', desc: 'Earned by logging a big over-target day honestly and still showing up to check in. Use it to lock in shiny odds on your next perfect day.' },
   amber: { name: 'Amber Fossil', kind: 'trophy', desc: 'A rare boss trophy sealed in golden amber.' },
   belt: { name: 'Champion Belt', kind: 'trophy', desc: 'Proof you cleared the whole fight ladder.' },
-  medal: { name: 'Biome Medal', kind: 'trophy', desc: 'Awarded for completing a biome in the Macrodex.' },
 };
-const ITEM_ORDER = ['lure', 'golden_steak', 'incubator', 'honest_rex', 'medal', 'amber', 'belt'];
 // Hopping dino shown while the AI is thinking, so a wait never looks like a crash.
 function DinoLoader({ label }) {
   const cr = CR_BY_ID['carbo'] || CREATURES[1];
@@ -2685,63 +2727,6 @@ function readinessInputsFor(db, dateISO) {
   return inp;
 }
 function readinessFor(db, dateISO) { return Game.readinessScore(readinessInputsFor(db, dateISO)); }
-// Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
-// day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
-function incubationDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d) || isStepGoalDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
-function creatureForDay(db, date) {
-  const q = dayQuality(db, date); if (!q) return null;
-  const h = Game.seedFor(db.game_salt || '', date); // per-user roll; empty salt matches the legacy date-only hash
-  const boost = (db.dex_boost && db.dex_boost.date === date) ? db.dex_boost : null;
-  let pool = ['nugg', 'dinky', 'pebble'];
-  if (q.proteinHit) pool.push('protops');
-  if (q.proteinHit && q.kcalIn) pool.push('flexor');
-  if (q.carbHit) pool.push('carbo');
-  if (q.carbHit && q.fiberHit) pool.push('noodon');
-  if (q.fatHit) pool.push('fatzilla');
-  if (q.fatHit && q.kcalIn) pool.push('buttron');
-  if (q.fiberHit) pool.push('sprowl');
-  if (q.fiberHit && q.proteinHit) pool.push('frondo');
-  if (q.perfect) pool = pool.concat(['veloci', 'platealon', 'triceros']);
-  if (q.perfect && h % 14 === 0) pool.push('rexosaur');
-  if (q.perfect && perfectDaysIn(db, date, 7) >= 5) pool.push('aurora');
-  if (q.perfect && streakEndingOn(db, date) >= 30) pool.push('chronos');
-  // Item boosts narrow the pool: Incubator forces rare+, Lure favours a chosen biome.
-  let sub = null;
-  if (boost && boost.rare) { const r = pool.filter(id => RARITY_RANK[CR_BY_ID[id].rarity] >= 2); if (r.length) sub = r; }
-  if (!sub && boost && boost.lure) { const l = pool.filter(id => CR_BY_ID[id].biome === boost.lure); if (l.length) sub = l; }
-  const from = sub || pool;
-  const id = from[h % from.length];
-  const shiny = (q.perfect && h % 11 === 0) || !!(boost && boost.shiny && q.perfect);
-  return { id: id, shiny: shiny };
-}
-// The creature a day displays. Past days always render from the persisted catch_log (locked at
-// first record, so editing old food never changes a caught creature); only TODAY renders the
-// live provisional roll, which can still upgrade until the day ends.
-function catchForDay(db, date) {
-  const today = Store.todayISO();
-  if (date === today) { const c = creatureForDay(db, date); if (c) return c; }
-  const arr = (db.catch_log || {})[date] || [];
-  if (arr.length) { const main = arr.filter(x => !x.migratory); const pick = main.length ? main[main.length - 1] : arr[arr.length - 1]; return { id: pick.id, shiny: !!pick.shiny }; }
-  if (date === today) return null;
-  return creatureForDay(db, date); // legacy fallback until the persist effect backfills catch_log
-}
-function macrodex(db) {
-  const caught = {};
-  const cl = db.catch_log || {};
-  const dates = Object.keys(cl);
-  if (dates.length) {
-    // Read from the persisted catch log so a creature you've caught stays caught, even if you later edit that day's food.
-    dates.sort().forEach(d => (cl[d] || []).forEach(c => {
-      const cur = caught[c.id] || { count: 0, shiny: false, firstDate: d };
-      cur.count++; if (c.shiny) cur.shiny = true; caught[c.id] = cur;
-    }));
-  } else {
-    // Fallback for accounts logged before catch_log existed (until the persist effect backfills it).
-    const seen = {}; db.log_entries.forEach(e => { seen[e.date] = true; });
-    Object.keys(seen).sort().forEach(d => { const c = creatureForDay(db, d); if (!c) return; const cur = caught[c.id] || { count: 0, shiny: false, firstDate: d }; cur.count++; if (c.shiny) cur.shiny = true; caught[c.id] = cur; });
-  }
-  return caught;
-}
 const BUDDY_STAGES = [
   { min: 0, name: 'Dozing Egg', art: 'egg', colors: crC('#EAD9A0', '#C77D3A') },
   { min: 1, name: 'Hatchling', art: 'hatch', colors: crC('#7FD46B', '#3f8e2f') },
@@ -2857,142 +2842,6 @@ function NeedBar({ label, v, color }) {
     </div>
   );
 }
-// Compact companion for the Today screen: sprite + name + mood, with a feed nudge when the buddy is
-// craving. One tap opens the Play hub, where the full buddy detail (hearts, needs, evolution) now lives.
-// Keeps the emotional anchor on Today without the full card's density.
-function CompanionStrip({ db, bp, onOpenPlay, onFeed }) {
-  const buddy = db.buddy || {};
-  const asleep = bp.mood === 'asleep';
-  const mm = MOOD_META[bp.mood] || MOOD_META.content;
-  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
-  const who = bp.name ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
-  return (
-    <div className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 mb-4" style={{ background: 'var(--surface3)' }}>
-      <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="flex items-center gap-3 min-w-0 flex-1 text-left">
-        <span className="pixel-box p-1.5 shrink-0 relative" style={{ background: 'var(--card)' }}>
-          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={4} asleep={asleep} />
-          {asleep && <span className="pf absolute" style={{ top: 1, right: 2, fontSize: 7, color: 'var(--carb)' }}>Zz</span>}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="text-[13px] font-bold truncate block leading-tight">{who}</span>
-          <span className="text-[10px] leading-snug block" style={{ color: mm.color }}>{mm.label}{craveText ? <span className="text-[#8A8A90]"> · peckish</span> : ''}</span>
-        </span>
-      </button>
-      {craveText
-        ? <button onClick={onFeed} className="pixel-btn py-2 px-3 text-[8px] pf shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><PixelGlyph kind="meat" color="currentColor" size={11} /> FEED</button>
-        : <button onClick={onOpenPlay} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Play ›</button>}
-    </div>
-  );
-}
-// Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
-// incubation) gathered in one place at the top of the dex, each showing its reward reveal on the
-// day it lands. This is what turns the dex from a static grid into the hub of the whole system.
-function DexActiveSection({ db, today }) {
-  const bt = db.breakthrough;
-  const logged = new Set((db.log_entries || []).map(e => e.date)).size;
-  const btState = Game.breakthroughState(logged, bt ? bt.base : logged);
-  const eggs = db.eggs; const egg = eggs && eggs.cur ? eggs.cur : null;
-  const eggProg = egg ? Game.eggProgress(incubationDaysAfter(db, egg.startDate, today), egg.tier) : null;
-  const tc = catchForDay(db, today); const tcr = tc && CR_BY_ID[tc.id];
-  const btJust = bt && bt.lastDate === today; const btCr = bt && bt.lastId ? CR_BY_ID[bt.lastId] : null;
-  const eggJust = eggs && eggs.lastDate === today; const eggCr = eggs && eggs.lastId ? CR_BY_ID[eggs.lastId] : null;
-  // Monthly Expedition: the featured creature to chase this month.
-  const expMonth = today.slice(0, 7);
-  const expCr = CR_BY_ID[Game.monthlyFeatured(expMonth)];
-  const expDone = !!(db.game_awards || {})['expedition:' + expMonth];
-  const expQ = Array.from(new Set((db.log_entries || []).map(e => e.date))).filter(d => d.slice(0, 7) === expMonth && isQualityDay(db, d)).length;
-  const expSt = Game.expeditionState(expQ);
-  const panel = 'pixel-box p-3';
-  const pStyle = { background: 'var(--surface3)', boxShadow: 'none' };
-  return (
-    <div className="mb-4">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Active</div>
-      <div className={panel + ' mb-2'} style={pStyle}>
-        <div className="flex items-center gap-2.5">
-          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: tcr ? CR_RARITY_COLOR[tcr.rarity] : 'var(--border)', borderWidth: 3 }}>
-            {tcr ? <div style={crFx(tc.shiny, null)}><Sprite art={tcr.art} colors={tc.shiny ? crShiny(tcr.colors) : tcr.colors} px={2.6} /></div> : <Sprite art="egg" colors={crSilhouette()} px={2.6} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="pf text-[7px] uppercase text-[#8A8A90] mb-0.5">Today's catch</div>
-            {tcr ? <><div className="text-[11px] font-bold leading-tight">{tcr.name}{tc.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /></span> : ''}</div><div className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[tcr.rarity] }}>{CR_RARITY_LABEL[tcr.rarity]}</div></>
-              : <div className="text-[10px] text-[#8A8A90] leading-snug">Log a meal today to catch one. The macros you hit decide which.</div>}
-          </div>
-        </div>
-      </div>
-      <div className={panel + ' mb-2'} style={pStyle}>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="pf text-[7px] uppercase text-[#8A8A90]">Weekly breakthrough</span>
-          <span className="pf text-[7px] uppercase tnum" style={{ color: btState.breakthroughs > 0 ? 'var(--good)' : 'var(--muted)' }}>{btState.breakthroughs > 0 ? btState.breakthroughs + ' earned' : btState.stamps + '/' + btState.goal}</span>
-        </div>
-        <BreakthroughMeter state={btState} size={12} />
-        {btJust && btCr ? <div className="flex items-center gap-2 mt-2 fade-in">
-          <div className="shrink-0" style={crFx(bt.lastShiny, null)}><Sprite art={btCr.art} colors={bt.lastShiny ? crShiny(btCr.colors) : btCr.colors} px={2} /></div>
-          <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Breakthrough! </span><b>{btCr.name}{bt.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</div>
-        </div>
-        : <div className="text-[9px] text-[#8A8A90] mt-1.5">Log {btState.toNext} more {btState.toNext === 1 ? 'day' : 'days'} for a guaranteed rare+ catch.</div>}
-      </div>
-      {expCr && <div className={panel + ' mb-2'} style={pStyle}>
-        <div className="flex items-center gap-2.5">
-          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: CR_RARITY_COLOR[expCr.rarity], borderWidth: 3 }}>
-            {expDone ? <Sprite art={expCr.art} colors={expCr.colors} px={2.6} /> : <Sprite art={expCr.art} colors={crSilhouette()} px={2.6} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="pf text-[7px] uppercase text-[#8A8A90]">This month’s expedition</span>
-              <span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[expCr.rarity] }}>{CR_RARITY_LABEL[expCr.rarity]}</span>
-            </div>
-            {expDone
-              ? <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Caught!</span> <b>{expCr.name}</b> joined your dex this month.</div>
-              : <>
-                <div className="text-[10px] font-bold leading-tight">{expCr.name}</div>
-                <div className="pixel-bar mt-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (expSt.days / expSt.goal * 100) + '%', background: 'var(--weight)', transition: 'width .4s' }} /></div>
-                <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{expSt.toGo} quality {expSt.toGo === 1 ? 'day' : 'days'} this month to catch it. A quality day: hit protein and land your calories.</div>
-              </>}
-          </div>
-        </div>
-      </div>}
-      {egg && eggProg && <div className={panel} style={pStyle}>
-        <div className="flex items-center gap-2.5">
-          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: EGG_TIER_COLOR[egg.tier], borderWidth: 3 }}><Sprite art="egg" colors={EGG_TIER_EGGCOLORS[egg.tier]} px={2.6} /></div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-bold">{egg.tier}-day egg <span className="pf text-[7px] uppercase" style={{ color: EGG_TIER_COLOR[egg.tier] }}>{EGG_TIER_LABEL[egg.tier]}</span></span>
-              <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
-            </div>
-            <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
-            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{eggJust && eggCr ? <span><span style={{ color: 'var(--good)' }}>Hatched!</span> <b>{eggCr.name}{eggs.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</span> : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.'}</div>
-          </div>
-        </div>
-      </div>}
-      {(() => {
-        // Sleep styles: a Pokemon Sleep style style-dex. A creature caught from a night's sleep carries
-        // one of three styles; collect all three of each. Counts come from the style tags on catches.
-        const collected = {};
-        Object.keys(db.catch_log || {}).forEach(dt => (db.catch_log[dt] || []).forEach(c => { if (c && c.style) collected[c.style] = (collected[c.style] || 0) + 1; }));
-        const sdex = db.sleepDex || {};
-        const just = sdex.lastDate === today && sdex.lastId; const jcr = just && CR_BY_ID[sdex.lastId];
-        return (
-          <div className={panel + ' mt-2'} style={pStyle}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="pf text-[7px] uppercase text-[#8A8A90]">Sleep styles</span>
-              <span className="pf text-[7px] uppercase tnum" style={{ color: Object.keys(collected).length ? 'var(--accent)' : 'var(--muted)' }}>{Object.keys(collected).length}/{Game.SLEEP_STYLES.length}</span>
-            </div>
-            <div className="flex gap-1.5">
-              {Game.SLEEP_STYLES.map(st => {
-                const on = collected[st] > 0;
-                return <div key={st} className="pixel-box flex-1 text-center px-1 py-1" style={{ background: 'var(--surface2)', boxShadow: 'none', borderWidth: 2, borderColor: on ? 'var(--accent)' : 'var(--border)', opacity: on ? 1 : 0.5 }}>
-                  <div className="pf text-[7px] uppercase" style={{ color: on ? 'var(--accent)' : 'var(--muted)' }}>{st}</div>
-                  <div className="text-[9px] tnum" style={{ color: on ? 'var(--text)' : 'var(--muted)' }}>{on ? '×' + collected[st] : '–'}</div>
-                </div>;
-              })}
-            </div>
-            <div className="text-[9px] text-[#8A8A90] mt-1.5 leading-snug">{just && jcr ? <span><span style={{ color: 'var(--good)' }}>Slept well!</span> A {sdex.lastStyle} <b>{jcr.name}{sdex.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</span> : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'}</div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
 // The full buddy detail, moved off Today into the Play hub's Buddy tab: avatar, name, bond, mood, the
 // three need meters and evolution progress, plus naming and the trophy cabinet. The companion strip on
 // Today is the glanceable version; this is where you come to see how your buddy is really doing.
@@ -3039,72 +2888,36 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
 function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
-  const dex = macrodex(db); const caught = Object.keys(dex).length;
-  const items = db.items || {}; const today = Store.todayISO();
-  const boost = (db.dex_boost && db.dex_boost.date === today) ? db.dex_boost : null;
-  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false);
-  const [view, setView] = useState('buddy'); // Buddy | Catch | Battle | Shop: one sub-view at a time so the hub isn't one long stack
-  const invIds = ITEM_ORDER.filter(id => (items[id] || 0) > 0);
+  const today = Store.todayISO();
+  const [trophies, setTrophies] = useState(false);
+  const [view, setView] = useState('buddy'); // Buddy | Battle | Shop: one sub-view at a time so the hub isn't one long stack
   const amber = Game.amberBalance(db.amber_ledger);
   // Buddy profile for the Buddy tab (same derivation the Today companion uses).
   const bp = buddyProfile(db, streak, Game.buddyView((db.buddy && db.buddy.stage) || 0, streak), buddyLevel(db));
   const freezeReady = Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today);
-  // Buy with Amber: spend appends a negative ledger entry (merge-safe), cosmetics land in buddy.cosmetics
-  // (owned once), consumables in the shared item inventory. A purchase is blocked if you can't afford it.
+  // Buy a cosmetic with Amber: spend appends a negative ledger entry (merge-safe), the cosmetic lands
+  // in buddy.cosmetics (owned once). Blocked if you can't afford it or already own it.
   function buy(id) {
     const price = Game.shopPrice(id); if (price == null) return;
     update(d => {
       d.amber_ledger = d.amber_ledger || [];
       if (Game.amberBalance(d.amber_ledger) < price) return;
-      const cos = Game.COSMETIC_BY_ID[id];
-      if (cos) { d.buddy = d.buddy || {}; d.buddy.cosmetics = d.buddy.cosmetics || []; if (d.buddy.cosmetics.indexOf(id) >= 0) return; d.buddy.cosmetics.push(id); }
-      else { d.items = d.items || {}; d.items[id] = (d.items[id] || 0) + 1; }
+      d.buddy = d.buddy || {}; d.buddy.cosmetics = d.buddy.cosmetics || [];
+      if (d.buddy.cosmetics.indexOf(id) >= 0) return;
+      d.buddy.cosmetics.push(id);
       d.amber_ledger.push({ id: Store.uid(), date: today, delta: -price, reason: 'buy:' + id });
     });
   }
-  function useItem(id, macro) {
-    update(d => {
-      if (!(d.items && d.items[id] > 0)) return;
-      d.items[id]--; if (d.items[id] <= 0) delete d.items[id];
-      const b = (d.dex_boost && d.dex_boost.date === today) ? d.dex_boost : { date: today, lure: null, shiny: false, rare: false };
-      if (id === 'lure') b.lure = macro; if (id === 'golden_steak' || id === 'honest_rex') b.shiny = true; if (id === 'incubator') b.rare = true;
-      d.dex_boost = b;
-    });
-    setLurePick(false);
-  }
-  const cr = sel ? CR_BY_ID[sel] : null; const got = cr ? dex[cr.id] : null;
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
         {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
-        : cr ? (() => {
-          const form = creatureForm(cr, got ? got.count : 0); const rc = CR_RARITY_COLOR[cr.rarity];
-          const cnt = got ? got.count : 0;
-          const nextEvo = cr.evo ? cr.evo.find(e => cnt < e.at) : null;
-          const evoNote = cr.evo ? (nextEvo ? ` · evolves at Lv ${nextEvo.at}` : cnt < 25 ? ' · Elder aura at Lv 25' : cnt < 50 ? ' · Ancient aura at Lv 50' : ' · fully evolved') : '';
-          const bm = BIOMES.find(b => b.id === cr.biome) || {};
-          const migMonths = cr.migratory ? Array.from(new Set(Object.keys(db.catch_log || {}).flatMap(dd => ((db.catch_log || {})[dd] || []).filter(x => x.id === cr.id && x.migratory).map(x => x.migratory)))).sort() : [];
-          return <div className="fade-in">
-            <button onClick={() => setSel(null)} className="text-[11px] text-[#8A8A90] mb-3">‹ Back to dex</button>
-            <div className="flex flex-col items-center text-center">
-              <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: got ? rc : 'var(--border)', borderWidth: 4 }}><div style={got ? crFx(got.shiny, form.aura) : null}>{got ? <Sprite art={form.art} colors={got.shiny ? crShiny(form.colors) : form.colors} px={7} /> : <Sprite art={cr.art} colors={crSilhouette()} px={7} />}</div></div>
-              <div className="text-lg font-bold">{got ? form.name : '???'}{got && got.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /></span> : ''}</div>
-              <div className="pf text-[8px] uppercase mt-1" style={{ color: rc }}>{CR_RARITY_LABEL[cr.rarity]}{cr.migratory ? ' · Migratory' : ''} · {bm.name}</div>
-            </div>
-            <div className="pixel-box p-3 mt-4 text-[11px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">How to catch</div>
-              <div className="text-[var(--text2)] leading-snug">{cr.cond}</div>
-            </div>
-            <div className="mt-3 text-[11px] leading-relaxed">{got ? cr.lore : <span className="text-[#8A8A90]">Not yet caught. Meet the condition above on any logged day and it joins your dex, its lore unlocks then.</span>}</div>
-            {got && migMonths.length > 0 && <div className="mt-2 text-[10px]" style={{ color: 'var(--carb)' }}>Migrated through: {migMonths.map(m => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })).join(', ')}</div>}
-            {got && <div className="mt-3 text-[10px] text-[#8A8A90]">Caught <b className="text-[var(--text)]">Lv {got.count}</b>{evoNote}{got.shiny ? <> · <Spark size={9} /> shiny</> : null}</div>}
-          </div>;
-        })() : (<>
+        : (<>
           <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
           {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
-          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['catch', 'Catch'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
           {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} />}
 
@@ -3141,50 +2954,6 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
 
           {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
           {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} />}
-
-          {view === 'catch' && <div className="fade-in">
-            <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
-              <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
-            </div>
-            <DexActiveSection db={db} today={today} />
-            {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
-              {boost && (boost.lure || boost.shiny || boost.rare) && <div className="text-[9px] mb-2" style={{ color: 'var(--good)' }}>Active today:{boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : ''}{boost.rare ? ' · rare boost' : ''}{boost.shiny ? ' · shiny locked' : ''}</div>}
-              <div className="space-y-2">
-                {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
-                  return <div key={id} className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
-                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>USE</button>}
-                  </div>;
-                })}
-              </div>
-              {lurePick && <div className="mt-3 fade-in">
-                <div className="text-[9px] text-[#8A8A90] mb-1.5">Point the lure at a biome for today’s catch:</div>
-                <div className="grid grid-cols-2 gap-1.5">{[['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => <button key={v} onClick={() => useItem('lure', v)} className="pixel-box py-2 text-[10px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>{l}</button>)}</div>
-              </div>}
-            </div>}
-            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Collection</div>
-            {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
-              return <div key={bm.id} className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? <>{' '}<Tick size={9} /></> : null}</div>
-                  <div className="text-[9px] text-[#8A8A90] tnum">{done}/{list.length}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {list.map(c => { const g = dex[c.id]; const form = creatureForm(c, g ? g.count : 0); const rc = CR_RARITY_COLOR[c.rarity]; const strong = g && (c.rarity === 'legendary' || c.rarity === 'mythic' || g.shiny);
-                    return <button key={c.id} onClick={() => setSel(c.id)} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: g ? rc : 'var(--border)', borderWidth: strong ? 4 : 3 }}>
-                      <div className="h-14 flex items-center justify-center" style={g ? crFx(g.shiny, form.aura) : null}>{g ? <Sprite art={form.art} colors={g.shiny ? crShiny(form.colors) : form.colors} px={4} /> : <Sprite art={c.art} colors={crSilhouette()} px={4} />}</div>
-                      <div className="text-[9px] mt-1 truncate w-full">{g ? form.name : '???'}</div>
-                      {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? <>{' '}<Spark size={9} /></> : null}</div>
-                         : <div className="text-[7px] uppercase tracking-wide" style={{ color: rc }}>{CR_RARITY_LABEL[c.rarity]}</div>}
-                    </button>;
-                  })}
-                </div>
-              </div>;
-            })}
-          </div>}
         </>)}
       </div>
     </div>
@@ -3193,11 +2962,10 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
 // Trophy cabinet: trophies won, shiny gallery, streak records and the badge tracks.
 function TrophyCabinet({ db, streak, onBack }) {
   useBackClose(onBack);
-  const items = db.items || {}; const dex = macrodex(db);
+  const items = db.items || {};
   const badges = db.badges || { checkins: 0, inRange: 0 };
   const longest = Math.max((db.records && db.records.longestStreak) || 0, streak || 0);
-  const shinies = CREATURES.filter(c => dex[c.id] && dex[c.id].shiny);
-  const trophyIds = ['amber', 'belt', 'medal'].filter(id => (items[id] || 0) > 0);
+  const trophyIds = ['amber', 'belt'].filter(id => (items[id] || 0) > 0);
   const Track = ({ label, count, hint }) => {
     const t = Game.badgeTier(count);
     return <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -3207,7 +2975,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     </div>;
   };
   return <div className="fade-in">
-    <button onClick={onBack} className="text-[11px] text-[#8A8A90] mb-3">‹ Back to dex</button>
+    <button onClick={onBack} className="text-[11px] text-[#8A8A90] mb-3">‹ Back</button>
     <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={16} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
@@ -3223,14 +2991,7 @@ function TrophyCabinet({ db, streak, onBack }) {
         <PixelGlyph kind="trophy" color="var(--fat)" size={18} />
         <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{items[id]}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
       </div>; })}</div>
-      : <div className="text-[10px] text-[#8A8A90] mb-4">No trophies yet. Beat the weekly boss for Amber, clear the ladder for the Champion Belt, complete a biome for a Medal.</div>}
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Shiny gallery</div>
-    {shinies.length ? <div className="grid grid-cols-3 gap-2">{shinies.map(c => { const g = dex[c.id]; const form = creatureForm(c, g.count);
-      return <div key={c.id} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
-        <div className="h-14 flex items-center justify-center" style={crFx(true, form.aura)}><Sprite art={form.art} colors={crShiny(form.colors)} px={4} /></div>
-        <div className="text-[9px] mt-1 truncate w-full">{form.name} <span style={{ color: 'var(--fat)' }}><Spark size={9} /></span></div>
-      </div>; })}</div>
-      : <div className="text-[10px] text-[#8A8A90]">No shinies yet. A perfect macro day has a chance to gleam gold.</div>}
+      : <div className="text-[10px] text-[#8A8A90] mb-4">No trophies yet. Beat the weekly boss for Amber and clear the ladder for the Champion Belt.</div>}
   </div>;
 }
 // The Amber shop: spend hard-won currency on buddy cosmetics (shown on your buddy) and catch boosts
@@ -4243,18 +4004,6 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
   );
 }
 
-// Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
-// Macrodex Active section so the two surfaces stay identical.
-function BreakthroughMeter({ state, size = 10 }) {
-  return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: state.goal }).map((_, i) => (
-        <div key={i} className="flex-1 pixel-box" style={{ height: size, boxShadow: 'none', borderWidth: 2, background: i < state.stamps ? 'var(--good)' : 'var(--surface3)', borderColor: i < state.stamps ? 'var(--good)' : 'var(--border)' }} />
-      ))}
-    </div>
-  );
-}
-
 // Hatch-and-name: turn the generic buddy into an individual. Shown from the home strip; on an
 // account with no name yet it reads as "hatching", afterwards as a rename.
 function NameBuddyModal({ db, update, buddy, onClose }) {
@@ -4502,175 +4251,6 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.evoStage = eligible; if (!d.buddy.affinity) d.buddy.affinity = aff; });
     }
   }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
-  // Migratory visitor: 20 logged days inside the calendar month lands Drizzlodon (once per month).
-  const monthYm = today.slice(0, 7);
-  const monthLogs = Game.monthlyLogCount(Array.from(logSet), monthYm);
-  useEffect(() => {
-    if (monthLogs < 20 || (db.game_awards || {})['migratory:' + monthYm]) return;
-    update(d => {
-      d.game_awards = d.game_awards || {};
-      if (d.game_awards['migratory:' + monthYm]) return;
-      d.game_awards['migratory:' + monthYm] = true;
-      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
-      arr.push({ id: 'drizzlodon', shiny: false, migratory: monthYm });
-      d.catch_log[today] = arr;
-    });
-    if (showToast) showToast('A migratory Drizzlodon lands in your dex! 20 days logged this month.');
-  }, [monthLogs]);
-  // Monthly Expedition: a featured creature caught by reaching a quality-day goal this month.
-  const monthQualityDays = Array.from(logSet).filter(d => d.slice(0, 7) === monthYm && isQualityDay(db, d)).length;
-  const expeditionId = Game.monthlyFeatured(monthYm);
-  const expedition = Game.expeditionState(monthQualityDays);
-  useEffect(() => {
-    if (!expedition.ready || (db.game_awards || {})['expedition:' + monthYm]) return;
-    const shiny = Game.seedFor(db.game_salt || '', 'exp#' + monthYm) % 5 === 0;
-    update(d => {
-      d.game_awards = d.game_awards || {};
-      if (d.game_awards['expedition:' + monthYm]) return;
-      d.game_awards['expedition:' + monthYm] = true;
-      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
-      arr.push({ id: expeditionId, shiny: shiny, expedition: monthYm });
-      d.catch_log[today] = arr;
-    });
-    if (showToast) showToast('Monthly Expedition complete! ' + ((CR_BY_ID[expeditionId] || {}).name || 'A rare creature') + ' joins your dex.');
-  }, [expedition.ready, monthYm]);
-  // Weekly Breakthrough: every 7 logged days earns a guaranteed rare+ catch plus an Incubator
-  // (a Pokemon GO style Research Breakthrough). A per-user baseline is set the first time this
-  // runs so existing history never awards a backlog of rewards at once.
-  const loggedTotal = logSet.size;
-  const bt = db.breakthrough;
-  const btState = Game.breakthroughState(loggedTotal, bt ? bt.base : loggedTotal);
-  useEffect(() => {
-    if (!bt) { update(d => { if (!d.breakthrough) d.breakthrough = { base: loggedTotal, claimed: 0, lastDate: null, lastId: null, lastShiny: false }; }); return; }
-    const target = bt.claimed + 1;
-    if (btState.breakthroughs < target) return; // not enough logged days for the next one yet
-    const c = Game.breakthroughCatch(db.game_salt || '', target);
-    update(d => {
-      if (!d.breakthrough || d.breakthrough.claimed >= target) return; // guard against a double-award
-      d.breakthrough.claimed = target;
-      d.breakthrough.lastDate = today; d.breakthrough.lastId = c.id; d.breakthrough.lastShiny = !!c.shiny;
-      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
-      if (!arr.some(x => x.breakthrough === target)) arr.push({ id: c.id, shiny: !!c.shiny, breakthrough: target });
-      d.catch_log[today] = arr;
-      d.items = d.items || {}; d.items.incubator = (d.items.incubator || 0) + 1;
-    });
-    const cr = CR_BY_ID[c.id];
-    if (showToast && cr) showToast('Weekly Breakthrough! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex, plus an Incubator.');
-  }, [btState.breakthroughs, bt ? bt.claimed : -1]);
-  // Egg incubation: one egg always incubates, its distance is quality days since it appeared.
-  // When it fills it hatches (a tier-scaled catch) and the next egg appears automatically.
-  const eggs = db.eggs;
-  const egg = eggs && eggs.cur ? eggs.cur : null;
-  const eggElapsed = egg ? incubationDaysAfter(db, egg.startDate, today) : 0;
-  const eggProg = egg ? Game.eggProgress(eggElapsed, egg.tier) : null;
-  useEffect(() => {
-    const salt = db.game_salt || '';
-    if (!egg) { update(d => { if (d.eggs && d.eggs.cur) return; const n = (d.eggs && d.eggs.hatched) || 0; d.eggs = Object.assign({ hatched: 0 }, d.eggs, { cur: { startDate: today, tier: Game.nextEggTier(salt, n), seed: n } }); }); return; }
-    if (!eggProg || !eggProg.ready) return;
-    const n = eggs.hatched || 0;
-    const c = Game.eggHatch(salt, egg.tier, n);
-    update(d => {
-      if (!d.eggs || !d.eggs.cur || d.eggs.cur.startDate !== egg.startDate) return; // already hatched elsewhere
-      const hn = (d.eggs.hatched || 0) + 1;
-      d.eggs.hatched = hn; d.eggs.lastId = c.id; d.eggs.lastShiny = !!c.shiny; d.eggs.lastTier = c.tier; d.eggs.lastDate = today;
-      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
-      if (!arr.some(x => x.egg === egg.startDate)) arr.push({ id: c.id, shiny: !!c.shiny, egg: egg.startDate });
-      d.catch_log[today] = arr;
-      d.eggs.cur = { startDate: today, tier: Game.nextEggTier(salt, hn), seed: hn };
-    });
-    const cr = CR_BY_ID[c.id];
-    if (showToast && cr) showToast('Your ' + egg.tier + '-day egg hatched! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.');
-  }, [!!egg, eggProg ? eggProg.steps : -1, eggProg ? eggProg.ready : false]);
-  // Sleep morning catch (a Pokemon Sleep style encounter): last night's sleep score powers a single
-  // catch whose rarity climbs with how well you slept, and it carries a "sleep style" for the style
-  // dex. Only the newest night awards; any older un-awarded nights are silently baselined so a first
-  // sync (or a few missed days) never dumps a backlog of catches.
-  const sleepDates = Object.keys(db.sleep || {}).filter(dt => ((db.sleep[dt] || {}).min > 0)).sort();
-  const latestSleep = sleepDates.length ? sleepDates[sleepDates.length - 1] : null;
-  const sleepClaimed = (db.sleepDex && db.sleepDex.claimed) || {};
-  const sleepPending = latestSleep && !sleepClaimed[latestSleep] ? latestSleep : null;
-  useEffect(() => {
-    if (!db || !latestSleep) return;
-    const claimed = (db.sleepDex && db.sleepDex.claimed) || {};
-    const older = sleepDates.slice(0, -1).filter(dt => !claimed[dt]);
-    const need = !claimed[latestSleep];
-    if (!older.length && !need) return;
-    const rec = db.sleep[latestSleep] || {};
-    const stages = (rec.deep != null || rec.rem != null || rec.light != null || rec.awake != null)
-      ? { deep: rec.deep || 0, rem: rec.rem || 0, light: rec.light || 0, awake: rec.awake || 0 } : null;
-    // A stage-less night has no quality score (we show hours, not a number), but the morning catch should
-    // still happen and stay fair: tier it by duration alone rather than dumping every such night in 'poor'.
-    const catchScore = isFinite(rec.score) ? rec.score : Math.round(Math.min((rec.min || 0) / Game.SLEEP_RECOMMENDED_FULL, 1) * 100);
-    const band = Game.sleepBand(catchScore);
-    const c = Game.sleepCatch(db.game_salt || '', latestSleep, band);
-    const style = Game.sleepStyleFor(catchScore, stages);
-    update(d => {
-      d.sleepDex = d.sleepDex || { claimed: {} };
-      d.sleepDex.claimed = d.sleepDex.claimed || {};
-      older.forEach(dt => { d.sleepDex.claimed[dt] = true; });
-      if (need && !d.sleepDex.claimed[latestSleep]) {
-        d.sleepDex.claimed[latestSleep] = true;
-        d.sleepDex.lastDate = latestSleep; d.sleepDex.lastId = c.id; d.sleepDex.lastShiny = !!c.shiny; d.sleepDex.lastStyle = style;
-        d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
-        if (!arr.some(x => x.sleep === latestSleep)) arr.push({ id: c.id, shiny: !!c.shiny, sleep: latestSleep, style: style });
-        d.catch_log[today] = arr;
-      }
-    });
-    if (need && showToast) { const cr = CR_BY_ID[c.id]; if (cr) showToast('You slept well. A ' + style + ' ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.'); }
-  }, [latestSleep, sleepPending]);
-  // Primed morning catch (Phase C, reward for recovery): an Apex-readiness morning draws a bonus, rarer
-  // creature into your dex, once a day, distinct from the sleep-style catch. db-null-safe + deduped.
-  const todayReadyBand = Game.readinessBand(readinessFor(db, today));
-  const primedPending = todayReadyBand === 'apex' && !((db.primed && db.primed.claimed) || {})[today] ? today : null;
-  useEffect(() => {
-    if (!db || todayReadyBand !== 'apex') return;
-    if (db.primed && db.primed.claimed && db.primed.claimed[today]) return;
-    const c = Game.primedCatch(db.game_salt || '', today);
-    update(d => {
-      d.primed = d.primed || { claimed: {} };
-      d.primed.claimed = d.primed.claimed || {};
-      if (d.primed.claimed[today]) return;
-      d.primed.claimed[today] = true;
-      d.primed.lastDate = today; d.primed.lastId = c.id; d.primed.lastShiny = !!c.shiny;
-      d.catch_log = d.catch_log || {}; const arr = d.catch_log[today] || [];
-      if (!arr.some(x => x.primed === today)) arr.push({ id: c.id, shiny: !!c.shiny, primed: today });
-      d.catch_log[today] = arr;
-    });
-    if (showToast) { const cr = CR_BY_ID[c.id]; if (cr) showToast('Primed and recovered! A ' + (c.shiny ? 'shiny ' : '') + cr.name + ' joins your dex.'); }
-  }, [primedPending]);
-  // Persist Macrodex catches so a creature you've seen stays caught even if you later edit that day's food.
-  // Past days lock the first time they're recorded; today accumulates any newly-seen creature as macros change.
-  const todayCr = creatureForDay(db, today);
-  const catchSig = Array.from(logSet).sort().join(',') + '|' + (todayCr ? todayCr.id + (todayCr.shiny ? 's' : '') : '');
-  useEffect(() => {
-    const cl = db.catch_log || {};
-    const adds = [];
-    Array.from(logSet).forEach(d => {
-      const c = creatureForDay(db, d); if (!c) return;
-      const arr = cl[d] || [];
-      const isToday = d === today;
-      if (arr.length === 0 || (isToday && !arr.some(x => x.id === c.id))) adds.push([d, c]);
-      else if (isToday && c.shiny && arr.some(x => x.id === c.id && !x.shiny)) adds.push([d, c]); // a perfect finish turns today's catch shiny
-    });
-    if (adds.length) update(dd => {
-      dd.catch_log = dd.catch_log || {};
-      adds.forEach(([d, c]) => { const arr = dd.catch_log[d] || []; const ex = arr.find(x => x.id === c.id); if (ex) { if (c.shiny) ex.shiny = true; } else arr.push({ id: c.id, shiny: !!c.shiny }); dd.catch_log[d] = arr; });
-    });
-  }, [catchSig]);
-  // One-time item / milestone rewards: streak tiers, a perfect week, and completing a Macrodex biome.
-  useEffect(() => {
-    const aw = db.game_awards || {};
-    const pending = [];
-    const g = (key, id) => { if (!aw[key]) pending.push([key, id]); };
-    if (streak >= 7) g('streak7', 'lure');
-    if (streak >= 14) g('streak14', 'golden_steak');
-    if (streak >= 30) g('streak30', 'incubator');
-    if (perfectDaysIn(db, today, 7) >= 5) g('perfweek:' + fightWeekKey(), 'golden_steak');
-    const dex = macrodex(db);
-    BIOMES.forEach(bm => { const list = CREATURES.filter(c => c.biome === bm.id); if (list.length && list.every(c => dex[c.id])) g('biome:' + bm.id, 'medal'); });
-    if (!pending.length) return;
-    update(d => { d.game_awards = d.game_awards || {}; d.items = d.items || {}; pending.forEach(([k, id]) => { if (!d.game_awards[k]) { d.game_awards[k] = true; d.items[id] = (d.items[id] || 0) + 1; } }); });
-  }, [streak, catchSig]);
   const remindOn = db.profile.reminders !== false;
   const missWeigh = !weighSet.has(today), missLog = !logSet.has(today);
   const nudgeHour = db.profile.nudgeHour == null ? 14 : db.profile.nudgeHour;
@@ -4718,7 +4298,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <CompanionStrip db={db} bp={bp} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} />
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
@@ -5005,7 +4585,6 @@ function FoodLog({ db, update, openLog, showToast }) {
         <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
           <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={`aspect-square rounded-lg text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : c > today ? 'text-[#8A8A90]' : 'text-[#C9C9CF]'}`}>
             {new Date(c + 'T00:00:00').getDate()}
-            {logSet.has(c) && (() => { const cd = catchForDay(db, c); const cr = cd && CR_BY_ID[cd.id]; return cr ? <span className="absolute -bottom-0.5 right-0"><Sprite art={cr.art} colors={cd.shiny ? crShiny(cr.colors) : cr.colors} px={1.4} /></span> : null; })()}
           </button>) : <div key={i} />)}</div>
       </Card>}
 
@@ -7742,13 +7321,8 @@ function demoState() {
   const hrvSeries = [48, 53, 50, 56, 52, 58, 60], rhrSeries = [56, 55, 57, 54, 55, 53, 52], spo2Series = [97, 96, 97, 98, 97, 97, 98];
   const healthSeed = {}; hrvSeries.forEach((_, i) => { const d = shiftISO(today, -(6 - i)); healthSeed[d] = { hrv: hrvSeries[i], rhr: rhrSeries[i], spo2: spo2Series[i] }; });
   mergeHealthInto(s, healthSeed);
-  // Last night's morning catch, already awarded, so the demo shows the sleep loop populated. Every
-  // prior night is marked claimed too, matching how the live effect baselines older nights.
+  // Per-user seed for the buddy's stable-per-day mood/personality flavour lines.
   s.game_salt = 'demo-salt';
-  const lastNight = shiftISO(today, 0); const lnRec = s.sleep[lastNight]; const lnStages = { deep: lnRec.deep, rem: lnRec.rem, light: lnRec.light, awake: lnRec.awake };
-  const lnCatch = Game.sleepCatch(s.game_salt, lastNight, Game.sleepBand(lnRec.score)); const lnStyle = Game.sleepStyleFor(lnRec.score, lnStages);
-  s.sleepDex = { claimed: Object.fromEntries(Object.keys(s.sleep).map(d => [d, true])), lastDate: lastNight, lastId: lnCatch.id, lastShiny: lnCatch.shiny, lastStyle: lnStyle };
-  s.catch_log = s.catch_log || {}; s.catch_log[today] = (s.catch_log[today] || []).concat([{ id: lnCatch.id, shiny: lnCatch.shiny, sleep: lastNight, style: lnStyle }]);
   const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort, ings, steps) => ({
     id: Store.uid(), user_id: Store.USER, title, source_platform: platform, source_url: 'https://example.com/' + encodeURIComponent(title),
     thumbnail: null, servings: 2, ingredients: (ings || ['1 portion']).map(line => ({ id: Store.uid(), line, name: Rcp.nameFromLine(line), grams: 0, macros: null, resolved: null, have: false })),
@@ -7782,33 +7356,7 @@ function stateRev(d) { return (d && d._rev) || 0; }
 function tombstone(d, ids) { d.deleted = d.deleted || {}; var t = Date.now(); ids.forEach(function (id) { if (id != null) d.deleted[id] = t; }); }
 function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id) { if (id != null) delete d.deleted[id]; }); }
 
-// Brief egg-crack reveal of the day's provisional catch after the FIRST food log of the day.
-// Non-blocking (pointer-events pass through) and gone in under 1.5s.
-function CatchReveal({ c }) {
-  const [cracked, setCracked] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setCracked(true), 550); return () => clearTimeout(t); }, []);
-  const cr = CR_BY_ID[c.id]; if (!cr) return null;
-  // A choreographed notification, not a random centre pop: it slides up from the bottom like a toast,
-  // the egg wobbles, then the creature settles into place.
-  return (
-    <div className="fixed left-0 right-0 z-[70] flex justify-center px-4 pointer-events-none" style={{ bottom: 96 }}>
-      <div className="pixel-box px-4 py-3 flex items-center gap-3 sheet-up" style={{ background: 'var(--surface3)' }}>
-        {cracked
-          ? <>
-              <div className="crpop shrink-0" style={crFx(c.shiny, null)}><Sprite art={cr.art} colors={c.shiny ? crShiny(cr.colors) : cr.colors} px={5} /></div>
-              <div className="min-w-0">
-                <div className="pf text-[8px] uppercase text-[#8A8A90] mb-0.5">Catch on the line</div>
-                <div className="pf text-[10px]" style={{ color: CR_RARITY_COLOR[cr.rarity] }}>{cr.name}{c.shiny ? <>{' '}<Spark size={9} /></> : null}</div>
-              </div>
-            </>
-          : <>
-              <div className="crwobble shrink-0"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={5} /></div>
-              <div className="text-[10px] text-[#8A8A90]">Something's hatching...</div>
-            </>}
-      </div>
-    </div>
-  );
-}
+// (CatchReveal removed with the Macrodex: logging no longer reveals a "catch".)
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -7919,7 +7467,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     { k: 'meal', label: 'Log your first meal', done: db.log_entries.length > 0, go: onLog },
     { k: 'ai', label: 'Try a Photo or Describe estimate', done: db.log_entries.some(e => e.source === 'ai_estimate' || e.source === 'label'), go: onLog },
     { k: 'protein', label: 'Hit your protein target today', done: proteinTgt > 0 && todayProtein >= proteinTgt, go: onLog },
-    { k: 'dex', label: 'Meet your first Macrodex dino', done: !!ob.sawDex, go: onOpenDex },
+    { k: 'dex', label: 'Meet your buddy', done: !!ob.sawDex, go: onOpenDex },
   ];
   const doneCount = items.filter(x => x.done).length;
   if (doneCount === items.length) return null;
@@ -9303,8 +8851,6 @@ function App() {
   const toastTimer = useRef(null);
   const entryHandled = useRef(false);
   const ghHandled = useRef(false);
-  const [reveal, setReveal] = useState(null);
-  const revealTimer = useRef(null);
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
@@ -9320,23 +8866,6 @@ function App() {
     });
     toastTimer.current = setTimeout(() => setToast(null), 5000);
   }
-  // Celebrate the day's catch in the logging flow: an egg-crack reveal on the FIRST log of the
-  // day, and an "upgraded" toast when a later log improves the provisional catch.
-  function celebrateCatch(dateISO, newEntries) {
-    if (!db || dateISO !== Store.todayISO()) return;
-    const before = creatureForDay(db, dateISO);
-    const sim = Object.assign({}, db, { log_entries: db.log_entries.concat(newEntries) });
-    const after = creatureForDay(sim, dateISO);
-    if (!after) return;
-    if (!before) {
-      clearTimeout(revealTimer.current);
-      setReveal({ id: after.id, shiny: !!after.shiny });
-      revealTimer.current = setTimeout(() => setReveal(null), 1450);
-    } else if (before.id !== after.id && RARITY_RANK[CR_BY_ID[after.id].rarity] >= RARITY_RANK[CR_BY_ID[before.id].rarity]) {
-      showToast("Today's catch upgraded: " + CR_BY_ID[after.id].name + '!');
-    }
-  }
-
   const themePref = (db && db.profile && db.profile.theme) === 'dark' ? 'dark' : 'light';
   useEffect(() => {
     const el = document.documentElement;
@@ -9398,18 +8927,14 @@ function App() {
       const mine = await referralCall('mine');
       if (!mine || cancelled) return;
       setRewards({ code: mine.code, link: mine.link, referrals_count: mine.referrals_count, bonus_ai_remaining: mine.bonus_ai_remaining });
-      const pend = Array.isArray(mine.pending) ? mine.pending.filter(function (p) { return p && p.id && p.rid; }) : [];
+      const pend = Array.isArray(mine.pending) ? mine.pending.filter(function (p) { return p && p.rid; }) : [];
       if (!pend.length) return;
-      update(function (d) {
-        d.catch_log = d.catch_log || {}; const day = Store.todayISO(); const arr = d.catch_log[day] || [];
-        pend.forEach(function (p) { if (!arr.some(function (x) { return x.rid === p.rid; })) arr.push({ id: p.id, shiny: !!p.shiny, src: 'referral', rid: p.rid }); });
-        d.catch_log[day] = arr;
-      });
+      // Ack the pending rewards so the server grants the bonus AI logs. (The old creature reward is
+      // gone with the Macrodex; referrals now pay out purely in bonus AI.)
       referralCall('ack', { ids: pend.map(function (p) { return p.rid; }) });
-      const cr = CR_BY_ID[pend[0].id];
-      showToast(pend.length === 1 && cr
-        ? 'Referral reward! ' + cr.name + ' joined your dex, plus 5 bonus AI logs.'
-        : pend.length + ' referral rewards added, plus bonus AI logs.');
+      showToast(pend.length === 1
+        ? 'Referral reward claimed, plus 5 bonus AI logs.'
+        : pend.length + ' referral rewards claimed, plus bonus AI logs.');
       window.MTRACK && MTRACK('referral_reward', { count: pend.length });
     })();
     return function () { cancelled = true; };
@@ -9635,7 +9160,6 @@ function App() {
     const entryId = Store.uid();
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
     const macros = normalizeMacros(item.macros, item.is_alcohol);
-    celebrateCatch(date, [{ date, computed_macros: macros, is_alcohol: !!item.is_alcohol }]);
     update(d => {
       d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, computed_macros: macros, sort_order: d.log_entries.length });
       const key = item.name.trim().toLowerCase(); let food = d.foods.find(x => x.name.trim().toLowerCase() === key && !!x.is_alcohol === !!item.is_alcohol);
@@ -9678,7 +9202,6 @@ function App() {
   function addMeal(date, mealId, items) {
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
-    celebrateCatch(date, items.map(item => ({ date, computed_macros: normalizeMacros(item.macros, item.is_alcohol), is_alcohol: !!item.is_alcohol })));
     update(d => {
       items.forEach((item, i) => d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', computed_macros: normalizeMacros(item.macros, item.is_alcohol), sort_order: d.log_entries.length + i }));
     });
@@ -9711,7 +9234,6 @@ function App() {
     }
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
-    celebrateCatch(date, items.map(it => ({ date, computed_macros: normalizeMacros(it.macros, false), is_alcohol: false })));
     update(d => {
       items.forEach((it, i) => {
         const macros = normalizeMacros(it.macros, false);
@@ -9792,7 +9314,6 @@ function App() {
       {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} />
-      {reveal && <CatchReveal c={reveal} />}
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
     </div>
   );
