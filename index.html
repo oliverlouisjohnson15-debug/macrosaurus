@@ -1434,6 +1434,14 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   function migrate(state) {
     var s = deepDefaults(state ? JSON.parse(JSON.stringify(state)) : {}, defaultState());
     if (s.profile) s.profile = deepDefaults(s.profile, PROFILE_DEFAULTS);
+    // Reconcile the last_checkin pointer to the append-only checkins ledger on every load. A cross-device
+    // merge can leave the scalar stale while the union preserves a newer check-in (see mergeStates), which
+    // makes the app read "check-in due" despite a saved check-in. Healing here covers the single-copy load
+    // too (no merge to trigger the fix). Only ever moves the pointer forward, never back.
+    if (s.checkins && s.checkins.length) {
+      var latestCheckin = s.checkins.reduce(function (m, c) { return (c && c.date && c.date > m) ? c.date : m; }, '');
+      if (latestCheckin && (!s.last_checkin || latestCheckin > s.last_checkin)) s.last_checkin = latestCheckin;
+    }
     return healMacros(s);
   }
 
@@ -1613,6 +1621,15 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var dids = Object.keys(del);
     if (dids.length > 1000) { dids.sort(function (x, y) { return del[y] - del[x]; }); var cap = {}; dids.slice(0, 1000).forEach(function (id) { cap[id] = del[id]; }); del = cap; }
     out.deleted = del;
+    // last_checkin is a pointer INTO the append-only checkins ledger, not an independent scalar.
+    // The JSON clone above copies it from the higher-_rev copy, which desyncs it when the OTHER copy
+    // recorded a check-in the union preserves: the ledger gains the entry but the pointer stays stale,
+    // so the app reads "not checked in today" despite a saved check-in (the "check-in won't take shape"
+    // bug). Reconcile it to the latest of both pointers and the newest merged entry (a resume-from-pause
+    // can legitimately set last_checkin ahead of any checkins entry, so keep the max, never move back).
+    var latestEntry = (out.checkins || []).reduce(function (m, c) { return (c && c.date && c.date > m) ? c.date : m; }, '');
+    var lcCandidates = [a.last_checkin, b.last_checkin, latestEntry].filter(Boolean).sort();
+    out.last_checkin = lcCandidates.length ? lcCandidates[lcCandidates.length - 1] : (out.last_checkin || null);
     out._rev = Math.max(ra, rb);
     out._wipe = wipe; // carry the reset watermark forward so it keeps protecting later merges
     return out;
