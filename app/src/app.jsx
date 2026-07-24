@@ -2475,6 +2475,33 @@ function buddyStageSprite(stageIndex, buddy) {
 // different from person to person; the user can keep it or type their own.
 const BUDDY_NAME_POOL = ['Rexley', 'Chompers', 'Nugget', 'Spike', 'Biff', 'Munch', 'Pip', 'Snappy', 'Toothy', 'Rawr', 'Bolt', 'Ziggy', 'Gus', 'Momo', 'Tank', 'Basil', 'Cosmo', 'Fern', 'Sage', 'Waffle', 'Pickle', 'Biscuit', 'Noodle', 'Turbo', 'Gronk', 'Peanut', 'Mochi', 'Rocco', 'Beans', 'Nibbles', 'Rumble', 'Dax', 'Pebble', 'Sprout', 'Taco', 'Wesley', 'Bruno', 'Clover', 'Digby', 'Otto'];
 function randomBuddyName(seed) { return BUDDY_NAME_POOL[crHash(String(seed || Math.random())) % BUDDY_NAME_POOL.length]; }
+// Deterministic "what next?" line the buddy speaks on Today - the Clippy layer. Priority-ranked so it
+// says the single most useful thing, warm and never nagging. AI-free (instant, offline, no free-tier
+// meter); richer AI moments (hatch, evolution, weekly review) come on top of this later. Returns
+// { text, cta, action } where action is 'log' | 'weigh' | 'cook' | null (the caller wires the go).
+function buddyCoach(db, today, streak) {
+  const hour = new Date().getHours();
+  const logged = entriesOn(db, today);
+  const et = effectiveTarget(db, today);
+  const proteinTgt = et ? Math.round(et.eff.protein) : 0;
+  const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
+  const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
+  const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
+  if (!logged.length) {
+    return hour < 11
+      ? { text: "Morning. Nothing logged yet, what did you have for breakfast?", cta: 'Log it', action: 'log' }
+      : { text: 'Nothing logged yet today. Pop your ' + meal + ' in and I’ll do the maths.', cta: 'Log it', action: 'log' };
+  }
+  if (proteinTgt > 0 && proteinGap >= 20 && hour >= 14) {
+    return { text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.', cta: 'See ideas', action: 'cook' };
+  }
+  if (!weighedRecently) {
+    return { text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.', cta: 'Weigh in', action: 'weigh' };
+  }
+  if (streak >= 2) return { text: streak + ' days logged in a row. Keep it up and I’ll grow.', cta: null, action: null };
+  return { text: 'Good start. Log as you go and I’ll keep you on track.', cta: null, action: null };
+}
+
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
 // animated dino is standing somewhere rather than floating, paired with its name/stage, a warm mood
 // line, and a next-stage progress bar. Replaces the old CompanionStrip: taps through to the Play
@@ -2482,7 +2509,7 @@ function randomBuddyName(seed) { return BUDDY_NAME_POOL[crHash(String(seed || Ma
 // action is deliberately left clear so the buddy's proactive coach line (Phase 5, the dead showNudge
 // slot) has room to speak here. The one rich, animated element in the pixel UI. (Refs BUDDY_STAGES/
 // MOOD_META below, resolved at render time.)
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks }) {
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, coach }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const next = BUDDY_STAGES[buddy.stage + 1] || null;
   // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
@@ -2503,11 +2530,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks }) {
           <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
           <div className="absolute" style={{ left: '50%', bottom: 12, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
           <div className="absolute" style={Object.assign({ left: '50%', bottom: 4, transform: 'translateX(-50%)' }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
-            <div className="relative inline-block leading-none">
+            <div className="inline-block leading-none" style={{ filter: auraFilter(eq) || undefined }}>
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />
-              {eq.hat && <span className="absolute pointer-events-none" style={{ top: 0, left: '50%', transform: 'translateX(-50%)', fontSize: 22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
-              {eq.face && <span className="absolute pointer-events-none" style={{ top: '32%', left: '50%', transform: 'translateX(-50%)', fontSize: 17, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
-              {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '6%', left: '50%', transform: 'translateX(-50%)', fontSize: 16, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
             </div>
           </div>
           {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
@@ -2525,6 +2549,13 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks }) {
                   : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
         </button>
       </div>
+      {!incubating && coach && (
+        <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
+          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{who} says</div>
+          <div className="text-[11.5px] leading-snug">{coach.text}</div>
+          {coach.cta && coach.go && <button onClick={coach.go} className="pixel-btn mt-2 py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{coach.cta} ›</button>}
+        </div>
+      )}
       {incubating && tasks && (
         <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: '2px solid var(--border)' }}>
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Do these to hatch</div>
@@ -2837,9 +2868,11 @@ function buddyProfile(db, streak, buddy, level) {
 const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fibre', fuel: 'more fuel' };
 
 // ---- Buddy cosmetics: shop-bought overlays drawn on the buddy sprite ----
-// Physical items are emoji (crisp at any size, no new pixel art needed); auras are a CSS glow.
-// Stored (owned) in db.buddy.cosmetics; one per slot is shown, the last bought winning its slot.
-const COSMETIC_EMOJI = { flower: '🌸', party_hat: '🎉', shades: '🕶️', scarf: '🧣', crown: '👑' };
+// Cosmetics are FX auras only now (emoji hats read poorly over the pixel art). Each aura is a CSS
+// glow colour applied to the buddy sprite. Owned/equipped in db.buddy.cosmetics.
+const AURA_GLOW = { aura_ember: '#ff7a1a', aura_frost: '#3fd0ff', aura_spark: '#ffd400', aura_toxic: '#39FF14' };
+const RENAME_COST = 40; // Amber to rename the buddy after hatch (the hatch naming itself is free).
+function auraFilter(eq) { const c = eq && eq.aura && AURA_GLOW[eq.aura]; return c ? 'drop-shadow(0 0 6px ' + c + ') drop-shadow(0 0 3px ' + c + ')' : null; }
 function equippedCosmetics(list) {
   const bySlot = {};
   (list || []).forEach(id => { const c = Game.COSMETIC_BY_ID[id]; if (c) bySlot[c.kind] = id; });
@@ -2851,13 +2884,10 @@ function equippedCosmetics(list) {
 function BuddyAvatar({ buddy, px = 4, asleep }) {
   const s = buddyStageSprite((buddy && buddy.stage) || 0, buddy);
   const eq = (buddy && buddy.hatched === false) ? {} : equippedCosmetics(buddy && buddy.cosmetics);
-  const cw = 24 * px;
+  const filters = [asleep ? 'grayscale(0.85)' : null, auraFilter(eq)].filter(Boolean).join(' ');
   return (
-    <div className="relative inline-block leading-none" style={asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null}>
+    <div className="inline-block leading-none" style={{ filter: filters || undefined, opacity: asleep ? 0.5 : 1 }}>
       <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={px} fps={s.fps} />
-      {eq.hat && <span className="absolute pointer-events-none" style={{ top: -cw * 0.04, left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.3, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
-      {eq.face && <span className="absolute pointer-events-none" style={{ top: '32%', left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.23, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
-      {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '6%', left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
     </div>
   );
 }
@@ -2905,7 +2935,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
         <div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
         <div className="text-[9px] text-[#8A8A90] mt-1.5">{nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`}</div>
       </div>}
-      {onOpenName && !incubating && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: named ? 'var(--surface2)' : 'var(--accent)', color: named ? undefined : 'var(--on-accent)' }}>{named ? 'RENAME' : 'NAME YOUR DINO'}</button>}
+      {onOpenName && !incubating && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: named ? 'var(--surface2)' : 'var(--accent)', color: named ? undefined : 'var(--on-accent)' }}>{named ? 'RENAME · ' + RENAME_COST + ' AMBER' : 'NAME YOUR DINO'}</button>}
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
       {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
     </div>
@@ -3020,11 +3050,10 @@ function TrophyCabinet({ db, streak, onBack }) {
       : <div className="text-[10px] text-[#8A8A90] mb-4">No trophies yet. Beat the weekly boss for Amber and clear the ladder for the Champion Belt.</div>}
   </div>;
 }
-// The Amber shop: spend hard-won currency on buddy cosmetics (shown on your buddy) and catch boosts
+// The Amber shop: spend hard-won currency on buddy cosmetics (FX auras shown on your buddy)
 // (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
 function ShopView({ db, amber, buy, onBack }) {
   const owned = (db.buddy && db.buddy.cosmetics) || [];
-  const items = db.items || {};
   const Row = ({ id, name, desc, price, preview, ownedLabel }) => {
     const afford = amber >= price;
     return (
@@ -3047,25 +3076,14 @@ function ShopView({ db, amber, buy, onBack }) {
         <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}><Spark size={9} /> {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
-      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from daily hunts and weekly bosses, then treat your buddy.</div>
+      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from your buddy's fights, then treat it to something nice.</div>
 
       <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Buddy cosmetics</div>
-      <div className="space-y-2 mb-5">
+      <div className="space-y-2">
         {Game.COSMETICS.map(c => <Row key={c.id} id={c.id} name={c.name} desc={c.desc} price={c.price}
-          preview={c.kind === 'aura'
-            ? <span style={{ filter: 'drop-shadow(0 0 5px #ff7a1a)' }}><Spark size={18} /></span>
-            : <span style={{ fontSize: 20, lineHeight: 1 }}>{COSMETIC_EMOJI[c.id] || <Spark size={16} />}</span>}
+          preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat)' }}><Spark size={18} /></span>}
           ownedLabel={owned.indexOf(c.id) >= 0 ? 'OWNED' : null} />)}
       </div>
-
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Catch boosts</div>
-      <div className="space-y-2">
-        {Game.SHOP_CONSUMABLES.map(c => { const it = ITEMS[c.id] || {}; const have = items[c.id] || 0;
-          return <Row key={c.id} id={c.id} name={it.name + (have > 0 ? ' (×' + have + ')' : '')} desc={it.desc} price={c.price}
-            preview={<span style={{ fontSize: 16, color: 'var(--pro)' }}>◈</span>}
-            ownedLabel={null} />; })}
-      </div>
-      <div className="text-[9px] text-[#8A8A90] mt-3 leading-snug">Boosts stack in your items and apply to today's catch from the hub.</div>
     </div>
   );
 }
@@ -4105,10 +4123,18 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
 function NameBuddyModal({ db, update, buddy, onClose }) {
   useBackClose(onClose);
   const b = db.buddy || {};
+  const isRename = !!b.name;
+  const amber = Game.amberBalance(db.amber_ledger);
+  const canAfford = !isRename || amber >= RENAME_COST;
   const [name, setName] = useState(b.name || '');
   function save() {
     const nm = name.trim().slice(0, 16); if (!nm) return;
-    update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; });
+    if (isRename && nm === b.name) { onClose(); return; }   // no change, no charge
+    if (isRename && !canAfford) return;
+    update(d => {
+      d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm;
+      if (isRename) { d.amber_ledger = d.amber_ledger || []; d.amber_ledger.push({ id: Store.uid(), date: Store.todayISO(), delta: -RENAME_COST, reason: 'rename' }); }
+    });
     onClose();
   }
   return (
@@ -4116,12 +4142,12 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
       <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex flex-col items-center text-center mb-4">
           <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><BuddyAvatar buddy={b} px={3} /></div>
-          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">Give your buddy a name, it’s yours to raise.</div>
+          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{isRename ? 'Rename your buddy. Costs ' + RENAME_COST + ' Amber (you have ' + amber + ').' : 'Give your buddy a name, it’s yours to raise.'}</div>
         </div>
         <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
           className={inputCls + ' text-center'} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
-        <button onClick={save} disabled={!name.trim()} className="pixel-btn w-full py-3 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: name.trim() ? 1 : 0.5 }}>
-          <span className="pf text-[10px]">{b.name ? 'RENAME' : 'HATCH'}</span>
+        <button onClick={save} disabled={!name.trim() || !canAfford} className="pixel-btn w-full py-3 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (name.trim() && canAfford) ? 1 : 0.5 }}>
+          <span className="pf text-[10px]">{isRename ? (canAfford ? 'RENAME · ' + RENAME_COST + ' AMBER' : 'NOT ENOUGH AMBER') : 'HATCH'}</span>
         </button>
       </div>
     </div>
@@ -4365,6 +4391,12 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const nudgeHour = db.profile.nudgeHour == null ? 14 : db.profile.nudgeHour;
   const showNudge = remindOn && (missLog || missWeigh) && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
+  // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
+  const coach = eggIncubating ? null : (() => {
+    const c = buddyCoach(db, today, streak); if (!c) return null;
+    const go = c.action === 'log' ? () => onQuickAdd(false) : c.action === 'weigh' ? onCheckIn : c.action === 'cook' ? () => setView('recipes') : null;
+    return Object.assign({}, c, { go });
+  })();
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
@@ -4408,7 +4440,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} />
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} coach={coach} />
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
