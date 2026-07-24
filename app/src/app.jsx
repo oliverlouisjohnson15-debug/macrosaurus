@@ -2845,21 +2845,19 @@ function equippedCosmetics(list) {
   (list || []).forEach(id => { const c = Game.COSMETIC_BY_ID[id]; if (c) bySlot[c.kind] = id; });
   return bySlot;
 }
-// The buddy avatar: the bond-evolved species sprite + day/night aura + any equipped cosmetics.
-function BuddyAvatar({ form, affinity, cosmetics, px = 6, asleep }) {
-  if (!form) return <Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={px} />;
-  const eq = equippedCosmetics(cosmetics);
-  const base = crFx(false, form.aura, affinity) || {};
-  const filters = [base.filter];
-  if (eq.aura === 'aura_ember') filters.push('drop-shadow(0 0 7px #ff7a1a) drop-shadow(0 0 3px #ffb15a)');
-  if (asleep) filters.push('grayscale(0.85)');
-  const style = { filter: filters.filter(Boolean).join(' ') || undefined, opacity: asleep ? 0.5 : 1 };
+// The buddy avatar on the new animated art: the chosen species/palette at its growth stage (or the
+// egg while incubating), with equipped emoji cosmetics overlaid. `px` is the SpriteSheet pixel scale
+// (rendered size = 24*px square).
+function BuddyAvatar({ buddy, px = 4, asleep }) {
+  const s = buddyStageSprite((buddy && buddy.stage) || 0, buddy);
+  const eq = (buddy && buddy.hatched === false) ? {} : equippedCosmetics(buddy && buddy.cosmetics);
+  const cw = 24 * px;
   return (
-    <div className="relative inline-block leading-none">
-      <div style={style}><Sprite art={form.art} colors={form.colors} px={px} /></div>
-      {eq.hat && <span className="absolute pointer-events-none" style={{ top: -px * 0.9, left: '50%', transform: 'translateX(-50%)', fontSize: px * 2.5, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
-      {eq.face && <span className="absolute pointer-events-none" style={{ top: '34%', left: '50%', transform: 'translateX(-50%)', fontSize: px * 2, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
-      {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '4%', left: '50%', transform: 'translateX(-50%)', fontSize: px * 1.9, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
+    <div className="relative inline-block leading-none" style={asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null}>
+      <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={px} fps={s.fps} />
+      {eq.hat && <span className="absolute pointer-events-none" style={{ top: -cw * 0.04, left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.3, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
+      {eq.face && <span className="absolute pointer-events-none" style={{ top: '32%', left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.23, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
+      {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '6%', left: '50%', transform: 'translateX(-50%)', fontSize: cw * 0.22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
     </div>
   );
 }
@@ -2868,55 +2866,48 @@ function BondHearts({ n, max, size = 12 }) {
   return <span className="tnum" style={{ letterSpacing: 1 }}>{Array.from({ length: max || 0 }, (_, i) =>
     <span key={i} style={{ color: i < n ? 'var(--danger)' : 'var(--border)', fontSize: size }}>{i < n ? '♥' : '♡'}</span>)}</span>;
 }
-// A small 0..1 need meter (Fed / Nourished / Energy), topped up by eating well today.
-function NeedBar({ label, v, color }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="pf text-[6.5px] uppercase text-[#8A8A90] w-9 shrink-0">{label}</span>
-      <div className="pixel-bar flex-1" style={{ height: 7, borderWidth: 2 }}><i style={{ width: Math.round(Math.max(0, Math.min(1, v || 0)) * 100) + '%', background: color, transition: 'width .4s' }} /></div>
-    </div>
-  );
-}
-// The full buddy detail, moved off Today into the Play hub's Buddy tab: avatar, name, bond, mood, the
-// three need meters and evolution progress, plus naming and the trophy cabinet. The companion strip on
-// Today is the glanceable version; this is where you come to see how your buddy is really doing.
+// The buddy detail in the Play hub's Buddy tab: the animated dino at its growth stage, its name, a
+// light mood + bond layer, and its streak-driven growth toward the next stage. (The old needs meters,
+// personality and species-evolution axis were retired - the buddy now grows on the ONE BUDDY_STAGES
+// line.) The Today habitat is the glanceable version; this is the fuller look.
 function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) {
   const buddy = db.buddy || {};
+  const incubating = buddy.hatched === false;
   const named = !!bp.name;
   const asleep = bp.mood === 'asleep';
   const mm = MOOD_META[bp.mood] || MOOD_META.content;
   const line = moodLine(bp.mood, (db.game_salt || '') + Store.todayISO());
-  const evo = bp.evoInfo;
-  const aff = bp.affinity ? AFFINITY_META[bp.affinity] : null;
-  const who = named ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
+  const who = incubating ? 'Your egg' : (named ? bp.name : 'Your buddy');
+  const st = BUDDY_STAGES[Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)];
+  const nextStage = BUDDY_STAGES[(buddy.stage || 0) + 1] || null;
+  const toNext = nextStage ? Math.max(1, nextStage.min - streak) : 0;
+  const prog = nextStage ? Math.max(0.04, Math.min(1, streak / nextStage.min)) : 1;
   return (
     <div className="fade-in">
       <div className="flex flex-col items-center text-center mb-4">
         <div className="pixel-box p-3 mb-3 relative" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={8} asleep={asleep} />
+          <BuddyAvatar buddy={buddy} px={4} asleep={asleep} />
           {asleep && <span className="pf absolute" style={{ top: 3, right: 4, fontSize: 11, color: 'var(--carb)' }}>Zz</span>}
         </div>
         <div className="text-lg font-bold">{who}</div>
-        <div className="text-[10px] mt-1 leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
-        <div className="flex items-center gap-2 mt-2">
-          {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
-          {aff && <span title={aff[2]} style={{ color: aff[1] }}>{aff[0]}</span>}
-          <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={10} /></span>
-        </div>
+        {incubating
+          ? <div className="text-[10px] mt-1 leading-snug max-w-[16rem]" style={{ color: 'var(--carb)' }}>Incubating. Do the getting-started tasks on Today to hatch it.</div>
+          : <>
+              <div className="text-[10px] mt-1 leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
+              <div className="flex items-center gap-2 mt-2">
+                {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
+                <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={10} /></span>
+              </div>
+            </>}
       </div>
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <NeedBar label="Fed" v={bp.needs.hunger} color="var(--pro)" />
-        <NeedBar label="Nourish" v={bp.needs.nourish} color="var(--carb)" />
-        <NeedBar label="Energy" v={bp.needs.energy} color="var(--good)" />
-      </div>
-      <div className="pixel-box p-3 mb-3 text-[10px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none', color: evo.ready ? 'var(--good)' : 'var(--muted)' }}>
-        {evo.atMax ? `${who} is fully grown, a legend of the pit.`
-          : evo.ready ? `${who} is ready to evolve into ${evo.nextName}! Keep feeding it well.`
-          : (evo.nextName ? `Toward ${evo.nextName}: Lv ${evo.level}/${evo.levelNeed} · ${evo.hearts}/${evo.heartsNeed}♥` : 'Growing steadily on your logged days.')}
-      </div>
-      {onOpenName && !named && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NAME YOUR DINO</button>}
+      {!incubating && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="flex items-center justify-between mb-1.5"><span className="pf text-[8px] uppercase text-[#8A8A90]">Growth · {st.name}</span><span className="pf text-[8px] uppercase text-[#8A8A90]">Streak {streak}</span></div>
+        <div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
+        <div className="text-[9px] text-[#8A8A90] mt-1.5">{nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`}</div>
+      </div>}
+      {onOpenName && !incubating && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: named ? 'var(--surface2)' : 'var(--accent)', color: named ? undefined : 'var(--on-accent)' }}>{named ? 'RENAME' : 'NAME YOUR DINO'}</button>}
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
-      <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Hit your macros to grow and evolve it.</div>
+      {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
     </div>
   );
 }
@@ -4114,9 +4105,6 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
 function NameBuddyModal({ db, update, buddy, onClose }) {
   useBackClose(onClose);
   const b = db.buddy || {};
-  const species = CR_BY_ID[b.speciesId] || CR_BY_ID['dinky'];
-  const form = buddyForm(species, b.evoStage || 0, 0) || BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
-  const pers = PERSONALITIES.find(p => p.key === b.personality) || PERSONALITIES[0];
   const [name, setName] = useState(b.name || '');
   function save() {
     const nm = name.trim().slice(0, 16); if (!nm) return;
@@ -4127,9 +4115,8 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex flex-col items-center text-center mb-4">
-          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><div style={crFx(false, form.aura, (b.evoStage || 0) > 0 ? b.affinity : null)}><Sprite art={form.art} colors={form.colors} px={5} /></div></div>
-          <div className="pf text-[8px] uppercase text-[#8A8A90]">{form.name}{(b.evoStage || 0) > 0 && b.affinity ? ' ' + AFFINITY_META[b.affinity][0] : ''} · {pers.label}</div>
-          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{pers.blurb.charAt(0).toUpperCase() + pers.blurb.slice(1)}. Give it a name, it’s yours to raise.</div>
+          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><BuddyAvatar buddy={b} px={3} /></div>
+          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">Give your buddy a name, it’s yours to raise.</div>
         </div>
         <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
           className={inputCls + ' text-center'} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
