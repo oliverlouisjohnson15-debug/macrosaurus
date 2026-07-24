@@ -4424,10 +4424,12 @@ function heroFocusLine(et, tot) {
   const remK = Math.round(et.eff.kcal - tot.kcal);
   const remP = Math.round(et.eff.protein_g - tot.protein);
   if (tot.kcal <= 0) return null;
-  if (remK < -60) return { color: 'var(--warn)', text: Math.abs(remK) + ' kcal over today. An easy day tomorrow evens it out.' };
-  if (remP >= 25) return { color: 'var(--warn)', text: remP + 'g under on protein. A shake or chicken at dinner lands it.' };
+  // Lead with the next move, not the number: the hero already shows calories left and the bars show
+  // protein, so this line stays a nudge rather than a third readout of the same figures.
+  if (remK < -60) return { color: 'var(--warn)', text: 'Over on calories today. An easy day tomorrow evens it out.' };
+  if (remP >= 25) return { color: 'var(--warn)', text: 'Protein’s the gap. A shake or chicken at dinner lands it.' };
   if (remK <= 160 && remP <= 12) return { color: 'var(--good)', text: 'Dialled in. Protein hit, calories on target. Nice work.' };
-  return { color: 'var(--accent)', text: Math.max(0, remK) + ' kcal and ' + Math.max(0, remP) + 'g protein left, you’re on pace.' };
+  return { color: 'var(--accent)', text: 'On pace. Keep the evening light and you’re there.' };
 }
 // Thin status strip: the game hooks (streak, dex, Amber) compressed into one glanceable bar, the
 // Duolingo move, so they anchor Today without each taking a full card that competes with the macro hero.
@@ -4437,13 +4439,11 @@ function DashStatusStrip({ streak, dex, dexTotal, amber, onOpenPlay }) {
     <button type="button" onClick={onOpenPlay} aria-label="Open Play"
       className="w-full flex items-center justify-between pixel-box px-3 py-2 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <span className="flex items-center gap-2.5 pf uppercase" style={{ fontSize: 8 }}>
-        <span style={{ color: 'var(--accent)' }}>Streak <b className="tnum">{streak}</b></span>
-        <span style={{ color: 'var(--muted2)' }}>·</span>
         <span style={{ color: 'var(--carb)' }}>Dex <b className="tnum">{dex}/{dexTotal}</b></span>
         <span style={{ color: 'var(--muted2)' }}>·</span>
         <span style={{ color: 'var(--fat)' }}><Spark size={9} /> <b className="tnum">{amber}</b></span>
       </span>
-      <span className="pf uppercase shrink-0" style={{ fontSize: 8, color: 'var(--muted)' }}>Play ›</span>
+      <span className="pf uppercase shrink-0" style={{ fontSize: 8, color: 'var(--muted)' }}>›</span>
     </button>
   );
 }

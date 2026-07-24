@@ -13756,13 +13756,15 @@ function heroFocusLine(et, tot) {
   const remK = Math.round(et.eff.kcal - tot.kcal);
   const remP = Math.round(et.eff.protein_g - tot.protein);
   if (tot.kcal <= 0) return null;
+  // Lead with the next move, not the number: the hero already shows calories left and the bars show
+  // protein, so this line stays a nudge rather than a third readout of the same figures.
   if (remK < -60) return {
     color: 'var(--warn)',
-    text: Math.abs(remK) + ' kcal over today. An easy day tomorrow evens it out.'
+    text: 'Over on calories today. An easy day tomorrow evens it out.'
   };
   if (remP >= 25) return {
     color: 'var(--warn)',
-    text: remP + 'g under on protein. A shake or chicken at dinner lands it.'
+    text: 'Protein’s the gap. A shake or chicken at dinner lands it.'
   };
   if (remK <= 160 && remP <= 12) return {
     color: 'var(--good)',
@@ -13770,7 +13772,7 @@ function heroFocusLine(et, tot) {
   };
   return {
     color: 'var(--accent)',
-    text: Math.max(0, remK) + ' kcal and ' + Math.max(0, remP) + 'g protein left, you’re on pace.'
+    text: 'On pace. Keep the evening light and you’re there.'
   };
 }
 // Thin status strip: the game hooks (streak, dex, Amber) compressed into one glanceable bar, the
@@ -13799,16 +13801,6 @@ function DashStatusStrip({
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
-    }
-  }, "Streak ", /*#__PURE__*/React.createElement("b", {
-    className: "tnum"
-  }, streak)), /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "·"), /*#__PURE__*/React.createElement("span", {
-    style: {
       color: 'var(--carb)'
     }
   }, "Dex ", /*#__PURE__*/React.createElement("b", {
@@ -13831,7 +13823,7 @@ function DashStatusStrip({
       fontSize: 8,
       color: 'var(--muted)'
     }
-  }, "Play ›"));
+  }, "›"));
 }
 function Dashboard({
   db,
