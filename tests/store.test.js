@@ -172,6 +172,18 @@ test('mergeStates: onboarding flags OR together so a stale copy cannot re-trigge
   assert.strictEqual(m.onboarding.dismissed, true);
 });
 
+test('mergeStates: dino-fight progress reconciles field-wise instead of losing a device\'s wins', () => {
+  // Same prestige: rank/wins/trophies take the max; date gates take the later value.
+  const deviceA = { _rev: 3, fight: { prestige: 0, rank: 6, wins: 10, trophies: 2, dailyBest: 4, dailyStreak: 4, lastDailyDate: '2026-07-24', lastAttemptDate: '2026-07-24', lastBossWeek: '2026-W30' } };
+  const deviceB = { _rev: 9, fight: { prestige: 0, rank: 3, wins: 7, trophies: 1, dailyBest: 2, dailyStreak: 1, lastDailyDate: '2026-07-20', lastAttemptDate: '2026-07-23', lastBossWeek: '2026-W29' } };
+  const m = Store.mergeStates(deviceA, deviceB);
+  assert.strictEqual(m.fight.rank, 6);
+  assert.strictEqual(m.fight.wins, 10);
+  assert.strictEqual(m.fight.trophies, 2);
+  assert.strictEqual(m.fight.dailyBest, 4);
+  assert.strictEqual(m.fight.dailyStreak, 4);          // from the more recent daily win
+  assert.strictEqual(m.fight.lastAttemptDate, '2026-07-24');
+});
 
 test('mergeStates: a prestige reset is not undone by the other copy\'s larger pre-reset rank', () => {
   // Device A prestiged (rank back to 0, prestige 1). Device B is still grinding the first ladder.
