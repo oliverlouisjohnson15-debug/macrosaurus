@@ -285,9 +285,29 @@
     });
     out.records = Object.assign({}, newer.records, { longestStreak: maxNum((a.records || {}).longestStreak, (b.records || {}).longestStreak) });
 
-    // Buddy growth stage is a documented high-water mark ("naps after a break") - never let a merge
-    // regress it below what either copy reached.
-    if (out.buddy) out.buddy.stage = maxNum((a.buddy || {}).stage, (b.buddy || {}).stage);
+    // Buddy is the individual the user raises, so a wholesale copy from a stale-but-higher-_rev
+    // device can wipe the name, evolution or bought cosmetics it never saw (the JSON clone above only
+    // carried the newer copy's buddy). Reconcile field-wise: growth stage and evoStage are high-water
+    // marks (max, never regress); hatchedISO is the earliest known birth; identity fields prefer the
+    // newer copy's value but never let an empty one clobber a set one (so a rename wins but a default
+    // does not); owned cosmetics are UNIONED so an Amber-bought item can never be lost on a merge.
+    if (out.buddy || a.buddy || b.buddy) {
+      var ba = a.buddy || {}, bb = b.buddy || {}, bn = newer.buddy || {}, bo = older.buddy || {};
+      var preferSet = function (x, y) { return (x != null && x !== '') ? x : (y != null && y !== '' ? y : (x != null ? x : y)); };
+      var cos = {};
+      [].concat(ba.cosmetics || [], bb.cosmetics || []).forEach(function (c) { if (c != null) cos[c] = 1; });
+      var births = [ba.hatchedISO, bb.hatchedISO].filter(Boolean).sort();
+      out.buddy = Object.assign({}, out.buddy || {}, {
+        stage: maxNum(ba.stage, bb.stage),
+        evoStage: maxNum(ba.evoStage, bb.evoStage),
+        name: preferSet(bn.name, bo.name),
+        personality: preferSet(bn.personality, bo.personality),
+        speciesId: preferSet(bn.speciesId, bo.speciesId),
+        affinity: preferSet(bn.affinity, bo.affinity),
+        hatchedISO: births.length ? births[0] : ((out.buddy || {}).hatchedISO || null),
+        cosmetics: Object.keys(cos),
+      });
+    }
 
     // First-run flags only ever flip true; OR them so a stale copy can't re-trigger onboarding.
     var oa = a.onboarding || {}, ob = b.onboarding || {};

@@ -297,3 +297,82 @@ test('mergeStates: null-safe', () => {
   assert.strictEqual(Store.mergeStates(s, null), s);
   assert.strictEqual(Store.mergeStates(null, null), null);
 });
+
+// --- Buddy overhaul Phase 2 safety net -----------------------------------------------------------
+// The Macrodex/collection removal deletes collection state (catch_log, items, dex_boost, game_salt,
+// sleepDex, primed, some game_awards). These characterization tests lock in that a real user's KEEP
+// data — food logs, weigh-ins, check-ins, the Amber ledger, the buddy (name/stage/cosmetics), steps,
+// sleep — survives migrate() and a cross-device mergeStates() untouched. They deliberately assert
+// ONLY on keep-data (never on the collection fields) so they stay green after the removal lands.
+function legacyState(rev) {
+  return {
+    _rev: rev || 1000,
+    user_id: 'u',
+    profile: { goalType: 'cut', proteinTarget: 130 },
+    log_entries: [
+      { id: 'le1', date: '2026-07-20', meal: 'm_1', items: [{ name: 'Eggs', macros: { kcal: 150, protein: 12 } }] },
+      { id: 'le2', date: '2026-07-21', meal: 'm_3', items: [{ name: 'Chicken', macros: { kcal: 300, protein: 40 } }] },
+    ],
+    weight_entries: [{ id: 'w1', date: '2026-07-20', scale_weight: 80.5 }],
+    checkins: [{ date: '2026-07-19', weightKg: 80.7, onTrack: true }],
+    amber_ledger: [
+      { id: 'am1', date: '2026-07-18', delta: 50, reason: 'weekly_boss' },
+      { id: 'am2', date: '2026-07-20', delta: -20, reason: 'cosmetic_party_hat' },
+    ],
+    buddy: { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: '2026-07-04', speciesId: 'dinky', evoStage: 1, affinity: 'day', cosmetics: ['party_hat'] },
+    steps: { '2026-07-20': 8200, '2026-07-21': 10400 },
+    sleep: { '2026-07-21': { min: 430, score: 78 } },
+    foods: [{ id: 'f1', name: 'Eggs' }],
+    saved_meals: [{ id: 'sm1', name: 'Breakfast', items: [{ name: 'Eggs' }] }],
+    targets: [{ id: 't1', kcal: 2000 }],
+    fight: { rank: 4, wins: 12, trophies: 2 },
+    records: { longestStreak: 21 },
+    // --- collection fields being removed in Phase 2 (must not take keep-data down with them) ---
+    catch_log: { '2026-07-20': [{ id: 'carbo', shiny: false }] },
+    items: { lure: 2, honest_rex: 1 },
+    dex_boost: { date: '2026-07-20', lure: 'protein', shiny: false, rare: true },
+    game_salt: 'abc123',
+    game_awards: { 'checkin_catch:2026-07-20': true, streak7: true },
+    sleepDex: { claimed: { '2026-07-21': true }, lastDate: '2026-07-21', lastId: 'dozer' },
+    primed: { claimed: { '2026-07-20': true }, lastDate: '2026-07-20', lastId: 'apex' },
+  };
+}
+function assertKeepDataIntact(s) {
+  assert.strictEqual(s.profile.goalType, 'cut');
+  assert.strictEqual(s.log_entries.length, 2);
+  assert.strictEqual(s.log_entries[0].items[0].name, 'Eggs');
+  assert.strictEqual(s.weight_entries.length, 1);
+  assert.strictEqual(s.weight_entries[0].scale_weight, 80.5);
+  assert.strictEqual(s.checkins.length, 1);
+  // Amber balance = sum of ledger deltas; the ledger is the source of the customization currency.
+  assert.strictEqual((s.amber_ledger || []).reduce((n, e) => n + e.delta, 0), 30);
+  assert.strictEqual(s.buddy.name, 'Chompers');
+  assert.strictEqual(s.buddy.stage, 3);
+  assert.deepStrictEqual(s.buddy.cosmetics, ['party_hat']);
+  assert.strictEqual(s.steps['2026-07-21'], 10400);
+  assert.strictEqual(s.sleep['2026-07-21'].min, 430);
+  assert.strictEqual(s.fight.wins, 12);
+}
+
+test('Phase 2 safety: migrate() preserves all keep-data on a legacy collection state', () => {
+  assertKeepDataIntact(Store.migrate(legacyState()));
+});
+
+test('Phase 2 safety: mergeStates() preserves keep-data merging legacy against a fresh empty state', () => {
+  // A device that loaded the new (post-removal) code holds a higher _rev but no collection fields.
+  const fresh = Store.migrate({ _rev: 2000, profile: { goalType: 'cut' } });
+  assertKeepDataIntact(Store.mergeStates(legacyState(1000), fresh));
+  assertKeepDataIntact(Store.mergeStates(fresh, legacyState(1000)));
+});
+
+test('Phase 2 safety: mergeStates() unions Amber ledger + logs across two offline copies', () => {
+  const a = legacyState(1000);
+  const b = legacyState(3000);
+  b.amber_ledger = [{ id: 'am3', date: '2026-07-22', delta: 15, reason: 'streak' }];
+  b.log_entries = [{ id: 'le3', date: '2026-07-22', meal: 'm_1', items: [{ name: 'Oats' }] }];
+  const m = Store.mergeStates(a, b);
+  // union by id: am1+am2 (from a) + am3 (from b) => balance 30 + 15
+  assert.strictEqual(m.amber_ledger.reduce((n, e) => n + e.delta, 0), 45);
+  const ids = m.log_entries.map(e => e.id).sort();
+  assert.deepStrictEqual(ids, ['le1', 'le2', 'le3']);
+});
