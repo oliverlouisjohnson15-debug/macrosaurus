@@ -2439,6 +2439,104 @@ function Sprite({ art, colors, px = 6 }) {
   return <svg width={w * cell} height={h * cell} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges">{rects}</svg>;
 }
 
+/* ---------- Animated buddy (PNG sprite sheets) ----------
+   The purchased buddy art (served from /sprites) is 24x24 pixel dinos laid out as horizontal
+   strips: frameCount = imageWidth / 24. Frame counts are uniform across all 24 variants (12 species
+   x 2 palettes), so we hard-map them here rather than probing each PNG at runtime. SpriteSheet plays
+   one strip with a single frame-count-agnostic CSS keyframe (`sprite-play` in styles.css):
+   translateX(-100%) of the strip's own width, stepped into `frames` whole-frame jumps. This is the
+   ONE rich, animated element inside the otherwise-pixel UI. */
+const SPRITE_FRAMES = {
+  base: { idle: 3, move: 6, jump: 4, dash: 6, bite: 3, kick: 3, avoid: 3, hurt: 4, scan: 6, dead: 5 },
+  egg: { crack: 4, hatch: 4, move: 4 },
+  ghost: { idle: 3, move: 4 },
+};
+// The male palettes of these species are missing idle/move/dash/hurt/kick; the customize step uses
+// this to hide those species+palette combos so we never request a 404 strip.
+const SPRITE_INCOMPLETE_MALE = ['doux', 'mort', 'tard', 'vita'];
+function spriteHasAnim(palette, species, group, anim) {
+  if (palette === 'male' && group === 'base' && SPRITE_INCOMPLETE_MALE.includes(species)
+    && ['idle', 'move', 'dash', 'hurt', 'kick'].includes(anim)) return false;
+  return !!((SPRITE_FRAMES[group] || {})[anim]);
+}
+// One animated 24x24 sprite. `px` is the integer pixel scale (rendered size = 24*px square).
+// loop=false plays once and fires onEnd (used for the hatch sequence and one-shot reactions).
+function SpriteSheet({ palette = 'female', species = 'doux', group = 'base', anim = 'idle', px = 5, fps = 6, loop = true, onEnd, className, style }) {
+  const frames = (SPRITE_FRAMES[group] || {})[anim] || 1;
+  const size = 24 * px;
+  const dur = Math.max(0.1, frames / fps);
+  const url = '/sprites/' + palette + '/' + species + '/' + group + '/' + anim + '.png';
+  return (
+    <div className={className} style={Object.assign({ width: size, height: size, overflow: 'hidden' }, style)}>
+      <img src={url} alt="" aria-hidden="true" draggable="false"
+        style={{ height: size, width: 'auto', maxWidth: 'none', display: 'block', imageRendering: 'pixelated',
+          animation: 'sprite-play ' + dur + 's steps(' + frames + ') ' + (loop ? 'infinite' : '1 forwards') }}
+        onAnimationEnd={loop ? undefined : onEnd} />
+    </div>
+  );
+}
+// Map a BUDDY_STAGES index to an animated sprite descriptor. Stage 0 is the egg (idle wobble);
+// grown stages share the chosen body's idle. Species/palette come from the buddy record once the
+// customize step exists (Phase 3); until then they fall back to a complete default variant.
+function buddyStageSprite(stageIndex, buddy) {
+  const palette = (buddy && buddy.palette) || 'female';
+  const species = (buddy && buddy.species) || 'doux';
+  if (stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
+  return { palette, species, group: 'base', anim: 'idle', fps: 5 };
+}
+// The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
+// animated dino is standing somewhere rather than floating, paired with its name/stage, a warm mood
+// line, and a next-stage progress bar. Replaces the old CompanionStrip: still taps through to the
+// Play hub's Buddy tab and still shows the FEED nudge when the buddy is craving, plus its equipped
+// emoji cosmetics overlaid on the animated sprite. The one rich, animated element in the pixel UI,
+// and the seed for the fuller presence in Phase 4. (Refs BUDDY_STAGES/MOOD_META/moodLine below,
+// resolved at render time.)
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, onFeed }) {
+  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const next = BUDDY_STAGES[buddy.stage + 1] || null;
+  // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
+  // buddy sits at a high-water stage above what the current streak supports (e.g. after a slip).
+  const prog = next ? Math.max(0.04, Math.min(1, streak / next.min)) : 1;
+  const toNext = next ? Math.max(1, next.min - streak) : 0;
+  const s = buddyStageSprite(buddy.stage, db.buddy);
+  const asleep = bp.mood === 'asleep' || buddy.asleep;
+  const mood = MOOD_META[bp.mood] || MOOD_META.content;
+  const eq = equippedCosmetics((db.buddy || {}).cosmetics);
+  const who = bp.name || (bp.form ? bp.form.name : st.name);
+  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
+  return (
+    <Card className="p-3 mb-4">
+      <div className="flex items-center gap-2.5">
+        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="relative shrink-0 pixel-box overflow-hidden" style={{ width: 90, height: 94, background: 'var(--surface3)', boxShadow: 'none' }}>
+          <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
+          <div className="absolute" style={{ left: '50%', bottom: 14, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+          <div className="absolute" style={Object.assign({ left: '50%', bottom: 15, transform: 'translateX(-50%)' }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
+            <div className="relative inline-block leading-none">
+              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />
+              {eq.hat && <span className="absolute pointer-events-none" style={{ top: 0, left: '50%', transform: 'translateX(-50%)', fontSize: 22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
+              {eq.face && <span className="absolute pointer-events-none" style={{ top: '32%', left: '50%', transform: 'translateX(-50%)', fontSize: 17, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.face]}</span>}
+              {eq.neck && <span className="absolute pointer-events-none" style={{ bottom: '6%', left: '50%', transform: 'translateX(-50%)', fontSize: 16, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.neck]}</span>}
+            </div>
+          </div>
+          {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
+        </button>
+        <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left">
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
+          <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
+          <div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
+          {next
+            ? <><div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
+                <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
+            : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}
+        </button>
+        {craveText
+          ? <button onClick={onFeed} className="pixel-btn py-2 px-3 text-[8px] pf shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><PixelGlyph kind="meat" color="currentColor" size={11} /> FEED</button>
+          : <button onClick={onOpenPlay} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Play ›</button>}
+      </div>
+    </Card>
+  );
+}
+
 /* ---------- Share card (streak -> shareable image) ----------
    Turns a user's streak + buddy into a 1080x1080 PNG they can drop into a Story, WhatsApp or a group
    chat. Uses the Web Share API with a file where supported (mobile), and falls back to a download plus
@@ -2857,142 +2955,6 @@ function NeedBar({ label, v, color }) {
     </div>
   );
 }
-// Compact companion for the Today screen: sprite + name + mood, with a feed nudge when the buddy is
-// craving. One tap opens the Play hub, where the full buddy detail (hearts, needs, evolution) now lives.
-// Keeps the emotional anchor on Today without the full card's density.
-function CompanionStrip({ db, bp, onOpenPlay, onFeed }) {
-  const buddy = db.buddy || {};
-  const asleep = bp.mood === 'asleep';
-  const mm = MOOD_META[bp.mood] || MOOD_META.content;
-  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
-  const who = bp.name ? bp.name : (bp.form ? bp.form.name : 'Your buddy');
-  return (
-    <div className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 mb-4" style={{ background: 'var(--surface3)' }}>
-      <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="flex items-center gap-3 min-w-0 flex-1 text-left">
-        <span className="pixel-box p-1.5 shrink-0 relative" style={{ background: 'var(--card)' }}>
-          <BuddyAvatar form={bp.form} affinity={bp.affinity} cosmetics={buddy.cosmetics} px={4} asleep={asleep} />
-          {asleep && <span className="pf absolute" style={{ top: 1, right: 2, fontSize: 7, color: 'var(--carb)' }}>Zz</span>}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="text-[13px] font-bold truncate block leading-tight">{who}</span>
-          <span className="text-[10px] leading-snug block" style={{ color: mm.color }}>{mm.label}{craveText ? <span className="text-[#8A8A90]"> · peckish</span> : ''}</span>
-        </span>
-      </button>
-      {craveText
-        ? <button onClick={onFeed} className="pixel-btn py-2 px-3 text-[8px] pf shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><PixelGlyph kind="meat" color="currentColor" size={11} /> FEED</button>
-        : <button onClick={onOpenPlay} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Play ›</button>}
-    </div>
-  );
-}
-// Macrodex Active section: the three always-on loops (today's catch, weekly breakthrough, egg
-// incubation) gathered in one place at the top of the dex, each showing its reward reveal on the
-// day it lands. This is what turns the dex from a static grid into the hub of the whole system.
-function DexActiveSection({ db, today }) {
-  const bt = db.breakthrough;
-  const logged = new Set((db.log_entries || []).map(e => e.date)).size;
-  const btState = Game.breakthroughState(logged, bt ? bt.base : logged);
-  const eggs = db.eggs; const egg = eggs && eggs.cur ? eggs.cur : null;
-  const eggProg = egg ? Game.eggProgress(incubationDaysAfter(db, egg.startDate, today), egg.tier) : null;
-  const tc = catchForDay(db, today); const tcr = tc && CR_BY_ID[tc.id];
-  const btJust = bt && bt.lastDate === today; const btCr = bt && bt.lastId ? CR_BY_ID[bt.lastId] : null;
-  const eggJust = eggs && eggs.lastDate === today; const eggCr = eggs && eggs.lastId ? CR_BY_ID[eggs.lastId] : null;
-  // Monthly Expedition: the featured creature to chase this month.
-  const expMonth = today.slice(0, 7);
-  const expCr = CR_BY_ID[Game.monthlyFeatured(expMonth)];
-  const expDone = !!(db.game_awards || {})['expedition:' + expMonth];
-  const expQ = Array.from(new Set((db.log_entries || []).map(e => e.date))).filter(d => d.slice(0, 7) === expMonth && isQualityDay(db, d)).length;
-  const expSt = Game.expeditionState(expQ);
-  const panel = 'pixel-box p-3';
-  const pStyle = { background: 'var(--surface3)', boxShadow: 'none' };
-  return (
-    <div className="mb-4">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Active</div>
-      <div className={panel + ' mb-2'} style={pStyle}>
-        <div className="flex items-center gap-2.5">
-          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: tcr ? CR_RARITY_COLOR[tcr.rarity] : 'var(--border)', borderWidth: 3 }}>
-            {tcr ? <div style={crFx(tc.shiny, null)}><Sprite art={tcr.art} colors={tc.shiny ? crShiny(tcr.colors) : tcr.colors} px={2.6} /></div> : <Sprite art="egg" colors={crSilhouette()} px={2.6} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="pf text-[7px] uppercase text-[#8A8A90] mb-0.5">Today's catch</div>
-            {tcr ? <><div className="text-[11px] font-bold leading-tight">{tcr.name}{tc.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /></span> : ''}</div><div className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[tcr.rarity] }}>{CR_RARITY_LABEL[tcr.rarity]}</div></>
-              : <div className="text-[10px] text-[#8A8A90] leading-snug">Log a meal today to catch one. The macros you hit decide which.</div>}
-          </div>
-        </div>
-      </div>
-      <div className={panel + ' mb-2'} style={pStyle}>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="pf text-[7px] uppercase text-[#8A8A90]">Weekly breakthrough</span>
-          <span className="pf text-[7px] uppercase tnum" style={{ color: btState.breakthroughs > 0 ? 'var(--good)' : 'var(--muted)' }}>{btState.breakthroughs > 0 ? btState.breakthroughs + ' earned' : btState.stamps + '/' + btState.goal}</span>
-        </div>
-        <BreakthroughMeter state={btState} size={12} />
-        {btJust && btCr ? <div className="flex items-center gap-2 mt-2 fade-in">
-          <div className="shrink-0" style={crFx(bt.lastShiny, null)}><Sprite art={btCr.art} colors={bt.lastShiny ? crShiny(btCr.colors) : btCr.colors} px={2} /></div>
-          <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Breakthrough! </span><b>{btCr.name}{bt.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</div>
-        </div>
-        : <div className="text-[9px] text-[#8A8A90] mt-1.5">Log {btState.toNext} more {btState.toNext === 1 ? 'day' : 'days'} for a guaranteed rare+ catch.</div>}
-      </div>
-      {expCr && <div className={panel + ' mb-2'} style={pStyle}>
-        <div className="flex items-center gap-2.5">
-          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: CR_RARITY_COLOR[expCr.rarity], borderWidth: 3 }}>
-            {expDone ? <Sprite art={expCr.art} colors={expCr.colors} px={2.6} /> : <Sprite art={expCr.art} colors={crSilhouette()} px={2.6} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="pf text-[7px] uppercase text-[#8A8A90]">This month’s expedition</span>
-              <span className="pf text-[7px] uppercase" style={{ color: CR_RARITY_COLOR[expCr.rarity] }}>{CR_RARITY_LABEL[expCr.rarity]}</span>
-            </div>
-            {expDone
-              ? <div className="text-[10px] leading-snug"><span style={{ color: 'var(--good)' }}>Caught!</span> <b>{expCr.name}</b> joined your dex this month.</div>
-              : <>
-                <div className="text-[10px] font-bold leading-tight">{expCr.name}</div>
-                <div className="pixel-bar mt-1" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (expSt.days / expSt.goal * 100) + '%', background: 'var(--weight)', transition: 'width .4s' }} /></div>
-                <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{expSt.toGo} quality {expSt.toGo === 1 ? 'day' : 'days'} this month to catch it. A quality day: hit protein and land your calories.</div>
-              </>}
-          </div>
-        </div>
-      </div>}
-      {egg && eggProg && <div className={panel} style={pStyle}>
-        <div className="flex items-center gap-2.5">
-          <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none', borderColor: EGG_TIER_COLOR[egg.tier], borderWidth: 3 }}><Sprite art="egg" colors={EGG_TIER_EGGCOLORS[egg.tier]} px={2.6} /></div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-bold">{egg.tier}-day egg <span className="pf text-[7px] uppercase" style={{ color: EGG_TIER_COLOR[egg.tier] }}>{EGG_TIER_LABEL[egg.tier]}</span></span>
-              <span className="pf text-[7px] uppercase text-[#8A8A90] tnum">{eggProg.steps}/{eggProg.tier}</span>
-            </div>
-            <div className="pixel-bar" style={{ height: 9, borderWidth: 2 }}><i style={{ width: (eggProg.steps / eggProg.tier * 100) + '%', background: EGG_TIER_COLOR[egg.tier], transition: 'width .4s' }} /></div>
-            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{eggJust && eggCr ? <span><span style={{ color: 'var(--good)' }}>Hatched!</span> <b>{eggCr.name}{eggs.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</span> : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.'}</div>
-          </div>
-        </div>
-      </div>}
-      {(() => {
-        // Sleep styles: a Pokemon Sleep style style-dex. A creature caught from a night's sleep carries
-        // one of three styles; collect all three of each. Counts come from the style tags on catches.
-        const collected = {};
-        Object.keys(db.catch_log || {}).forEach(dt => (db.catch_log[dt] || []).forEach(c => { if (c && c.style) collected[c.style] = (collected[c.style] || 0) + 1; }));
-        const sdex = db.sleepDex || {};
-        const just = sdex.lastDate === today && sdex.lastId; const jcr = just && CR_BY_ID[sdex.lastId];
-        return (
-          <div className={panel + ' mt-2'} style={pStyle}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="pf text-[7px] uppercase text-[#8A8A90]">Sleep styles</span>
-              <span className="pf text-[7px] uppercase tnum" style={{ color: Object.keys(collected).length ? 'var(--accent)' : 'var(--muted)' }}>{Object.keys(collected).length}/{Game.SLEEP_STYLES.length}</span>
-            </div>
-            <div className="flex gap-1.5">
-              {Game.SLEEP_STYLES.map(st => {
-                const on = collected[st] > 0;
-                return <div key={st} className="pixel-box flex-1 text-center px-1 py-1" style={{ background: 'var(--surface2)', boxShadow: 'none', borderWidth: 2, borderColor: on ? 'var(--accent)' : 'var(--border)', opacity: on ? 1 : 0.5 }}>
-                  <div className="pf text-[7px] uppercase" style={{ color: on ? 'var(--accent)' : 'var(--muted)' }}>{st}</div>
-                  <div className="text-[9px] tnum" style={{ color: on ? 'var(--text)' : 'var(--muted)' }}>{on ? '×' + collected[st] : '–'}</div>
-                </div>;
-              })}
-            </div>
-            <div className="text-[9px] text-[#8A8A90] mt-1.5 leading-snug">{just && jcr ? <span><span style={{ color: 'var(--good)' }}>Slept well!</span> A {sdex.lastStyle} <b>{jcr.name}{sdex.lastShiny ? <>{' '}<Spark size={9} /></> : null}</b> joined your dex.</span> : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'}</div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
 // The full buddy detail, moved off Today into the Play hub's Buddy tab: avatar, name, bond, mood, the
 // three need meters and evolution progress, plus naming and the trophy cabinet. The companion strip on
 // Today is the glanceable version; this is where you come to see how your buddy is really doing.
@@ -3039,72 +3001,36 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
 function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
-  const dex = macrodex(db); const caught = Object.keys(dex).length;
-  const items = db.items || {}; const today = Store.todayISO();
-  const boost = (db.dex_boost && db.dex_boost.date === today) ? db.dex_boost : null;
-  const [sel, setSel] = useState(null); const [lurePick, setLurePick] = useState(false); const [trophies, setTrophies] = useState(false);
-  const [view, setView] = useState('buddy'); // Buddy | Catch | Battle | Shop: one sub-view at a time so the hub isn't one long stack
-  const invIds = ITEM_ORDER.filter(id => (items[id] || 0) > 0);
+  const today = Store.todayISO();
+  const [trophies, setTrophies] = useState(false);
+  const [view, setView] = useState('buddy'); // Buddy | Battle | Shop: one sub-view at a time so the hub isn't one long stack
   const amber = Game.amberBalance(db.amber_ledger);
   // Buddy profile for the Buddy tab (same derivation the Today companion uses).
   const bp = buddyProfile(db, streak, Game.buddyView((db.buddy && db.buddy.stage) || 0, streak), buddyLevel(db));
   const freezeReady = Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today);
-  // Buy with Amber: spend appends a negative ledger entry (merge-safe), cosmetics land in buddy.cosmetics
-  // (owned once), consumables in the shared item inventory. A purchase is blocked if you can't afford it.
+  // Buy a cosmetic with Amber: spend appends a negative ledger entry (merge-safe), the cosmetic lands
+  // in buddy.cosmetics (owned once). Blocked if you can't afford it or already own it.
   function buy(id) {
     const price = Game.shopPrice(id); if (price == null) return;
     update(d => {
       d.amber_ledger = d.amber_ledger || [];
       if (Game.amberBalance(d.amber_ledger) < price) return;
-      const cos = Game.COSMETIC_BY_ID[id];
-      if (cos) { d.buddy = d.buddy || {}; d.buddy.cosmetics = d.buddy.cosmetics || []; if (d.buddy.cosmetics.indexOf(id) >= 0) return; d.buddy.cosmetics.push(id); }
-      else { d.items = d.items || {}; d.items[id] = (d.items[id] || 0) + 1; }
+      d.buddy = d.buddy || {}; d.buddy.cosmetics = d.buddy.cosmetics || [];
+      if (d.buddy.cosmetics.indexOf(id) >= 0) return;
+      d.buddy.cosmetics.push(id);
       d.amber_ledger.push({ id: Store.uid(), date: today, delta: -price, reason: 'buy:' + id });
     });
   }
-  function useItem(id, macro) {
-    update(d => {
-      if (!(d.items && d.items[id] > 0)) return;
-      d.items[id]--; if (d.items[id] <= 0) delete d.items[id];
-      const b = (d.dex_boost && d.dex_boost.date === today) ? d.dex_boost : { date: today, lure: null, shiny: false, rare: false };
-      if (id === 'lure') b.lure = macro; if (id === 'golden_steak' || id === 'honest_rex') b.shiny = true; if (id === 'incubator') b.rare = true;
-      d.dex_boost = b;
-    });
-    setLurePick(false);
-  }
-  const cr = sel ? CR_BY_ID[sel] : null; const got = cr ? dex[cr.id] : null;
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
         {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
-        : cr ? (() => {
-          const form = creatureForm(cr, got ? got.count : 0); const rc = CR_RARITY_COLOR[cr.rarity];
-          const cnt = got ? got.count : 0;
-          const nextEvo = cr.evo ? cr.evo.find(e => cnt < e.at) : null;
-          const evoNote = cr.evo ? (nextEvo ? ` · evolves at Lv ${nextEvo.at}` : cnt < 25 ? ' · Elder aura at Lv 25' : cnt < 50 ? ' · Ancient aura at Lv 50' : ' · fully evolved') : '';
-          const bm = BIOMES.find(b => b.id === cr.biome) || {};
-          const migMonths = cr.migratory ? Array.from(new Set(Object.keys(db.catch_log || {}).flatMap(dd => ((db.catch_log || {})[dd] || []).filter(x => x.id === cr.id && x.migratory).map(x => x.migratory)))).sort() : [];
-          return <div className="fade-in">
-            <button onClick={() => setSel(null)} className="text-[11px] text-[#8A8A90] mb-3">‹ Back to dex</button>
-            <div className="flex flex-col items-center text-center">
-              <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: got ? rc : 'var(--border)', borderWidth: 4 }}><div style={got ? crFx(got.shiny, form.aura) : null}>{got ? <Sprite art={form.art} colors={got.shiny ? crShiny(form.colors) : form.colors} px={7} /> : <Sprite art={cr.art} colors={crSilhouette()} px={7} />}</div></div>
-              <div className="text-lg font-bold">{got ? form.name : '???'}{got && got.shiny ? <span style={{ color: 'var(--fat)' }}> <Spark size={9} /></span> : ''}</div>
-              <div className="pf text-[8px] uppercase mt-1" style={{ color: rc }}>{CR_RARITY_LABEL[cr.rarity]}{cr.migratory ? ' · Migratory' : ''} · {bm.name}</div>
-            </div>
-            <div className="pixel-box p-3 mt-4 text-[11px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">How to catch</div>
-              <div className="text-[var(--text2)] leading-snug">{cr.cond}</div>
-            </div>
-            <div className="mt-3 text-[11px] leading-relaxed">{got ? cr.lore : <span className="text-[#8A8A90]">Not yet caught. Meet the condition above on any logged day and it joins your dex, its lore unlocks then.</span>}</div>
-            {got && migMonths.length > 0 && <div className="mt-2 text-[10px]" style={{ color: 'var(--carb)' }}>Migrated through: {migMonths.map(m => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })).join(', ')}</div>}
-            {got && <div className="mt-3 text-[10px] text-[#8A8A90]">Caught <b className="text-[var(--text)]">Lv {got.count}</b>{evoNote}{got.shiny ? <> · <Spark size={9} /> shiny</> : null}</div>}
-          </div>;
-        })() : (<>
+        : (<>
           <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
           {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
-          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['catch', 'Catch'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
           {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} />}
 
@@ -3141,50 +3067,6 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
 
           {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
           {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} />}
-
-          {view === 'catch' && <div className="fade-in">
-            <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Every logged day catches a creature. Tap one for its lore.</div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="pixel-bar flex-1" style={{ height: 14, borderWidth: 2 }}><i style={{ width: Math.round(Math.min(1, caught / CREATURES.length) * 100) + '%', background: 'var(--good)' }} /></div>
-              <div className="pf text-[9px] tnum shrink-0">caught {caught}</div>
-            </div>
-            <DexActiveSection db={db} today={today} />
-            {invIds.length > 0 && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your items</div>
-              {boost && (boost.lure || boost.shiny || boost.rare) && <div className="text-[9px] mb-2" style={{ color: 'var(--good)' }}>Active today:{boost.lure ? ` ${(BIOMES.find(b => b.id === boost.lure) || {}).name} lure` : ''}{boost.rare ? ' · rare boost' : ''}{boost.shiny ? ' · shiny locked' : ''}</div>}
-              <div className="space-y-2">
-                {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
-                  return <div key={id} className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
-                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>USE</button>}
-                  </div>;
-                })}
-              </div>
-              {lurePick && <div className="mt-3 fade-in">
-                <div className="text-[9px] text-[#8A8A90] mb-1.5">Point the lure at a biome for today’s catch:</div>
-                <div className="grid grid-cols-2 gap-1.5">{[['protein', 'Protein'], ['carb', 'Carb'], ['fat', 'Fat'], ['fibre', 'Fibre']].map(([v, l]) => <button key={v} onClick={() => useItem('lure', v)} className="pixel-box py-2 text-[10px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>{l}</button>)}</div>
-              </div>}
-            </div>}
-            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Collection</div>
-            {BIOMES.map(bm => { const list = CREATURES.filter(c => c.biome === bm.id); const done = list.filter(c => dex[c.id]).length; const complete = done === list.length && list.length > 0;
-              return <div key={bm.id} className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="pf text-[9px] uppercase flex items-center gap-1.5" style={{ color: complete ? 'var(--good)' : 'var(--text2)' }}><span style={{ width: 8, height: 8, background: BIOME_COLOR[bm.id], display: 'inline-block' }} />{bm.name}{complete ? <>{' '}<Tick size={9} /></> : null}</div>
-                  <div className="text-[9px] text-[#8A8A90] tnum">{done}/{list.length}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {list.map(c => { const g = dex[c.id]; const form = creatureForm(c, g ? g.count : 0); const rc = CR_RARITY_COLOR[c.rarity]; const strong = g && (c.rarity === 'legendary' || c.rarity === 'mythic' || g.shiny);
-                    return <button key={c.id} onClick={() => setSel(c.id)} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: g ? rc : 'var(--border)', borderWidth: strong ? 4 : 3 }}>
-                      <div className="h-14 flex items-center justify-center" style={g ? crFx(g.shiny, form.aura) : null}>{g ? <Sprite art={form.art} colors={g.shiny ? crShiny(form.colors) : form.colors} px={4} /> : <Sprite art={c.art} colors={crSilhouette()} px={4} />}</div>
-                      <div className="text-[9px] mt-1 truncate w-full">{g ? form.name : '???'}</div>
-                      {g ? <div className="text-[7px] uppercase tracking-wide" style={{ color: g.shiny ? 'var(--fat)' : 'var(--good)' }}>Lv {g.count}{g.shiny ? <>{' '}<Spark size={9} /></> : null}</div>
-                         : <div className="text-[7px] uppercase tracking-wide" style={{ color: rc }}>{CR_RARITY_LABEL[c.rarity]}</div>}
-                    </button>;
-                  })}
-                </div>
-              </div>;
-            })}
-          </div>}
         </>)}
       </div>
     </div>
@@ -4243,18 +4125,6 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
   );
 }
 
-// Breakthrough meter: 7 stamps, one per logged day. Reused on the dashboard card and inside the
-// Macrodex Active section so the two surfaces stay identical.
-function BreakthroughMeter({ state, size = 10 }) {
-  return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: state.goal }).map((_, i) => (
-        <div key={i} className="flex-1 pixel-box" style={{ height: size, boxShadow: 'none', borderWidth: 2, background: i < state.stamps ? 'var(--good)' : 'var(--surface3)', borderColor: i < state.stamps ? 'var(--good)' : 'var(--border)' }} />
-      ))}
-    </div>
-  );
-}
-
 // Hatch-and-name: turn the generic buddy into an individual. Shown from the home strip; on an
 // account with no name yet it reads as "hatching", afterwards as a rename.
 function NameBuddyModal({ db, update, buddy, onClose }) {
@@ -4718,7 +4588,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <CompanionStrip db={db} bp={bp} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
