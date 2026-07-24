@@ -7123,6 +7123,17 @@ async function adminUsage() {
   return await res.json().catch(() => ({ modelUsage: [] }));
 }
 function modelLabel(m) { return !m ? 'Other' : (m.indexOf('haiku') !== -1 ? 'Haiku (label OCR)' : m.indexOf('sonnet') !== -1 ? 'Sonnet (estimates)' : m); }
+// Classify a user's subscription for the admin views. Premium = active/trialing sub; comp = a free
+// grant (plan='comp'); trial = Stripe trial; a canceled row that once paid reads as "churned".
+function userPlanMeta(u) {
+  if (u.premium) {
+    if (u.sub_comp) return { premium: true, key: 'comp', label: 'Comp', color: 'var(--accent)' };
+    if (u.sub_status === 'trialing') return { premium: true, key: 'trial', label: 'Trial', color: 'var(--carb)' };
+    return { premium: true, key: 'paid', label: 'Premium', color: 'var(--good)' };
+  }
+  if (u.sub_status === 'canceled') return { premium: false, key: 'churned', label: 'Churned', color: 'var(--fat)' };
+  return { premium: false, key: 'free', label: 'Free', color: 'var(--muted)' };
+}
 function adminFmtDate(s) { try { return s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'unknown'; } catch (e) { return 'unknown'; } }
 function adminFmtWhen(s) { try { return s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'never'; } catch (e) { return 'unknown'; } }
 
@@ -7348,6 +7359,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
   function resetBattle() { update(d => { d.fight = d.fight || {}; d.fight.lastAttemptDate = null; d.fight.lastBossWeek = null; }); setDevMsg("Done. Today's ladder attempt and this week's boss are available again on your account."); }
   const [users, setUsers] = useState([]); const [defaultCap, setDefaultCap] = useState(1); const [modelUsage, setModelUsage] = useState([]);
   const [q, setQ] = useState(''); const [sel, setSel] = useState(null); const [selLoading, setSelLoading] = useState(false);
+  const [planFilter, setPlanFilter] = useState('all'); // all | premium | free (Users tab)
   const [capInput, setCapInput] = useState(''); const [capBusy, setCapBusy] = useState(false); const [capMsg, setCapMsg] = useState('');
   async function loadList() { setLoading(true); setErr(''); try { const j = await adminCall('list_users'); setUsers(j.users || []); setDefaultCap(j.defaultCap || 1); setCapInput(String(j.defaultCap || 1)); try { const m = await adminUsage(); setModelUsage(m.modelUsage || []); } catch (e) {} } catch (e) { setErr(e.message); } setLoading(false); }
   useEffect(() => { loadList(); }, []);
@@ -7364,7 +7376,17 @@ function AdminPanel({ onBack, adminEmail, update }) {
   const totalSpend = users.reduce((a, u) => a + (u.spend_usd || 0), 0);
   const totalCalls = users.reduce((a, u) => a + (u.calls || 0), 0);
   const overCap = users.filter(u => u.spend_usd >= u.cap_usd && (u.email || '').toLowerCase() !== meLower).length;
-  const filtered = users.filter(u => !q || (u.email || '').toLowerCase().includes(q.toLowerCase())).sort((a, b) => b.spend_usd - a.spend_usd);
+  // Subscription breakdown across all users (drives the Overview stat + Users filter counts).
+  const premiumUsers = users.filter(u => u.premium);
+  const premiumCount = premiumUsers.length;
+  const freeCount = total - premiumCount;
+  const paidCount = premiumUsers.filter(u => userPlanMeta(u).key === 'paid').length;
+  const trialCount = premiumUsers.filter(u => u.sub_status === 'trialing').length;
+  const compCount = premiumUsers.filter(u => u.sub_comp).length;
+  const filtered = users
+    .filter(u => planFilter === 'all' || (planFilter === 'premium' ? u.premium : !u.premium))
+    .filter(u => !q || (u.email || '').toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => (b.premium - a.premium) || (b.spend_usd - a.spend_usd));
 
   return (
     <div className="max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
@@ -7377,9 +7399,17 @@ function AdminPanel({ onBack, adminEmail, update }) {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
             <AdminStat label="Total users" value={total} sub={unconfirmed ? unconfirmed + ' unconfirmed' : 'all confirmed'} />
             <AdminStat label="New · 7 days" value={signups7} sub={active7 + ' active this wk'} />
+            <AdminStat label="Premium" value={premiumCount} sub={total ? Math.round(premiumCount / total * 100) + '% of users' : 'no users yet'} />
             <AdminStat label="AI spend · mo" value={'$' + totalSpend.toFixed(2)} sub={totalCalls + ' call' + (totalCalls === 1 ? '' : 's')} />
-            <AdminStat label="At/over cap" value={overCap} sub="this month" />
           </div>
+          <Section title="Subscriptions" className="mt-6">
+            <Row2 k="Premium (total)" v={premiumCount} />
+            <Row2 k="· Paid (Stripe)" v={paidCount} />
+            <Row2 k="· On trial" v={trialCount} />
+            <Row2 k="· Complimentary" v={compCount} />
+            <Row2 k="Free" v={freeCount} last />
+            <div className="text-[11px] text-[#8A8A90] mt-3">Premium = an active or trialing subscription. Tap into the Users tab and filter by Premium or Free to see exactly who's on each. At/over AI cap this month: {overCap}.</div>
+          </Section>
           {modelUsage.length > 0 && <Section title="Spend by model" className="mt-6">
             <div className="space-y-2">{modelUsage.map(m => (
               <div key={m.model} className="flex items-center justify-between text-[12px]">
@@ -7403,13 +7433,14 @@ function AdminPanel({ onBack, adminEmail, update }) {
         </div>}
         {tab === 'users' && <div className="fade-in">
           <TextInput value={q} onChange={e => setQ(e.target.value)} placeholder="Search by email…" />
+          <div className="flex gap-1 mt-3 overflow-x-auto">{[['all', 'All', total], ['premium', 'Premium', premiumCount], ['free', 'Free', freeCount]].map(([k, l, n]) => <button key={k} onClick={() => setPlanFilter(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${planFilter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l} · {n}</button>)}</div>
           <div className="mt-4 space-y-2">
-            {filtered.map(u => (
+            {filtered.map(u => { const pm = userPlanMeta(u); return (
               <button key={u.id} onClick={() => openUser(u.id)} className="w-full text-left pixel-box p-3 bg-[#1E1E22] active:scale-[.99] transition">
                 <div className="flex justify-between items-center gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{u.email}{u.is_admin && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--pro)', color: '#fff' }}>admin</span>}{u.banned && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--danger)', color: '#fff' }}>suspended</span>}{!u.confirmed && <span className="text-[10px] ml-1.5 px-1 rounded" style={{ background: 'var(--fat)', color: '#fff' }}>unconfirmed</span>}</div>
-                    <div className="text-[11px] text-[#8A8A90]">{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</div>
+                    <div className="text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"><span className="pf text-[7px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-[12px] tnum" style={{ color: u.spend_usd >= u.cap_usd ? 'var(--danger)' : 'var(--muted)' }}>${u.spend_usd.toFixed(2)}/${u.cap_usd.toFixed(2)}</div>
@@ -7417,8 +7448,8 @@ function AdminPanel({ onBack, adminEmail, update }) {
                   </div>
                 </div>
               </button>
-            ))}
-            {!filtered.length && <div className="text-[12px] text-[#8A8A90] mt-4">No matching users.</div>}
+            ); })}
+            {!filtered.length && <div className="text-[12px] text-[#8A8A90] mt-4">{q || planFilter !== 'all' ? 'No users match this filter.' : 'No users yet.'}</div>}
           </div>
         </div>}
         {tab === 'support' && <AdminSupport />}

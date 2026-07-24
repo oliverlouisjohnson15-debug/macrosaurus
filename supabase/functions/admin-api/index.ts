@@ -74,19 +74,23 @@ Deno.serve(async (req) => {
         const { data: list, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
         if (error) throw error;
         const p = period();
-        const [{ data: states }, { data: usages }, { data: limits }, { data: admins }, defCap] = await Promise.all([
+        const [{ data: states }, { data: usages }, { data: limits }, { data: admins }, { data: subs }, defCap] = await Promise.all([
           admin.from('user_state').select('user_id, data, updated_at'),
           admin.from('ai_usage').select('user_id, spend_usd, calls').eq('period', p),
           admin.from('user_limits').select('user_id, monthly_cap_usd'),
           admin.from('admins').select('user_id'),
+          admin.from('subscriptions').select('user_id, status, plan, current_period_end, cancel_at_period_end'),
           defaultCap(admin),
         ]);
         const sMap = new Map((states || []).map((r: any) => [r.user_id, r]));
         const uMap = new Map((usages || []).map((r: any) => [r.user_id, r]));
         const lMap = new Map((limits || []).map((r: any) => [r.user_id, r]));
         const aSet = new Set((admins || []).map((r: any) => r.user_id));
+        const subMap = new Map((subs || []).map((r: any) => [r.user_id, r]));
         const users = list.users.map((u: any) => {
           const st = sMap.get(u.id); const prof = st?.data?.profile || null;
+          const sub = subMap.get(u.id) || null;
+          const premium = !!sub && (sub.status === 'active' || sub.status === 'trialing');
           return {
             id: u.id, email: u.email,
             created_at: u.created_at, last_sign_in_at: u.last_sign_in_at,
@@ -96,6 +100,11 @@ Deno.serve(async (req) => {
             spend_usd: Number(uMap.get(u.id)?.spend_usd ?? 0),
             calls: Number(uMap.get(u.id)?.calls ?? 0),
             cap_usd: lMap.has(u.id) ? Number(lMap.get(u.id).monthly_cap_usd) : defCap,
+            premium,
+            sub_status: sub?.status ?? null,
+            sub_plan: sub?.plan ?? null,
+            sub_comp: sub?.plan === 'comp',
+            sub_cancel_at_period_end: !!sub?.cancel_at_period_end,
           };
         });
         return json({ users, period: p, defaultCap: defCap });
