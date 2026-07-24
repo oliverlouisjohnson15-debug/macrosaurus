@@ -2634,7 +2634,6 @@ const CR_BY_ID = {}; CREATURES.forEach(c => CR_BY_ID[c.id] = c);
 // The evolved form of a creature at a given re-catch count (levels): picks the highest unlocked
 // stage. Post-17 content: evo lines gain an Elder (Lv25) and Ancient (Lv50) aura tier, rendered
 // as a glow on the top sprite rather than new pixel art.
-function creatureForm(cr, count) { if (!cr) return null; let f = { name: cr.name, art: cr.art, colors: cr.colors, aura: null }; if (cr.evo) { cr.evo.forEach(e => { if ((count || 0) >= e.at) f = { name: e.name, art: e.art || cr.art, colors: e.colors || cr.colors, aura: null }; }); if ((count || 0) >= 50) { f.aura = 'gold'; f.name = 'Ancient ' + f.name; } else if ((count || 0) >= 25) { f.aura = 'silver'; f.name = 'Elder ' + f.name; } } return f; }
 // Combined sprite glow: shiny, the Lv25/Lv50 aura tiers, and the day/night evolution path.
 function crFx(shiny, aura, affinity) { const fx = []; if (shiny) fx.push('drop-shadow(0 0 5px var(--fat))'); if (aura === 'silver') fx.push('drop-shadow(0 0 4px #cfd6e0)'); if (aura === 'gold') fx.push('drop-shadow(0 0 6px #FFD400)'); if (affinity === 'day') fx.push('drop-shadow(0 0 5px rgba(255,201,84,0.85))'); if (affinity === 'night') fx.push('drop-shadow(0 0 5px rgba(126,156,255,0.9))'); return fx.length ? { filter: fx.join(' ') } : null; }
 // Day/night path display: badge glyph, colour and label (set at evolution, reflects when you eat).
@@ -2662,12 +2661,11 @@ function buddyLevel(db) {
   for (let i = 0; i < dates.length && n < 60; i++) { const d = dates[i]; if (!seen[d]) { seen[d] = 1; if (isQualityDay(db, d)) n++; } }
   return n;
 }
-// The species the buddy is raised from: the creature you've caught most that has an evolution
-// line (the one you've bonded with), falling back to Dinky, the day-one hatchling.
+// The species the buddy is raised from. With the Macrodex removed there is no "most-caught"
+// creature to derive it from, so it's simply Dinky, the day-one hatchling. (The whole species/evo
+// axis is retired in the buddy-central phase, where the buddy renders from the new sprite art.)
 function buddySpeciesId(db) {
-  const dex = macrodex(db); let best = null, bestCount = -1;
-  Object.keys(dex).forEach(id => { const cr = CR_BY_ID[id]; if (cr && cr.evo && cr.evo.length && (dex[id].count || 0) > bestCount) { best = id; bestCount = dex[id].count || 0; } });
-  return best || 'dinky';
+  return 'dinky';
 }
 // ---- Shared item system (earned from streaks, perfect weeks, biome sets and boss/ladder wins) ----
 const ITEMS = {
@@ -2752,63 +2750,6 @@ function readinessInputsFor(db, dateISO) {
   return inp;
 }
 function readinessFor(db, dateISO) { return Game.readinessScore(readinessInputsFor(db, dateISO)); }
-// Egg "distance" (Pokemon GO style: walk to hatch). A day moves the egg along if it was a quality
-// day OR a day you hit your step goal, counted once per date so it can never exceed one step a day.
-function incubationDaysAfter(db, afterISO, throughISO) { let n = 0, d = shiftISO(afterISO, 1), g = 0; while (d <= throughISO && g < 400) { if (isQualityDay(db, d) || isStepGoalDay(db, d)) n++; d = shiftISO(d, 1); g++; } return n; }
-function creatureForDay(db, date) {
-  const q = dayQuality(db, date); if (!q) return null;
-  const h = Game.seedFor(db.game_salt || '', date); // per-user roll; empty salt matches the legacy date-only hash
-  const boost = (db.dex_boost && db.dex_boost.date === date) ? db.dex_boost : null;
-  let pool = ['nugg', 'dinky', 'pebble'];
-  if (q.proteinHit) pool.push('protops');
-  if (q.proteinHit && q.kcalIn) pool.push('flexor');
-  if (q.carbHit) pool.push('carbo');
-  if (q.carbHit && q.fiberHit) pool.push('noodon');
-  if (q.fatHit) pool.push('fatzilla');
-  if (q.fatHit && q.kcalIn) pool.push('buttron');
-  if (q.fiberHit) pool.push('sprowl');
-  if (q.fiberHit && q.proteinHit) pool.push('frondo');
-  if (q.perfect) pool = pool.concat(['veloci', 'platealon', 'triceros']);
-  if (q.perfect && h % 14 === 0) pool.push('rexosaur');
-  if (q.perfect && perfectDaysIn(db, date, 7) >= 5) pool.push('aurora');
-  if (q.perfect && streakEndingOn(db, date) >= 30) pool.push('chronos');
-  // Item boosts narrow the pool: Incubator forces rare+, Lure favours a chosen biome.
-  let sub = null;
-  if (boost && boost.rare) { const r = pool.filter(id => RARITY_RANK[CR_BY_ID[id].rarity] >= 2); if (r.length) sub = r; }
-  if (!sub && boost && boost.lure) { const l = pool.filter(id => CR_BY_ID[id].biome === boost.lure); if (l.length) sub = l; }
-  const from = sub || pool;
-  const id = from[h % from.length];
-  const shiny = (q.perfect && h % 11 === 0) || !!(boost && boost.shiny && q.perfect);
-  return { id: id, shiny: shiny };
-}
-// The creature a day displays. Past days always render from the persisted catch_log (locked at
-// first record, so editing old food never changes a caught creature); only TODAY renders the
-// live provisional roll, which can still upgrade until the day ends.
-function catchForDay(db, date) {
-  const today = Store.todayISO();
-  if (date === today) { const c = creatureForDay(db, date); if (c) return c; }
-  const arr = (db.catch_log || {})[date] || [];
-  if (arr.length) { const main = arr.filter(x => !x.migratory); const pick = main.length ? main[main.length - 1] : arr[arr.length - 1]; return { id: pick.id, shiny: !!pick.shiny }; }
-  if (date === today) return null;
-  return creatureForDay(db, date); // legacy fallback until the persist effect backfills catch_log
-}
-function macrodex(db) {
-  const caught = {};
-  const cl = db.catch_log || {};
-  const dates = Object.keys(cl);
-  if (dates.length) {
-    // Read from the persisted catch log so a creature you've caught stays caught, even if you later edit that day's food.
-    dates.sort().forEach(d => (cl[d] || []).forEach(c => {
-      const cur = caught[c.id] || { count: 0, shiny: false, firstDate: d };
-      cur.count++; if (c.shiny) cur.shiny = true; caught[c.id] = cur;
-    }));
-  } else {
-    // Fallback for accounts logged before catch_log existed (until the persist effect backfills it).
-    const seen = {}; db.log_entries.forEach(e => { seen[e.date] = true; });
-    Object.keys(seen).sort().forEach(d => { const c = creatureForDay(db, d); if (!c) return; const cur = caught[c.id] || { count: 0, shiny: false, firstDate: d }; cur.count++; if (c.shiny) cur.shiny = true; caught[c.id] = cur; });
-  }
-  return caught;
-}
 const BUDDY_STAGES = [
   { min: 0, name: 'Dozing Egg', art: 'egg', colors: crC('#EAD9A0', '#C77D3A') },
   { min: 1, name: 'Hatchling', art: 'hatch', colors: crC('#7FD46B', '#3f8e2f') },
@@ -3044,11 +2985,10 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
 // Trophy cabinet: trophies won, shiny gallery, streak records and the badge tracks.
 function TrophyCabinet({ db, streak, onBack }) {
   useBackClose(onBack);
-  const items = db.items || {}; const dex = macrodex(db);
+  const items = db.items || {};
   const badges = db.badges || { checkins: 0, inRange: 0 };
   const longest = Math.max((db.records && db.records.longestStreak) || 0, streak || 0);
-  const shinies = CREATURES.filter(c => dex[c.id] && dex[c.id].shiny);
-  const trophyIds = ['amber', 'belt', 'medal'].filter(id => (items[id] || 0) > 0);
+  const trophyIds = ['amber', 'belt'].filter(id => (items[id] || 0) > 0);
   const Track = ({ label, count, hint }) => {
     const t = Game.badgeTier(count);
     return <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -3058,7 +2998,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     </div>;
   };
   return <div className="fade-in">
-    <button onClick={onBack} className="text-[11px] text-[#8A8A90] mb-3">‹ Back to dex</button>
+    <button onClick={onBack} className="text-[11px] text-[#8A8A90] mb-3">‹ Back</button>
     <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={16} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
@@ -3074,14 +3014,7 @@ function TrophyCabinet({ db, streak, onBack }) {
         <PixelGlyph kind="trophy" color="var(--fat)" size={18} />
         <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{items[id]}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
       </div>; })}</div>
-      : <div className="text-[10px] text-[#8A8A90] mb-4">No trophies yet. Beat the weekly boss for Amber, clear the ladder for the Champion Belt, complete a biome for a Medal.</div>}
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Shiny gallery</div>
-    {shinies.length ? <div className="grid grid-cols-3 gap-2">{shinies.map(c => { const g = dex[c.id]; const form = creatureForm(c, g.count);
-      return <div key={c.id} className="pixel-box p-2 flex flex-col items-center text-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
-        <div className="h-14 flex items-center justify-center" style={crFx(true, form.aura)}><Sprite art={form.art} colors={crShiny(form.colors)} px={4} /></div>
-        <div className="text-[9px] mt-1 truncate w-full">{form.name} <span style={{ color: 'var(--fat)' }}><Spark size={9} /></span></div>
-      </div>; })}</div>
-      : <div className="text-[10px] text-[#8A8A90]">No shinies yet. A perfect macro day has a chance to gleam gold.</div>}
+      : <div className="text-[10px] text-[#8A8A90] mb-4">No trophies yet. Beat the weekly boss for Amber and clear the ladder for the Champion Belt.</div>}
   </div>;
 }
 // The Amber shop: spend hard-won currency on buddy cosmetics (shown on your buddy) and catch boosts
@@ -4675,7 +4608,6 @@ function FoodLog({ db, update, openLog, showToast }) {
         <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
           <button key={i} onClick={() => { setDate(c); setShowCal(false); }} className={`aspect-square rounded-lg text-[12px] tnum flex flex-col items-center justify-center relative ${c === date ? 'bg-white text-black font-bold' : c === today ? 'bg-[#1E1E22] text-white' : c > today ? 'text-[#8A8A90]' : 'text-[#C9C9CF]'}`}>
             {new Date(c + 'T00:00:00').getDate()}
-            {logSet.has(c) && (() => { const cd = catchForDay(db, c); const cr = cd && CR_BY_ID[cd.id]; return cr ? <span className="absolute -bottom-0.5 right-0"><Sprite art={cr.art} colors={cd.shiny ? crShiny(cr.colors) : cr.colors} px={1.4} /></span> : null; })()}
           </button>) : <div key={i} />)}</div>
       </Card>}
 
@@ -7452,33 +7384,7 @@ function stateRev(d) { return (d && d._rev) || 0; }
 function tombstone(d, ids) { d.deleted = d.deleted || {}; var t = Date.now(); ids.forEach(function (id) { if (id != null) d.deleted[id] = t; }); }
 function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id) { if (id != null) delete d.deleted[id]; }); }
 
-// Brief egg-crack reveal of the day's provisional catch after the FIRST food log of the day.
-// Non-blocking (pointer-events pass through) and gone in under 1.5s.
-function CatchReveal({ c }) {
-  const [cracked, setCracked] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setCracked(true), 550); return () => clearTimeout(t); }, []);
-  const cr = CR_BY_ID[c.id]; if (!cr) return null;
-  // A choreographed notification, not a random centre pop: it slides up from the bottom like a toast,
-  // the egg wobbles, then the creature settles into place.
-  return (
-    <div className="fixed left-0 right-0 z-[70] flex justify-center px-4 pointer-events-none" style={{ bottom: 96 }}>
-      <div className="pixel-box px-4 py-3 flex items-center gap-3 sheet-up" style={{ background: 'var(--surface3)' }}>
-        {cracked
-          ? <>
-              <div className="crpop shrink-0" style={crFx(c.shiny, null)}><Sprite art={cr.art} colors={c.shiny ? crShiny(cr.colors) : cr.colors} px={5} /></div>
-              <div className="min-w-0">
-                <div className="pf text-[8px] uppercase text-[#8A8A90] mb-0.5">Catch on the line</div>
-                <div className="pf text-[10px]" style={{ color: CR_RARITY_COLOR[cr.rarity] }}>{cr.name}{c.shiny ? <>{' '}<Spark size={9} /></> : null}</div>
-              </div>
-            </>
-          : <>
-              <div className="crwobble shrink-0"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={5} /></div>
-              <div className="text-[10px] text-[#8A8A90]">Something's hatching...</div>
-            </>}
-      </div>
-    </div>
-  );
-}
+// (CatchReveal removed with the Macrodex: logging no longer reveals a "catch".)
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -8973,8 +8879,6 @@ function App() {
   const toastTimer = useRef(null);
   const entryHandled = useRef(false);
   const ghHandled = useRef(false);
-  const [reveal, setReveal] = useState(null);
-  const revealTimer = useRef(null);
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
@@ -8990,23 +8894,6 @@ function App() {
     });
     toastTimer.current = setTimeout(() => setToast(null), 5000);
   }
-  // Celebrate the day's catch in the logging flow: an egg-crack reveal on the FIRST log of the
-  // day, and an "upgraded" toast when a later log improves the provisional catch.
-  function celebrateCatch(dateISO, newEntries) {
-    if (!db || dateISO !== Store.todayISO()) return;
-    const before = creatureForDay(db, dateISO);
-    const sim = Object.assign({}, db, { log_entries: db.log_entries.concat(newEntries) });
-    const after = creatureForDay(sim, dateISO);
-    if (!after) return;
-    if (!before) {
-      clearTimeout(revealTimer.current);
-      setReveal({ id: after.id, shiny: !!after.shiny });
-      revealTimer.current = setTimeout(() => setReveal(null), 1450);
-    } else if (before.id !== after.id && RARITY_RANK[CR_BY_ID[after.id].rarity] >= RARITY_RANK[CR_BY_ID[before.id].rarity]) {
-      showToast("Today's catch upgraded: " + CR_BY_ID[after.id].name + '!');
-    }
-  }
-
   const themePref = (db && db.profile && db.profile.theme) === 'dark' ? 'dark' : 'light';
   useEffect(() => {
     const el = document.documentElement;
@@ -9305,7 +9192,6 @@ function App() {
     const entryId = Store.uid();
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
     const macros = normalizeMacros(item.macros, item.is_alcohol);
-    celebrateCatch(date, [{ date, computed_macros: macros, is_alcohol: !!item.is_alcohol }]);
     update(d => {
       d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, computed_macros: macros, sort_order: d.log_entries.length });
       const key = item.name.trim().toLowerCase(); let food = d.foods.find(x => x.name.trim().toLowerCase() === key && !!x.is_alcohol === !!item.is_alcohol);
@@ -9348,7 +9234,6 @@ function App() {
   function addMeal(date, mealId, items) {
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
-    celebrateCatch(date, items.map(item => ({ date, computed_macros: normalizeMacros(item.macros, item.is_alcohol), is_alcohol: !!item.is_alcohol })));
     update(d => {
       items.forEach((item, i) => d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', computed_macros: normalizeMacros(item.macros, item.is_alcohol), sort_order: d.log_entries.length + i }));
     });
@@ -9381,7 +9266,6 @@ function App() {
     }
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
-    celebrateCatch(date, items.map(it => ({ date, computed_macros: normalizeMacros(it.macros, false), is_alcohol: false })));
     update(d => {
       items.forEach((it, i) => {
         const macros = normalizeMacros(it.macros, false);
@@ -9462,7 +9346,6 @@ function App() {
       {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} />
-      {reveal && <CatchReveal c={reveal} />}
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
     </div>
   );
