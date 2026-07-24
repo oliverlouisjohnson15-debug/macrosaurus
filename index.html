@@ -3049,7 +3049,9 @@ const PX_ICONS = {
   glove: ['.###..', '#####.', '######', '######', '.####.', '.####.'],
   trophy: ['#.##.#', '######', '.####.', '..##..', '..##..', '.####.'],
   cup: ['######', '#....#', '#....#', '.####.', '.####.', '..##..'],
-  snow: ['#.#.#.', '.###..', '######', '.###..', '#.#.#.', '..#...']
+  snow: ['#.#.#.', '.###..', '######', '.###..', '#.#.#.', '..#...'],
+  check: ['......', '.....#', '....##', '#..##.', '.###..', '..#...'],
+  star: ['#.##.#', '.####.', '######', '######', '.####.', '#.##.#']
 };
 function foodKind(name, isAlc) {
   if (isAlc) return 'drink';
@@ -3090,6 +3092,42 @@ function PixelGlyph({
       shapeRendering: 'crispEdges'
     }
   }, rects);
+}
+// Inline pixel glyphs for use inside running text, replacing the Unicode ✓/✦ (which Press Start 2P
+// lacks and the browser renders in a fallback font). They inherit the surrounding text colour.
+function Tick({
+  size = 11,
+  style
+}) {
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'inline-block',
+      verticalAlign: 'middle',
+      lineHeight: 0,
+      ...style
+    }
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "check",
+    color: "currentColor",
+    size: size
+  }));
+}
+function Spark({
+  size = 11,
+  style
+}) {
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'inline-block',
+      verticalAlign: 'middle',
+      lineHeight: 0,
+      ...style
+    }
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "star",
+    color: "currentColor",
+    size: size
+  }));
 }
 // The Macrosaurus mascot: an original multi-colour pixel dino, our brand logo, drawn in the
 // same crisp sprite style as the Macrodex creatures. `color` is accepted for call-site
@@ -5406,7 +5444,9 @@ function MacroSummaryCard({
     style: {
       color: fibreOk ? 'var(--good)' : 'var(--muted)'
     }
-  }, "FIBRE ", Math.round(tot.fiber), " / ", ft.min, "g", fibreOk ? ' ✓' : ` · ${ft.min - Math.round(tot.fiber)} to go`));
+  }, "FIBRE ", Math.round(tot.fiber), " / ", ft.min, "g", fibreOk ? /*#__PURE__*/React.createElement(React.Fragment, null, ' ', /*#__PURE__*/React.createElement(Tick, {
+    size: 10
+  })) : ` · ${ft.min - Math.round(tot.fiber)} to go`));
 }
 const DINO_QUOTES = ['"KEEP HUNTING! YOUR GOALS ARE WITHIN REACH. DINO-MITE!"', '"EAT YOUR PROTEIN OR GO EXTINCT."', '"SMALL BITES, BIG GAINS. RAWR."', '"THE SCALE WOBBLES DAILY. THE TREND IS WHAT ROARS."', '"STAY CONSISTENT, STAY PREHISTORIC."', '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."'];
 // Motivating (not scolding) lines when a user reports an off-plan week, keeps the dino on their side.
@@ -7790,7 +7830,9 @@ function CheckInModal({
       style: {
         color: 'var(--fat)'
       }
-    }, " ✦ shiny") : '', " joined your dex"), /*#__PURE__*/React.createElement("div", {
+    }, " ", /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    }), " shiny") : '', " joined your dex"), /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] leading-snug"
     }, "Showing up for the check-in is the win, whatever the scale said.")));
   })(), result.estimate && /*#__PURE__*/React.createElement("div", {
@@ -7952,7 +7994,9 @@ function CheckInModal({
     onClick: onClose
   }, "Done"), result.accepted && /*#__PURE__*/React.createElement("div", {
     className: "text-[#34D399] text-sm mt-3"
-  }, "✓ New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Tick, {
+    size: 11
+  }), " New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Compares this cycle's average weight to the previous one, so one odd morning never throws it off."), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
@@ -10103,7 +10147,9 @@ function DexActiveSection({
     style: {
       color: 'var(--fat)'
     }
-  }, " ✦") : ''), /*#__PURE__*/React.createElement("div", {
+  }, " ", /*#__PURE__*/React.createElement(Spark, {
+    size: 9
+  })) : ''), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase",
     style: {
       color: CR_RARITY_COLOR[tcr.rarity]
@@ -10140,7 +10186,9 @@ function DexActiveSection({
     style: {
       color: 'var(--good)'
     }
-  }, "Breakthrough! "), /*#__PURE__*/React.createElement("b", null, btCr.name, bt.lastShiny ? ' ✦' : ''), " joined your dex.")) : /*#__PURE__*/React.createElement("div", {
+  }, "Breakthrough! "), /*#__PURE__*/React.createElement("b", null, btCr.name, bt.lastShiny ? /*#__PURE__*/React.createElement(React.Fragment, null, ' ', /*#__PURE__*/React.createElement(Spark, {
+    size: 9
+  })) : null), " joined your dex.")) : /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mt-1.5"
   }, "Log ", btState.toNext, " more ", btState.toNext === 1 ? 'day' : 'days', " for a guaranteed rare+ catch.")), expCr && /*#__PURE__*/React.createElement("div", {
     className: panel + ' mb-2',
@@ -10244,7 +10292,9 @@ function DexActiveSection({
     style: {
       color: 'var(--good)'
     }
-  }, "Hatched!"), " ", /*#__PURE__*/React.createElement("b", null, eggCr.name, eggs.lastShiny ? ' ✦' : ''), " joined your dex.") : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.')))), (() => {
+  }, "Hatched!"), " ", /*#__PURE__*/React.createElement("b", null, eggCr.name, eggs.lastShiny ? /*#__PURE__*/React.createElement(React.Fragment, null, ' ', /*#__PURE__*/React.createElement(Spark, {
+    size: 9
+  })) : null), " joined your dex.") : eggProg.toGo === 0 ? 'Ready to hatch on your next quality or step-goal day.' : eggProg.toGo + ' ' + (eggProg.toGo === 1 ? 'day' : 'days') + ' to hatch. Each quality day (hit protein, land calories) or day you hit your step goal moves it along.')))), (() => {
     // Sleep styles: a Pokemon Sleep style style-dex. A creature caught from a night's sleep carries
     // one of three styles; collect all three of each. Counts come from the style tags on catches.
     const collected = {};
@@ -10297,7 +10347,9 @@ function DexActiveSection({
       style: {
         color: 'var(--good)'
       }
-    }, "Slept well!"), " A ", sdex.lastStyle, " ", /*#__PURE__*/React.createElement("b", null, jcr.name, sdex.lastShiny ? ' ✦' : ''), " joined your dex.") : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'));
+    }, "Slept well!"), " A ", sdex.lastStyle, " ", /*#__PURE__*/React.createElement("b", null, jcr.name, sdex.lastShiny ? /*#__PURE__*/React.createElement(React.Fragment, null, ' ', /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    })) : null), " joined your dex.") : 'Sleep well with Google Health connected and a creature gathers each morning. Better sleep draws rarer ones.'));
   })());
 }
 // The full buddy detail, moved off Today into the Play hub's Buddy tab: avatar, name, bond, mood, the
@@ -10545,7 +10597,9 @@ function MacrodexModal({
       style: {
         color: 'var(--fat)'
       }
-    }, " ✦") : ''), /*#__PURE__*/React.createElement("div", {
+    }, " ", /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    })) : ''), /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase mt-1",
       style: {
         color: rc
@@ -10576,7 +10630,9 @@ function MacrodexModal({
       className: "mt-3 text-[10px] text-[#8A8A90]"
     }, "Caught ", /*#__PURE__*/React.createElement("b", {
       className: "text-[var(--text)]"
-    }, "Lv ", got.count), evoNote, got.shiny ? ' · ✦ shiny' : ''));
+    }, "Lv ", got.count), evoNote, got.shiny ? /*#__PURE__*/React.createElement(React.Fragment, null, " · ", /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    }), " shiny") : null));
   })() : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-3"
   }, /*#__PURE__*/React.createElement("h2", {
@@ -10631,7 +10687,9 @@ function MacrodexModal({
       style: {
         color: edge
       }
-    }, beaten ? 'Boss beaten this week ✓' : "This week's boss"), /*#__PURE__*/React.createElement("div", {
+    }, beaten ? /*#__PURE__*/React.createElement(React.Fragment, null, "Boss beaten this week ", /*#__PURE__*/React.createElement(Tick, {
+      size: 9
+    })) : "This week's boss"), /*#__PURE__*/React.createElement("div", {
       className: "text-[13px] font-bold truncate"
     }, boss.name), /*#__PURE__*/React.createElement("div", {
       className: "text-[9.5px] text-[#8A8A90] leading-snug mt-0.5"
@@ -10754,7 +10812,9 @@ function MacrodexModal({
         background: BIOME_COLOR[bm.id],
         display: 'inline-block'
       }
-    }), bm.name, complete ? ' ✓' : ''), /*#__PURE__*/React.createElement("div", {
+    }), bm.name, complete ? /*#__PURE__*/React.createElement(React.Fragment, null, ' ', /*#__PURE__*/React.createElement(Tick, {
+      size: 9
+    })) : null), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] tnum"
     }, done, "/", list.length)), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-3 gap-2"
@@ -10791,7 +10851,9 @@ function MacrodexModal({
         style: {
           color: g.shiny ? 'var(--fat)' : 'var(--good)'
         }
-      }, "Lv ", g.count, g.shiny ? ' ✦' : '') : /*#__PURE__*/React.createElement("div", {
+      }, "Lv ", g.count, g.shiny ? /*#__PURE__*/React.createElement(React.Fragment, null, ' ', /*#__PURE__*/React.createElement(Spark, {
+        size: 9
+      })) : null) : /*#__PURE__*/React.createElement("div", {
         className: "text-[7px] uppercase tracking-wide",
         style: {
           color: rc
@@ -10961,7 +11023,9 @@ function TrophyCabinet({
       style: {
         color: 'var(--fat)'
       }
-    }, "✦")));
+    }, /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    }))));
   })) : /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
   }, "No shinies yet. A perfect macro day has a chance to gleam gold."));
@@ -11020,7 +11084,9 @@ function ShopView({
         color: afford ? '#1a1400' : 'var(--muted)',
         opacity: afford ? 1 : 0.7
       }
-    }, "✦ ", price));
+    }, /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    }), " ", price));
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -11034,7 +11100,9 @@ function ShopView({
     style: {
       color: 'var(--fat)'
     }
-  }, "✦ ", amber, " Amber")), /*#__PURE__*/React.createElement("h2", {
+  }, /*#__PURE__*/React.createElement(Spark, {
+    size: 9
+  }), " ", amber, " Amber")), /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-1"
   }, "Amber Shop"), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-4 leading-snug"
@@ -11050,15 +11118,18 @@ function ShopView({
     price: c.price,
     preview: c.kind === 'aura' ? /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 18,
         filter: 'drop-shadow(0 0 5px #ff7a1a)'
       }
-    }, "✦") : /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement(Spark, {
+      size: 18
+    })) : /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 20,
         lineHeight: 1
       }
-    }, COSMETIC_EMOJI[c.id] || '✦'),
+    }, COSMETIC_EMOJI[c.id] || /*#__PURE__*/React.createElement(Spark, {
+      size: 16
+    })),
     ownedLabel: owned.indexOf(c.id) >= 0 ? 'OWNED' : null
   }))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
@@ -11848,7 +11919,9 @@ function FightModal({
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px]"
-  }, useSpecial ? '✦ Special armed · +30% ATK' : 'Unleash perfect-day Special · +30% ATK'))), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
+  }, useSpecial ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Spark, {
+    size: 8
+  }), " Special armed · +30% ATK") : 'Unleash perfect-day Special · +30% ATK'))), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full mb-3.5",
     onClick: prestige
@@ -11915,7 +11988,9 @@ function FightModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "✦ ", dailyAmber, " Amber"), ". A new hunt roams in tomorrow.")), dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
+  }, /*#__PURE__*/React.createElement(Spark, {
+    size: 9
+  }), " ", dailyAmber, " Amber"), ". A new hunt roams in tomorrow.")), dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full inline-flex items-center justify-center gap-2",
     onClick: () => start(daily, 'daily')
@@ -11936,7 +12011,9 @@ function FightModal({
       boxShadow: 'none',
       color: 'var(--good)'
     }
-  }, "Hunt cleared today ✓ A fresh one lands tomorrow.")), (() => {
+  }, "Hunt cleared today ", /*#__PURE__*/React.createElement(Tick, {
+    size: 9
+  }), " A fresh one lands tomorrow.")), (() => {
     const s = fighter.stats;
     const rows = [{
       label: 'Protein',
@@ -12072,7 +12149,9 @@ function FightModal({
     style: {
       color: 'var(--fat)'
     }
-  }, "✦ +", amberEarned, " Amber"), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Spark, {
+    size: 11
+  }), " +", amberEarned, " Amber"), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-3",
     style: {
       color: 'var(--good)'
@@ -12495,7 +12574,9 @@ function StepsSleepCard({
     }, "Health sync coming soon"));
   }
   const coach = recoveryCoachLine(db, today);
-  const moveBig = synced ? stepGoal > 0 ? goalHit ? '✓' : stepPct : '–' : '–';
+  const moveBig = synced ? stepGoal > 0 ? goalHit ? /*#__PURE__*/React.createElement(Tick, {
+    size: 12
+  }) : stepPct : '–' : '–';
   const sleepBig = night ? hasScore ? score : sHrsLabel : '–';
   const readyBig = readiness != null ? readiness : '–';
   const Chip = (k, v, c) => /*#__PURE__*/React.createElement("span", {
@@ -12570,7 +12651,9 @@ function StepsSleepCard({
     style: {
       color: 'var(--good)'
     }
-  }, "✓ Synced") : ghConfigured() ? /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement(Tick, {
+    size: 8
+  }), " Synced") : ghConfigured() ? /*#__PURE__*/React.createElement("button", {
     onClick: ghConnectGated,
     className: "pf text-[7px] uppercase",
     style: {
@@ -12587,7 +12670,9 @@ function StepsSleepCard({
     label: "Move",
     fill: stepGoal > 0 && synced ? stepPct : null,
     color: "var(--good)",
-    big: synced ? stepGoal > 0 ? goalHit ? '✓' : stepPct : '–' : '–',
+    big: synced ? stepGoal > 0 ? goalHit ? /*#__PURE__*/React.createElement(Tick, {
+      size: 22
+    }) : stepPct : '–' : '–',
     status: goalHit ? 'Goal hit' : synced && stepGoal > 0 && todaySteps > 0 ? stepPct + '%' : '',
     sub: synced ? todaySteps ? kShort(todaySteps) + (stepGoal > 0 ? ' / ' + kShort(stepGoal) : '') : 'No steps yet' : 'Not connected',
     onTap: () => setSheet('move')
@@ -13164,7 +13249,9 @@ function GoogleHealthDisclosure({
     style: {
       color: 'var(--accent)'
     }
-  }, "✓"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Tick, {
+    size: 12
+  })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold"
@@ -13734,7 +13821,9 @@ function DashStatusStrip({
     style: {
       color: 'var(--fat)'
     }
-  }, "✦ ", /*#__PURE__*/React.createElement("b", {
+  }, /*#__PURE__*/React.createElement(Spark, {
+    size: 9
+  }), " ", /*#__PURE__*/React.createElement("b", {
     className: "tnum"
   }, amber))), /*#__PURE__*/React.createElement("span", {
     className: "pf uppercase shrink-0",
@@ -19578,7 +19667,9 @@ function SaveBar({
       opacity: dirty || saved ? 1 : .5
     },
     onClick: onSave
-  }, saved ? '✓ Saved' : label || 'Save changes'));
+  }, saved ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Tick, {
+    size: 11
+  }), " Saved") : label || 'Save changes'));
 }
 const COACH_MODES = [{
   v: 'coached',
@@ -23543,7 +23634,9 @@ function CatchReveal({
     style: {
       color: CR_RARITY_COLOR[cr.rarity]
     }
-  }, cr.name, c.shiny ? ' ✦' : ''))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, cr.name, c.shiny ? /*#__PURE__*/React.createElement(React.Fragment, null, ' ', /*#__PURE__*/React.createElement(Spark, {
+    size: 9
+  })) : null))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "crwobble shrink-0"
   }, /*#__PURE__*/React.createElement(Sprite, {
     art: "egg",
@@ -23914,7 +24007,9 @@ function OnboardingChecklist({
       background: it.done ? 'var(--good)' : 'transparent',
       color: '#fff'
     }
-  }, it.done ? '✓' : ''), /*#__PURE__*/React.createElement("span", {
+  }, it.done ? /*#__PURE__*/React.createElement(Tick, {
+    size: 12
+  }) : null), /*#__PURE__*/React.createElement("span", {
     className: "text-[13px] flex-1 min-w-0",
     style: {
       color: it.done ? 'var(--muted)' : 'var(--text)',
@@ -24830,7 +24925,9 @@ function CookMode({
       background: checked[ing.id] ? 'var(--good)' : 'transparent',
       color: '#fff'
     }
-  }, checked[ing.id] ? '✓' : ''), /*#__PURE__*/React.createElement("span", {
+  }, checked[ing.id] ? /*#__PURE__*/React.createElement(Tick, {
+    size: 12
+  }) : null), /*#__PURE__*/React.createElement("span", {
     className: "text-[14px]",
     style: {
       color: checked[ing.id] ? 'var(--muted)' : 'var(--text)',
@@ -25323,7 +25420,9 @@ function RecipeDetail({
       background: ing.have ? 'var(--good)' : 'transparent',
       color: '#fff'
     }
-  }, ing.have ? '✓' : ''), /*#__PURE__*/React.createElement("div", {
+  }, ing.have ? /*#__PURE__*/React.createElement(Tick, {
+    size: 12
+  }) : null), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 min-w-0"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => toggleHave(ing.id),
@@ -25421,7 +25520,9 @@ function RecipeDetail({
       background: recipe.private ? 'var(--accent)' : 'transparent',
       color: 'var(--on-accent)'
     }
-  }, recipe.private ? '✓' : ''), "Keep this recipe private (off Discover)"), pickMeal && /*#__PURE__*/React.createElement("div", {
+  }, recipe.private ? /*#__PURE__*/React.createElement(Tick, {
+    size: 10
+  }) : null), "Keep this recipe private (off Discover)"), pickMeal && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center",
     onClick: () => setPickMeal(null)
   }, /*#__PURE__*/React.createElement(BackClose, {
@@ -25538,7 +25639,9 @@ function RecipeDetail({
         background: on ? 'var(--good)' : 'transparent',
         color: '#fff'
       }
-    }, on ? '✓' : ''), c);
+    }, on ? /*#__PURE__*/React.createElement(Tick, {
+      size: 12
+    }) : null), c);
   })), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("input", {
@@ -25686,7 +25789,9 @@ function ShoppingListView({
       background: it.checked ? 'var(--good)' : 'transparent',
       color: '#fff'
     }
-  }, it.checked ? '✓' : ''), /*#__PURE__*/React.createElement("button", {
+  }, it.checked ? /*#__PURE__*/React.createElement(Tick, {
+    size: 12
+  }) : null), /*#__PURE__*/React.createElement("button", {
     onClick: () => toggle(it.id),
     className: "flex-1 min-w-0 text-left"
   }, /*#__PURE__*/React.createElement("div", {
@@ -27710,7 +27815,9 @@ function Paywall({
     style: {
       color: 'var(--good)'
     }
-  }, "✓"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(Tick, {
+    size: 12
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold"
   }, t), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-snug"
