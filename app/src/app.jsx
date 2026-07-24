@@ -1007,7 +1007,9 @@ if (typeof window !== 'undefined') {
 }
 function useBackClose(onClose) {
   const ref = useRef(onClose); ref.current = onClose;
+  const armed = !!onClose; // when embedded in another sheet, pass null so we don't add a stray back layer
   useEffect(() => {
+    if (!armed) return;
     const layer = { close: () => { if (ref.current) ref.current(); } };
     BACK_LAYERS.push(layer);
     _armBack();
@@ -1019,7 +1021,7 @@ function useBackClose(onClose) {
         try { window.history.back(); } catch (e) { _backIgnore--; }
       }
     };
-  }, []);
+  }, [armed]);
 }
 // For inline layers (JSX without a dedicated component): mounts the back-close hook and nothing else.
 function BackClose({ onClose }) { useBackClose(onClose); return null; }
@@ -3146,35 +3148,9 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
 
           {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} />}
 
-          {/* Battle: the weekly boss, its weakness (what to eat), and your readiness buff. */}
-          {view === 'battle' && <div className="fade-in">
-            {onOpenFight ? (() => {
-              const wk = fightWeekKey();
-              const boss = bossForWeek();
-              const beaten = !!(db.fight && db.fight.lastBossWeek === wk);
-              const readiness = readinessFor(db, today);
-              const buff = readiness != null ? Game.readinessBuff(readiness) : null;
-              const buffLine = buff && buff.atk > 1 ? 'You hit +' + Math.round((buff.atk - 1) * 100) + '% today'
-                : buff && buff.atk < 1 ? 'Guard stance today, heals as you fight'
-                : buff ? 'Full strength today' : null;
-              const edge = beaten ? 'var(--good)' : 'var(--danger)';
-              return (
-                <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
-                  style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
-                  <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-                    <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={boss.name} anim="idle" px={2.6} /></span>
-                  </div>
-                  <div className="min-w-0 flex-1 leading-tight">
-                    <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? <>Boss beaten this week <Tick size={9} /></> : "This week's boss"}</div>
-                    <div className="text-[13px] font-bold truncate">{boss.name}</div>
-                    <div className="text-[9.5px] text-[#8A8A90] leading-snug mt-0.5">The week's toughest fight, best rewards.{buffLine ? ' ' + buffLine + '.' : ''}</div>
-                  </div>
-                  <span className="pf text-[9px] px-2.5 py-2.5 shrink-0" style={{ background: beaten ? 'var(--surface3)' : 'var(--danger)', color: beaten ? 'var(--muted)' : '#fff' }}>{beaten ? 'REMATCH ›' : 'FIGHT ›'}</span>
-                </button>
-              );
-            })() : <div className="pixel-box p-4 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Battles arrive once you're logging. Keep feeding your buddy.</div>}
-            <div className="text-[10px] text-[#8A8A90] leading-snug">Your eating is your build: the week's protein, fibre and perfect days set your buddy's attack, defence and health. Losing only teaches, it never sets you back.</div>
-          </div>}
+          {/* Battle: the arena is embedded straight into the tab (no teaser, no second modal) so tapping
+              Battle lands you right on Daily Hunt + Boss Climb. The Play tabs above stay put. */}
+          {view === 'battle' && <FightModal db={db} update={update} streak={streak} onClose={onClose} embedded />}
 
           {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
           {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} update={update} onRename={onOpenName} />}
@@ -3394,8 +3370,8 @@ const FIGHT_HIT = ['{x} chomps down', '{x} swings its tail', '{x} rakes with its
 const TYPE_META = { power: ['Power', 'var(--pro)', 'protein'], guard: ['Guard', 'var(--fat)', 'fats'], swift: ['Swift', 'var(--carb)', 'carbs'], renew: ['Renew', 'var(--good)', 'fibre'], balanced: ['Balanced', 'var(--muted)', 'a balance'] };
 function TypeChip({ t }) { const m = TYPE_META[t] || TYPE_META.balanced; return <span className="pf text-[7px] uppercase px-1 py-0.5 rounded" style={{ color: m[1], background: 'color-mix(in srgb, ' + m[1] + ' 16%, transparent)' }}>{m[0]}</span>; }
 
-function FightModal({ db, update, streak, onClose }) {
-  useBackClose(onClose);
+function FightModal({ db, update, streak, onClose, embedded }) {
+  useBackClose(embedded ? null : onClose); // embedded in the Play hub's Battle tab, the hub owns back/close
   const fight = db.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 };
   const today = Store.todayISO();
   // Fighter fights at the buddy's high-water stage; a nap never shrinks it back to the egg.
@@ -3558,9 +3534,12 @@ function FightModal({ db, update, streak, onClose }) {
   const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
   // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
   // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
-  const FightCard = ({ tag, tagColor, enemy, reward, action, border }) => (
+  const FightCard = ({ tag, tagColor, attemptTag, enemy, reward, action, border }) => (
     <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (border || 'var(--border)') }}>
-      <div className="pf text-[8px] uppercase mb-2.5" style={{ color: tagColor || 'var(--muted)' }}>{tag}</div>
+      <div className="flex items-center justify-between gap-2 mb-2.5">
+        <div className="pf text-[8px] uppercase" style={{ color: tagColor || 'var(--muted)' }}>{tag}</div>
+        {attemptTag && <span className="pf text-[7px] uppercase px-1.5 py-1 shrink-0" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>{attemptTag}</span>}
+      </div>
       <div className="flex items-center gap-3 mb-3">
         <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 68, height: 68 }}>
           <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={enemy.name} anim="idle" px={2.5} /></span>
@@ -3576,11 +3555,7 @@ function FightModal({ db, update, streak, onClose }) {
     </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
-
+  const body = (<>
         {phase === 'egg' && <div className="text-center py-6">
           <div className="flex justify-center mb-3"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={7} /></div>
           <div className="text-sm font-bold mb-1">Your buddy is still an egg</div>
@@ -3592,7 +3567,7 @@ function FightModal({ db, update, streak, onClose }) {
           {/* progress eyebrow */}
           <div className="text-center pf text-[8px] uppercase text-[#8A8A90] mb-3 inline-flex items-center justify-center gap-1.5 w-full flex-wrap">
             {(fight.prestige || 0) > 0 && <span style={{ color: 'var(--fat)' }}>Prestige {fight.prestige} ·</span>}
-            <span>{ladderCleared ? 'Ladder cleared' : `Rung ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0}</span>
+            <span>{ladderCleared ? 'All bosses cleared' : `Boss ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0}</span>
             <PixelGlyph kind="trophy" color="var(--fat)" size={11} />
           </div>
 
@@ -3612,32 +3587,28 @@ function FightModal({ db, update, streak, onClose }) {
             </div>
           </div>
 
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Choose your battle</div>
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your battles</div>
 
-          {/* Ladder: climb the rungs. Folds the old VS card + fight button into one card. */}
-          <FightCard tag={ladderCleared ? 'Ladder · cleared' : 'Ladder · Rung ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length} tagColor="var(--accent)" enemy={rival}
-            reward="Climb the ranks for Amber, loot and the Champion Belt."
-            action={ladderCleared
-              ? <Btn kind="accent" className="w-full" onClick={prestige}>Prestige ↑ · tougher ladder, better drops</Btn>
-              : gate.can
-                ? <Btn kind="accent" className="w-full" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}>Fight {rival.name} · 1 attempt today</Btn>
-                : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.'}</div>} />
-
-          {/* Daily Hunt: a fresh, gentle mini-boss every day that pays Amber. */}
-          <FightCard tag="Daily Hunt" tagColor="var(--accent)" enemy={daily} border={dailyReady ? 'var(--accent)' : 'var(--border)'}
+          {/* Daily Hunt: the quick everyday fight for Amber. */}
+          <FightCard tag="Daily Hunt" tagColor="var(--accent)" border={dailyReady ? 'var(--accent)' : 'var(--border)'} enemy={daily}
+            attemptTag={dailyReady ? (loggedToday ? 'ready' : 'log to arm') : 'cleared today'}
             reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
             action={dailyReady
               ? (loggedToday
-                  ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Hunt {daily.name}</Btn>
+                  ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Hunt</Btn>
                   : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Log a meal today to arm the hunt.</div>)
               : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today <Tick size={9} /> A fresh one lands tomorrow.</div>} />
 
-          {/* Weekly Boss: the big one, at the bottom. */}
-          {bossReady
-            ? <FightCard tag={'Weekly Boss · ' + boss.name} tagColor="var(--danger)" border="var(--danger)" enemy={boss}
-                reward="The week’s toughest fight, and the best Amber and loot going."
-                action={<Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, 'weekly')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Challenge {boss.name}</Btn>} />
-            : <div className="text-[11px] text-[#8A8A90] text-center pixel-box p-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>Weekly boss beaten, a new challenger arrives next week.</div>}
+          {/* Boss Climb: the ladder folded into the boss. Beat progressively tougher bosses, one attempt
+              a day, to climb ranks and earn the Champion Belt, then prestige for a harder run. */}
+          <FightCard tag={ladderCleared ? 'Boss Climb · all cleared' : 'Boss Climb · Rank ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length} tagColor="var(--danger)" border="var(--danger)" enemy={rival}
+            attemptTag={ladderCleared ? null : (gate.can ? '1 attempt today' : gate.reason === 'used' ? 'used today' : 'log to unlock')}
+            reward="Climb the bosses for Amber, loot and the Champion Belt. Losing only teaches, never sets you back."
+            action={ladderCleared
+              ? <Btn kind="accent" className="w-full" onClick={prestige}>Prestige ↑ · tougher climb, better drops</Btn>
+              : gate.can
+                ? <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}><PixelGlyph kind="glove" color="currentColor" size={14} /> Fight</Btn>
+                : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used, a fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.'}</div>} />
         </div>}
 
         {(phase === 'fight' || phase === 'done') && opp && <div className="fade-in">
@@ -3655,6 +3626,13 @@ function FightModal({ db, update, streak, onClose }) {
             <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setPhase('select')}>Back</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Done</Btn></div>
           </div>}
         </div>}
+  </>);
+  if (embedded) return <div className="fade-in">{body}</div>;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        {body}
       </div>
     </div>
   );
@@ -9308,7 +9286,6 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
-  const [fightOpen, setFightOpen] = useState(false); // boss fight, launched from inside the Play hub
   const [nameOpen, setNameOpen] = useState(false);   // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -9793,8 +9770,7 @@ function App() {
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
-      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenFight={() => setFightOpen(true)} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
-      {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
+      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} onClose={() => setToast(null)} />
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
