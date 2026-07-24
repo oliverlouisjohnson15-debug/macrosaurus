@@ -1690,45 +1690,19 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
    DASHBOARD
    ===================================================================== */
 // One combined check-in + coaching card: status line and cycle progress, the weigh-in row, and a
-// compact coach line, merged from the old separate StatusCard and CoachCard so the dashboard has a
-// single check-in surface. (The Goals screen keeps its own small check-in card.)
-function StatusCard({ db, update, onCheckIn, onReview, streak, onOpenProgress }) {
+// The buddy opens weighing now that the standalone check-in card is gone: a small sheet for a daily
+// weigh-in, or "weigh in & resume" when a paused goal is coming back. Weighing is otherwise folded
+// into the weekly check-in (CheckInModal). The full weight trend lives in the Progress tab.
+function WeighSheet({ db, update, resume, onClose }) {
+  useBackClose(onClose);
   const unit = db.profile.weight_unit; const today = Store.todayISO();
-  const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
-  const EARLY_DAY = 5, RECO_DAY = 7;
-  const ready = daysSince >= EARLY_DAY;        // check-in unlocked (allowed early)
-  const due = daysSince >= RECO_DAY;           // recommended cadence reached
-  const daysToEarly = Math.max(0, EARLY_DAY - daysSince);
-  const daysToReco = Math.max(0, RECO_DAY - daysSince);
-  const alreadyToday = db.last_checkin === today;
-  // Honest check-in day: when a weekly check-in day is set and the >=5-day gate has passed, nudge
-  // on (or after) that weekday. The 5-day gate stays the source of truth for the unlock itself.
-  const cd = db.profile.checkinDay;
-  const cdOffset = cd != null ? (new Date(today + 'T00:00:00').getDay() - cd + 7) % 7 : null;
-  const onCheckinDay = ready && daysSince < 900 && cd != null && cdOffset <= (daysSince - EARLY_DAY);
-  // A suggested (not yet approved/rejected) adjustment from this cycle's check-in survives reloads.
-  const pending = (db.pending_adjustment && db.pending_adjustment.date === db.last_checkin && db.pending_adjustment.result) ? db.pending_adjustment : null;
-  // Compact coach line, from the same window the check-in itself reads.
-  const cs = cycleStartISO(db, today);
-  const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
-  const loggedDates = Array.from(new Set(db.log_entries.filter(e => e.date >= cs && e.date <= today).map(e => e.date)));
-  const logged = loggedDates.filter(dd => isCompleteDayOn(db, dd)).length;
-  const weighed = countWeighIns(db.weight_entries, cs, today);
-  const needLogs = Math.max(4, Math.ceil(cycleDays * 0.7));
-  const needWeigh = Math.max(3, Math.ceil(cycleDays * 0.5));
-  const onTrack = logged >= needLogs && weighed >= needWeigh;
-  const curAvg = avgWeight(db.weight_entries, cs, today);
-  const prevAvg = avgWeight(db.weight_entries, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
-  const trendKg = (curAvg != null && prevAvg != null) ? +(curAvg - prevAvg).toFixed(2) : null;
-  const trendStr = trendKg == null ? null : (trendKg > 0 ? '+' : trendKg < 0 ? '−' : '') + (unit === 'st_lb' ? (Math.abs(trendKg) * 2.20462).toFixed(1) + ' lb' : Math.abs(trendKg).toFixed(2) + ' kg');
   const todays = db.weight_entries.find(w => w.date === today);
   const lastEntry = db.weight_entries[db.weight_entries.length - 1];
   const seedKg = todays ? todays.scale_weight : (lastEntry ? lastEntry.scale_weight : db.profile.weightKg);
   const s0 = kgToStLb(seedKg);
-  const [open, setOpen] = useState(false);
   const [kg, setKg] = useState(seedKg); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
   const last7 = avgWeight(db.weight_entries, shiftISO(today, -6), today);
-  function saveWeight(resume) {
+  function save() {
     const w = unit === 'st_lb' ? stLbToKg(st, lb) : +kg; if (!w) return;
     update(d => {
       const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
@@ -1736,76 +1710,26 @@ function StatusCard({ db, update, onCheckIn, onReview, streak, onOpenProgress })
       recomputeTrend(d);
       if (resume) { d.paused = false; d.profile.weightKg = +w.toFixed(2); d.last_checkin = t; }
     });
-    setOpen(false);
+    onClose();
   }
-  const weighInputs = unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
-  // Weight-trend spark, merged in from the old standalone card: one Progress surface, not two.
-  const sparkPts = db.weight_entries.slice(-21).map(w => (w.trend_weight != null ? w.trend_weight : w.scale_weight)).filter(v => v != null);
-  const TrendSpark = (onOpenProgress && sparkPts.length > 1) ? (
-    <button onClick={onOpenProgress} className="w-full mt-3 pt-3 border-t border-[#262629] flex items-center gap-3">
-      <span className="pf text-[8px] uppercase text-[#8A8A90] shrink-0">Weight trend</span>
-      <div className="flex-1 min-w-0"><MiniSpark points={sparkPts} color="var(--weight)" /></div>
-      <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>Progress ›</span>
-    </button>
-  ) : null;
-  if (db.paused) return (
-    <Card className="p-5 mb-6">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Goal</div>
-      <div className="text-2xl font-bold mb-1">Goal paused</div>
-      <div className="text-[12px] text-[#8A8A90] mb-4">Tracking is on hold. When you're back, weigh in to resume and your plan picks up from that weight.</div>
-      {!open ? <Btn kind="accent" className="w-full" onClick={() => setOpen(true)}>Resume goal</Btn>
-        : <div>{weighInputs}<Btn kind="accent" className="w-full mt-3" onClick={() => saveWeight(true)}>Weigh in & resume</Btn></div>}
-    </Card>
-  );
-  // Nothing to action yet (check-in not unlocked, no pending proposal): collapse to a quiet line
-  // that still keeps the daily weigh-in one tap away, rather than a full check-in card.
-  if (!ready && !pending) return (
-    <Card className="p-4 mb-6">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Check-in</div>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[14px] font-bold">{alreadyToday ? 'Checked in today' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`}</div>
-          <div className="text-[11px] text-[#8A8A90] mt-0.5">{todays ? 'Weighed in today · ' + fmtWeight(todays.scale_weight, unit) : 'Weigh in daily to keep your trend sharp'}</div>
-        </div>
-        <Btn kind="ghost" className="text-[12px] shrink-0" onClick={() => setOpen(o => !o)}>{todays ? 'Update' : 'Weigh in'}</Btn>
-      </div>
-      {open && <div className="mt-3">{weighInputs}<Btn kind="accent" className="w-full mt-3" onClick={() => saveWeight(false)}>Save weight</Btn></div>}
-      {TrendSpark}
-    </Card>
-  );
+  const weighInputs = unit === 'st_lb'
+    ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
+    : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
+  const who = (db.buddy && db.buddy.name) || 'Your buddy';
   return (
-    <Card className="p-5 mb-6">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Check-in</div>
-      <div className="text-2xl font-bold">{alreadyToday ? 'Checked in today' : onCheckinDay ? `It's your ${DOW_FULL[cd]} check-in` : due ? 'Check-in due' : ready ? 'Check-in unlocked' : `${daysToEarly} day${daysToEarly === 1 ? '' : 's'} until check-in`}</div>
-      <div className="text-[12px] text-[#8A8A90] mb-3">{pending
-        ? 'A new macro suggestion is waiting on you. Review it below.'
-        : alreadyToday
-          ? (db.profile.trackingLane === 'weightOnly' ? 'Fresh cycle underway. Keep weighing in regularly.' : 'Fresh cycle underway. Keep logging and weighing daily.')
-          : onCheckinDay
-            ? 'Your check-in day is here, with enough days behind it for a clean read.'
-            : due
-              ? 'Recommended cadence reached. Time for your check-in.'
-              : ready
-                ? `Ready now. Waiting for day 7 (${daysToReco} more) gives a steadier read.`
-                : `Runs on a 7-day cycle, unlockable from day 5. Weigh in daily until then.`}</div>
-      <div className="h-1.5 rounded-full bg-[#262629] mb-4 overflow-hidden"><div className="h-full rounded-full" style={{ width: Math.min(100, (Math.min(daysSince, RECO_DAY) / RECO_DAY) * 100) + '%', background: due ? 'var(--good)' : 'var(--carb)' }} /></div>
-      {pending && <Btn kind="accent" className="w-full mb-2" onClick={onReview}>Review this week's suggestion</Btn>}
-      <div className="flex gap-2">
-        {!pending && <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} className="flex-1 text-sm" style={{ opacity: ready ? 1 : .45 }} onClick={onCheckIn}>{ready && !due ? 'Check in early' : 'Check in'}</Btn>}
-        <Btn kind="ghost" className="flex-1 text-sm" onClick={() => setOpen(o => !o)}>{todays ? 'Update weight' : 'Log weight'}</Btn>
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={2.2} /></div>
+          <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who}</div><div className="text-[15px] font-bold leading-tight">{resume ? 'Weigh in to resume' : "Today's weight"}</div></div>
+          <button onClick={onClose} className="ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+        </div>
+        <div className="text-[11.5px] text-[#8A8A90] mb-3 leading-snug">{resume ? "Pop today's weight in and I'll pick your plan back up from here." : "Same time each morning, after the loo and before food or drink, gives the truest trend."}</div>
+        {weighInputs}
+        {last7 != null && <div className="text-[11px] text-[#8A8A90] mt-2">7-day avg <span className="text-white tnum">{fmtWeight(last7, unit)}</span></div>}
+        <button onClick={save} className="pixel-btn w-full py-3 mt-4" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[10px]">{resume ? 'WEIGH IN & RESUME' : 'SAVE WEIGHT'}</span></button>
       </div>
-      {open && <div className="mt-3">{weighInputs}<Btn kind="accent" className="w-full mt-3" onClick={() => saveWeight(false)}>Save weight</Btn></div>}
-      <div className="text-[11px] text-[#8A8A90] mt-3 pt-3 border-t border-[#262629] flex justify-between">
-        <span>{todays ? 'Logged today: ' + fmtWeight(todays.scale_weight, unit) : 'Not weighed in today'}</span>
-        {last7 != null && <span>7-day avg <span className="text-white tnum">{fmtWeight(last7, unit)}</span></span>}
-      </div>
-      <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This cycle: <span className="text-white tnum">{logged}/{cycleDays}</span> logged · <span className="text-white tnum">{weighed}/{cycleDays}</span> weighed{trendStr ? <> · trend <span className="text-white tnum">{trendStr}</span> vs last</> : null}.{alreadyToday
-        ? ''
-        : ready
-          ? (onTrack ? ' Enough data, run your check-in.' : ` Aim for ${needLogs} logged, ${needWeigh} weigh-ins.`)
-          : ''}</div>
-      {TrendSpark}
-    </Card>
+    </div>
   );
 }
 
@@ -2558,7 +2482,16 @@ function buddyBreakout(db, today) {
 function buddyMessage(db, today, streak) {
   const p = db.profile || {};
   const incubating = !!(db.buddy && db.buddy.hatched === false);
-  // 1. Morning read: the buddy's daily orientation, shown once and then gone for the day. Only when
+  // 1. Paused goal: the buddy now owns the resume path (the standalone check-in card is gone).
+  if (!incubating && db.paused) return { kind: 'say',
+    text: "Your goal is paused. Weigh in whenever you're ready and I'll pick your plan back up from there.",
+    primary: { label: 'Weigh in to resume', act: 'resume' } };
+  // 2. Pending review: a fresh plan from this cycle's check-in is waiting on a decision.
+  const pending = db.pending_adjustment && db.pending_adjustment.date === db.last_checkin && db.pending_adjustment.result;
+  if (!incubating && pending) return { kind: 'say',
+    text: "Your new plan from this week's check-in is ready. Want to take a look?",
+    primary: { label: 'Review it', act: 'review' } };
+  // 3. Morning read: the buddy's daily orientation, shown once and then gone for the day. Only when
   // there's genuine sleep/step data to talk about, and only through the daytime so an evening open
   // doesn't get a stale "morning" read.
   if (!incubating && new Date().getHours() < 14 && p.readAckDate !== today) {
@@ -2570,18 +2503,24 @@ function buddyMessage(db, today, streak) {
         secondary: { label: 'Got it', act: 'read_ack' } };
     }
   }
-  // 2. Lesson: teaching takes the slot for new users until the day's lesson is acknowledged. This is the
+  // 4. Lesson: teaching takes the slot for new users until the day's lesson is acknowledged. This is the
   // only thing the buddy says during incubation (matches the old habitat gating).
   const lesson = nextLesson(db, today);
   if (lesson) return { kind: 'lesson', text: lesson.title + ': ' + lesson.text,
     primary: { label: 'Got it', act: 'lesson', lessonKey: lesson.key } };
   if (incubating) return null;
-  // 3. Ask: a proactive yes/no (currently an overdue check-in). "Not now" snoozes it via nudgesDismissed.
+  // 5. Weigh cadence: asked once, only if it was never chosen (new users set it in onboarding; this
+  // catches everyone else). Both buttons set the cadence, so it resolves in a single tap.
+  if (p.weighCadence == null) return { kind: 'ask',
+    text: "How often do you want to weigh in? I read your trend either way, so pick whatever you'll actually stick to.",
+    primary: { label: 'Most days', act: 'cadence_daily' },
+    secondary: { label: 'Once a week', act: 'cadence_single' } };
+  // 6. Ask: a proactive yes/no (currently an overdue check-in). "Not now" snoozes it via nudgesDismissed.
   const ask = buddyBreakout(db, today);
   if (ask) return { kind: 'ask', text: ask.text,
     primary: { label: ask.yes, act: ask.action },
     secondary: { label: 'Not now', act: 'snooze', snoozeKey: ask.key } };
-  // 4. Say: the ambient next-action coach line (log / protein / weigh / streak). nextLesson is already
+  // 7. Say: the ambient next-action coach line (log / protein / weigh / streak). nextLesson is already
   // null here, so buddyCoach's own lesson branch is a no-op and won't double up.
   const say = buddyCoach(db, today, streak);
   if (say) return { kind: 'say', text: say.text,
@@ -3682,30 +3621,34 @@ function stepStreak(db, today) {
 // with last night's sleep and today's steps, so the card always says something useful for the day ahead
 // and leans into "recovery is a pillar" rather than just showing three numbers.
 function recoveryCoachLine(db, today) {
-  const band = Game.readinessBand(readinessFor(db, today));
+  const raw = readinessFor(db, today);
+  const band = Game.readinessBand(raw);
+  const score = Math.round(raw);
   const night = lastSleepNight(db);
   const sBand = night && isFinite(night.score) ? Game.sleepBand(night.score) : null;
   const restedWell = sBand === 'good' || sBand === 'great';
   const roughNight = sBand === 'poor' || sBand === 'ok';
   const goal = stepGoalFor(db);
   const goalHit = goal > 0 && (+((db.steps || {})[today]) || 0) >= goal;
+  // Lead every line with the actual number out of 100 and a plain word, so the score reads clearly
+  // rather than a game-y band name on its own.
   if (band === 'apex') return {
     color: 'var(--good)',
     text: restedWell
-      ? "Apex readiness. Last night's sleep is paying off, so this is a strong day to push your training hard."
-      : "Apex readiness. Recovery is on your side today, a good day to train hard.",
+      ? "Readiness " + score + " out of 100, high. Last night's sleep is paying off, so this is a strong day to push your training hard."
+      : "Readiness " + score + " out of 100, high. Recovery is on your side today, a good day to train hard.",
   };
   if (band === 'drowsy') return {
     color: 'var(--warn)',
     text: roughNight
-      ? "Drowsy. A short night is catching up with you, so go gentle today and aim for an earlier bedtime. Rest is training too."
-      : "Drowsy. Your body is asking for a lighter day, so keep it easy and protect your sleep tonight. Rest is training too.",
+      ? "Readiness " + score + " out of 100, low. A short night is catching up with you, so go gentle today and aim for an earlier bedtime. Rest is training too."
+      : "Readiness " + score + " out of 100, low. Your body is asking for a lighter day, so keep it easy and protect your sleep tonight. Rest is training too.",
   };
   if (band === 'prowling') return {
     color: 'var(--accent)',
     text: goalHit
-      ? "Steady readiness, a normal training day. Steps are already on target, so train as planned and protect tonight's 7 to 9 hours."
-      : "Steady readiness, a normal training day. Keep moving, and aim for a full 7 to 9 hours tonight.",
+      ? "Readiness " + score + " out of 100, steady. Steps are already on target, so train as planned and protect tonight's 7 to 9 hours."
+      : "Readiness " + score + " out of 100, steady. Keep moving, and aim for a full 7 to 9 hours tonight.",
   };
   // No readiness score yet.
   if (night && isFinite(night.score)) return {
@@ -4438,28 +4381,11 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     </div>
   );
 }
-// One-time nudge for users who onboarded before weigh-in cadence existed: pick it once, then it's gone.
-// New users set it in onboarding, so this only shows while weighCadence is still unset.
-function WeighCadencePrompt({ db, update }) {
-  const p = db.profile;
-  if (!p || p.weighCadence != null) return null;
-  const pick = (v) => update(d => { d.profile.weighCadence = v; });
-  return (
-    <Card className="p-4 mb-4">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">New · Weigh-ins</div>
-      <div className="text-sm font-bold mb-1">How often will you weigh in?</div>
-      <div className="text-[12px] text-[#8A8A90] mb-3">Your check-in reads your trend either way. Pick whatever you'll stick to, you can change it in Advanced later.</div>
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => pick('daily')} className="pixel-box py-2.5 px-2 text-[13px] bg-[#1E1E22] text-[var(--text)]">Most days</button>
-        <button onClick={() => pick('single')} className="pixel-box py-2.5 px-2 text-[13px] bg-[#1E1E22] text-[var(--text)]">Once a week</button>
-      </div>
-    </Card>
-  );
-}
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
+  const [weighOpen, setWeighOpen] = useState(false); // buddy-opened weigh sheet: true = daily weigh, 'resume' = un-pause
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
   const todayTot = sumMacros(entriesOn(db, today));
@@ -4575,7 +4501,11 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         : a === 'read_ack' ? ackRead
         : a === 'lesson' ? () => ackLesson(btn.lessonKey)
         : a === 'snooze' ? () => update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [btn.snoozeKey]: Date.now() }); })
-        : (a === 'checkin' || a === 'weigh') ? onCheckIn
+        : a === 'review' ? onReview
+        : a === 'resume' ? () => setWeighOpen('resume')
+        : a === 'weigh' ? () => setWeighOpen(true)
+        : a === 'checkin' ? onCheckIn
+        : (a === 'cadence_daily' || a === 'cadence_single') ? () => update(d => { d.profile = d.profile || {}; d.profile.weighCadence = a === 'cadence_daily' ? 'daily' : 'single'; })
         : a === 'log' ? () => onQuickAdd(false)
         : a === 'cook' ? () => setView('recipes')
         : null;
@@ -4588,6 +4518,11 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
+      {/* For free users, the upsell leads Today as the first box (dismissable, re-shows after 7 days so
+          it never nags). Hidden during egg incubation so onboarding stays focused on hatching. */}
+      {!isPremium && !eggIncubating && <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="today_top"
+        headline="Log a meal in one snap"
+        blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />}
 
       {/* Hero: today's macros. One glance (rings + what's left), the daily loop. One lens only
           (Left/Eaten); Balance is a power tool behind Adjust; everything secondary is in More below. */}
@@ -4633,26 +4568,24 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
       <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} />
 
-      {/* Weekly loop: self-collapses to a quiet line and expands only when a check-in is actually due. */}
-      <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
+      {/* The weekly check-in, weigh-ins and resume are all driven by the buddy in the habitat now; the
+          full weight trend lives in the Progress tab. The buddy opens WeighSheet for a quick weigh. */}
+      {weighOpen && <WeighSheet db={db} update={update} resume={weighOpen === 'resume'} onClose={() => setWeighOpen(false)} />}
 
       {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
 
-      {/* The one-time weigh-cadence question plus install + upgrade nudges. Collapsed by default, and
-          only shown when it would actually hold something. Install also lives in Account. */}
-      {(!isPremium || db.profile.weighCadence == null) && <Collapsible label="More">
-        <WeighCadencePrompt db={db} update={update} />
+      {/* Install + upgrade nudges. Collapsed by default. Install also lives in Account. */}
+      {!isPremium && <Collapsible label="More">
         <InstallCard />
-        {!isPremium && (() => {
+        {(() => {
           const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+          // Only the contextual AI-low nudge lives here now; the generic upsell is the top box.
           return freeLeft <= 3
             ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
                 headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
                 blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
-            : <PremiumNudge db={db} update={update} className="mb-4" reason="manual" trackKey="dash_premium"
-                headline="Log a meal in one snap"
-                blurb="Premium unlocks unlimited AI logging (photo, label, describe) and body-fat photo scans. Try it free for 7 days." />;
+            : null;
         })()}
       </Collapsible>}
 
