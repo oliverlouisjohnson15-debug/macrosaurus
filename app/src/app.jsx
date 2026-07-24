@@ -7861,7 +7861,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className="fixed left-0 right-0 z-[60] flex justify-center px-4" style={{ bottom: 86 }}>
-      <div className="bg-[#1E1E22] border border-[#262629] rounded-2xl px-4 py-3 flex items-center gap-4 shadow-xl shadow-black/50 fade-in">
+      <div className="pixel-box px-4 py-3 flex items-center gap-4 fade-in" style={{ background: 'var(--surface2)' }}>
         <span className="text-sm">{toast.msg}</span>
         {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.action2Label}</button>}
         {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.actionLabel}</button>}
