@@ -8914,27 +8914,27 @@ function randomBuddyName(seed) {
 const CURRICULUM = [{
   key: 'macros',
   title: 'Macros 101',
-  text: 'Protein, carbs and fat are your three macros. Hit your protein and your calories, and the rest largely follows. I’ll help you aim.'
+  text: 'Protein, carbs and fat are your three macros, and every calorie comes from them. You don’t need to be perfect. Land your calories and protein in range and the rest looks after itself.'
 }, {
   key: 'protein',
-  title: 'Why protein',
-  text: 'It’s the one to prioritise. Protein protects muscle while you lose fat and keeps you full, so aim for your target first each day.'
+  title: 'Protein first',
+  text: 'Protein is the one to prioritise. It protects muscle while you lose fat and keeps you fuller for longer. Spread it out, roughly 20 to 40g a meal, and aim for your daily target first.'
 }, {
   key: 'logging',
-  title: 'How to log',
-  text: 'Log as you eat, and roughly is fine. A quick estimate beats logging nothing. The Photo and Describe tools do the maths for you.'
+  title: 'Log it honestly',
+  text: 'Log everything, and roughly is fine. The easy ones to miss are oils, butter, sauces and dressings, and they add up fast. A food scale helps at first; your eye gets sharper with practice.'
 }, {
   key: 'trend',
-  title: 'The trend line',
-  text: 'Watch the trend, not one day. Weight bounces daily with water and food; the trend line is the real story.'
+  title: 'Trend, not the scale',
+  text: 'Weigh most days but judge the trend, not one reading. Weight swings with water, salt, carbs and hormones, so an overnight jump is rarely fat. The line over a week or two is the real story.'
 }, {
   key: 'checkin',
-  title: 'Check-ins',
-  text: 'A weekly check-in is where I retune your targets from your real results, so your plan follows you, not a guess.'
+  title: 'Weekly check-ins',
+  text: 'Once a week I read your logged food and your weight trend, work out what you’re actually burning, and retune your targets to match. Your plan follows the real you, not a formula.'
 }, {
   key: 'adjust',
-  title: 'When it stalls',
-  text: 'A stall is normal. The check-in nudges your calories for you, so keep logging honestly and it self-corrects.'
+  title: 'Progress isn’t linear',
+  text: 'Stalls and wobbles are normal. Stay consistent rather than perfect, keep logging honestly, and the weekly check-in nudges your targets back on track. It takes a few weeks to find your rhythm.'
 }];
 // The next lesson due for a new user: one a day, in order, until the course is done.
 function nextLesson(db, today) {
@@ -8998,6 +8998,78 @@ function buddyCoach(db, today, streak) {
     cta: null,
     action: null
   };
+}
+
+// A proactive conversational "breakout": the buddy asks a yes/no question when something's worth
+// doing (right now: a check-in once it's been a while). "Not now" snoozes it for ~20h so it never
+// nags. Returns { key, text, yes, action } or null.
+function buddyBreakout(db, today) {
+  const dm = db.profile && db.profile.nudgesDismissed || {};
+  const snoozed = (key, hrs) => dm[key] && Date.now() - dm[key] < hrs * 3600 * 1000;
+  const daysSince = db.last_checkin ? Game.daysBetween(db.last_checkin, today) : 999;
+  const checkedInToday = db.last_checkin === today;
+  if (!db.paused && !checkedInToday && daysSince >= 5 && !snoozed('breakout_checkin', 20)) {
+    const howLong = daysSince >= 900 ? "It's been a while" : "It's been " + daysSince + ' days';
+    return {
+      key: 'breakout_checkin',
+      text: howLong + ' since your last check-in. Fancy weighing in? I’ll read your trend and retune your targets.',
+      yes: 'Yes, let’s do it',
+      action: 'checkin'
+    };
+  }
+  return null;
+}
+// The buddy asking a yes/no on Today: the dino, a short question, and Yes / Not now. The heart of the
+// buddy owning your prompts rather than a faceless banner.
+function BuddyBreakout({
+  db,
+  breakout,
+  onYes,
+  onSnooze
+}) {
+  const buddy = db.buddy || {};
+  const who = buddy.name || 'Your buddy';
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-3 mb-4",
+    style: {
+      borderColor: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-2.5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1 shrink-0",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+    buddy: buddy,
+    px: 2
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase mb-1",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, who, " asks"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11.5px] leading-snug mb-2.5"
+  }, breakout.text), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onYes,
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, breakout.yes), /*#__PURE__*/React.createElement("button", {
+    onClick: onSnooze,
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "Not now")))));
 }
 
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
@@ -13490,7 +13562,6 @@ function Dashboard({
 }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
   if (!et) return null;
@@ -13643,11 +13714,7 @@ function Dashboard({
       });
     }
   }, [buddyLvl, bp.bond.hearts, db.buddy && db.buddy.speciesId]);
-  const remindOn = db.profile.reminders !== false;
-  const missWeigh = !weighSet.has(today),
-    missLog = !logSet.has(today);
-  const nudgeHour = db.profile.nudgeHour == null ? 14 : db.profile.nudgeHour;
-  const showNudge = remindOn && (missLog || missWeigh) && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
+  // (The old missed-log/weigh showNudge is superseded by the buddy's always-present coach line.)
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
   const coach = (() => {
@@ -13667,6 +13734,8 @@ function Dashboard({
       go
     });
   })();
+  // Proactive yes/no breakout (e.g. "fancy a check-in?"), only once the buddy has hatched.
+  const breakout = eggIncubating ? null : buddyBreakout(db, today);
   return /*#__PURE__*/React.createElement("div", {
     className: "max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in"
   }, hatching && /*#__PURE__*/React.createElement(HatchCelebration, {
@@ -13793,6 +13862,18 @@ function Dashboard({
     onOpenPlay: onOpenPlay,
     tasks: eggIncubating ? hatchTasks : null,
     coach: coach
+  }), breakout && /*#__PURE__*/React.createElement(BuddyBreakout, {
+    db: db,
+    breakout: breakout,
+    onYes: () => {
+      if (breakout.action === 'checkin') onCheckIn();
+    },
+    onSnooze: () => update(d => {
+      d.profile = d.profile || {};
+      d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, {
+        [breakout.key]: Date.now()
+      });
+    })
   }), /*#__PURE__*/React.createElement(StepsSleepCard, {
     db: db,
     update: update,
