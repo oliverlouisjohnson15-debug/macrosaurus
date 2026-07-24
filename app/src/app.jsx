@@ -94,6 +94,14 @@ function PixelDino({ size, className }) {
   DINO_ART.forEach((row, y) => row.split('').forEach((ch, x) => { const c = DINO_COLORS[ch]; if (ch !== '.' && c) rects.push(<rect key={x + '_' + y} x={x} y={y} width="1.03" height="1.03" fill={c} />); }));
   return <svg role="img" aria-label="Macrosaurus" className={className} width={px} height={px * h / w} viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges" style={{ display: 'inline-block', verticalAlign: 'middle' }}>{rects}</svg>;
 }
+// The Macrosaurus brand mark is the buddy's green egg (the buddy starts as an egg). Renders frame 0 of
+// the real sprite strip (olaf/egg is the green one), scaled + pixelated, as a drop-in for the old dino.
+function PixelEgg({ size = 24, className, style }) {
+  const s = size, z = Math.round(s * 1.42), off = Math.round((z - s) / 2); // zoom past the sprite's transparent margin so the egg fills the box
+  return <span role="img" aria-label="Macrosaurus" className={className} style={Object.assign({ display: 'inline-block', position: 'relative', width: s, height: s, overflow: 'hidden', verticalAlign: 'middle' }, style)}>
+    <span style={{ position: 'absolute', left: -off, top: -off, width: z, height: z, backgroundImage: 'url(/sprites/female/olaf/egg/move.png)', backgroundSize: (z * 4) + 'px ' + z + 'px', backgroundPosition: '0 0', backgroundRepeat: 'no-repeat', imageRendering: 'pixelated' }} />
+  </span>;
+}
 
 /* ---------- Add to home screen / install (PWA) ----------
    Macrosaurus is already an installable PWA (manifest + service worker). On Android/Chrome the
@@ -192,7 +200,7 @@ function InstallCard() {
   }
   return (<Card className="p-4 mb-4 fade-in" style={{ borderColor: 'var(--accent)' }}>
     <div className="flex items-start gap-3">
-      <div className="pixel-box w-10 h-10 flex items-center justify-center shrink-0" style={{ background: 'var(--accent)', borderColor: 'var(--border)' }}><PixelDino size={22} /></div>
+      <div className="pixel-box w-10 h-10 flex items-center justify-center shrink-0" style={{ background: 'var(--accent)', borderColor: 'var(--border)' }}><PixelEgg size={22} /></div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-bold">Add Macrosaurus to your home screen</div>
@@ -966,7 +974,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
     {open && <div className="mt-3 fade-in">{children}</div>}
   </div>);
 }
-function Logo({ size = 'text-xl' }) { return (<div className={`${size} font-extrabold tracking-tight flex items-center gap-1.5 text-white`}><PixelDino size={18} color="var(--good)" /><span>Macro<span className="text-[#4A9EEB]">saurus</span></span></div>); }
+function Logo({ size = 'text-xl' }) { return (<div className={`${size} font-extrabold tracking-tight flex items-center gap-1.5 text-white`}><PixelEgg size={18} color="var(--good)" /><span>Macro<span className="text-[#4A9EEB]">saurus</span></span></div>); }
 function rateLabel(r, goalType) {
   const a = Math.abs(r || 0);
   if (goalType === 'gain') {
@@ -983,7 +991,7 @@ function PageHeader({ kicker, title }) {
   return (<div className="mb-6"><div className="pf text-[9px] uppercase text-[#8A8A90]">{kicker}</div><h1 className="pf text-xl mt-3">{title}</h1></div>);
 }
 function Loading({ text }) {
-  return (<div className="min-h-screen flex flex-col items-center justify-center gap-4 text-[#8A8A90]"><div style={{ animation: 'fade 1.1s ease-in-out infinite alternate' }}><PixelDino size={56} color="var(--good)" /></div><div className="text-sm">{text}</div></div>);
+  return (<div className="min-h-screen flex flex-col items-center justify-center gap-4 text-[#8A8A90]"><div style={{ animation: 'fade 1.1s ease-in-out infinite alternate' }}><PixelEgg size={56} color="var(--good)" /></div><div className="text-sm">{text}</div></div>);
 }
 
 /* ---------- back-button layer stack ---------- */
@@ -1167,7 +1175,7 @@ function ConsistencyHeatmap({ db, today }) {
   return (
     <Card className="p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="pf text-[9px] uppercase text-[#8A8A90] inline-flex items-center gap-1.5"><PixelDino size={13} color="var(--good)" /> Consistency</span>
+        <span className="pf text-[9px] uppercase text-[#8A8A90] inline-flex items-center gap-1.5"><PixelEgg size={13} color="var(--good)" /> Consistency</span>
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Last {WEEKS} wks</span>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
@@ -1307,7 +1315,7 @@ function TrendCard({ db }) {
       )}
       {valid.length === 0 ? (
         <div className="text-center py-8 px-4">
-          <div className="flex justify-center mb-3 opacity-40"><PixelDino size={40} color="var(--weight)" /></div>
+          <div className="flex justify-center mb-3 opacity-40"><PixelEgg size={40} color="var(--weight)" /></div>
           <div className="text-[13px] font-semibold mb-1">{tab === 'weight' ? 'No weigh-ins yet' : tab === 'bodyfat' ? 'No body-fat readings yet' : 'No lean-mass data yet'}</div>
           <div className="text-[11px] text-[#8A8A90] leading-relaxed max-w-[16rem] mx-auto">{tab === 'weight' ? 'Add today’s weight from Home and your trend line starts building right here.' : tab === 'bodyfat' ? 'Add a body-fat % with any weigh-in and it’ll chart here over time.' : 'Log a weight and a body-fat % on the same day to see your lean mass tracked here.'}</div>
         </div>
@@ -1347,7 +1355,7 @@ function ResetPassword({ onDone }) {
   return (
     <div className="theme-light min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <div className="flex items-center gap-3 px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
+        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
         <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
       </div>
       <div className="flex-1 flex flex-col justify-center px-6 py-10">
@@ -1499,13 +1507,13 @@ function Auth() {
   return (
     <div className="theme-light min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <div className="flex items-center gap-3 px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
+        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
         <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
       </div>
       <div className="flex-1 flex flex-col justify-center px-6 py-10">
       <div className="w-full max-w-sm mx-auto fade-in">
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="pixel-box p-4 mb-4" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}><PixelDino size={56} color="#fff" /></div>
+          <div className="pixel-box p-4 mb-4" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}><PixelEgg size={56} color="#fff" /></div>
           <h1 className="pf text-lg" style={{ color: 'var(--header)' }}>MACROSAURUS</h1>
           <p className="text-[12px] text-[#8A8A90] mt-3 leading-relaxed">Adaptive body-comp tracker. Log food, hit your macros, let your plan retune itself.</p>
         </div>
@@ -1685,7 +1693,7 @@ function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
   return (
     <div className={(f.theme === 'dark' ? 'theme-dark' : 'theme-light') + ' min-h-screen'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex items-center gap-3 px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-      <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
+      <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
       <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
     </div>
     <div className="max-w-md mx-auto px-6 pt-8 pb-10 fade-in">
@@ -1930,7 +1938,7 @@ function CheckInModal({ db, update, onClose, resume }) {
           <div className="fade-in">
             <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">{result.status === 'proposed' && result.changed ? 'Suggested change' : result.status === 'held' ? 'Macros held' : 'Coaching'}</div>
             {result.offPlan && result.dinoLine && <div className="flex items-center gap-3 mb-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="shrink-0"><PixelDino size={30} color="var(--good)" /></div>
+              <div className="shrink-0"><PixelEgg size={30} color="var(--good)" /></div>
               <div className="text-[13px] font-semibold leading-snug">{result.dinoLine}</div>
             </div>}
             <p className="text-sm">{result.reason}</p>
@@ -5333,7 +5341,7 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
       {favs.length > 0 && <>{Head('Favourites')}<div className="space-y-2">{favs.map(MyRow)}</div></>}
       {myShown.length > 0 && <>{Head('Recent')}<div className="space-y-2">{myShown.map(MyRow)}</div></>}
       {savedMeals.length > 0 && <>{Head('Saved meals')}<div className="space-y-2">{savedMeals.map(sm => { const t = mealTotal(sm.items); return (<div key={sm.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5"><button onClick={() => onLogMeal(sm.items)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{sm.name} <span className="text-[#8A8A90]">· {sm.items.length} item{sm.items.length === 1 ? '' : 's'}</span></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(t.kcal)} kcal · P{Math.round(t.protein)} C{Math.round(t.carbs)} F{Math.round(t.fat)}</div></button><button onClick={() => setConfirmDel(sm)} className="hit px-2 shrink-0 text-[#8A8A90] text-lg leading-none" aria-label="Delete saved meal">×</button></div>); })}</div></>}
-      {!favs.length && !myShown.length && !savedMeals.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelDino size={40} color="var(--muted)" /></div>Search for a food above, scan a barcode, or estimate a meal. Anything you log appears here for one-tap logging next time.</div>}
+      {!favs.length && !myShown.length && !savedMeals.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Search for a food above, scan a barcode, or estimate a meal. Anything you log appears here for one-tap logging next time.</div>}
     </>}
     {query && <>
       {myShown.length > 0 && <>{Head('Your foods')}<div className="space-y-2">{myShown.map(MyRow)}</div></>}
@@ -5495,7 +5503,7 @@ function RecentTab({ db, update, isAlc, mealName, onPick }) {
   return (<div>
     <TextInput placeholder="Search your foods…" value={q} onChange={e => setQ(e.target.value)} />
     <div className="text-[11px] text-[#8A8A90] mt-2 mb-3">Tap any {isAlc ? 'drink' : 'food'} to add it again with the amount you had last time, or tap the underlined amount to change it first.</div>
-    {!foods.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelDino size={40} color="var(--muted)" /></div>Nothing here yet. Anything you log shows up here so you can add it again in one tap.</div>}
+    {!foods.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Nothing here yet. Anything you log shows up here so you can add it again in one tap.</div>}
     {favs.length > 0 && <><div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">Favourites</div><div className="space-y-2 mb-4">{favs.map(Row)}</div></>}
     {recents.length > 0 && <><div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">Recent</div><div className="space-y-2">{recents.map(Row)}</div>{moreCount > 0 && <div className="text-[11px] text-[#8A8A90] mt-3 text-center">+ {moreCount} more, type above to search all your foods.</div>}</>}
     {qtyFor && <EditEntryModal title="How much this time?" saveLabel="Add to log" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} />}
@@ -7823,10 +7831,10 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
   return (
     <div className="hidden lg:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-[#0F0F12] border-r-[3px] border-[#262629] p-4 z-40">
-      <button onClick={onOpenPlay} aria-label="Open Play" className="px-1 py-3 mb-3 text-left"><div className="flex items-center gap-2.5"><PixelDino size={22} color="var(--good)" /><span className="pf text-[13px]">MACROSAURUS</span></div><div className="flex gap-1 mt-2 ml-8">{[PRO, CARB, FAT, 'var(--accent)'].map((c, i) => <span key={i} className="w-2.5 h-2.5" style={{ background: c }} />)}</div></button>
+      <button onClick={onOpenPlay} aria-label="Open Play" className="px-1 py-3 mb-3 text-left"><div className="flex items-center gap-2.5"><PixelEgg size={22} color="var(--good)" /><span className="pf text-[13px]">MACROSAURUS</span></div><div className="flex gap-1 mt-2 ml-8">{[PRO, CARB, FAT, 'var(--accent)'].map((c, i) => <span key={i} className="w-2.5 h-2.5" style={{ background: c }} />)}</div></button>
       <button onClick={onAdd} className="pixel-btn flex items-center justify-center gap-2 bg-white text-black py-3 font-bold mb-4"><Icon.plus width="18" height="18" /> Log food</button>
       <div className="flex flex-col gap-2">{tabs.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === k ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Ic width="20" height="20" /> {l}</button>)}
-        <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelDino size={20} color="var(--good)" /> PLAY</button>
+        <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
         <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="20" height="20" /> YOU</button>
       </div>
       <div className="mt-auto pf text-[8px] text-[#8A8A90] px-1">{BRAND}</div>
@@ -7838,7 +7846,7 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
     <div className="lg:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
       {/* The dino is your buddy: tap it to open the Play hub (Macrodex, egg, catches). */}
       <button onClick={onOpenPlay} aria-label="Open Play" className="flex items-center gap-2.5 text-left">
-        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelDino size={20} color="#fff" /></div>
+        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
         <div className="leading-tight">
           <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
           <div className="text-[9px] flex items-center gap-1.5">
@@ -8343,7 +8351,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       {fit && rem && hasMacros && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal; you have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today.</div>}
     </Card>
     {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
-    {busy ? <div className="text-[12px] mb-4 flex items-center gap-2" style={{ color: 'var(--accent)' }}><PixelDino size={16} color="var(--accent)" /> {busy}</div>
+    {busy ? <div className="text-[12px] mb-4 flex items-center gap-2" style={{ color: 'var(--accent)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
       : <div className="flex gap-2 mb-3">
         <Btn kind={hasMacros ? 'ghost' : 'accent'} className="flex-1" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</Btn>
       </div>}
@@ -8953,7 +8961,7 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
           <div className="space-y-2.5">{almost.map(m => <FridgeMatchCard key={m.id} m={m} onOpen={() => openMatch(m)} onAddMissing={() => addMissing(m)} />)}</div>
         </div>}
       </>}
-      {commLoading && <div className="flex items-center gap-2 text-[12px] mb-3" style={{ color: 'var(--accent)' }}><PixelDino size={16} color="var(--accent)" /> Checking the Discover library…</div>}
+      {commLoading && <div className="flex items-center gap-2 text-[12px] mb-3" style={{ color: 'var(--accent)' }}><PixelEgg size={16} color="var(--accent)" /> Checking the Discover library…</div>}
       {!results.length && !commLoading && <Card className="p-5 text-center">
         {!recipes.length && !isPremium
           ? <><div className="text-[13px] font-semibold mb-1">No recipes to match yet</div><div className="text-[12px] text-[#8A8A90] leading-relaxed">Import or add a few recipes and we'll tell you which ones you can cook from what's in your fridge.</div></>
@@ -9733,7 +9741,7 @@ function App() {
       <MobileHeader onOpenPlay={() => setDexOpen(true)} onOpenYou={() => setView('more')} streak={appStreak} db={db} />
       {updateReady && <div className="fixed top-0 inset-x-0 z-[100] flex justify-center px-3" style={{ paddingTop: 'calc(0.6rem + env(safe-area-inset-top))' }}>
         <div className="pixel-box w-full max-w-md flex items-center gap-3 p-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--accent)' }}>
-          <PixelDino size={20} color="var(--accent)" />
+          <PixelEgg size={20} color="var(--accent)" />
           <div className="min-w-0 flex-1 text-[12px]">A new version is ready.</div>
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
