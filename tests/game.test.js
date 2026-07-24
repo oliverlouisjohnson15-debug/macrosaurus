@@ -168,7 +168,7 @@ test('existing persisted state migrates with sensible gamification defaults', ()
   assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] });
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
   assert.deepStrictEqual(s.amber_ledger, []);          // new currency ledger backfilled
-  assert.strictEqual(s.catch_log['2026-07-01'][0].id, 'nugg'); // locked catches untouched
+  assert.strictEqual(s.catch_log, undefined);          // Macrodex catch state stripped on migrate
 });
 
 // ---- Weekly Breakthrough: rolling 7-stamp meter, one stamp per logged day ----

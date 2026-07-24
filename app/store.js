@@ -59,6 +59,10 @@
   function migrate(state) {
     var s = deepDefaults(state ? JSON.parse(JSON.stringify(state)) : {}, defaultState());
     if (s.profile) s.profile = deepDefaults(s.profile, PROFILE_DEFAULTS);
+    // Macrodex removal: strip the retired collection/catch state from existing users on load, so it
+    // can't linger, resurface through a merge, or be read by code that no longer expects it. Keep
+    // items (Fight trophies), game_awards (badge idempotency), amber_ledger, fight and buddy.
+    ['catch_log', 'dex_boost', 'sleepDex', 'primed', 'eggs', 'breakthrough'].forEach(function (k) { delete s[k]; });
     // Reconcile the last_checkin pointer to the append-only checkins ledger on every load. A cross-device
     // merge can leave the scalar stale while the union preserves a newer check-in (see mergeStates), which
     // makes the app read "check-in due" despite a saved check-in. Healing here covers the single-copy load
@@ -99,13 +103,11 @@
       shopping_list: [],  // rolled-up things to buy: { id, name, qtys:{unit:amount}, qty_label, category, recipe_ids:[], checked, manual, added_at }
       pantry: [],         // normalised names the user "always has", skipped when adding recipe ingredients to the list
       meal_plan: [],      // planned recipes on a calendar: { id, date, recipe_id, portion, cooked, added_at }
-      catch_log: {},      // persistent Macrodex catches: { 'YYYY-MM-DD': [{ id, shiny }] }, locked so later edits never lose a caught creature
-      items: {},          // shared item inventory: { itemId: count }
-      dex_boost: null,    // active catching boost for a day: { date, lure: macro|null, shiny: bool, rare: bool }
-      game_awards: {},    // idempotency keys for one-time item / milestone grants
+      items: {},          // Fight / trophy inventory: { itemId: count } (e.g. the Champion Belt)
+      game_awards: {},    // idempotency keys for one-time grants (the check-in badge track, etc.)
       amber_ledger: [],   // append-only Amber-currency ledger: [{ id, date, delta, reason }]; balance = sum(delta). Append-only so a merge can never lose or double-count winnings (see mergeStates)
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null, lastDailyDate: null, dailyStreak: 0, dailyBest: 0 }, // ladder + weekly boss + daily hunt + prestige; one ladder/daily attempt per logged day
-      game_salt: null,    // per-user random seed for daily catch rolls (set once on first run)
+      game_salt: null,    // per-user random seed for the buddy's stable-per-day mood/personality flavour (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
       buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought overlays (owned + equipped)
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
@@ -114,10 +116,8 @@
       deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
       menstrual: { enabled: false, lastStart: null, cycleLen: 28 }, // optional cycle tracking so premenstrual water weight doesn't trigger a wrong calorie cut
       steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
-      sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + morning Macrodex catch.
-      sleepDex: { claimed: {}, lastDate: null, lastId: null, lastShiny: false, lastStyle: null }, // Pokemon Sleep style morning-catch: which wake dates already awarded a catch + last night's reveal
+      sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + readiness.
       health: {},         // daily recovery signals keyed by date (Google Health, Phase B): { 'YYYY-MM-DD': { hrv, hrvBaseline, rhr, rhrBaseline, tempDev } }. Powers the readiness score.
-      primed: { claimed: {}, lastDate: null, lastId: null, lastShiny: false }, // Apex-readiness morning bonus catch: which dates already awarded + last reveal
       googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
       goals: null,
     };
@@ -215,20 +215,8 @@
     // copy that never linked has neither (time 0) so it can no longer clobber a live connection.
     var ghTime = function (g) { return g ? (Date.parse(g.lastSync) || Date.parse(g.disconnectedAt) || 0) : 0; };
     out.googleHealth = (ghTime(newer.googleHealth) >= ghTime(older.googleHealth) ? newer.googleHealth : older.googleHealth) || null;
-    // primed morning catch: union the claimed dates, keep the later reveal
-    var po = older.primed || {}, pn = newer.primed || {};
-    var plater = (pn.lastDate || '') >= (po.lastDate || '') ? pn : po;
-    out.primed = Object.assign({ claimed: {}, lastDate: null }, plater, { claimed: Object.assign({}, po.claimed || {}, pn.claimed || {}) });
-    // sleepDex: union the claimed wake dates, keep the later night's reveal fields
-    var so = older.sleepDex || {}, sn = newer.sleepDex || {};
-    var later = (sn.lastDate || '') >= (so.lastDate || '') ? sn : so;
-    out.sleepDex = Object.assign({}, later, { claimed: Object.assign({}, so.claimed || {}, sn.claimed || {}) });
-    // catch_log: union dates, and union the creatures caught on each shared date
-    var cl = {};
-    [older.catch_log || {}, newer.catch_log || {}].forEach(function (src) {
-      Object.keys(src).forEach(function (d) { cl[d] = unionBy(src[d], cl[d], function (c) { return c && c.id; }); });
-    });
-    out.catch_log = cl;
+    // (The Macrodex catch state - catch_log, sleepDex, primed, dex_boost, eggs, breakthrough - was
+    // removed. migrate() strips it on load, so there is nothing here to union.)
     // freezes: union the forgiven dates
     var fz = {};
     [older, newer].forEach(function (s) { (((s.freezes || {}).frozen) || []).forEach(function (d) { fz[d] = 1; }); });

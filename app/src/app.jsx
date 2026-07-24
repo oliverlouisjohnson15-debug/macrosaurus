@@ -7344,13 +7344,8 @@ function demoState() {
   const hrvSeries = [48, 53, 50, 56, 52, 58, 60], rhrSeries = [56, 55, 57, 54, 55, 53, 52], spo2Series = [97, 96, 97, 98, 97, 97, 98];
   const healthSeed = {}; hrvSeries.forEach((_, i) => { const d = shiftISO(today, -(6 - i)); healthSeed[d] = { hrv: hrvSeries[i], rhr: rhrSeries[i], spo2: spo2Series[i] }; });
   mergeHealthInto(s, healthSeed);
-  // Last night's morning catch, already awarded, so the demo shows the sleep loop populated. Every
-  // prior night is marked claimed too, matching how the live effect baselines older nights.
+  // Per-user seed for the buddy's stable-per-day mood/personality flavour lines.
   s.game_salt = 'demo-salt';
-  const lastNight = shiftISO(today, 0); const lnRec = s.sleep[lastNight]; const lnStages = { deep: lnRec.deep, rem: lnRec.rem, light: lnRec.light, awake: lnRec.awake };
-  const lnCatch = Game.sleepCatch(s.game_salt, lastNight, Game.sleepBand(lnRec.score)); const lnStyle = Game.sleepStyleFor(lnRec.score, lnStages);
-  s.sleepDex = { claimed: Object.fromEntries(Object.keys(s.sleep).map(d => [d, true])), lastDate: lastNight, lastId: lnCatch.id, lastShiny: lnCatch.shiny, lastStyle: lnStyle };
-  s.catch_log = s.catch_log || {}; s.catch_log[today] = (s.catch_log[today] || []).concat([{ id: lnCatch.id, shiny: lnCatch.shiny, sleep: lastNight, style: lnStyle }]);
   const rcp = (title, platform, kcal, p, c, f, fib, meal, main, effort, ings, steps) => ({
     id: Store.uid(), user_id: Store.USER, title, source_platform: platform, source_url: 'https://example.com/' + encodeURIComponent(title),
     thumbnail: null, servings: 2, ingredients: (ings || ['1 portion']).map(line => ({ id: Store.uid(), line, name: Rcp.nameFromLine(line), grams: 0, macros: null, resolved: null, have: false })),
@@ -8955,18 +8950,14 @@ function App() {
       const mine = await referralCall('mine');
       if (!mine || cancelled) return;
       setRewards({ code: mine.code, link: mine.link, referrals_count: mine.referrals_count, bonus_ai_remaining: mine.bonus_ai_remaining });
-      const pend = Array.isArray(mine.pending) ? mine.pending.filter(function (p) { return p && p.id && p.rid; }) : [];
+      const pend = Array.isArray(mine.pending) ? mine.pending.filter(function (p) { return p && p.rid; }) : [];
       if (!pend.length) return;
-      update(function (d) {
-        d.catch_log = d.catch_log || {}; const day = Store.todayISO(); const arr = d.catch_log[day] || [];
-        pend.forEach(function (p) { if (!arr.some(function (x) { return x.rid === p.rid; })) arr.push({ id: p.id, shiny: !!p.shiny, src: 'referral', rid: p.rid }); });
-        d.catch_log[day] = arr;
-      });
+      // Ack the pending rewards so the server grants the bonus AI logs. (The old creature reward is
+      // gone with the Macrodex; referrals now pay out purely in bonus AI.)
       referralCall('ack', { ids: pend.map(function (p) { return p.rid; }) });
-      const cr = CR_BY_ID[pend[0].id];
-      showToast(pend.length === 1 && cr
-        ? 'Referral reward! ' + cr.name + ' joined your dex, plus 5 bonus AI logs.'
-        : pend.length + ' referral rewards added, plus bonus AI logs.');
+      showToast(pend.length === 1
+        ? 'Referral reward claimed, plus 5 bonus AI logs.'
+        : pend.length + ' referral rewards claimed, plus bonus AI logs.');
       window.MTRACK && MTRACK('referral_reward', { count: pend.length });
     })();
     return function () { cancelled = true; };

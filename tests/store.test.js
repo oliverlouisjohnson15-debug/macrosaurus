@@ -365,6 +365,16 @@ test('Phase 2 safety: mergeStates() preserves keep-data merging legacy against a
   assertKeepDataIntact(Store.mergeStates(fresh, legacyState(1000)));
 });
 
+test('Phase 2 safety: migrate() strips the retired Macrodex/catch state, keeps Fight + currency', () => {
+  const s = Store.migrate(legacyState());
+  ['catch_log', 'dex_boost', 'sleepDex', 'primed', 'eggs', 'breakthrough'].forEach(k =>
+    assert.strictEqual(s[k], undefined, k + ' should be stripped'));
+  // Kept: Fight trophy inventory, game_awards (badge idempotency), the Amber ledger.
+  assert.deepStrictEqual(s.items, { lure: 2, honest_rex: 1 }); // inventory retained (holds Fight trophies)
+  assert.ok(s.game_awards && typeof s.game_awards === 'object');
+  assert.strictEqual((s.amber_ledger || []).reduce((n, e) => n + e.delta, 0), 30);
+});
+
 test('Phase 2 safety: mergeStates() unions Amber ledger + logs across two offline copies', () => {
   const a = legacyState(1000);
   const b = legacyState(3000);
