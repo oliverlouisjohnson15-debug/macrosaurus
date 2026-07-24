@@ -2475,6 +2475,33 @@ function buddyStageSprite(stageIndex, buddy) {
 // different from person to person; the user can keep it or type their own.
 const BUDDY_NAME_POOL = ['Rexley', 'Chompers', 'Nugget', 'Spike', 'Biff', 'Munch', 'Pip', 'Snappy', 'Toothy', 'Rawr', 'Bolt', 'Ziggy', 'Gus', 'Momo', 'Tank', 'Basil', 'Cosmo', 'Fern', 'Sage', 'Waffle', 'Pickle', 'Biscuit', 'Noodle', 'Turbo', 'Gronk', 'Peanut', 'Mochi', 'Rocco', 'Beans', 'Nibbles', 'Rumble', 'Dax', 'Pebble', 'Sprout', 'Taco', 'Wesley', 'Bruno', 'Clover', 'Digby', 'Otto'];
 function randomBuddyName(seed) { return BUDDY_NAME_POOL[crHash(String(seed || Math.random())) % BUDDY_NAME_POOL.length]; }
+// Deterministic "what next?" line the buddy speaks on Today - the Clippy layer. Priority-ranked so it
+// says the single most useful thing, warm and never nagging. AI-free (instant, offline, no free-tier
+// meter); richer AI moments (hatch, evolution, weekly review) come on top of this later. Returns
+// { text, cta, action } where action is 'log' | 'weigh' | 'cook' | null (the caller wires the go).
+function buddyCoach(db, today, streak) {
+  const hour = new Date().getHours();
+  const logged = entriesOn(db, today);
+  const et = effectiveTarget(db, today);
+  const proteinTgt = et ? Math.round(et.eff.protein) : 0;
+  const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
+  const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
+  const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
+  if (!logged.length) {
+    return hour < 11
+      ? { text: "Morning. Nothing logged yet, what did you have for breakfast?", cta: 'Log it', action: 'log' }
+      : { text: 'Nothing logged yet today. Pop your ' + meal + ' in and I’ll do the maths.', cta: 'Log it', action: 'log' };
+  }
+  if (proteinTgt > 0 && proteinGap >= 20 && hour >= 14) {
+    return { text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.', cta: 'See ideas', action: 'cook' };
+  }
+  if (!weighedRecently) {
+    return { text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.', cta: 'Weigh in', action: 'weigh' };
+  }
+  if (streak >= 2) return { text: streak + ' days logged in a row. Keep it up and I’ll grow.', cta: null, action: null };
+  return { text: 'Good start. Log as you go and I’ll keep you on track.', cta: null, action: null };
+}
+
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
 // animated dino is standing somewhere rather than floating, paired with its name/stage, a warm mood
 // line, and a next-stage progress bar. Replaces the old CompanionStrip: taps through to the Play
@@ -2482,7 +2509,7 @@ function randomBuddyName(seed) { return BUDDY_NAME_POOL[crHash(String(seed || Ma
 // action is deliberately left clear so the buddy's proactive coach line (Phase 5, the dead showNudge
 // slot) has room to speak here. The one rich, animated element in the pixel UI. (Refs BUDDY_STAGES/
 // MOOD_META below, resolved at render time.)
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks }) {
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, coach }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const next = BUDDY_STAGES[buddy.stage + 1] || null;
   // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
@@ -2525,6 +2552,13 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks }) {
                   : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
         </button>
       </div>
+      {!incubating && coach && (
+        <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
+          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{who} says</div>
+          <div className="text-[11.5px] leading-snug">{coach.text}</div>
+          {coach.cta && coach.go && <button onClick={coach.go} className="pixel-btn mt-2 py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{coach.cta} ›</button>}
+        </div>
+      )}
       {incubating && tasks && (
         <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: '2px solid var(--border)' }}>
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Do these to hatch</div>
@@ -3024,7 +3058,6 @@ function TrophyCabinet({ db, streak, onBack }) {
 // (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
 function ShopView({ db, amber, buy, onBack }) {
   const owned = (db.buddy && db.buddy.cosmetics) || [];
-  const items = db.items || {};
   const Row = ({ id, name, desc, price, preview, ownedLabel }) => {
     const afford = amber >= price;
     return (
@@ -3047,25 +3080,16 @@ function ShopView({ db, amber, buy, onBack }) {
         <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}><Spark size={9} /> {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
-      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from daily hunts and weekly bosses, then treat your buddy.</div>
+      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from your buddy's fights, then treat it to something nice.</div>
 
       <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Buddy cosmetics</div>
-      <div className="space-y-2 mb-5">
+      <div className="space-y-2">
         {Game.COSMETICS.map(c => <Row key={c.id} id={c.id} name={c.name} desc={c.desc} price={c.price}
           preview={c.kind === 'aura'
             ? <span style={{ filter: 'drop-shadow(0 0 5px #ff7a1a)' }}><Spark size={18} /></span>
             : <span style={{ fontSize: 20, lineHeight: 1 }}>{COSMETIC_EMOJI[c.id] || <Spark size={16} />}</span>}
           ownedLabel={owned.indexOf(c.id) >= 0 ? 'OWNED' : null} />)}
       </div>
-
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Catch boosts</div>
-      <div className="space-y-2">
-        {Game.SHOP_CONSUMABLES.map(c => { const it = ITEMS[c.id] || {}; const have = items[c.id] || 0;
-          return <Row key={c.id} id={c.id} name={it.name + (have > 0 ? ' (×' + have + ')' : '')} desc={it.desc} price={c.price}
-            preview={<span style={{ fontSize: 16, color: 'var(--pro)' }}>◈</span>}
-            ownedLabel={null} />; })}
-      </div>
-      <div className="text-[9px] text-[#8A8A90] mt-3 leading-snug">Boosts stack in your items and apply to today's catch from the hub.</div>
     </div>
   );
 }
@@ -4365,6 +4389,12 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const nudgeHour = db.profile.nudgeHour == null ? 14 : db.profile.nudgeHour;
   const showNudge = remindOn && (missLog || missWeigh) && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
+  // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
+  const coach = eggIncubating ? null : (() => {
+    const c = buddyCoach(db, today, streak); if (!c) return null;
+    const go = c.action === 'log' ? () => onQuickAdd(false) : c.action === 'weigh' ? onCheckIn : c.action === 'cook' ? () => setView('recipes') : null;
+    return Object.assign({}, c, { go });
+  })();
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
@@ -4408,7 +4438,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} />
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} coach={coach} />
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
