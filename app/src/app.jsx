@@ -454,6 +454,16 @@ function stepsCoachLine(sc) {
   }
   return `Your steps held up well this cycle (about ${k(sc.avg)} a day), so there is no easy activity left to add. That is why the small calorie change above is the right call this time.`;
 }
+// AI rich moment: the buddy's first words when it hatches. A once-per-buddy emotional peak, so it's
+// the right place to spend an AI call. Guardrailed to a short warm welcome; metered/premium-gated by
+// the proxy exactly like coachNarrative, and the caller always has an instant deterministic fallback,
+// so a blocked or offline call never dents the moment. Returns trimmed text or throws.
+async function buddyHatchLine(name) {
+  const who = name || 'your buddy';
+  const rules = 'You are ' + who + ', a friendly pixel dinosaur who has just hatched from its egg in a UK macro-tracking app, speaking for the very first time to the person raising you. In exactly one or two short sentences, greet them warmly and gently encourage them to keep logging their food each day so you grow up strong together. Speak as the dinosaur ("I", "me"), address them as "you". Plain UK English. No medical or diet advice, no numbers, no emojis, no headings, no bullet points, no markdown, no em dashes.';
+  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 120, messages: [{ role: 'user', content: rules + '\n\nYour first words:' }] });
+  return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+}
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
 // Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
@@ -4226,7 +4236,16 @@ function EggPickerOnboarding({ update, onDone }) {
 function HatchCelebration({ buddy, suggestedName, onDone }) {
   const [step, setStep] = useState('wobble'); // wobble -> crack -> hatch -> reveal (+ name)
   const [name, setName] = useState(suggestedName || 'Buddy');
+  // The buddy's first words: an instant warm fallback, upgraded to a personalised AI line when the
+  // proxy allows it (metered/premium, graceful otherwise). Fetched once, the moment it hatches.
+  const [firstWords, setFirstWords] = useState('Thanks for hatching me. Log a meal or two a day and I’ll grow up strong right alongside you.');
+  const askedAI = useRef(false);
   useEffect(() => { if (step !== 'wobble') return; const t = setTimeout(() => setStep('crack'), 1300); return () => clearTimeout(t); }, [step]);
+  useEffect(() => {
+    if (step !== 'reveal' || askedAI.current) return;
+    askedAI.current = true;
+    buddyHatchLine(name).then(t => { if (t) setFirstWords(t); }).catch(() => {});
+  }, [step]);
   const palette = (buddy && buddy.palette) || 'female';
   const species = (buddy && buddy.species) || 'doux';
   return (
@@ -4242,7 +4261,8 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
         {step === 'reveal' ? (
           <>
             <div className="text-lg font-bold mb-1">It hatched!</div>
-            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Meet your buddy. Give it a name, or keep the one we picked.</div>
+            {firstWords && <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{firstWords}<span style={{ color: 'var(--accent)' }}>”</span></div>}
+            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Give it a name, or keep the one we picked.</div>
             <input value={name} onChange={e => setName(e.target.value)} maxLength={16} className={inputCls + ' text-center mb-3'} />
             <Btn onClick={() => onDone(name.trim() || suggestedName || 'Buddy')} className="w-full max-w-xs">{name.trim() ? 'Hello ' + name.trim() : 'Say hello'}</Btn>
           </>
