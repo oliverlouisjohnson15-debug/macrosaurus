@@ -4417,36 +4417,6 @@ function WeighCadencePrompt({ db, update }) {
     </Card>
   );
 }
-// One adaptive "today's focus" line for the macro hero (Oura's "one big thing", not a feed). Nutrition
-// first: it names the single most useful next move from what's left on the day, and stays silent on an
-// empty day so the onboarding checklist and the log CTA lead instead.
-function heroFocusLine(et, tot) {
-  const remK = Math.round(et.eff.kcal - tot.kcal);
-  const remP = Math.round(et.eff.protein_g - tot.protein);
-  if (tot.kcal <= 0) return null;
-  // Lead with the next move, not the number: the hero already shows calories left and the bars show
-  // protein, so this line stays a nudge rather than a third readout of the same figures.
-  if (remK < -60) return { color: 'var(--warn)', text: 'Over on calories today. An easy day tomorrow evens it out.' };
-  if (remP >= 25) return { color: 'var(--warn)', text: 'Protein’s the gap. A shake or chicken at dinner lands it.' };
-  if (remK <= 160 && remP <= 12) return { color: 'var(--good)', text: 'Dialled in. Protein hit, calories on target. Nice work.' };
-  return { color: 'var(--accent)', text: 'On pace. Keep the evening light and you’re there.' };
-}
-// Thin status strip: the game hooks (streak, dex, Amber) compressed into one glanceable bar, the
-// Duolingo move, so they anchor Today without each taking a full card that competes with the macro hero.
-function DashStatusStrip({ streak, dex, dexTotal, amber, onOpenPlay }) {
-  if (!streak && !dex && !amber) return null; // brand-new account: let onboarding lead
-  return (
-    <button type="button" onClick={onOpenPlay} aria-label="Open Play"
-      className="w-full flex items-center justify-between pixel-box px-3 py-2 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <span className="flex items-center gap-2.5 pf uppercase" style={{ fontSize: 8 }}>
-        <span style={{ color: 'var(--carb)' }}>Dex <b className="tnum">{dex}/{dexTotal}</b></span>
-        <span style={{ color: 'var(--muted2)' }}>·</span>
-        <span style={{ color: 'var(--fat)' }}><Spark size={9} /> <b className="tnum">{amber}</b></span>
-      </span>
-      <span className="pf uppercase shrink-0" style={{ fontSize: 8, color: 'var(--muted)' }}>›</span>
-    </button>
-  );
-}
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
@@ -4706,14 +4676,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const nudgeHour = db.profile.nudgeHour == null ? 14 : db.profile.nudgeHour;
   const showNudge = remindOn && (missLog || missWeigh) && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
-  // Hero add-ons: one adaptive focus line, plus the game hooks for the thin status strip.
-  const focus = heroFocusLine(et, tot);
-  const dexCount = Object.keys(macrodex(db)).length;
-  const amberBal = Game.amberBalance(db.amber_ledger);
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Today" />
-      <DashStatusStrip streak={streak} dex={dexCount} dexTotal={CREATURES.length} amber={amberBal} onOpenPlay={onOpenPlay} />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
 
       {/* Hero: today's macros. One glance (rings + what's left), the daily loop. One lens only
@@ -4724,15 +4689,6 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       </div>
       <Card className="p-5 mb-4" style={{ outline: '3px solid var(--accent)', outlineOffset: 2 }}>
         <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} />
-        {/* One adaptive focus line: the single most useful next move, straight under the bars it reads from. */}
-        {focus && <div className="flex items-start gap-2 mt-3 pt-3 border-t border-[#262629]">
-          <span className="shrink-0" style={{ width: 7, height: 7, marginTop: 4, background: focus.color, boxShadow: '0 0 6px ' + focus.color }} />
-          <span className="text-[11px] leading-snug" style={{ color: 'var(--text2)' }}>{focus.text}</span>
-        </div>}
-        {/* The one on-screen primary action, thumb-reachable, the loop the whole app runs on. */}
-        <button onClick={() => onQuickAdd(false)} className="pixel-btn w-full mt-3 py-3 pf text-[10px] uppercase inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-          <PixelGlyph kind="meat" color="currentColor" size={12} /> Log a meal
-        </button>
         {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
         <div className="mt-3 pt-2.5 border-t border-[#262629]">
           <Collapsible variant="inline" label="Balance carbs & fat" sub="Adjust ›">
@@ -4757,16 +4713,6 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
             <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
             {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
           </div>;
-        })()}
-        {(() => {
-          const dayEntries = entriesOn(db, today);
-          if (!dayEntries.length) return null;
-          const totalKcal = Math.round(sumMacros(dayEntries).kcal);
-          const nMeals = mealsForDay(db, today).filter(m => dayEntries.some(e => e.meal_id === m.id)).length;
-          return <button onClick={() => setView('foodlog')} className="mt-3 pt-2.5 border-t border-[#262629] w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
-            <span className="truncate">{nMeals} meal{nMeals === 1 ? '' : 's'} · <span className="tnum font-bold" style={{ color: 'var(--text)' }}>{totalKcal.toLocaleString('en-GB')}</span> kcal</span>
-            <span className="pf text-[8px] shrink-0 ml-2" style={{ color: 'var(--accent)' }}>Food log ›</span>
-          </button>;
         })()}
       </Card>
 
