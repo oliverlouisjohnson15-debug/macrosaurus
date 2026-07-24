@@ -3183,6 +3183,22 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
     </div>
   );
 }
+// Achievement trophies, earned once and recorded idempotently in game_awards['trophy:<id>']. Each has
+// an `earned(db, ctx)` predicate; the Dashboard runs the pass and mints newly-earned ones with a toast.
+// EARLY_TROPHY_UNTIL: everyone active during the launch window gets the founding-member trophy.
+const EARLY_TROPHY_UNTIL = '2026-10-25'; // ~3 months from the 2026-07-24 launch push
+function perfectWeek(db) { const t = Store.todayISO(); for (let i = 0; i < 7; i++) { if (!isCompleteDayOn(db, shiftISO(t, -i))) return false; } return true; }
+const TROPHIES = [
+  { id: 'early_adopter', name: 'Founding Saur', desc: 'Here from the very start, one of Macrosaurus’s first pack.', earned: () => Store.todayISO() < EARLY_TROPHY_UNTIL },
+  { id: 'supporter', name: 'Patron Saur', desc: 'Backed the app with Premium. Genuinely, thank you.', earned: (db, ctx) => !!ctx.isPremium },
+  { id: 'bond_hatch', name: 'It Hatched!', desc: 'Hatched your buddy and began raising it.', earned: (db) => db.buddy && db.buddy.hatched !== false && (db.buddy.stage || 0) >= 1 },
+  { id: 'streak7', name: 'Week Strong', desc: 'Logged seven days in a row.', earned: (db, ctx) => (ctx.streak || 0) >= 7 },
+  { id: 'streak30', name: 'Month Strong', desc: 'A full month’s streak. Serious consistency.', earned: (db, ctx) => (ctx.streak || 0) >= 30 },
+  { id: 'streak100', name: 'Centenarian', desc: 'One hundred days in a row. Prehistoric discipline.', earned: (db, ctx) => (ctx.streak || 0) >= 100 },
+  { id: 'perfect_week', name: 'Perfect Week', desc: 'Seven straight days, every single one logged in full.', earned: (db) => perfectWeek(db) },
+  { id: 'bond_grown', name: 'Fully Grown', desc: 'Raised your buddy all the way to its final form.', earned: (db) => (db.buddy && db.buddy.stage || 0) >= (BUDDY_STAGES.length - 1) },
+  { id: 'prestige1', name: 'Apex Predator', desc: 'Cleared the whole fight ladder and prestiged.', earned: (db) => ((db.fight && db.fight.prestige) || 0) >= 1 },
+];
 // Trophy cabinet: trophies won, shiny gallery, streak records and the badge tracks.
 function TrophyCabinet({ db, streak, onBack }) {
   useBackClose(onBack);
@@ -3209,13 +3225,26 @@ function TrophyCabinet({ db, streak, onBack }) {
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Badges</div>
     <Track label="Check-ins completed" count={badges.checkins || 0} hint="show up for the weekly read" />
     <Track label="In-range check-ins" count={badges.inRange || 0} hint="trend within 0.1 kg/wk of target" />
-    <div className="pf text-[8px] uppercase text-[#8A8A90] mt-4 mb-2">Trophies</div>
-    {trophyIds.length ? <div className="space-y-2 mb-4">{trophyIds.map(id => { const it = ITEMS[id];
-      return <div key={id} className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <PixelGlyph kind="trophy" color="var(--fat)" size={18} />
-        <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{items[id]}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
-      </div>; })}</div>
-      : <div className="text-[10px] text-[#8A8A90] mb-4">No trophies yet. Beat the weekly boss for Amber and clear the ladder for the Champion Belt.</div>}
+    {(() => {
+      const ga = db.game_awards || {};
+      const earnedCount = TROPHIES.filter(t => ga['trophy:' + t.id]).length + trophyIds.length;
+      return <div className="pf text-[8px] uppercase text-[#8A8A90] mt-4 mb-2">Trophies · {earnedCount}/{TROPHIES.length + 2}</div>;
+    })()}
+    <div className="space-y-2 mb-4">
+      {/* Achievement trophies: earned ones shine gold, locked ones show as a greyed goal. */}
+      {TROPHIES.map(t => { const got = !!(db.game_awards && db.game_awards['trophy:' + t.id]);
+        return <div key={t.id} className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none', opacity: got ? 1 : 0.55 }}>
+          <PixelGlyph kind="trophy" color={got ? 'var(--fat)' : 'var(--muted)'} size={18} />
+          <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{t.name}{got ? '' : ' · locked'}</div><div className="text-[9px] text-[#8A8A90] leading-snug">{t.desc}</div></div>
+          {got && <Tick size={12} />}
+        </div>; })}
+      {/* Fight trophies from the item system (Champion Belt, weekly-boss Amber). */}
+      {trophyIds.map(id => { const it = ITEMS[id];
+        return <div key={id} className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+          <PixelGlyph kind="trophy" color="var(--fat)" size={18} />
+          <div className="min-w-0 flex-1"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{items[id]}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
+        </div>; })}
+    </div>
   </div>;
 }
 // The Amber shop: spend hard-won currency on buddy cosmetics (FX auras shown on your buddy)
@@ -4610,6 +4639,14 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     update(d => { d.amber_ledger = d.amber_ledger || []; if (d.amber_ledger.some(e => e.id === key)) return; d.amber_ledger.push({ id: key, date: today, delta: Game.AMBER_REWARDS.dailyLog, reason: 'Logged today' }); });
     if (showToast) showToast(((db.buddy && db.buddy.name) || 'Your buddy') + ' found ' + Game.AMBER_REWARDS.dailyLog + ' Amber for today’s log', 'Shop', () => onOpenPlay && onOpenPlay());
   }, [db.log_entries, today]);
+  // Trophy award pass: mint any newly-earned achievement trophies (idempotent via game_awards) + toast.
+  useEffect(() => {
+    const ga = db.game_awards || {};
+    const earned = TROPHIES.filter(t => !ga['trophy:' + t.id] && t.earned(db, { streak, isPremium }));
+    if (!earned.length) return;
+    update(d => { d.game_awards = d.game_awards || {}; earned.forEach(t => { if (!d.game_awards['trophy:' + t.id]) d.game_awards['trophy:' + t.id] = today; }); });
+    if (showToast) showToast(earned.length === 1 ? 'Trophy unlocked: ' + earned[0].name : earned.length + ' new trophies unlocked', 'See', () => onOpenPlay && onOpenPlay());
+  }, [streak, isPremium, today, db.log_entries, db.buddy && db.buddy.stage, db.fight && db.fight.prestige]);
   const freezeAvail = freezeReady(frozenSet, today);
   const newFrozenKey = streakInfo.newFrozen.join(',');
   useEffect(() => {
