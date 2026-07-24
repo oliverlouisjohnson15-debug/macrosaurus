@@ -2427,6 +2427,16 @@ const SPRITE_FRAMES = {
 // The male palettes of these species are missing idle/move/dash/hurt/kick; the customize step uses
 // this to hide those species+palette combos so we never request a 404 strip.
 const SPRITE_INCOMPLETE_MALE = ['doux', 'mort', 'tard', 'vita'];
+// The 12 buddy species from the art pack, offered in the hatch/customize step. Labels are cosmetic
+// (the user names their own buddy); every species has a complete 'female' colourway, so grid
+// thumbnails use it and spritePalettes() decides which colourways a given species can offer.
+const SPRITE_SPECIES = [
+  { id: 'doux', label: 'Doux' }, { id: 'cole', label: 'Cole' }, { id: 'kira', label: 'Kira' },
+  { id: 'kuro', label: 'Kuro' }, { id: 'loki', label: 'Loki' }, { id: 'mono', label: 'Mono' },
+  { id: 'mort', label: 'Mort' }, { id: 'nico', label: 'Nico' }, { id: 'olaf', label: 'Olaf' },
+  { id: 'sena', label: 'Sena' }, { id: 'tard', label: 'Taro' }, { id: 'vita', label: 'Vita' },
+];
+function spritePalettes(species) { return SPRITE_INCOMPLETE_MALE.includes(species) ? ['female'] : ['female', 'male']; }
 function spriteHasAnim(palette, species, group, anim) {
   if (palette === 'male' && group === 'base' && SPRITE_INCOMPLETE_MALE.includes(species)
     && ['idle', 'move', 'dash', 'hurt', 'kick'].includes(anim)) return false;
@@ -2454,9 +2464,17 @@ function SpriteSheet({ palette = 'female', species = 'doux', group = 'base', ani
 function buddyStageSprite(stageIndex, buddy) {
   const palette = (buddy && buddy.palette) || 'female';
   const species = (buddy && buddy.species) || 'doux';
-  if (stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
+  // Show the egg until the buddy has hatched (a new account picks an egg and hatches it by doing the
+  // onboarding staples). `hatched === false` means still incubating; absent/true means already out
+  // (existing accounts predate the flag, so they render their dino as before).
+  const hatched = !(buddy && buddy.hatched === false);
+  if (!hatched || stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
   return { palette, species, group: 'base', anim: 'idle', fps: 5 };
 }
+// A pre-filled buddy name suggested at hatch. Seeded by the per-user game_salt so it's stable and
+// different from person to person; the user can keep it or type their own.
+const BUDDY_NAME_POOL = ['Rexley', 'Chompers', 'Nugget', 'Spike', 'Biff', 'Munch', 'Pip', 'Snappy', 'Toothy', 'Rawr', 'Bolt', 'Ziggy', 'Gus', 'Momo', 'Tank', 'Basil', 'Cosmo', 'Fern', 'Sage', 'Waffle', 'Pickle', 'Biscuit', 'Noodle', 'Turbo', 'Gronk', 'Peanut', 'Mochi', 'Rocco', 'Beans', 'Nibbles', 'Rumble', 'Dax', 'Pebble', 'Sprout', 'Taco', 'Wesley', 'Bruno', 'Clover', 'Digby', 'Otto'];
+function randomBuddyName(seed) { return BUDDY_NAME_POOL[crHash(String(seed || Math.random())) % BUDDY_NAME_POOL.length]; }
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
 // animated dino is standing somewhere rather than floating, paired with its name/stage, a warm mood
 // line, and a next-stage progress bar. Replaces the old CompanionStrip: taps through to the Play
@@ -2464,7 +2482,7 @@ function buddyStageSprite(stageIndex, buddy) {
 // action is deliberately left clear so the buddy's proactive coach line (Phase 5, the dead showNudge
 // slot) has room to speak here. The one rich, animated element in the pixel UI. (Refs BUDDY_STAGES/
 // MOOD_META below, resolved at render time.)
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay }) {
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const next = BUDDY_STAGES[buddy.stage + 1] || null;
   // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
@@ -2474,15 +2492,17 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay }) {
   const s = buddyStageSprite(buddy.stage, db.buddy);
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
-  const eq = equippedCosmetics((db.buddy || {}).cosmetics);
-  const who = bp.name || (bp.form ? bp.form.name : st.name);
+  const incubating = !!(db.buddy && db.buddy.hatched === false);
+  const eq = incubating ? {} : equippedCosmetics((db.buddy || {}).cosmetics); // no cosmetics on an egg
+  const who = incubating ? 'Your egg' : (bp.name || (bp.form ? bp.form.name : st.name));
+  const tDone = tasks ? tasks.filter(t => t.done).length : 0;
   return (
     <Card className="p-3 mb-4">
       <div className="flex items-center gap-2.5">
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="relative shrink-0 pixel-box overflow-hidden" style={{ width: 90, height: 94, background: 'var(--surface3)', boxShadow: 'none' }}>
           <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
-          <div className="absolute" style={{ left: '50%', bottom: 14, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
-          <div className="absolute" style={Object.assign({ left: '50%', bottom: 15, transform: 'translateX(-50%)' }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
+          <div className="absolute" style={{ left: '50%', bottom: 12, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+          <div className="absolute" style={Object.assign({ left: '50%', bottom: 4, transform: 'translateX(-50%)' }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
             <div className="relative inline-block leading-none">
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />
               {eq.hat && <span className="absolute pointer-events-none" style={{ top: 0, left: '50%', transform: 'translateX(-50%)', fontSize: 22, lineHeight: 1 }}>{COSMETIC_EMOJI[eq.hat]}</span>}
@@ -2495,13 +2515,28 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay }) {
         <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
           <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
-          <div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
-          {next
-            ? <><div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
-                <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
-            : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}
+          {incubating
+            ? <><div className="text-[11px] leading-snug mb-1.5 truncate" style={{ color: 'var(--carb)' }}>Incubating{tasks ? ' · ' + tDone + '/' + tasks.length : '…'}</div>
+                {tasks && <div className="pixel-bar"><i style={{ display: 'block', width: Math.round((tDone / tasks.length) * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>}</>
+            : <><div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
+                {next
+                  ? <><div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
+                      <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
+                  : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
         </button>
       </div>
+      {incubating && tasks && (
+        <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: '2px solid var(--border)' }}>
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Do these to hatch</div>
+          {tasks.map(t => (
+            <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1.5 active:opacity-60 transition-opacity">
+              <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{t.done ? <Tick size={10} /> : null}</span>
+              <span className="text-[11px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
+              {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent)' }}>DO IT ›</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -4004,6 +4039,76 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
   );
 }
 
+// First-run EGG PICK: you choose your egg's COLOUR, but never see the dino, and you don't name it yet
+// (naming happens at hatch, once you can see who you got). It incubates on Today and HATCHES later as
+// a reward once you've done the core staples (trigger in Dashboard). Sets buddy.species/palette +
+// onboarding.eggPicked; buddy.hatched stays false and name stays empty until it cracks open.
+function EggPickerOnboarding({ update, onDone }) {
+  const [species, setSpecies] = useState('doux');
+  function finish() {
+    update(d => {
+      d.buddy = d.buddy || { stage: 0 };
+      d.buddy.species = species; d.buddy.palette = 'female'; d.buddy.hatched = false;
+      d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
+      if (d.buddy.stage == null) d.buddy.stage = 0;
+      d.onboarding = d.onboarding || {}; d.onboarding.eggPicked = true;
+    });
+    onDone();
+  }
+  return (
+    <div className="fixed inset-0 z-[90] overflow-y-auto" style={{ background: 'var(--bg)' }}>
+      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center text-center">
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
+        <div className="pixel-box p-5 mb-3 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 150, minHeight: 150 }}>
+          <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
+        </div>
+        <div className="text-lg font-bold mb-1">Choose your egg</div>
+        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy, a coach that grows as you build habits.</div>
+        <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
+          {SPRITE_SPECIES.map(s => (
+            <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+              <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
+            </button>
+          ))}
+        </div>
+        <Btn onClick={finish} className="w-full">This one</Btn>
+      </div>
+    </div>
+  );
+}
+
+// The HATCH moment, fired from Today once the onboarding staples are done: the egg wobbles, cracks
+// and hatches, revealing the dino for the very first time - THEN you name it (with a fun name
+// pre-filled). onDone(name) marks the buddy hatched and named.
+function HatchCelebration({ buddy, suggestedName, onDone }) {
+  const [step, setStep] = useState('wobble'); // wobble -> crack -> hatch -> reveal (+ name)
+  const [name, setName] = useState(suggestedName || 'Buddy');
+  useEffect(() => { if (step !== 'wobble') return; const t = setTimeout(() => setStep('crack'), 1300); return () => clearTimeout(t); }, [step]);
+  const palette = (buddy && buddy.palette) || 'female';
+  const species = (buddy && buddy.species) || 'doux';
+  return (
+    <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
+      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center">
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-6">{step === 'reveal' ? 'Name your buddy' : "It's hatching!"}</div>
+        <div className="pixel-box p-6 mb-6 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 180, minHeight: 180 }}>
+          {step === 'wobble' && <div className="crwobble"><SpriteSheet palette={palette} species={species} group="egg" anim="move" px={7} fps={5} /></div>}
+          {step === 'crack' && <SpriteSheet palette={palette} species={species} group="egg" anim="crack" px={7} fps={6} loop={false} onEnd={() => setStep('hatch')} />}
+          {step === 'hatch' && <SpriteSheet palette={palette} species={species} group="egg" anim="hatch" px={7} fps={6} loop={false} onEnd={() => setStep('reveal')} />}
+          {step === 'reveal' && <div className="crpop"><SpriteSheet palette={palette} species={species} group="base" anim="idle" px={7} fps={5} /></div>}
+        </div>
+        {step === 'reveal' ? (
+          <>
+            <div className="text-lg font-bold mb-1">It hatched!</div>
+            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Meet your buddy. Give it a name, or keep the one we picked.</div>
+            <input value={name} onChange={e => setName(e.target.value)} maxLength={16} className={inputCls + ' text-center mb-3'} />
+            <Btn onClick={() => onDone(name.trim() || suggestedName || 'Buddy')} className="w-full max-w-xs">{name.trim() ? 'Hello ' + name.trim() : 'Say hello'}</Btn>
+          </>
+        ) : <div className="text-[12px] text-[#8A8A90]">Something's cracking open…</div>}
+      </div>
+    </div>
+  );
+}
+
 // Hatch-and-name: turn the generic buddy into an individual. Shown from the home strip; on an
 // account with no name yet it reads as "hatching", afterwards as a rename.
 function NameBuddyModal({ db, update, buddy, onClose }) {
@@ -4212,6 +4317,23 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const buddy = Game.buddyView(buddyHw, streak);
   const buddyLvl = useMemo(() => buddyLevel(db), [db.log_entries]);
   const bp = buddyProfile(db, streak, buddy, buddyLvl);
+  // Hatch trigger: a brand-new account's egg hatches once the core onboarding STAPLES are done - the
+  // first real payoff for the habit. These same tasks show inside the buddy habitat so the buddy
+  // section is the one place a user sees what to do next. buddy.hatched is set (with the chosen name)
+  // when the celebration finishes.
+  const [hatching, setHatching] = useState(false);
+  const eggIncubating = !!(db.buddy && db.buddy.hatched === false);
+  const hatchEt = effectiveTarget(db, today);
+  const hatchProteinTgt = hatchEt ? hatchEt.eff.protein : 0;
+  const hatchTasks = [
+    { k: 'meal', label: 'Log a meal', done: (db.log_entries || []).length > 0, go: () => onQuickAdd(false) },
+    { k: 'ai', label: 'Try a Photo or Describe estimate', done: (db.log_entries || []).some(e => e.source === 'ai_estimate' || e.source === 'label'), go: () => onQuickAdd(false) },
+    { k: 'protein', label: 'Hit your protein target', done: hatchProteinTgt > 0 && sumMacros(entriesOn(db, today)).protein >= hatchProteinTgt, go: () => onQuickAdd(false) },
+    { k: 'weigh', label: 'Add a weigh-in', done: (db.weight_entries || []).length > 0, go: onCheckIn },
+  ];
+  const hatchStaplesDone = hatchTasks.every(t => t.done);
+  const forceHatchNow = DEMO && new URLSearchParams(window.location.search).has('hatchnow');
+  useEffect(() => { if (forceHatchNow || (eggIncubating && hatchStaplesDone)) setHatching(true); }, [eggIncubating, hatchStaplesDone, forceHatchNow]);
   useEffect(() => {
     const longest = (db.records && db.records.longestStreak) || 0;
     if (!buddy.ratchet && streak <= longest) return;
@@ -4258,6 +4380,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
+      {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
 
@@ -4298,7 +4421,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} />
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} />
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
@@ -7427,7 +7550,7 @@ const WELCOME_SLIDES = [
   { title: 'Welcome to Macrosaurus', body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week." },
   { title: 'Logging is quick', body: "Tap the plus to add food by photo, voice or barcode. The AI does the maths, you just confirm." },
   { title: 'Weigh in, then relax', body: "A few times a week is plenty. Macrosaurus follows your trend, not one noisy day, and adjusts your targets weekly." },
-  { title: 'Make it a habit', body: "Every logged day hatches your dino, catches Macrodex creatures and feeds your streak. Tap the dino any time to play." },
+  { title: 'Meet your buddy', body: "Your dino grows as you build real habits, coaches you toward your next step, and gets stronger for a fight. Tap it any time to check in." },
 ];
 function WelcomeCarousel({ onDone, reviewing, theme }) {
   useBackClose(onDone);
@@ -7459,6 +7582,7 @@ function WelcomeCarousel({ onDone, reviewing, theme }) {
 function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
   const ob = db.onboarding || {};
   if (!ob.welcomed || ob.dismissed) return null;
+  if (db.buddy && db.buddy.hatched === false) return null; // while incubating, the tasks live in the buddy habitat
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
   const proteinTgt = et ? et.eff.protein : 0;
@@ -7467,16 +7591,16 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     { k: 'meal', label: 'Log your first meal', done: db.log_entries.length > 0, go: onLog },
     { k: 'ai', label: 'Try a Photo or Describe estimate', done: db.log_entries.some(e => e.source === 'ai_estimate' || e.source === 'label'), go: onLog },
     { k: 'protein', label: 'Hit your protein target today', done: proteinTgt > 0 && todayProtein >= proteinTgt, go: onLog },
-    { k: 'dex', label: 'Meet your buddy', done: !!ob.sawDex, go: onOpenDex },
   ];
+  const incubating = !!(db.buddy && db.buddy.hatched === false);
   const doneCount = items.filter(x => x.done).length;
   if (doneCount === items.length) return null;
   return (<Card className="p-4 mb-4 fade-in">
     <div className="flex justify-between items-center mb-2">
-      <div className="text-sm font-bold">Getting started</div>
+      <div className="text-sm font-bold">{incubating ? 'Hatch your buddy' : 'Getting started'}</div>
       <div className="flex items-center gap-2"><span className="text-[11px] text-[#8A8A90]">{doneCount}/{items.length}</span><button onClick={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.dismissed = true; })} className="text-[#8A8A90] text-lg leading-none" aria-label="Dismiss">×</button></div>
     </div>
-    <div className="text-[11px] text-[#8A8A90] mb-2.5 leading-snug">Tap a task to jump straight to it. Each one ticks off on its own once you have done it.</div>
+    <div className="text-[11px] text-[#8A8A90] mb-2.5 leading-snug">{incubating ? 'Your egg is incubating. Do these staples and it cracks open into your buddy.' : 'Tap a task to jump straight to it. Each one ticks off on its own once you have done it.'}</div>
     <div className="space-y-0.5">
       {items.map(it => (
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
@@ -9274,6 +9398,13 @@ function App() {
   if (!db) return <Loading text="Digging up your data…" />;
   if (fresh) return <Wizard initial={db.profile} onDone={(pr) => saveProfile(pr, false)} onCancel={() => setFresh(false)} />;
   if (!db.profile) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} />;
+  // First-run egg pick: a brand-new account (profile set, nothing logged, no egg chosen) picks and
+  // names its egg before reaching Today; it hatches later once the onboarding staples are done.
+  // Existing accounts skip it (they have logs or a named buddy). `?demo&egg` previews the picker.
+  const forceEgg = DEMO && new URLSearchParams(window.location.search).has('egg');
+  if (forceEgg || (!(db.onboarding && db.onboarding.eggPicked) && !(db.log_entries || []).length && !(db.buddy && db.buddy.name))) {
+    return <EggPickerOnboarding update={update} onDone={() => { if (forceEgg) window.history.replaceState({}, '', '?demo'); }} />;
+  }
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
