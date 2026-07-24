@@ -4,14 +4,8 @@
 import { inflateSync, deflateSync } from 'node:zlib';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const ART = [
-  '..........LLLLL.', '..........BBBBBB', '..........BBPBBB', '..........BBBB..',
-  'L.........DBBB..', 'BL.......DBBBB..', 'BBLD.D.DDBBBBB..', 'BBBLLLLLLLBBBB..',
-  '.BBBBBBBBBBBBB..', '..BBBBBBBBBBBL..', '..BBBBBBBBBBB...', '..BBBBBBBBBB....',
-  '..BBB..BBBB.....', '..BBB..BBB......', '..DDD..BDDD.....',
-];
-const RGB = { L: [123, 217, 87], B: [70, 185, 74], D: [44, 140, 62], P: [18, 58, 28] };
-const GW = ART[0].length, GH = ART.length;
+// The mark is the real green egg from the sprite pack (matches gen-icons.mjs), composited over og.png.
+const EGG_SRC = 'sprites/female/olaf/egg/move.png';
 
 // --- PNG decode (8-bit, non-interlaced; color type 2 RGB or 6 RGBA) ---
 function decodePNG(buf) {
@@ -66,13 +60,17 @@ const set = (x, y, c) => { if (x < 0 || y < 0 || x >= W || y >= H) return; const
 const bg = px(90, 118);
 console.log('sampled bg:', bg);
 
-// old-logo box to repaint, and new sprite placement
-const cell = +(process.env.OGCELL || 3);
-const ox = +(process.env.OGX || 64), oy = +(process.env.OGY || 40);
-const boxX0 = 48, boxY0 = 30, boxX1 = 132, boxY1 = 98;
+// old-logo box to repaint purple, then draw the real green egg (frame 0) at nearest-neighbour scale.
+const egg = decodePNG(readFileSync(EGG_SRC));
+const F = egg.height, ESTRIDE = egg.width * egg.bpp;
+const cell = +(process.env.OGCELL || 2);
+const ox = +(process.env.OGX || 60), oy = +(process.env.OGY || 40);
+const boxX0 = 48, boxY0 = 30, boxX1 = 114, boxY1 = 98; // stops well before the M of MACROSAURUS
 for (let y = boxY0; y < boxY1; y++) for (let x = boxX0; x < boxX1; x++) set(x, y, bg);
-for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-  const c = RGB[ART[gy][gx]]; if (!c) continue;
+for (let gy = 0; gy < F; gy++) for (let gx = 0; gx < F; gx++) {
+  const o = gy * ESTRIDE + gx * egg.bpp;
+  const a = egg.bpp === 4 ? egg.data[o + 3] : 255; if (a < 128) continue;
+  const c = [egg.data[o], egg.data[o + 1], egg.data[o + 2]];
   for (let dy = 0; dy < cell; dy++) for (let dx = 0; dx < cell; dx++) set(ox + gx * cell + dx, oy + gy * cell + dy, c);
 }
 

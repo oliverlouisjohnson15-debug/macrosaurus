@@ -1,43 +1,57 @@
-// One-off generator for the Macrosaurus app/marketing icons from the mascot sprite.
-// Draws the exact PixelDino grid (see app/src/app.jsx) onto a purple tile and writes
-// PNGs with no third-party deps (manual PNG encode via Node's built-in zlib).
-import { deflateSync } from 'node:zlib';
-import { writeFileSync } from 'node:fs';
+// One-off generator for the Macrosaurus app/marketing icons. The mark is the buddy's GREEN EGG, taken
+// straight from the real sprite pack (sprites/female/olaf/egg/move.png, frame 0), composited onto the
+// brand purple tile. No third-party deps: PNG decode/encode via Node's built-in zlib.
+import { deflateSync, inflateSync } from 'node:zlib';
+import { writeFileSync, readFileSync } from 'node:fs';
 
-const ART = [
-  '..........LLLLL.',
-  '..........BBBBBB',
-  '..........BBPBBB',
-  '..........BBBB..',
-  'L.........DBBB..',
-  'BL.......DBBBB..',
-  'BBLD.D.DDBBBBB..',
-  'BBBLLLLLLLBBBB..',
-  '.BBBBBBBBBBBBB..',
-  '..BBBBBBBBBBBL..',
-  '..BBBBBBBBBBB...',
-  '..BBBBBBBBBB....',
-  '..BBB..BBBB.....',
-  '..BBB..BBB......',
-  '..DDD..BDDD.....',
-];
-const RGB = {
-  L: [123, 217, 87], B: [70, 185, 74], D: [44, 140, 62], P: [18, 58, 28],
-};
 const BG = [91, 79, 166]; // #5B4FA6 brand purple
-const W = ART[0].length, H = ART.length;
+const EGG_SRC = 'sprites/female/olaf/egg/move.png'; // the green egg from the sprite pack
 
+// --- minimal PNG decoder (8-bit, non-interlaced; RGB or RGBA) ---
+function decodePNG(buf) {
+  let p = 8; const idat = []; let width, height, ctype;
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p); const type = buf.toString('ascii', p + 4, p + 8);
+    const data = buf.subarray(p + 8, p + 8 + len); p += 12 + len;
+    if (type === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); ctype = data[9]; }
+    else if (type === 'IDAT') idat.push(data); else if (type === 'IEND') break;
+  }
+  const bpp = ctype === 6 ? 4 : 3;
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * bpp; const out = Buffer.alloc(height * stride);
+  const paeth = (a, b, c) => { const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); return pa <= pb && pa <= pc ? a : pb <= pc ? b : c; };
+  let pos = 0;
+  for (let y = 0; y < height; y++) {
+    const ft = raw[pos++];
+    for (let i = 0; i < stride; i++) {
+      const v = raw[pos++];
+      const a = i >= bpp ? out[y * stride + i - bpp] : 0;
+      const b = y > 0 ? out[(y - 1) * stride + i] : 0;
+      const c = i >= bpp && y > 0 ? out[(y - 1) * stride + i - bpp] : 0;
+      let r; if (ft === 0) r = v; else if (ft === 1) r = v + a; else if (ft === 2) r = v + b; else if (ft === 3) r = v + ((a + b) >> 1); else r = v + paeth(a, b, c);
+      out[y * stride + i] = r & 0xff;
+    }
+  }
+  return { width, height, bpp, data: out };
+}
+const egg = decodePNG(readFileSync(EGG_SRC));
+const F = egg.height;                 // square frames (24x24); frame 0 is the first F columns
+const ESTRIDE = egg.width * egg.bpp;
+
+// Composite the green egg (nearest-neighbour, crisp pixels), only its opaque pixels, over the purple tile.
 function pixels(size) {
   const buf = Buffer.alloc(size * size * 4);
   for (let i = 0; i < size * size; i++) { buf[i * 4] = BG[0]; buf[i * 4 + 1] = BG[1]; buf[i * 4 + 2] = BG[2]; buf[i * 4 + 3] = 255; }
-  const cell = Math.floor((size * 0.8) / Math.max(W, H));
-  const ox = Math.round((size - cell * W) / 2), oy = Math.round((size - cell * H) / 2);
-  for (let gy = 0; gy < H; gy++) for (let gx = 0; gx < W; gx++) {
-    const c = RGB[ART[gy][gx]]; if (!c) continue;
+  const cell = Math.max(1, Math.floor((size * 0.72) / F));
+  const ox = Math.round((size - cell * F) / 2), oy = Math.round((size - cell * F) / 2);
+  for (let gy = 0; gy < F; gy++) for (let gx = 0; gx < F; gx++) {
+    const o = gy * ESTRIDE + gx * egg.bpp;
+    const a = egg.bpp === 4 ? egg.data[o + 3] : 255; if (a < 128) continue;
+    const r = egg.data[o], g = egg.data[o + 1], b = egg.data[o + 2];
     for (let py = 0; py < cell; py++) for (let px = 0; px < cell; px++) {
       const x = ox + gx * cell + px, y = oy + gy * cell + py;
       if (x < 0 || y < 0 || x >= size || y >= size) continue;
-      const o = (y * size + x) * 4; buf[o] = c[0]; buf[o + 1] = c[1]; buf[o + 2] = c[2]; buf[o + 3] = 255;
+      const q = (y * size + x) * 4; buf[q] = r; buf[q + 1] = g; buf[q + 2] = b; buf[q + 3] = 255;
     }
   }
   return buf;
