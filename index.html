@@ -1630,6 +1630,61 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var latestEntry = (out.checkins || []).reduce(function (m, c) { return (c && c.date && c.date > m) ? c.date : m; }, '');
     var lcCandidates = [a.last_checkin, b.last_checkin, latestEntry].filter(Boolean).sort();
     out.last_checkin = lcCandidates.length ? lcCandidates[lcCandidates.length - 1] : (out.last_checkin || null);
+
+    // ---- Other derived scalars with the same last-writer-wins hazard as last_checkin ----
+    // The JSON clone takes each of these from the higher-_rev copy, but they are monotonic or
+    // recency-based: a stale-but-higher-_rev copy would drag them backward and discard progress the
+    // other copy holds (learned after an offline check-in, a battle won on another device, etc).
+    // Reconcile each by its own correct rule instead of last-writer-wins.
+    var maxNum = function (x, y) { return Math.max((+x || 0), (+y || 0)); };
+    var laterStr = function (x, y) { return (x || '') >= (y || '') ? (x || null) : (y || null); };
+
+    // Adaptive TDEE: keep whichever copy LEARNED it most recently (stamped `updated` each check-in),
+    // not the higher-_rev copy, which may not be the one that ran the latest check-in. A stale
+    // expenditure skews the next target calculation until a future check-in overwrites it.
+    var expA = a.expenditure, expB = b.expenditure;
+    if (expA || expB) out.expenditure = ((expA && expA.updated) || '') >= ((expB && expB.updated) || '') ? (expA || expB) : (expB || expA);
+
+    // Monotonic trophy-track counters and the longest-streak record: take the max so a device that
+    // fell behind can never lower them.
+    out.badges = Object.assign({}, newer.badges, {
+      checkins: maxNum((a.badges || {}).checkins, (b.badges || {}).checkins),
+      inRange:  maxNum((a.badges || {}).inRange,  (b.badges || {}).inRange),
+    });
+    out.records = Object.assign({}, newer.records, { longestStreak: maxNum((a.records || {}).longestStreak, (b.records || {}).longestStreak) });
+
+    // Buddy growth stage is a documented high-water mark ("naps after a break") - never let a merge
+    // regress it below what either copy reached.
+    if (out.buddy) out.buddy.stage = maxNum((a.buddy || {}).stage, (b.buddy || {}).stage);
+
+    // First-run flags only ever flip true; OR them so a stale copy can't re-trigger onboarding.
+    var oa = a.onboarding || {}, ob = b.onboarding || {};
+    out.onboarding = Object.assign({}, older.onboarding, newer.onboarding, {
+      welcomed: !!(oa.welcomed || ob.welcomed), sawDex: !!(oa.sawDex || ob.sawDex), dismissed: !!(oa.dismissed || ob.dismissed),
+    });
+
+    // Dino-fight progress has no append-only ledger, so a wholesale copy loses wins/rank earned on the
+    // other device. Reconcile field-wise: prestige and the cumulative counters are monotonic (max);
+    // ladder rank counts only WITHIN the top prestige tier (prestiging resets rank to 0, so a
+    // lower-prestige copy's larger rank must not win); date gates take the later value; the daily
+    // streak follows whichever copy logged the more recent daily win.
+    if (a.fight || b.fight) {
+      var fa = a.fight || {}, fb = b.fight || {};
+      var prestige = maxNum(fa.prestige, fb.prestige);
+      var rankAt = function (f) { return (+f.prestige || 0) === prestige ? (+f.rank || 0) : 0; };
+      var dailyFrom = (fa.lastDailyDate || '') >= (fb.lastDailyDate || '') ? fa : fb;
+      out.fight = Object.assign({}, newer.fight, {
+        prestige: prestige,
+        rank: Math.max(rankAt(fa), rankAt(fb)),
+        wins: maxNum(fa.wins, fb.wins),
+        trophies: maxNum(fa.trophies, fb.trophies),
+        dailyBest: maxNum(fa.dailyBest, fb.dailyBest),
+        dailyStreak: (+dailyFrom.dailyStreak || 0),
+        lastDailyDate: laterStr(fa.lastDailyDate, fb.lastDailyDate),
+        lastAttemptDate: laterStr(fa.lastAttemptDate, fb.lastAttemptDate),
+        lastBossWeek: laterStr(fa.lastBossWeek, fb.lastBossWeek),
+      });
+    }
     out._rev = Math.max(ra, rb);
     out._wipe = wipe; // carry the reset watermark forward so it keeps protecting later merges
     return out;
