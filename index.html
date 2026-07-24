@@ -8386,10 +8386,7 @@ function ProgressPanel({
   }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setView(k),
-    className: `flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`,
-    style: {
-      borderRadius: 2
-    }
+    className: `flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`
   }, l))), view === 'graph' && /*#__PURE__*/React.createElement(TrendCard, {
     db: db
   }), view === 'daily' && /*#__PURE__*/React.createElement(WeighInLog, {
@@ -10716,8 +10713,8 @@ function MacrodexModal({
       onClick: () => id === 'lure' ? setLurePick(v => !v) : useItem(id),
       className: "pixel-btn px-2.5 py-1.5 text-[9px] shrink-0",
       style: {
-        background: 'var(--pro)',
-        color: '#fff'
+        background: 'var(--accent)',
+        color: 'var(--on-accent)'
       }
     }, "USE"));
   })), lurePick && /*#__PURE__*/React.createElement("div", {
@@ -18791,7 +18788,7 @@ function PhotoTab({
     className: "w-full flex items-center gap-3 rounded-2xl p-4 text-left active:scale-[.99] transition",
     style: {
       background: 'var(--accent)',
-      color: '#0d0d0d'
+      color: 'var(--on-accent)'
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-11 h-11 rounded-xl flex items-center justify-center shrink-0",
@@ -24750,7 +24747,7 @@ function CookMode({
     className: "pixel-btn px-4 py-3 text-[14px] font-bold",
     style: {
       background: 'var(--accent)',
-      color: '#111'
+      color: 'var(--on-accent)'
     }
   }, "Start ", durMin, " min timer") : /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3"
@@ -25419,7 +25416,7 @@ function RecipeDetail({
     style: {
       border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'),
       background: recipe.private ? 'var(--accent)' : 'transparent',
-      color: '#111'
+      color: 'var(--on-accent)'
     }
   }, recipe.private ? '✓' : ''), "Keep this recipe private (off Discover)"), pickMeal && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center",
@@ -27462,7 +27459,7 @@ function Recipes({
     className: "absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center",
     style: {
       background: 'var(--accent)',
-      color: '#111'
+      color: 'var(--on-accent)'
     }
   }, shoppingCount)))), /*#__PURE__*/React.createElement(ChefCard, {
     db: db
@@ -27474,20 +27471,14 @@ function Recipes({
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setHubTab('discover'),
-    className: `flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`,
-    style: {
-      borderRadius: 2
-    }
+    className: `flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`
   }, "Discover", !isPremium && /*#__PURE__*/React.createElement("span", {
     style: {
       opacity: 0.7
     }
   }, "🔒")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setHubTab('mine'),
-    className: `flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`,
-    style: {
-      borderRadius: 2
-    }
+    className: `flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`
   }, "Cookbook")), hubTab === 'discover' ? /*#__PURE__*/React.createElement(RecipeHub, {
     db: db,
     isPremium: isPremium,
@@ -28831,7 +28822,7 @@ function App() {
     className: "pixel-btn px-3 py-2 text-[11px] shrink-0",
     style: {
       background: 'var(--accent)',
-      color: '#111'
+      color: 'var(--on-accent)'
     }
   }, "Reload"))), view === 'dashboard' && /*#__PURE__*/React.createElement(Dashboard, {
     db: db,

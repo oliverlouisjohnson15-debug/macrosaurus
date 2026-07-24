@@ -2228,7 +2228,7 @@ function ProgressPanel({ db, update }) {
   return (
     <div className="mb-2">
       <div className="flex gap-1 mb-3 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-        {tabs.map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>{l}</button>)}
+        {tabs.map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>{l}</button>)}
       </div>
       {view === 'graph' && <TrendCard db={db} />}
       {view === 'daily' && <WeighInLog db={db} update={update} />}
@@ -3150,7 +3150,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
                 {invIds.map(id => { const it = ITEMS[id]; const n = items[id];
                   return <div key={id} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0"><div className="text-[11px] font-bold">{it.name} <span className="text-[#8A8A90]">×{n}</span></div><div className="text-[9px] text-[#8A8A90] leading-snug">{it.desc}</div></div>
-                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--pro)', color: '#fff' }}>USE</button>}
+                    {it.kind === 'dex' && <button onClick={() => id === 'lure' ? setLurePick(v => !v) : useItem(id)} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>USE</button>}
                   </div>;
                 })}
               </div>
@@ -6222,7 +6222,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
         <Btn kind="ghost" onClick={() => { setNotFound(false); setMode('scan'); }}>Try again</Btn>
       </div>
     </div>}
-    <button onClick={() => { setNotFound(false); setMode('scan'); }} className="w-full flex items-center gap-3 rounded-2xl p-4 text-left active:scale-[.99] transition" style={{ background: 'var(--accent)', color: '#0d0d0d' }}>
+    <button onClick={() => { setNotFound(false); setMode('scan'); }} className="w-full flex items-center gap-3 rounded-2xl p-4 text-left active:scale-[.99] transition" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(0,0,0,0.12)' }}><Icon.barcode width="22" height="22" /></div>
       <div className="min-w-0"><div className="text-sm font-bold">Scan a barcode</div><div className="text-[11px]" style={{ opacity: 0.85 }}>The quickest, most accurate way to log packaged food.</div></div>
     </button>
@@ -8269,7 +8269,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
         <div className="pf text-[11px] mb-4" style={{ color: 'var(--accent)' }}>STEP {i + 1}</div>
         <div className="font-bold leading-snug" style={{ fontSize: 'clamp(1.4rem, 5vw, 2rem)' }}>{steps[i]}</div>
         {durMin > 0 && <div className="mt-6">
-          {(!timer) ? <button onClick={startTimer} className="pixel-btn px-4 py-3 text-[14px] font-bold" style={{ background: 'var(--accent)', color: '#111' }}>Start {durMin} min timer</button>
+          {(!timer) ? <button onClick={startTimer} className="pixel-btn px-4 py-3 text-[14px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Start {durMin} min timer</button>
             : <div className="flex items-center gap-3"><div className="tnum text-3xl font-bold" style={{ color: timer.left <= 0 ? 'var(--good)' : 'var(--text)' }}>{timer.left <= 0 ? 'Done!' : mmss(timer.left)}</div>
               <button onClick={() => setTimer(x => x && Object.assign({}, x, { on: !x.on }))} className="pixel-box px-3 py-2 text-[13px]" style={{ background: 'var(--surface3)' }}>{timer.on && timer.left > 0 ? 'Pause' : 'Resume'}</button>
               <button onClick={() => setTimer(null)} className="text-[13px] text-[#8A8A90] underline">Clear</button></div>}
@@ -8469,7 +8469,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     {resolved > 0 && hasMacros && <button onClick={() => doLog('items')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log itemised (one diary entry per ingredient)</button>}
     {hasMacros && Rcp.batchLeft(recipe) === 0 && <button onClick={() => doLog('single', { batch: true })} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Batch cooking? Log a serving and keep the rest as leftovers</button>}
     {shareOn && recipe.source_url && <button onClick={togglePrivate} className="w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4">
-      <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: '#111' }}>{recipe.private ? '✓' : ''}</span>
+      <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: 'var(--on-accent)' }}>{recipe.private ? '✓' : ''}</span>
       Keep this recipe private (off Discover)
     </button>}
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
@@ -9224,15 +9224,15 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </button>
           <button onClick={() => setScreen('shopping')} className="relative pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Shopping list">
             <Icon.cart width="20" height="20" />
-            {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#111' }}>{shoppingCount}</span>}
+            {shoppingCount > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{shoppingCount}</span>}
           </button>
         </div>
       </div>
       <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-        <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
-        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`} style={{ borderRadius: 2 }}>Cookbook</button>
+        <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
+        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>Cookbook</button>
       </div>
       {hubTab === 'discover'
         ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
@@ -9813,7 +9813,7 @@ function App() {
         <div className="pixel-box w-full max-w-md flex items-center gap-3 p-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--accent)' }}>
           <PixelDino size={20} color="var(--accent)" />
           <div className="min-w-0 flex-1 text-[12px]">A new version is ready.</div>
-          <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: '#111' }}>Reload</button>
+          <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
