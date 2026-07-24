@@ -2548,26 +2548,45 @@ function buddyBreakout(db, today) {
   }
   return null;
 }
-// The buddy asking a yes/no on Today: the dino, a short question, and Yes / Not now. The heart of the
-// buddy owning your prompts rather than a faceless banner.
-function BuddyBreakout({ db, breakout, onYes, onSnooze }) {
-  const buddy = db.buddy || {};
-  const who = buddy.name || 'Your buddy';
-  return (
-    <Card className="p-3 mb-4" style={{ borderColor: 'var(--accent)' }}>
-      <div className="flex items-start gap-2.5">
-        <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2} /></div>
-        <div className="min-w-0 flex-1">
-          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{who} asks</div>
-          <div className="text-[11.5px] leading-snug mb-2.5">{breakout.text}</div>
-          <div className="flex gap-2">
-            <button onClick={onYes} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{breakout.yes}</button>
-            <button onClick={onSnooze} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>Not now</button>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
+// The buddy speaks with ONE voice. Rather than three separate cards (a coach line, a yes/no breakout,
+// a morning-read button) competing on Today, this aggregator returns the single highest-priority thing
+// the buddy has to say right now, so the habitat is the only place it talks and it never stacks up into
+// nagging. Priority, most important first: the daily morning read (once a day, daytime, only with real
+// sleep/step data) -> the day's lesson (new users) -> a check-in "ask" (yes/no) -> the ambient coach
+// line. Each carries up to a primary and a secondary action (label + act string); the Dashboard wires
+// the act strings to handlers so this stays a pure, testable decision. Returns a message or null.
+function buddyMessage(db, today, streak) {
+  const p = db.profile || {};
+  const incubating = !!(db.buddy && db.buddy.hatched === false);
+  // 1. Morning read: the buddy's daily orientation, shown once and then gone for the day. Only when
+  // there's genuine sleep/step data to talk about, and only through the daytime so an evening open
+  // doesn't get a stale "morning" read.
+  if (!incubating && new Date().getHours() < 14 && p.readAckDate !== today) {
+    const recap = readinessRecap(db, today);
+    if (recap.items.some(it => it.key === 'sleep' || it.key === 'steps')) {
+      const lead = recap.items.find(it => it.key === 'ready') || recap.items[0];
+      return { kind: 'read', text: lead.text,
+        primary: { label: 'See the full read', act: 'read_open' },
+        secondary: { label: 'Got it', act: 'read_ack' } };
+    }
+  }
+  // 2. Lesson: teaching takes the slot for new users until the day's lesson is acknowledged. This is the
+  // only thing the buddy says during incubation (matches the old habitat gating).
+  const lesson = nextLesson(db, today);
+  if (lesson) return { kind: 'lesson', text: lesson.title + ': ' + lesson.text,
+    primary: { label: 'Got it', act: 'lesson', lessonKey: lesson.key } };
+  if (incubating) return null;
+  // 3. Ask: a proactive yes/no (currently an overdue check-in). "Not now" snoozes it via nudgesDismissed.
+  const ask = buddyBreakout(db, today);
+  if (ask) return { kind: 'ask', text: ask.text,
+    primary: { label: ask.yes, act: ask.action },
+    secondary: { label: 'Not now', act: 'snooze', snoozeKey: ask.key } };
+  // 4. Say: the ambient next-action coach line (log / protein / weigh / streak). nextLesson is already
+  // null here, so buddyCoach's own lesson branch is a no-op and won't double up.
+  const say = buddyCoach(db, today, streak);
+  if (say) return { kind: 'say', text: say.text,
+    primary: say.cta ? { label: say.cta, act: say.action } : null };
+  return null;
 }
 
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
@@ -2577,7 +2596,7 @@ function BuddyBreakout({ db, breakout, onYes, onSnooze }) {
 // action is deliberately left clear so the buddy's proactive coach line (Phase 5, the dead showNudge
 // slot) has room to speak here. The one rich, animated element in the pixel UI. (Refs BUDDY_STAGES/
 // MOOD_META below, resolved at render time.)
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, coach }) {
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const next = BUDDY_STAGES[buddy.stage + 1] || null;
   // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
@@ -2629,13 +2648,25 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, coach }) {
           ))}
         </div>
       )}
-      {coach && (!incubating || coach.action === 'lesson') && (
-        <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
-          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{coach.action === 'lesson' ? (bp.name || 'Your buddy') + ' is teaching' : who + ' says'}</div>
-          <div className="text-[11.5px] leading-snug">{coach.text}</div>
-          {coach.cta && coach.go && <button onClick={coach.go} className="pixel-btn mt-2 py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{coach.cta} ›</button>}
-        </div>
-      )}
+      {msg && (() => {
+        const speaker = msg.kind === 'lesson' ? (bp.name || 'Your buddy') : who;
+        const head = msg.kind === 'read' ? speaker + '’s morning read'
+          : msg.kind === 'ask' ? speaker + ' asks'
+          : msg.kind === 'lesson' ? speaker + ' is teaching'
+          : speaker + ' says';
+        return (
+          <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
+            <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{head}</div>
+            <div className="text-[11.5px] leading-snug">{msg.text}</div>
+            {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
+              <div className="flex gap-2 mt-2">
+                {msg.primary && msg.primary.onClick && <button onClick={msg.primary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
+                {msg.secondary && msg.secondary.onClick && <button onClick={msg.secondary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </Card>
   );
 }
@@ -3800,9 +3831,6 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
   // Tapping a dial opens a read-only breakdown. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
   const [sheet, setSheet] = useState(null);
-  // The buddy delivers the recovery read on its own screen; the band-coloured trigger still carries
-  // today's verdict at a glance (green = push, amber = ease off) so the row keeps its scent.
-  const [readyOpen, setReadyOpen] = useState(false);
   // Recovery detail collapses by default so Today stays a calm glance under the macro hero; the slim
   // Move/Sleep/Ready strip is always visible and one tap opens the full dials, sleep architecture and coaching.
   const [expanded, setExpanded] = useState(false);
@@ -3891,24 +3919,14 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
         </button>
       )}
 
-      {/* The buddy delivers the recovery read on its own screen (ties recovery to the buddy). The band
-          colour keeps the at-a-glance verdict; tapping opens the dino's full morning read. */}
-      <button type="button" onClick={() => setReadyOpen(true)} className="w-full flex items-center gap-2.5 mt-3 p-2.5 pixel-box" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + coach.color }}>
-        <span className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={1.5} /></span>
-        <span className="min-w-0 flex-1 text-left">
-          <span className="pf uppercase block" style={{ fontSize: 8, color: coach.color }}>{((db.buddy && db.buddy.name) || 'Your buddy') + "'s morning read"}</span>
-          <span className="text-[10px] leading-snug block truncate" style={{ color: 'var(--muted)' }}>Sleep, steps and how hard to push today</span>
-        </span>
-        <span className="pf shrink-0" style={{ fontSize: 10, color: 'var(--muted)' }}>›</span>
-      </button>
-
+      {/* The buddy's morning read now lives in its habitat up top (one buddy voice, one place), so this
+          recovery card stays purely the dials + sleep architecture. */}
       {streak >= 3 && (
         <div className="text-center mt-2 pf uppercase" style={{ fontSize: 7, color: 'var(--good)' }}>Step-goal streak · {streak} days</div>
       )}
       </div>}
 
       {sheet && <MetricBreakdownSheet metric={sheet} db={db} onClose={() => setSheet(null)} onOpenPlay={onOpenPlay} />}
-      {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={onCheckIn} />}
     </Card>
   );
 }
@@ -4441,6 +4459,7 @@ function WeighCadencePrompt({ db, update }) {
 function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
+  const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
   const todayTot = sumMacros(entriesOn(db, today));
@@ -4542,15 +4561,28 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   // (The old missed-log/weigh showNudge is superseded by the buddy's always-present coach line.)
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
-  const coach = (() => {
-    const c = buddyCoach(db, today, streak); if (!c) return null;
-    const go = c.action === 'log' ? () => onQuickAdd(false) : c.action === 'weigh' ? onCheckIn : c.action === 'cook' ? () => setView('recipes')
-      : c.action === 'lesson' ? () => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(c.lessonKey) < 0) ls.seen = (ls.seen || []).concat([c.lessonKey]); ls.lastAck = today; d.profile.lessonState = ls; })
-      : null;
-    return Object.assign({}, c, { go });
+  // The buddy speaks with one voice in the habitat. buddyMessage picks the single top thing to say;
+  // here we wire each action string to a handler (the decision stays pure and testable in buddyMessage).
+  const msg = (() => {
+    const m = buddyMessage(db, today, streak); if (!m) return null;
+    const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
+    const ackRead = () => update(d => { d.profile = d.profile || {}; d.profile.readAckDate = today; });
+    const resolve = btn => {
+      if (!btn) return null;
+      const a = btn.act;
+      const onClick =
+        a === 'read_open' ? () => { ackRead(); setReadyOpen(true); }
+        : a === 'read_ack' ? ackRead
+        : a === 'lesson' ? () => ackLesson(btn.lessonKey)
+        : a === 'snooze' ? () => update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [btn.snoozeKey]: Date.now() }); })
+        : (a === 'checkin' || a === 'weigh') ? onCheckIn
+        : a === 'log' ? () => onQuickAdd(false)
+        : a === 'cook' ? () => setView('recipes')
+        : null;
+      return { label: btn.label, onClick };
+    };
+    return { kind: m.kind, text: m.text, primary: resolve(m.primary), secondary: resolve(m.secondary) };
   })();
-  // Proactive yes/no breakout (e.g. "fancy a check-in?"), only once the buddy has hatched.
-  const breakout = eggIncubating ? null : buddyBreakout(db, today);
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
@@ -4594,8 +4626,8 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} coach={coach} />
-      {breakout && <BuddyBreakout db={db} breakout={breakout} onYes={() => { if (breakout.action === 'checkin') onCheckIn(); }} onSnooze={() => update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [breakout.key]: Date.now() }); })} />}
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg} />
+      {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={onCheckIn} />}
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
