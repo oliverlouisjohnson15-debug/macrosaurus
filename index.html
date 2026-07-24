@@ -2231,7 +2231,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // ---- Amber: the spendable currency, an APPEND-ONLY LEDGER so it merges conflict-free (like catch_log) ----
   // Never store Amber as a bare mutable number: the state merge unions append-only collections, so a
   // ledger of {id, date, delta, reason} entries can never be lost or double-counted. Balance = sum(delta).
-  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8 };
+  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10 };
   // The daily hunt pays a little; every 5th clear in a row tops up, so consistency compounds.
   function amberDailyReward(streak) {
     var base = AMBER_REWARDS.daily;
@@ -5470,7 +5470,12 @@ function MacroSummaryCard({
     size: 10
   })) : ` · ${ft.min - Math.round(tot.fiber)} to go`));
 }
-const DINO_QUOTES = ['"KEEP HUNTING! YOUR GOALS ARE WITHIN REACH. DINO-MITE!"', '"EAT YOUR PROTEIN OR GO EXTINCT."', '"SMALL BITES, BIG GAINS. RAWR."', '"THE SCALE WOBBLES DAILY. THE TREND IS WHAT ROARS."', '"STAY CONSISTENT, STAY PREHISTORIC."', '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."'];
+const DINO_QUOTES = ['"KEEP HUNTING! YOUR GOALS ARE WITHIN REACH. DINO-MITE!"', '"EAT YOUR PROTEIN OR GO EXTINCT."', '"SMALL BITES, BIG GAINS. RAWR."', '"THE SCALE WOBBLES DAILY. THE TREND IS WHAT ROARS."', '"STAY CONSISTENT, STAY PREHISTORIC."', '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."',
+// A little lore, funny and non-invasive, to build a bond with your buddy.
+'"I SURVIVED THE METEOR. YOU CAN SURVIVE A MONDAY."', '"MY ANCESTORS RULED THE EARTH. YOU RULE YOUR MACROS. TEAMWORK."', '"BEFORE APPS, WE TRACKED MACROS ON CAVE WALLS. YOU HAVE IT EASY."', '"LEGEND SAYS A MACROSAURUS NEVER SKIPS BREAKFAST. BE A LEGEND."', '"I HATCHED JUST TO WATCH YOU HIT YOUR PROTEIN. WORTH IT."', '"65 MILLION YEARS OF EVOLUTION LED TO US. LET\'S NOT WASTE IT ON CRISPS."'];
+// Little backstory tidbits shown on the buddy's own screen. A rotating myth or fun fact to make the
+// creature feel like it has a history, so you get attached to it rather than a stat readout.
+const BUDDY_LORE = ['Hatched from an amber egg said to be 65 million years old. Give or take a few.', 'Its kind once ruled the earth. Now it mostly wants you to hit your protein.', 'Dino legend holds that the mightiest Macrosaurus never once skipped a check-in.', 'Grows faster on a steady streak than any crash diet. It has tried both.', 'Dreams in pixels, small frequent meals, and the occasional victorious fight.', 'Survived an ice age, a meteor, and at least one all-you-can-eat buffet.'];
 // Motivating (not scolding) lines when a user reports an off-plan week, keeps the dino on their side.
 const DINO_OFFPLAN = ['One off week won\'t undo you, the Macrosaurus has outlasted ice ages. Back on the hunt next cycle.', 'No extinction here. Shake it off, line up a clean week, and we\'re roaring again.', 'Even T-rex had off days (and tiny arms). Momentum\'s paused, not lost, go get the next one.', 'The Macrosaurus dusts you off: one wobble, no drama. Clean cycle next and we retune properly.', 'Head up, protein up. One honest reset and you\'re back to dino-mite.'];
 function MiniSpark({
@@ -8114,7 +8119,7 @@ function WeighInLog({
     }
   }, "+ Add")), !entries.length ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] py-2"
-  }, "No weigh-ins yet. Weigh in from the dashboard, or add a past day with “+ Add”.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
+  }, "No weigh-ins yet. Your buddy prompts you to weigh in on Today, or add any day here with “+ Add”.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
     const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
     return /*#__PURE__*/React.createElement("div", {
       key: e.id || e.date,
@@ -8870,6 +8875,53 @@ function nextLesson(db, today) {
   if ((ls.seen || []).length >= CURRICULUM.length || ls.lastAck === today) return null;
   return CURRICULUM[(ls.seen || []).length];
 }
+// Occasional, rotating "get more out of the app" nudges from the buddy: fight, cook, follow us,
+// suggest a feature, and a reminder that logging earns Amber. Each is cadence-capped (a cooldown that
+// only starts when you actually tap its CTA, snoozed in the resolver), and the whole set only surfaces
+// on alternate days, so the buddy points you somewhere new without ever nagging. Returns one or null.
+function engagementNudge(db, today) {
+  const who = db.buddy && db.buddy.name || 'Your buddy';
+  const dm = db.profile && db.profile.nudgesDismissed || {};
+  const fresh = (key, days) => !(dm[key] && Date.now() - dm[key] < days * 864e5);
+  const loggedToday = (db.log_entries || []).some(e => e.date === today);
+  const cands = [];
+  const lastFight = db.fight && db.fight.lastDailyDate || null;
+  const fightIdle = loggedToday && (!lastFight || Game.daysBetween(lastFight, today) >= 3);
+  if (fightIdle && fresh('nudge_fight', 3)) cands.push({
+    key: 'nudge_fight',
+    text: who + " is itching for a scrap. Take this week's eating into a fight and win some Amber.",
+    cta: 'To battle',
+    action: 'fight'
+  });
+  if (fresh('nudge_amber', 6)) cands.push({
+    key: 'nudge_amber',
+    text: "Did you know I earn you Amber? A little for logging each day, more for winning fights. Spend it in the shop to kit me out.",
+    cta: 'See shop',
+    action: 'shop'
+  });
+  if (fresh('nudge_cook', 6)) cands.push({
+    key: 'nudge_cook',
+    text: "Fancy something new? The Cook tab has quick high-protein ideas you can log in a tap.",
+    cta: 'Open Cook',
+    action: 'cook'
+  });
+  if (fresh('nudge_ig', 9)) cands.push({
+    key: 'nudge_ig',
+    text: "Find me on Instagram @macrosaurus.app for tips, recipes and a daily nudge.",
+    cta: 'Follow',
+    action: 'instagram'
+  });
+  if (fresh('nudge_feedback', 12)) cands.push({
+    key: 'nudge_feedback',
+    text: "Got an idea to make me better? Pop it in Settings, the team reads every one.",
+    cta: 'Suggest',
+    action: 'feedback'
+  });
+  if (!cands.length) return null;
+  const doy = Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5);
+  if (doy % 2 !== 0) return null; // surface at most every other day
+  return cands[doy % cands.length];
+}
 function buddyCoach(db, today, streak) {
   // Teach first for new users: the day's lesson takes the coach slot until acknowledged.
   const lesson = nextLesson(db, today);
@@ -8904,6 +8956,18 @@ function buddyCoach(db, today, streak) {
       action: 'cook'
     };
   }
+  // Late-day steps push: if there's a wearable goal and you're within striking distance in the evening,
+  // send the buddy out to rally you. No CTA (you can't walk in-app), just encouragement.
+  const stepGoal = stepGoalFor(db);
+  const todaySteps = +(db.steps || {})[today] || 0;
+  if (stepGoal > 0 && todaySteps > 0 && todaySteps < stepGoal && hour >= 16) {
+    const left = stepGoal - todaySteps;
+    if (left >= 400) return {
+      text: "You're only " + left.toLocaleString() + " steps off your " + stepGoal.toLocaleString() + " goal. A quick walk and it's yours, go get them!",
+      cta: null,
+      action: null
+    };
+  }
   if (!weighedRecently) {
     return {
       text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.',
@@ -8911,6 +8975,9 @@ function buddyCoach(db, today, streak) {
       action: 'weigh'
     };
   }
+  // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
+  const eng = engagementNudge(db, today);
+  if (eng) return eng;
   if (streak >= 2) return {
     text: streak + ' days logged in a row. Keep it up and I’ll grow.',
     cta: null,
@@ -9042,7 +9109,8 @@ function buddyMessage(db, today, streak) {
     text: say.text,
     primary: say.cta ? {
       label: say.cta,
-      act: say.action
+      act: say.action,
+      key: say.key
     } : null
   };
   return null;
@@ -10246,7 +10314,23 @@ function PlayBuddyView({
     size: 13
   }), " TROPHY CABINET"), !incubating && /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[9px] text-[#8A8A90] mt-3 leading-snug"
-  }, "The food you log feeds ", who, ". Keep your streak going to grow it."));
+  }, "The food you log feeds ", who, ". Keep your streak going to grow it."), !incubating && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2.5 mt-3 text-center",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase mb-1",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, "Dino lore"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, BUDDY_LORE[crHash((db.game_salt || '') + Store.todayISO()) % BUDDY_LORE.length])));
 }
 function MacrodexModal({
   db,
@@ -13680,6 +13764,24 @@ function Dashboard({
   const activeSet = new Set([...logSet, ...weighSet]);
   const streakInfo = computeStreak(activeSet, frozenSet, today);
   const streak = streakInfo.streak;
+  // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
+  // pays out (not only fights). Idempotent by ledger id (amber:log:<date>), so it can never double-pay.
+  useEffect(() => {
+    const key = 'amber:log:' + today;
+    if (!(db.log_entries || []).some(e => e.date === today)) return;
+    if ((db.amber_ledger || []).some(e => e.id === key)) return;
+    update(d => {
+      d.amber_ledger = d.amber_ledger || [];
+      if (d.amber_ledger.some(e => e.id === key)) return;
+      d.amber_ledger.push({
+        id: key,
+        date: today,
+        delta: Game.AMBER_REWARDS.dailyLog,
+        reason: 'Logged today'
+      });
+    });
+    if (showToast) showToast('+' + Game.AMBER_REWARDS.dailyLog + ' Amber for logging today');
+  }, [db.log_entries, today]);
   const freezeAvail = freezeReady(frozenSet, today);
   const newFrozenKey = streakInfo.newFrozen.join(',');
   useEffect(() => {
@@ -13815,21 +13917,40 @@ function Dashboard({
       d.profile = d.profile || {};
       d.profile.readAckDate = today;
     });
+    const snoozeKey = k => {
+      if (k) update(d => {
+        d.profile = d.profile || {};
+        d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, {
+          [k]: Date.now()
+        });
+      });
+    };
     const resolve = btn => {
       if (!btn) return null;
       const a = btn.act;
       const onClick = a === 'read_open' ? () => {
         ackRead();
         setReadyOpen(true);
-      } : a === 'read_ack' ? ackRead : a === 'lesson' ? () => ackLesson(btn.lessonKey) : a === 'snooze' ? () => update(d => {
-        d.profile = d.profile || {};
-        d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, {
-          [btn.snoozeKey]: Date.now()
-        });
-      }) : a === 'review' ? onReview : a === 'resume' ? () => setWeighOpen('resume') : a === 'weigh' ? () => setWeighOpen(true) : a === 'checkin' ? onCheckIn : a === 'cadence_daily' || a === 'cadence_single' ? () => update(d => {
+      } : a === 'read_ack' ? ackRead : a === 'lesson' ? () => ackLesson(btn.lessonKey) : a === 'snooze' ? () => snoozeKey(btn.snoozeKey) : a === 'review' ? onReview : a === 'resume' ? () => setWeighOpen('resume') : a === 'weigh' ? () => setWeighOpen(true) : a === 'checkin' ? onCheckIn : a === 'cadence_daily' || a === 'cadence_single' ? () => update(d => {
         d.profile = d.profile || {};
         d.profile.weighCadence = a === 'cadence_daily' ? 'daily' : 'single';
-      }) : a === 'log' ? () => onQuickAdd(false) : a === 'cook' ? () => setView('recipes') : null;
+      }) : a === 'log' ? () => onQuickAdd(false) : a === 'cook' ? () => {
+        snoozeKey(btn.key);
+        setView('recipes');
+      } : a === 'fight' || a === 'shop' ? () => {
+        snoozeKey(btn.key);
+        onOpenPlay();
+      } : a === 'instagram' ? () => {
+        snoozeKey(btn.key);
+        try {
+          window.open('https://instagram.com/macrosaurus.app', '_blank');
+        } catch (_) {}
+      } : a === 'feedback' ? () => {
+        snoozeKey(btn.key);
+        try {
+          window.MFEEDBACK && window.MFEEDBACK();
+        } catch (_) {}
+      } : null;
       return {
         label: btn.label,
         onClick
@@ -13993,11 +14114,8 @@ function Dashboard({
   }), /*#__PURE__*/React.createElement(DietBreakCard, {
     db: db,
     update: update
-  }), !isPremium && /*#__PURE__*/React.createElement(Collapsible, {
-    label: "More"
-  }, /*#__PURE__*/React.createElement(InstallCard, null), (() => {
+  }), !isPremium && (() => {
     const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-    // Only the contextual AI-low nudge lives here now; the generic upsell is the top box.
     return freeLeft <= 3 ? /*#__PURE__*/React.createElement(PremiumNudge, {
       db: db,
       update: update,
@@ -14007,7 +14125,7 @@ function Dashboard({
       headline: freeLeft > 0 ? freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month' : "You've used your free AI logs",
       blurb: "Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime."
     }) : null;
-  })()), /*#__PURE__*/React.createElement("div", {
+  })(), /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed"
   }, quote), showCarry && /*#__PURE__*/React.createElement(CarryoverSheet, {
     et: et,
@@ -27338,6 +27456,7 @@ function App() {
   const [sub, setSub] = useState(null); // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0); // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null); // { reason } when the upsell sheet is open
+  const [feedbackOpen, setFeedbackOpen] = useState(false); // App-level feedback sheet (opened by the buddy's Suggest nudge via window.MFEEDBACK)
   const [ghConsentOpen, setGhConsentOpen] = useState(false); // Google Health prominent-disclosure sheet
   const [rewards, setRewards] = useState(null); // { code, link, referrals_count, bonus_ai_remaining }
   const rewardsSyncedRef = useRef(false);
@@ -27466,6 +27585,9 @@ function App() {
         reason: reason
       });
     };
+    window.MFEEDBACK = function () {
+      setFeedbackOpen(true);
+    }; // the buddy's "suggest a feature" nudge opens feedback from anywhere
     // Google Health connect goes through the prominent-disclosure sheet first (ghConnectGated calls this).
     window.MGHCONNECT = function () {
       setGhConsentOpen(true);
@@ -28488,6 +28610,9 @@ function App() {
     reason: paywall.reason,
     onCheckout: startCheckout,
     onClose: () => setPaywall(null)
+  }), feedbackOpen && /*#__PURE__*/React.createElement(FeedbackSheet, {
+    email: session.user.email,
+    onClose: () => setFeedbackOpen(false)
   }), ghConsentOpen && /*#__PURE__*/React.createElement(GoogleHealthDisclosure, {
     onClose: () => setGhConsentOpen(false),
     onAgree: () => {

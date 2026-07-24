@@ -1084,6 +1084,23 @@ const DINO_QUOTES = [
   '"THE SCALE WOBBLES DAILY. THE TREND IS WHAT ROARS."',
   '"STAY CONSISTENT, STAY PREHISTORIC."',
   '"ONE GOOD DAY WON\'T DO IT. ONE BAD DAY WON\'T UNDO IT."',
+  // A little lore, funny and non-invasive, to build a bond with your buddy.
+  '"I SURVIVED THE METEOR. YOU CAN SURVIVE A MONDAY."',
+  '"MY ANCESTORS RULED THE EARTH. YOU RULE YOUR MACROS. TEAMWORK."',
+  '"BEFORE APPS, WE TRACKED MACROS ON CAVE WALLS. YOU HAVE IT EASY."',
+  '"LEGEND SAYS A MACROSAURUS NEVER SKIPS BREAKFAST. BE A LEGEND."',
+  '"I HATCHED JUST TO WATCH YOU HIT YOUR PROTEIN. WORTH IT."',
+  '"65 MILLION YEARS OF EVOLUTION LED TO US. LET\'S NOT WASTE IT ON CRISPS."',
+];
+// Little backstory tidbits shown on the buddy's own screen. A rotating myth or fun fact to make the
+// creature feel like it has a history, so you get attached to it rather than a stat readout.
+const BUDDY_LORE = [
+  'Hatched from an amber egg said to be 65 million years old. Give or take a few.',
+  'Its kind once ruled the earth. Now it mostly wants you to hit your protein.',
+  'Dino legend holds that the mightiest Macrosaurus never once skipped a check-in.',
+  'Grows faster on a steady streak than any crash diet. It has tried both.',
+  'Dreams in pixels, small frequent meals, and the occasional victorious fight.',
+  'Survived an ice age, a meteor, and at least one all-you-can-eat buffet.',
 ];
 // Motivating (not scolding) lines when a user reports an off-plan week, keeps the dino on their side.
 const DINO_OFFPLAN = [
@@ -2056,7 +2073,7 @@ function WeighInLog({ db, update }) {
         <button onClick={() => setEditing({ new: true })} className="pixel-box px-3 py-1.5 text-[11px] shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>+ Add</button>
       </div>
       {!entries.length
-        ? <div className="text-[12px] text-[#8A8A90] py-2">No weigh-ins yet. Weigh in from the dashboard, or add a past day with “+ Add”.</div>
+        ? <div className="text-[12px] text-[#8A8A90] py-2">No weigh-ins yet. Your buddy prompts you to weigh in on Today, or add any day here with “+ Add”.</div>
         : <div>{shown.map(e => {
           const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
           return (
@@ -2432,6 +2449,28 @@ function nextLesson(db, today) {
   if ((ls.seen || []).length >= CURRICULUM.length || ls.lastAck === today) return null;
   return CURRICULUM[(ls.seen || []).length];
 }
+// Occasional, rotating "get more out of the app" nudges from the buddy: fight, cook, follow us,
+// suggest a feature, and a reminder that logging earns Amber. Each is cadence-capped (a cooldown that
+// only starts when you actually tap its CTA, snoozed in the resolver), and the whole set only surfaces
+// on alternate days, so the buddy points you somewhere new without ever nagging. Returns one or null.
+function engagementNudge(db, today) {
+  const who = (db.buddy && db.buddy.name) || 'Your buddy';
+  const dm = (db.profile && db.profile.nudgesDismissed) || {};
+  const fresh = (key, days) => !(dm[key] && (Date.now() - dm[key]) < days * 864e5);
+  const loggedToday = (db.log_entries || []).some(e => e.date === today);
+  const cands = [];
+  const lastFight = (db.fight && db.fight.lastDailyDate) || null;
+  const fightIdle = loggedToday && (!lastFight || Game.daysBetween(lastFight, today) >= 3);
+  if (fightIdle && fresh('nudge_fight', 3)) cands.push({ key: 'nudge_fight', text: who + " is itching for a scrap. Take this week's eating into a fight and win some Amber.", cta: 'To battle', action: 'fight' });
+  if (fresh('nudge_amber', 6)) cands.push({ key: 'nudge_amber', text: "Did you know I earn you Amber? A little for logging each day, more for winning fights. Spend it in the shop to kit me out.", cta: 'See shop', action: 'shop' });
+  if (fresh('nudge_cook', 6)) cands.push({ key: 'nudge_cook', text: "Fancy something new? The Cook tab has quick high-protein ideas you can log in a tap.", cta: 'Open Cook', action: 'cook' });
+  if (fresh('nudge_ig', 9)) cands.push({ key: 'nudge_ig', text: "Find me on Instagram @macrosaurus.app for tips, recipes and a daily nudge.", cta: 'Follow', action: 'instagram' });
+  if (fresh('nudge_feedback', 12)) cands.push({ key: 'nudge_feedback', text: "Got an idea to make me better? Pop it in Settings, the team reads every one.", cta: 'Suggest', action: 'feedback' });
+  if (!cands.length) return null;
+  const doy = Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5);
+  if (doy % 2 !== 0) return null; // surface at most every other day
+  return cands[doy % cands.length];
+}
 function buddyCoach(db, today, streak) {
   // Teach first for new users: the day's lesson takes the coach slot until acknowledged.
   const lesson = nextLesson(db, today);
@@ -2451,9 +2490,20 @@ function buddyCoach(db, today, streak) {
   if (proteinTgt > 0 && proteinGap >= 20 && hour >= 14) {
     return { text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.', cta: 'See ideas', action: 'cook' };
   }
+  // Late-day steps push: if there's a wearable goal and you're within striking distance in the evening,
+  // send the buddy out to rally you. No CTA (you can't walk in-app), just encouragement.
+  const stepGoal = stepGoalFor(db);
+  const todaySteps = +((db.steps || {})[today]) || 0;
+  if (stepGoal > 0 && todaySteps > 0 && todaySteps < stepGoal && hour >= 16) {
+    const left = stepGoal - todaySteps;
+    if (left >= 400) return { text: "You're only " + left.toLocaleString() + " steps off your " + stepGoal.toLocaleString() + " goal. A quick walk and it's yours, go get them!", cta: null, action: null };
+  }
   if (!weighedRecently) {
     return { text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.', cta: 'Weigh in', action: 'weigh' };
   }
+  // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
+  const eng = engagementNudge(db, today);
+  if (eng) return eng;
   if (streak >= 2) return { text: streak + ' days logged in a row. Keep it up and I’ll grow.', cta: null, action: null };
   return { text: 'Good start. Log as you go and I’ll keep you on track.', cta: null, action: null };
 }
@@ -2524,7 +2574,7 @@ function buddyMessage(db, today, streak) {
   // null here, so buddyCoach's own lesson branch is a no-op and won't double up.
   const say = buddyCoach(db, today, streak);
   if (say) return { kind: 'say', text: say.text,
-    primary: say.cta ? { label: say.cta, act: say.action } : null };
+    primary: say.cta ? { label: say.cta, act: say.action, key: say.key } : null };
   return null;
 }
 
@@ -2977,6 +3027,10 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
       {onOpenName && !incubating && <button onClick={onOpenName} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: named ? 'var(--surface2)' : 'var(--accent)', color: named ? undefined : 'var(--on-accent)' }}>{named ? 'RENAME · ' + RENAME_COST + ' AMBER' : 'NAME YOUR DINO'}</button>}
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
       {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
+      {!incubating && <div className="pixel-box p-2.5 mt-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--fat)' }}>Dino lore</div>
+        <div className="text-[10px] leading-snug" style={{ color: 'var(--muted)' }}>{BUDDY_LORE[crHash((db.game_salt || '') + Store.todayISO()) % BUDDY_LORE.length]}</div>
+      </div>}
     </div>
   );
 }
@@ -4469,6 +4523,15 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const activeSet = new Set([...logSet, ...weighSet]);
   const streakInfo = computeStreak(activeSet, frozenSet, today);
   const streak = streakInfo.streak;
+  // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
+  // pays out (not only fights). Idempotent by ledger id (amber:log:<date>), so it can never double-pay.
+  useEffect(() => {
+    const key = 'amber:log:' + today;
+    if (!(db.log_entries || []).some(e => e.date === today)) return;
+    if ((db.amber_ledger || []).some(e => e.id === key)) return;
+    update(d => { d.amber_ledger = d.amber_ledger || []; if (d.amber_ledger.some(e => e.id === key)) return; d.amber_ledger.push({ id: key, date: today, delta: Game.AMBER_REWARDS.dailyLog, reason: 'Logged today' }); });
+    if (showToast) showToast('+' + Game.AMBER_REWARDS.dailyLog + ' Amber for logging today');
+  }, [db.log_entries, today]);
   const freezeAvail = freezeReady(frozenSet, today);
   const newFrozenKey = streakInfo.newFrozen.join(',');
   useEffect(() => {
@@ -4552,6 +4615,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     const m = buddyMessage(db, today, streak); if (!m) return null;
     const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
     const ackRead = () => update(d => { d.profile = d.profile || {}; d.profile.readAckDate = today; });
+    const snoozeKey = k => { if (k) update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [k]: Date.now() }); }); };
     const resolve = btn => {
       if (!btn) return null;
       const a = btn.act;
@@ -4559,14 +4623,17 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         a === 'read_open' ? () => { ackRead(); setReadyOpen(true); }
         : a === 'read_ack' ? ackRead
         : a === 'lesson' ? () => ackLesson(btn.lessonKey)
-        : a === 'snooze' ? () => update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [btn.snoozeKey]: Date.now() }); })
+        : a === 'snooze' ? () => snoozeKey(btn.snoozeKey)
         : a === 'review' ? onReview
         : a === 'resume' ? () => setWeighOpen('resume')
         : a === 'weigh' ? () => setWeighOpen(true)
         : a === 'checkin' ? onCheckIn
         : (a === 'cadence_daily' || a === 'cadence_single') ? () => update(d => { d.profile = d.profile || {}; d.profile.weighCadence = a === 'cadence_daily' ? 'daily' : 'single'; })
         : a === 'log' ? () => onQuickAdd(false)
-        : a === 'cook' ? () => setView('recipes')
+        : a === 'cook' ? () => { snoozeKey(btn.key); setView('recipes'); }
+        : (a === 'fight' || a === 'shop') ? () => { snoozeKey(btn.key); onOpenPlay(); }
+        : a === 'instagram' ? () => { snoozeKey(btn.key); try { window.open('https://instagram.com/macrosaurus.app', '_blank'); } catch (_) {} }
+        : a === 'feedback' ? () => { snoozeKey(btn.key); try { window.MFEEDBACK && window.MFEEDBACK(); } catch (_) {} }
         : null;
       return { label: btn.label, onClick };
     };
@@ -4634,19 +4701,16 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
 
-      {/* Install + upgrade nudges. Collapsed by default. Install also lives in Account. */}
-      {!isPremium && <Collapsible label="More">
-        <InstallCard />
-        {(() => {
-          const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
-          // Only the contextual AI-low nudge lives here now; the generic upsell is the top box.
-          return freeLeft <= 3
-            ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
-                headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
-                blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
-            : null;
-        })()}
-      </Collapsible>}
+      {/* The "More" drawer is gone (install lives in Account, the upsell is the top box). Only the
+          contextual "AI logs left" nudge remains, and only when it's genuinely running low. */}
+      {!isPremium && (() => {
+        const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+        return freeLeft <= 3
+          ? <PremiumNudge db={db} update={update} className="mb-4" reason="free_limit" trackKey="dash_ai_low"
+              headline={freeLeft > 0 ? (freeLeft + ' AI log' + (freeLeft === 1 ? '' : 's') + ' left this month') : "You've used your free AI logs"}
+              blurb="Premium is unlimited photo, label and describe logging, plus body-fat photo scans. 7 days free, then cancel anytime." />
+          : null;
+      })()}
 
       <div className="text-center text-[10px] text-[#8A8A90] mt-8 px-4 leading-relaxed">{quote}</div>
       {showCarry && <CarryoverSheet et={et} onClose={() => setShowCarry(false)} />}
@@ -9176,6 +9240,7 @@ function App() {
   const [sub, setSub] = useState(null);           // this user's subscription row (or null = free)
   const [aiCalls, setAiCalls] = useState(0);      // AI actions used this month (for the free-tier meter)
   const [paywall, setPaywall] = useState(null);   // { reason } when the upsell sheet is open
+  const [feedbackOpen, setFeedbackOpen] = useState(false); // App-level feedback sheet (opened by the buddy's Suggest nudge via window.MFEEDBACK)
   const [ghConsentOpen, setGhConsentOpen] = useState(false); // Google Health prominent-disclosure sheet
   const [rewards, setRewards] = useState(null);   // { code, link, referrals_count, bonus_ai_remaining }
   const rewardsSyncedRef = useRef(false);
@@ -9233,6 +9298,7 @@ function App() {
   // Let aiRequest (a top-level helper) open the paywall when the proxy reports a limit/premium error.
   useEffect(() => {
     window.MPAYWALL = function (err) { const reason = (err && err.type) || 'manual'; setPaywall({ reason: reason }); window.MTRACK && MTRACK('paywall_view', { reason: reason }); };
+    window.MFEEDBACK = function () { setFeedbackOpen(true); };  // the buddy's "suggest a feature" nudge opens feedback from anywhere
     // Google Health connect goes through the prominent-disclosure sheet first (ghConnectGated calls this).
     window.MGHCONNECT = function () { setGhConsentOpen(true); try { window.MTRACK && MTRACK('gh_disclosure_view'); } catch (_) {} };
     return function () { try { delete window.MPAYWALL; delete window.MGHCONNECT; } catch (_) {} };
@@ -9638,6 +9704,7 @@ function App() {
         </div>
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
+      {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenFight={() => setFightOpen(true)} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
       {fightOpen && <FightModal db={db} update={update} streak={appStreak} onClose={() => setFightOpen(false)} />}
