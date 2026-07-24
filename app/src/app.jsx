@@ -464,6 +464,31 @@ async function buddyHatchLine(name) {
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 120, messages: [{ role: 'user', content: rules + '\n\nYour first words:' }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
+// Premium AI "deeper dive": a personalised coaching paragraph that ties today's sleep, steps, readiness
+// and logging into one focus. Premium-gated by the proxy (like every aiRequest); guardrailed so it can
+// only ever advise around the figures we hand it. Returns text or throws.
+async function buddyDeepDive(db) {
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  const logged = entriesOn(db, today);
+  const m = sumMacros(logged);
+  const night = lastSleepNight(db);
+  const rf = readinessFor(db, today);
+  const payload = {
+    readiness: isFinite(rf) ? Math.round(rf) : null,
+    sleepHours: night ? +(night.rec.min / 60).toFixed(1) : null,
+    stepsToday: +((db.steps || {})[today]) || 0,
+    stepGoal: stepGoalFor(db) || null,
+    loggedToday: logged.length > 0,
+    proteinSoFar: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein) : null,
+    kcalSoFar: Math.round(m.kcal), kcalTarget: et ? Math.round(et.eff.kcal) : null,
+    weighCadence: db.profile.weighCadence || 'daily',
+  };
+  const who = (db.buddy && db.buddy.name) || 'Your buddy';
+  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
+  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, messages: [{ role: 'user', content: rules + '\n\nToday (JSON):\n' + JSON.stringify(payload) + '\n\nYour deeper dive:' }] });
+  return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+}
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
 // Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
@@ -3810,6 +3835,16 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
   const buddy = db.buddy || {};
   const who = buddy.name || 'Your buddy';
   const toneColor = { good: 'var(--good)', warn: 'var(--warn)', accent: 'var(--accent)', muted: 'var(--muted)' };
+  const isPremium = window.MISPREMIUM === true;
+  const [dive, setDive] = useState(null);       // null | text
+  const [diving, setDiving] = useState(false);
+  const [diveErr, setDiveErr] = useState('');
+  function runDive() {
+    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} return; }
+    setDiving(true); setDiveErr('');
+    buddyDeepDive(db).then(t => { setDive(t || ''); setDiving(false); })
+      .catch(e => { setDiving(false); if (!(e && e.aiError)) setDiveErr("Couldn't reach me for a deeper look just now. Try again in a bit."); });
+  }
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
@@ -3824,6 +3859,12 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
           ))}
         </div>
         {recap.weighNeeded && onWeigh && <button onClick={() => { onWeigh(); onClose(); }} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN NOW</button>}
+        {/* Premium AI deeper dive: ties the day's numbers into one personalised focus. Free users get a
+            gentle upsell; premium runs the AI, degrading gracefully if the proxy is unreachable. */}
+        {dive
+          ? <div className="pixel-box p-3 mb-2 text-[11.5px] leading-snug" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}><div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{who}'s deeper dive</div>{dive}</div>
+          : <button onClick={runDive} disabled={diving} className="pixel-btn w-full py-2.5 text-[9px] pf mb-2 inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--surface2)', opacity: diving ? 0.6 : 1 }}>{diving ? 'THINKING…' : isPremium ? 'ASK ' + who.toUpperCase() + ' FOR A DEEPER DIVE' : 'DEEPER DIVE · PREMIUM'}</button>}
+        {diveErr && <div className="text-[10px] mb-2 leading-snug" style={{ color: 'var(--warn)' }}>{diveErr}</div>}
         <div className="text-center text-[9px] text-[#8A8A90] leading-snug">It's all guidance, not gospel, so do what suits your day.</div>
       </div>
     </div>
