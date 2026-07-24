@@ -2774,6 +2774,44 @@ function buddyProfile(db, streak, buddy, level) {
 // What the buddy is craving, in words, framing the day's macro gap as a thing to feed it.
 const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fibre', fuel: 'more fuel' };
 
+// The buddy's home on Today: a framed terrarium "window" (sky + ground platform + floor shadow) so
+// the animated dino is standing somewhere rather than floating, paired with its name/stage, a warm
+// mood line, and a next-stage progress bar. Grounds the one rich element inside the pixel UI, and is
+// the seed for the fuller always-present presence in Phase 4.
+function BuddyHabitat({ db, buddy, bp, streak }) {
+  const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
+  const next = BUDDY_STAGES[buddy.stage + 1] || null;
+  // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
+  // buddy sits at a high-water stage above what the current streak supports (e.g. after a slip).
+  const prog = next ? Math.max(0.04, Math.min(1, streak / next.min)) : 1;
+  const toNext = next ? Math.max(1, next.min - streak) : 0;
+  const s = buddyStageSprite(buddy.stage, db.buddy);
+  const mood = MOOD_META[bp.mood] || MOOD_META.content;
+  return (
+    <Card className="p-3 mb-4">
+      <div className="flex items-stretch gap-3">
+        <div className="relative shrink-0 pixel-box overflow-hidden" style={{ width: 108, minHeight: 96, background: 'var(--surface3)', boxShadow: 'none' }}>
+          <div className="absolute left-0 right-0 bottom-0" style={{ height: 24, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
+          <div className="absolute" style={{ left: '50%', bottom: 15, width: 56, height: 9, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.55, borderRadius: '50%' }} />
+          <div className="absolute" style={Object.assign({ left: '50%', bottom: 16, transform: 'translateX(-50%)' }, buddy.asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
+            <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />
+          </div>
+          {buddy.asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
+        </div>
+        <div className="min-w-0 flex-1 flex flex-col justify-center">
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
+          <div className="text-lg font-bold leading-tight truncate">{bp.name || st.name}</div>
+          <div className="text-[11px] leading-snug mb-2" style={{ color: mood.color }}>{moodLine(bp.mood, String(buddy.stage) + streak)}</div>
+          {next
+            ? <><div className="pixel-bar"><div style={{ width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
+                <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
+            : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function BuddyCard({ db, streak, buddy, freezeReady, onOpenDex }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const dex = macrodex(db); const caught = Object.keys(dex).length;
@@ -3974,9 +4012,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       <PageHeader kicker={prettyDate(today)} title="Today" />
-      {/* Phase 1: first taste of the animated buddy on Today (Phase 4 grows this into the full,
+      {/* Phase 1: the animated buddy, housed in its habitat (Phase 4 grows this into the full,
           always-present, proactive presence). Uses the new /sprites art via SpriteSheet. */}
-      <div className="flex justify-center mb-3">{(() => { const s = buddyStageSprite(buddy.stage, db.buddy); return <div style={buddy.asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null}><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={4} fps={s.fps} /></div>; })()}</div>
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       <InstallCard />
 
