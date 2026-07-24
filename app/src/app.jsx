@@ -3530,18 +3530,22 @@ function FightModal({ db, update, streak, onClose }) {
   // when hit, faints on a loss and bounces on a win. (Falls back to a static pose for legacy buddies.)
   const buddyAnim = winner === 'them' ? 'dead' : winner === 'you' ? 'jump' : lungeA ? 'bite' : lungeB ? 'hurt' : 'idle';
   const enemyAnim = winner === 'you' ? 'dead' : winner === 'them' ? 'jump' : lungeB ? 'bite' : lungeA ? 'hurt' : 'idle';
+  // Each fighter is a unit: the sprite with an oval shadow pinned to its feet, so it always stands ON
+  // its shadow no matter where the unit sits in the ring (fixes the sprites floating off the platforms).
+  const Stage = ({ px, shadowW, children }) => (
+    <div className="relative" style={{ width: 24 * px, height: 24 * px }}>
+      <div className="absolute" style={{ left: '50%', bottom: Math.round(px * 0.8), transform: 'translateX(-50%)', width: shadowW, height: 8, background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+      <div className="absolute inset-0">{children}</div>
+    </div>
+  );
   const Ring = () => (
     <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'linear-gradient(var(--surface3) 0%, var(--surface3) 61%, var(--surface2) 61%)' }}>
       {/* horizon line where sky meets ground */}
       <div className="absolute left-0 right-0" style={{ top: '61%', height: 3, background: 'var(--border)' }} />
-      {/* opponent battle platform (far, upper right) */}
-      <div className="absolute" style={{ top: 82, right: 16, width: 98, height: 15, background: 'var(--surface2)', border: '3px solid var(--border)', borderRadius: '50%' }} />
-      {/* player battle platform (near, lower left) */}
-      <div className="absolute" style={{ bottom: 11, left: 12, width: 118, height: 20, background: 'var(--surface3)', border: '3px solid var(--border)', borderRadius: '50%' }} />
-      {/* opponent, smaller (further away), facing the player, feet resting on its platform */}
-      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 20, right: 30 }}><EnemySprite name={opp.name} anim={enemyAnim} px={5.5} /></div>
-      {/* player, larger (nearer): the buddy's real animated sprite */}
-      <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 22, left: 26 }}><FighterSprite buddy={db.buddy} stageArt={b} anim={buddyAnim} px={6} /></div>
+      {/* opponent (far, upper right), mirrored to face the buddy, standing on its own shadow */}
+      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 24, right: 22 }}><Stage px={5} shadowW={58}><EnemySprite name={opp.name} anim={enemyAnim} px={5} /></Stage></div>
+      {/* player (near, lower left): the buddy's real animated sprite, a touch larger */}
+      <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 4, left: 14 }}><Stage px={6} shadowW={74}><FighterSprite buddy={db.buddy} anim={buddyAnim} px={6} /></Stage></div>
       {/* VS flash on entry */}
       {intro && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="pf fvs" style={{ fontSize: 26, color: 'var(--fat)', WebkitTextStroke: '1px var(--border)' }}>VS</div></div>}
       {/* damage / hit pops */}
@@ -3552,6 +3556,25 @@ function FightModal({ db, update, streak, onClose }) {
     </div>
   );
   const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
+  // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
+  // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
+  const FightCard = ({ tag, tagColor, enemy, reward, action, border }) => (
+    <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (border || 'var(--border)') }}>
+      <div className="pf text-[8px] uppercase mb-2.5" style={{ color: tagColor || 'var(--muted)' }}>{tag}</div>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 68, height: 68 }}>
+          <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={enemy.name} anim="idle" px={2.5} /></span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-bold truncate">{enemy.name}</div>
+          <StatLine s={enemy.stats} />
+          {enemy.ability && enemy.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[enemy.ability]}</div>}
+          <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{reward}</div>
+        </div>
+      </div>
+      {action}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
@@ -3573,101 +3596,48 @@ function FightModal({ db, update, streak, onClose }) {
             <PixelGlyph kind="trophy" color="var(--fat)" size={11} />
           </div>
 
-          {/* VS matchup, with the type verdict beneath */}
-          <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="flex items-center gap-2">
-              <div className="text-center flex-1 min-w-0">
-                <div className="pixel-box p-2 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', width: 96, height: 96 }}><FighterSprite buddy={db.buddy} anim="idle" px={5} /></div>
-                <div className="text-[11px] mt-2 font-bold truncate">{fighter.name}</div>
-                <StatLine s={fighter.stats} />
-              </div>
-              <div className="pf text-[13px] text-[#8A8A90] self-center shrink-0">VS</div>
-              <div className="text-center flex-1 min-w-0">
-                <div className="pixel-box p-2 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', width: 96, height: 96 }}><EnemySprite name={rival.name} anim="idle" px={5} /></div>
-                <div className="text-[11px] mt-2 font-bold truncate">{rival.name}</div>
-                <StatLine s={rival.stats} />
-                {rival.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}
+          {/* your fighter: sprite, stats, and today's readiness edge, all grown from your eating */}
+          <div className="pixel-box p-3 mb-4 flex items-center gap-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+            <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 62, height: 62 }}><FighterSprite buddy={db.buddy} anim="idle" px={2.2} /></div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-bold truncate">{fighter.name}</div>
+              <StatLine s={fighter.stats} />
+              <div className="text-[9px] mt-1 leading-snug" style={{ color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)' }}>
+                {readyBuff.band
+                  ? (readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today'
+                    : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today'
+                    : 'Steady readiness today')
+                  : 'Built from your week’s protein, fibre and perfect days'}
               </div>
             </div>
           </div>
 
-          {/* readiness buff: today's recovery turned into a battle edge */}
-          {readyBuff.band && <div className="text-center mb-3.5 pixel-box p-2" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--border)') }}>
-            <span className="pf text-[8px] uppercase" style={{ color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--text)' }}>Readiness {Game.READY_BAND[readyBuff.band].label}</span>
-            <span className="text-[10px] ml-1.5" style={{ color: 'var(--text)' }}>{readyBuff.atk > 1 ? readyBuff.label + ', +' + Math.round((readyBuff.atk - 1) * 100) + '% attack' : readyBuff.atk < 1 ? readyBuff.label + ', +' + Math.round((readyBuff.def - 1) * 100) + '% defence & a heal' : 'steady, no change'}</span>
-          </div>}
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Choose your battle</div>
 
-          {/* battle plan: your one tactical choice before the bout */}
-          {(gate.can || bossReady || (dailyReady && loggedToday)) && <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Battle plan</div>
-            <div className="flex gap-2">
-              {[['press', 'Press', '+ATK'], ['steady', 'Steady', 'balanced'], ['dig', 'Dig in', '+DEF']].map(([k, label, hint]) => (
-                <button key={k} onClick={() => setStance(k)} className="flex-1 pixel-btn py-2 px-1" style={{ background: stance === k ? 'var(--accent)' : 'var(--surface3)', color: stance === k ? 'var(--on-accent)' : 'var(--text)' }}>
-                  <div className="pf text-[9px] leading-tight">{label}</div>
-                  <div className="text-[7px] mt-0.5" style={{ opacity: 0.8 }}>{hint}</div>
-                </button>
-              ))}
-            </div>
-            {loadout.special > 0 && <button onClick={() => setUseSpecial(s => !s)} className="w-full pixel-btn py-2 mt-2" style={{ background: useSpecial ? 'var(--fat)' : 'var(--surface3)', color: useSpecial ? '#1a1400' : 'var(--text)' }}>
-              <span className="pf text-[8px]">{useSpecial ? <><Spark size={8} /> Special armed · +30% ATK</> : 'Unleash perfect-day Special · +30% ATK'}</span>
-            </button>}
-          </div>}
+          {/* Ladder: climb the rungs. Folds the old VS card + fight button into one card. */}
+          <FightCard tag={ladderCleared ? 'Ladder · cleared' : 'Ladder · Rung ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length} tagColor="var(--accent)" enemy={rival}
+            reward="Climb the ranks for Amber, loot and the Champion Belt."
+            action={ladderCleared
+              ? <Btn kind="accent" className="w-full" onClick={prestige}>Prestige ↑ · tougher ladder, better drops</Btn>
+              : gate.can
+                ? <Btn kind="accent" className="w-full" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}>Fight {rival.name} · 1 attempt today</Btn>
+                : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.'}</div>} />
 
-          {/* primary action */}
-          {ladderCleared
-            ? <Btn kind="accent" className="w-full mb-3.5" onClick={prestige}>Prestige ↑, tougher ladder, better drops</Btn>
-            : gate.can
-              ? <Btn kind="accent" className="w-full mb-3.5" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}>Fight {rival.name} · 1 attempt today</Btn>
-              : <div className="pixel-box p-3 mb-3.5 text-center text-[11px] text-[#8A8A90]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt, a fed buddy fights best.'}</div>}
-
-          {/* Daily Hunt: a fresh, gentle mini-boss every day that pays Amber. Its own once-a-day gate,
-              separate from the ladder attempt, and retryable after a loss (never a punishment). */}
-          <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (dailyReady ? 'var(--accent)' : 'var(--border)') }}>
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Daily Hunt · {daily.name}</span>
-            </div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={daily.name} anim="idle" px={2.6} /></span></div>
-              <div className="text-[10px] leading-snug text-[#8A8A90] flex-1">
-                {(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day hunt streak · </span>}
-                Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A new hunt roams in tomorrow.
-              </div>
-            </div>
-            {dailyReady
+          {/* Daily Hunt: a fresh, gentle mini-boss every day that pays Amber. */}
+          <FightCard tag="Daily Hunt" tagColor="var(--accent)" enemy={daily} border={dailyReady ? 'var(--accent)' : 'var(--border)'}
+            reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
+            action={dailyReady
               ? (loggedToday
                   ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Hunt {daily.name}</Btn>
                   : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Log a meal today to arm the hunt.</div>)
-              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today <Tick size={9} /> A fresh one lands tomorrow.</div>}
-          </div>
+              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today <Tick size={9} /> A fresh one lands tomorrow.</div>} />
 
-          {/* how the week armed the fighter */}
-          {(() => {
-            const s = fighter.stats;
-            const rows = [
-              { label: 'Protein', n: s.pro, add: s.pro * 2, unit: 'ATK', color: 'var(--pro)' },
-              { label: 'Fibre', n: s.fib, add: s.fib * 2, unit: 'DEF', color: 'var(--carb)' },
-              { label: 'Perfect', n: s.per, add: s.per * 5, unit: 'HP', color: 'var(--good)' },
-            ];
-            return <div className="pixel-box p-3.5 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2.5 flex items-center justify-between"><span>This week armed you</span><span className="text-[#8A8A90]">your eating is your build</span></div>
-              <div className="space-y-2">
-                {rows.map(r => <div key={r.label} className="flex items-center gap-2 text-[9px]">
-                  <span className="w-16 shrink-0 text-[#8A8A90] tnum">{r.label} {r.n}/7</span>
-                  <div className="pixel-bar flex-1" style={{ height: 10, borderWidth: 2 }}><i style={{ width: (r.n / 7 * 100) + '%', background: r.color, transition: 'width .4s' }} /></div>
-                  <span className="w-12 shrink-0 text-right tnum" style={{ color: r.add > 0 ? 'var(--text)' : 'var(--muted)' }}>+{r.add} {r.unit}</span>
-                </div>)}
-              </div>
-            </div>;
-          })()}
-
-          {/* weekly boss: weakness and challenge in one card */}
+          {/* Weekly Boss: the big one, at the bottom. */}
           {bossReady
-            ? <div className="pixel-box p-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid var(--border)' }}>
-                <div className="flex items-center justify-between mb-2 gap-2"><span className="pf text-[8px] uppercase" style={{ color: 'var(--danger)' }}>Weekly boss · {boss.name}</span>{boss.ability !== 'none' && <span className="text-[8px] shrink-0" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[boss.ability]}</span>}</div>
-                <div className="text-[10px] leading-snug mb-3 text-[#8A8A90]">The toughest fight of the week, and it drops the best Amber and loot. Feed your buddy well and take it down for the trophy.</div>
-                <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, 'weekly')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Challenge {boss.name}</Btn>
-              </div>
-            : <div className="text-[11px] text-[#8A8A90] text-center">Weekly boss beaten, a new challenger arrives next week.</div>}
+            ? <FightCard tag={'Weekly Boss · ' + boss.name} tagColor="var(--danger)" border="var(--danger)" enemy={boss}
+                reward="The week’s toughest fight, and the best Amber and loot going."
+                action={<Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(boss, 'weekly')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Challenge {boss.name}</Btn>} />
+            : <div className="text-[11px] text-[#8A8A90] text-center pixel-box p-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>Weekly boss beaten, a new challenger arrives next week.</div>}
         </div>}
 
         {(phase === 'fight' || phase === 'done') && opp && <div className="fade-in">

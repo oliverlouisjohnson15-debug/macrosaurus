@@ -11542,6 +11542,33 @@ function FightModal({
   // when hit, faints on a loss and bounces on a win. (Falls back to a static pose for legacy buddies.)
   const buddyAnim = winner === 'them' ? 'dead' : winner === 'you' ? 'jump' : lungeA ? 'bite' : lungeB ? 'hurt' : 'idle';
   const enemyAnim = winner === 'you' ? 'dead' : winner === 'them' ? 'jump' : lungeB ? 'bite' : lungeA ? 'hurt' : 'idle';
+  // Each fighter is a unit: the sprite with an oval shadow pinned to its feet, so it always stands ON
+  // its shadow no matter where the unit sits in the ring (fixes the sprites floating off the platforms).
+  const Stage = ({
+    px,
+    shadowW,
+    children
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "relative",
+    style: {
+      width: 24 * px,
+      height: 24 * px
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: {
+      left: '50%',
+      bottom: Math.round(px * 0.8),
+      transform: 'translateX(-50%)',
+      width: shadowW,
+      height: 8,
+      background: 'var(--border)',
+      opacity: 0.5,
+      borderRadius: '50%'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "absolute inset-0"
+  }, children));
   const Ring = () => /*#__PURE__*/React.createElement("div", {
     className: 'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : ''),
     style: {
@@ -11556,49 +11583,32 @@ function FightModal({
       background: 'var(--border)'
     }
   }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
-    style: {
-      top: 82,
-      right: 16,
-      width: 98,
-      height: 15,
-      background: 'var(--surface2)',
-      border: '3px solid var(--border)',
-      borderRadius: '50%'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
-    style: {
-      bottom: 11,
-      left: 12,
-      width: 118,
-      height: 20,
-      background: 'var(--surface3)',
-      border: '3px solid var(--border)',
-      borderRadius: '50%'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
     className: 'absolute ' + (intro ? 'fslideR' : lungeB ? 'flungeLflip' : 'fbobFlip'),
     style: {
-      top: 20,
-      right: 30
+      top: 24,
+      right: 22
     }
+  }, /*#__PURE__*/React.createElement(Stage, {
+    px: 5,
+    shadowW: 58
   }, /*#__PURE__*/React.createElement(EnemySprite, {
     name: opp.name,
     anim: enemyAnim,
-    px: 5.5
-  })), /*#__PURE__*/React.createElement("div", {
+    px: 5
+  }))), /*#__PURE__*/React.createElement("div", {
     className: 'absolute ' + (intro ? 'fslideL' : lungeA ? 'flungeR' : 'fbob'),
     style: {
-      bottom: 22,
-      left: 26
+      bottom: 4,
+      left: 14
     }
+  }, /*#__PURE__*/React.createElement(Stage, {
+    px: 6,
+    shadowW: 74
   }, /*#__PURE__*/React.createElement(FighterSprite, {
     buddy: db.buddy,
-    stageArt: b,
     anim: buddyAnim,
     px: 6
-  })), intro && /*#__PURE__*/React.createElement("div", {
+  }))), intro && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-0 flex items-center justify-center pointer-events-none"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf fvs",
@@ -11632,6 +11642,60 @@ function FightModal({
   }) => /*#__PURE__*/React.createElement("div", {
     className: "text-[8px] text-[#8A8A90] tnum"
   }, "HP ", s.hp, " · ATK ", s.atk, " · DEF ", s.def);
+  // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
+  // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
+  const FightCard = ({
+    tag,
+    tagColor,
+    enemy,
+    reward,
+    action,
+    border
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3",
+    style: {
+      background: 'var(--surface2)',
+      boxShadow: 'none',
+      border: '2px solid ' + (border || 'var(--border)')
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase mb-2.5",
+    style: {
+      color: tagColor || 'var(--muted)'
+    }
+  }, tag), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box shrink-0 inline-flex items-center justify-center",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      width: 68,
+      height: 68
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'inline-block',
+      transform: 'scaleX(-1)'
+    }
+  }, /*#__PURE__*/React.createElement(EnemySprite, {
+    name: enemy.name,
+    anim: "idle",
+    px: 2.5
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold truncate"
+  }, enemy.name), /*#__PURE__*/React.createElement(StatLine, {
+    s: enemy.stats
+  }), enemy.ability && enemy.ability !== 'none' && /*#__PURE__*/React.createElement("div", {
+    className: "text-[8px] mt-0.5",
+    style: {
+      color: 'var(--fat)'
+    }
+  }, ABIL_LABEL[enemy.ability]), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-1 leading-snug"
+  }, reward))), action);
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center",
     onClick: onClose
@@ -11677,287 +11741,130 @@ function FightModal({
     color: "var(--fat)",
     size: 11
   })), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3.5 mb-3.5",
+    className: "pixel-box p-3 mb-4 flex items-center gap-3",
     style: {
       background: 'var(--surface2)',
       boxShadow: 'none'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-center flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-2 inline-flex items-center justify-center",
+    className: "pixel-box shrink-0 inline-flex items-center justify-center",
     style: {
       background: 'var(--surface3)',
-      width: 96,
-      height: 96
+      boxShadow: 'none',
+      width: 62,
+      height: 62
     }
   }, /*#__PURE__*/React.createElement(FighterSprite, {
     buddy: db.buddy,
     anim: "idle",
-    px: 5
+    px: 2.2
   })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mt-2 font-bold truncate"
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold truncate"
   }, fighter.name), /*#__PURE__*/React.createElement(StatLine, {
     s: fighter.stats
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[13px] text-[#8A8A90] self-center shrink-0"
-  }, "VS"), /*#__PURE__*/React.createElement("div", {
-    className: "text-center flex-1 min-w-0"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-2 inline-flex items-center justify-center",
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] mt-1 leading-snug",
     style: {
-      background: 'var(--surface3)',
-      width: 96,
-      height: 96
+      color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)'
     }
-  }, /*#__PURE__*/React.createElement(EnemySprite, {
-    name: rival.name,
-    anim: "idle",
-    px: 5
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mt-2 font-bold truncate"
-  }, rival.name), /*#__PURE__*/React.createElement(StatLine, {
-    s: rival.stats
-  }), rival.ability !== 'none' && /*#__PURE__*/React.createElement("div", {
-    className: "text-[8px] mt-0.5",
-    style: {
-      color: 'var(--fat)'
-    }
-  }, ABIL_LABEL[rival.ability])))), readyBuff.band && /*#__PURE__*/React.createElement("div", {
-    className: "text-center mb-3.5 pixel-box p-2",
-    style: {
-      background: 'var(--surface2)',
-      boxShadow: 'none',
-      border: '2px solid ' + (readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--border)')
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase",
-    style: {
-      color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--text)'
-    }
-  }, "Readiness ", Game.READY_BAND[readyBuff.band].label), /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] ml-1.5",
-    style: {
-      color: 'var(--text)'
-    }
-  }, readyBuff.atk > 1 ? readyBuff.label + ', +' + Math.round((readyBuff.atk - 1) * 100) + '% attack' : readyBuff.atk < 1 ? readyBuff.label + ', +' + Math.round((readyBuff.def - 1) * 100) + '% defence & a heal' : 'steady, no change')), (gate.can || bossReady || dailyReady && loggedToday) && /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3.5 mb-3.5",
-    style: {
-      background: 'var(--surface2)',
-      boxShadow: 'none'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, readyBuff.band ? readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today' : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today' : 'Steady readiness today' : 'Built from your week’s protein, fibre and perfect days'))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
-  }, "Battle plan"), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, [['press', 'Press', '+ATK'], ['steady', 'Steady', 'balanced'], ['dig', 'Dig in', '+DEF']].map(([k, label, hint]) => /*#__PURE__*/React.createElement("button", {
-    key: k,
-    onClick: () => setStance(k),
-    className: "flex-1 pixel-btn py-2 px-1",
-    style: {
-      background: stance === k ? 'var(--accent)' : 'var(--surface3)',
-      color: stance === k ? 'var(--on-accent)' : 'var(--text)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] leading-tight"
-  }, label), /*#__PURE__*/React.createElement("div", {
-    className: "text-[7px] mt-0.5",
-    style: {
-      opacity: 0.8
-    }
-  }, hint)))), loadout.special > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: () => setUseSpecial(s => !s),
-    className: "w-full pixel-btn py-2 mt-2",
-    style: {
-      background: useSpecial ? 'var(--fat)' : 'var(--surface3)',
-      color: useSpecial ? '#1a1400' : 'var(--text)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px]"
-  }, useSpecial ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Spark, {
-    size: 8
-  }), " Special armed · +30% ATK") : 'Unleash perfect-day Special · +30% ATK'))), ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "w-full mb-3.5",
-    onClick: prestige
-  }, "Prestige ↑, tougher ladder, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "w-full mb-3.5",
-    onClick: () => {
-      update(d => {
-        d.fight = d.fight || {
-          rank: 0,
-          wins: 0,
-          trophies: 0,
-          lastBossWeek: null,
-          prestige: 0
-        };
-        d.fight.lastAttemptDate = today;
-      });
-      start(rival, 'ladder');
-    }
-  }, "Fight ", rival.name, " · 1 attempt today") : /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 mb-3.5 text-center text-[11px] text-[#8A8A90]",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
-    }
-  }, gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt, a fed buddy fights best.'), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3.5 mb-3.5",
-    style: {
-      background: 'var(--surface2)',
-      boxShadow: 'none',
-      border: '2px solid ' + (dailyReady ? 'var(--accent)' : 'var(--border)')
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-2 gap-2"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase",
-    style: {
-      color: 'var(--accent)'
-    }
-  }, "Daily Hunt · ", daily.name)), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-3 mb-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-1.5 shrink-0",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: 'inline-block',
-      transform: 'scaleX(-1)'
-    }
-  }, /*#__PURE__*/React.createElement(EnemySprite, {
-    name: daily.name,
-    anim: "idle",
-    px: 2.6
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] leading-snug text-[#8A8A90] flex-1"
-  }, (fight.dailyStreak || 0) > 0 && /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--fat)'
-    }
-  }, "▲ ", fight.dailyStreak, "-day hunt streak · "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
-    className: "font-bold",
-    style: {
-      color: 'var(--fat)'
-    }
-  }, /*#__PURE__*/React.createElement(Spark, {
-    size: 9
-  }), " ", dailyAmber, " Amber"), ". A new hunt roams in tomorrow.")), dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "w-full inline-flex items-center justify-center gap-2",
-    onClick: () => start(daily, 'daily')
-  }, /*#__PURE__*/React.createElement(PixelGlyph, {
-    kind: "glove",
-    color: "currentColor",
-    size: 14
-  }), " Hunt ", daily.name) : /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
-    }
-  }, "Log a meal today to arm the hunt.") : /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-center pixel-box p-2",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none',
-      color: 'var(--good)'
-    }
-  }, "Hunt cleared today ", /*#__PURE__*/React.createElement(Tick, {
-    size: 9
-  }), " A fresh one lands tomorrow.")), (() => {
-    const s = fighter.stats;
-    const rows = [{
-      label: 'Protein',
-      n: s.pro,
-      add: s.pro * 2,
-      unit: 'ATK',
-      color: 'var(--pro)'
-    }, {
-      label: 'Fibre',
-      n: s.fib,
-      add: s.fib * 2,
-      unit: 'DEF',
-      color: 'var(--carb)'
-    }, {
-      label: 'Perfect',
-      n: s.per,
-      add: s.per * 5,
-      unit: 'HP',
-      color: 'var(--good)'
-    }];
-    return /*#__PURE__*/React.createElement("div", {
-      className: "pixel-box p-3.5 mb-3",
+  }, "Choose your battle"), /*#__PURE__*/React.createElement(FightCard, {
+    tag: ladderCleared ? 'Ladder · cleared' : 'Ladder · Rung ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length,
+    tagColor: "var(--accent)",
+    enemy: rival,
+    reward: "Climb the ranks for Amber, loot and the Champion Belt.",
+    action: ladderCleared ? /*#__PURE__*/React.createElement(Btn, {
+      kind: "accent",
+      className: "w-full",
+      onClick: prestige
+    }, "Prestige ↑ · tougher ladder, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
+      kind: "accent",
+      className: "w-full",
+      onClick: () => {
+        update(d => {
+          d.fight = d.fight || {
+            rank: 0,
+            wins: 0,
+            trophies: 0,
+            lastBossWeek: null,
+            prestige: 0
+          };
+          d.fight.lastAttemptDate = today;
+        });
+        start(rival, 'ladder');
+      }
+    }, "Fight ", rival.name, " · 1 attempt today") : /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
       style: {
-        background: 'var(--surface2)',
+        background: 'var(--surface3)',
         boxShadow: 'none'
       }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[8px] uppercase text-[#8A8A90] mb-2.5 flex items-center justify-between"
-    }, /*#__PURE__*/React.createElement("span", null, "This week armed you"), /*#__PURE__*/React.createElement("span", {
-      className: "text-[#8A8A90]"
-    }, "your eating is your build")), /*#__PURE__*/React.createElement("div", {
-      className: "space-y-2"
-    }, rows.map(r => /*#__PURE__*/React.createElement("div", {
-      key: r.label,
-      className: "flex items-center gap-2 text-[9px]"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "w-16 shrink-0 text-[#8A8A90] tnum"
-    }, r.label, " ", r.n, "/7"), /*#__PURE__*/React.createElement("div", {
-      className: "pixel-bar flex-1",
+    }, gate.reason === 'used' ? 'Today’s attempt is used. A fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.')
+  }), /*#__PURE__*/React.createElement(FightCard, {
+    tag: "Daily Hunt",
+    tagColor: "var(--accent)",
+    enemy: daily,
+    border: dailyReady ? 'var(--accent)' : 'var(--border)',
+    reward: /*#__PURE__*/React.createElement(React.Fragment, null, (fight.dailyStreak || 0) > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
-        height: 10,
-        borderWidth: 2
+        color: 'var(--fat)'
       }
-    }, /*#__PURE__*/React.createElement("i", {
+    }, "▲ ", fight.dailyStreak, "-day streak · "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
+      className: "font-bold",
       style: {
-        width: r.n / 7 * 100 + '%',
-        background: r.color,
-        transition: 'width .4s'
+        color: 'var(--fat)'
       }
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "w-12 shrink-0 text-right tnum",
+    }, /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    }), " ", dailyAmber, " Amber"), ". A fresh one roams in tomorrow."),
+    action: dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
+      kind: "accent",
+      className: "w-full inline-flex items-center justify-center gap-2",
+      onClick: () => start(daily, 'daily')
+    }, /*#__PURE__*/React.createElement(PixelGlyph, {
+      kind: "glove",
+      color: "currentColor",
+      size: 14
+    }), " Hunt ", daily.name) : /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
       style: {
-        color: r.add > 0 ? 'var(--text)' : 'var(--muted)'
+        background: 'var(--surface3)',
+        boxShadow: 'none'
       }
-    }, "+", r.add, " ", r.unit)))));
-  })(), bossReady ? /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3.5",
+    }, "Log a meal today to arm the hunt.") : /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-center pixel-box p-2",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none',
+        color: 'var(--good)'
+      }
+    }, "Hunt cleared today ", /*#__PURE__*/React.createElement(Tick, {
+      size: 9
+    }), " A fresh one lands tomorrow.")
+  }), bossReady ? /*#__PURE__*/React.createElement(FightCard, {
+    tag: 'Weekly Boss · ' + boss.name,
+    tagColor: "var(--danger)",
+    border: "var(--danger)",
+    enemy: boss,
+    reward: "The week’s toughest fight, and the best Amber and loot going.",
+    action: /*#__PURE__*/React.createElement(Btn, {
+      kind: "danger",
+      className: "w-full inline-flex items-center justify-center gap-2",
+      onClick: () => start(boss, 'weekly')
+    }, /*#__PURE__*/React.createElement(PixelGlyph, {
+      kind: "glove",
+      color: "currentColor",
+      size: 14
+    }), " Challenge ", boss.name)
+  }) : /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] text-center pixel-box p-3",
     style: {
       background: 'var(--surface2)',
-      boxShadow: 'none',
-      border: '2px solid var(--border)'
+      boxShadow: 'none'
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-2 gap-2"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase",
-    style: {
-      color: 'var(--danger)'
-    }
-  }, "Weekly boss · ", boss.name), boss.ability !== 'none' && /*#__PURE__*/React.createElement("span", {
-    className: "text-[8px] shrink-0",
-    style: {
-      color: 'var(--fat)'
-    }
-  }, ABIL_LABEL[boss.ability])), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] leading-snug mb-3 text-[#8A8A90]"
-  }, "The toughest fight of the week, and it drops the best Amber and loot. Feed your buddy well and take it down for the trophy."), /*#__PURE__*/React.createElement(Btn, {
-    kind: "danger",
-    className: "w-full inline-flex items-center justify-center gap-2",
-    onClick: () => start(boss, 'weekly')
-  }, /*#__PURE__*/React.createElement(PixelGlyph, {
-    kind: "glove",
-    color: "currentColor",
-    size: 14
-  }), " Challenge ", boss.name)) : /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] text-center"
   }, "Weekly boss beaten, a new challenger arrives next week.")), (phase === 'fight' || phase === 'done') && opp && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
