@@ -2427,6 +2427,16 @@ const SPRITE_FRAMES = {
 // The male palettes of these species are missing idle/move/dash/hurt/kick; the customize step uses
 // this to hide those species+palette combos so we never request a 404 strip.
 const SPRITE_INCOMPLETE_MALE = ['doux', 'mort', 'tard', 'vita'];
+// The 12 buddy species from the art pack, offered in the hatch/customize step. Labels are cosmetic
+// (the user names their own buddy); every species has a complete 'female' colourway, so grid
+// thumbnails use it and spritePalettes() decides which colourways a given species can offer.
+const SPRITE_SPECIES = [
+  { id: 'doux', label: 'Doux' }, { id: 'cole', label: 'Cole' }, { id: 'kira', label: 'Kira' },
+  { id: 'kuro', label: 'Kuro' }, { id: 'loki', label: 'Loki' }, { id: 'mono', label: 'Mono' },
+  { id: 'mort', label: 'Mort' }, { id: 'nico', label: 'Nico' }, { id: 'olaf', label: 'Olaf' },
+  { id: 'sena', label: 'Sena' }, { id: 'tard', label: 'Taro' }, { id: 'vita', label: 'Vita' },
+];
+function spritePalettes(species) { return SPRITE_INCOMPLETE_MALE.includes(species) ? ['female'] : ['female', 'male']; }
 function spriteHasAnim(palette, species, group, anim) {
   if (palette === 'male' && group === 'base' && SPRITE_INCOMPLETE_MALE.includes(species)
     && ['idle', 'move', 'dash', 'hurt', 'kick'].includes(anim)) return false;
@@ -3999,6 +4009,79 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
           <Btn kind="ghost" className="flex-1" onClick={onClose}>Not now</Btn>
           <Btn kind="accent" className="flex-1" onClick={onAgree}>Connect Google Health</Btn>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// First-run HATCH + CUSTOMIZE: the Pokemon-starter moment. The egg wobbles, you crack it, it
+// hatches, then you choose your buddy's look and name it. Writes buddy.species/palette/name and
+// onboarding.hatched. This is the emotional hook and the buddy's first hello as your coach.
+function HatchOnboarding({ update, onDone }) {
+  const [step, setStep] = useState('egg'); // egg -> crack -> hatch -> customize
+  const [species, setSpecies] = useState('doux');
+  const [palette, setPalette] = useState('female');
+  const [name, setName] = useState('');
+  const palettes = spritePalettes(species);
+  useEffect(() => { if (palettes.indexOf(palette) < 0) setPalette(palettes[0]); }, [species]);
+  const label = (SPRITE_SPECIES.find(s => s.id === species) || {}).label || 'your buddy';
+  function finish() {
+    const nm = name.trim() || label;
+    update(d => {
+      d.buddy = d.buddy || { stage: 0 };
+      d.buddy.name = nm; d.buddy.species = species; d.buddy.palette = palette;
+      d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
+      if (d.buddy.stage == null) d.buddy.stage = 0;
+      d.onboarding = d.onboarding || {}; d.onboarding.hatched = true;
+    });
+    onDone();
+  }
+  return (
+    <div className="fixed inset-0 z-[90] overflow-y-auto" style={{ background: 'var(--bg)' }}>
+      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center">
+        {step !== 'customize' ? (
+          <>
+            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-6">Your buddy</div>
+            <div className="pixel-box p-6 mb-6 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 168, minHeight: 168 }}>
+              {step === 'egg' && <SpriteSheet palette="female" species="doux" group="egg" anim="move" px={6} fps={4} />}
+              {step === 'crack' && <SpriteSheet palette="female" species="doux" group="egg" anim="crack" px={6} fps={6} loop={false} onEnd={() => setStep('hatch')} />}
+              {step === 'hatch' && <SpriteSheet palette="female" species="doux" group="egg" anim="hatch" px={6} fps={6} loop={false} onEnd={() => setStep('customize')} />}
+            </div>
+            {step === 'egg' ? (
+              <>
+                <div className="text-lg font-bold mb-1">Something's stirring</div>
+                <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-6 max-w-xs">There's an egg with your name on it. Your buddy grows as you build real habits, and it's here to help you along the way.</div>
+                <Btn onClick={() => setStep('crack')} className="w-full max-w-xs">Hatch it</Btn>
+              </>
+            ) : <div className="text-[12px] text-[#8A8A90]">Hatching…</div>}
+          </>
+        ) : (
+          <>
+            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">Make it yours</div>
+            <div className="pixel-box p-5 mb-4 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 168, minHeight: 168 }}>
+              <SpriteSheet palette={palette} species={species} group="base" anim="idle" px={6} fps={5} />
+            </div>
+            <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2 self-start">Pick a look</div>
+            <div className="grid grid-cols-6 gap-1.5 w-full mb-3">
+              {SPRITE_SPECIES.map(s => (
+                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={s.label} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+                  <SpriteSheet palette="female" species={s.id} group="base" anim="idle" px={1.6} fps={4} />
+                </button>
+              ))}
+            </div>
+            {palettes.length > 1 && (
+              <div className="flex gap-2 justify-center mb-3">
+                {palettes.map(p => (
+                  <button key={p} onClick={() => setPalette(p)} aria-label={'colour ' + p} className="pixel-box p-2 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: palette === p ? 'var(--accent)' : 'var(--border)', borderWidth: palette === p ? 3 : 2 }}>
+                    <SpriteSheet palette={p} species={species} group="base" anim="idle" px={2} fps={4} />
+                  </button>
+                ))}
+              </div>
+            )}
+            <input value={name} onChange={e => setName(e.target.value)} maxLength={16} placeholder="Name your buddy" className={inputCls + ' text-center mb-3'} />
+            <Btn onClick={finish} className="w-full">{name.trim() ? 'Nice to meet you, ' + name.trim() : "That's the one"}</Btn>
+          </>
+        )}
       </div>
     </div>
   );
@@ -7427,7 +7510,7 @@ const WELCOME_SLIDES = [
   { title: 'Welcome to Macrosaurus', body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week." },
   { title: 'Logging is quick', body: "Tap the plus to add food by photo, voice or barcode. The AI does the maths, you just confirm." },
   { title: 'Weigh in, then relax', body: "A few times a week is plenty. Macrosaurus follows your trend, not one noisy day, and adjusts your targets weekly." },
-  { title: 'Make it a habit', body: "Every logged day hatches your dino, catches Macrodex creatures and feeds your streak. Tap the dino any time to play." },
+  { title: 'Meet your buddy', body: "Your dino grows as you build real habits, coaches you toward your next step, and gets stronger for a fight. Tap it any time to check in." },
 ];
 function WelcomeCarousel({ onDone, reviewing, theme }) {
   useBackClose(onDone);
@@ -9274,6 +9357,13 @@ function App() {
   if (!db) return <Loading text="Digging up your data…" />;
   if (fresh) return <Wizard initial={db.profile} onDone={(pr) => saveProfile(pr, false)} onCancel={() => setFresh(false)} />;
   if (!db.profile) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} />;
+  // First-run hatch: a brand-new account (profile set, nothing logged, buddy unnamed) hatches and
+  // customizes its buddy before reaching Today. Existing accounts skip it (they have logs or a name).
+  // `?demo&hatch` forces it on the in-memory demo account for previewing the flow.
+  const forceHatch = DEMO && new URLSearchParams(window.location.search).has('hatch');
+  if (forceHatch || (!(db.onboarding && db.onboarding.hatched) && !(db.log_entries || []).length && !(db.buddy && db.buddy.name))) {
+    return <HatchOnboarding update={update} onDone={() => { if (forceHatch) window.history.replaceState({}, '', '?demo'); }} />;
+  }
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
