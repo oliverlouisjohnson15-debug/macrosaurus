@@ -2470,6 +2470,20 @@ function FighterSprite({ buddy, anim, px, flip }) {
   const use = spriteHasAnim(palette, species, 'base', anim) ? anim : 'idle';
   return <span style={wrap}><SpriteSheet key={use} palette={palette} species={species} group="base" anim={use} px={px} fps={use === 'idle' ? 5 : 9} loop={use !== 'dead'} /></span>;
 }
+// The enemies now come from the SAME sprite pack as the buddy (deterministic species per name), so they
+// match its art and size instead of the old flat pixel-grid drawings. Each gets a per-name hue shift and
+// a red menace glow so it reads as a rival, and callers mirror it (via a scaleX wrapper) to face the
+// buddy. Animates just like the buddy: bites when it strikes, flinches, faints or celebrates.
+const ENEMY_SPECIES = SPRITE_SPECIES.filter(s => !SPRITE_INCOMPLETE_MALE.includes(s.id)).map(s => s.id);
+function EnemySprite({ name, anim, px }) {
+  const species = ENEMY_SPECIES[crHash('enemy:' + (name || '')) % ENEMY_SPECIES.length];
+  const a = anim || 'idle';
+  const use = spriteHasAnim('female', species, 'base', a) ? a : 'idle';
+  const hue = crHash('hue:' + (name || '')) % 360;
+  return <span className="inline-block leading-none" style={{ filter: 'hue-rotate(' + hue + 'deg) saturate(1.15) brightness(0.9) drop-shadow(0 0 3px rgba(220,45,45,0.4))' }}>
+    <SpriteSheet key={use} palette="female" species={species} group="base" anim={use} px={px} fps={use === 'idle' ? 5 : 9} loop={use !== 'dead'} />
+  </span>;
+}
 // A pre-filled buddy name suggested at hatch. Seeded by the per-user game_salt so it's stable and
 // different from person to person; the user can keep it or type their own.
 const BUDDY_NAME_POOL = ['Rexley', 'Chompers', 'Nugget', 'Spike', 'Biff', 'Munch', 'Pip', 'Snappy', 'Toothy', 'Rawr', 'Bolt', 'Ziggy', 'Gus', 'Momo', 'Tank', 'Basil', 'Cosmo', 'Fern', 'Sage', 'Waffle', 'Pickle', 'Biscuit', 'Noodle', 'Turbo', 'Gronk', 'Peanut', 'Mochi', 'Rocco', 'Beans', 'Nibbles', 'Rumble', 'Dax', 'Pebble', 'Sprout', 'Taco', 'Wesley', 'Bruno', 'Clover', 'Digby', 'Otto'];
@@ -3148,7 +3162,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
                 <button onClick={onOpenFight} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-3"
                   style={{ background: 'color-mix(in srgb, ' + edge + ' 13%, var(--surface2))' }}>
                   <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-                    <Sprite art={boss.art} colors={boss.colors} px={3.2} />
+                    <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={boss.name} anim="idle" px={2.6} /></span>
                   </div>
                   <div className="min-w-0 flex-1 leading-tight">
                     <div className="pf text-[7px] uppercase" style={{ color: edge }}>{beaten ? <>Boss beaten this week <Tick size={9} /></> : "This week's boss"}</div>
@@ -3486,6 +3500,7 @@ function FightModal({ db, update, streak, onClose }) {
   // The buddy's combat animation, driven by the auto-battle state: it bites when it strikes, flinches
   // when hit, faints on a loss and bounces on a win. (Falls back to a static pose for legacy buddies.)
   const buddyAnim = winner === 'them' ? 'dead' : winner === 'you' ? 'jump' : lungeA ? 'bite' : lungeB ? 'hurt' : 'idle';
+  const enemyAnim = winner === 'you' ? 'dead' : winner === 'them' ? 'jump' : lungeB ? 'bite' : lungeA ? 'hurt' : 'idle';
   const Ring = () => (
     <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'linear-gradient(var(--surface3) 0%, var(--surface3) 61%, var(--surface2) 61%)' }}>
       {/* horizon line where sky meets ground */}
@@ -3495,7 +3510,7 @@ function FightModal({ db, update, streak, onClose }) {
       {/* player battle platform (near, lower left) */}
       <div className="absolute" style={{ bottom: 11, left: 12, width: 118, height: 20, background: 'var(--surface3)', border: '3px solid var(--border)', borderRadius: '50%' }} />
       {/* opponent, smaller (further away), facing the player, feet resting on its platform */}
-      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 25, right: 34 }}><Sprite art={opp.art} colors={opp.colors} px={5.5} /></div>
+      <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 20, right: 30 }}><EnemySprite name={opp.name} anim={enemyAnim} px={5.5} /></div>
       {/* player, larger (nearer): the buddy's real animated sprite */}
       <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 22, left: 26 }}><FighterSprite buddy={db.buddy} stageArt={b} anim={buddyAnim} px={6} /></div>
       {/* VS flash on entry */}
@@ -3533,13 +3548,13 @@ function FightModal({ db, update, streak, onClose }) {
           <div className="pixel-box p-3.5 mb-3.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
             <div className="flex items-center gap-2">
               <div className="text-center flex-1 min-w-0">
-                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><FighterSprite buddy={db.buddy} stageArt={b} anim="idle" px={4.5} /></div>
+                <div className="pixel-box p-2 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', width: 96, height: 96 }}><FighterSprite buddy={db.buddy} anim="idle" px={5} /></div>
                 <div className="text-[11px] mt-2 font-bold truncate">{fighter.name}</div>
                 <StatLine s={fighter.stats} />
               </div>
               <div className="pf text-[13px] text-[#8A8A90] self-center shrink-0">VS</div>
               <div className="text-center flex-1 min-w-0">
-                <div className="pixel-box p-2 inline-block" style={{ background: 'var(--surface3)' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><Sprite art={rival.art} colors={rival.colors} px={5} /></span></div>
+                <div className="pixel-box p-2 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', width: 96, height: 96 }}><EnemySprite name={rival.name} anim="idle" px={5} /></div>
                 <div className="text-[11px] mt-2 font-bold truncate">{rival.name}</div>
                 <StatLine s={rival.stats} />
                 {rival.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[rival.ability]}</div>}
@@ -3583,7 +3598,7 @@ function FightModal({ db, update, streak, onClose }) {
               <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Daily Hunt · {daily.name}</span>
             </div>
             <div className="flex items-center gap-3 mb-3">
-              <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><Sprite art={daily.art} colors={daily.colors} px={3.2} /></div>
+              <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={daily.name} anim="idle" px={2.6} /></span></div>
               <div className="text-[10px] leading-snug text-[#8A8A90] flex-1">
                 {(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day hunt streak · </span>}
                 Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A new hunt roams in tomorrow.
