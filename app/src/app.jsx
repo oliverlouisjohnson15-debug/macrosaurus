@@ -2585,23 +2585,6 @@ async function shareStreak(payload, toast) {
   } catch (_) { toast && toast('Could not share right now'); }
 }
 
-const BIOMES = [
-  { id: 'nursery', name: 'The Nursery', blurb: 'Where every log begins. Show up and something hatches.' },
-  { id: 'protein', name: 'Protein Peaks', blurb: 'High, hard country. Only the well-fed climb it.' },
-  { id: 'carb', name: 'Carb Canyon', blurb: 'Fast rivers of slow-release energy.' },
-  { id: 'fat', name: 'Fat Flats', blurb: 'Rich, golden country. Steady does it.' },
-  { id: 'fibre', name: 'Fibre Forest', blurb: 'Green, thriving and quietly smug.' },
-  { id: 'apex', name: 'Apex Ridge', blurb: 'The summit. Only a perfect day reaches it.' },
-  { id: 'mythic', name: 'The Wilds', blurb: 'Off every map. Legends roam here for those who never miss.' },
-];
-const RARITY_RANK = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 };
-const CR_RARITY_COLOR = { common: 'var(--muted)', uncommon: 'var(--good)', rare: 'var(--carb)', epic: 'var(--weight)', legendary: 'var(--header)', mythic: 'var(--fat)' };
-const CR_RARITY_LABEL = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Mythic' };
-// Egg tiers (quality days to hatch), colour-coded by the rarity band they crack open.
-const EGG_TIER_COLOR = { 2: 'var(--good)', 5: 'var(--carb)', 10: 'var(--weight)' };
-const EGG_TIER_LABEL = { 2: 'Common', 5: 'Uncommon+', 10: 'Rare+' };
-const EGG_TIER_EGGCOLORS = { 2: crC('#9FE08A', '#4f8e3a'), 5: crC('#7FD9E5', '#3f9aa8'), 10: crC('#C9A8F0', '#7a4fb0') };
-const BIOME_COLOR = { nursery: 'var(--muted)', protein: 'var(--pro)', carb: 'var(--carb)', fat: 'var(--fat)', fibre: 'var(--good)', apex: 'var(--weight)', mythic: 'var(--header)' };
 const CREATURES = [
   // The Nursery, any logged day
   { id: 'nugg', name: 'Nugg', art: 'egg', colors: crC('#EAD9A0', '#C77D3A'), biome: 'nursery', rarity: 'common', cond: 'Log any food on any day.', lore: 'A speckled egg kept warm by good habits. Nobody knows what hatches from it, and that is rather the point. Feed it enough days and it makes up its own mind.', evo: [{ at: 5, name: 'Nuggle', art: 'hatch', colors: crC('#EAD9A0', '#C77D3A') }, { at: 10, name: 'Nuggosaur', art: 'saur', colors: crC('#E6C878', '#b8862f') }] },
@@ -2669,15 +2652,9 @@ function buddySpeciesId(db) {
 }
 // ---- Shared item system (earned from streaks, perfect weeks, biome sets and boss/ladder wins) ----
 const ITEMS = {
-  lure: { name: 'Macro Lure', kind: 'dex', desc: 'Point it at a macro to make today’s catch favour that biome.' },
-  golden_steak: { name: 'Golden Steak', kind: 'dex', desc: 'Your next perfect day is guaranteed to catch a shiny.' },
-  incubator: { name: 'Incubator', kind: 'dex', desc: 'Makes today’s catch a guaranteed rare or better, if you qualify for one.' },
-  honest_rex: { name: 'Honest Rex', kind: 'dex', desc: 'Earned by logging a big over-target day honestly and still showing up to check in. Use it to lock in shiny odds on your next perfect day.' },
   amber: { name: 'Amber Fossil', kind: 'trophy', desc: 'A rare boss trophy sealed in golden amber.' },
   belt: { name: 'Champion Belt', kind: 'trophy', desc: 'Proof you cleared the whole fight ladder.' },
-  medal: { name: 'Biome Medal', kind: 'trophy', desc: 'Awarded for completing a biome in the Macrodex.' },
 };
-const ITEM_ORDER = ['lure', 'golden_steak', 'incubator', 'honest_rex', 'medal', 'amber', 'belt'];
 // Hopping dino shown while the AI is thinking, so a wait never looks like a crash.
 function DinoLoader({ label }) {
   const cr = CR_BY_ID['carbo'] || CREATURES[1];
@@ -7490,7 +7467,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     { k: 'meal', label: 'Log your first meal', done: db.log_entries.length > 0, go: onLog },
     { k: 'ai', label: 'Try a Photo or Describe estimate', done: db.log_entries.some(e => e.source === 'ai_estimate' || e.source === 'label'), go: onLog },
     { k: 'protein', label: 'Hit your protein target today', done: proteinTgt > 0 && todayProtein >= proteinTgt, go: onLog },
-    { k: 'dex', label: 'Meet your first Macrodex dino', done: !!ob.sawDex, go: onOpenDex },
+    { k: 'dex', label: 'Meet your buddy', done: !!ob.sawDex, go: onOpenDex },
   ];
   const doneCount = items.filter(x => x.done).length;
   if (doneCount === items.length) return null;
