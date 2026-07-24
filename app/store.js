@@ -23,6 +23,8 @@
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
     trackingLane: 'balance',
+    newToTracking: false,   // set at onboarding; true = the buddy runs its teaching curriculum
+    lessonState: { seen: [], lastAck: null }, // curriculum progress: lesson keys learnt + last ack date
   };
 
   // Recursively fill in any keys missing from `target` using `defaults`,

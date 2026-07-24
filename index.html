@@ -1403,6 +1403,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
     trackingLane: 'balance',
+    newToTracking: false,   // set at onboarding; true = the buddy runs its teaching curriculum
+    lessonState: { seen: [], lastAck: null }, // curriculum progress: lesson keys learnt + last ack date
   };
 
   // Recursively fill in any keys missing from `target` using `defaults`,
@@ -8906,7 +8908,54 @@ function randomBuddyName(seed) {
 // says the single most useful thing, warm and never nagging. AI-free (instant, offline, no free-tier
 // meter); richer AI moments (hatch, evolution, weekly review) come on top of this later. Returns
 // { text, cta, action } where action is 'log' | 'weigh' | 'cook' | null (the caller wires the go).
+// The dino's teaching curriculum: 6 short lessons delivered one per day to users who said they're new
+// to tracking (set at onboarding). Experienced users skip it. Surfaced through the coach line; a "Got
+// it" marks it learnt and unlocks the next.
+const CURRICULUM = [{
+  key: 'macros',
+  title: 'Macros 101',
+  text: 'Protein, carbs and fat are your three macros. Hit your protein and your calories, and the rest largely follows. I’ll help you aim.'
+}, {
+  key: 'protein',
+  title: 'Why protein',
+  text: 'It’s the one to prioritise. Protein protects muscle while you lose fat and keeps you full, so aim for your target first each day.'
+}, {
+  key: 'logging',
+  title: 'How to log',
+  text: 'Log as you eat, and roughly is fine. A quick estimate beats logging nothing. The Photo and Describe tools do the maths for you.'
+}, {
+  key: 'trend',
+  title: 'The trend line',
+  text: 'Watch the trend, not one day. Weight bounces daily with water and food; the trend line is the real story.'
+}, {
+  key: 'checkin',
+  title: 'Check-ins',
+  text: 'A weekly check-in is where I retune your targets from your real results, so your plan follows you, not a guess.'
+}, {
+  key: 'adjust',
+  title: 'When it stalls',
+  text: 'A stall is normal. The check-in nudges your calories for you, so keep logging honestly and it self-corrects.'
+}];
+// The next lesson due for a new user: one a day, in order, until the course is done.
+function nextLesson(db, today) {
+  const p = db.profile || {};
+  if (!p.newToTracking) return null;
+  const ls = p.lessonState || {
+    seen: [],
+    lastAck: null
+  };
+  if ((ls.seen || []).length >= CURRICULUM.length || ls.lastAck === today) return null;
+  return CURRICULUM[(ls.seen || []).length];
+}
 function buddyCoach(db, today, streak) {
+  // Teach first for new users: the day's lesson takes the coach slot until acknowledged.
+  const lesson = nextLesson(db, today);
+  if (lesson) return {
+    text: lesson.title + ': ' + lesson.text,
+    cta: 'Got it',
+    action: 'lesson',
+    lessonKey: lesson.key
+  };
   const hour = new Date().getHours();
   const logged = entriesOn(db, today);
   const et = effectiveTarget(db, today);
@@ -9082,26 +9131,7 @@ function BuddyHabitat({
     className: "text-[9px] text-[#8A8A90] mt-1"
   }, toNext, " day", toNext === 1 ? '' : 's', " to ", next.name)) : /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90]"
-  }, "Fully grown · streak ", streak)))), !incubating && coach && /*#__PURE__*/React.createElement("div", {
-    className: "mt-3 pt-3",
-    style: {
-      borderTop: '2px solid var(--border)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase mb-1",
-    style: {
-      color: 'var(--accent)'
-    }
-  }, who, " says"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11.5px] leading-snug"
-  }, coach.text), coach.cta && coach.go && /*#__PURE__*/React.createElement("button", {
-    onClick: coach.go,
-    className: "pixel-btn mt-2 py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5",
-    style: {
-      background: 'var(--accent)',
-      color: 'var(--on-accent)'
-    }
-  }, coach.cta, " ›")), incubating && tasks && /*#__PURE__*/React.createElement("div", {
+  }, "Fully grown · streak ", streak)))), incubating && tasks && /*#__PURE__*/React.createElement("div", {
     className: "mt-3 pt-3 space-y-0.5",
     style: {
       borderTop: '2px solid var(--border)'
@@ -9132,7 +9162,26 @@ function BuddyHabitat({
     style: {
       color: 'var(--accent)'
     }
-  }, "DO IT ›")))));
+  }, "DO IT ›")))), coach && (!incubating || coach.action === 'lesson') && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 pt-3",
+    style: {
+      borderTop: '2px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase mb-1",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, coach.action === 'lesson' ? (bp.name || 'Your buddy') + ' is teaching' : who + ' says'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11.5px] leading-snug"
+  }, coach.text), coach.cta && coach.go && /*#__PURE__*/React.createElement("button", {
+    onClick: coach.go,
+    className: "pixel-btn mt-2 py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, coach.cta, " ›")));
 }
 
 /* ---------- Share card (streak -> shareable image) ----------
@@ -12820,7 +12869,9 @@ function EggPickerOnboarding({
   update,
   onDone
 }) {
+  const [step, setStep] = useState('familiarity'); // familiarity -> egg
   const [species, setSpecies] = useState('doux');
+  const [newbie, setNewbie] = useState(false);
   function finish() {
     update(d => {
       d.buddy = d.buddy || {
@@ -12833,6 +12884,12 @@ function EggPickerOnboarding({
       if (d.buddy.stage == null) d.buddy.stage = 0;
       d.onboarding = d.onboarding || {};
       d.onboarding.eggPicked = true;
+      d.profile = d.profile || {};
+      d.profile.newToTracking = !!newbie;
+      d.profile.lessonState = {
+        seen: [],
+        lastAck: null
+      };
     });
     onDone();
   }
@@ -12846,7 +12903,7 @@ function EggPickerOnboarding({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-3 mt-2"
   }, "Your buddy"), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-5 mb-3 flex items-center justify-center",
+    className: "pixel-box p-5 mb-4 flex items-center justify-center",
     style: {
       background: 'var(--surface3)',
       minWidth: 150,
@@ -12854,16 +12911,46 @@ function EggPickerOnboarding({
     }
   }, /*#__PURE__*/React.createElement(SpriteSheet, {
     palette: "female",
-    species: species,
+    species: step === 'egg' ? species : 'doux',
     group: "egg",
     anim: "move",
     px: 5,
     fps: 4
-  })), /*#__PURE__*/React.createElement("div", {
+  })), step === 'familiarity' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-lg font-bold mb-1"
+  }, "How well do you know macros?"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] leading-relaxed mb-5 max-w-xs"
+  }, "Your buddy coaches you either way. This just sets how much it explains as you go."), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setNewbie(true);
+      setStep('egg');
+    },
+    className: "pixel-btn w-full py-3 mb-2 text-left px-4",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold"
+  }, "New to this"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-snug"
+  }, "Teach me the ropes as I go.")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setNewbie(false);
+      setStep('egg');
+    },
+    className: "pixel-btn w-full py-3 text-left px-4",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold"
+  }, "I’ve tracked before"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-snug"
+  }, "Skip the basics, just the nudges."))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
   }, "Choose your egg"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs"
-  }, "Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy, a coach that grows as you build habits."), /*#__PURE__*/React.createElement("div", {
+  }, "Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy."), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-6 gap-1.5 w-full mb-4"
   }, SPRITE_SPECIES.map(s => /*#__PURE__*/React.createElement("button", {
     key: s.id,
@@ -12886,7 +12973,7 @@ function EggPickerOnboarding({
   })))), /*#__PURE__*/React.createElement(Btn, {
     onClick: finish,
     className: "w-full"
-  }, "This one")));
+  }, "This one"))));
 }
 
 // The HATCH moment, fired from Today once the onboarding staples are done: the egg wobbles, cracks
@@ -13563,10 +13650,19 @@ function Dashboard({
   const showNudge = remindOn && (missLog || missWeigh) && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
-  const coach = eggIncubating ? null : (() => {
+  const coach = (() => {
     const c = buddyCoach(db, today, streak);
     if (!c) return null;
-    const go = c.action === 'log' ? () => onQuickAdd(false) : c.action === 'weigh' ? onCheckIn : c.action === 'cook' ? () => setView('recipes') : null;
+    const go = c.action === 'log' ? () => onQuickAdd(false) : c.action === 'weigh' ? onCheckIn : c.action === 'cook' ? () => setView('recipes') : c.action === 'lesson' ? () => update(d => {
+      d.profile = d.profile || {};
+      const ls = d.profile.lessonState || {
+        seen: [],
+        lastAck: null
+      };
+      if ((ls.seen || []).indexOf(c.lessonKey) < 0) ls.seen = (ls.seen || []).concat([c.lessonKey]);
+      ls.lastAck = today;
+      d.profile.lessonState = ls;
+    }) : null;
     return Object.assign({}, c, {
       go
     });

@@ -2479,7 +2479,29 @@ function randomBuddyName(seed) { return BUDDY_NAME_POOL[crHash(String(seed || Ma
 // says the single most useful thing, warm and never nagging. AI-free (instant, offline, no free-tier
 // meter); richer AI moments (hatch, evolution, weekly review) come on top of this later. Returns
 // { text, cta, action } where action is 'log' | 'weigh' | 'cook' | null (the caller wires the go).
+// The dino's teaching curriculum: 6 short lessons delivered one per day to users who said they're new
+// to tracking (set at onboarding). Experienced users skip it. Surfaced through the coach line; a "Got
+// it" marks it learnt and unlocks the next.
+const CURRICULUM = [
+  { key: 'macros', title: 'Macros 101', text: 'Protein, carbs and fat are your three macros. Hit your protein and your calories, and the rest largely follows. I’ll help you aim.' },
+  { key: 'protein', title: 'Why protein', text: 'It’s the one to prioritise. Protein protects muscle while you lose fat and keeps you full, so aim for your target first each day.' },
+  { key: 'logging', title: 'How to log', text: 'Log as you eat, and roughly is fine. A quick estimate beats logging nothing. The Photo and Describe tools do the maths for you.' },
+  { key: 'trend', title: 'The trend line', text: 'Watch the trend, not one day. Weight bounces daily with water and food; the trend line is the real story.' },
+  { key: 'checkin', title: 'Check-ins', text: 'A weekly check-in is where I retune your targets from your real results, so your plan follows you, not a guess.' },
+  { key: 'adjust', title: 'When it stalls', text: 'A stall is normal. The check-in nudges your calories for you, so keep logging honestly and it self-corrects.' },
+];
+// The next lesson due for a new user: one a day, in order, until the course is done.
+function nextLesson(db, today) {
+  const p = db.profile || {};
+  if (!p.newToTracking) return null;
+  const ls = p.lessonState || { seen: [], lastAck: null };
+  if ((ls.seen || []).length >= CURRICULUM.length || ls.lastAck === today) return null;
+  return CURRICULUM[(ls.seen || []).length];
+}
 function buddyCoach(db, today, streak) {
+  // Teach first for new users: the day's lesson takes the coach slot until acknowledged.
+  const lesson = nextLesson(db, today);
+  if (lesson) return { text: lesson.title + ': ' + lesson.text, cta: 'Got it', action: 'lesson', lessonKey: lesson.key };
   const hour = new Date().getHours();
   const logged = entriesOn(db, today);
   const et = effectiveTarget(db, today);
@@ -2549,13 +2571,6 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, coach }) {
                   : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
         </button>
       </div>
-      {!incubating && coach && (
-        <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
-          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{who} says</div>
-          <div className="text-[11.5px] leading-snug">{coach.text}</div>
-          {coach.cta && coach.go && <button onClick={coach.go} className="pixel-btn mt-2 py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{coach.cta} ›</button>}
-        </div>
-      )}
       {incubating && tasks && (
         <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: '2px solid var(--border)' }}>
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Do these to hatch</div>
@@ -2566,6 +2581,13 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, coach }) {
               {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent)' }}>DO IT ›</span>}
             </button>
           ))}
+        </div>
+      )}
+      {coach && (!incubating || coach.action === 'lesson') && (
+        <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
+          <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{coach.action === 'lesson' ? (bp.name || 'Your buddy') + ' is teaching' : who + ' says'}</div>
+          <div className="text-[11.5px] leading-snug">{coach.text}</div>
+          {coach.cta && coach.go && <button onClick={coach.go} className="pixel-btn mt-2 py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{coach.cta} ›</button>}
         </div>
       )}
     </Card>
@@ -4109,7 +4131,9 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
 // a reward once you've done the core staples (trigger in Dashboard). Sets buddy.species/palette +
 // onboarding.eggPicked; buddy.hatched stays false and name stays empty until it cracks open.
 function EggPickerOnboarding({ update, onDone }) {
+  const [step, setStep] = useState('familiarity'); // familiarity -> egg
   const [species, setSpecies] = useState('doux');
+  const [newbie, setNewbie] = useState(false);
   function finish() {
     update(d => {
       d.buddy = d.buddy || { stage: 0 };
@@ -4117,6 +4141,7 @@ function EggPickerOnboarding({ update, onDone }) {
       d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
       if (d.buddy.stage == null) d.buddy.stage = 0;
       d.onboarding = d.onboarding || {}; d.onboarding.eggPicked = true;
+      d.profile = d.profile || {}; d.profile.newToTracking = !!newbie; d.profile.lessonState = { seen: [], lastAck: null };
     });
     onDone();
   }
@@ -4124,19 +4149,36 @@ function EggPickerOnboarding({ update, onDone }) {
     <div className="fixed inset-0 z-[90] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center text-center">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
-        <div className="pixel-box p-5 mb-3 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 150, minHeight: 150 }}>
-          <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
+        <div className="pixel-box p-5 mb-4 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 150, minHeight: 150 }}>
+          <SpriteSheet palette="female" species={step === 'egg' ? species : 'doux'} group="egg" anim="move" px={5} fps={4} />
         </div>
-        <div className="text-lg font-bold mb-1">Choose your egg</div>
-        <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy, a coach that grows as you build habits.</div>
-        <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
-          {SPRITE_SPECIES.map(s => (
-            <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
-              <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
+        {step === 'familiarity' ? (
+          <>
+            <div className="text-lg font-bold mb-1">How well do you know macros?</div>
+            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-5 max-w-xs">Your buddy coaches you either way. This just sets how much it explains as you go.</div>
+            <button onClick={() => { setNewbie(true); setStep('egg'); }} className="pixel-btn w-full py-3 mb-2 text-left px-4" style={{ background: 'var(--surface2)' }}>
+              <div className="text-[13px] font-bold">New to this</div>
+              <div className="text-[10px] text-[#8A8A90] leading-snug">Teach me the ropes as I go.</div>
             </button>
-          ))}
-        </div>
-        <Btn onClick={finish} className="w-full">This one</Btn>
+            <button onClick={() => { setNewbie(false); setStep('egg'); }} className="pixel-btn w-full py-3 text-left px-4" style={{ background: 'var(--surface2)' }}>
+              <div className="text-[13px] font-bold">I’ve tracked before</div>
+              <div className="text-[10px] text-[#8A8A90] leading-snug">Skip the basics, just the nudges.</div>
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="text-lg font-bold mb-1">Choose your egg</div>
+            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy.</div>
+            <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
+              {SPRITE_SPECIES.map(s => (
+                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+                  <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
+                </button>
+              ))}
+            </div>
+            <Btn onClick={finish} className="w-full">This one</Btn>
+          </>
+        )}
       </div>
     </div>
   );
@@ -4448,9 +4490,11 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const showNudge = remindOn && (missLog || missWeigh) && !db.paused && new Date().getHours() >= nudgeHour && !nudgeDismissed;
   const quote = DINO_QUOTES[new Date(today + 'T00:00:00').getDate() % DINO_QUOTES.length];
   // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
-  const coach = eggIncubating ? null : (() => {
+  const coach = (() => {
     const c = buddyCoach(db, today, streak); if (!c) return null;
-    const go = c.action === 'log' ? () => onQuickAdd(false) : c.action === 'weigh' ? onCheckIn : c.action === 'cook' ? () => setView('recipes') : null;
+    const go = c.action === 'log' ? () => onQuickAdd(false) : c.action === 'weigh' ? onCheckIn : c.action === 'cook' ? () => setView('recipes')
+      : c.action === 'lesson' ? () => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(c.lessonKey) < 0) ls.seen = (ls.seen || []).concat([c.lessonKey]); ls.lastAck = today; d.profile.lessonState = ls; })
+      : null;
     return Object.assign({}, c, { go });
   })();
   return (
