@@ -2486,12 +2486,12 @@ function buddyStageSprite(stageIndex, buddy) {
 }
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
 // animated dino is standing somewhere rather than floating, paired with its name/stage, a warm mood
-// line, and a next-stage progress bar. Replaces the old CompanionStrip: still taps through to the
-// Play hub's Buddy tab and still shows the FEED nudge when the buddy is craving, plus its equipped
-// emoji cosmetics overlaid on the animated sprite. The one rich, animated element in the pixel UI,
-// and the seed for the fuller presence in Phase 4. (Refs BUDDY_STAGES/MOOD_META/moodLine below,
-// resolved at render time.)
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, onFeed }) {
+// line, and a next-stage progress bar. Replaces the old CompanionStrip: taps through to the Play
+// hub's Buddy tab, with its equipped emoji cosmetics overlaid on the animated sprite. The trailing
+// action is deliberately left clear so the buddy's proactive coach line (Phase 5, the dead showNudge
+// slot) has room to speak here. The one rich, animated element in the pixel UI. (Refs BUDDY_STAGES/
+// MOOD_META below, resolved at render time.)
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const next = BUDDY_STAGES[buddy.stage + 1] || null;
   // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
@@ -2503,7 +2503,6 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, onFeed }) {
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
   const eq = equippedCosmetics((db.buddy || {}).cosmetics);
   const who = bp.name || (bp.form ? bp.form.name : st.name);
-  const craveText = bp.craving ? CRAVE_LABEL[bp.craving] : null;
   return (
     <Card className="p-3 mb-4">
       <div className="flex items-center gap-2.5">
@@ -2529,9 +2528,6 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, onFeed }) {
                 <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
             : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}
         </button>
-        {craveText
-          ? <button onClick={onFeed} className="pixel-btn py-2 px-3 text-[8px] pf shrink-0 inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><PixelGlyph kind="meat" color="currentColor" size={11} /> FEED</button>
-          : <button onClick={onOpenPlay} className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Play ›</button>}
       </div>
     </Card>
   );
@@ -4588,7 +4584,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} onFeed={() => onQuickAdd(false)} />
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} />
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
