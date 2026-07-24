@@ -1603,12 +1603,15 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
 /* =====================================================================
    ONBOARDING WIZARD (account setup)
    ===================================================================== */
-function Wizard({ initial, onDone, onCancel, initialKey }) {
+function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
   const [step, setStep] = useState(0);
+  const [showMaths, setShowMaths] = useState(false);
   const [f, setF] = useState(initial || {
+    // Essentials only up front; the rest keep sensible defaults and the buddy fine-tunes them later.
+    // weighCadence stays null so the buddy asks it after hatch (progressive disclosure, not a form step).
     sex: 'male', age: 32, heightCm: 175, height_unit: 'cm', weightKg: 82, weight_unit: 'st_lb', bodyFatPct: 20,
     activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced', proteinGPerKgLBM: 2.4, proteinManualG: '',
-    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: 'daily', aiKey: initialKey || '', theme: 'light',
+    program_mode: 'collaborative', carryover: { enabled: true, mode: 'dispersed', capKcal: 400 }, cycling: { enabled: false, highDays: [6], deltaPct: 0.15 }, trackingLane: 'balance', weighCadence: null, aiKey: initialKey || '', theme: 'light',
   });
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
   const [proteinTouched, setProteinTouched] = useState(false);
@@ -1629,19 +1632,7 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
   const preview = useMemo(() => { try { return E.computeInitialTargets(profile); } catch (e) { return null; } }, [profile]);
 
   const steps = [
-    { t: 'Your look', body: (
-      <>
-        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">First, pick your palette. You can change it any time in Menu, Settings.</div>
-        <Field label="Theme"><Seg value={f.theme || 'light'} onChange={v => set('theme', v)} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> GB Color</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark GB</span> }]} /></Field>
-        <div className="pixel-box p-4 mt-4" style={{ background: 'var(--card)' }}>
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2.5">Preview</div>
-          <div className="flex items-center gap-3" style={{ borderLeft: '4px solid var(--pro)', paddingLeft: 8 }}>
-            <div className="w-9 h-9 pixel-box flex items-center justify-center shrink-0" style={{ background: 'var(--pro)' }}><PixelGlyph kind="plate" color="rgba(0,0,0,0.8)" size={18} /></div>
-            <div className="min-w-0"><div className="text-sm font-bold truncate">Sample food</div><div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: 'var(--pro)' }}>420</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO }}>30P</span> <span style={{ color: CARB }}>40C</span> <span style={{ color: FAT }}>12F</span></div></div>
-          </div>
-        </div>
-      </>) },
-    { t: 'About you', body: (
+    { t: 'About you', line: 'First, a few basics so I can work out your numbers.', body: (
       <>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sex"><Seg value={f.sex} onChange={v => set('sex', v)} options={[{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }]} /></Field>
@@ -1652,44 +1643,26 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
           {f.height_unit === 'cm' ? <NumInput value={f.heightCm} onChange={e => set('heightCm', e.target.value)} /> : <div className="flex gap-2 items-center"><NumInput value={ft} onChange={e => setFt(e.target.value)} /><span className="text-[#8A8A90]">ft</span><NumInput value={inch} onChange={e => setInch(e.target.value)} /><span className="text-[#8A8A90]">in</span></div>}
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Weigh-in units"><Seg value={f.weight_unit} onChange={v => set('weight_unit', v)} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
-          <Field label="Current weight">
+          <Field label="Units"><Seg value={f.weight_unit} onChange={v => set('weight_unit', v)} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
+          <Field label="Weight">
             {f.weight_unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={f.weightKg} onChange={e => set('weightKg', e.target.value)} />}
           </Field>
         </div>
-        <Field label="Body fat %" hint="Used to size protein to your lean mass."><NumInput value={f.bodyFatPct} onChange={e => set('bodyFatPct', e.target.value)} /><button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it visually →</button></Field>
       </>) },
-    { t: 'Activity level', body: (
+    { t: 'How active are you?', line: 'Day to day, not just the gym. I use this for your calories.', body: (
       <div className="space-y-2.5">{ACTIVITY.map(a => (
         <button key={a.v} onClick={() => set('activityLevel', a.v)} className={`w-full text-left pixel-box p-4 ${f.activityLevel === a.v ? 'bg-white text-black' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: f.activityLevel === a.v ? '3px 3px 0 0 var(--shadow)' : 'none' }}>
           <div className="font-semibold">{a.l}</div><div className={`text-[12px] ${f.activityLevel === a.v ? 'text-black/60' : 'text-[#8A8A90]'}`}>{a.d}</div>
         </button>))}</div>) },
-    { t: 'Your goal', body: (
+    { t: 'What are we aiming for?', line: 'Pick a direction. We can always change course together later.', body: (
       <>
-        <Field label="Direction"><Seg value={f.goalType} onChange={v => { set('goalType', v); if (!proteinTouched) set('proteinGPerKgLBM', E.defaultProteinPerKgLBM(v)); }} options={[{ v: 'cut', l: 'Cut' }, { v: 'maintain', l: 'Maintain' }, { v: 'gain', l: 'Lean gain' }]} /></Field>
-        {f.goalType !== 'maintain' && <Field label={`Rate: ${f.rateKgPerWeek} kg/week`}>
+        <Field label="Goal"><Seg value={f.goalType} onChange={v => { set('goalType', v); if (!proteinTouched) set('proteinGPerKgLBM', E.defaultProteinPerKgLBM(v)); }} options={[{ v: 'cut', l: 'Lose fat' }, { v: 'maintain', l: 'Maintain' }, { v: 'gain', l: 'Build muscle' }]} /></Field>
+        {f.goalType !== 'maintain' && <Field label={`Pace: ${f.rateKgPerWeek} kg/week`} hint="A steady 0.5 kg a week suits most people. Drag only if you want to.">
           <input type="range" min="0.1" max="1.2" step="0.05" value={f.rateKgPerWeek} onChange={e => set('rateKgPerWeek', +e.target.value)} className="w-full accent-[#4A9EEB]" />
-          {(() => { const rl = rateLabel(f.rateKgPerWeek, f.goalType); return <div className="text-[12px] mt-1.5" style={{ color: rl.c }}>Pace: {rl.t}</div>; })()}
+          {(() => { const rl = rateLabel(f.rateKgPerWeek, f.goalType); return <div className="text-[12px] mt-1.5" style={{ color: rl.c }}>{rl.t}</div>; })()}
         </Field>}
       </>) },
-    { t: 'Weigh-ins', body: (
-      <>
-        <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">How often will you weigh in? Your check-in reads your trend either way, so pick whatever you'll actually stick to. You can change it any time.</div>
-        <Field label="Cadence"><Seg value={f.weighCadence || 'daily'} onChange={v => set('weighCadence', v)} options={[{ v: 'daily', l: 'Most days' }, { v: 'single', l: 'Once a week' }]} /></Field>
-        <div className="pixel-box p-4 mt-2 text-[12px]" style={{ background: 'var(--card)', boxShadow: 'none' }}>
-          {(f.weighCadence || 'daily') === 'daily'
-            ? <span className="text-[#8A8A90]"><b className="text-[var(--text2)]">Most days.</b> We average out the day-to-day water wobble for the most accurate read. Recommended.</span>
-            : <span className="text-[#8A8A90]"><b className="text-[var(--text2)]">Once a week.</b> Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a touch more cautiously.</span>}
-        </div>
-      </>) },
-    { t: 'Nutrition', body: (
-      <>
-        <Field label={`Protein: ${f.proteinManualG || Math.round((+f.proteinGPerKgLBM || 2.2) * leanKg(profile))} g (${(+f.proteinGPerKgLBM || 2.2).toFixed(1)} g/kg lean mass)`} hint={`Set per kg of LEAN mass, so body fat doesn't inflate the number. Your ${f.goalType === 'gain' ? 'lean-gain' : f.goalType} default is ${E.defaultProteinPerKgLBM(f.goalType)} g/kg lean. Evidence: Helms 2014 = 2.3–3.1 g/kg lean to hold muscle in a deficit; Jeff Nippard = 1.8–2.7 g/kg bodyweight when cutting. Drag to adjust.`}>
-          <input type="range" min="1.8" max="3.1" step="0.1" value={+f.proteinGPerKgLBM || 2.2} onChange={e => { setProteinTouched(true); set('proteinGPerKgLBM', +e.target.value); set('proteinManualG', ''); }} className="w-full accent-[#4A9EEB]" />
-        </Field>
-        <Field label="Diet style"><Seg value={f.dietStyle} onChange={v => set('dietStyle', v)} options={[{ v: 'balanced', l: 'Balanced' }, { v: 'lower_carb', l: 'Lower carb' }, { v: 'higher_carb', l: 'Higher carb' }]} /></Field>
-      </>) },
-    { t: 'Your plan', body: preview ? (
+    { t: 'Your starting plan', line: "Here's where we start. I retune it from your check-ins as we go.", body: preview ? (
       <Card className="p-6">
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-3">Daily targets</div>
         <div className="flex items-end gap-1 mb-4"><div className="text-5xl font-bold tnum">{preview.kcal}</div><div className="text-[#8A8A90] mb-1.5">kcal</div></div>
@@ -1698,13 +1671,12 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
           <div><div className="text-xl font-semibold tnum" style={{ color: FAT }}>{preview.fat_g}g</div><div className="text-[11px] text-[#8A8A90]">Fat</div></div>
           <div><div className="text-xl font-semibold tnum" style={{ color: CARB }}>{preview.carbs_g}g</div><div className="text-[11px] text-[#8A8A90]">Carbs</div></div>
         </div>
-        <div className="text-[12px] text-[#8A8A90] mt-4 pt-4 border-t border-[#262629] space-y-1.5">
-          <div className="uppercase tracking-widest text-[10px]">How this was worked out</div>
-          <div><b className="text-[var(--text2)]">Calories:</b> maintenance ≈ {preview.estimatedTDEE} kcal (Mifflin–St Jeor BMR + your steps + training), {f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal/day for a ${f.rateKgPerWeek} kg/week ${f.goalType}`}.</div>
-          <div><b className="text-[var(--text2)]">Protein:</b> {f.proteinManualG ? `${preview.protein_g} g (manual)` : `${(+f.proteinGPerKgLBM || 2.2).toFixed(1)} g/kg lean mass = ${preview.protein_g} g`}. Based on Helms 2014 (2.3–3.1 g/kg lean in a deficit) and Jeff Nippard (1.8–2.7 g/kg bodyweight cutting).</div>
-          <div><b className="text-[var(--text2)]">Fat & carbs:</b> fat from your diet style ({f.dietStyle.replace('_', ' ')}), carbs fill the rest.</div>
-          <div>Everything retunes automatically from your weekly check-ins.</div>
-        </div>
+        <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[#262629] w-full text-left" style={{ color: 'var(--accent)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
+        {showMaths && <div className="text-[12px] text-[#8A8A90] mt-2 space-y-1.5">
+          <div><b className="text-[var(--text2)]">Calories:</b> maintenance ≈ {preview.estimatedTDEE} kcal (Mifflin-St Jeor BMR plus your steps and training), {f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal a day`}.</div>
+          <div><b className="text-[var(--text2)]">Protein:</b> {preview.protein_g} g, sized to hold onto muscle (Helms 2014). I can sharpen this once you tell me your body fat.</div>
+          <div><b className="text-[var(--text2)]">Fat and carbs:</b> a balanced split to start, carbs fill the rest. Adjustable any time.</div>
+        </div>}
       </Card>) : <div /> },
   ];
   const last = step === steps.length - 1;
@@ -1719,7 +1691,13 @@ function Wizard({ initial, onDone, onCancel, initialKey }) {
     <div className="max-w-md mx-auto px-6 pt-8 pb-10 fade-in">
       <div className="flex items-center gap-1.5 mb-6">{steps.map((_, i) => <div key={i} className="h-2 flex-1 pixel-box" style={{ boxShadow: 'none', border: '2px solid var(--border)', background: i <= step ? brand : 'var(--track)' }} />)}</div>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Step {step + 1} of {steps.length}</div>
-      <h1 className="pf text-xl mb-6" style={{ color: brand }}>{steps[step].t}</h1>
+      <h1 className="pf text-xl mb-3" style={{ color: brand }}>{steps[step].t}</h1>
+      {/* The buddy (your just-picked egg) walks you through it, one calm question at a time. */}
+      {steps[step].line && (() => { const bs = buddyStageSprite((buddy && buddy.stage) || 0, buddy); return (
+        <div className="flex items-center gap-3 mb-5 pixel-box p-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
+          <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 46, height: 46 }}><SpriteSheet palette={bs.palette} species={bs.species} group={bs.group} anim={bs.anim} px={1.6} fps={bs.fps} /></div>
+          <div className="text-[12px] leading-snug">{steps[step].line}</div>
+        </div>); })()}
       {steps[step].body}
       <div className="flex gap-3 mt-6">
         {step > 0 ? <Btn kind="ghost" onClick={() => setStep(step - 1)}>Back</Btn> : (onCancel ? <Btn kind="ghost" onClick={onCancel}>Cancel</Btn> : null)}
@@ -2526,6 +2504,8 @@ function engagementNudge(db, today) {
   const lastFight = (db.fight && db.fight.lastDailyDate) || null;
   const fightIdle = loggedToday && (!lastFight || Game.daysBetween(lastFight, today) >= 3);
   if (fightIdle && fresh('nudge_fight', 3)) cands.push({ key: 'nudge_fight', text: who + " is itching for a scrap. Take this week's eating into a fight and win some Amber.", cta: 'To battle', action: 'fight' });
+  // Profile completion, drip-fed after onboarding: offer the deferred body-fat number so protein sharpens.
+  if (fresh('nudge_finetune', 14)) cands.push({ key: 'nudge_finetune', text: "Want me to sharpen your plan? Pop your body fat in with a weigh-in over in Progress and I'll size your protein just right.", cta: 'Show me', action: 'progress' });
   if (fresh('nudge_amber', 6)) cands.push({ key: 'nudge_amber', text: "Did you know I earn you Amber? A little for logging each day, more for winning fights. Spend it in the shop to kit me out.", cta: 'See shop', action: 'shop' });
   // Buy-me-something: a friendly explainer of how the shop works, so the Amber has an obvious payoff.
   const amber = Game.amberBalance(db.amber_ledger);
@@ -4352,7 +4332,10 @@ function EggPickerOnboarding({ update, onDone }) {
                 </button>
               ))}
             </div>
-            <Btn onClick={finish} className="w-full">This one</Btn>
+            <div className="flex gap-2 w-full">
+              <Btn kind="ghost" onClick={() => setStep('familiarity')}>Back</Btn>
+              <Btn onClick={finish} className="flex-1">This one</Btn>
+            </div>
           </>
         )}
       </div>
@@ -4695,6 +4678,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         : (a === 'cadence_daily' || a === 'cadence_single') ? () => update(d => { d.profile = d.profile || {}; d.profile.weighCadence = a === 'cadence_daily' ? 'daily' : 'single'; })
         : a === 'log' ? () => onQuickAdd(false)
         : a === 'cook' ? () => { snoozeKey(btn.key); setView('recipes'); }
+        : a === 'progress' ? () => { snoozeKey(btn.key); setView('goals'); }
         : (a === 'fight' || a === 'shop') ? () => { snoozeKey(btn.key); onOpenPlay(); }
         : a === 'instagram' ? () => { snoozeKey(btn.key); try { window.open('https://instagram.com/macrosaurus.app', '_blank'); } catch (_) {} }
         : a === 'feedback' ? () => { snoozeKey(btn.key); try { window.MFEEDBACK && window.MFEEDBACK(); } catch (_) {} }
@@ -7060,7 +7044,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           </div>
         </div>
       </div>}
-      {guide && <WelcomeCarousel reviewing theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
+      {guide && <WelcomeCarousel reviewing buddy={db.buddy} theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setGuide(false)} />}
       {feedback && <FeedbackSheet email={email} onClose={() => setFeedback(false)} />}
       {invite && <InviteSheet rewards={rewards} onClose={() => setInvite(false)} toast={showToast} />}
     </div>
@@ -7873,34 +7857,31 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
 
 // First-run welcome tour: a few full-screen slides teaching the core concepts. Shown once to new
 // users after setup, and replayable from the menu (reviewing=true just changes the button labels).
-const WELCOME_SLIDES = [
-  { title: 'Welcome to Macrosaurus', body: "A macro tracker that adapts to you. Most apps hand you one fixed number. This one learns from your results and retunes itself every week." },
-  { title: 'Logging is quick', body: "Tap the plus to add food by photo, voice or barcode. The AI does the maths, you just confirm." },
-  { title: 'Weigh in, then relax', body: "A few times a week is plenty. Macrosaurus follows your trend, not one noisy day, and adjusts your targets weekly." },
-  { title: 'Meet your buddy', body: "Your dino grows as you build real habits, coaches you toward your next step, and gets stronger for a fight. Tap it any time to check in." },
-];
-function WelcomeCarousel({ onDone, reviewing, theme }) {
+// One warm closing beat after setup, in the buddy's voice, then it takes over. The old four-slide tour
+// (logging, weigh-ins, "meet your buddy", weekly adapting) was too much: the buddy now drips all of that
+// over the first hours and days through its coach line, curriculum lessons, morning read and check-in
+// prompts, right when each moment actually arrives.
+function WelcomeCarousel({ onDone, reviewing, theme, buddy }) {
   useBackClose(onDone);
-  const [i, setI] = useState(0);
-  const last = i === WELCOME_SLIDES.length - 1;
-  const s = WELCOME_SLIDES[i];
   const dark = theme === 'dark';
   const brand = dark ? 'var(--accent)' : 'var(--header)';   // --header is black in dark, so use accent
   const onBrand = dark ? '#111' : '#fff';
+  const bs = buddyStageSprite((buddy && buddy.stage) || 0, buddy);
+  const incubating = !(buddy && buddy.hatched !== false);
   return (<div className={'fixed inset-0 z-[95] ' + (dark ? 'theme-dark' : 'theme-light') + ' flex flex-col'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex justify-between items-center px-5 py-4">
       <span className="pf text-[11px]" style={{ color: brand }}>MACROSAURUS</span>
       <button onClick={onDone} className="text-[12px] text-[#8A8A90]">{reviewing ? 'Close' : 'Skip'}</button>
     </div>
     <div className="flex-1 flex flex-col justify-center items-center text-center px-8 max-w-sm mx-auto">
-      <div className="pixel-box p-6 mb-6" style={{ background: brand, borderColor: 'var(--border)' }}><PixelDino size={64} color={onBrand} /></div>
-      <h2 className="pf text-base mb-3 leading-relaxed" style={{ color: brand }}>{s.title}</h2>
-      <p className="text-[14px] leading-relaxed">{s.body}</p>
+      <div className="pixel-box p-6 mb-6 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', borderColor: 'var(--border)' }}><SpriteSheet palette={bs.palette} species={bs.species} group={bs.group} anim={bs.anim} px={4} fps={bs.fps} /></div>
+      <h2 className="pf text-base mb-3 leading-relaxed" style={{ color: brand }}>You're all set!</h2>
+      <p className="text-[14px] leading-relaxed">{incubating
+        ? "I'm still an egg for now. Log your first meal and I'll start growing, then I'll guide you from here, one nudge at a time. No need to learn it all at once."
+        : "That's your plan sorted. Log as you go and I'll coach you through the rest, one nudge at a time. No need to learn it all at once."}</p>
     </div>
     <div className="px-6 pb-10 max-w-sm mx-auto w-full">
-      <div className="flex justify-center gap-1.5 mb-5">{WELCOME_SLIDES.map((_, k) => <div key={k} className="h-1.5 rounded-full transition-all" style={{ width: k === i ? 18 : 6, background: k === i ? brand : 'var(--border)' }} />)}</div>
-      <button onClick={() => last ? onDone() : setI(i + 1)} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: brand, color: onBrand }}>{last ? (reviewing ? 'DONE' : 'START TRACKING') : 'NEXT'}</button>
-      {i > 0 && <button onClick={() => setI(i - 1)} className="w-full text-[11px] text-[#8A8A90] mt-3">Back</button>}
+      <button onClick={onDone} className="w-full pixel-btn py-3 text-[11px] pf" style={{ background: brand, color: onBrand }}>{reviewing ? 'DONE' : "LET'S GO"}</button>
     </div>
   </div>);
 }
@@ -9435,7 +9416,9 @@ function App() {
     showToast('Could not open billing. Please try again.');
   }
   useEffect(() => {
-    if (DEMO) { setDb(demoState()); return; } // seed a fresh sample account; never load/save cloud
+    // ?demo seeds a populated sample account; ?demo&onboard seeds a BLANK new user so you can walk the
+    // whole first-run flow (egg -> essentials -> hatch) on demand, post-release, without touching cloud.
+    if (DEMO) { setDb(new URLSearchParams(window.location.search).has('onboard') ? Store.defaultState() : demoState()); return; }
     if (!session) return; let cancelled = false; const uid = session.user.id;
     (async function () {
       // 1) Paint instantly from the local snapshot, this is what makes the app work offline.
@@ -9596,7 +9579,11 @@ function App() {
   function update(m) { setDb(prev => { const n = JSON.parse(JSON.stringify(prev)); m(n); n._rev = Date.now(); if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n; }); }
   function saveProfile(profile, isNew) {
     setDb(prev => {
-      const n = JSON.parse(JSON.stringify(prev || Store.defaultState())); n.profile = profile;
+      const n = JSON.parse(JSON.stringify(prev || Store.defaultState())); const prevProf = (prev && prev.profile) || {}; n.profile = profile;
+      // The egg picker (which now runs BEFORE this wizard) stubbed the familiarity choice + lesson state
+      // onto the profile; the wizard's object doesn't carry them, so preserve them here.
+      if (prevProf.newToTracking != null) n.profile.newToTracking = prevProf.newToTracking;
+      if (prevProf.lessonState) n.profile.lessonState = prevProf.lessonState;
       n.goals = { goal_type: profile.goalType, rate_per_week_kg: profile.rateKgPerWeek };
       const t = E.computeInitialTargets(withActivity(profile)); t.id = Store.uid(); t.effective_date = Store.todayISO(); n.targets.push(t);
       if (isNew && !n.weight_entries.length) { const seed = { id: Store.uid(), date: Store.todayISO(), scale_weight: +profile.weightKg.toFixed(2), trend_weight: +profile.weightKg.toFixed(2) }; if (profile.bodyFatPct != null) seed.bodyfat = +profile.bodyFatPct; n.weight_entries.push(seed); }
@@ -9725,14 +9712,16 @@ function App() {
   if (!session) return <Auth />;
   if (!db) return <Loading text="Digging up your data…" />;
   if (fresh) return <Wizard initial={db.profile} onDone={(pr) => saveProfile(pr, false)} onCancel={() => setFresh(false)} />;
-  if (!db.profile) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} />;
-  // First-run egg pick: a brand-new account (profile set, nothing logged, no egg chosen) picks and
-  // names its egg before reaching Today; it hatches later once the onboarding staples are done.
-  // Existing accounts skip it (they have logs or a named buddy). `?demo&egg` previews the picker.
+  // First-run order (Professor-Oak style): meet + pick your egg FIRST, so there's delight and identity
+  // before any forms; the essentials Wizard comes after. Existing accounts (logs or a named buddy) skip
+  // both. `?demo&egg` previews just the picker; `?demo&onboard` walks the whole flow.
   const forceEgg = DEMO && new URLSearchParams(window.location.search).has('egg');
   if (forceEgg || (!(db.onboarding && db.onboarding.eggPicked) && !(db.log_entries || []).length && !(db.buddy && db.buddy.name))) {
     return <EggPickerOnboarding update={update} onDone={() => { if (forceEgg) window.history.replaceState({}, '', '?demo'); }} />;
   }
+  // Essentials not set yet: the egg picker already stubbed profile with the familiarity choice, so key
+  // off a real essential (weight) rather than the profile object existing at all.
+  if (!db.profile || db.profile.weightKg == null) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} buddy={db.buddy} />;
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
@@ -9773,7 +9762,7 @@ function App() {
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} onClose={() => setToast(null)} />
-      {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} onDone={() => setShowWelcome(false)} />}
+      {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} buddy={db.buddy} onDone={() => setShowWelcome(false)} />}
     </div>
   );
 }
