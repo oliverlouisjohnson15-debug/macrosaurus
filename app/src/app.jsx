@@ -3619,6 +3619,61 @@ function recoveryCoachLine(db, today) {
   };
 }
 
+// A dino-voiced daily readiness recap: last night's sleep, yesterday's steps, today's readiness, and a
+// one-off weigh-in tip. Deterministic, framed as friendly advice (never an order). Reuses the recovery
+// scoring, so it stays in step with the Recovery card.
+function readinessRecap(db, today) {
+  const items = [];
+  const yesterday = shiftISO(today, -1);
+  const night = lastSleepNight(db);
+  if (night) {
+    const sBand = isFinite(night.score) ? Game.sleepBand(night.score) : null;
+    const hrs = Math.floor(night.rec.min / 60), mins = night.rec.min % 60;
+    const dur = hrs + 'h' + (mins ? ' ' + mins + 'm' : '');
+    if (sBand === 'great' || sBand === 'good') items.push({ key: 'sleep', tone: 'good', text: 'You slept well, ' + dur + (isFinite(night.score) ? ' (score ' + night.score + ')' : '') + '. That sets you up nicely for the day.' });
+    else if (sBand === 'ok') items.push({ key: 'sleep', tone: 'warn', text: 'A middling night, ' + dur + '. A steady wind-down and a cooler, darker room tonight would help.' });
+    else if (sBand === 'poor') items.push({ key: 'sleep', tone: 'warn', text: 'A rough night, ' + dur + '. Go a bit easy today and try for an earlier bedtime. Rest counts as training.' });
+    else items.push({ key: 'sleep', tone: 'muted', text: 'Last night: ' + dur + ' in bed. Connect a wearable with sleep stages for a proper score.' });
+  }
+  const goal = stepGoalFor(db);
+  const ySteps = +((db.steps || {})[yesterday]) || 0;
+  if (goal > 0 && ySteps > 0) {
+    if (ySteps >= goal) items.push({ key: 'steps', tone: 'good', text: 'Nice work, ' + ySteps.toLocaleString() + ' steps yesterday, past your ' + goal.toLocaleString() + ' goal.' });
+    else items.push({ key: 'steps', tone: 'warn', text: ySteps.toLocaleString() + ' steps yesterday, a little under your ' + goal.toLocaleString() + ' goal. A short walk today evens it out.' });
+  }
+  const rc = recoveryCoachLine(db, today);
+  items.push({ key: 'ready', tone: Game.readinessBand(readinessFor(db, today)) === 'drowsy' ? 'warn' : 'good', text: rc.text });
+  const weighNeeded = !(db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
+  if (weighNeeded) items.push({ key: 'weigh', tone: 'accent', text: "Haven't weighed this week? Same time each morning, after the loo and before food or drink, gives the truest trend, just the once." });
+  return { items: items, weighNeeded: weighNeeded };
+}
+// The buddy delivers the daily readiness read on its own little screen: the dino, then a line each on
+// sleep, steps, readiness (how hard to push) and a weigh-in nudge. Opened from the Recovery card.
+function BuddyReadinessSheet({ db, onClose, onWeigh }) {
+  useBackClose(onClose);
+  const recap = readinessRecap(db, Store.todayISO());
+  const buddy = db.buddy || {};
+  const who = buddy.name || 'Your buddy';
+  const toneColor = { good: 'var(--good)', warn: 'var(--warn)', accent: 'var(--accent)', muted: 'var(--muted)' };
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2.4} /></div>
+          <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who} · daily readiness</div><div className="text-[15px] font-bold leading-tight">Morning read</div></div>
+          <button onClick={onClose} className="ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+        </div>
+        <div className="space-y-2 mb-3">
+          {recap.items.map(it => (
+            <div key={it.key} className="p-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', borderLeft: '4px solid ' + (toneColor[it.tone] || 'var(--border)') }}>{it.text}</div>
+          ))}
+        </div>
+        {recap.weighNeeded && onWeigh && <button onClick={() => { onWeigh(); onClose(); }} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN NOW</button>}
+        <div className="text-center text-[9px] text-[#8A8A90] leading-snug">It's all guidance, not gospel, so do what suits your day.</div>
+      </div>
+    </div>
+  );
+}
 // One dial in the recovery card: the headline number with room to breathe, a short status word, and an
 // ascending pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
 // Move / Sleep / Ready so the three read as one glanceable row on mobile.
@@ -3652,7 +3707,7 @@ function StatDial({ label, fill, big, status, sub, color, active, onTap }) {
 // and numbers are what matter most, the sentence is on-demand). Tapping a dial opens a read-only breakdown
 // of how its number was reached, never an editor: steps aren't hand-entered, and the step goal + sleep
 // target are set in Settings.
-function StepsSleepCard({ db, update, onOpenPlay }) {
+function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
   const today = Store.todayISO();
   const kShort = n => n >= 1000 ? (Math.round(n / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(Math.round(n));
   // Move: today vs the activity-band (or custom) goal. Google Health is the only source.
@@ -3677,9 +3732,9 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
   const rColor = rBand ? R_COLOR[rBand] : 'var(--muted)';
   // Tapping a dial opens a read-only breakdown. One sheet at a time: null | 'move' | 'sleep' | 'ready'.
   const [sheet, setSheet] = useState(null);
-  // The coaching sentence is collapsed by default so it doesn't crowd the card; the band-coloured trigger
-  // still carries today's verdict at a glance (green = push, amber = ease off) so the row keeps its scent.
-  const [coachOpen, setCoachOpen] = useState(false);
+  // The buddy delivers the recovery read on its own screen; the band-coloured trigger still carries
+  // today's verdict at a glance (green = push, amber = ease off) so the row keeps its scent.
+  const [readyOpen, setReadyOpen] = useState(false);
   // Recovery detail collapses by default so Today stays a calm glance under the macro hero; the slim
   // Move/Sleep/Ready strip is always visible and one tap opens the full dials, sleep architecture and coaching.
   const [expanded, setExpanded] = useState(false);
@@ -3692,7 +3747,7 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
       <Card className="p-4 mb-4" style={{ background: 'var(--accent-dim)' }}>
         <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--sleep)' }}>Recovery</div>
         <div className="text-[13px] font-bold mb-1">Train hard, rest harder</div>
-        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. Connect Google Health to track your steps, sleep and readiness here every day. Your steps and sleep also feed your dino's daily catches.</div>
+        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. Connect Google Health to track your steps, sleep and readiness here every day, and let your buddy read it back to you each morning.</div>
         {ghConfigured()
           ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>CONNECT GOOGLE HEALTH</button>
           : <div className="pf text-[8px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
@@ -3768,16 +3823,16 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
         </button>
       )}
 
-      {/* Adaptive recovery coaching, behind a compact "Today's focus" row (progressive disclosure). The
-          band colour on the collapsed trigger is the at-a-glance verdict; tapping reveals the full sentence. */}
-      <div className="mt-3 pixel-box" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + coach.color }}>
-        <button type="button" onClick={() => setCoachOpen(o => !o)} aria-expanded={coachOpen}
-          className="w-full flex items-center justify-between p-2.5" style={{ background: 'transparent', border: 0 }}>
-          <span className="pf uppercase" style={{ fontSize: 8, color: coach.color }}>Recovery focus</span>
-          <span className="pf" style={{ fontSize: 10, color: 'var(--muted)', display: 'inline-block', transform: coachOpen ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>›</span>
-        </button>
-        {coachOpen && <div className="px-2.5 pb-2.5 -mt-0.5 text-[11px] leading-snug fade-in" style={{ color: 'var(--text2)' }}>{coach.text}</div>}
-      </div>
+      {/* The buddy delivers the recovery read on its own screen (ties recovery to the buddy). The band
+          colour keeps the at-a-glance verdict; tapping opens the dino's full morning read. */}
+      <button type="button" onClick={() => setReadyOpen(true)} className="w-full flex items-center gap-2.5 mt-3 p-2.5 pixel-box" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + coach.color }}>
+        <span className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={1.5} /></span>
+        <span className="min-w-0 flex-1 text-left">
+          <span className="pf uppercase block" style={{ fontSize: 8, color: coach.color }}>{((db.buddy && db.buddy.name) || 'Your buddy') + "'s morning read"}</span>
+          <span className="text-[10px] leading-snug block truncate" style={{ color: 'var(--muted)' }}>Sleep, steps and how hard to push today</span>
+        </span>
+        <span className="pf shrink-0" style={{ fontSize: 10, color: 'var(--muted)' }}>›</span>
+      </button>
 
       {streak >= 3 && (
         <div className="text-center mt-2 pf uppercase" style={{ fontSize: 7, color: 'var(--good)' }}>Step-goal streak · {streak} days</div>
@@ -3785,6 +3840,7 @@ function StepsSleepCard({ db, update, onOpenPlay }) {
       </div>}
 
       {sheet && <MetricBreakdownSheet metric={sheet} db={db} onClose={() => setSheet(null)} onOpenPlay={onOpenPlay} />}
+      {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={onCheckIn} />}
     </Card>
   );
 }
@@ -4444,7 +4500,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
-      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} />
+      <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} />
 
       {/* Weekly loop: self-collapses to a quiet line and expands only when a check-in is actually due. */}
       <div id="checkin-card"><StatusCard db={db} update={update} onCheckIn={onCheckIn} onReview={onReview} streak={streak} onOpenProgress={() => setView('goals')} /></div>
