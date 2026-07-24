@@ -498,7 +498,7 @@
   // ---- Amber: the spendable currency, an APPEND-ONLY LEDGER so it merges conflict-free (like catch_log) ----
   // Never store Amber as a bare mutable number: the state merge unions append-only collections, so a
   // ledger of {id, date, delta, reason} entries can never be lost or double-counted. Balance = sum(delta).
-  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8 };
+  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10 };
   // The daily hunt pays a little; every 5th clear in a row tops up, so consistency compounds.
   function amberDailyReward(streak) {
     var base = AMBER_REWARDS.daily;
