@@ -2258,6 +2258,64 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   function shopPrice(id) { return COSMETIC_BY_ID[id] ? COSMETIC_BY_ID[id].price : null; }
   function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
 
+  // ---- Buddy attentiveness: streak-save, weekly recap, goal milestones ----
+  // These are the pure decisions behind the buddy's proactive lines; the UI (app.jsx) gathers the
+  // inputs and writes the prose, so the maths stays framework-free and unit-tested.
+
+  // A streak is worth protecting when there's a run going, today has no activity yet (a food log OR a
+  // weigh-in both count), and the day is running out. Callers pass activeToday and the current hour.
+  function streakAtRisk(streak, activeToday, hour, eveningHour) {
+    var h = (hour == null) ? 0 : hour;
+    return (streak || 0) >= 2 && !activeToday && h >= (eveningHour || 18);
+  }
+
+  // Aggregate a 7-day window for the weekly recap. `days` is an array of
+  // { logged, kcal, protein, proteinTarget }; `weight` is { startKg, endKg } for the week's trend, or
+  // null. Returns plain numbers only, so the caller owns all wording and unit formatting.
+  function weeklyRecap(days, weight) {
+    days = days || [];
+    var loggedDays = days.filter(function (d) { return d && d.logged; });
+    var kcals = loggedDays.map(function (d) { return +d.kcal || 0; }).filter(function (k) { return k > 0; });
+    var avgKcal = kcals.length ? Math.round(kcals.reduce(function (a, b) { return a + b; }, 0) / kcals.length) : 0;
+    // Protein counts as "hit" when it lands within 10% of that day's target (and a target existed).
+    var proteinDaysHit = loggedDays.filter(function (d) { return d.proteinTarget > 0 && (+d.protein || 0) >= d.proteinTarget * 0.9; }).length;
+    var tgts = loggedDays.map(function (d) { return +d.proteinTarget || 0; }).filter(function (t) { return t > 0; });
+    var proteinTarget = tgts.length ? Math.round(tgts.reduce(function (a, b) { return a + b; }, 0) / tgts.length) : 0;
+    var trendDeltaKg = (weight && weight.startKg != null && weight.endKg != null) ? Math.round((weight.endKg - weight.startKg) * 10) / 10 : null;
+    return { daysLogged: loggedDays.length, totalDays: days.length, avgKcal: avgKcal, proteinDaysHit: proteinDaysHit, proteinTarget: proteinTarget, trendDeltaKg: trendDeltaKg };
+  }
+
+  // The next uncelebrated goal milestone, or null. Fires the biggest whole-kg step of net progress not
+  // yet shown, plus a one-off "reached" when the trend meets the goal. `celebrated` is the keys already
+  // shown; coveredKeys lets the caller mark everything up to here at once, so a big jump (e.g. a first
+  // weigh-in already 3kg down) pops once rather than queueing a backlog.
+  function goalMilestone(opts) {
+    opts = opts || {};
+    var goalType = opts.goalType, startKg = opts.startKg, currentKg = opts.currentKg, goalKg = opts.goalKg;
+    var celebrated = opts.celebrated || [];
+    if (goalType !== 'cut' && goalType !== 'gain') return null;
+    if (startKg == null || currentKg == null) return null;
+    var seen = {}; celebrated.forEach(function (k) { seen[k] = true; });
+    var progress = goalType === 'cut' ? (startKg - currentKg) : (currentKg - startKg);
+    var m = Math.floor(progress + 1e-9);
+    var reached = goalKg != null && (goalType === 'cut' ? currentKg <= goalKg + 0.05 : currentKg >= goalKg - 0.05);
+    if (reached && !seen.goal) {
+      // Reaching the goal also sweeps up every interim kg milestone, so none backlog and pop afterwards.
+      var all = ['goal'];
+      for (var j = 1; j <= m; j++) all.push('m' + j);
+      return { key: 'goal', kind: 'reached', kg: null, coveredKeys: all };
+    }
+    if (m >= 1) {
+      var key = 'm' + m;
+      if (!seen[key]) {
+        var covered = [];
+        for (var i = 1; i <= m; i++) covered.push('m' + i);
+        return { key: key, kind: 'progress', kg: m, coveredKeys: covered };
+      }
+    }
+    return null;
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -2337,6 +2395,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     COSMETIC_BY_ID: COSMETIC_BY_ID,
     shopPrice: shopPrice,
     canAfford: canAfford,
+    streakAtRisk: streakAtRisk,
+    weeklyRecap: weeklyRecap,
+    goalMilestone: goalMilestone,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
@@ -8991,7 +9052,18 @@ function buddyCoach(db, today, streak) {
   const proteinTgt = et ? Math.round(et.eff.protein) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
   const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
+  const weighedToday = (db.weight_entries || []).some(w => w.date === today);
   const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
+  // Streak-save: late in the day with a live streak and nothing logged or weighed yet, lean on loss
+  // aversion. Takes the slot ahead of the plain "nothing logged" line because the clock matters here.
+  if (Game.streakAtRisk(streak, logged.length > 0 || weighedToday, hour, 18) && !snoozed('coach_streaksave', 4)) {
+    return {
+      text: "Don't break the chain! Log anything before midnight and your " + streak + "-day streak lives on.",
+      cta: 'Log it',
+      action: 'log',
+      key: 'coach_streaksave'
+    };
+  }
   if (!logged.length && !snoozed('coach_log', 12)) {
     return hour < 11 ? {
       text: "Morning. Nothing logged yet, what did you have for breakfast?",
@@ -9070,6 +9142,83 @@ function buddyBreakout(db, today) {
   }
   return null;
 }
+// The earliest and latest trend weights (falling back to scale weight) from the weigh-in history, in
+// log order. Used to measure progress toward the goal and the week's movement.
+function weightSpan(db) {
+  const ws = (db.weight_entries || []).slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const val = w => w && (w.trend_weight != null ? w.trend_weight : w.scale_weight);
+  return {
+    first: ws.length ? val(ws[0]) : null,
+    last: ws.length ? val(ws[ws.length - 1]) : null
+  };
+}
+// A goal milestone to celebrate right now (net kg toward the goal, or the goal itself), or null. Wraps
+// the pure Game.goalMilestone with this account's weights and the keys already celebrated, and writes
+// the buddy's line in the user's unit. coveredKeys is handed back so the caller can mark them shown.
+function goalMilestoneFor(db) {
+  const p = db.profile || {};
+  const span = weightSpan(db);
+  const m = Game.goalMilestone({
+    goalType: p.goalType,
+    startKg: span.first,
+    currentKg: span.last,
+    goalKg: p.goalWeightKg,
+    celebrated: p.milestonesShown || []
+  });
+  if (!m) return null;
+  const amount = kg => p.weight_unit === 'st_lb' ? Math.round(kg * LB_PER_KG) + ' lb' : kg + ' kg';
+  let text, cta;
+  if (m.kind === 'reached') {
+    text = "We did it! You've reached your goal weight, and I'm genuinely proud of you. Want to lock it in and switch to maintaining?";
+    cta = 'Amazing';
+  } else if (p.goalType === 'gain') {
+    text = "That's " + amount(m.kg) + " of gains on the board since we started. Look at you grow, keep feeding it!";
+    cta = 'Let’s go';
+  } else {
+    text = "That's " + amount(m.kg) + " down since we started together. Proper progress, and I've been here for every day of it.";
+    cta = 'Nice one';
+  }
+  return {
+    text,
+    cta,
+    coveredKeys: m.coveredKeys
+  };
+}
+// The last 7 days shaped for Game.weeklyRecap: per-day logged/kcal/protein/target, plus the week's
+// trend movement. Pure aggregation lives in the module; this just gathers the inputs.
+function weeklyRecapFor(db, today) {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = shiftISO(today, -i);
+    const entries = entriesOn(db, date);
+    const et = effectiveTarget(db, date);
+    const m = sumMacros(entries);
+    days.push({
+      logged: entries.length > 0,
+      kcal: Math.round(m.kcal),
+      protein: Math.round(m.protein),
+      proteinTarget: et ? Math.round(et.eff.protein) : 0
+    });
+  }
+  const weekStart = shiftISO(today, -6);
+  const inWeek = (db.weight_entries || []).filter(w => w.date >= weekStart && w.date <= today).sort((a, b) => a.date < b.date ? -1 : 1);
+  const val = w => w.trend_weight != null ? w.trend_weight : w.scale_weight;
+  const weight = inWeek.length >= 2 ? {
+    startKg: val(inWeek[0]),
+    endKg: val(inWeek[inWeek.length - 1])
+  } : null;
+  return Game.weeklyRecap(days, weight);
+}
+// Whether to surface the weekly recap: once a week (Sun/Mon), for established users with enough of a
+// week logged to be worth reading back, and not already seen this week.
+function recapDue(db, today) {
+  const p = db.profile || {};
+  if (p.newToTracking) return false;
+  const dow = weekdayIdx(today);
+  if (dow !== 0 && dow !== 1) return false;
+  if (p.recapAckDate && Game.daysBetween(p.recapAckDate, today) < 6) return false;
+  return weeklyRecapFor(db, today).daysLogged >= 3;
+}
 // The buddy speaks with ONE voice. Rather than three separate cards (a coach line, a yes/no breakout,
 // a morning-read button) competing on Today, this aggregator returns the single highest-priority thing
 // the buddy has to say right now, so the habitat is the only place it talks and it never stacks up into
@@ -9099,6 +9248,34 @@ function buddyMessage(db, today, streak) {
       act: 'review'
     }
   };
+  // 2b. Celebrate: a goal milestone (each kg of progress, then the goal itself) fires once, ahead of any
+  // reminder, so a big moment lands as a big moment rather than getting buried under a nudge.
+  if (!incubating) {
+    const mile = goalMilestoneFor(db);
+    if (mile) return {
+      kind: 'celebrate',
+      text: mile.text,
+      primary: {
+        label: mile.cta,
+        act: 'celebrate',
+        mileKeys: mile.coveredKeys
+      }
+    };
+  }
+  // 2c. Weekly recap: once a week, the buddy offers to read the past week back to you (the immersive
+  // detail lives in a sheet). Surfaces above the daily read on its day.
+  if (!incubating && recapDue(db, today)) {
+    const r = weeklyRecapFor(db, today);
+    const proteinBit = r.proteinTarget > 0 ? ', protein on ' + r.proteinDaysHit + '/' + r.daysLogged : '';
+    return {
+      kind: 'recap',
+      text: "Your week's in: " + r.daysLogged + '/7 days logged' + proteinBit + '. Want the full read?',
+      primary: {
+        label: 'See my week',
+        act: 'recap_open'
+      }
+    };
+  }
   // 3. Morning read: the buddy's daily orientation, shown once and then gone for the day. Only when
   // there's genuine sleep/step data to talk about, and only through the daytime so an evening open
   // doesn't get a stale "morning" read.
@@ -9376,20 +9553,21 @@ function BuddyHabitat({
     }
   }, "DO IT ›")))), msg && (() => {
     const speaker = msg.kind === 'lesson' ? bp.name || 'Your buddy' : who;
-    const head = msg.kind === 'read' ? speaker + '’s morning read' : msg.kind === 'ask' ? speaker + ' asks' : msg.kind === 'lesson' ? speaker + ' is teaching' : speaker + ' says';
-    return /*#__PURE__*/React.createElement("div", {
-      className: "mt-3 pt-3",
-      style: {
-        borderTop: '2px solid var(--border)'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
+    const celebrate = msg.kind === 'celebrate';
+    const head = msg.kind === 'read' ? speaker + '’s morning read' : msg.kind === 'ask' ? speaker + ' asks' : msg.kind === 'lesson' ? speaker + ' is teaching' : msg.kind === 'recap' ? speaker + '’s week' : celebrate ? speaker + ' is buzzing' : speaker + ' says';
+    // A milestone gets a festive treatment: accent-framed, sparkles either side, a little pop in.
+    const inner = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "flex items-start justify-between gap-2 mb-1"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[8px] uppercase",
+      className: "pf text-[8px] uppercase inline-flex items-center gap-1",
       style: {
         color: 'var(--accent)'
       }
-    }, head), msg.dismiss && /*#__PURE__*/React.createElement("button", {
+    }, celebrate && /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    }), head, celebrate && /*#__PURE__*/React.createElement(Spark, {
+      size: 9
+    })), msg.dismiss && /*#__PURE__*/React.createElement("button", {
       onClick: msg.dismiss,
       "aria-label": "Dismiss",
       className: "shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60"
@@ -9411,6 +9589,21 @@ function BuddyHabitat({
         background: 'var(--surface2)'
       }
     }, msg.secondary.label)));
+    return celebrate ? /*#__PURE__*/React.createElement("div", {
+      className: "mt-3 crpop"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-3",
+      style: {
+        background: 'var(--accent-dim)',
+        borderColor: 'var(--accent)',
+        boxShadow: 'none'
+      }
+    }, inner)) : /*#__PURE__*/React.createElement("div", {
+      className: "mt-3 pt-3",
+      style: {
+        borderTop: '2px solid var(--border)'
+      }
+    }, inner);
   })());
 }
 
@@ -12283,6 +12476,121 @@ function BuddyReadinessSheet({
     className: "text-center text-[9px] text-[#8A8A90] leading-snug"
   }, "It's all guidance, not gospel, so do what suits your day.")));
 }
+// The buddy reads your past week back to you on its own little screen: days logged, average intake,
+// protein consistency and the week's weight trend, then a warm line and a jump into full Progress.
+// Opened from the weekly-recap line in the habitat. Mirrors the morning-read sheet's shape.
+function WeeklyRecapSheet({
+  db,
+  onClose,
+  onOpenProgress
+}) {
+  useBackClose(onClose);
+  const today = Store.todayISO();
+  const r = weeklyRecapFor(db, today);
+  const buddy = db.buddy || {};
+  const who = buddy.name || 'Your buddy';
+  const p = db.profile || {};
+  const toneColor = {
+    good: 'var(--good)',
+    warn: 'var(--warn)',
+    accent: 'var(--accent)',
+    muted: 'var(--muted)'
+  };
+  const rows = [];
+  rows.push({
+    key: 'log',
+    tone: r.daysLogged >= 5 ? 'good' : 'accent',
+    label: 'Days logged',
+    value: r.daysLogged + '/7'
+  });
+  if (r.avgKcal > 0) rows.push({
+    key: 'kcal',
+    tone: 'muted',
+    label: 'Average intake',
+    value: r.avgKcal.toLocaleString() + ' kcal'
+  });
+  if (r.proteinTarget > 0) rows.push({
+    key: 'protein',
+    tone: r.proteinDaysHit >= Math.ceil(r.daysLogged / 2) ? 'good' : 'warn',
+    label: 'Protein target hit',
+    value: r.proteinDaysHit + '/' + r.daysLogged + ' days'
+  });
+  if (r.trendDeltaKg != null) {
+    const good = p.goalType === 'gain' ? r.trendDeltaKg > 0 : p.goalType === 'cut' ? r.trendDeltaKg < 0 : Math.abs(r.trendDeltaKg) < 0.3;
+    rows.push({
+      key: 'trend',
+      tone: good ? 'good' : 'muted',
+      label: 'Weight trend',
+      value: fmtWeightDelta(r.trendDeltaKg, p.weight_unit)
+    });
+  }
+  const line = r.daysLogged >= 6 ? "Rock-solid week. This is exactly how we win, together." : r.daysLogged >= 3 ? "Good going. A couple more logged days next week and I'll read you even sharper." : "Every day you log helps me read you better. Let's aim for a few more this week.";
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-sm pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
+    style: {
+      paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1.5 shrink-0",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+    buddy: buddy,
+    px: 2.4
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] truncate"
+  }, who, " · weekly recap"), /*#__PURE__*/React.createElement("div", {
+    className: "text-[15px] font-bold leading-tight"
+  }, "Your week")), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "ml-auto text-[#8A8A90] text-2xl leading-none shrink-0",
+    "aria-label": "Close"
+  }, "×")), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-3"
+  }, rows.map(row => /*#__PURE__*/React.createElement("div", {
+    key: row.key,
+    className: "flex items-center justify-between p-3 text-[12px]",
+    style: {
+      background: 'var(--surface3)',
+      borderLeft: '4px solid ' + toneColor[row.tone]
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, row.label), /*#__PURE__*/React.createElement("span", {
+    className: "font-bold tnum"
+  }, row.value)))), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3 text-[11.5px] leading-snug",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "“"), line, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "”")), onOpenProgress && /*#__PURE__*/React.createElement("button", {
+    onClick: onOpenProgress,
+    className: "pixel-btn w-full py-2.5 text-[10px]",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "SEE FULL PROGRESS")));
+}
 // One dial in the recovery card: the headline number with room to breathe, a short status word, and an
 // ascending pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
 // Move / Sleep / Ready so the three read as one glanceable row on mobile.
@@ -13772,6 +14080,7 @@ function Dashboard({
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
+  const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
   const [weighOpen, setWeighOpen] = useState(false); // buddy-opened weigh sheet: true = daily weigh, 'resume' = un-pause
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
@@ -13981,6 +14290,14 @@ function Dashboard({
       d.profile = d.profile || {};
       d.profile.readAckDate = today;
     });
+    const ackRecap = () => update(d => {
+      d.profile = d.profile || {};
+      d.profile.recapAckDate = today;
+    });
+    const markMiles = keys => update(d => {
+      d.profile = d.profile || {};
+      d.profile.milestonesShown = Array.from(new Set([...(d.profile.milestonesShown || []), ...(keys || [])]));
+    });
     const snoozeKey = k => {
       if (k) update(d => {
         d.profile = d.profile || {};
@@ -14020,14 +14337,18 @@ function Dashboard({
         try {
           window.MFEEDBACK && window.MFEEDBACK();
         } catch (_) {}
+      } : a === 'celebrate' ? () => markMiles(btn.mileKeys) : a === 'recap_open' ? () => {
+        ackRecap();
+        setRecapOpen(true);
       } : null;
       return {
         label: btn.label,
         onClick
       };
     };
-    // The × on a raised item: snooze it (by its key) so it stops surfacing for its cooldown.
-    const dismiss = m.dismiss && m.dismiss.key ? () => snoozeKey(m.dismiss.key) : null;
+    // Dismissing (×) a raised item. A celebration is marked shown so it never re-pops; the weekly recap
+    // is acked for the week; everything else snoozes by its key for its cooldown.
+    const dismiss = m.kind === 'celebrate' && m.primary ? () => markMiles(m.primary.mileKeys) : m.kind === 'recap' ? ackRecap : m.dismiss && m.dismiss.key ? () => snoozeKey(m.dismiss.key) : null;
     return {
       kind: m.kind,
       text: m.text,
@@ -14174,6 +14495,13 @@ function Dashboard({
     db: db,
     onClose: () => setReadyOpen(false),
     onWeigh: onCheckIn
+  }), recapOpen && /*#__PURE__*/React.createElement(WeeklyRecapSheet, {
+    db: db,
+    onClose: () => setRecapOpen(false),
+    onOpenProgress: () => {
+      setRecapOpen(false);
+      setView('goals');
+    }
   }), /*#__PURE__*/React.createElement(StepsSleepCard, {
     db: db,
     update: update,
