@@ -3701,7 +3701,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
         {attemptTag && <span className="pf text-[7px] uppercase px-1.5 py-1 shrink-0" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>{attemptTag}</span>}
       </div>
       <div className="flex items-center gap-3 mb-3">
-        <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 68, height: 68 }}>
+        <div className="pixel-box shrink-0 inline-flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', width: 68, height: 68 }}>
           <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={enemy.name} anim="idle" px={2.5} /></span>
         </div>
         <div className="min-w-0 flex-1">
@@ -3733,7 +3733,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
 
           {/* your fighter: sprite, stats, and today's readiness edge, all grown from your eating */}
           <div className="pixel-box p-3 mb-4 flex items-center gap-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', width: 62, height: 62 }}><FighterSprite buddy={db.buddy} anim="idle" px={2.2} /></div>
+            <div className="pixel-box shrink-0 inline-flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', width: 62, height: 62 }}><FighterSprite buddy={db.buddy} anim="idle" px={2.2} /></div>
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-bold truncate">{fighter.name}</div>
               <StatLine s={fighter.stats} />
@@ -4532,7 +4532,7 @@ function EggPickerOnboarding({ update, onDone }) {
     <div className="fixed inset-0 z-[90] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center text-center">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
-        <div className="pixel-box p-5 mb-4 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 150, minHeight: 150 }}>
+        <div className="pixel-box p-5 mb-4 flex items-center justify-center buddy-scene" style={{ minWidth: 150, minHeight: 150 }}>
           <SpriteSheet palette="female" species={step === 'egg' ? species : 'doux'} group="egg" anim="move" px={5} fps={4} />
         </div>
         {step === 'familiarity' ? (
@@ -4554,7 +4554,7 @@ function EggPickerOnboarding({ update, onDone }) {
             <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Nobody knows what's inside yet. Log your first meals and it'll hatch into your buddy.</div>
             <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
               {SPRITE_SPECIES.map(s => (
-                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
                   <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
                 </button>
               ))}
@@ -4621,14 +4621,14 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
         ) : (
           <>
             <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
-            <div className="pixel-box p-5 mb-4 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 150, minHeight: 150 }}>
+            <div className="pixel-box p-5 mb-4 flex items-center justify-center buddy-scene" style={{ minWidth: 150, minHeight: 150 }}>
               <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
             </div>
             <div className="text-lg font-bold mb-1">Choose your egg</div>
             <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Pick the one that speaks to you. Everything you've earned stays put, it just hatches anew.</div>
             <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
               {SPRITE_SPECIES.map(s => (
-                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
                   <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
                 </button>
               ))}
