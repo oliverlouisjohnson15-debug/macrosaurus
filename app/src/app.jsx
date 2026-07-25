@@ -5240,7 +5240,10 @@ function FoodLog({ db, update, openLog, showToast }) {
   const [confirm, setConfirm] = useState(null);
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(today + 'T00:00:00'); return { y: d.getFullYear(), m: d.getMonth() }; });
   const meals = mealsForDay(db, date);
-  const day = entriesOn(db, date); const et = effectiveTarget(db, date); const tot = sumMacros(day);
+  // Forward-looking days (paging/swiping into the future) use the projected target so carryover
+  // is shown paid-down day by day, not the whole running balance dumped onto every future day.
+  // Today and past days resolve to their real effectiveTarget inside the helper.
+  const day = entriesOn(db, date); const et = weekForecastTargets(db, [date])[date]; const tot = sumMacros(day);
   const override = (db.day_overrides || {})[date] || { shiftKcal: 0 };
   const setShift = (v) => update(d => { d.day_overrides = Object.assign({}, d.day_overrides || {}, { [date]: { shiftKcal: v } }); });
   const remCarbs = et ? Math.max(0, Math.round(et.eff.carbs_g - tot.carbs)) : 0;

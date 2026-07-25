@@ -15301,8 +15301,11 @@ function FoodLog({
     };
   });
   const meals = mealsForDay(db, date);
+  // Forward-looking days (paging/swiping into the future) use the projected target so carryover
+  // is shown paid-down day by day, not the whole running balance dumped onto every future day.
+  // Today and past days resolve to their real effectiveTarget inside the helper.
   const day = entriesOn(db, date);
-  const et = effectiveTarget(db, date);
+  const et = weekForecastTargets(db, [date])[date];
   const tot = sumMacros(day);
   const override = (db.day_overrides || {})[date] || {
     shiftKcal: 0
