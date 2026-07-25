@@ -525,6 +525,64 @@
   function shopPrice(id) { return COSMETIC_BY_ID[id] ? COSMETIC_BY_ID[id].price : null; }
   function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
 
+  // ---- Buddy attentiveness: streak-save, weekly recap, goal milestones ----
+  // These are the pure decisions behind the buddy's proactive lines; the UI (app.jsx) gathers the
+  // inputs and writes the prose, so the maths stays framework-free and unit-tested.
+
+  // A streak is worth protecting when there's a run going, today has no activity yet (a food log OR a
+  // weigh-in both count), and the day is running out. Callers pass activeToday and the current hour.
+  function streakAtRisk(streak, activeToday, hour, eveningHour) {
+    var h = (hour == null) ? 0 : hour;
+    return (streak || 0) >= 2 && !activeToday && h >= (eveningHour || 18);
+  }
+
+  // Aggregate a 7-day window for the weekly recap. `days` is an array of
+  // { logged, kcal, protein, proteinTarget }; `weight` is { startKg, endKg } for the week's trend, or
+  // null. Returns plain numbers only, so the caller owns all wording and unit formatting.
+  function weeklyRecap(days, weight) {
+    days = days || [];
+    var loggedDays = days.filter(function (d) { return d && d.logged; });
+    var kcals = loggedDays.map(function (d) { return +d.kcal || 0; }).filter(function (k) { return k > 0; });
+    var avgKcal = kcals.length ? Math.round(kcals.reduce(function (a, b) { return a + b; }, 0) / kcals.length) : 0;
+    // Protein counts as "hit" when it lands within 10% of that day's target (and a target existed).
+    var proteinDaysHit = loggedDays.filter(function (d) { return d.proteinTarget > 0 && (+d.protein || 0) >= d.proteinTarget * 0.9; }).length;
+    var tgts = loggedDays.map(function (d) { return +d.proteinTarget || 0; }).filter(function (t) { return t > 0; });
+    var proteinTarget = tgts.length ? Math.round(tgts.reduce(function (a, b) { return a + b; }, 0) / tgts.length) : 0;
+    var trendDeltaKg = (weight && weight.startKg != null && weight.endKg != null) ? Math.round((weight.endKg - weight.startKg) * 10) / 10 : null;
+    return { daysLogged: loggedDays.length, totalDays: days.length, avgKcal: avgKcal, proteinDaysHit: proteinDaysHit, proteinTarget: proteinTarget, trendDeltaKg: trendDeltaKg };
+  }
+
+  // The next uncelebrated goal milestone, or null. Fires the biggest whole-kg step of net progress not
+  // yet shown, plus a one-off "reached" when the trend meets the goal. `celebrated` is the keys already
+  // shown; coveredKeys lets the caller mark everything up to here at once, so a big jump (e.g. a first
+  // weigh-in already 3kg down) pops once rather than queueing a backlog.
+  function goalMilestone(opts) {
+    opts = opts || {};
+    var goalType = opts.goalType, startKg = opts.startKg, currentKg = opts.currentKg, goalKg = opts.goalKg;
+    var celebrated = opts.celebrated || [];
+    if (goalType !== 'cut' && goalType !== 'gain') return null;
+    if (startKg == null || currentKg == null) return null;
+    var seen = {}; celebrated.forEach(function (k) { seen[k] = true; });
+    var progress = goalType === 'cut' ? (startKg - currentKg) : (currentKg - startKg);
+    var m = Math.floor(progress + 1e-9);
+    var reached = goalKg != null && (goalType === 'cut' ? currentKg <= goalKg + 0.05 : currentKg >= goalKg - 0.05);
+    if (reached && !seen.goal) {
+      // Reaching the goal also sweeps up every interim kg milestone, so none backlog and pop afterwards.
+      var all = ['goal'];
+      for (var j = 1; j <= m; j++) all.push('m' + j);
+      return { key: 'goal', kind: 'reached', kg: null, coveredKeys: all };
+    }
+    if (m >= 1) {
+      var key = 'm' + m;
+      if (!seen[key]) {
+        var covered = [];
+        for (var i = 1; i <= m; i++) covered.push('m' + i);
+        return { key: key, kind: 'progress', kg: m, coveredKeys: covered };
+      }
+    }
+    return null;
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -604,6 +662,9 @@
     COSMETIC_BY_ID: COSMETIC_BY_ID,
     shopPrice: shopPrice,
     canAfford: canAfford,
+    streakAtRisk: streakAtRisk,
+    weeklyRecap: weeklyRecap,
+    goalMilestone: goalMilestone,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;
