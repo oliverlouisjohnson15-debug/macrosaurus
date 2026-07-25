@@ -3316,7 +3316,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
 const EARLY_TROPHY_UNTIL = '2026-10-25'; // ~3 months from the 2026-07-24 launch push
 function perfectWeek(db) { const t = Store.todayISO(); for (let i = 0; i < 7; i++) { if (!isCompleteDayOn(db, shiftISO(t, -i))) return false; } return true; }
 const TROPHIES = [
-  { id: 'early_adopter', name: 'Founding Saur', desc: 'Here from the very start, one of Macrosaurus’s first pack.', earned: () => Store.todayISO() < EARLY_TROPHY_UNTIL },
+  { id: 'early_adopter', name: 'Founding Saur', desc: 'Here from the very start, one of Macrosaurus’s first pack.', earned: (db) => Store.todayISO() < EARLY_TROPHY_UNTIL || !!(db && db.onboarding && db.onboarding.foundingMember) },
   { id: 'supporter', name: 'Patron Saur', desc: 'Backed the app with Premium. Genuinely, thank you.', earned: (db, ctx) => !!ctx.isPremium },
   { id: 'bond_hatch', name: 'It Hatched!', desc: 'Hatched your buddy and began raising it.', earned: (db) => db.buddy && db.buddy.hatched !== false && (db.buddy.stage || 0) >= 1 },
   { id: 'streak7', name: 'Week Strong', desc: 'Logged seven days in a row.', earned: (db, ctx) => (ctx.streak || 0) >= 7 },
@@ -4566,7 +4566,8 @@ function EggPickerOnboarding({ update, onDone }) {
 const BUDDY_UPGRADE_HIGHLIGHTS = [
   ['egg', 'A buddy you raise', 'Pick an egg, hatch it, and grow it as you log. It has moods, evolves, and levels up alongside you.'],
   ['star', 'It has your back', 'Streak-saves when the day is running out, a weekly recap of how you did, and confetti for every milestone.'],
-  ['trophy', 'It sees your finish line', "Carry on like this and it'll tell you how many weeks to your goal."],
+  ['up', 'It sees your finish line', "Carry on like this and it'll tell you how many weeks to your goal."],
+  ['trophy', 'A Founding Saur trophy', "For being one of the first pack. It's yours to keep, right in your trophy cabinet."],
 ];
 function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
   const [step, setStep] = useState('intro'); // intro -> egg -> hatch
@@ -4580,6 +4581,8 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
       d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
       if (d.buddy.stage == null) d.buddy.stage = 0;
       d.onboarding = d.onboarding || {}; d.onboarding.eggPicked = true; d.onboarding.foundingMember = true;
+      // Mint the founding-member trophy right at the moment, so it's part of the gift (idempotent).
+      d.game_awards = d.game_awards || {}; if (!d.game_awards['trophy:early_adopter']) d.game_awards['trophy:early_adopter'] = Store.todayISO();
     });
     onDone && onDone();
   }
