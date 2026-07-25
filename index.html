@@ -8944,6 +8944,14 @@ function engagementNudge(db, today) {
     cta: 'Open Cook',
     action: 'cook'
   });
+  // Cook-from-fridge: only worth suggesting once there are enough saved recipes to match against, so a
+  // tap actually lands on results rather than an empty "nothing to match yet" screen.
+  if ((db.recipes || []).length >= 3 && fresh('nudge_fridge', 8)) cands.push({
+    key: 'nudge_fridge',
+    text: "Got food that needs using up? Snap your fridge or cupboard and I'll find recipes you can make right now.",
+    cta: 'Cook from my fridge',
+    action: 'cook_fridge'
+  });
   if (fresh('nudge_ig', 9)) cands.push({
     key: 'nudge_ig',
     text: "Find me on Instagram @macrosaurus.app for tips, recipes and a daily nudge.",
@@ -13731,6 +13739,7 @@ function Dashboard({
   onQuickAdd,
   showToast,
   onOpenRecipe,
+  onOpenFridge,
   onOpenPlay,
   isPremium,
   aiCalls
@@ -13967,6 +13976,9 @@ function Dashboard({
       }) : a === 'log' ? () => onQuickAdd(false) : a === 'cook' ? () => {
         snoozeKey(btn.key);
         setView('recipes');
+      } : a === 'cook_fridge' ? () => {
+        snoozeKey(btn.key);
+        onOpenFridge();
       } : a === 'progress' ? () => {
         snoozeKey(btn.key);
         setView('goals');
@@ -26865,6 +26877,8 @@ function Recipes({
   onConsumeImport,
   openRecipeId,
   onConsumeOpen,
+  openFridge,
+  onConsumeFridge,
   onLogRecipe,
   onLogOn,
   onSaveMeal,
@@ -26900,6 +26914,12 @@ function Recipes({
       onConsumeOpen && onConsumeOpen();
     }
   }, [openRecipeId]);
+  useEffect(() => {
+    if (openFridge) {
+      setScreen('fridge');
+      onConsumeFridge && onConsumeFridge();
+    }
+  }, [openFridge]);
   const allRecipes = (db.recipes || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
   const collections = Array.from(new Set(allRecipes.flatMap(r => r.collections || []))).sort();
   const ql = q.trim().toLowerCase();
@@ -27134,8 +27154,7 @@ function Recipes({
     onClick: () => setScreen('fridge'),
     className: "pixel-box w-10 h-10 flex items-center justify-center",
     style: {
-      background: 'var(--accent)',
-      color: 'var(--on-accent)'
+      background: 'var(--surface3)'
     },
     "aria-label": "Cook from your fridge"
   }, /*#__PURE__*/React.createElement(Icon.cam, {
@@ -27167,7 +27186,36 @@ function Recipes({
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, shoppingCount)))), /*#__PURE__*/React.createElement(ChefCard, {
+  }, shoppingCount)))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setScreen('fridge'),
+    className: "w-full pixel-box p-3.5 mb-4 flex items-center gap-3 text-left active:scale-[.99] transition",
+    style: {
+      background: 'var(--card)'
+    },
+    "aria-label": "Cook from your fridge"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "shrink-0 w-11 h-11 pixel-box flex items-center justify-center",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "22",
+    height: "22"
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block text-[14px] font-bold leading-tight"
+  }, "Cook from your fridge"), /*#__PURE__*/React.createElement("span", {
+    className: "block text-[11px] text-[#8A8A90] leading-snug mt-0.5"
+  }, "Snap what you've got and I'll find recipes you can make right now.")), /*#__PURE__*/React.createElement("span", {
+    className: "pf shrink-0",
+    style: {
+      color: 'var(--accent)',
+      fontSize: 14
+    }
+  }, "›")), /*#__PURE__*/React.createElement(ChefCard, {
     db: db
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 mb-4 pixel-box p-1 text-[12px]",
@@ -27470,6 +27518,7 @@ function App() {
   const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
   const [recipeImport, setRecipeImport] = useState(null); // a shared YouTube/Instagram link to import as a recipe
   const [openRecipeId, setOpenRecipeId] = useState(null); // a recipe to open straight to detail (from the dashboard gap strip)
+  const [openFridge, setOpenFridge] = useState(false); // open the Cook tab straight onto the fridge scanner (from the buddy nudge)
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const entryHandled = useRef(false);
@@ -28520,6 +28569,10 @@ function App() {
       setOpenRecipeId(id);
       setView('recipes');
     },
+    onOpenFridge: () => {
+      setOpenFridge(true);
+      setView('recipes');
+    },
     onOpenPlay: () => setDexOpen(true),
     isPremium: isPremium,
     aiCalls: aiCalls
@@ -28536,6 +28589,8 @@ function App() {
     onConsumeImport: () => setRecipeImport(null),
     openRecipeId: openRecipeId,
     onConsumeOpen: () => setOpenRecipeId(null),
+    openFridge: openFridge,
+    onConsumeFridge: () => setOpenFridge(false),
     onLogRecipe: (mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion),
     onLogOn: (date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion),
     onSaveMeal: saveRecipeAsMeal,
