@@ -2513,7 +2513,10 @@ function engagementNudge(db, today) {
   const fightIdle = loggedToday && (!lastFight || Game.daysBetween(lastFight, today) >= 3);
   if (fightIdle && fresh('nudge_fight', 3)) cands.push({ key: 'nudge_fight', text: who + " is itching for a scrap. Take this week's eating into a fight and win some Amber.", cta: 'To battle', action: 'fight' });
   // Profile completion, drip-fed after onboarding: offer the deferred body-fat number so protein sharpens.
-  if (fresh('nudge_finetune', 14)) cands.push({ key: 'nudge_finetune', text: "Want me to sharpen your plan? Pop your body fat in with a weigh-in over in Progress and I'll size your protein just right.", cta: 'Show me', action: 'progress' });
+  // Only for people who've never given a body-fat reading. If they already log it (profile or any
+  // weigh-in), their protein is already sized to fat-free mass and this nudge is just noise.
+  const hasBodyFat = (db.profile && db.profile.bodyFatPct != null) || (db.weight_entries || []).some(w => w.bodyfat != null);
+  if (!hasBodyFat && fresh('nudge_finetune', 14)) cands.push({ key: 'nudge_finetune', text: "Want me to sharpen your plan? Pop your body fat in with a weigh-in over in Progress and I'll size your protein just right.", cta: 'Show me', action: 'progress' });
   if (fresh('nudge_amber', 6)) cands.push({ key: 'nudge_amber', text: "Did you know I earn you Amber? A little for logging each day, more for winning fights. Spend it in the shop to kit me out.", cta: 'See shop', action: 'shop' });
   // Buy-me-something: a friendly explainer of how the shop works, so the Amber has an obvious payoff.
   const amber = Game.amberBalance(db.amber_ledger);
@@ -2534,30 +2537,36 @@ function buddyCoach(db, today, streak) {
   const lesson = nextLesson(db, today);
   if (lesson) return { text: lesson.title + ': ' + lesson.text, cta: 'Got it', action: 'lesson', lessonKey: lesson.key };
   const hour = new Date().getHours();
+  // Each ambient reminder carries a stable key so the habitat's dismiss (×) can snooze it; snoozed
+  // ones fall through to the next line rather than nagging.
+  const dm = (db.profile && db.profile.nudgesDismissed) || {};
+  const snoozed = (key, hrs) => dm[key] && (Date.now() - dm[key]) < hrs * 3600 * 1000;
   const logged = entriesOn(db, today);
   const et = effectiveTarget(db, today);
   const proteinTgt = et ? Math.round(et.eff.protein) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
   const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
   const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
-  if (!logged.length) {
+  if (!logged.length && !snoozed('coach_log', 12)) {
     return hour < 11
-      ? { text: "Morning. Nothing logged yet, what did you have for breakfast?", cta: 'Log it', action: 'log' }
-      : { text: 'Nothing logged yet today. Pop your ' + meal + ' in and I’ll do the maths.', cta: 'Log it', action: 'log' };
+      ? { text: "Morning. Nothing logged yet, what did you have for breakfast?", cta: 'Log it', action: 'log', key: 'coach_log' }
+      : { text: 'Nothing logged yet today. Pop your ' + meal + ' in and I’ll do the maths.', cta: 'Log it', action: 'log', key: 'coach_log' };
   }
-  if (proteinTgt > 0 && proteinGap >= 20 && hour >= 14) {
-    return { text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.', cta: 'See ideas', action: 'cook' };
+  // Protein nudge only makes sense once something's been logged (a gap against zero intake is just the
+  // whole target and reads oddly on an empty day).
+  if (logged.length && proteinTgt > 0 && proteinGap >= 20 && hour >= 14 && !snoozed('coach_protein', 12)) {
+    return { text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.', cta: 'See ideas', action: 'cook', key: 'coach_protein' };
   }
   // Late-day steps push: if there's a wearable goal and you're within striking distance in the evening,
   // send the buddy out to rally you. No CTA (you can't walk in-app), just encouragement.
   const stepGoal = stepGoalFor(db);
   const todaySteps = +((db.steps || {})[today]) || 0;
-  if (stepGoal > 0 && todaySteps > 0 && todaySteps < stepGoal && hour >= 16) {
+  if (stepGoal > 0 && todaySteps > 0 && todaySteps < stepGoal && hour >= 16 && !snoozed('coach_steps', 12)) {
     const left = stepGoal - todaySteps;
-    if (left >= 400) return { text: "You're only " + left.toLocaleString() + " steps off your " + stepGoal.toLocaleString() + " goal. A quick walk and it's yours, go get them!", cta: null, action: null };
+    if (left >= 400) return { text: "You're only " + left.toLocaleString() + " steps off your " + stepGoal.toLocaleString() + " goal. A quick walk and it's yours, go get them!", cta: null, action: null, key: 'coach_steps' };
   }
-  if (!weighedRecently) {
-    return { text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.', cta: 'Weigh in', action: 'weigh' };
+  if (!weighedRecently && !snoozed('coach_weigh', 20)) {
+    return { text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.', cta: 'Weigh in', action: 'weigh', key: 'coach_weigh' };
   }
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
@@ -2632,7 +2641,10 @@ function buddyMessage(db, today, streak) {
   // null here, so buddyCoach's own lesson branch is a no-op and won't double up.
   const say = buddyCoach(db, today, streak);
   if (say) return { kind: 'say', text: say.text,
-    primary: say.cta ? { label: say.cta, act: say.action, key: say.key } : null };
+    primary: say.cta ? { label: say.cta, act: say.action, key: say.key } : null,
+    // Anything keyed (engagement nudges + the actionable coach reminders) can be dismissed with the ×;
+    // the pure warm streak lines carry no key, so they get no dismiss (there's nothing to skip).
+    dismiss: say.key ? { key: say.key } : null };
   return null;
 }
 
@@ -2714,7 +2726,10 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
           : speaker + ' says';
         return (
           <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
-            <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{head}</div>
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>{head}</div>
+              {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
+            </div>
             <div className="text-[11.5px] leading-snug">{msg.text}</div>
             {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
               <div className="flex gap-2 mt-2">
@@ -4697,7 +4712,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         : null;
       return { label: btn.label, onClick };
     };
-    return { kind: m.kind, text: m.text, primary: resolve(m.primary), secondary: resolve(m.secondary) };
+    // The × on a raised item: snooze it (by its key) so it stops surfacing for its cooldown.
+    const dismiss = m.dismiss && m.dismiss.key ? () => snoozeKey(m.dismiss.key) : null;
+    return { kind: m.kind, text: m.text, primary: resolve(m.primary), secondary: resolve(m.secondary), dismiss };
   })();
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
