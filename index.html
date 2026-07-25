@@ -10895,7 +10895,7 @@ const TROPHIES = [{
   id: 'early_adopter',
   name: 'Founding Saur',
   desc: 'Here from the very start, one of Macrosaurus’s first pack.',
-  earned: () => Store.todayISO() < EARLY_TROPHY_UNTIL
+  earned: db => Store.todayISO() < EARLY_TROPHY_UNTIL || !!(db && db.onboarding && db.onboarding.foundingMember)
 }, {
   id: 'supporter',
   name: 'Patron Saur',
@@ -13745,7 +13745,7 @@ function EggPickerOnboarding({
 // A one-time founding-member moment for accounts that predate the pick-your-egg buddy: brag about the
 // upgrade, thank them for being early, let them choose an egg, then hatch it right there. Their streak,
 // stage, level and history are all preserved - only the buddy's look is now theirs to choose.
-const BUDDY_UPGRADE_HIGHLIGHTS = [['egg', 'A buddy you raise', 'Pick an egg, hatch it, and grow it as you log. It has moods, evolves, and levels up alongside you.'], ['star', 'It has your back', 'Streak-saves when the day is running out, a weekly recap of how you did, and confetti for every milestone.'], ['trophy', 'It sees your finish line', "Carry on like this and it'll tell you how many weeks to your goal."]];
+const BUDDY_UPGRADE_HIGHLIGHTS = [['egg', 'A buddy you raise', 'Pick an egg, hatch it, and grow it as you log. It has moods, evolves, and levels up alongside you.'], ['star', 'It has your back', 'Streak-saves when the day is running out, a weekly recap of how you did, and confetti for every milestone.'], ['up', 'It sees your finish line', "Carry on like this and it'll tell you how many weeks to your goal."], ['trophy', 'A Founding Saur trophy', "For being one of the first pack. It's yours to keep, right in your trophy cabinet."]];
 function BuddyUpgradeOnboarding({
   db,
   update,
@@ -13769,6 +13769,9 @@ function BuddyUpgradeOnboarding({
       d.onboarding = d.onboarding || {};
       d.onboarding.eggPicked = true;
       d.onboarding.foundingMember = true;
+      // Mint the founding-member trophy right at the moment, so it's part of the gift (idempotent).
+      d.game_awards = d.game_awards || {};
+      if (!d.game_awards['trophy:early_adopter']) d.game_awards['trophy:early_adopter'] = Store.todayISO();
     });
     onDone && onDone();
   }
