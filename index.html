@@ -76,6 +76,11 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --sleep-light: #4B4B7A;    /* light: muted blue-grey */
   --sleep-awake: #FFB020;    /* awake: amber */
   --shadow: #000000;
+  /* Buddy terrarium scene: a faint lit "little world" behind the sprite so the pixel dino reads as
+     placed rather than pasted onto flat grey. Kept subtle to respect the flat Game Boy chrome. */
+  --scene-top: #121218;      /* a hair of night sky lifted off pure black */
+  --scene-bottom: #050507;
+  --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
 }
 .theme-light {
   --bg: #F0F0F0;
@@ -108,6 +113,9 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --sleep-light: #9A9AC0;    /* light: muted blue-grey */
   --sleep-awake: #B26A00;    /* awake: amber */
   --shadow: #1e1e1e;
+  --scene-top: #e6edf6;      /* soft daylight sky */
+  --scene-bottom: #ffffff;
+  --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
 }
 
 html, body { background: var(--bg); overflow-x: hidden; }
@@ -141,6 +149,19 @@ input, select { color-scheme: dark; }
    own full width; steps(frames) subdivides it into whole-frame jumps, so it is frame-count- and
    scale-agnostic (see SpriteSheet in app.jsx). */
 @keyframes sprite-play { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+
+/* Buddy terrarium: a lit backdrop + a gentle idle float + a contact shadow that breathes with it, so
+   the same 24x24 pixel dino reads as a little living companion instead of a sticker on grey. All three
+   are art-free framing; the sprite strip itself is untouched. */
+.buddy-scene { background:
+  radial-gradient(56% 40% at 50% 78%, var(--buddy-glow), transparent 72%),
+  linear-gradient(180deg, var(--scene-top) 0%, var(--scene-bottom) 100%); }
+@keyframes buddy-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.buddy-bob { animation: buddy-bob 2.4s ease-in-out infinite; }
+/* Shadow keeps its translateX(-50%) centring while it scales/fades; smallest when the dino is highest. */
+@keyframes buddy-breathe { 0%, 100% { transform: translateX(-50%) scaleX(1); opacity: .5; } 50% { transform: translateX(-50%) scaleX(.82); opacity: .38; } }
+.buddy-shadow-breathe { animation: buddy-breathe 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .buddy-bob, .buddy-shadow-breathe { animation: none; } }
 
 /* ---- FIGHT easter-egg: Chrome-dino jump ---- */
 @keyframes dinojump { 0%, 100% { transform: translateY(0); } 32%, 58% { transform: translateY(-34px); } }
@@ -9461,11 +9482,10 @@ function BuddyHabitat({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
     "aria-label": "Open Buddy and Play",
-    className: "relative shrink-0 pixel-box overflow-hidden",
+    className: "relative shrink-0 pixel-box overflow-hidden buddy-scene",
     style: {
       width: 90,
       height: 94,
-      background: 'var(--surface3)',
       boxShadow: 'none'
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -9476,7 +9496,7 @@ function BuddyHabitat({
       borderTop: '2px solid var(--border)'
     }
   }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
+    className: 'absolute' + (asleep || stuffed ? '' : ' buddy-shadow-breathe'),
     style: {
       left: '50%',
       bottom: 12,
@@ -9500,7 +9520,7 @@ function BuddyHabitat({
       filter: 'saturate(0.9)'
     } : null)
   }, /*#__PURE__*/React.createElement("div", {
-    className: "inline-block leading-none",
+    className: 'inline-block leading-none' + (asleep || stuffed ? '' : ' buddy-bob'),
     style: {
       filter: auraFilter(eq) || undefined
     }
@@ -10708,20 +10728,49 @@ function PlayBuddyView({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col items-center text-center mb-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 mb-3 relative",
+    className: "pixel-box mb-3 relative overflow-hidden buddy-scene",
     style: {
-      background: 'var(--surface3)',
+      width: 132,
+      height: 130,
       boxShadow: 'none'
     }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute left-0 right-0 bottom-0",
+    style: {
+      height: 28,
+      background: 'var(--surface2)',
+      borderTop: '2px solid var(--border)'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: 'absolute' + (asleep ? '' : ' buddy-shadow-breathe'),
+    style: {
+      left: '50%',
+      bottom: 17,
+      width: 70,
+      height: 10,
+      transform: 'translateX(-50%)',
+      background: 'var(--border)',
+      opacity: 0.5,
+      borderRadius: '50%'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: {
+      left: '50%',
+      bottom: 8,
+      transform: 'translateX(-50%)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: 'inline-block leading-none' + (asleep ? '' : ' buddy-bob')
   }, /*#__PURE__*/React.createElement(BuddyAvatar, {
     buddy: buddy,
     px: 4,
     asleep: asleep
-  }), asleep && /*#__PURE__*/React.createElement("span", {
+  }))), asleep && /*#__PURE__*/React.createElement("span", {
     className: "pf absolute",
     style: {
-      top: 3,
-      right: 4,
+      top: 4,
+      right: 6,
       fontSize: 11,
       color: 'var(--carb)'
     }
@@ -11871,7 +11920,7 @@ function FightModal({
     className: 'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : ''),
     style: {
       height: 188,
-      background: 'linear-gradient(var(--surface3) 0%, var(--surface3) 61%, var(--surface2) 61%)'
+      background: 'radial-gradient(72% 42% at 50% 60%, var(--buddy-glow), transparent 70%), linear-gradient(180deg, var(--scene-top) 0%, var(--scene-bottom) 61%, var(--surface2) 61%)'
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "absolute left-0 right-0",
@@ -13820,9 +13869,8 @@ function BuddyUpgradeOnboarding({
   }), "Founding member", /*#__PURE__*/React.createElement(Spark, {
     size: 10
   })), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-5 mb-4 flex items-center justify-center celebrate-bounce",
+    className: "pixel-box p-5 mb-4 flex items-center justify-center celebrate-bounce buddy-scene",
     style: {
-      background: 'var(--surface3)',
       minWidth: 140,
       minHeight: 140
     }
@@ -13974,9 +14022,8 @@ function MilestoneCelebration({
   }), reached ? 'Goal reached' : 'Milestone', /*#__PURE__*/React.createElement(Spark, {
     size: 10
   })), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-6 mb-6 flex items-center justify-center",
+    className: "pixel-box p-6 mb-6 flex items-center justify-center buddy-scene",
     style: {
-      background: 'var(--surface3)',
       minWidth: 180,
       minHeight: 180
     }
@@ -14080,9 +14127,8 @@ function HatchCelebration({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-6"
   }, step === 'reveal' ? 'Name your buddy' : "It's hatching!"), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-6 mb-6 flex items-center justify-center",
+    className: "pixel-box p-6 mb-6 flex items-center justify-center buddy-scene",
     style: {
-      background: 'var(--surface3)',
       minWidth: 180,
       minHeight: 180
     }

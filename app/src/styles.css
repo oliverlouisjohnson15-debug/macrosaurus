@@ -33,6 +33,11 @@
   --sleep-light: #4B4B7A;    /* light: muted blue-grey */
   --sleep-awake: #FFB020;    /* awake: amber */
   --shadow: #000000;
+  /* Buddy terrarium scene: a faint lit "little world" behind the sprite so the pixel dino reads as
+     placed rather than pasted onto flat grey. Kept subtle to respect the flat Game Boy chrome. */
+  --scene-top: #121218;      /* a hair of night sky lifted off pure black */
+  --scene-bottom: #050507;
+  --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
 }
 .theme-light {
   --bg: #F0F0F0;
@@ -65,6 +70,9 @@
   --sleep-light: #9A9AC0;    /* light: muted blue-grey */
   --sleep-awake: #B26A00;    /* awake: amber */
   --shadow: #1e1e1e;
+  --scene-top: #e6edf6;      /* soft daylight sky */
+  --scene-bottom: #ffffff;
+  --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
 }
 
 html, body { background: var(--bg); overflow-x: hidden; }
@@ -98,6 +106,19 @@ input, select { color-scheme: dark; }
    own full width; steps(frames) subdivides it into whole-frame jumps, so it is frame-count- and
    scale-agnostic (see SpriteSheet in app.jsx). */
 @keyframes sprite-play { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+
+/* Buddy terrarium: a lit backdrop + a gentle idle float + a contact shadow that breathes with it, so
+   the same 24x24 pixel dino reads as a little living companion instead of a sticker on grey. All three
+   are art-free framing; the sprite strip itself is untouched. */
+.buddy-scene { background:
+  radial-gradient(56% 40% at 50% 78%, var(--buddy-glow), transparent 72%),
+  linear-gradient(180deg, var(--scene-top) 0%, var(--scene-bottom) 100%); }
+@keyframes buddy-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.buddy-bob { animation: buddy-bob 2.4s ease-in-out infinite; }
+/* Shadow keeps its translateX(-50%) centring while it scales/fades; smallest when the dino is highest. */
+@keyframes buddy-breathe { 0%, 100% { transform: translateX(-50%) scaleX(1); opacity: .5; } 50% { transform: translateX(-50%) scaleX(.82); opacity: .38; } }
+.buddy-shadow-breathe { animation: buddy-breathe 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .buddy-bob, .buddy-shadow-breathe { animation: none; } }
 
 /* ---- FIGHT easter-egg: Chrome-dino jump ---- */
 @keyframes dinojump { 0%, 100% { transform: translateY(0); } 32%, 58% { transform: translateY(-34px); } }

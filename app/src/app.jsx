@@ -2764,11 +2764,11 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   return (
     <Card className="p-3 mb-4">
       <div className="flex items-center gap-2.5">
-        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="relative shrink-0 pixel-box overflow-hidden" style={{ width: 90, height: 94, background: 'var(--surface3)', boxShadow: 'none' }}>
+        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="relative shrink-0 pixel-box overflow-hidden buddy-scene" style={{ width: 90, height: 94, boxShadow: 'none' }}>
           <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
-          <div className="absolute" style={{ left: '50%', bottom: 12, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+          <div className={'absolute' + (asleep || stuffed ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: 12, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
           <div className="absolute" style={Object.assign({ left: '50%', bottom: 4, transform: 'translateX(-50%)' + (stuffed ? ' translateY(3px)' : '') }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
-            <div className="inline-block leading-none" style={{ filter: auraFilter(eq) || undefined }}>
+            <div className={'inline-block leading-none' + (asleep || stuffed ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
               {/* Overfed = full and lazy: same idle, slowed right down so it lolls about. */}
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={stuffed ? 2 : s.fps} />
             </div>
@@ -3238,9 +3238,13 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
   return (
     <div className="fade-in">
       <div className="flex flex-col items-center text-center mb-4">
-        <div className="pixel-box p-3 mb-3 relative" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-          <BuddyAvatar buddy={buddy} px={4} asleep={asleep} />
-          {asleep && <span className="pf absolute" style={{ top: 3, right: 4, fontSize: 11, color: 'var(--carb)' }}>Zz</span>}
+        <div className="pixel-box mb-3 relative overflow-hidden buddy-scene" style={{ width: 132, height: 130, boxShadow: 'none' }}>
+          <div className="absolute left-0 right-0 bottom-0" style={{ height: 28, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
+          <div className={'absolute' + (asleep ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: 17, width: 70, height: 10, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+          <div className="absolute" style={{ left: '50%', bottom: 8, transform: 'translateX(-50%)' }}>
+            <div className={'inline-block leading-none' + (asleep ? '' : ' buddy-bob')}><BuddyAvatar buddy={buddy} px={4} asleep={asleep} /></div>
+          </div>
+          {asleep && <span className="pf absolute" style={{ top: 4, right: 6, fontSize: 11, color: 'var(--carb)' }}>Zz</span>}
         </div>
         <div className="text-lg font-bold">{who}</div>
         {incubating
@@ -3671,7 +3675,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
     </div>
   );
   const Ring = () => (
-    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'linear-gradient(var(--surface3) 0%, var(--surface3) 61%, var(--surface2) 61%)' }}>
+    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'radial-gradient(72% 42% at 50% 60%, var(--buddy-glow), transparent 70%), linear-gradient(180deg, var(--scene-top) 0%, var(--scene-bottom) 61%, var(--surface2) 61%)' }}>
       {/* horizon line where sky meets ground */}
       <div className="absolute left-0 right-0" style={{ top: '61%', height: 3, background: 'var(--border)' }} />
       {/* opponent (far, upper right), mirrored to face the buddy, standing on its own shadow */}
@@ -4598,7 +4602,7 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
         {step === 'intro' ? (
           <>
             <div className="pf text-[9px] uppercase mb-3 mt-2 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />Founding member<Spark size={10} /></div>
-            <div className="pixel-box p-5 mb-4 flex items-center justify-center celebrate-bounce" style={{ background: 'var(--surface3)', minWidth: 140, minHeight: 140 }}>
+            <div className="pixel-box p-5 mb-4 flex items-center justify-center celebrate-bounce buddy-scene" style={{ minWidth: 140, minHeight: 140 }}>
               <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
             </div>
             <div className="text-xl font-bold mb-2">Your buddy just leveled up</div>
@@ -4660,7 +4664,7 @@ function MilestoneCelebration({ db, milestone, etaText, showToast, onClose, onMa
       <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative">
         <div className="pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />{reached ? 'Goal reached' : 'Milestone'}<Spark size={10} /></div>
-        <div className="pixel-box p-6 mb-6 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 180, minHeight: 180 }}>
+        <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 180, minHeight: 180 }}>
           <div className="celebrate-bounce inline-block"><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={7} fps={s.fps} /></div>
         </div>
         <div className="text-3xl font-bold mb-3" style={{ color: reached ? 'var(--fat)' : 'var(--accent)' }}>{milestone.headline}</div>
@@ -4699,7 +4703,7 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
     <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-6">{step === 'reveal' ? 'Name your buddy' : "It's hatching!"}</div>
-        <div className="pixel-box p-6 mb-6 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 180, minHeight: 180 }}>
+        <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 180, minHeight: 180 }}>
           {step === 'wobble' && <div className="crwobble"><SpriteSheet palette={palette} species={species} group="egg" anim="move" px={7} fps={5} /></div>}
           {step === 'crack' && <SpriteSheet palette={palette} species={species} group="egg" anim="crack" px={7} fps={6} loop={false} onEnd={() => setStep('hatch')} />}
           {step === 'hatch' && <SpriteSheet palette={palette} species={species} group="egg" anim="hatch" px={7} fps={6} loop={false} onEnd={() => setStep('reveal')} />}
