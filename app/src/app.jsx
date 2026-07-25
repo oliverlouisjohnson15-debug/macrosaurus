@@ -864,6 +864,39 @@ function dietBreakStatus(db, today) {
     && daysDieting >= DIETBREAK_MIN_DAYS && checkins >= DIETBREAK_MIN_CHECKINS && loggedDays >= DIETBREAK_MIN_LOGGED && !snoozed;
   return { eligible, weeks: Math.max(1, Math.floor(daysDieting / 7)) };
 }
+// Forward-looking targets for a set of dates (the meal-plan week view). A single day's
+// effectiveTarget assumes NOTHING is eaten on the days between the last check-in and it, so
+// projecting each future day independently freezes the running surplus at today's value while
+// the "days left" denominator shrinks: dispersed carryover then escalates the dip day by day
+// (down to the cap) and aggressive dumps the whole balance onto every future day. Neither is
+// what you'd actually eat. Here we walk the timeline from today forward, assuming each unlogged
+// day is eaten exactly on its own projected target, so the balance is paid down as it really
+// would be: dispersed settles into a gentle even dip that recovers, aggressive hits the next
+// day(s) then returns to normal. Days before today keep their real (historical) targets.
+function weekForecastTargets(db, days) {
+  const today = Store.todayISO();
+  const out = {};
+  const future = days.filter(d => d >= today).sort();
+  if (future.length) {
+    // Bound the simulation: beyond ~4 weeks the cycle-carryover has long expired to the base
+    // target anyway, so there's nothing to pay down and plain effectiveTarget is exact there.
+    const horizon = future[future.length - 1];
+    const simEnd = horizon > shiftISO(today, 27) ? shiftISO(today, 27) : horizon;
+    let entries = db.log_entries.slice();
+    for (let d = today; d <= simEnd; d = shiftISO(d, 1)) {
+      const et = effectiveTarget(Object.assign({}, db, { log_entries: entries }), d);
+      if (days.indexOf(d) !== -1) out[d] = et;
+      // Assume any day that isn't already fully logged finishes on its projected target, so the
+      // following days see the balance drawn down. (For a part-logged today, drop the partial
+      // entries in the projection only; the displayed today target above still uses reality.)
+      if (et && !isCompleteDayOn(db, d)) {
+        entries = entries.filter(e => e.date !== d).concat([{ id: '__proj_' + d, date: d, computed_macros: { kcal: et.eff.kcal } }]);
+      }
+    }
+  }
+  days.forEach(d => { if (!(d in out)) out[d] = effectiveTarget(db, d); });
+  return out;
+}
 function effectiveTarget(db, date) {
   let base = currentTargets(db); if (!base) return null;
   const p = db.profile;
@@ -9078,6 +9111,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
     showToast(added ? ('Added this week to your shopping list') : 'Those are already on your list or in your pantry');
   }
   const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
+  const forecast = weekForecastTargets(db, days);
   return (<div className="fade-in">
     <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
     <div className="flex items-center justify-between mb-3">
@@ -9092,7 +9126,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
     <div className="space-y-3">
       {days.map(d => {
         const entries = planFor(d);
-        const et = effectiveTarget(db, d);
+        const et = forecast[d];
         const planned = Rcp.planMacros(entries, byId);
         const targetK = et ? Math.round(et.eff.kcal) : 0;
         const isToday = d === today;
