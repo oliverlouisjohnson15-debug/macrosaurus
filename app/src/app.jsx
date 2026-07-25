@@ -2519,6 +2519,9 @@ function engagementNudge(db, today) {
   const amber = Game.amberBalance(db.amber_ledger);
   if (amber >= 60 && fresh('nudge_shop', 7)) cands.push({ key: 'nudge_shop', text: "Psst, you've got " + amber + " Amber. Open the Shop from the Play hub and treat me to a glowing aura or a whole new colour.", cta: 'Buy me something', action: 'shop' });
   if (fresh('nudge_cook', 6)) cands.push({ key: 'nudge_cook', text: "Fancy something new? The Cook tab has quick high-protein ideas you can log in a tap.", cta: 'Open Cook', action: 'cook' });
+  // Cook-from-fridge: only worth suggesting once there are enough saved recipes to match against, so a
+  // tap actually lands on results rather than an empty "nothing to match yet" screen.
+  if ((db.recipes || []).length >= 3 && fresh('nudge_fridge', 8)) cands.push({ key: 'nudge_fridge', text: "Got food that needs using up? Snap your fridge or cupboard and I'll find recipes you can make right now.", cta: 'Cook from my fridge', action: 'cook_fridge' });
   if (fresh('nudge_ig', 9)) cands.push({ key: 'nudge_ig', text: "Find me on Instagram @macrosaurus.app for tips, recipes and a daily nudge.", cta: 'Follow', action: 'instagram' });
   if (fresh('nudge_feedback', 12)) cands.push({ key: 'nudge_feedback', text: "Got an idea to make me better? Pop it in Settings, the team reads every one.", cta: 'Suggest', action: 'feedback' });
   if (!cands.length) return null;
@@ -4541,7 +4544,7 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     </div>
   );
 }
-function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenPlay, isPremium, aiCalls }) {
+function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
@@ -4686,6 +4689,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         : (a === 'cadence_daily' || a === 'cadence_single') ? () => update(d => { d.profile = d.profile || {}; d.profile.weighCadence = a === 'cadence_daily' ? 'daily' : 'single'; })
         : a === 'log' ? () => onQuickAdd(false)
         : a === 'cook' ? () => { snoozeKey(btn.key); setView('recipes'); }
+        : a === 'cook_fridge' ? () => { snoozeKey(btn.key); onOpenFridge(); }
         : a === 'progress' ? () => { snoozeKey(btn.key); setView('goals'); }
         : (a === 'fight' || a === 'shop') ? () => { snoozeKey(btn.key); onOpenPlay(); }
         : a === 'instagram' ? () => { snoozeKey(btn.key); try { window.open('https://instagram.com/macrosaurus.app', '_blank'); } catch (_) {} }
@@ -9000,7 +9004,7 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
     </div>
   </div>);
 }
-function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, onLogRecipe, onLogOn, onSaveMeal, isPremium }) {
+function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipeId, onConsumeOpen, openFridge, onConsumeFridge, onLogRecipe, onLogOn, onSaveMeal, isPremium }) {
   const [screen, setScreen] = useState('list'); // list | import | detail | shopping | discover | plan
   const [activeId, setActiveId] = useState(null);
   const [q, setQ] = useState('');
@@ -9017,6 +9021,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
   useEffect(() => { if (importUrl) { setScreen('import'); } }, [importUrl]);
   // Arriving from the dashboard gap strip: jump straight to that recipe's detail.
   useEffect(() => { if (openRecipeId) { setActiveId(openRecipeId); setScreen('detail'); onConsumeOpen && onConsumeOpen(); } }, [openRecipeId]);
+  useEffect(() => { if (openFridge) { setScreen('fridge'); onConsumeFridge && onConsumeFridge(); } }, [openFridge]);
   const allRecipes = (db.recipes || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
   const collections = Array.from(new Set(allRecipes.flatMap(r => r.collections || []))).sort();
   const ql = q.trim().toLowerCase();
@@ -9156,7 +9161,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
         <PageHeader kicker="Cook" title="Recipes" />
         <div className="flex items-center gap-2 shrink-0">
           {/* Compact toolbar: fridge scanner, meal plan, shopping list, instead of stacked cards. */}
-          <button onClick={() => setScreen('fridge')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }} aria-label="Cook from your fridge">
+          <button onClick={() => setScreen('fridge')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Cook from your fridge">
             <Icon.cam width="18" height="18" />
           </button>
           <button onClick={() => setScreen('plan')} className="pixel-box w-10 h-10 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Meal plan">
@@ -9168,6 +9173,18 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           </button>
         </div>
       </div>
+      {/* Cook-from-fridge is the tab's best-kept secret, so give it a labelled hero here (not just the
+          icon in the toolbar): snap the fridge, get recipes you can make now. */}
+      <button onClick={() => setScreen('fridge')} className="w-full pixel-box p-3.5 mb-4 flex items-center gap-3 text-left active:scale-[.99] transition" style={{ background: 'var(--card)' }} aria-label="Cook from your fridge">
+        <span className="shrink-0 w-11 h-11 pixel-box flex items-center justify-center" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'none' }}>
+          <Icon.cam width="22" height="22" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[14px] font-bold leading-tight">Cook from your fridge</span>
+          <span className="block text-[11px] text-[#8A8A90] leading-snug mt-0.5">Snap what you've got and I'll find recipes you can make right now.</span>
+        </span>
+        <span className="pf shrink-0" style={{ color: 'var(--accent)', fontSize: 14 }}>›</span>
+      </button>
       <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
       <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
@@ -9286,6 +9303,7 @@ function App() {
   const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
   const [recipeImport, setRecipeImport] = useState(null); // a shared YouTube/Instagram link to import as a recipe
   const [openRecipeId, setOpenRecipeId] = useState(null); // a recipe to open straight to detail (from the dashboard gap strip)
+  const [openFridge, setOpenFridge] = useState(false); // open the Cook tab straight onto the fridge scanner (from the buddy nudge)
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const entryHandled = useRef(false);
@@ -9746,9 +9764,9 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
-      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
+      {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
