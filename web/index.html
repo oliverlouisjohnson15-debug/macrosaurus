@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="google-site-verification" content="iBd9iz68f_fDPkWtK0jFFyEfIZcRxavsHZPTTYevG_s">
 <title>Macrosaurus, the macro tracker that adapts (and is actually fun)</title>
-<meta name="description" content="Science-based macro targets that adapt to your body every week. Log food in seconds with AI, cook recipes tuned to your macros, and collect dinosaurs as you go. Free to start.">
+<meta name="description" content="Science-based macro targets that adapt to your body every week. Log food in seconds with AI, cook recipes tuned to your macros, and hatch a dino buddy that coaches you and grows as you hit your goals. Free to start.">
 <link rel="canonical" href="https://macrosaurus.com/">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -196,10 +196,16 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
 .import-bar .ib-txt{flex:1; min-width:0; font-family:var(--mono); font-size:12.5px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .import-bar .ib-go{flex:none; font-family:var(--pix); font-size:8px; letter-spacing:.5px; color:var(--ink); background:var(--gold); border:2px solid var(--ink); padding:6px 8px;}
 
-/* macrodex visual */
-.dexgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:11px;}
-.crt{aspect-ratio:1; border:3px solid var(--ink); background:var(--surface2); display:flex; align-items:center; justify-content:center; font-size:24px;}
-.crt.lit{background:var(--gold-dim);} .crt.gold{background:var(--gold);} .crt.empty{color:#c7c7cc; font-family:var(--pix); font-size:15px; background:#fff;}
+/* buddy visual */
+.buddycard{display:flex; flex-direction:column; gap:12px;}
+.buddy-hero{display:flex; align-items:center; gap:15px; border:3px solid var(--ink); background:var(--gold-dim); padding:15px;}
+.buddy-sprite{font-size:46px; line-height:1; flex:none; animation:wob 1.6s ease-in-out infinite;}
+.buddy-meta{min-width:0;}
+.buddy-meta .bn{font-family:var(--pix); font-size:10px; color:var(--ink);}
+.buddy-meta .bhearts{font-family:var(--pix); font-size:9px; color:var(--red); margin-top:10px; letter-spacing:1px;}
+.buddy-meta .bstage{font-family:var(--pix); font-size:7.5px; line-height:1.6; color:var(--purple); margin-top:9px;}
+.buddy-fight{display:flex; gap:10px;}
+.buddy-fight span{flex:1; text-align:center; font-family:var(--pix); font-size:8px; color:var(--ink); background:#fff; border:3px solid var(--ink); padding:10px 6px; box-shadow:3px 3px 0 var(--ink);}
 .streak{font-family:var(--pix); font-size:9.5px; color:var(--purple); display:flex; justify-content:space-between; align-items:center; border-top:2px solid var(--track); padding-top:13px;}
 .streak b{color:var(--gold); background:var(--ink); padding:2px 5px;}
 
@@ -320,7 +326,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <div class="nav-links">
         <a href="#logging">Logging</a>
         <a href="#recipes">Recipes</a>
-        <a href="#macrodex">Macrodex</a>
+        <a href="#buddy">Your buddy</a>
         <a href="#pricing">Pricing</a>
       </div>
       <div class="nav-cta">
@@ -338,7 +344,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
       <div>
         <span class="eyebrow">Science-based &#183; Adaptive &#183; Actually fun</span>
         <h1>The best macro tracker. And the only one you'll enjoy.</h1>
-        <p class="sub">Targets that adapt to your body every week. Log food with a quick photo, cook from macro-tuned recipes, and collect dinosaurs as you go.</p>
+        <p class="sub">Targets that adapt to your body every week. Log food with a quick photo, cook from macro-tuned recipes, and hatch a dino buddy that grows every day you hit your goals.</p>
         <p class="hero-vs">The clever science of the big trackers, plus a game <span class="hl-teal">none of them have</span>.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="https://app.macrosaurus.com">START FREE &#9654;</a>
@@ -359,7 +365,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
                 <div class="macro"><div class="mrow"><span class="name">FAT</span><span class="val tnum">41 / 62g</span></div><div class="bar f"><i style="width:66%"></i></div></div>
               </div>
               <div class="dex"><span class="egg">&#129370;</span><div class="dtxt">EGG INCUBATING<br><b>2 quality days to hatch</b></div></div>
-              <div class="scr-nav"><span class="on">&#9632; HOME</span><span>FOOD</span><span>COOK</span><span>DEX</span><span>ME</span></div>
+              <div class="scr-nav"><span class="on">&#9632; HOME</span><span>FOOD</span><span>COOK</span><span>BUDDY</span><span>ME</span></div>
             </div>
           </div>
         </div>
@@ -370,8 +376,8 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
   <!-- TICKER -->
   <div class="ticker" aria-hidden="true">
     <div class="ticker-in">
-      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
-      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; THE MACRODEX</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
+      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; RAISE YOUR DINO BUDDY</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
+      <span>&#9654; AI FOOD LOGGING</span><span>&#9654; IMPORT RECIPES FROM VIDEO</span><span>&#9654; RAISE YOUR DINO BUDDY</span><span>&#9654; ADAPTIVE TARGETS</span><span>&#9654; BARCODE + LABEL SCAN</span><span>&#9654; BODY-FAT SCAN</span><span>&#9654; TRANSPARENT SCIENCE</span><span>&#9654; MADE IN THE UK</span>
     </div>
   </div>
 
@@ -421,20 +427,27 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
         </div>
       </div>
 
-      <!-- MACRODEX -->
-      <div class="row reveal" id="macrodex">
+      <!-- YOUR BUDDY -->
+      <div class="row reveal" id="buddy">
         <div class="row-media" aria-hidden="true">
-          <div class="dexgrid">
-            <div class="crt lit">&#129429;</div><div class="crt lit">&#129430;</div><div class="crt gold">&#128018;</div><div class="crt lit">&#129445;</div>
-            <div class="crt lit">&#128010;</div><div class="crt empty">?</div><div class="crt lit">&#129433;</div><div class="crt empty">?</div>
+          <div class="buddycard">
+            <div class="buddy-hero">
+              <span class="buddy-sprite">&#129430;</span>
+              <div class="buddy-meta">
+                <div class="bn">REXY &#183; LV.12</div>
+                <div class="bhearts">&#9829;&#9829;&#9829;&#9829;&#9825; BOND</div>
+                <div class="bstage">STAGE 2 &#183; EVOLVING</div>
+              </div>
+            </div>
+            <div class="buddy-fight"><span>&#9876; DAILY HUNT</span><span>&#128081; BOSS CLIMB</span></div>
           </div>
-          <div class="streak"><span>&#9889; 24-DAY STREAK</span><span><b>DEX 41/60</b></span></div>
+          <div class="streak"><span>&#9889; 24-DAY STREAK</span><span><b>+120 AMBER</b></span></div>
         </div>
         <div>
-          <span class="kt" style="color:var(--purple)">THE MACRODEX</span>
+          <span class="kt" style="color:var(--purple)">YOUR DINO BUDDY</span>
           <h3>The reason you'll never miss a day.</h3>
-          <p>Hit your targets and creatures appear, the better you eat, the rarer they get. Streaks, hatching eggs and weekly boss fights keep you coming back. Nothing else makes it this much fun.</p>
-          <div class="chips"><span class="chip">Collect as you log</span><span class="chip">Streaks + eggs</span></div>
+          <p>Hatch one egg and raise one dino. It coaches you in its own voice, bonds and evolves every day you hit your targets, and fights for you in Daily Hunts and Boss Climbs. Nothing else makes hitting your numbers this good.</p>
+          <div class="chips"><span class="chip">Hatch, bond &amp; evolve</span><span class="chip">Daily Hunt + boss fights</span></div>
         </div>
       </div>
     </div>
@@ -495,7 +508,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           <li>Barcode, label &amp; manual logging</li>
           <li>Adaptive engine + weekly check-ins</li>
           <li>Saved meals &amp; your own recipes</li>
-          <li>The full game: Macrodex, eggs, fights</li>
+          <li>The full game: hatch, raise &amp; battle your buddy</li>
           <li>10 AI logs every month</li>
         </ul>
         <a class="btn btn-ghost" href="https://app.macrosaurus.com">START FREE</a>
@@ -581,7 +594,7 @@ canvas[data-meal]{image-rendering:pixelated; image-rendering:crisp-edges; displa
           <p style="margin-top:14px;max-width:32ch;font-size:13px;">The adaptive macro tracker that makes hitting your goals feel like a game.</p>
         </div>
         <div class="foot-links">
-          <div class="foot-col"><b>PRODUCT</b><a href="#logging">Logging</a><a href="#recipes">Recipes</a><a href="#macrodex">Macrodex</a><a href="#pricing">Pricing</a></div>
+          <div class="foot-col"><b>PRODUCT</b><a href="#logging">Logging</a><a href="#recipes">Recipes</a><a href="#buddy">Your buddy</a><a href="#pricing">Pricing</a></div>
           <div class="foot-col"><b>ACCOUNT</b><a href="https://app.macrosaurus.com">Log in</a><a href="https://app.macrosaurus.com">Start free</a></div>
           <div class="foot-col"><b>COMPANY</b><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="mailto:olly@macrosaurus.com">Contact</a></div>
         </div>
