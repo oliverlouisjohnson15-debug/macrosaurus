@@ -2522,6 +2522,10 @@ function engagementNudge(db, today) {
   const amber = Game.amberBalance(db.amber_ledger);
   if (amber >= 60 && fresh('nudge_shop', 7)) cands.push({ key: 'nudge_shop', text: "Psst, you've got " + amber + " Amber. Open the Shop from the Play hub and treat me to a glowing aura or a whole new colour.", cta: 'Buy me something', action: 'shop' });
   if (fresh('nudge_cook', 6)) cands.push({ key: 'nudge_cook', text: "Fancy something new? The Cook tab has quick high-protein ideas you can log in a tap.", cta: 'Open Cook', action: 'cook' });
+  // Predictive: when the trend supports an honest projection, the buddy names the finish line. Makes it
+  // feel like it's reading your progress, not just reminding you to log.
+  const proj = goalProjection(db);
+  if (proj && fresh('nudge_eta', 6)) cands.push({ key: 'nudge_eta', text: proj.text + " I'm counting down the weeks right alongside you.", cta: 'See progress', action: 'progress' });
   // Cook-from-fridge: only worth suggesting once there are enough saved recipes to match against, so a
   // tap actually lands on results rather than an empty "nothing to match yet" screen.
   if ((db.recipes || []).length >= 3 && fresh('nudge_fridge', 8)) cands.push({ key: 'nudge_fridge', text: "Got food that needs using up? Snap your fridge or cupboard and I'll find recipes you can make right now.", cta: 'Cook from my fridge', action: 'cook_fridge' });
@@ -2611,18 +2615,34 @@ function goalMilestoneFor(db) {
   const m = Game.goalMilestone({ goalType: p.goalType, startKg: span.first, currentKg: span.last, goalKg: p.goalWeightKg, celebrated: p.milestonesShown || [] });
   if (!m) return null;
   const amount = kg => p.weight_unit === 'st_lb' ? Math.round(kg * LB_PER_KG) + ' lb' : kg + ' kg';
-  let text, cta;
+  let text, cta, headline;
   if (m.kind === 'reached') {
+    headline = 'You did it!';
     text = "We did it! You've reached your goal weight, and I'm genuinely proud of you. Want to lock it in and switch to maintaining?";
     cta = 'Amazing';
   } else if (p.goalType === 'gain') {
+    headline = amount(m.kg) + ' gained';
     text = "That's " + amount(m.kg) + " of gains on the board since we started. Look at you grow, keep feeding it!";
     cta = 'Let’s go';
   } else {
+    headline = amount(m.kg) + ' down';
     text = "That's " + amount(m.kg) + " down since we started together. Proper progress, and I've been here for every day of it.";
     cta = 'Nice one';
   }
-  return { text, cta, coveredKeys: m.coveredKeys };
+  return { kind: m.kind, kg: m.kg, headline, text, cta, coveredKeys: m.coveredKeys };
+}
+// A plain-language projection of when the goal is reached at the recent pace, or null. The weekly rate
+// comes from the smoothed trend-weight series over the last few weeks; the maths lives in Game.goalETA.
+function goalProjection(db) {
+  const p = db.profile || {};
+  const span = weightSpan(db);
+  const cutoff = shiftISO(Store.todayISO(), -28);
+  const pts = (db.weight_entries || []).filter(w => w.date >= cutoff).map(w => ({ date: w.date, kg: w.trend_weight != null ? w.trend_weight : w.scale_weight }));
+  const eta = Game.goalETA({ goalType: p.goalType, currentKg: span.last, goalKg: p.goalWeightKg, ratePerWeek: Game.trendRatePerWeek(pts) });
+  if (!eta) return null;
+  const wk = eta.weeks;
+  const when = wk <= 1 ? 'about a week' : wk < 10 ? 'about ' + wk + ' weeks' : wk < 13 ? 'around ' + wk + ' weeks' : 'about ' + Math.round(wk / 4.345) + ' months';
+  return { weeks: wk, text: "Carry on like this and you’ll be at your goal in " + when + ".", short: when + ' to go' };
 }
 // The last 7 days shaped for Game.weeklyRecap: per-day logged/kcal/protein/target, plus the week's
 // trend movement. Pure aggregation lives in the module; this just gathers the inputs.
@@ -2670,13 +2690,7 @@ function buddyMessage(db, today, streak) {
   if (!incubating && pending) return { kind: 'say',
     text: "Your new plan from this week's check-in is ready. Want to take a look?",
     primary: { label: 'Review it', act: 'review' } };
-  // 2b. Celebrate: a goal milestone (each kg of progress, then the goal itself) fires once, ahead of any
-  // reminder, so a big moment lands as a big moment rather than getting buried under a nudge.
-  if (!incubating) {
-    const mile = goalMilestoneFor(db);
-    if (mile) return { kind: 'celebrate', text: mile.text,
-      primary: { label: mile.cta, act: 'celebrate', mileKeys: mile.coveredKeys } };
-  }
+  // (Goal milestones are celebrated as a full-screen moment owned by the Dashboard, not a habitat line.)
   // 2c. Weekly recap: once a week, the buddy offers to read the past week back to you (the immersive
   // detail lives in a sheet). Surfaces above the daily read on its day.
   if (!incubating && recapDue(db, today)) {
@@ -2797,18 +2811,15 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
       )}
       {msg && (() => {
         const speaker = msg.kind === 'lesson' ? (bp.name || 'Your buddy') : who;
-        const celebrate = msg.kind === 'celebrate';
         const head = msg.kind === 'read' ? speaker + '’s morning read'
           : msg.kind === 'ask' ? speaker + ' asks'
           : msg.kind === 'lesson' ? speaker + ' is teaching'
           : msg.kind === 'recap' ? speaker + '’s week'
-          : celebrate ? speaker + ' is buzzing'
           : speaker + ' says';
-        // A milestone gets a festive treatment: accent-framed, sparkles either side, a little pop in.
-        const inner = (
-          <>
+        return (
+          <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
             <div className="flex items-start justify-between gap-2 mb-1">
-              <div className="pf text-[8px] uppercase inline-flex items-center gap-1" style={{ color: 'var(--accent)' }}>{celebrate && <Spark size={9} />}{head}{celebrate && <Spark size={9} />}</div>
+              <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>{head}</div>
               {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
             </div>
             <div className="text-[11.5px] leading-snug">{msg.text}</div>
@@ -2818,11 +2829,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
                 {msg.secondary && msg.secondary.onClick && <button onClick={msg.secondary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
               </div>
             )}
-          </>
+          </div>
         );
-        return celebrate
-          ? <div className="mt-3 crpop"><div className="pixel-box p-3" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)', boxShadow: 'none' }}>{inner}</div></div>
-          : <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>{inner}</div>;
       })()}
     </Card>
   );
@@ -2904,6 +2912,59 @@ async function shareStreak(payload, toast) {
     try { await navigator.clipboard.writeText(SHARE_URL); } catch (_) {}
     toast && toast(blob ? 'Streak image saved and link copied' : 'Link copied');
     window.MTRACK && MTRACK('share_streak', { method: 'download', streak: payload.streak });
+  } catch (_) { toast && toast('Could not share right now'); }
+}
+// A milestone card (same 1080² frame + wordmark + buddy sprite as the streak card) with a big headline
+// ("3 kg down" / "Goal reached!") and a warm subline, so a progress moment is as shareable as a streak.
+function renderMilestoneCard({ headline, sub, name, art, colors }) {
+  const S = 1080;
+  const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0, '#241f2b'); g.addColorStop(1, '#0e0c12');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+  ctx.strokeStyle = '#39FF14'; ctx.lineWidth = 14; ctx.strokeRect(30, 30, S - 60, S - 60);
+  ctx.textAlign = 'center';
+  const mascotColors = { L: '#7BD957', B: '#46B94A', D: '#2C8C3E', P: '#123A1C' };
+  drawPixelGrid(ctx, DINO_ART, mascotColors, S / 2 - (16 * 7) / 2, 92, 7);
+  ctx.fillStyle = '#EDE9F0'; ctx.font = '800 40px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('MACROSAURUS', S / 2, 250);
+  const grid = CR_ART[art] || CR_ART[Object.keys(CR_ART)[0]] || [];
+  const gw = grid.reduce((m, r) => Math.max(m, r.length), 0) || 1, gh = grid.length || 1;
+  const target = 360, cell = target / Math.max(gw, gh);
+  drawPixelGrid(ctx, grid, colors || {}, S / 2 - (gw * cell) / 2, 300, cell);
+  // headline (auto-shrunk to fit), then sub line
+  ctx.fillStyle = '#F5C518';
+  let fs = 128; ctx.font = '900 ' + fs + 'px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  while (ctx.measureText(headline).width > S - 160 && fs > 48) { fs -= 6; ctx.font = '900 ' + fs + 'px system-ui, -apple-system, Segoe UI, Roboto, sans-serif'; }
+  ctx.fillText(headline, S / 2, 812);
+  ctx.fillStyle = '#EDE9F0'; ctx.font = '700 40px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  if (sub) ctx.fillText(sub, S / 2, 884);
+  if (name) { ctx.fillStyle = '#9aa0a6'; ctx.font = '600 30px system-ui, -apple-system, Segoe UI, Roboto, sans-serif'; ctx.fillText('with ' + name, S / 2, 934); }
+  ctx.fillStyle = '#39FF14'; ctx.font = '800 34px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  ctx.fillText('Track macros. Catch dinos.  macrosaurus.com', S / 2, 1004);
+  return cv;
+}
+async function shareMilestone(payload, toast) {
+  const text = (payload.reached ? "Hit my goal weight on Macrosaurus! " : payload.headline + ' on Macrosaurus. ') + 'Track macros, catch dinos: ' + SHARE_URL;
+  let blob = null;
+  try { const cv = renderMilestoneCard(payload); blob = await new Promise(r => cv.toBlob(r, 'image/png')); } catch (_) {}
+  const file = blob ? new File([blob], 'macrosaurus-milestone.png', { type: 'image/png' }) : null;
+  try {
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: text });
+      window.MTRACK && MTRACK('share_milestone', { method: 'file' }); return;
+    }
+    if (navigator.share) {
+      await navigator.share({ title: 'Macrosaurus', text: text, url: SHARE_URL });
+      window.MTRACK && MTRACK('share_milestone', { method: 'text' }); return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try {
+    if (blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'macrosaurus-milestone.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    try { await navigator.clipboard.writeText(SHARE_URL); } catch (_) {}
+    toast && toast(blob ? 'Milestone image saved and link copied' : 'Link copied');
+    window.MTRACK && MTRACK('share_milestone', { method: 'download' });
   } catch (_) { toast && toast('Could not share right now'); }
 }
 
@@ -3994,7 +4055,10 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
     const good = p.goalType === 'gain' ? r.trendDeltaKg > 0 : p.goalType === 'cut' ? r.trendDeltaKg < 0 : Math.abs(r.trendDeltaKg) < 0.3;
     rows.push({ key: 'trend', tone: good ? 'good' : 'muted', label: 'Weight trend', value: fmtWeightDelta(r.trendDeltaKg, p.weight_unit) });
   }
-  const line = r.daysLogged >= 6 ? "Rock-solid week. This is exactly how we win, together."
+  const proj = goalProjection(db);
+  if (proj) rows.push({ key: 'eta', tone: 'accent', label: 'At this pace', value: proj.short });
+  const line = proj ? proj.text + " Keep showing up and I'll get you there."
+    : r.daysLogged >= 6 ? "Rock-solid week. This is exactly how we win, together."
     : r.daysLogged >= 3 ? "Good going. A couple more logged days next week and I'll read you even sharper."
     : "Every day you log helps me read you better. Let's aim for a few more this week.";
   return (
@@ -4497,6 +4561,43 @@ function EggPickerOnboarding({ update, onDone }) {
   );
 }
 
+// The MILESTONE moment, fired from Today when a goal milestone (each kg of progress, then the goal
+// itself) is reached: confetti, the buddy bouncing, the headline + the buddy's line, the projection to
+// the finish, and a share button (same card pipeline as the streak share). onClose marks it shown.
+const CONFETTI_COLORS = ['#39FF14', '#F5C518', '#4A9EEB', '#F0655F', '#7FD46B', '#B98CFF'];
+function MilestoneCelebration({ db, milestone, etaText, showToast, onClose, onMaintain }) {
+  const buddy = db.buddy || {};
+  const s = buddyStageSprite(buddy.stage || 0, buddy);
+  const stage = BUDDY_STAGES[Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)];
+  const reached = milestone.kind === 'reached';
+  const [busy, setBusy] = useState(false);
+  async function doShare() {
+    setBusy(true);
+    try { await shareMilestone({ headline: milestone.headline, sub: reached ? 'Goal reached' : 'since I started', reached, name: buddy.name, art: stage.art, colors: stage.colors }, showToast); } catch (_) {}
+    setBusy(false);
+  }
+  return (
+    <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
+      <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
+      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative">
+        <div className="pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />{reached ? 'Goal reached' : 'Milestone'}<Spark size={10} /></div>
+        <div className="pixel-box p-6 mb-6 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 180, minHeight: 180 }}>
+          <div className="celebrate-bounce inline-block"><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={7} fps={s.fps} /></div>
+        </div>
+        <div className="text-3xl font-bold mb-3" style={{ color: reached ? 'var(--fat)' : 'var(--accent)' }}>{milestone.headline}</div>
+        <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{milestone.text}<span style={{ color: 'var(--accent)' }}>”</span></div>
+        {etaText && <div className="text-[12px] mb-5 max-w-xs leading-snug" style={{ color: 'var(--good)' }}>{etaText}</div>}
+        <div className="flex gap-2 w-full max-w-xs">
+          <button onClick={doShare} disabled={busy} className="pixel-btn flex-1 py-3 text-[10px] pf inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--surface2)', opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'SHARE'}</button>
+          {onMaintain
+            ? <button onClick={onMaintain} className="pixel-btn flex-1 py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>MAINTENANCE</button>
+            : <button onClick={onClose} className="pixel-btn flex-1 py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{milestone.cta}</button>}
+        </div>
+        {onMaintain && <button onClick={onClose} className="mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Keep my current goal</button>}
+      </div>
+    </div>
+  );
+}
 // The HATCH moment, fired from Today once the onboarding staples are done: the egg wobbles, cracks
 // and hatches, revealing the dino for the very first time - THEN you name it (with a fun name
 // pre-filled). onDone(name) marks the buddy hatched and named.
@@ -4813,12 +4914,16 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   // The buddy's proactive coach line (deterministic for now). Wire the CTA to the right action.
   // The buddy speaks with one voice in the habitat. buddyMessage picks the single top thing to say;
   // here we wire each action string to a handler (the decision stays pure and testable in buddyMessage).
+  // A goal milestone waiting to be celebrated (full-screen, below) plus its projection line. Marking it
+  // shown persists so it pops exactly once.
+  const markMiles = keys => update(d => { d.profile = d.profile || {}; d.profile.milestonesShown = Array.from(new Set([...(d.profile.milestonesShown || []), ...(keys || [])])); });
+  const milestone = eggIncubating ? null : goalMilestoneFor(db);
+  const milestoneEta = milestone && milestone.kind !== 'reached' ? (goalProjection(db) || {}).text : null;
   const msg = (() => {
     const m = buddyMessage(db, today, streak); if (!m) return null;
     const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
     const ackRead = () => update(d => { d.profile = d.profile || {}; d.profile.readAckDate = today; });
     const ackRecap = () => update(d => { d.profile = d.profile || {}; d.profile.recapAckDate = today; });
-    const markMiles = keys => update(d => { d.profile = d.profile || {}; d.profile.milestonesShown = Array.from(new Set([...(d.profile.milestonesShown || []), ...(keys || [])])); });
     const snoozeKey = k => { if (k) update(d => { d.profile = d.profile || {}; d.profile.nudgesDismissed = Object.assign({}, d.profile.nudgesDismissed || {}, { [k]: Date.now() }); }); };
     const resolve = btn => {
       if (!btn) return null;
@@ -4840,16 +4945,14 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         : (a === 'fight' || a === 'shop') ? () => { snoozeKey(btn.key); onOpenPlay(); }
         : a === 'instagram' ? () => { snoozeKey(btn.key); try { window.open('https://instagram.com/macrosaurus.app', '_blank'); } catch (_) {} }
         : a === 'feedback' ? () => { snoozeKey(btn.key); try { window.MFEEDBACK && window.MFEEDBACK(); } catch (_) {} }
-        : a === 'celebrate' ? () => markMiles(btn.mileKeys)
         : a === 'recap_open' ? () => { ackRecap(); setRecapOpen(true); }
         : null;
       return { label: btn.label, onClick };
     };
-    // Dismissing (×) a raised item. A celebration is marked shown so it never re-pops; the weekly recap
-    // is acked for the week; everything else snoozes by its key for its cooldown.
+    // Dismissing (×) a raised item. The weekly recap is acked for the week; everything else snoozes by
+    // its key for its cooldown.
     const dismiss =
-      m.kind === 'celebrate' && m.primary ? () => markMiles(m.primary.mileKeys)
-      : m.kind === 'recap' ? ackRecap
+      m.kind === 'recap' ? ackRecap
       : (m.dismiss && m.dismiss.key) ? () => snoozeKey(m.dismiss.key)
       : null;
     return { kind: m.kind, text: m.text, primary: resolve(m.primary), secondary: resolve(m.secondary), dismiss };
@@ -4857,6 +4960,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
       {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
+      {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       {/* For free users, the upsell leads Today as the first box (dismissable, re-shows after 7 days so

@@ -583,6 +583,34 @@
     return null;
   }
 
+  // Weekly rate of change from a series of { date, kg } trend points (already smoothed upstream). Uses
+  // the span from the earliest to latest point, requiring at least a week between them so a single noisy
+  // day can't swing it. Returns kg/week (negative = losing), or null when there isn't enough spread.
+  function trendRatePerWeek(points) {
+    var pts = (points || []).filter(function (p) { return p && p.kg != null; }).slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    if (pts.length < 2) return null;
+    var first = pts[0], last = pts[pts.length - 1];
+    var days = daysBetween(first.date, last.date);
+    if (days < 7) return null;
+    return (last.kg - first.kg) / (days / 7);
+  }
+
+  // Weeks to the goal at the current pace, or null when a projection wouldn't be honest: no goal or rate,
+  // a near-flat or wrong-direction rate, or already there (that's a milestone, not a projection). Capped
+  // so a crawling pace doesn't promise an absurd horizon.
+  function goalETA(opts) {
+    opts = opts || {};
+    var goalType = opts.goalType, currentKg = opts.currentKg, goalKg = opts.goalKg, rate = opts.ratePerWeek;
+    if ((goalType !== 'cut' && goalType !== 'gain') || currentKg == null || goalKg == null || rate == null) return null;
+    var remaining = goalType === 'cut' ? currentKg - goalKg : goalKg - currentKg;
+    if (remaining <= 0.1) return null;                 // essentially there already
+    var speed = goalType === 'cut' ? -rate : rate;     // progress per week in the goal's direction
+    if (speed < 0.05) return null;                     // flat or heading the wrong way: no honest ETA
+    var weeks = Math.max(1, Math.ceil(remaining / speed));
+    if (weeks > 104) return null;                      // beyond ~2 years, don't put a scary number on it
+    return { weeks: weeks, remainingKg: Math.round(remaining * 10) / 10 };
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -665,6 +693,8 @@
     streakAtRisk: streakAtRisk,
     weeklyRecap: weeklyRecap,
     goalMilestone: goalMilestone,
+    trendRatePerWeek: trendRatePerWeek,
+    goalETA: goalETA,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;

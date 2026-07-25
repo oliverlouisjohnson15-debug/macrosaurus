@@ -109,3 +109,47 @@ test('goalMilestone: no progress yet, and maintain never fires', () => {
 test('goalMilestone: missing weights are handled gracefully', () => {
   assert.strictEqual(Game.goalMilestone({ goalType: 'cut', startKg: null, currentKg: 80, goalKg: 75, celebrated: [] }), null);
 });
+
+// ---- trendRatePerWeek: kg/week from a smoothed trend series ----
+
+test('trendRatePerWeek: losing 0.5kg/week over two weeks', () => {
+  const pts = [{ date: '2026-07-01', kg: 82 }, { date: '2026-07-08', kg: 81.5 }, { date: '2026-07-15', kg: 81 }];
+  assert.strictEqual(Game.trendRatePerWeek(pts), -0.5);
+});
+
+test('trendRatePerWeek: null when the span is under a week', () => {
+  assert.strictEqual(Game.trendRatePerWeek([{ date: '2026-07-10', kg: 82 }, { date: '2026-07-13', kg: 81.8 }]), null);
+});
+
+test('trendRatePerWeek: null with fewer than two points', () => {
+  assert.strictEqual(Game.trendRatePerWeek([{ date: '2026-07-10', kg: 82 }]), null);
+  assert.strictEqual(Game.trendRatePerWeek([]), null);
+});
+
+// ---- goalETA: honest weeks-to-goal at the current pace ----
+
+test('goalETA: projects weeks for a cut losing weight', () => {
+  const e = Game.goalETA({ goalType: 'cut', currentKg: 84, goalKg: 80, ratePerWeek: -0.5 });
+  assert.strictEqual(e.weeks, 8); // 4kg to go at 0.5kg/week
+  assert.strictEqual(e.remainingKg, 4);
+});
+
+test('goalETA: projects weeks for a gain', () => {
+  const e = Game.goalETA({ goalType: 'gain', currentKg: 72, goalKg: 75, ratePerWeek: 0.25 });
+  assert.strictEqual(e.weeks, 12);
+});
+
+test('goalETA: null when the rate points the wrong way', () => {
+  assert.strictEqual(Game.goalETA({ goalType: 'cut', currentKg: 84, goalKg: 80, ratePerWeek: 0.3 }), null);
+});
+
+test('goalETA: null when the rate is essentially flat', () => {
+  assert.strictEqual(Game.goalETA({ goalType: 'cut', currentKg: 84, goalKg: 80, ratePerWeek: -0.02 }), null);
+});
+
+test('goalETA: null when already at goal, at a crawl beyond 2 years, or missing inputs', () => {
+  assert.strictEqual(Game.goalETA({ goalType: 'cut', currentKg: 80, goalKg: 80, ratePerWeek: -0.5 }), null);
+  assert.strictEqual(Game.goalETA({ goalType: 'cut', currentKg: 90, goalKg: 80, ratePerWeek: -0.05 }), null); // 10kg/0.05 = 200wk
+  assert.strictEqual(Game.goalETA({ goalType: 'maintain', currentKg: 84, goalKg: 80, ratePerWeek: -0.5 }), null);
+  assert.strictEqual(Game.goalETA({ goalType: 'cut', currentKg: 84, goalKg: null, ratePerWeek: -0.5 }), null);
+});
