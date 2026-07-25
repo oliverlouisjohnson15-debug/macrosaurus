@@ -153,3 +153,20 @@ test('goalETA: null when already at goal, at a crawl beyond 2 years, or missing 
   assert.strictEqual(Game.goalETA({ goalType: 'maintain', currentKg: 84, goalKg: 80, ratePerWeek: -0.5 }), null);
   assert.strictEqual(Game.goalETA({ goalType: 'cut', currentKg: 84, goalKg: null, ratePerWeek: -0.5 }), null);
 });
+
+// ---- buddyMood: the buddy's face reflects HOW you ate, not just whether you logged ----
+
+test('buddyMood: over calories reads as stuffed (full and lazy)', () => {
+  assert.strictEqual(Game.buddyMood(false, true, { kcalOver: true, proteinHit: true, kcalIn: false, perfect: false }), 'stuffed');
+});
+
+test('buddyMood: a perfect / on-target day still wins over stuffed', () => {
+  assert.strictEqual(Game.buddyMood(false, true, { perfect: true, kcalOver: false }), 'thriving');
+  assert.strictEqual(Game.buddyMood(false, true, { proteinHit: true, kcalIn: true, kcalOver: false }), 'content');
+});
+
+test('buddyMood: under / just-started stays peckish, and asleep + no-log take priority', () => {
+  assert.strictEqual(Game.buddyMood(false, true, { proteinHit: false, kcalIn: false, kcalOver: false }), 'peckish');
+  assert.strictEqual(Game.buddyMood(false, false, { kcalOver: true }), 'sluggish'); // nothing logged wins
+  assert.strictEqual(Game.buddyMood(true, true, { kcalOver: true }), 'asleep');     // napping wins
+});

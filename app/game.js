@@ -80,7 +80,8 @@
     if (!loggedToday) return 'sluggish';
     if (todayQ && todayQ.perfect) return 'thriving';
     if (todayQ && todayQ.proteinHit && todayQ.kcalIn) return 'content';
-    return 'peckish';
+    if (todayQ && todayQ.kcalOver) return 'stuffed'; // well over calories: full and lazy
+    return 'peckish';                                 // logged but under / not on target yet
   }
   // EVOLUTION (Gen 2 friendship): the buddy evolves along its species line only when it has
   // BOTH grown (cumulative quality days = level) AND is well cared for (bond hearts). Sequential
