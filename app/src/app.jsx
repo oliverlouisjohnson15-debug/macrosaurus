@@ -2755,6 +2755,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   const toNext = next ? Math.max(1, next.min - streak) : 0;
   const s = buddyStageSprite(buddy.stage, db.buddy);
   const asleep = bp.mood === 'asleep' || buddy.asleep;
+  const stuffed = !asleep && bp.mood === 'stuffed';
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
   const incubating = !!(db.buddy && db.buddy.hatched === false);
   const eq = incubating ? {} : equippedCosmetics((db.buddy || {}).cosmetics); // no cosmetics on an egg
@@ -2766,12 +2767,14 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="relative shrink-0 pixel-box overflow-hidden" style={{ width: 90, height: 94, background: 'var(--surface3)', boxShadow: 'none' }}>
           <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
           <div className="absolute" style={{ left: '50%', bottom: 12, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
-          <div className="absolute" style={Object.assign({ left: '50%', bottom: 4, transform: 'translateX(-50%)' }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : null)}>
+          <div className="absolute" style={Object.assign({ left: '50%', bottom: 4, transform: 'translateX(-50%)' + (stuffed ? ' translateY(3px)' : '') }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
             <div className="inline-block leading-none" style={{ filter: auraFilter(eq) || undefined }}>
-              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={s.fps} />
+              {/* Overfed = full and lazy: same idle, slowed right down so it lolls about. */}
+              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={stuffed ? 2 : s.fps} />
             </div>
           </div>
           {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
+          {stuffed && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--warn)' }}>z</span>}
         </button>
         <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left flex items-center gap-1.5">
          <div className="min-w-0 flex-1">
@@ -3058,14 +3061,15 @@ function DinoLoader({ label }) {
 function dayQuality(db, date) {
   const day = entriesOn(db, date); if (!day.length) return null;
   const et = effectiveTarget(db, date); const t = et ? et.eff : null; const tot = sumMacros(day);
-  if (!t) return { logged: true, proteinHit: false, carbHit: false, fatHit: false, kcalIn: false, fiberHit: false, perfect: false };
+  if (!t) return { logged: true, proteinHit: false, carbHit: false, fatHit: false, kcalIn: false, kcalOver: false, fiberHit: false, perfect: false };
   const proteinHit = tot.protein >= t.protein_g * 0.9;
   const carbHit = t.carbs_g > 0 && Math.abs(tot.carbs - t.carbs_g) <= t.carbs_g * 0.2;
   const fatHit = t.fat_g > 0 && Math.abs(tot.fat - t.fat_g) <= t.fat_g * 0.2;
   const kcalIn = Math.abs(tot.kcal - t.kcal) <= t.kcal * 0.1;
+  const kcalOver = tot.kcal > t.kcal * 1.1; // more than 10% over the calorie target
   const fiberHit = tot.fiber >= E.fiberTarget(t.kcal).min;
   const perfect = proteinHit && kcalIn && carbHit && fatHit;
-  return { logged: true, proteinHit, carbHit, fatHit, kcalIn, fiberHit, perfect };
+  return { logged: true, proteinHit, carbHit, fatHit, kcalIn, kcalOver, fiberHit, perfect };
 }
 function crHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function loggedDatesSet(db) { const s = new Set(); (db.log_entries || []).forEach(e => s.add(e.date)); return s; }
@@ -3139,6 +3143,7 @@ const MOOD_META = {
   thriving: { label: 'Thriving', color: 'var(--good)', lines: ['Firing on all cylinders.', 'Best it has felt in ages.', 'Practically glowing after that.'] },
   content: { label: 'Content', color: 'var(--carb)', lines: ['Fed and happy.', 'A good, steady day.', 'Quietly pleased with you.'] },
   peckish: { label: 'Peckish', color: 'var(--fat)', lines: ['Could do with more protein.', 'Still a little hungry.', 'Decent start, feed it up.'] },
+  stuffed: { label: 'Stuffed', color: 'var(--warn)', lines: ['Ate a bit much, feeling lazy now.', 'Belly full, going nowhere fast.', 'Might just nap this one off.', 'Over the line today, no drama, back at it tomorrow.'] },
   sluggish: { label: 'Sluggish', color: 'var(--weight)', lines: ['Waiting on today’s first meal.', 'A bit low, nothing logged yet.', 'Perks right up when you log.'] },
   asleep: { label: 'Napping', color: 'var(--muted)', lines: ['Fast asleep. Log to wake it.', 'Curled up, dreaming of snacks.'] },
 };
