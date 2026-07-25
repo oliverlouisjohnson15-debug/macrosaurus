@@ -4560,6 +4560,77 @@ function EggPickerOnboarding({ update, onDone }) {
     </div>
   );
 }
+// A one-time founding-member moment for accounts that predate the pick-your-egg buddy: brag about the
+// upgrade, thank them for being early, let them choose an egg, then hatch it right there. Their streak,
+// stage, level and history are all preserved - only the buddy's look is now theirs to choose.
+const BUDDY_UPGRADE_HIGHLIGHTS = [
+  ['egg', 'A buddy you raise', 'Pick an egg, hatch it, and grow it as you log. It has moods, evolves, and levels up alongside you.'],
+  ['star', 'It has your back', 'Streak-saves when the day is running out, a weekly recap of how you did, and confetti for every milestone.'],
+  ['trophy', 'It sees your finish line', "Carry on like this and it'll tell you how many weeks to your goal."],
+];
+function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
+  const [step, setStep] = useState('intro'); // intro -> egg -> hatch
+  const [species, setSpecies] = useState((db.buddy && db.buddy.species) || 'doux');
+  const suggested = (db.buddy && db.buddy.name) || randomBuddyName(db.game_salt);
+  function hatched(nm) {
+    update(d => {
+      d.buddy = d.buddy || { stage: 0 };
+      d.buddy.species = species; d.buddy.palette = d.buddy.palette || 'female';
+      d.buddy.hatched = true; d.buddy.name = nm;
+      d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
+      if (d.buddy.stage == null) d.buddy.stage = 0;
+      d.onboarding = d.onboarding || {}; d.onboarding.eggPicked = true; d.onboarding.foundingMember = true;
+    });
+    onDone && onDone();
+  }
+  if (step === 'hatch') return <HatchCelebration buddy={{ palette: (db.buddy && db.buddy.palette) || 'female', species }} suggestedName={suggested} onDone={hatched} />;
+  return (
+    <div className="fixed inset-0 z-[90] overflow-y-auto" style={{ background: 'var(--bg)' }}>
+      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center text-center">
+        {step === 'intro' ? (
+          <>
+            <div className="pf text-[9px] uppercase mb-3 mt-2 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />Founding member<Spark size={10} /></div>
+            <div className="pixel-box p-5 mb-4 flex items-center justify-center celebrate-bounce" style={{ background: 'var(--surface3)', minWidth: 140, minHeight: 140 }}>
+              <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
+            </div>
+            <div className="text-xl font-bold mb-2">Your buddy just leveled up</div>
+            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-5 max-w-xs">You've been with Macrosaurus since the early days, and your feedback shaped what it's become. As a thank-you, your companion has had a huge upgrade, and now it's yours to choose.</div>
+            <div className="w-full space-y-2 mb-6 text-left">
+              {BUDDY_UPGRADE_HIGHLIGHTS.map(([icon, title, body]) => (
+                <div key={title} className="pixel-box p-3 flex items-start gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                  <span className="shrink-0 mt-0.5"><PixelGlyph kind={icon} color="var(--accent)" size={16} /></span>
+                  <div><div className="text-[12px] font-bold">{title}</div><div className="text-[11px] text-[#8A8A90] leading-snug">{body}</div></div>
+                </div>
+              ))}
+            </div>
+            <Btn onClick={() => setStep('egg')} className="w-full">Choose my egg</Btn>
+            {onLater && <button onClick={onLater} className="mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Maybe later</button>}
+          </>
+        ) : (
+          <>
+            <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3 mt-2">Your buddy</div>
+            <div className="pixel-box p-5 mb-4 flex items-center justify-center" style={{ background: 'var(--surface3)', minWidth: 150, minHeight: 150 }}>
+              <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
+            </div>
+            <div className="text-lg font-bold mb-1">Choose your egg</div>
+            <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Pick the one that speaks to you. Everything you've earned stays put, it just hatches anew.</div>
+            <div className="grid grid-cols-6 gap-1.5 w-full mb-4">
+              {SPRITE_SPECIES.map(s => (
+                <button key={s.id} onClick={() => setSpecies(s.id)} aria-label={'egg ' + s.id} className="pixel-box p-1 flex items-center justify-center" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: species === s.id ? 'var(--accent)' : 'var(--border)', borderWidth: species === s.id ? 3 : 2 }}>
+                  <SpriteSheet palette="female" species={s.id} group="egg" anim="move" px={1.7} fps={3} />
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 w-full">
+              <Btn kind="ghost" onClick={() => setStep('intro')}>Back</Btn>
+              <Btn onClick={() => setStep('hatch')} className="flex-1">Hatch this one</Btn>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // The MILESTONE moment, fired from Today when a goal milestone (each kg of progress, then the goal
 // itself) is reached: confetti, the buddy bouncing, the headline + the buddy's line, the projection to
@@ -10008,6 +10079,16 @@ function App() {
   // Essentials not set yet: the egg picker already stubbed profile with the familiarity choice, so key
   // off a real essential (weight) rather than the profile object existing at all.
   if (!db.profile || db.profile.weightKg == null) return <Wizard onDone={(pr) => saveProfile(pr, true)} initialKey={db.aiKey || ''} buddy={db.buddy} />;
+  // Founding-member buddy upgrade: established accounts that predate pick-your-egg get a one-time
+  // celebratory re-hatch (brag + thank-you + choose an egg), keeping their streak/stage/history. It's
+  // snoozeable so it never becomes a wall. `?demo&upgrade` previews it.
+  const forceUpgrade = DEMO && new URLSearchParams(window.location.search).has('upgrade');
+  const upgradeSnoozed = db.onboarding && db.onboarding.buddyUpgradeSnooze && (Date.now() - db.onboarding.buddyUpgradeSnooze) < 3 * 864e5;
+  if (forceUpgrade || (!(db.onboarding && db.onboarding.eggPicked) && !upgradeSnoozed)) {
+    return <BuddyUpgradeOnboarding db={db} update={update}
+      onDone={() => { if (forceUpgrade) window.history.replaceState({}, '', '?demo'); }}
+      onLater={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.buddyUpgradeSnooze = Date.now(); })} />;
+  }
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
