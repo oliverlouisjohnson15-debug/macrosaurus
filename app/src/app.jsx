@@ -506,6 +506,50 @@ async function buddyDeepDive(db) {
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, messages: [{ role: 'user', content: rules + '\n\nToday (JSON):\n' + JSON.stringify(payload) + '\n\nYour deeper dive:' }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
+// Premium AI weekly read: the deeper dive's counterpart for the weekly recap. A week of data is where
+// real recommendations become possible (a day of it is mostly noise), so this is the one place the buddy
+// names ONE thing to change. Steps-first, like the check-in coach: if activity dropped, that's the lever,
+// not eating less. Guardrailed to the figures we hand it; premium-gated by the proxy. Text, or throws.
+async function buddyWeeklyDive(db, r) {
+  const p = db.profile || {};
+  const proj = goalProjection(db);
+  const payload = {
+    goal: p.goalType,
+    targetRatePerWeek_kg: p.goalType === 'maintain' ? 0 : (p.goalType === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : Math.abs(p.rateKgPerWeek || 0)),
+    daysLogged: r.daysLogged,
+    avgKcal: r.avgKcal || null,
+    proteinDaysHit: r.proteinDaysHit, proteinTarget: r.proteinTarget || null,
+    trendChangeKg: r.trendDeltaKg != null ? r.trendDeltaKg : null,
+    stepsAvgThisWeek: r.stepsAvg, stepsAvgLastWeek: r.stepsAvgPrev, stepGoal: r.stepGoal,
+    weeksToGoal: proj ? proj.weeks : null,
+    unit: p.weight_unit === 'st_lb' ? 'stones/pounds' : 'kilograms',
+  };
+  const who = (db.buddy && db.buddy.name) || 'Your buddy';
+  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. This is their week (JSON). In 3 to 4 short sentences: say what the week actually shows, then give ONE specific recommendation for the week ahead. STEPS-FIRST: if progress was short of target and stepsAvgThisWeek is below stepsAvgLastWeek or below stepGoal, make the recommendation about walking more, and say plainly that movement dropped. Only suggest a food or calorie change when steps already held up. If daysLogged is under 4, the honest read is that there is not enough logged to judge intake, so make the recommendation about logging more days. Refer only to the figures given, never invent numbers, and do not restate every figure back at them. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
+  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, messages: [{ role: 'user', content: rules + '\n\nThis week (JSON):\n' + JSON.stringify(payload) + '\n\nYour read:' }] });
+  return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+}
+// The deterministic version of the weekly recommendation: shown to everyone, so the recap always names a
+// next move even offline or without premium. Same steps-first order of priority as the AI prompt.
+function weeklyRecommendation(db, r) {
+  const p = db.profile || {};
+  const k = n => Math.round(n).toLocaleString('en-GB');
+  if (r.daysLogged < 4) return "I can't read your intake properly on " + r.daysLogged + " logged day" + (r.daysLogged === 1 ? '' : 's') + ". Aim for four or more this week and I'll be able to tell you something worth hearing.";
+  // Steps first: a real drop in movement is the lever to pull before anything about food.
+  if (r.stepsAvg != null && r.stepsAvgPrev != null && r.stepsAvg < r.stepsAvgPrev * 0.85) {
+    return 'Your steps dropped from about ' + k(r.stepsAvgPrev) + ' to ' + k(r.stepsAvg) + ' a day this week. Getting those back up is the easiest lever you have, and kinder than eating less.';
+  }
+  if (r.stepGoal && r.stepsAvg != null && r.stepsAvg < r.stepGoal * 0.8) {
+    return 'You averaged about ' + k(r.stepsAvg) + ' steps a day against your ' + k(r.stepGoal) + ' goal. Nudging that up is the first thing I would change this week.';
+  }
+  if (r.proteinTarget > 0 && r.daysLogged > 0 && r.proteinDaysHit < Math.ceil(r.daysLogged / 2)) {
+    return 'Protein landed on ' + r.proteinDaysHit + ' of your ' + r.daysLogged + ' logged days. Anchor it to breakfast this week, that one meal usually fixes the rest.';
+  }
+  if (r.daysLogged < 6) return "You logged " + r.daysLogged + '/7. A couple more days this week and both my read and your check-in get sharper.';
+  const proj = goalProjection(db);
+  if (proj) return 'Solid week, and nothing I would change. ' + proj.text;
+  return "Solid week, and nothing I'd change. Keep doing exactly this and let the trend do the talking.";
+}
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
 // Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
@@ -2221,7 +2265,7 @@ function CheckInHistory({ db }) {
 // nothing on the page to say whether today's weight was in. This lifts it to the top as a sibling of the
 // weekly check-in card, so both cadences read the same way at a glance: where you stand, what it feeds,
 // and one tap to log it. Deliberately mirrors the check-in card's shape rather than inventing a new one.
-function TodayWeightCard({ db, onWeigh, onSeeAll }) {
+function TodayWeightCard({ db, onWeigh, onSeeAll, onCheckIn }) {
   const unit = db.profile.weight_unit;
   const today = Store.todayISO();
   const entries = db.weight_entries || [];
@@ -2237,12 +2281,17 @@ function TodayWeightCard({ db, onWeigh, onSeeAll }) {
   const prior = sorted.filter(w => Game.daysBetween(w.date, today) >= 7);
   const delta = (last && prior.length) ? val(last) - val(prior[prior.length - 1]) : null;
   const kicker = ask.daily ? "Today's weight" : 'Weigh-in';
+  // A weekly weigher's one weight of the week is their check-in weight, so once the check-in is ready
+  // this card points there rather than offering a standalone weigh they'd only be asked to repeat.
+  const toCheckIn = ask.act === 'checkin';
   const status = todays ? fmtWeight(todays.scale_weight, unit)
     : ask.daily ? 'Not logged yet'
+    : toCheckIn ? 'Weigh in with your check-in'
     : ask.due ? 'Not weighed this week'
     : daysSince === 0 ? 'Logged today' : 'Weighed ' + daysSince + ' day' + (daysSince === 1 ? '' : 's') + ' ago';
   const sub = todays ? "Logged today, that's the one that keeps your trend honest."
     : ask.daily ? 'Same time each morning, after the loo and before food or drink, gives the truest trend.'
+    : toCheckIn ? 'Your weekly check-in takes this week’s weight and retunes your targets from it.'
     : ask.due ? 'A quick one keeps your plan tuned to the real you.'
     : 'You weigh in weekly. Add an extra any time you fancy.';
   return (
@@ -2253,7 +2302,7 @@ function TodayWeightCard({ db, onWeigh, onSeeAll }) {
           <div className={todays ? 'text-xl font-bold tnum leading-none mb-1' : 'text-[13px] font-bold mb-0.5'} style={todays ? { color: 'var(--hero)' } : null}>{status}</div>
           <div className="text-[10px] text-[#8A8A90] leading-snug">{sub}</div>
         </div>
-        <Btn kind={todays ? 'ghost' : 'accent'} className="shrink-0" onClick={onWeigh}>{todays ? 'Edit' : 'Weigh in'}</Btn>
+        <Btn kind={todays ? 'ghost' : 'accent'} className="shrink-0" onClick={toCheckIn && !todays && onCheckIn ? onCheckIn : onWeigh}>{todays ? 'Edit' : ask.cta}</Btn>
       </div>
       {(avg7 != null || entries.length > 0) && <div className="flex items-center justify-between gap-3 mt-3 pt-2.5 border-t border-[#262629] text-[10px] text-[#8A8A90]">
         <div className="tnum truncate">
@@ -2629,6 +2678,13 @@ function engagementNudge(db, today) {
   if (doy % 2 !== 0) return null; // surface at most every other day
   return cands[doy % cands.length];
 }
+// The weekly check-in clock, which runs for EVERYONE regardless of weigh cadence: daily weighers still
+// check in once a week, it's just that their week's weight is already in by the time it comes round.
+// Ready at 5 days, due at 7, so the Progress card, the buddy's ask and the weigh routing all agree.
+function checkInAsk(db, today) {
+  const daysSince = db.last_checkin ? Game.daysBetween(db.last_checkin, today) : 999;
+  return { daysSince: daysSince, ready: daysSince >= 5, due: daysSince >= 7 };
+}
 // Whether the buddy should be asking for a weight right now, and in what words. Daily weighers get
 // asked for TODAY's weight every morning (the weigh-in is the first job of the day, before food goes
 // anywhere near a log); weekly weighers keep the softer "not weighed this week" nudge. Pure, so both
@@ -2642,15 +2698,25 @@ function weighAsk(db, today) {
   const daily = p.weighCadence === 'daily';
   if (daily) {
     return {
-      due: !weighedToday, daily: true, weighedToday: weighedToday, cta: 'Weigh in',
+      due: !weighedToday, daily: true, weighedToday: weighedToday, cta: 'Weigh in', act: 'weigh',
       habitatText: "Morning. Let's get you on the scales first, before food or drink, and I'll log today's weight.",
       laterText: "No weight in for today yet. Pop on the scales when you get a chance, or catch it first thing tomorrow before food, and I'll keep your trend honest.",
       recapText: "First job: hop on the scales before food or drink and I'll log today's weight. Same time each morning gives me the truest trend.",
     };
   }
   const weighedRecently = ws.some(w => Game.daysBetween(w.date, today) <= 6);
+  // A weekly weigher's one weight of the week IS their check-in weight: the check-in asks for it and
+  // writes the entry itself. So once a check-in is ready, send them there rather than to the standalone
+  // sheet, otherwise they weigh once here and get asked for the same number all over again.
+  const ci = checkInAsk(db, today);
+  if (ci.ready) return {
+    due: !weighedRecently, daily: false, weighedToday: weighedToday, cta: 'Check in', act: 'checkin',
+    habitatText: "Time for your weekly check-in. Weigh in and I'll read your trend and retune your targets.",
+    laterText: "Your weekly check-in is ready. Weigh in and I'll read your trend and retune your targets.",
+    recapText: "Your weekly check-in is ready. One weigh-in is all I need to read your trend and retune your targets.",
+  };
   return {
-    due: !weighedRecently, daily: false, weighedToday: weighedToday, cta: 'Weigh in',
+    due: !weighedRecently, daily: false, weighedToday: weighedToday, cta: 'Weigh in', act: 'weigh',
     habitatText: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.',
     laterText: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.',
     recapText: "Not weighed this week? Same time each morning, after the loo and before food or drink, gives me the truest trend, just the once.",
@@ -2701,7 +2767,7 @@ function buddyCoach(db, today, streak) {
   // day catch (and the weekly weigher's once-a-week prompt), worded by the same helper.
   const wa = weighAsk(db, today);
   if (wa.due && !(wa.daily && hour < 12) && !snoozed('coach_weigh', wa.daily ? 8 : 20)) {
-    return { text: wa.laterText, cta: wa.cta, action: 'weigh', key: 'coach_weigh' };
+    return { text: wa.laterText, cta: wa.cta, action: wa.act, key: 'coach_weigh' };
   }
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
@@ -2716,7 +2782,7 @@ function buddyCoach(db, today, streak) {
 function buddyBreakout(db, today) {
   const dm = (db.profile && db.profile.nudgesDismissed) || {};
   const snoozed = (key, hrs) => dm[key] && (Date.now() - dm[key]) < hrs * 3600 * 1000;
-  const daysSince = db.last_checkin ? Game.daysBetween(db.last_checkin, today) : 999;
+  const daysSince = checkInAsk(db, today).daysSince;
   const checkedInToday = db.last_checkin === today;
   if (!db.paused && !checkedInToday && daysSince >= 5 && !snoozed('breakout_checkin', 20)) {
     const howLong = daysSince >= 900 ? "It's been a while" : "It's been " + daysSince + ' days';
@@ -2784,7 +2850,18 @@ function weeklyRecapFor(db, today) {
   const inWeek = (db.weight_entries || []).filter(w => w.date >= weekStart && w.date <= today).sort((a, b) => (a.date < b.date ? -1 : 1));
   const val = w => (w.trend_weight != null ? w.trend_weight : w.scale_weight);
   const weight = inWeek.length >= 2 ? { startKg: val(inWeek[0]), endKg: val(inWeek[inWeek.length - 1]) } : null;
-  return Game.weeklyRecap(days, weight);
+  const r = Game.weeklyRecap(days, weight);
+  // Steps for the week and the one before it, so the weekly read can lead with activity rather than
+  // jumping straight to "eat less" (the same steps-first stance the check-in coach takes).
+  const stepAvg = (fromISO, toISO) => {
+    const vals = [];
+    for (let d = fromISO; d <= toISO; d = shiftISO(d, 1)) { const v = +((db.steps || {})[d]) || 0; if (v > 0) vals.push(v); }
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+  };
+  r.stepsAvg = stepAvg(weekStart, today);
+  r.stepsAvgPrev = stepAvg(shiftISO(weekStart, -7), shiftISO(weekStart, -1));
+  r.stepGoal = stepGoalFor(db) || null;
+  return r;
 }
 // Whether to surface the weekly recap: once a week (Sun/Mon), for established users with enough of a
 // week logged to be worth reading back, and not already seen this week.
@@ -2816,19 +2893,23 @@ function buddyMessage(db, today, streak) {
     text: "Your new plan from this week's check-in is ready. Want to take a look?",
     primary: { label: 'Review it', act: 'review' } };
   // (Goal milestones are celebrated as a full-screen moment owned by the Dashboard, not a habitat line.)
-  // 2c. Weekly recap: once a week, the buddy offers to read the past week back to you (the immersive
-  // detail lives in a sheet). Surfaces above the daily read on its day.
-  if (!incubating && recapDue(db, today)) {
+  const hour = new Date().getHours();
+  const weigh = weighAsk(db, today);
+  const ci = checkInAsk(db, today);
+  // 2c. Weekly recap: once a week, the buddy reads the past week back to you (the detail lives in a
+  // sheet). It sits BELOW the morning weigh-in on purpose: a daily weigher's weight for today feeds the
+  // very trend the recap and check-in read, so the scales come first and the week's read follows. When a
+  // check-in is also ready, the two chain here rather than landing on separate days.
+  if (!incubating && !(weigh.daily && weigh.due && hour < 12) && recapDue(db, today)) {
     const r = weeklyRecapFor(db, today);
     const proteinBit = r.proteinTarget > 0 ? ', protein on ' + r.proteinDaysHit + '/' + r.daysLogged : '';
     return { kind: 'recap', text: "Your week's in: " + r.daysLogged + '/7 days logged' + proteinBit + '. Want the full read?',
-      primary: { label: 'See my week', act: 'recap_open' } };
+      primary: { label: 'See my week', act: 'recap_open' },
+      secondary: ci.ready ? { label: 'Check in', act: 'checkin' } : null };
   }
   // 3. Morning read: the buddy's daily orientation, shown once and then gone for the day. Only when
   // there's genuine sleep/step data to talk about, and only through the daytime so an evening open
   // doesn't get a stale "morning" read.
-  const hour = new Date().getHours();
-  const weigh = weighAsk(db, today);
   // A daily weigher's morning starts on the scales, so the read fires for them even with no wearable
   // data to talk about, and it leads with the weigh-in rather than burying it behind a sheet.
   const weighFirst = !incubating && !db.paused && weigh.daily && weigh.due && hour < 12;
@@ -2840,7 +2921,8 @@ function buddyMessage(db, today, streak) {
       // Weigh-in outstanding: the read still speaks, but the tap goes straight to the scales and the
       // full read waits behind the secondary. Weighing doesn't ack the read, so it's there afterwards.
       if (weighFirst) return { kind: 'read',
-        text: (hasData ? lead.text + ' ' : '') + "First things first though, hop on the scales before food or drink and I'll log today's weight.",
+        text: (hasData ? lead.text + ' ' : '') + "First things first though, hop on the scales before food or drink and I'll log today's weight."
+          + (ci.due ? " Your weekly check-in's ready once that's in." : ''),
         primary: { label: 'Weigh in', act: 'weigh' },
         secondary: { label: 'See the full read', act: 'read_open' } };
       return { kind: 'read', text: lead.text,
@@ -4200,10 +4282,21 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
 // The buddy reads your past week back to you on its own little screen: days logged, average intake,
 // protein consistency and the week's weight trend, then a warm line and a jump into full Progress.
 // Opened from the weekly-recap line in the habitat. Mirrors the morning-read sheet's shape.
-function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
+function WeeklyRecapSheet({ db, onClose, onOpenProgress, onCheckIn }) {
   useBackClose(onClose);
   const today = Store.todayISO();
   const r = weeklyRecapFor(db, today);
+  const ci = checkInAsk(db, today);
+  const isPremium = window.MISPREMIUM === true;
+  const [dive, setDive] = useState(null);
+  const [diving, setDiving] = useState(false);
+  const [diveErr, setDiveErr] = useState('');
+  function runDive() {
+    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} return; }
+    setDiving(true); setDiveErr('');
+    buddyWeeklyDive(db, r).then(t => { setDive(t || ''); setDiving(false); })
+      .catch(e => { setDiving(false); if (!(e && e.aiError)) setDiveErr("Couldn't reach me for a deeper look just now. Try again in a bit."); });
+  }
   const buddy = db.buddy || {};
   const who = buddy.name || 'Your buddy';
   const p = db.profile || {};
@@ -4239,7 +4332,20 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
           ))}
         </div>
         <div className="pixel-box p-3 mb-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{line}<span style={{ color: 'var(--accent)' }}>”</span></div>
-        {onOpenProgress && <button onClick={onOpenProgress} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SEE FULL PROGRESS</button>}
+        {/* The week's one recommendation. A week of data is where a real "change this" becomes possible,
+            so the recap names one, deterministically for everyone, with the AI read on top for premium. */}
+        <div className="pixel-box p-3 mb-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', borderLeft: '4px solid var(--accent)', boxShadow: 'none' }}>
+          <div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--accent)' }}>This week, change one thing</div>
+          {weeklyRecommendation(db, r)}
+        </div>
+        {dive
+          ? <div className="pixel-box p-3 mb-2 text-[11.5px] leading-snug" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}><div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{who}'s deeper read</div>{dive}</div>
+          : <button onClick={runDive} disabled={diving} className="pixel-btn w-full py-2.5 text-[9px] pf mb-2 inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--surface2)', opacity: diving ? 0.6 : 1 }}>{diving ? 'THINKING…' : isPremium ? 'ASK ' + who.toUpperCase() + ' TO READ MY WEEK' : 'DEEPER READ · PREMIUM'}</button>}
+        {diveErr && <div className="text-[10px] mb-2 leading-snug" style={{ color: 'var(--warn)' }}>{diveErr}</div>}
+        {/* The week's read and the week's action, in one moment: check in straight off the recap rather
+            than waiting for a separate ask on another day. */}
+        {ci.ready && onCheckIn && <button onClick={() => { onClose(); onCheckIn(); }} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{ci.due ? 'DO MY WEEKLY CHECK-IN' : 'CHECK IN NOW'}</button>}
+        {onOpenProgress && <button onClick={onOpenProgress} className={'pixel-btn w-full py-2.5 text-[10px]'} style={ci.ready && onCheckIn ? { background: 'var(--surface2)' } : { background: 'var(--accent)', color: 'var(--on-accent)' }}>SEE FULL PROGRESS</button>}
       </div>
     </div>
   );
@@ -5245,7 +5351,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Daily weighers get the quick weigh sheet (it's a one-number job, every morning); weekly weighers
           get the full check-in, where the weight is meant to retune the plan. */}
       {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => { if ((db.profile || {}).weighCadence === 'daily') setWeighOpen(true); else onCheckIn(); }} />}
-      {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
+      {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} onCheckIn={onCheckIn} />}
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
@@ -6882,7 +6988,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
 
       {/* The daily weigh-in, as prominent as the weekly check-in above it. Opens the same quick sheet the
           buddy uses on Today, so there's one weigh-in flow wherever you find it. */}
-      <TodayWeightCard db={db} onWeigh={() => setWeighOpen(true)} onSeeAll={() => setProgressView('daily')} />
+      <TodayWeightCard db={db} onWeigh={() => setWeighOpen(true)} onSeeAll={() => setProgressView('daily')} onCheckIn={onCheckIn} />
 
       {/* Progress: the full weight trend, weigh-in log, check-in history and live burn estimate.
           Moved here from the dashboard so Home stays a quick daily glance. */}
