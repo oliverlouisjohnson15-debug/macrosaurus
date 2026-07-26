@@ -93,6 +93,11 @@ Deno.serve(async (req) => {
   const messages = payload?.messages;
   if (!Array.isArray(messages)) return json({ error: { message: 'Missing messages.' } }, 400);
   const system = (typeof payload?.system === 'string' && payload.system) ? payload.system : undefined;
+  // Thinking mode. Sonnet 5 thinks by default and spends the thinking on the same max_tokens budget
+  // as the answer, so the client sends an explicit config to keep the budget for the JSON. Only the
+  // two shapes we use are passed on; anything else is dropped rather than forwarded to Anthropic.
+  const t = payload?.thinking;
+  const thinking = (t && (t.type === 'disabled' || t.type === 'adaptive')) ? t : undefined;
 
   const { prompt, images } = extractPromptAndImages(messages, system);
   const feature = featureOf(prompt);
@@ -160,6 +165,7 @@ Deno.serve(async (req) => {
 
   const anthBody: Record<string, unknown> = { model, max_tokens: maxTokens, messages };
   if (system) anthBody.system = system;
+  if (thinking) anthBody.thinking = thinking;
 
   // Forward to Anthropic with the SERVER key.
   let aRes: Response;
@@ -194,9 +200,13 @@ Deno.serve(async (req) => {
   // logged (photos of the user's body). Auto-purged after 30 days.
   try {
     if (feature !== 'bodyfat') {
-      const resultText = (aRes.ok && Array.isArray(data?.content))
+      const textOut = (aRes.ok && Array.isArray(data?.content))
         ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('')
-        : JSON.stringify(data ?? {}).slice(0, 20000);
+        : '';
+      // A 200 carrying no text is a failure for the client (it has nothing to parse) but used to be
+      // logged as a blank 'ok' row, which hid the cause. Log the raw payload and flag it, so
+      // stop_reason and the block types are there to read.
+      const resultText = textOut || JSON.stringify(data ?? {}).slice(0, 20000);
       const row = {
         user_id: userId,
         feature,
@@ -208,7 +218,7 @@ Deno.serve(async (req) => {
         cost_usd: cost || null,
         image_count: images.length,
         images: images.slice(0, 6),
-        status: aRes.ok ? 'ok' : 'error',
+        status: (aRes.ok && textOut) ? 'ok' : 'error',
       };
       const p = admin.from('ai_logs').insert(row).then(() => {}, () => {});
       // @ts-ignore EdgeRuntime is provided by the Supabase edge runtime

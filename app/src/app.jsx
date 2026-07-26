@@ -250,6 +250,14 @@ function prettyDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en
 /* ---------- image / AI helpers (the AI / Anthropic) ---------- */
 const AI_MODEL = 'claude-sonnet-5';               // reasoning jobs: meal estimates, body fat
 const AI_MODEL_FAST = 'claude-haiku-4-5-20251001'; // deterministic OCR: nutrition-label scans
+// Sonnet 5 runs adaptive thinking BY DEFAULT when a request leaves `thinking` unset (Sonnet 4.6 did
+// not), and thinking tokens are spent out of the same max_tokens budget as the reply. Our jobs all
+// ask for one compact JSON object, so the budget was going on thinking and the reply came back
+// empty or cut off mid-object: every estimate failed with "couldn't read the estimate". These are
+// structured extraction jobs rather than open reasoning, so we turn thinking off explicitly and
+// keep the whole budget for the JSON. Only models that take the parameter get it.
+const THINKING_MODELS = { [AI_MODEL]: { type: 'disabled' } };
+function thinkingFor(model) { return THINKING_MODELS[model] || null; }
 // AI now runs through our own server-side proxy (Supabase Edge Function) that holds the Anthropic
 // key, so users never need to bring their own. The proxy checks the signed-in user and enforces a
 // small monthly spend cap per account. No API key is ever shipped to the browser.
@@ -298,10 +306,14 @@ async function aiRequest(body) {
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
   const token = sess && sess.access_token;
   if (!token) throw new Error('Please sign in to use AI features.');
+  // Pin the thinking mode here rather than at each call site, so a model default can never silently
+  // eat a call's max_tokens budget again. An explicit body.thinking still wins.
+  const think = body.thinking || thinkingFor(body.model);
+  const payload = think ? { ...body, thinking: think } : body;
   const res = await fetch(AI_PROXY, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   const j = await res.json();
   if (j.type === 'error' || j.error) {
@@ -426,10 +438,14 @@ function mergeHealthInto(d, health) {
 // content block with cache_control, so Anthropic prompt-caches it. Because every user's call of the
 // same kind shares this identical prefix on the one server-side key, the fixed prompt is billed at
 // ~10% after the first hit and responses come back faster. Variable bits (notes) stay in `prompt`.
+// opts.maxTokens: keep real headroom over the longest JSON a call can produce. Sonnet 5 tokenises
+// the same text into roughly a third more tokens than Sonnet 4.6 did, so budgets carried over from
+// the old model now cut long meals off mid-object; parseModelJSON salvages what it can, but the
+// tail (usually the totals) is lost. These budgets are the ceiling, not the expected spend.
 async function claudeVision(key, files, prompt, opts) {
   opts = opts || {};
   const model = opts.model || AI_MODEL;
-  const maxTokens = opts.maxTokens || 2048;
+  const maxTokens = opts.maxTokens || 3000;
   const maxImg = opts.maxImg || 1024;
   const content = [];
   // Cacheable static instructions FIRST (the cache breakpoint), so the prefix caches regardless of
@@ -439,6 +455,9 @@ async function claudeVision(key, files, prompt, opts) {
   if (prompt) content.push({ type: 'text', text: prompt });
   const j = await aiRequest({ model, max_tokens: maxTokens, messages: [{ role: 'user', content }] });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  // No text at all (rather than unreadable text) means the reply never got written, so say that
+  // instead of letting parseModelJSON report it as unparseable.
+  if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
   return parseModelJSON(txt);
 }
 // AI coaching layer: the deterministic engine has ALREADY decided the numbers; this only turns them
@@ -560,7 +579,7 @@ async function structureRecipeFromImages(files, meta, hint) {
 // the final word (packaged jars, things behind other things and quantities are unreliable).
 const FRIDGE_PROMPT = 'You are looking at photo(s) of the inside of a fridge, freezer, cupboard or kitchen worktop. List every distinct FOOD or DRINK ingredient you can identify. Rules: use the plain everyday food name only, no quantities, no brand names, no packaging words (e.g. "milk" not "1 pint of milk", "chicken" not "pack of chicken thighs"). One item per food. Ignore non-food objects, condiment sachets and anything you cannot identify with reasonable confidence. British English. Respond ONLY with compact JSON: {"items":["eggs","cheddar cheese","spinach", ...]}.';
 async function scanFridgeItems(files) {
-  const raw = await claudeVision(null, files, FRIDGE_PROMPT, { model: AI_MODEL, maxTokens: 700, maxImg: 1024 });
+  const raw = await claudeVision(null, files, FRIDGE_PROMPT, { model: AI_MODEL, maxTokens: 1000, maxImg: 1024 });
   const items = Array.isArray(raw && raw.items) ? raw.items : [];
   const seen = {}, out = [];
   items.forEach(function (it) {
@@ -1596,7 +1615,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
       const prompt = BF_PROMPT + ' The person is ' + (sex === 'female' ? 'female' : 'male') + '.'
         + (prevBf != null ? ' Their last recorded body fat was ' + prevBf + '%. Treat that as a consistency anchor and only move away from it if the photos clearly justify it.' : '')
         + ' Photos provided (in order): ' + have.join(', ') + '.';
-      const est = await claudeVision(apiKey, have.map(s => imgs[s].file), prompt, { model: AI_MODEL, maxTokens: 400 });
+      const est = await claudeVision(apiKey, have.map(s => imgs[s].file), prompt, { model: AI_MODEL, maxTokens: 700 });
       setResult({ pct: Math.round(est.bodyfat_percent), confidence: est.confidence || 'medium', note: est.note || '' });
     } catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
@@ -6195,7 +6214,7 @@ function DescribeTab({ db, onPick, onScan }) {
     if (listening) stopMic();
     setBusy(true); setErr('');
     try {
-      const est = await claudeVision(key, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 2048, maxImg: 768, cacheText: AI_PROMPT });
+      const est = await claudeVision(key, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
@@ -6204,7 +6223,7 @@ function DescribeTab({ db, onPick, onScan }) {
     setBusy(true); setErr('');
     try {
       const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items, stay honest and do not round down. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
-      const est = await claudeVision(key, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 2048, maxImg: 768 });
+      const est = await claudeVision(key, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
@@ -6247,7 +6266,7 @@ function MealEstimate({ apiKey, db, onPick, onBack, initialFiles }) {
   async function run() {
     if (!imgs.length && !notes.trim()) { setErr('Add a food photo, a menu photo, or a description.'); return; }
     setBusy(true); setErr('');
-    try { const est = await claudeVision(apiKey, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 2048, maxImg: 768, cacheText: AI_PROMPT }); setResult(est); setVer(v => v + 1); }
+    try { const est = await claudeVision(apiKey, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT }); setResult(est); setVer(v => v + 1); }
     catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
   }
@@ -6256,7 +6275,7 @@ function MealEstimate({ apiKey, db, onPick, onBack, initialFiles }) {
     try {
       // Slim refine: the previous JSON already carries the schema, so we skip resending the full estimator prompt.
       const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items, stay honest and do not round down. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
-      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 2048, maxImg: 768 }); setResult(est); setVer(v => v + 1);
+      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 }); setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
   }
@@ -6524,7 +6543,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
       // or estimated). Easy labels stay cheap; harder ones automatically get the stronger reader.
       const read = (model, mt) => claudeVision(key, [file], '', { model, maxTokens: mt, maxImg: 1568, cacheText: LABEL_PROMPT });
       let est = await read(AI_MODEL_FAST, 1200);
-      if (!labelReadReliable(est)) { setBusy('Double-checking the label…'); est = await read(AI_MODEL, 1500); }
+      if (!labelReadReliable(est)) { setBusy('Double-checking the label…'); est = await read(AI_MODEL, 2000); }
       const sg = +est.serving_g || null;
       const ps = est.per_serving || {}, p100 = est.per_100g || {};
       const hasServing = (+ps.kcal || 0) > 0 || (+ps.carbs_g || 0) > 0 || (+ps.protein_g || 0) > 0 || (+ps.fat_g || 0) > 0;
