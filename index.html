@@ -8242,18 +8242,19 @@ function WeighInLog({
     className: "font-semibold mb-0.5"
   }, "Weigh-in log"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]"
-  }, "Tap an entry to edit")), /*#__PURE__*/React.createElement("button", {
+  }, "Every weight you've logged. Tap one to edit, or add a day you missed.")), /*#__PURE__*/React.createElement("button", {
     onClick: () => setEditing({
       new: true
     }),
-    className: "pixel-box px-3 py-1.5 text-[11px] shrink-0",
+    className: "pixel-box px-3 py-1.5 text-[11px] shrink-0 font-bold",
     style: {
-      background: 'var(--surface2)',
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
       boxShadow: 'none'
     }
-  }, "+ Add")), !entries.length ? /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] py-2"
-  }, "No weigh-ins yet. Your buddy prompts you to weigh in on Today, or add any day here with “+ Add”.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
+  }, "+ Add day")), !entries.length ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] text-[#8A8A90] py-2 leading-relaxed"
+  }, "No weigh-ins yet. Use “Weigh in” at the top of this page for today's weight, or “+ Add day” to backfill one you missed. Your buddy also asks each morning on Today.") : /*#__PURE__*/React.createElement("div", null, shown.map(e => {
     const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
     return /*#__PURE__*/React.createElement("div", {
       key: e.id || e.date,
@@ -8402,13 +8403,84 @@ function CheckInHistory({
     className: "text-[12px] text-[#8A8A90] pt-1 w-full text-left"
   }, showAll ? 'Show fewer' : `See all ${rows.length} check-ins`)));
 }
-// One condensed panel: switch between the trend Graph, the Daily weigh-in log, and Check-ins.
+// The daily weigh-in's home on Progress. The buddy owns the morning ask on Today, but people come
+// looking for it here too, and it used to be buried two taps deep (Progress > Daily tab > "+ Add") with
+// nothing on the page to say whether today's weight was in. This lifts it to the top as a sibling of the
+// weekly check-in card, so both cadences read the same way at a glance: where you stand, what it feeds,
+// and one tap to log it. Deliberately mirrors the check-in card's shape rather than inventing a new one.
+function TodayWeightCard({
+  db,
+  onWeigh,
+  onSeeAll
+}) {
+  const unit = db.profile.weight_unit;
+  const today = Store.todayISO();
+  const entries = db.weight_entries || [];
+  const todays = entries.find(w => w.date === today);
+  const ask = weighAsk(db, today);
+  const sorted = entries.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const last = sorted[sorted.length - 1] || null;
+  const daysSince = last ? Game.daysBetween(last.date, today) : null;
+  const avg7 = avgWeight(entries, shiftISO(today, -6), today);
+  // Movement over the fortnight, from the smoothed trend where we have it, so a single noisy scale day
+  // never reads as progress.
+  const val = w => w && (w.trend_weight != null ? w.trend_weight : w.scale_weight);
+  const prior = sorted.filter(w => Game.daysBetween(w.date, today) >= 7);
+  const delta = last && prior.length ? val(last) - val(prior[prior.length - 1]) : null;
+  const kicker = ask.daily ? "Today's weight" : 'Weigh-in';
+  const status = todays ? fmtWeight(todays.scale_weight, unit) : ask.daily ? 'Not logged yet' : ask.due ? 'Not weighed this week' : daysSince === 0 ? 'Logged today' : 'Weighed ' + daysSince + ' day' + (daysSince === 1 ? '' : 's') + ' ago';
+  const sub = todays ? "Logged today, that's the one that keeps your trend honest." : ask.daily ? 'Same time each morning, after the loo and before food or drink, gives the truest trend.' : ask.due ? 'A quick one keeps your plan tuned to the real you.' : 'You weigh in weekly. Add an extra any time you fancy.';
+  return /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-1"
+  }, kicker), /*#__PURE__*/React.createElement("div", {
+    className: todays ? 'text-xl font-bold tnum leading-none mb-1' : 'text-[13px] font-bold mb-0.5',
+    style: todays ? {
+      color: 'var(--hero)'
+    } : null
+  }, status), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] leading-snug"
+  }, sub)), /*#__PURE__*/React.createElement(Btn, {
+    kind: todays ? 'ghost' : 'accent',
+    className: "shrink-0",
+    onClick: onWeigh
+  }, todays ? 'Edit' : 'Weigh in')), (avg7 != null || entries.length > 0) && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between gap-3 mt-3 pt-2.5 border-t border-[#262629] text-[10px] text-[#8A8A90]"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "tnum truncate"
+  }, avg7 != null && /*#__PURE__*/React.createElement(React.Fragment, null, "7-day avg ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[var(--text)]"
+  }, fmtWeight(avg7, unit))), delta != null && /*#__PURE__*/React.createElement("span", {
+    className: "ml-2"
+  }, "week ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: delta === 0 ? 'var(--muted)' : 'var(--text)'
+    }
+  }, fmtWeightDelta(delta, unit)))), !!entries.length && onSeeAll && /*#__PURE__*/React.createElement("button", {
+    onClick: onSeeAll,
+    className: "shrink-0",
+    style: {
+      color: 'var(--hero)'
+    }
+  }, "All ", entries.length, " weigh-ins ›")));
+}
+// One condensed panel: switch between the trend Graph, the weigh-in log, and Check-ins. The tab can be
+// driven from outside (the weigh-in card jumps straight to the log) or fall back to its own state.
 function ProgressPanel({
   db,
-  update
+  update,
+  view,
+  onView
 }) {
-  const [view, setView] = useState('graph');
-  const tabs = [['graph', 'Graph'], ['daily', 'Daily'], ['checkins', 'Check-ins']];
+  const [ownView, setOwnView] = useState('graph');
+  const v = view || ownView;
+  const set = onView || setOwnView;
+  const tabs = [['graph', 'Graph'], ['daily', 'Weigh-ins'], ['checkins', 'Check-ins']];
   return /*#__PURE__*/React.createElement("div", {
     className: "mb-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -8419,14 +8491,14 @@ function ProgressPanel({
     }
   }, tabs.map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
-    onClick: () => setView(k),
-    className: `flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`
-  }, l))), view === 'graph' && /*#__PURE__*/React.createElement(TrendCard, {
+    onClick: () => set(k),
+    className: `flex-1 py-2 ${v === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`
+  }, l))), v === 'graph' && /*#__PURE__*/React.createElement(TrendCard, {
     db: db
-  }), view === 'daily' && /*#__PURE__*/React.createElement(WeighInLog, {
+  }), v === 'daily' && /*#__PURE__*/React.createElement(WeighInLog, {
     db: db,
     update: update
-  }), view === 'checkins' && /*#__PURE__*/React.createElement(CheckInHistory, {
+  }), v === 'checkins' && /*#__PURE__*/React.createElement(CheckInHistory, {
     db: db
   }));
 }
@@ -20015,6 +20087,8 @@ function Goals({
   const [gwLb, setGwLb] = useState(p.goalWeightKg ? seedGW.lb : '');
   const [confirming, setConfirming] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
+  const [weighOpen, setWeighOpen] = useState(false); // the quick weigh sheet, same one the buddy opens
+  const [progressView, setProgressView] = useState('graph'); // which ProgressPanel tab is showing
   const [wErr, setWErr] = useState('');
   const seed = kgToStLb(p.weightKg);
   const [kg, setKg] = useState(p.weightKg);
@@ -20110,11 +20184,17 @@ function Goals({
       },
       onClick: onCheckIn
     }, "Check in")));
-  })(), /*#__PURE__*/React.createElement("div", {
+  })(), /*#__PURE__*/React.createElement(TodayWeightCard, {
+    db: db,
+    onWeigh: () => setWeighOpen(true),
+    onSeeAll: () => setProgressView('daily')
+  }), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-3"
   }, "Progress"), /*#__PURE__*/React.createElement(ProgressPanel, {
     db: db,
-    update: update
+    update: update,
+    view: progressView,
+    onView: setProgressView
   }), /*#__PURE__*/React.createElement(ExpenditureCard, {
     db: db
   }), /*#__PURE__*/React.createElement("div", {
@@ -20374,7 +20454,11 @@ function Goals({
     confirmKind: "accent",
     onConfirm: pause,
     onClose: () => setPauseOpen(false)
-  }))));
+  }))), weighOpen && /*#__PURE__*/React.createElement(WeighSheet, {
+    db: db,
+    update: update,
+    onClose: () => setWeighOpen(false)
+  }));
 }
 
 /* =====================================================================

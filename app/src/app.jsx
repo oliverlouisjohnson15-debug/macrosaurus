@@ -2133,11 +2133,12 @@ function WeighInLog({ db, update }) {
   return (
     <Card className="p-4 mb-6">
       <div className="flex items-start justify-between mb-3">
-        <div><div className="font-semibold mb-0.5">Weigh-in log</div><div className="text-[11px] text-[#8A8A90]">Tap an entry to edit</div></div>
-        <button onClick={() => setEditing({ new: true })} className="pixel-box px-3 py-1.5 text-[11px] shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>+ Add</button>
+        <div><div className="font-semibold mb-0.5">Weigh-in log</div><div className="text-[11px] text-[#8A8A90]">Every weight you've logged. Tap one to edit, or add a day you missed.</div></div>
+        {/* Accent-filled so backfilling a missed day reads as an offer, not a faint icon in the corner. */}
+        <button onClick={() => setEditing({ new: true })} className="pixel-box px-3 py-1.5 text-[11px] shrink-0 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'none' }}>+ Add day</button>
       </div>
       {!entries.length
-        ? <div className="text-[12px] text-[#8A8A90] py-2">No weigh-ins yet. Your buddy prompts you to weigh in on Today, or add any day here with “+ Add”.</div>
+        ? <div className="text-[12px] text-[#8A8A90] py-2 leading-relaxed">No weigh-ins yet. Use “Weigh in” at the top of this page for today's weight, or “+ Add day” to backfill one you missed. Your buddy also asks each morning on Today.</div>
         : <div>{shown.map(e => {
           const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
           return (
@@ -2215,18 +2216,69 @@ function CheckInHistory({ db }) {
     </Card>
   );
 }
-// One condensed panel: switch between the trend Graph, the Daily weigh-in log, and Check-ins.
-function ProgressPanel({ db, update }) {
-  const [view, setView] = useState('graph');
-  const tabs = [['graph', 'Graph'], ['daily', 'Daily'], ['checkins', 'Check-ins']];
+// The daily weigh-in's home on Progress. The buddy owns the morning ask on Today, but people come
+// looking for it here too, and it used to be buried two taps deep (Progress > Daily tab > "+ Add") with
+// nothing on the page to say whether today's weight was in. This lifts it to the top as a sibling of the
+// weekly check-in card, so both cadences read the same way at a glance: where you stand, what it feeds,
+// and one tap to log it. Deliberately mirrors the check-in card's shape rather than inventing a new one.
+function TodayWeightCard({ db, onWeigh, onSeeAll }) {
+  const unit = db.profile.weight_unit;
+  const today = Store.todayISO();
+  const entries = db.weight_entries || [];
+  const todays = entries.find(w => w.date === today);
+  const ask = weighAsk(db, today);
+  const sorted = entries.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const last = sorted[sorted.length - 1] || null;
+  const daysSince = last ? Game.daysBetween(last.date, today) : null;
+  const avg7 = avgWeight(entries, shiftISO(today, -6), today);
+  // Movement over the fortnight, from the smoothed trend where we have it, so a single noisy scale day
+  // never reads as progress.
+  const val = w => (w && (w.trend_weight != null ? w.trend_weight : w.scale_weight));
+  const prior = sorted.filter(w => Game.daysBetween(w.date, today) >= 7);
+  const delta = (last && prior.length) ? val(last) - val(prior[prior.length - 1]) : null;
+  const kicker = ask.daily ? "Today's weight" : 'Weigh-in';
+  const status = todays ? fmtWeight(todays.scale_weight, unit)
+    : ask.daily ? 'Not logged yet'
+    : ask.due ? 'Not weighed this week'
+    : daysSince === 0 ? 'Logged today' : 'Weighed ' + daysSince + ' day' + (daysSince === 1 ? '' : 's') + ' ago';
+  const sub = todays ? "Logged today, that's the one that keeps your trend honest."
+    : ask.daily ? 'Same time each morning, after the loo and before food or drink, gives the truest trend.'
+    : ask.due ? 'A quick one keeps your plan tuned to the real you.'
+    : 'You weigh in weekly. Add an extra any time you fancy.';
+  return (
+    <Card className="p-4 mb-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">{kicker}</div>
+          <div className={todays ? 'text-xl font-bold tnum leading-none mb-1' : 'text-[13px] font-bold mb-0.5'} style={todays ? { color: 'var(--hero)' } : null}>{status}</div>
+          <div className="text-[10px] text-[#8A8A90] leading-snug">{sub}</div>
+        </div>
+        <Btn kind={todays ? 'ghost' : 'accent'} className="shrink-0" onClick={onWeigh}>{todays ? 'Edit' : 'Weigh in'}</Btn>
+      </div>
+      {(avg7 != null || entries.length > 0) && <div className="flex items-center justify-between gap-3 mt-3 pt-2.5 border-t border-[#262629] text-[10px] text-[#8A8A90]">
+        <div className="tnum truncate">
+          {avg7 != null && <>7-day avg <span className="text-[var(--text)]">{fmtWeight(avg7, unit)}</span></>}
+          {delta != null && <span className="ml-2">week <span style={{ color: delta === 0 ? 'var(--muted)' : 'var(--text)' }}>{fmtWeightDelta(delta, unit)}</span></span>}
+        </div>
+        {!!entries.length && onSeeAll && <button onClick={onSeeAll} className="shrink-0" style={{ color: 'var(--hero)' }}>All {entries.length} weigh-ins ›</button>}
+      </div>}
+    </Card>
+  );
+}
+// One condensed panel: switch between the trend Graph, the weigh-in log, and Check-ins. The tab can be
+// driven from outside (the weigh-in card jumps straight to the log) or fall back to its own state.
+function ProgressPanel({ db, update, view, onView }) {
+  const [ownView, setOwnView] = useState('graph');
+  const v = view || ownView; const set = onView || setOwnView;
+  const tabs = [['graph', 'Graph'], ['daily', 'Weigh-ins'], ['checkins', 'Check-ins']];
   return (
     <div className="mb-2">
       <div className="flex gap-1 mb-3 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-        {tabs.map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>{l}</button>)}
+        {tabs.map(([k, l]) => <button key={k} onClick={() => set(k)} className={`flex-1 py-2 ${v === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>{l}</button>)}
       </div>
-      {view === 'graph' && <TrendCard db={db} />}
-      {view === 'daily' && <WeighInLog db={db} update={update} />}
-      {view === 'checkins' && <CheckInHistory db={db} />}
+      {v === 'graph' && <TrendCard db={db} />}
+      {v === 'daily' && <WeighInLog db={db} update={update} />}
+      {v === 'checkins' && <CheckInHistory db={db} />}
     </div>
   );
 }
@@ -6776,6 +6828,8 @@ function Goals({ db, update, showToast, onCheckIn }) {
   const [gwKg, setGwKg] = useState(p.goalWeightKg || ''); const [gwSt, setGwSt] = useState(p.goalWeightKg ? seedGW.st : ''); const [gwLb, setGwLb] = useState(p.goalWeightKg ? seedGW.lb : '');
   const [confirming, setConfirming] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
+  const [weighOpen, setWeighOpen] = useState(false);        // the quick weigh sheet, same one the buddy opens
+  const [progressView, setProgressView] = useState('graph'); // which ProgressPanel tab is showing
   const [wErr, setWErr] = useState('');
   const seed = kgToStLb(p.weightKg); const [kg, setKg] = useState(p.weightKg); const [st, setSt] = useState(seed.st); const [lb, setLb] = useState(seed.lb);
   const goalWChanged = unit === 'st_lb' ? (gwSt ? +stLbToKg(gwSt, gwLb).toFixed(2) : null) !== (p.goalWeightKg || null) : (+gwKg || null) !== (p.goalWeightKg || null);
@@ -6826,10 +6880,14 @@ function Goals({ db, update, showToast, onCheckIn }) {
         </Card>;
       })()}
 
+      {/* The daily weigh-in, as prominent as the weekly check-in above it. Opens the same quick sheet the
+          buddy uses on Today, so there's one weigh-in flow wherever you find it. */}
+      <TodayWeightCard db={db} onWeigh={() => setWeighOpen(true)} onSeeAll={() => setProgressView('daily')} />
+
       {/* Progress: the full weight trend, weigh-in log, check-in history and live burn estimate.
           Moved here from the dashboard so Home stays a quick daily glance. */}
       <div className="text-lg font-bold mb-3">Progress</div>
-      <ProgressPanel db={db} update={update} />
+      <ProgressPanel db={db} update={update} view={progressView} onView={setProgressView} />
       <ExpenditureCard db={db} />
       <div className="mb-6"><ConsistencyHeatmap db={db} today={today} /></div>
 
@@ -6895,6 +6953,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
       {pauseOpen && <ConfirmDialog title="Pause your goal?" body="Your check-in clock stops and your macros hold steady until you resume from the Dashboard." confirmLabel="Pause goal" confirmKind="accent" onConfirm={pause} onClose={() => setPauseOpen(false)} />}
         </div>
       </div>}
+      {weighOpen && <WeighSheet db={db} update={update} onClose={() => setWeighOpen(false)} />}
     </div>
   );
 }
