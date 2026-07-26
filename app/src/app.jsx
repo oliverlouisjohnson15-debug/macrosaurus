@@ -2552,7 +2552,7 @@ function buddyStageSprite(stageIndex, buddy) {
   // (existing accounts predate the flag, so they render their dino as before).
   const hatched = !(buddy && buddy.hatched === false);
   if (!hatched || stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
-  return { palette, species, group: 'base', anim: 'idle', fps: 5 };
+  return { palette, species, group: 'base', anim: 'idle', fps: BUDDY_IDLE_FPS };
 }
 /* ---------- Growth you can SEE ----------
    Every grown stage shares the one idle strip in the art pack, so a thirty-day buddy used to render
@@ -2567,6 +2567,18 @@ function buddyStageSprite(stageIndex, buddy) {
    Stage 0 is the egg and is excluded from both: it has its own sprite group and should not grow. */
 const STAGE_PX = [1, 0.72, 0.82, 0.92, 1, 1.12];
 function stageScale(stageIndex) { return STAGE_PX[Math.min(Math.max(stageIndex || 0, 0), STAGE_PX.length - 1)] || 1; }
+/* Where the feet actually are inside the 24x24 frame. Every strip in the art pack leaves transparent
+   rows below the sprite - 3 for a dino, 4 for an egg - so the visible foot line sits that many sprite
+   pixels above the frame's bottom edge, and it rises and falls with the stage scale. The terrarium
+   used to hard-code the shadow's offset per surface (tuned for the egg), so once stage scaling shrank
+   a grown buddy its feet dropped clean below the shadow. Deriving the shadow from this pad instead
+   keeps the buddy standing ON its shadow at every stage, on every surface. */
+const SPRITE_FOOT_PAD = { base: 3, egg: 4, ghost: 3 };
+const SHADOW_H = 8;
+/* Pace is a constant, not a reward or a penalty. The idle plays at the same speed for a day-one
+   hatchling and a fully grown buddy, awake and overfed alike - growth shows in size and in the
+   occasional flourish, never in how fast the buddy moves. Only a sleeping buddy holds still. */
+const BUDDY_IDLE_FPS = 5;
 const STAGE_FLOURISH = [null, 'jump', 'jump', 'move', 'dash', 'scan'];
 const FLOURISH_MIN_MS = 7000;     // at most one flourish per 7s, so it reads as ambient not busy
 const FLOURISH_JITTER_MS = 8000;  // plus jitter, so two buddies on one screen never march in step
@@ -2907,9 +2919,10 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
     <Card className="p-3 mb-4">
       <div className="flex items-center gap-2.5">
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="shrink-0 pixel-box" style={{ boxShadow: 'none', lineHeight: 0 }}>
-          {/* Overfed = full and lazy: the same idle, slowed right down so it lolls about. */}
+          {/* Overfed shows in the tint and the mood line, never in the pace: the idle always plays at
+              full speed. The shadow is derived from the sprite's foot line, so it needs no offset. */}
           <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={3} w={90} h={94}
-            floor={22} spriteBottom={4} shadowBottom={12} shadowW={52} eq={eq} asleep={asleep} stuffed={stuffed} />
+            floor={22} spriteBottom={4} shadowW={52} eq={eq} asleep={asleep} stuffed={stuffed} />
         </button>
         <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left flex items-center gap-1.5">
          <div className="min-w-0 flex-1">
@@ -3362,11 +3375,11 @@ function equippedCosmetics(buddy) {
    so a bought scene or prop shows up in both and the two can never drift apart (they used to carry
    near-duplicate markup). Sizing is passed in because the two surfaces differ: `px` is the BASE sprite
    scale, which stage growth then multiplies. */
-function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowBottom, shadowW, eq, asleep, stuffed, className, style }) {
+function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW, eq, asleep, stuffed, className, style }) {
   const s = buddyStageSprite(stageIndex, buddy);
   const scene = (eq && eq.scene) ? SCENE_ART[eq.scene] : null;
   const prop = (eq && eq.prop) ? PROP_ART[eq.prop] : null;
-  const still = !!(asleep || stuffed);
+  const still = !!asleep;                      // a nap is the only thing that stops the buddy moving
   const grown = s.group === 'base';            // the egg neither grows nor flourishes
   const move = grown ? STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] : null;
   // Only arm the flourish when this palette genuinely has the strip, so the rotation can't stall on a
@@ -3374,7 +3387,11 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowBo
   const canFlourish = !!(move && !still && spriteHasAnim(s.palette, s.species, 'base', move));
   const fl = useIdleFlourish(stageIndex, canFlourish);
   const flourishing = fl.anim !== 'idle';
-  const size = px * (grown ? stageScale(stageIndex) : 1);
+  const scale = grown ? stageScale(stageIndex) : 1;
+  const size = px * scale;
+  // Pin the shadow to the sprite's real foot line (and shrink it with the sprite), so the two move
+  // together as the buddy grows instead of the buddy drifting below its own shadow.
+  const footY = spriteBottom + (SPRITE_FOOT_PAD[s.group] || 3) * size;
   const sceneStyle = scene
     ? { background: 'radial-gradient(56% 40% at 50% 78%, ' + scene.glow + ', transparent 72%), linear-gradient(180deg, ' + scene.top + ' 0%, ' + scene.bottom + ' 100%)' }
     : null;
@@ -3386,13 +3403,13 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowBo
       {prop && <div className="absolute" style={{ left: (prop.at * 100) + '%', bottom: Math.max(2, floor - 6), transform: 'translateX(-50%)', opacity: asleep ? 0.45 : 0.9, lineHeight: 0 }}>
         <Sprite art={prop.art} colors={prop.colors} px={prop.px} />
       </div>}
-      <div className={'absolute' + (still ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: shadowBottom, width: shadowW, height: 8, transform: 'translateX(-50%)', background: scene ? '#000' : 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
-      <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteBottom, transform: 'translateX(-50%)' + (stuffed ? ' translateY(3px)' : '') },
+      <div className={'absolute' + (still ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: Math.round(footY - SHADOW_H / 2), width: Math.round(shadowW * scale), height: SHADOW_H, transform: 'translateX(-50%)', background: scene ? '#000' : 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+      <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteBottom, transform: 'translateX(-50%)' },
         asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
         {/* Bobbing is the resting state; while a flourish plays, the animation itself carries the motion. */}
         <div className={'inline-block leading-none' + (still || flourishing ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
           <SpriteSheet key={flourishing ? fl.anim : s.anim} palette={s.palette} species={s.species} group={s.group}
-            anim={flourishing ? fl.anim : s.anim} px={size} fps={flourishing ? 8 : (stuffed ? 2 : s.fps)}
+            anim={flourishing ? fl.anim : s.anim} px={size} fps={flourishing ? 8 : s.fps}
             loop={!flourishing} onEnd={fl.onEnd} />
         </div>
       </div>
@@ -3443,7 +3460,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
       <div className="flex flex-col items-center text-center mb-4">
         <div className="pixel-box mb-3" style={{ boxShadow: 'none', lineHeight: 0 }}>
           <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w={132} h={130}
-            floor={28} spriteBottom={8} shadowBottom={17} shadowW={70} eq={equippedCosmetics(buddy)} asleep={asleep} />
+            floor={28} spriteBottom={8} shadowW={70} eq={equippedCosmetics(buddy)} asleep={asleep} />
         </div>
         <div className="text-lg font-bold">{who}</div>
         {incubating
