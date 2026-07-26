@@ -386,3 +386,38 @@ test('Phase 2 safety: mergeStates() unions Amber ledger + logs across two offlin
   const ids = m.log_entries.map(e => e.id).sort();
   assert.deepStrictEqual(ids, ['le1', 'le2', 'le3']);
 });
+
+// ---- Buddy merge: the new stageSeen / equipped fields ----
+
+test('mergeStates keeps stageSeen unseeded when neither side has it', () => {
+  // maxNum would fold two absent markers into 0, which would make an existing stage-4 buddy read as a
+  // four-stage rise and fire a celebration it never earned.
+  const a = { _rev: 2, buddy: { stage: 4, name: 'Rex' } };
+  const b = { _rev: 1, buddy: { stage: 4, name: 'Rex' } };
+  const m = Store.mergeStates(a, b);
+  assert.strictEqual(m.buddy.stageSeen, null);
+});
+
+test('mergeStates takes the highest stageSeen so a moment is never replayed', () => {
+  const a = { _rev: 1, buddy: { stage: 4, stageSeen: 4 } };  // this device already showed it
+  const b = { _rev: 2, buddy: { stage: 4, stageSeen: 2 } };  // this one never did
+  assert.strictEqual(Store.mergeStates(a, b).buddy.stageSeen, 4);
+  assert.strictEqual(Store.mergeStates(b, a).buddy.stageSeen, 4);
+});
+
+test('mergeStates unions owned cosmetics and prefers the newer copy per equipped slot', () => {
+  const a = { _rev: 3, buddy: { cosmetics: ['aura_ember', 'scene_tar'], equipped: { aura: 'aura_ember' } } };
+  const b = { _rev: 1, buddy: { cosmetics: ['prop_fern'], equipped: { aura: 'aura_frost', prop: 'prop_fern' } } };
+  const m = Store.mergeStates(a, b);
+  assert.deepStrictEqual(m.buddy.cosmetics.slice().sort(), ['aura_ember', 'prop_fern', 'scene_tar']);
+  assert.strictEqual(m.buddy.equipped.aura, 'aura_ember');   // newer copy wins the slot it set
+  assert.strictEqual(m.buddy.equipped.prop, 'prop_fern');    // a slot the newer copy never set survives
+});
+
+test('mergeStates preserves an explicit "taken off" slot', () => {
+  const a = { _rev: 3, buddy: { cosmetics: ['aura_ember'], equipped: { aura: null } } };
+  const b = { _rev: 1, buddy: { cosmetics: ['aura_ember'], equipped: { aura: 'aura_ember' } } };
+  const m = Store.mergeStates(a, b);
+  assert.strictEqual(m.buddy.equipped.aura, null);
+  assert.ok(m.buddy.cosmetics.indexOf('aura_ember') >= 0); // still owned, just not worn
+});

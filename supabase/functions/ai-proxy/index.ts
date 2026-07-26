@@ -56,6 +56,10 @@ function featureOf(prompt: string): string {
   if (p.includes('body-fat estimate') || p.includes('You are a physique coach')) return 'bodyfat';
   if (p.includes('Read this nutrition label')) return 'label';
   if (p.includes('BRUTALLY HONEST UK nutrition estimator')) return 'meal';
+  // The buddy chat is open-ended user text, so it is gated to Premium like bodyfat rather than being
+  // spendable from the free monthly allowance. Signature must stay in step with buddyChatReply()'s
+  // system prompt in app/src/app.jsx.
+  if (p.includes('You are Macrosaurus, speaking as')) return 'chat';
   if (p.includes('You are Macrosaurus')) return 'coach';
   return 'other';
 }
@@ -135,6 +139,12 @@ Deno.serve(async (req) => {
           return json({ error: {
             type: 'premium_required', feature: 'bodyfat',
             message: 'Body-fat photo scans are a Premium feature.',
+          } }, 402);
+        }
+        if (feature === 'chat') {
+          return json({ error: {
+            type: 'premium_required', feature: 'chat',
+            message: 'Chatting with your buddy is a Premium feature.',
           } }, 402);
         }
         const freeLimit = Number(cfg?.free_ai_monthly ?? FALLBACK_FREE_MONTHLY);

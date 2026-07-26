@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[18rem\]{max-width:18rem}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -1520,7 +1520,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null, lastDailyDate: null, dailyStreak: 0, dailyBest: 0 }, // ladder + weekly boss + daily hunt + prestige; one ladder/daily attempt per logged day
       game_salt: null,    // per-user random seed for the buddy's stable-per-day mood/personality flavour (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
-      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought overlays (owned + equipped)
+      buddy: { stage: 0, stageSeen: null, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [], equipped: {} },   // stage: high-water index (naps after a break); stageSeen: highest stage already celebrated, NULL until seeded so an existing buddy's stage is never replayed as growth (see Game.stageUp); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought items owned; equipped: slot -> item id actually worn
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
@@ -1696,8 +1696,24 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       var cos = {};
       [].concat(ba.cosmetics || [], bb.cosmetics || []).forEach(function (c) { if (c != null) cos[c] = 1; });
       var births = [ba.hatchedISO, bb.hatchedISO].filter(Boolean).sort();
+      // Which cosmetic sits in each slot: the newer copy's choice wins per slot, but a slot the newer
+      // copy never set falls back to the older one, so equipping on one device can't blank a slot the
+      // other device had dressed. An explicit null (taken off) is a real choice and is preserved.
+      var eqa = ba.equipped || {}, eqb = bb.equipped || {};
+      var eqNew = bn.equipped || {}, eqOld = bo.equipped || {};
+      var equipped = null;
+      if (Object.keys(eqa).length || Object.keys(eqb).length) {
+        equipped = Object.assign({}, eqOld);
+        Object.keys(eqNew).forEach(function (k) { equipped[k] = eqNew[k]; });
+      }
+      // High-water like stage, EXCEPT that "never seeded" has to survive the merge: maxNum would turn
+      // a pair of absent markers into 0, and a legacy buddy already at stage 4 would then read as a
+      // four-stage rise and fire a celebration it never earned. Only fold when a side really has one.
+      var seenA = ba.stageSeen, seenB = bb.stageSeen;
+      var stageSeen = (seenA == null && seenB == null) ? null : maxNum(seenA, seenB);
       out.buddy = Object.assign({}, out.buddy || {}, {
         stage: maxNum(ba.stage, bb.stage),
+        stageSeen: stageSeen,
         evoStage: maxNum(ba.evoStage, bb.evoStage),
         name: preferSet(bn.name, bo.name),
         personality: preferSet(bn.personality, bo.personality),
@@ -1706,6 +1722,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         hatchedISO: births.length ? births[0] : ((out.buddy || {}).hatchedISO || null),
         cosmetics: Object.keys(cos),
       });
+      if (equipped) out.buddy.equipped = equipped;
     }
 
     // First-run flags only ever flip true; OR them so a stale copy can't re-trigger onboarding.
@@ -1809,6 +1826,15 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var hw = Math.max(hwStage || 0, cur);
     var asleep = cur < hw && (streak || 0) < WAKE_DAYS;
     return { stage: hw, cur: cur, asleep: asleep, wakeIn: asleep ? WAKE_DAYS - (streak || 0) : 0, ratchet: cur > (hwStage || 0) };
+  }
+  // The growth stage that deserves a celebration right now, or null. `stageSeen` is the highest stage
+  // already celebrated (db.buddy.stageSeen). A NULL stageSeen means the account predates the marker,
+  // so we return null rather than firing a retroactive moment for growth the user has long since had;
+  // the caller seeds stageSeen to the current stage once, and every rise after that is celebrated.
+  function stageUp(stage, stageSeen) {
+    if (stageSeen == null) return null;
+    var s = stage || 0;
+    return s > stageSeen ? s : null;
   }
 
   // ---- Buddy as a companion: bond, mood and needs (the Tamagotchi layer) ----
@@ -2272,20 +2298,58 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return Math.max(0, Math.round(b));
   }
 
-  // ---- Shop: spend Amber on buddy cosmetics + catch boosts. Prices are pure and stable. ----
-  // Cosmetics are FX auras that glow around the buddy sprite (drawn in app.jsx from AURA_GLOW),
-  // owned/equipped in db.buddy.cosmetics. Aura-only for now: emoji hats/faces read poorly over the
-  // pixel art, so we stick to art-native "sparkle and follow" effects until proper worn art exists.
+  // ---- Shop: spend Amber on buddy cosmetics. Prices are pure and stable. ----
+  // Three slots, one equipped item each, all drawn in app.jsx (art lives beside the sprites):
+  //   aura  - an FX glow around the buddy sprite (AURA_GLOW)
+  //   scene - the terrarium backdrop the buddy stands in (SCENE_ART)
+  //   prop  - a single pixel decoration on the terrarium floor (PROP_ART)
+  // Emoji hats/faces read poorly over 24x24 pixel art, so worn cosmetics stay out; scenes and props
+  // dress the habitat instead, which is art we already have and scales without new sprite work.
+  // Ownership lives in db.buddy.cosmetics (unioned on merge, so a purchase can never be lost); which
+  // of the owned items is actually worn lives in db.buddy.equipped (see equippedFor).
+  var COSMETIC_KINDS = ['aura', 'scene', 'prop'];
   var COSMETICS = [
     { id: 'aura_ember', name: 'Ember Aura', kind: 'aura', price: 180, desc: 'A warm ember glow that follows your buddy.' },
     { id: 'aura_frost', name: 'Frost Aura', kind: 'aura', price: 180, desc: 'A cool blue shimmer that trails your buddy.' },
     { id: 'aura_spark', name: 'Spark Aura', kind: 'aura', price: 220, desc: 'A golden sparkle that dances around your buddy.' },
     { id: 'aura_toxic', name: 'Toxic Aura', kind: 'aura', price: 220, desc: 'An eerie green haze, for the apex predator.' },
+    { id: 'scene_fern', name: 'Fern Hollow', kind: 'scene', price: 140, desc: 'A green, overgrown clearing full of soft light.' },
+    { id: 'scene_dusk', name: 'Dusk Ridge', kind: 'scene', price: 160, desc: 'Warm evening sun sinking behind the ridge.' },
+    { id: 'scene_tar', name: 'Tar Pit', kind: 'scene', price: 200, desc: 'Bubbling black tar under a smoky orange sky.' },
+    { id: 'scene_frost', name: 'Frost Cavern', kind: 'scene', price: 200, desc: 'Pale blue ice, still and very quiet.' },
+    { id: 'scene_aurora', name: 'Aurora Basin', kind: 'scene', price: 260, desc: 'Northern lights rippling over a deep violet sky.' },
+    { id: 'prop_fern', name: 'Fern', kind: 'prop', price: 90, desc: 'A leafy fern for the corner of the terrarium.' },
+    { id: 'prop_rock', name: 'Standing Stone', kind: 'prop', price: 110, desc: 'A weathered boulder to bask against.' },
+    { id: 'prop_cycad', name: 'Cycad', kind: 'prop', price: 140, desc: 'A broad prehistoric palm, good for shade.' },
+    { id: 'prop_nest', name: 'Nest Egg', kind: 'prop', price: 160, desc: 'A spare egg, kept safe beside your buddy.' },
   ];
   var COSMETIC_BY_ID = {}; COSMETICS.forEach(function (c) { COSMETIC_BY_ID[c.id] = c; });
-  // Buyable consumables (existing item ids) and their Amber price.
+  function cosmeticsOfKind(kind) { return COSMETICS.filter(function (c) { return c.kind === kind; }); }
   function shopPrice(id) { return COSMETIC_BY_ID[id] ? COSMETIC_BY_ID[id].price : null; }
   function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
+  // What the buddy is actually wearing, per slot: { aura, scene, prop }, each an id or null.
+  // `owned` is db.buddy.cosmetics, `equipped` is db.buddy.equipped (a slot -> id map).
+  //   - A slot PRESENT in `equipped` is an explicit choice: the id if it is genuinely owned and of
+  //     that kind, else null (this is also how "take it off" is stored, as an explicit null).
+  //   - A slot ABSENT from `equipped` falls back to the last owned item of that kind, which is what
+  //     the old own-it-and-it-is-worn behaviour did. That keeps accounts that predate the equipped
+  //     map (aura buyers) looking exactly as they did before, with no migration.
+  function equippedFor(owned, equipped) {
+    var ownedSet = {}; (owned || []).forEach(function (id) { if (id != null) ownedSet[id] = 1; });
+    var fallback = {};
+    (owned || []).forEach(function (id) { var c = COSMETIC_BY_ID[id]; if (c) fallback[c.kind] = id; });
+    var out = {};
+    COSMETIC_KINDS.forEach(function (kind) {
+      if (equipped && Object.prototype.hasOwnProperty.call(equipped, kind)) {
+        var pick = equipped[kind];
+        var c = pick ? COSMETIC_BY_ID[pick] : null;
+        out[kind] = (c && c.kind === kind && ownedSet[pick]) ? pick : null;
+      } else {
+        out[kind] = fallback[kind] || null;
+      }
+    });
+    return out;
+  }
 
   // ---- Buddy attentiveness: streak-save, weekly recap, goal milestones ----
   // These are the pure decisions behind the buddy's proactive lines; the UI (app.jsx) gathers the
@@ -2385,6 +2449,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     WAKE_DAYS: WAKE_DAYS,
     stageIndex: stageIndex,
     buddyView: buddyView,
+    stageUp: stageUp,
     BOND_WINDOW: BOND_WINDOW,
     dayBondPoints: dayBondPoints,
     buddyBond: buddyBond,
@@ -2450,6 +2515,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     amberBalance: amberBalance,
     COSMETICS: COSMETICS,
     COSMETIC_BY_ID: COSMETIC_BY_ID,
+    COSMETIC_KINDS: COSMETIC_KINDS,
+    cosmeticsOfKind: cosmeticsOfKind,
+    equippedFor: equippedFor,
     shopPrice: shopPrice,
     canAfford: canAfford,
     streakAtRisk: streakAtRisk,
@@ -3157,6 +3225,7 @@ function leanKg(p) {
 // ---- pixel-art glyphs (no emoji) ----
 const PX_ICONS = {
   meat: ['.####.', '######', '######', '.####.', '...##.', '...##.'],
+  chat: ['######', '#....#', '#....#', '######', '.##...', '.#....'],
   plant: ['....#.', '..###.', '.####.', '####..', '.##.#.', '.#....'],
   drink: ['######', '#....#', '#....#', '.####.', '.####.', '..##..'],
   egg: ['..##..', '.####.', '######', '######', '.####.', '..##..'],
@@ -4102,7 +4171,7 @@ async function buddyDeepDive(db) {
     stepGoal: stepGoalFor(db) || null,
     loggedToday: logged.length > 0,
     proteinSoFar: Math.round(m.protein),
-    proteinTarget: et ? Math.round(et.eff.protein) : null,
+    proteinTarget: et ? Math.round(et.eff.protein_g) : null,
     kcalSoFar: Math.round(m.kcal),
     kcalTarget: et ? Math.round(et.eff.kcal) : null,
     weighCadence: db.profile.weighCadence || 'daily'
@@ -4118,6 +4187,67 @@ async function buddyDeepDive(db) {
     }]
   });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+}
+// Premium AI conversation: the buddy answering back. Every other buddy moment is one-way (it speaks
+// on Today, you tap a CTA); this is the one place the user can ask it something. The system prompt
+// carries the SAME day snapshot the deeper dive uses, so answers are grounded in real figures rather
+// than invented ones, and `history` is the running turn list ([{ role, text }], oldest first).
+// The 'You are Macrosaurus' phrase is the signature ai-proxy classifies as the premium chat feature,
+// so keep it in step with featureOf() in supabase/functions/ai-proxy/index.ts.
+const CHAT_MAX_TURNS = 12; // trailing turns sent back; keeps the prompt (and the bill) bounded
+const CHAT_MAX_CHARS = 500; // per user message, so one paste can't blow the budget
+function buddyChatSnapshot(db) {
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  const logged = entriesOn(db, today);
+  const m = sumMacros(logged);
+  const night = lastSleepNight(db);
+  const rf = readinessFor(db, today);
+  const p = db.profile || {};
+  const span = weightSpan(db);
+  const proj = goalProjection(db);
+  return {
+    readiness: isFinite(rf) ? Math.round(rf) : null,
+    sleepHours: night ? +(night.rec.min / 60).toFixed(1) : null,
+    stepsToday: +(db.steps || {})[today] || 0,
+    stepGoal: stepGoalFor(db) || null,
+    loggedToday: logged.length > 0,
+    proteinSoFar: Math.round(m.protein),
+    proteinTarget: et ? Math.round(et.eff.protein_g) : null,
+    kcalSoFar: Math.round(m.kcal),
+    kcalTarget: et ? Math.round(et.eff.kcal) : null,
+    carbsSoFar: Math.round(m.carbs),
+    carbsTarget: et ? Math.round(et.eff.carbs_g) : null,
+    fatSoFar: Math.round(m.fat),
+    fatTarget: et ? Math.round(et.eff.fat_g) : null,
+    goalType: p.goalType || null,
+    currentWeightKg: span.last != null ? +span.last.toFixed(1) : null,
+    goalWeightKg: p.goalWeightKg != null ? +p.goalWeightKg.toFixed(1) : null,
+    weeksToGoalAtCurrentPace: proj ? proj.weeks : null
+  };
+}
+async function buddyChatReply(db, history) {
+  const who = db.buddy && db.buddy.name || 'Your buddy';
+  const snapshot = buddyChatSnapshot(db);
+  const system = 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. ' + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". ' + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. ' + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. ' + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. ' + 'No emojis, no headings, no bullet points, no markdown, no em dashes.' + '\n\nTheir day right now (JSON):\n' + JSON.stringify(snapshot);
+  // The API needs a clean user-first, strictly alternating thread. Trimming to a trailing window can
+  // land on an assistant turn (an odd-length thread cut by an even window), so drop any leading
+  // assistant turns after the slice rather than assuming the window lines up.
+  const messages = (history || []).slice(-CHAT_MAX_TURNS).map(t => ({
+    role: t.role === 'buddy' ? 'assistant' : 'user',
+    content: String(t.text || '').slice(0, CHAT_MAX_CHARS)
+  }));
+  while (messages.length && messages[0].role !== 'user') messages.shift();
+  if (!messages.length) throw new Error('Ask me something first.');
+  const j = await aiRequest({
+    model: AI_MODEL_FAST,
+    max_tokens: 300,
+    system,
+    messages
+  });
+  const txt = ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+  if (!txt) throw new Error('I did not catch that, try asking again.');
+  return txt;
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
@@ -8979,6 +9109,55 @@ function buddyStageSprite(stageIndex, buddy) {
     fps: 5
   };
 }
+/* ---------- Growth you can SEE ----------
+   Every grown stage shares the one idle strip in the art pack, so a thirty-day buddy used to render
+   pixel-identical to a day-one hatchling and "growth" was a label change on a progress bar. Two
+   art-free levers fix that without touching a single asset:
+     1. SIZE. STAGE_PX multiplies each surface's base sprite scale, so the buddy visibly fills more of
+        its terrarium as it grows. Non-integer scales are fine: SpriteSheet renders image-rendering:
+        pixelated, so the art stays crisp.
+     2. MOVEMENT. Each stage idles with its own occasional one-shot flourish, drawn from animations
+        SPRITE_FRAMES.base already ships. A hatchling hops, the middle stages pace and dash, the apex
+        scans the horizon.
+   Stage 0 is the egg and is excluded from both: it has its own sprite group and should not grow. */
+const STAGE_PX = [1, 0.72, 0.82, 0.92, 1, 1.12];
+function stageScale(stageIndex) {
+  return STAGE_PX[Math.min(Math.max(stageIndex || 0, 0), STAGE_PX.length - 1)] || 1;
+}
+const STAGE_FLOURISH = [null, 'jump', 'jump', 'move', 'dash', 'scan'];
+const FLOURISH_MIN_MS = 7000; // at most one flourish per 7s, so it reads as ambient not busy
+const FLOURISH_JITTER_MS = 8000; // plus jitter, so two buddies on one screen never march in step
+function prefersReducedMotion() {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch (_) {
+    return false;
+  }
+}
+// While `active`, break the idle every so often to play the stage's flourish once, then drop straight
+// back to idle. Returns props to spread onto SpriteSheet. The caller decides `active`, and must only
+// pass true when the strip actually exists for this palette (see spriteHasAnim), because a flourish
+// that never renders would never fire onEnd and the rotation would stall on a sprite it cannot show.
+// Honours prefers-reduced-motion, which the terrarium's bob and shadow already respect in CSS.
+function useIdleFlourish(stageIndex, active) {
+  const move = active ? STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] || null : null;
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    if (!move) {
+      setPlaying(false);
+      return;
+    }
+    if (playing || prefersReducedMotion()) return; // on screen now, or motion is off: nothing to arm
+    const t = setTimeout(() => setPlaying(true), FLOURISH_MIN_MS + Math.random() * FLOURISH_JITTER_MS);
+    return () => clearTimeout(t);
+  }, [move, playing]);
+  const on = playing && !!move;
+  return {
+    anim: on ? move : 'idle',
+    loop: !on,
+    onEnd: on ? () => setPlaying(false) : undefined
+  };
+}
 // The buddy in the fight arena, using its real animated sprite (bite/hurt/dead/idle). Species/palette
 // default to doux/female exactly like the buddy avatar everywhere else, so even legacy accounts (which
 // predate the species field) fight as their animated dino rather than a static pose.
@@ -9188,7 +9367,7 @@ function buddyCoach(db, today, streak) {
   const snoozed = (key, hrs) => dm[key] && Date.now() - dm[key] < hrs * 3600 * 1000;
   const logged = entriesOn(db, today);
   const et = effectiveTarget(db, today);
-  const proteinTgt = et ? Math.round(et.eff.protein) : 0;
+  const proteinTgt = et ? Math.round(et.eff.protein_g) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
   const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
   const weighedToday = (db.weight_entries || []).some(w => w.date === today);
@@ -9367,7 +9546,7 @@ function weeklyRecapFor(db, today) {
       logged: entries.length > 0,
       kcal: Math.round(m.kcal),
       protein: Math.round(m.protein),
-      proteinTarget: et ? Math.round(et.eff.protein) : 0
+      proteinTarget: et ? Math.round(et.eff.protein_g) : 0
     });
   }
   const weekStart = shiftISO(today, -6);
@@ -9538,12 +9717,11 @@ function BuddyHabitat({
   // buddy sits at a high-water stage above what the current streak supports (e.g. after a slip).
   const prog = next ? Math.max(0.04, Math.min(1, streak / next.min)) : 1;
   const toNext = next ? Math.max(1, next.min - streak) : 0;
-  const s = buddyStageSprite(buddy.stage, db.buddy);
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   const stuffed = !asleep && bp.mood === 'stuffed';
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
   const incubating = !!(db.buddy && db.buddy.hatched === false);
-  const eq = incubating ? {} : equippedCosmetics((db.buddy || {}).cosmetics); // no cosmetics on an egg
+  const eq = equippedCosmetics(db.buddy);
   const who = incubating ? 'Your egg' : bp.name || (bp.form ? bp.form.name : st.name);
   const tDone = tasks ? tasks.filter(t => t.done).length : 0;
   return /*#__PURE__*/React.createElement(Card, {
@@ -9553,72 +9731,25 @@ function BuddyHabitat({
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
     "aria-label": "Open Buddy and Play",
-    className: "relative shrink-0 pixel-box overflow-hidden buddy-scene",
+    className: "shrink-0 pixel-box",
     style: {
-      width: 90,
-      height: 94,
-      boxShadow: 'none'
+      boxShadow: 'none',
+      lineHeight: 0
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 right-0 bottom-0",
-    style: {
-      height: 22,
-      background: 'var(--surface2)',
-      borderTop: '2px solid var(--border)'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: 'absolute' + (asleep || stuffed ? '' : ' buddy-shadow-breathe'),
-    style: {
-      left: '50%',
-      bottom: 12,
-      width: 52,
-      height: 8,
-      transform: 'translateX(-50%)',
-      background: 'var(--border)',
-      opacity: 0.5,
-      borderRadius: '50%'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
-    style: Object.assign({
-      left: '50%',
-      bottom: 4,
-      transform: 'translateX(-50%)' + (stuffed ? ' translateY(3px)' : '')
-    }, asleep ? {
-      filter: 'grayscale(0.85)',
-      opacity: 0.5
-    } : stuffed ? {
-      filter: 'saturate(0.9)'
-    } : null)
-  }, /*#__PURE__*/React.createElement("div", {
-    className: 'inline-block leading-none' + (asleep || stuffed ? '' : ' buddy-bob'),
-    style: {
-      filter: auraFilter(eq) || undefined
-    }
-  }, /*#__PURE__*/React.createElement(SpriteSheet, {
-    palette: s.palette,
-    species: s.species,
-    group: s.group,
-    anim: s.anim,
+  }, /*#__PURE__*/React.createElement(BuddyScene, {
+    buddy: db.buddy,
+    stageIndex: buddy.stage,
     px: 3,
-    fps: stuffed ? 2 : s.fps
-  }))), asleep && /*#__PURE__*/React.createElement("span", {
-    className: "pf absolute",
-    style: {
-      top: 5,
-      right: 6,
-      fontSize: 9,
-      color: 'var(--carb)'
-    }
-  }, "Zz"), stuffed && /*#__PURE__*/React.createElement("span", {
-    className: "pf absolute",
-    style: {
-      top: 5,
-      right: 6,
-      fontSize: 9,
-      color: 'var(--warn)'
-    }
-  }, "z")), /*#__PURE__*/React.createElement("button", {
+    w: 90,
+    h: 94,
+    floor: 22,
+    spriteBottom: 4,
+    shadowBottom: 12,
+    shadowW: 52,
+    eq: eq,
+    asleep: asleep,
+    stuffed: stuffed
+  })), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
     className: "min-w-0 flex-1 text-left flex items-center gap-1.5"
   }, /*#__PURE__*/React.createElement("div", {
@@ -10701,14 +10832,86 @@ const CRAVE_LABEL = {
   fuel: 'more fuel'
 };
 
-// ---- Buddy cosmetics: shop-bought overlays drawn on the buddy sprite ----
-// Cosmetics are FX auras only now (emoji hats read poorly over the pixel art). Each aura is a CSS
-// glow colour applied to the buddy sprite. Owned/equipped in db.buddy.cosmetics.
+// ---- Buddy cosmetics: shop-bought dressing for the buddy and its terrarium ----
+// Three slots (see Game.COSMETICS): an aura glowing around the sprite, a scene behind it, and a prop
+// standing on the floor beside it. Ownership is db.buddy.cosmetics, what is actually worn is
+// db.buddy.equipped, and Game.equippedFor resolves the two (with the legacy own-it-is-wear-it
+// fallback for accounts that only ever bought auras).
 const AURA_GLOW = {
   aura_ember: '#ff7a1a',
   aura_frost: '#3fd0ff',
   aura_spark: '#ffd400',
   aura_toxic: '#39FF14'
+};
+// Terrarium scenes: a two-stop sky, the glow pooled under the buddy, and the floor band + its edge.
+// Each scene is a lit diorama with its OWN fixed lighting rather than theme-following chrome, so a
+// bought Tar Pit looks like a tar pit in both themes; the unbought default is still the themed
+// .buddy-scene the app has always drawn.
+const SCENE_ART = {
+  scene_fern: {
+    top: '#16301c',
+    bottom: '#0a1a0e',
+    glow: 'rgba(127,212,107,0.26)',
+    ground: '#1d3a22',
+    line: '#2c5531'
+  },
+  scene_dusk: {
+    top: '#3a2140',
+    bottom: '#150d1c',
+    glow: 'rgba(255,150,80,0.28)',
+    ground: '#2e1c30',
+    line: '#4a2c45'
+  },
+  scene_tar: {
+    top: '#2a1a10',
+    bottom: '#0a0705',
+    glow: 'rgba(255,110,30,0.30)',
+    ground: '#1a1109',
+    line: '#3b2513'
+  },
+  scene_frost: {
+    top: '#16303f',
+    bottom: '#081319',
+    glow: 'rgba(120,215,255,0.26)',
+    ground: '#17323f',
+    line: '#27505f'
+  },
+  scene_aurora: {
+    top: '#1b1440',
+    bottom: '#080618',
+    glow: 'rgba(120,255,200,0.30)',
+    ground: '#1d1642',
+    line: '#33285f'
+  }
+};
+// Terrarium props: one pixel decoration on the floor. These reuse CR_ART shapes the bundle already
+// carries, so a whole prop line costs no new art. `at` is the fraction across the floor (kept well
+// off centre so the prop never sits over the buddy) and `px` its Sprite scale.
+const PROP_ART = {
+  prop_fern: {
+    art: 'sprout',
+    colors: crC('#5FBF4A', '#2f7a24'),
+    at: 0.15,
+    px: 3.4
+  },
+  prop_rock: {
+    art: 'boulder',
+    colors: crC('#9FB8C9', '#5f7d90'),
+    at: 0.85,
+    px: 3.6
+  },
+  prop_cycad: {
+    art: 'brolly',
+    colors: crC('#4FA35E', '#28632f'),
+    at: 0.14,
+    px: 4.2
+  },
+  prop_nest: {
+    art: 'egg',
+    colors: crC('#EAD9A0', '#C77D3A'),
+    at: 0.86,
+    px: 3.0
+  }
 };
 const RENAME_COST = 40; // Amber to rename the buddy after hatch (the hatch naming itself is free).
 const COLOUR_COST = 60; // Amber to recolour the buddy (switch its palette / colourway) after hatch.
@@ -10716,13 +10919,128 @@ function auraFilter(eq) {
   const c = eq && eq.aura && AURA_GLOW[eq.aura];
   return c ? 'drop-shadow(0 0 6px ' + c + ') drop-shadow(0 0 3px ' + c + ')' : null;
 }
-function equippedCosmetics(list) {
-  const bySlot = {};
-  (list || []).forEach(id => {
-    const c = Game.COSMETIC_BY_ID[id];
-    if (c) bySlot[c.kind] = id;
-  });
-  return bySlot;
+// An egg is never dressed: cosmetics belong to the individual that hatches out of it.
+function equippedCosmetics(buddy) {
+  if (!buddy || buddy.hatched === false) return {};
+  return Game.equippedFor(buddy.cosmetics, buddy.equipped);
+}
+/* The terrarium, in one place. Today's habitat and the Play hub's Buddy tab both render through this,
+   so a bought scene or prop shows up in both and the two can never drift apart (they used to carry
+   near-duplicate markup). Sizing is passed in because the two surfaces differ: `px` is the BASE sprite
+   scale, which stage growth then multiplies. */
+function BuddyScene({
+  buddy,
+  stageIndex,
+  px,
+  w,
+  h,
+  floor,
+  spriteBottom,
+  shadowBottom,
+  shadowW,
+  eq,
+  asleep,
+  stuffed,
+  className,
+  style
+}) {
+  const s = buddyStageSprite(stageIndex, buddy);
+  const scene = eq && eq.scene ? SCENE_ART[eq.scene] : null;
+  const prop = eq && eq.prop ? PROP_ART[eq.prop] : null;
+  const still = !!(asleep || stuffed);
+  const grown = s.group === 'base'; // the egg neither grows nor flourishes
+  const move = grown ? STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] : null;
+  // Only arm the flourish when this palette genuinely has the strip, so the rotation can't stall on a
+  // sprite that would never render (some male colourways are missing the locomotion frames).
+  const canFlourish = !!(move && !still && spriteHasAnim(s.palette, s.species, 'base', move));
+  const fl = useIdleFlourish(stageIndex, canFlourish);
+  const flourishing = fl.anim !== 'idle';
+  const size = px * (grown ? stageScale(stageIndex) : 1);
+  const sceneStyle = scene ? {
+    background: 'radial-gradient(56% 40% at 50% 78%, ' + scene.glow + ', transparent 72%), linear-gradient(180deg, ' + scene.top + ' 0%, ' + scene.bottom + ' 100%)'
+  } : null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: 'relative overflow-hidden' + (scene ? '' : ' buddy-scene') + (className ? ' ' + className : ''),
+    style: Object.assign({
+      width: w,
+      height: h
+    }, sceneStyle, style)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute left-0 right-0 bottom-0",
+    style: {
+      height: floor,
+      background: scene ? scene.ground : 'var(--surface2)',
+      borderTop: '2px solid ' + (scene ? scene.line : 'var(--border)')
+    }
+  }), prop && /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: {
+      left: prop.at * 100 + '%',
+      bottom: Math.max(2, floor - 6),
+      transform: 'translateX(-50%)',
+      opacity: asleep ? 0.45 : 0.9,
+      lineHeight: 0
+    }
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: prop.art,
+    colors: prop.colors,
+    px: prop.px
+  })), /*#__PURE__*/React.createElement("div", {
+    className: 'absolute' + (still ? '' : ' buddy-shadow-breathe'),
+    style: {
+      left: '50%',
+      bottom: shadowBottom,
+      width: shadowW,
+      height: 8,
+      transform: 'translateX(-50%)',
+      background: scene ? '#000' : 'var(--border)',
+      opacity: 0.5,
+      borderRadius: '50%'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: Object.assign({
+      left: '50%',
+      bottom: spriteBottom,
+      transform: 'translateX(-50%)' + (stuffed ? ' translateY(3px)' : '')
+    }, asleep ? {
+      filter: 'grayscale(0.85)',
+      opacity: 0.5
+    } : stuffed ? {
+      filter: 'saturate(0.9)'
+    } : null)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: 'inline-block leading-none' + (still || flourishing ? '' : ' buddy-bob'),
+    style: {
+      filter: auraFilter(eq) || undefined
+    }
+  }, /*#__PURE__*/React.createElement(SpriteSheet, {
+    key: flourishing ? fl.anim : s.anim,
+    palette: s.palette,
+    species: s.species,
+    group: s.group,
+    anim: flourishing ? fl.anim : s.anim,
+    px: size,
+    fps: flourishing ? 8 : stuffed ? 2 : s.fps,
+    loop: !flourishing,
+    onEnd: fl.onEnd
+  }))), asleep && /*#__PURE__*/React.createElement("span", {
+    className: "pf absolute",
+    style: {
+      top: 5,
+      right: 6,
+      fontSize: 9,
+      color: 'var(--carb)'
+    }
+  }, "Zz"), stuffed && /*#__PURE__*/React.createElement("span", {
+    className: "pf absolute",
+    style: {
+      top: 5,
+      right: 6,
+      fontSize: 9,
+      color: 'var(--warn)'
+    }
+  }, "z"));
 }
 // The buddy avatar on the new animated art: the chosen species/palette at its growth stage (or the
 // egg while incubating), with equipped emoji cosmetics overlaid. `px` is the SpriteSheet pixel scale
@@ -10732,9 +11050,12 @@ function BuddyAvatar({
   px = 4,
   asleep
 }) {
-  const s = buddyStageSprite(buddy && buddy.stage || 0, buddy);
-  const eq = buddy && buddy.hatched === false ? {} : equippedCosmetics(buddy && buddy.cosmetics);
+  const stage = buddy && buddy.stage || 0;
+  const s = buddyStageSprite(stage, buddy);
+  const eq = equippedCosmetics(buddy);
   const filters = [asleep ? 'grayscale(0.85)' : null, auraFilter(eq)].filter(Boolean).join(' ');
+  // Scales with growth just like the terrarium, so the buddy reads as the same size wherever it appears.
+  const size = px * (s.group === 'base' ? stageScale(stage) : 1);
   return /*#__PURE__*/React.createElement("div", {
     className: "inline-block leading-none",
     style: {
@@ -10746,7 +11067,7 @@ function BuddyAvatar({
     species: s.species,
     group: s.group,
     anim: s.anim,
-    px: px,
+    px: size,
     fps: s.fps
   }));
 }
@@ -10781,7 +11102,9 @@ function PlayBuddyView({
   streak,
   freezeReady,
   onOpenName,
-  onTrophies
+  onTrophies,
+  onChat,
+  isPremium
 }) {
   const buddy = db.buddy || {};
   const incubating = buddy.hatched === false;
@@ -10799,53 +11122,24 @@ function PlayBuddyView({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col items-center text-center mb-4"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box mb-3 relative overflow-hidden buddy-scene",
+    className: "pixel-box mb-3",
     style: {
-      width: 132,
-      height: 130,
-      boxShadow: 'none'
+      boxShadow: 'none',
+      lineHeight: 0
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "absolute left-0 right-0 bottom-0",
-    style: {
-      height: 28,
-      background: 'var(--surface2)',
-      borderTop: '2px solid var(--border)'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: 'absolute' + (asleep ? '' : ' buddy-shadow-breathe'),
-    style: {
-      left: '50%',
-      bottom: 17,
-      width: 70,
-      height: 10,
-      transform: 'translateX(-50%)',
-      background: 'var(--border)',
-      opacity: 0.5,
-      borderRadius: '50%'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
-    style: {
-      left: '50%',
-      bottom: 8,
-      transform: 'translateX(-50%)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: 'inline-block leading-none' + (asleep ? '' : ' buddy-bob')
-  }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+  }, /*#__PURE__*/React.createElement(BuddyScene, {
     buddy: buddy,
+    stageIndex: buddy.stage || 0,
     px: 4,
+    w: 132,
+    h: 130,
+    floor: 28,
+    spriteBottom: 8,
+    shadowBottom: 17,
+    shadowW: 70,
+    eq: equippedCosmetics(buddy),
     asleep: asleep
-  }))), asleep && /*#__PURE__*/React.createElement("span", {
-    className: "pf absolute",
-    style: {
-      top: 4,
-      right: 6,
-      fontSize: 11,
-      color: 'var(--carb)'
-    }
-  }, "Zz")), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold"
   }, who), incubating ? /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] mt-1 leading-snug max-w-[16rem]",
@@ -10898,7 +11192,18 @@ function PlayBuddyView({
     }
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mt-1.5"
-  }, nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`)), /*#__PURE__*/React.createElement("button", {
+  }, nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`)), !incubating && onChat && /*#__PURE__*/React.createElement("button", {
+    onClick: onChat,
+    className: "pixel-btn w-full py-2.5 mb-2 text-[10px] inline-flex items-center justify-center gap-2",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "chat",
+    color: "currentColor",
+    size: 13
+  }), " TALK TO ", (named ? bp.name : 'YOUR BUDDY').toUpperCase(), isPremium ? '' : ' · PREMIUM'), /*#__PURE__*/React.createElement("button", {
     onClick: onTrophies,
     className: "pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2",
     style: {
@@ -10928,13 +11233,197 @@ function PlayBuddyView({
     }
   }, BUDDY_LORE[crHash((db.game_salt || '') + Store.todayISO()) % BUDDY_LORE.length])));
 }
+/* The buddy, answering back. A short conversation grounded in the same day snapshot the deeper dive
+   uses. Deliberately EPHEMERAL: the thread lives in component state and is gone when the sheet closes,
+   so nothing is added to the synced user_state blob (which merges wholesale across devices) and no
+   chat history is ever persisted. Premium-gated on the client for a clean paywall hand-off, and again
+   in ai-proxy so the gate is real rather than cosmetic. */
+const CHAT_OPENERS = ['How am I doing today?', 'What should I eat next?', 'Am I on track for my goal?'];
+function BuddyChatModal({
+  db,
+  onClose,
+  isPremium
+}) {
+  useBackClose(onClose);
+  const who = db.buddy && db.buddy.name || 'Your buddy';
+  const [turns, setTurns] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (endRef.current) endRef.current.scrollIntoView({
+      block: 'end'
+    });
+  }, [turns, busy]);
+  async function send(text) {
+    const q = String(text || '').trim().slice(0, CHAT_MAX_CHARS);
+    if (!q || busy) return;
+    if (!isPremium) {
+      try {
+        window.MPAYWALL && window.MPAYWALL({
+          type: 'premium_required',
+          feature: 'chat'
+        });
+      } catch (_) {}
+      return;
+    }
+    const next = turns.concat([{
+      role: 'user',
+      text: q
+    }]);
+    setTurns(next);
+    setDraft('');
+    setErr(null);
+    setBusy(true);
+    try {
+      const reply = await buddyChatReply(db, next);
+      setTurns(t => t.concat([{
+        role: 'buddy',
+        text: reply
+      }]));
+    } catch (e) {
+      // The proxy already opened the paywall for tier errors; here we just say why nothing came back.
+      // Take the unanswered question back out of the thread and return it to the box: it keeps the
+      // turns strictly alternating (two user turns in a row is not a valid conversation to send) and
+      // means a retry is one tap rather than a retype.
+      setTurns(t => t.slice(0, -1));
+      setDraft(q);
+      setErr(e && e.message || 'I could not answer that just now.');
+    }
+    setBusy(false);
+    try {
+      inputRef.current && inputRef.current.focus();
+    } catch (_) {}
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 flex flex-col sheet-up",
+    style: {
+      height: '82vh',
+      maxHeight: 640,
+      paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-3 shrink-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1 shrink-0",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      lineHeight: 0
+    }
+  }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+    buddy: db.buddy || {},
+    px: 1.6
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[14px] font-bold truncate"
+  }, who), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase text-[#8A8A90]"
+  }, busy ? 'Thinking…' : 'Ask me anything'))), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "text-[#8A8A90] text-2xl leading-none shrink-0",
+    "aria-label": "Close"
+  }, "×")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 overflow-y-auto -mx-1 px-1"
+  }, !turns.length && /*#__PURE__*/React.createElement("div", {
+    className: "text-center py-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] leading-snug mb-4 max-w-[17rem] mx-auto"
+  }, "I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it."), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, CHAT_OPENERS.map(o => /*#__PURE__*/React.createElement("button", {
+    key: o,
+    onClick: () => send(o),
+    className: "pixel-box w-full p-2.5 text-[11px] text-left active:opacity-60",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, o)))), turns.map((t, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: 'mb-2 flex ' + (t.role === 'user' ? 'justify-end' : 'justify-start')
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2.5 max-w-[85%] text-[11.5px] leading-snug",
+    style: t.role === 'user' ? {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      boxShadow: 'none'
+    } : {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, t.text))), busy && /*#__PURE__*/React.createElement("div", {
+    className: "mb-2 flex justify-start"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2.5 text-[11.5px]",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "dino-dot"
+  }, "."), /*#__PURE__*/React.createElement("span", {
+    className: "dino-dot"
+  }, "."), /*#__PURE__*/React.createElement("span", {
+    className: "dino-dot"
+  }, "."))), err && /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] leading-snug mb-2 px-1",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, err), /*#__PURE__*/React.createElement("div", {
+    ref: endRef
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0 pt-3 flex gap-2 items-end",
+    style: {
+      borderTop: '2px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    ref: inputRef,
+    value: draft,
+    onChange: e => setDraft(e.target.value.slice(0, CHAT_MAX_CHARS)),
+    onKeyDown: e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        send(draft);
+      }
+    },
+    placeholder: isPremium ? 'Ask ' + who + '…' : 'Premium feature',
+    disabled: busy,
+    className: "flex-1 min-w-0 pixel-box px-3 py-2.5 text-[12px] bg-transparent",
+    style: {
+      boxShadow: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => send(draft),
+    disabled: busy || !draft.trim(),
+    className: "pixel-btn px-3 py-2.5 text-[9px] pf shrink-0",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)',
+      opacity: busy || !draft.trim() ? 0.5 : 1
+    }
+  }, "SEND")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] mt-2 leading-snug shrink-0"
+  }, who, " is an AI and can get things wrong. This chat is not saved.")));
+}
 function MacrodexModal({
   db,
   update,
   streak,
   onClose,
   onOpenFight,
-  onOpenName
+  onOpenName,
+  isPremium
 }) {
   useBackClose(onClose);
   useEffect(() => {
@@ -10946,28 +11435,44 @@ function MacrodexModal({
   }, []);
   const today = Store.todayISO();
   const [trophies, setTrophies] = useState(false);
+  const [chatting, setChatting] = useState(false);
   const [view, setView] = useState('buddy'); // Buddy | Battle | Shop: one sub-view at a time so the hub isn't one long stack
   const amber = Game.amberBalance(db.amber_ledger);
   // Buddy profile for the Buddy tab (same derivation the Today companion uses).
   const bp = buddyProfile(db, streak, Game.buddyView(db.buddy && db.buddy.stage || 0, streak), buddyLevel(db));
   const freezeReady = Game.freezeReady(new Set(db.freezes && db.freezes.frozen || []), today);
   // Buy a cosmetic with Amber: spend appends a negative ledger entry (merge-safe), the cosmetic lands
-  // in buddy.cosmetics (owned once). Blocked if you can't afford it or already own it.
+  // in buddy.cosmetics (owned once) and is worn straight away, so the purchase is visible immediately
+  // rather than needing a second tap. Blocked if you can't afford it or already own it.
   function buy(id) {
-    const price = Game.shopPrice(id);
-    if (price == null) return;
+    const c = Game.COSMETIC_BY_ID[id];
+    if (!c) return;
     update(d => {
       d.amber_ledger = d.amber_ledger || [];
-      if (Game.amberBalance(d.amber_ledger) < price) return;
+      if (Game.amberBalance(d.amber_ledger) < c.price) return;
       d.buddy = d.buddy || {};
       d.buddy.cosmetics = d.buddy.cosmetics || [];
       if (d.buddy.cosmetics.indexOf(id) >= 0) return;
       d.buddy.cosmetics.push(id);
+      d.buddy.equipped = Object.assign({}, d.buddy.equipped || {}, {
+        [c.kind]: id
+      });
       d.amber_ledger.push({
         id: Store.uid(),
         date: today,
-        delta: -price,
+        delta: -c.price,
         reason: 'buy:' + id
+      });
+    });
+  }
+  // Wear an owned cosmetic, or take the slot off by passing null. Free, and reversible.
+  function equip(kind, id) {
+    if (Game.COSMETIC_KINDS.indexOf(kind) < 0) return;
+    update(d => {
+      d.buddy = d.buddy || {};
+      if (id != null && (d.buddy.cosmetics || []).indexOf(id) < 0) return; // can only wear what you own
+      d.buddy.equipped = Object.assign({}, d.buddy.equipped || {}, {
+        [kind]: id
       });
     });
   }
@@ -11005,7 +11510,9 @@ function MacrodexModal({
     streak: streak,
     freezeReady: freezeReady,
     onOpenName: onOpenName,
-    onTrophies: () => setTrophies(true)
+    onTrophies: () => setTrophies(true),
+    onChat: () => setChatting(true),
+    isPremium: isPremium
   }), view === 'battle' && /*#__PURE__*/React.createElement(FightModal, {
     db: db,
     update: update,
@@ -11016,9 +11523,14 @@ function MacrodexModal({
     db: db,
     amber: amber,
     buy: buy,
+    equip: equip,
     update: update,
     onRename: onOpenName
-  }))));
+  }))), chatting && /*#__PURE__*/React.createElement(BuddyChatModal, {
+    db: db,
+    isPremium: isPremium,
+    onClose: () => setChatting(false)
+  }));
 }
 // Achievement trophies, earned once and recorded idempotently in game_awards['trophy:<id>']. Each has
 // an `earned(db, ctx)` predicate; the Dashboard runs the pass and mints newly-earned ones with a toast.
@@ -11237,18 +11749,74 @@ function TrophyCabinet({
 }
 // The Amber shop: spend hard-won currency on buddy cosmetics (FX auras shown on your buddy)
 // (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
+// Small previews so a scene or prop can be judged before it is bought, drawn from the same tables the
+// terrarium renders from (so what you see in the shop is exactly what you get).
+function ScenePreview({
+  id,
+  size = 40
+}) {
+  const s = SCENE_ART[id];
+  if (!s) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: size,
+      height: size,
+      background: 'linear-gradient(180deg, ' + s.top + ' 0%, ' + s.bottom + ' 100%)',
+      position: 'relative',
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: Math.round(size * 0.3),
+      background: s.ground,
+      borderTop: '2px solid ' + s.line
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: '60%',
+      background: 'radial-gradient(60% 70% at 50% 100%, ' + s.glow + ', transparent 70%)'
+    }
+  }));
+}
+function PropPreview({
+  id
+}) {
+  const p = PROP_ART[id];
+  if (!p) return null;
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      lineHeight: 0
+    }
+  }, /*#__PURE__*/React.createElement(Sprite, {
+    art: p.art,
+    colors: p.colors,
+    px: 2.6
+  }));
+}
 function ShopView({
   db,
   amber,
   buy,
+  equip,
   update,
   onRename,
   onBack
 }) {
   const owned = db.buddy && db.buddy.cosmetics || [];
+  const worn = equippedCosmetics(db.buddy);
   const [colourOpen, setColourOpen] = useState(false);
   // onBuy overrides the default cosmetic purchase, so the same Row renders one-off actions (rename,
   // recolour) that open a flow instead of buying an owned item.
+  // One shop row. An unowned item shows its price; an owned one shows WEAR / WORN, so buying is only
+  // ever the first step and swapping between things you already own costs nothing.
   const Row = ({
     id,
     name,
@@ -11256,17 +11824,21 @@ function ShopView({
     price,
     preview,
     ownedLabel,
-    onBuy
+    onBuy,
+    kind
   }) => {
     const afford = amber >= price;
+    const isOwned = kind ? owned.indexOf(id) >= 0 : false;
+    const isWorn = kind ? worn[kind] === id : false;
     return /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 flex items-center gap-3",
       style: {
         background: 'var(--surface3)',
-        boxShadow: 'none'
+        boxShadow: 'none',
+        borderColor: isWorn ? 'var(--accent)' : 'var(--border)'
       }
     }, /*#__PURE__*/React.createElement("div", {
-      className: "pixel-box shrink-0 inline-flex items-center justify-center",
+      className: "pixel-box shrink-0 inline-flex items-center justify-center overflow-hidden",
       style: {
         background: 'var(--surface2)',
         boxShadow: 'none',
@@ -11279,7 +11851,21 @@ function ShopView({
       className: "text-[11px] font-bold truncate"
     }, name), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] leading-snug"
-    }, desc)), ownedLabel ? /*#__PURE__*/React.createElement("span", {
+    }, desc)), isOwned ? isWorn ? /*#__PURE__*/React.createElement("button", {
+      onClick: () => equip(kind, null),
+      className: "pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0",
+      style: {
+        background: 'var(--accent)',
+        color: 'var(--on-accent)'
+      }
+    }, "WORN") : /*#__PURE__*/React.createElement("button", {
+      onClick: () => equip(kind, id),
+      className: "pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0",
+      style: {
+        background: 'var(--surface2)',
+        color: 'var(--good)'
+      }
+    }, "WEAR") : ownedLabel ? /*#__PURE__*/React.createElement("span", {
       className: "pf text-[8px] px-2 py-1.5 shrink-0",
       style: {
         background: 'var(--surface2)',
@@ -11351,11 +11937,12 @@ function ShopView({
     }))
   }))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
-  }, "Buddy cosmetics"), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-2"
-  }, Game.COSMETICS.map(c => /*#__PURE__*/React.createElement(Row, {
+  }, "Auras"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-5"
+  }, Game.cosmeticsOfKind('aura').map(c => /*#__PURE__*/React.createElement(Row, {
     key: c.id,
     id: c.id,
+    kind: "aura",
     name: c.name,
     desc: c.desc,
     price: c.price,
@@ -11366,8 +11953,35 @@ function ShopView({
       }
     }, /*#__PURE__*/React.createElement(Spark, {
       size: 18
-    })),
-    ownedLabel: owned.indexOf(c.id) >= 0 ? 'OWNED' : null
+    }))
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Terrarium scenes"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-5"
+  }, Game.cosmeticsOfKind('scene').map(c => /*#__PURE__*/React.createElement(Row, {
+    key: c.id,
+    id: c.id,
+    kind: "scene",
+    name: c.name,
+    desc: c.desc,
+    price: c.price,
+    preview: /*#__PURE__*/React.createElement(ScenePreview, {
+      id: c.id
+    })
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Terrarium props"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, Game.cosmeticsOfKind('prop').map(c => /*#__PURE__*/React.createElement(Row, {
+    key: c.id,
+    id: c.id,
+    kind: "prop",
+    name: c.name,
+    desc: c.desc,
+    price: c.price,
+    preview: /*#__PURE__*/React.createElement(PropPreview, {
+      id: c.id
+    })
   }))), colourOpen && update && /*#__PURE__*/React.createElement(BuddyColourModal, {
     db: db,
     update: update,
@@ -13900,6 +14514,10 @@ function BuddyUpgradeOnboarding({
       d.buddy.palette = d.buddy.palette || 'female';
       d.buddy.hatched = true;
       d.buddy.name = nm;
+      // Hatching IS the growth moment for the stage it comes out at, so mark that stage celebrated
+      // and let the NEXT rung earn its own. (A founding member re-hatches at whatever stage their
+      // streak already bought, which must not replay as a pile of stage-ups.)
+      d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, d.buddy.stage || 0);
       d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
       if (d.buddy.stage == null) d.buddy.stage = 0;
       d.onboarding = d.onboarding || {};
@@ -14153,6 +14771,136 @@ function MilestoneCelebration({
     onClick: onClose,
     className: "mt-3 text-[11px] text-[#8A8A90] active:opacity-60"
   }, "Keep my current goal")));
+}
+/* The GROWTH moment. Reaching a new BUDDY_STAGES rung used to be a silent number change on a progress
+   bar, which made the longest loop in the app (a 30-day streak) the least celebrated. This is the
+   payoff: confetti, the new stage named, and the old size shown beside the new one so the thing the
+   streak actually bought is visible rather than asserted. onClose records the stage as celebrated. */
+const STAGE_UP_LINES = ['Look at me! All that logging is paying off.', 'I grew! That is your consistency doing that, not mine.', 'Bigger, stronger, and still hungry. Keep it coming.', 'Every day you logged got me here. Thank you for that.'];
+function StageUpCelebration({
+  db,
+  stage,
+  onClose
+}) {
+  useBackClose(onClose);
+  const buddy = db.buddy || {};
+  const who = buddy.name || 'Your buddy';
+  const st = BUDDY_STAGES[Math.min(stage, BUDDY_STAGES.length - 1)];
+  const prev = BUDDY_STAGES[Math.max(0, stage - 1)];
+  const s = buddyStageSprite(stage, buddy);
+  const eq = equippedCosmetics(buddy);
+  const line = STAGE_UP_LINES[crHash((db.game_salt || '') + 'stage' + stage) % STAGE_UP_LINES.length];
+  const fromPx = 5 * stageScale(Math.max(0, stage - 1));
+  const toPx = 5 * stageScale(stage);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[95] overflow-y-auto",
+    style: {
+      background: 'var(--bg)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "confetti",
+    "aria-hidden": "true"
+  }, Array.from({
+    length: 28
+  }).map((_, i) => /*#__PURE__*/React.createElement("i", {
+    key: i,
+    style: {
+      left: 3 + i * 3.4 + '%',
+      animationDelay: i % 7 * 0.18 + 's',
+      animationDuration: 2.4 + i % 5 * 0.3 + 's',
+      background: CONFETTI_COLORS[i % CONFETTI_COLORS.length]
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement(Spark, {
+    size: 10
+  }), who, " grew", /*#__PURE__*/React.createElement(Spark, {
+    size: 10
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-6 mb-6 flex items-center justify-center buddy-scene",
+    style: {
+      minWidth: 200,
+      minHeight: 190
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "celebrate-bounce inline-block",
+    style: {
+      filter: auraFilter(eq) || undefined
+    }
+  }, /*#__PURE__*/React.createElement(SpriteSheet, {
+    palette: s.palette,
+    species: s.species,
+    group: s.group,
+    anim: s.anim,
+    px: toPx,
+    fps: s.fps
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl font-bold mb-3",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, st.name), stage > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-end justify-center gap-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-center",
+    style: {
+      opacity: 0.45
+    }
+  }, /*#__PURE__*/React.createElement(SpriteSheet, {
+    palette: s.palette,
+    species: s.species,
+    group: s.group,
+    anim: "idle",
+    px: fromPx * 0.5,
+    fps: s.fps
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase text-[#8A8A90] mt-1"
+  }, prev.name)), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[10px] pb-4",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "›"), /*#__PURE__*/React.createElement("div", {
+    className: "text-center"
+  }, /*#__PURE__*/React.createElement(SpriteSheet, {
+    palette: s.palette,
+    species: s.species,
+    group: s.group,
+    anim: "idle",
+    px: toPx * 0.5,
+    fps: s.fps
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase mt-1",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, st.name))), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-6 max-w-xs text-[12px] leading-relaxed",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "“"), line, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "”")), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "pixel-btn w-full max-w-xs py-3 text-[10px] pf",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "NICE ONE")));
 }
 // The HATCH moment, fired from Today once the onboarding staples are done: the egg wobbles, cracks
 // and hatches, revealing the dino for the very first time - THEN you name it (with a fun name
@@ -14808,6 +15556,10 @@ function Dashboard({
       d.buddy = d.buddy || {
         stage: 0
       };
+      // Seed the celebration marker BEFORE any growth lands, so an account that predates it reads its
+      // existing stage as already-celebrated rather than as a fresh multi-stage rise. Game.stageUp
+      // treats a null marker as "never fire", which is what keeps the very first seed silent.
+      if (d.buddy.stageSeen == null) d.buddy.stageSeen = d.buddy.stage || 0;
       if (buddy.stage > (d.buddy.stage || 0)) d.buddy.stage = buddy.stage;
       d.records = d.records || {
         longestStreak: 0
@@ -14866,6 +15618,15 @@ function Dashboard({
   });
   const milestone = eggIncubating ? null : goalMilestoneFor(db);
   const milestoneEta = milestone && milestone.kind !== 'reached' ? (goalProjection(db) || {}).text : null;
+  // A growth stage reached but not yet celebrated. Queued behind hatch and milestone rather than
+  // stacked on top of them, so two full-screen moments never fight; whichever waits shows next render.
+  const grewTo = eggIncubating ? null : Game.stageUp((db.buddy || {}).stage, (db.buddy || {}).stageSeen);
+  const markGrown = () => update(d => {
+    d.buddy = d.buddy || {
+      stage: 0
+    };
+    d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, grewTo);
+  });
   const msg = (() => {
     const m = buddyMessage(db, today, streak);
     if (!m) return null;
@@ -14959,6 +15720,7 @@ function Dashboard({
         };
         d.buddy.name = nm;
         d.buddy.hatched = true;
+        d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, d.buddy.stage || 0);
         d.onboarding = d.onboarding || {};
         d.onboarding.hatched = true;
       });
@@ -14974,6 +15736,10 @@ function Dashboard({
       markMiles(milestone.coveredKeys);
       setView('goals');
     } : null
+  }), grewTo != null && !hatching && !milestone && /*#__PURE__*/React.createElement(StageUpCelebration, {
+    db: db,
+    stage: grewTo,
+    onClose: markGrown
   }), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: prettyDate(today),
     title: "Today"
@@ -24522,7 +25288,7 @@ function OnboardingChecklist({
   if (db.buddy && db.buddy.hatched === false) return null; // while incubating, the tasks live in the buddy habitat
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
-  const proteinTgt = et ? et.eff.protein : 0;
+  const proteinTgt = et ? et.eff.protein_g : 0;
   const todayProtein = sumMacros(entriesOn(db, today)).protein;
   const items = [{
     k: 'meal',
@@ -29690,7 +30456,8 @@ function App() {
     update: update,
     streak: appStreak,
     onOpenName: () => setNameOpen(true),
-    onClose: () => setDexOpen(false)
+    onClose: () => setDexOpen(false),
+    isPremium: isPremium
   }), nameOpen && /*#__PURE__*/React.createElement(NameBuddyModal, {
     db: db,
     update: update,

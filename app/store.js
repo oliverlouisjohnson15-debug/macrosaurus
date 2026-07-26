@@ -112,7 +112,7 @@
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null, lastDailyDate: null, dailyStreak: 0, dailyBest: 0 }, // ladder + weekly boss + daily hunt + prestige; one ladder/daily attempt per logged day
       game_salt: null,    // per-user random seed for the buddy's stable-per-day mood/personality flavour (set once on first run)
       badges: { checkins: 0, inRange: 0 }, // badge-track counters: check-ins completed / in-range check-ins
-      buddy: { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] },   // stage: high-water index (naps after a break); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought overlays (owned + equipped)
+      buddy: { stage: 0, stageSeen: null, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [], equipped: {} },   // stage: high-water index (naps after a break); stageSeen: highest stage already celebrated, NULL until seeded so an existing buddy's stage is never replayed as growth (see Game.stageUp); name/personality/hatchedISO/speciesId/evoStage/affinity: the individual you raise, bond-evolve, and its day/night path; cosmetics: shop-bought items owned; equipped: slot -> item id actually worn
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
@@ -288,8 +288,24 @@
       var cos = {};
       [].concat(ba.cosmetics || [], bb.cosmetics || []).forEach(function (c) { if (c != null) cos[c] = 1; });
       var births = [ba.hatchedISO, bb.hatchedISO].filter(Boolean).sort();
+      // Which cosmetic sits in each slot: the newer copy's choice wins per slot, but a slot the newer
+      // copy never set falls back to the older one, so equipping on one device can't blank a slot the
+      // other device had dressed. An explicit null (taken off) is a real choice and is preserved.
+      var eqa = ba.equipped || {}, eqb = bb.equipped || {};
+      var eqNew = bn.equipped || {}, eqOld = bo.equipped || {};
+      var equipped = null;
+      if (Object.keys(eqa).length || Object.keys(eqb).length) {
+        equipped = Object.assign({}, eqOld);
+        Object.keys(eqNew).forEach(function (k) { equipped[k] = eqNew[k]; });
+      }
+      // High-water like stage, EXCEPT that "never seeded" has to survive the merge: maxNum would turn
+      // a pair of absent markers into 0, and a legacy buddy already at stage 4 would then read as a
+      // four-stage rise and fire a celebration it never earned. Only fold when a side really has one.
+      var seenA = ba.stageSeen, seenB = bb.stageSeen;
+      var stageSeen = (seenA == null && seenB == null) ? null : maxNum(seenA, seenB);
       out.buddy = Object.assign({}, out.buddy || {}, {
         stage: maxNum(ba.stage, bb.stage),
+        stageSeen: stageSeen,
         evoStage: maxNum(ba.evoStage, bb.evoStage),
         name: preferSet(bn.name, bo.name),
         personality: preferSet(bn.personality, bo.personality),
@@ -298,6 +314,7 @@
         hatchedISO: births.length ? births[0] : ((out.buddy || {}).hatchedISO || null),
         cosmetics: Object.keys(cos),
       });
+      if (equipped) out.buddy.equipped = equipped;
     }
 
     // First-run flags only ever flip true; OR them so a stale copy can't re-trigger onboarding.

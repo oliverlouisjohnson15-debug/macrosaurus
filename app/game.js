@@ -49,6 +49,15 @@
     var asleep = cur < hw && (streak || 0) < WAKE_DAYS;
     return { stage: hw, cur: cur, asleep: asleep, wakeIn: asleep ? WAKE_DAYS - (streak || 0) : 0, ratchet: cur > (hwStage || 0) };
   }
+  // The growth stage that deserves a celebration right now, or null. `stageSeen` is the highest stage
+  // already celebrated (db.buddy.stageSeen). A NULL stageSeen means the account predates the marker,
+  // so we return null rather than firing a retroactive moment for growth the user has long since had;
+  // the caller seeds stageSeen to the current stage once, and every rise after that is celebrated.
+  function stageUp(stage, stageSeen) {
+    if (stageSeen == null) return null;
+    var s = stage || 0;
+    return s > stageSeen ? s : null;
+  }
 
   // ---- Buddy as a companion: bond, mood and needs (the Tamagotchi layer) ----
   // BOND is relationship warmth over a trailing window: recent good eating raises it,
@@ -511,20 +520,58 @@
     return Math.max(0, Math.round(b));
   }
 
-  // ---- Shop: spend Amber on buddy cosmetics + catch boosts. Prices are pure and stable. ----
-  // Cosmetics are FX auras that glow around the buddy sprite (drawn in app.jsx from AURA_GLOW),
-  // owned/equipped in db.buddy.cosmetics. Aura-only for now: emoji hats/faces read poorly over the
-  // pixel art, so we stick to art-native "sparkle and follow" effects until proper worn art exists.
+  // ---- Shop: spend Amber on buddy cosmetics. Prices are pure and stable. ----
+  // Three slots, one equipped item each, all drawn in app.jsx (art lives beside the sprites):
+  //   aura  - an FX glow around the buddy sprite (AURA_GLOW)
+  //   scene - the terrarium backdrop the buddy stands in (SCENE_ART)
+  //   prop  - a single pixel decoration on the terrarium floor (PROP_ART)
+  // Emoji hats/faces read poorly over 24x24 pixel art, so worn cosmetics stay out; scenes and props
+  // dress the habitat instead, which is art we already have and scales without new sprite work.
+  // Ownership lives in db.buddy.cosmetics (unioned on merge, so a purchase can never be lost); which
+  // of the owned items is actually worn lives in db.buddy.equipped (see equippedFor).
+  var COSMETIC_KINDS = ['aura', 'scene', 'prop'];
   var COSMETICS = [
     { id: 'aura_ember', name: 'Ember Aura', kind: 'aura', price: 180, desc: 'A warm ember glow that follows your buddy.' },
     { id: 'aura_frost', name: 'Frost Aura', kind: 'aura', price: 180, desc: 'A cool blue shimmer that trails your buddy.' },
     { id: 'aura_spark', name: 'Spark Aura', kind: 'aura', price: 220, desc: 'A golden sparkle that dances around your buddy.' },
     { id: 'aura_toxic', name: 'Toxic Aura', kind: 'aura', price: 220, desc: 'An eerie green haze, for the apex predator.' },
+    { id: 'scene_fern', name: 'Fern Hollow', kind: 'scene', price: 140, desc: 'A green, overgrown clearing full of soft light.' },
+    { id: 'scene_dusk', name: 'Dusk Ridge', kind: 'scene', price: 160, desc: 'Warm evening sun sinking behind the ridge.' },
+    { id: 'scene_tar', name: 'Tar Pit', kind: 'scene', price: 200, desc: 'Bubbling black tar under a smoky orange sky.' },
+    { id: 'scene_frost', name: 'Frost Cavern', kind: 'scene', price: 200, desc: 'Pale blue ice, still and very quiet.' },
+    { id: 'scene_aurora', name: 'Aurora Basin', kind: 'scene', price: 260, desc: 'Northern lights rippling over a deep violet sky.' },
+    { id: 'prop_fern', name: 'Fern', kind: 'prop', price: 90, desc: 'A leafy fern for the corner of the terrarium.' },
+    { id: 'prop_rock', name: 'Standing Stone', kind: 'prop', price: 110, desc: 'A weathered boulder to bask against.' },
+    { id: 'prop_cycad', name: 'Cycad', kind: 'prop', price: 140, desc: 'A broad prehistoric palm, good for shade.' },
+    { id: 'prop_nest', name: 'Nest Egg', kind: 'prop', price: 160, desc: 'A spare egg, kept safe beside your buddy.' },
   ];
   var COSMETIC_BY_ID = {}; COSMETICS.forEach(function (c) { COSMETIC_BY_ID[c.id] = c; });
-  // Buyable consumables (existing item ids) and their Amber price.
+  function cosmeticsOfKind(kind) { return COSMETICS.filter(function (c) { return c.kind === kind; }); }
   function shopPrice(id) { return COSMETIC_BY_ID[id] ? COSMETIC_BY_ID[id].price : null; }
   function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
+  // What the buddy is actually wearing, per slot: { aura, scene, prop }, each an id or null.
+  // `owned` is db.buddy.cosmetics, `equipped` is db.buddy.equipped (a slot -> id map).
+  //   - A slot PRESENT in `equipped` is an explicit choice: the id if it is genuinely owned and of
+  //     that kind, else null (this is also how "take it off" is stored, as an explicit null).
+  //   - A slot ABSENT from `equipped` falls back to the last owned item of that kind, which is what
+  //     the old own-it-and-it-is-worn behaviour did. That keeps accounts that predate the equipped
+  //     map (aura buyers) looking exactly as they did before, with no migration.
+  function equippedFor(owned, equipped) {
+    var ownedSet = {}; (owned || []).forEach(function (id) { if (id != null) ownedSet[id] = 1; });
+    var fallback = {};
+    (owned || []).forEach(function (id) { var c = COSMETIC_BY_ID[id]; if (c) fallback[c.kind] = id; });
+    var out = {};
+    COSMETIC_KINDS.forEach(function (kind) {
+      if (equipped && Object.prototype.hasOwnProperty.call(equipped, kind)) {
+        var pick = equipped[kind];
+        var c = pick ? COSMETIC_BY_ID[pick] : null;
+        out[kind] = (c && c.kind === kind && ownedSet[pick]) ? pick : null;
+      } else {
+        out[kind] = fallback[kind] || null;
+      }
+    });
+    return out;
+  }
 
   // ---- Buddy attentiveness: streak-save, weekly recap, goal milestones ----
   // These are the pure decisions behind the buddy's proactive lines; the UI (app.jsx) gathers the
@@ -624,6 +671,7 @@
     WAKE_DAYS: WAKE_DAYS,
     stageIndex: stageIndex,
     buddyView: buddyView,
+    stageUp: stageUp,
     BOND_WINDOW: BOND_WINDOW,
     dayBondPoints: dayBondPoints,
     buddyBond: buddyBond,
@@ -689,6 +737,9 @@
     amberBalance: amberBalance,
     COSMETICS: COSMETICS,
     COSMETIC_BY_ID: COSMETIC_BY_ID,
+    COSMETIC_KINDS: COSMETIC_KINDS,
+    cosmeticsOfKind: cosmeticsOfKind,
+    equippedFor: equippedFor,
     shopPrice: shopPrice,
     canAfford: canAfford,
     streakAtRisk: streakAtRisk,

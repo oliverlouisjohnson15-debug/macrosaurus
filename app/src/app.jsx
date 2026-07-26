@@ -26,6 +26,7 @@ function leanKg(p) { const f = E.fatFreeMassKg(p.weightKg, p.bodyFatPct); return
 // ---- pixel-art glyphs (no emoji) ----
 const PX_ICONS = {
   meat: ['.####.', '######', '######', '.####.', '...##.', '...##.'],
+  chat: ['######', '#....#', '#....#', '######', '.##...', '.#....'],
   plant: ['....#.', '..###.', '.####.', '####..', '.##.#.', '.#....'],
   drink: ['######', '#....#', '#....#', '.####.', '.####.', '..##..'],
   egg: ['..##..', '.####.', '######', '######', '.####.', '..##..'],
@@ -508,7 +509,7 @@ async function buddyDeepDive(db) {
     stepsToday: +((db.steps || {})[today]) || 0,
     stepGoal: stepGoalFor(db) || null,
     loggedToday: logged.length > 0,
-    proteinSoFar: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein) : null,
+    proteinSoFar: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein_g) : null,
     kcalSoFar: Math.round(m.kcal), kcalTarget: et ? Math.round(et.eff.kcal) : null,
     weighCadence: db.profile.weighCadence || 'daily',
   };
@@ -516,6 +517,62 @@ async function buddyDeepDive(db) {
   const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, messages: [{ role: 'user', content: rules + '\n\nToday (JSON):\n' + JSON.stringify(payload) + '\n\nYour deeper dive:' }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+}
+// Premium AI conversation: the buddy answering back. Every other buddy moment is one-way (it speaks
+// on Today, you tap a CTA); this is the one place the user can ask it something. The system prompt
+// carries the SAME day snapshot the deeper dive uses, so answers are grounded in real figures rather
+// than invented ones, and `history` is the running turn list ([{ role, text }], oldest first).
+// The 'You are Macrosaurus' phrase is the signature ai-proxy classifies as the premium chat feature,
+// so keep it in step with featureOf() in supabase/functions/ai-proxy/index.ts.
+const CHAT_MAX_TURNS = 12;   // trailing turns sent back; keeps the prompt (and the bill) bounded
+const CHAT_MAX_CHARS = 500;  // per user message, so one paste can't blow the budget
+function buddyChatSnapshot(db) {
+  const today = Store.todayISO();
+  const et = effectiveTarget(db, today);
+  const logged = entriesOn(db, today);
+  const m = sumMacros(logged);
+  const night = lastSleepNight(db);
+  const rf = readinessFor(db, today);
+  const p = db.profile || {};
+  const span = weightSpan(db);
+  const proj = goalProjection(db);
+  return {
+    readiness: isFinite(rf) ? Math.round(rf) : null,
+    sleepHours: night ? +(night.rec.min / 60).toFixed(1) : null,
+    stepsToday: +((db.steps || {})[today]) || 0,
+    stepGoal: stepGoalFor(db) || null,
+    loggedToday: logged.length > 0,
+    proteinSoFar: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein_g) : null,
+    kcalSoFar: Math.round(m.kcal), kcalTarget: et ? Math.round(et.eff.kcal) : null,
+    carbsSoFar: Math.round(m.carbs), carbsTarget: et ? Math.round(et.eff.carbs_g) : null,
+    fatSoFar: Math.round(m.fat), fatTarget: et ? Math.round(et.eff.fat_g) : null,
+    goalType: p.goalType || null,
+    currentWeightKg: span.last != null ? +span.last.toFixed(1) : null,
+    goalWeightKg: p.goalWeightKg != null ? +p.goalWeightKg.toFixed(1) : null,
+    weeksToGoalAtCurrentPace: proj ? proj.weeks : null,
+  };
+}
+async function buddyChatReply(db, history) {
+  const who = (db.buddy && db.buddy.name) || 'Your buddy';
+  const snapshot = buddyChatSnapshot(db);
+  const system = 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. '
+    + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". '
+    + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. '
+    + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. '
+    + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. '
+    + 'No emojis, no headings, no bullet points, no markdown, no em dashes.'
+    + '\n\nTheir day right now (JSON):\n' + JSON.stringify(snapshot);
+  // The API needs a clean user-first, strictly alternating thread. Trimming to a trailing window can
+  // land on an assistant turn (an odd-length thread cut by an even window), so drop any leading
+  // assistant turns after the slice rather than assuming the window lines up.
+  const messages = (history || []).slice(-CHAT_MAX_TURNS)
+    .map(t => ({ role: t.role === 'buddy' ? 'assistant' : 'user', content: String(t.text || '').slice(0, CHAT_MAX_CHARS) }));
+  while (messages.length && messages[0].role !== 'user') messages.shift();
+  if (!messages.length) throw new Error('Ask me something first.');
+  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, system, messages });
+  const txt = ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+  if (!txt) throw new Error('I did not catch that, try asking again.');
+  return txt;
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
@@ -2497,6 +2554,40 @@ function buddyStageSprite(stageIndex, buddy) {
   if (!hatched || stageIndex <= 0) return { palette, species, group: 'egg', anim: 'move', fps: 4 };
   return { palette, species, group: 'base', anim: 'idle', fps: 5 };
 }
+/* ---------- Growth you can SEE ----------
+   Every grown stage shares the one idle strip in the art pack, so a thirty-day buddy used to render
+   pixel-identical to a day-one hatchling and "growth" was a label change on a progress bar. Two
+   art-free levers fix that without touching a single asset:
+     1. SIZE. STAGE_PX multiplies each surface's base sprite scale, so the buddy visibly fills more of
+        its terrarium as it grows. Non-integer scales are fine: SpriteSheet renders image-rendering:
+        pixelated, so the art stays crisp.
+     2. MOVEMENT. Each stage idles with its own occasional one-shot flourish, drawn from animations
+        SPRITE_FRAMES.base already ships. A hatchling hops, the middle stages pace and dash, the apex
+        scans the horizon.
+   Stage 0 is the egg and is excluded from both: it has its own sprite group and should not grow. */
+const STAGE_PX = [1, 0.72, 0.82, 0.92, 1, 1.12];
+function stageScale(stageIndex) { return STAGE_PX[Math.min(Math.max(stageIndex || 0, 0), STAGE_PX.length - 1)] || 1; }
+const STAGE_FLOURISH = [null, 'jump', 'jump', 'move', 'dash', 'scan'];
+const FLOURISH_MIN_MS = 7000;     // at most one flourish per 7s, so it reads as ambient not busy
+const FLOURISH_JITTER_MS = 8000;  // plus jitter, so two buddies on one screen never march in step
+function prefersReducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } }
+// While `active`, break the idle every so often to play the stage's flourish once, then drop straight
+// back to idle. Returns props to spread onto SpriteSheet. The caller decides `active`, and must only
+// pass true when the strip actually exists for this palette (see spriteHasAnim), because a flourish
+// that never renders would never fire onEnd and the rotation would stall on a sprite it cannot show.
+// Honours prefers-reduced-motion, which the terrarium's bob and shadow already respect in CSS.
+function useIdleFlourish(stageIndex, active) {
+  const move = active ? (STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] || null) : null;
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    if (!move) { setPlaying(false); return; }
+    if (playing || prefersReducedMotion()) return;   // on screen now, or motion is off: nothing to arm
+    const t = setTimeout(() => setPlaying(true), FLOURISH_MIN_MS + Math.random() * FLOURISH_JITTER_MS);
+    return () => clearTimeout(t);
+  }, [move, playing]);
+  const on = playing && !!move;
+  return { anim: on ? move : 'idle', loop: !on, onEnd: on ? () => setPlaying(false) : undefined };
+}
 // The buddy in the fight arena, using its real animated sprite (bite/hurt/dead/idle). Species/palette
 // default to doux/female exactly like the buddy avatar everywhere else, so even legacy accounts (which
 // predate the species field) fight as their animated dino rather than a static pose.
@@ -2599,7 +2690,7 @@ function buddyCoach(db, today, streak) {
   const snoozed = (key, hrs) => dm[key] && (Date.now() - dm[key]) < hrs * 3600 * 1000;
   const logged = entriesOn(db, today);
   const et = effectiveTarget(db, today);
-  const proteinTgt = et ? Math.round(et.eff.protein) : 0;
+  const proteinTgt = et ? Math.round(et.eff.protein_g) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
   const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
   const weighedToday = (db.weight_entries || []).some(w => w.date === today);
@@ -2705,7 +2796,7 @@ function weeklyRecapFor(db, today) {
     const entries = entriesOn(db, date);
     const et = effectiveTarget(db, date);
     const m = sumMacros(entries);
-    days.push({ logged: entries.length > 0, kcal: Math.round(m.kcal), protein: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein) : 0 });
+    days.push({ logged: entries.length > 0, kcal: Math.round(m.kcal), protein: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein_g) : 0 });
   }
   const weekStart = shiftISO(today, -6);
   const inWeek = (db.weight_entries || []).filter(w => w.date >= weekStart && w.date <= today).sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -2805,28 +2896,20 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   // buddy sits at a high-water stage above what the current streak supports (e.g. after a slip).
   const prog = next ? Math.max(0.04, Math.min(1, streak / next.min)) : 1;
   const toNext = next ? Math.max(1, next.min - streak) : 0;
-  const s = buddyStageSprite(buddy.stage, db.buddy);
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   const stuffed = !asleep && bp.mood === 'stuffed';
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
   const incubating = !!(db.buddy && db.buddy.hatched === false);
-  const eq = incubating ? {} : equippedCosmetics((db.buddy || {}).cosmetics); // no cosmetics on an egg
+  const eq = equippedCosmetics(db.buddy);
   const who = incubating ? 'Your egg' : (bp.name || (bp.form ? bp.form.name : st.name));
   const tDone = tasks ? tasks.filter(t => t.done).length : 0;
   return (
     <Card className="p-3 mb-4">
       <div className="flex items-center gap-2.5">
-        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="relative shrink-0 pixel-box overflow-hidden buddy-scene" style={{ width: 90, height: 94, boxShadow: 'none' }}>
-          <div className="absolute left-0 right-0 bottom-0" style={{ height: 22, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
-          <div className={'absolute' + (asleep || stuffed ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: 12, width: 52, height: 8, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
-          <div className="absolute" style={Object.assign({ left: '50%', bottom: 4, transform: 'translateX(-50%)' + (stuffed ? ' translateY(3px)' : '') }, asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
-            <div className={'inline-block leading-none' + (asleep || stuffed ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
-              {/* Overfed = full and lazy: same idle, slowed right down so it lolls about. */}
-              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={3} fps={stuffed ? 2 : s.fps} />
-            </div>
-          </div>
-          {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
-          {stuffed && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--warn)' }}>z</span>}
+        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="shrink-0 pixel-box" style={{ boxShadow: 'none', lineHeight: 0 }}>
+          {/* Overfed = full and lazy: the same idle, slowed right down so it lolls about. */}
+          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={3} w={90} h={94}
+            floor={22} spriteBottom={4} shadowBottom={12} shadowW={52} eq={eq} asleep={asleep} stuffed={stuffed} />
         </button>
         <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left flex items-center gap-1.5">
          <div className="min-w-0 flex-1">
@@ -3241,28 +3324,96 @@ function buddyProfile(db, streak, buddy, level) {
 // What the buddy is craving, in words, framing the day's macro gap as a thing to feed it.
 const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fibre', fuel: 'more fuel' };
 
-// ---- Buddy cosmetics: shop-bought overlays drawn on the buddy sprite ----
-// Cosmetics are FX auras only now (emoji hats read poorly over the pixel art). Each aura is a CSS
-// glow colour applied to the buddy sprite. Owned/equipped in db.buddy.cosmetics.
+// ---- Buddy cosmetics: shop-bought dressing for the buddy and its terrarium ----
+// Three slots (see Game.COSMETICS): an aura glowing around the sprite, a scene behind it, and a prop
+// standing on the floor beside it. Ownership is db.buddy.cosmetics, what is actually worn is
+// db.buddy.equipped, and Game.equippedFor resolves the two (with the legacy own-it-is-wear-it
+// fallback for accounts that only ever bought auras).
 const AURA_GLOW = { aura_ember: '#ff7a1a', aura_frost: '#3fd0ff', aura_spark: '#ffd400', aura_toxic: '#39FF14' };
+// Terrarium scenes: a two-stop sky, the glow pooled under the buddy, and the floor band + its edge.
+// Each scene is a lit diorama with its OWN fixed lighting rather than theme-following chrome, so a
+// bought Tar Pit looks like a tar pit in both themes; the unbought default is still the themed
+// .buddy-scene the app has always drawn.
+const SCENE_ART = {
+  scene_fern: { top: '#16301c', bottom: '#0a1a0e', glow: 'rgba(127,212,107,0.26)', ground: '#1d3a22', line: '#2c5531' },
+  scene_dusk: { top: '#3a2140', bottom: '#150d1c', glow: 'rgba(255,150,80,0.28)', ground: '#2e1c30', line: '#4a2c45' },
+  scene_tar: { top: '#2a1a10', bottom: '#0a0705', glow: 'rgba(255,110,30,0.30)', ground: '#1a1109', line: '#3b2513' },
+  scene_frost: { top: '#16303f', bottom: '#081319', glow: 'rgba(120,215,255,0.26)', ground: '#17323f', line: '#27505f' },
+  scene_aurora: { top: '#1b1440', bottom: '#080618', glow: 'rgba(120,255,200,0.30)', ground: '#1d1642', line: '#33285f' },
+};
+// Terrarium props: one pixel decoration on the floor. These reuse CR_ART shapes the bundle already
+// carries, so a whole prop line costs no new art. `at` is the fraction across the floor (kept well
+// off centre so the prop never sits over the buddy) and `px` its Sprite scale.
+const PROP_ART = {
+  prop_fern: { art: 'sprout', colors: crC('#5FBF4A', '#2f7a24'), at: 0.15, px: 3.4 },
+  prop_rock: { art: 'boulder', colors: crC('#9FB8C9', '#5f7d90'), at: 0.85, px: 3.6 },
+  prop_cycad: { art: 'brolly', colors: crC('#4FA35E', '#28632f'), at: 0.14, px: 4.2 },
+  prop_nest: { art: 'egg', colors: crC('#EAD9A0', '#C77D3A'), at: 0.86, px: 3.0 },
+};
 const RENAME_COST = 40; // Amber to rename the buddy after hatch (the hatch naming itself is free).
 const COLOUR_COST = 60; // Amber to recolour the buddy (switch its palette / colourway) after hatch.
 function auraFilter(eq) { const c = eq && eq.aura && AURA_GLOW[eq.aura]; return c ? 'drop-shadow(0 0 6px ' + c + ') drop-shadow(0 0 3px ' + c + ')' : null; }
-function equippedCosmetics(list) {
-  const bySlot = {};
-  (list || []).forEach(id => { const c = Game.COSMETIC_BY_ID[id]; if (c) bySlot[c.kind] = id; });
-  return bySlot;
+// An egg is never dressed: cosmetics belong to the individual that hatches out of it.
+function equippedCosmetics(buddy) {
+  if (!buddy || buddy.hatched === false) return {};
+  return Game.equippedFor(buddy.cosmetics, buddy.equipped);
+}
+/* The terrarium, in one place. Today's habitat and the Play hub's Buddy tab both render through this,
+   so a bought scene or prop shows up in both and the two can never drift apart (they used to carry
+   near-duplicate markup). Sizing is passed in because the two surfaces differ: `px` is the BASE sprite
+   scale, which stage growth then multiplies. */
+function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowBottom, shadowW, eq, asleep, stuffed, className, style }) {
+  const s = buddyStageSprite(stageIndex, buddy);
+  const scene = (eq && eq.scene) ? SCENE_ART[eq.scene] : null;
+  const prop = (eq && eq.prop) ? PROP_ART[eq.prop] : null;
+  const still = !!(asleep || stuffed);
+  const grown = s.group === 'base';            // the egg neither grows nor flourishes
+  const move = grown ? STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] : null;
+  // Only arm the flourish when this palette genuinely has the strip, so the rotation can't stall on a
+  // sprite that would never render (some male colourways are missing the locomotion frames).
+  const canFlourish = !!(move && !still && spriteHasAnim(s.palette, s.species, 'base', move));
+  const fl = useIdleFlourish(stageIndex, canFlourish);
+  const flourishing = fl.anim !== 'idle';
+  const size = px * (grown ? stageScale(stageIndex) : 1);
+  const sceneStyle = scene
+    ? { background: 'radial-gradient(56% 40% at 50% 78%, ' + scene.glow + ', transparent 72%), linear-gradient(180deg, ' + scene.top + ' 0%, ' + scene.bottom + ' 100%)' }
+    : null;
+  return (
+    <div className={'relative overflow-hidden' + (scene ? '' : ' buddy-scene') + (className ? ' ' + className : '')}
+      style={Object.assign({ width: w, height: h }, sceneStyle, style)}>
+      <div className="absolute left-0 right-0 bottom-0" style={{ height: floor, background: scene ? scene.ground : 'var(--surface2)', borderTop: '2px solid ' + (scene ? scene.line : 'var(--border)') }} />
+      {/* The prop stands ON the floor, behind the buddy, and dims with it when the buddy is asleep. */}
+      {prop && <div className="absolute" style={{ left: (prop.at * 100) + '%', bottom: Math.max(2, floor - 6), transform: 'translateX(-50%)', opacity: asleep ? 0.45 : 0.9, lineHeight: 0 }}>
+        <Sprite art={prop.art} colors={prop.colors} px={prop.px} />
+      </div>}
+      <div className={'absolute' + (still ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: shadowBottom, width: shadowW, height: 8, transform: 'translateX(-50%)', background: scene ? '#000' : 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+      <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteBottom, transform: 'translateX(-50%)' + (stuffed ? ' translateY(3px)' : '') },
+        asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
+        {/* Bobbing is the resting state; while a flourish plays, the animation itself carries the motion. */}
+        <div className={'inline-block leading-none' + (still || flourishing ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
+          <SpriteSheet key={flourishing ? fl.anim : s.anim} palette={s.palette} species={s.species} group={s.group}
+            anim={flourishing ? fl.anim : s.anim} px={size} fps={flourishing ? 8 : (stuffed ? 2 : s.fps)}
+            loop={!flourishing} onEnd={fl.onEnd} />
+        </div>
+      </div>
+      {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
+      {stuffed && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--warn)' }}>z</span>}
+    </div>
+  );
 }
 // The buddy avatar on the new animated art: the chosen species/palette at its growth stage (or the
 // egg while incubating), with equipped emoji cosmetics overlaid. `px` is the SpriteSheet pixel scale
 // (rendered size = 24*px square).
 function BuddyAvatar({ buddy, px = 4, asleep }) {
-  const s = buddyStageSprite((buddy && buddy.stage) || 0, buddy);
-  const eq = (buddy && buddy.hatched === false) ? {} : equippedCosmetics(buddy && buddy.cosmetics);
+  const stage = (buddy && buddy.stage) || 0;
+  const s = buddyStageSprite(stage, buddy);
+  const eq = equippedCosmetics(buddy);
   const filters = [asleep ? 'grayscale(0.85)' : null, auraFilter(eq)].filter(Boolean).join(' ');
+  // Scales with growth just like the terrarium, so the buddy reads as the same size wherever it appears.
+  const size = px * (s.group === 'base' ? stageScale(stage) : 1);
   return (
     <div className="inline-block leading-none" style={{ filter: filters || undefined, opacity: asleep ? 0.5 : 1 }}>
-      <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={px} fps={s.fps} />
+      <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={size} fps={s.fps} />
     </div>
   );
 }
@@ -3275,7 +3426,7 @@ function BondHearts({ n, max, size = 12 }) {
 // light mood + bond layer, and its streak-driven growth toward the next stage. (The old needs meters,
 // personality and species-evolution axis were retired - the buddy now grows on the ONE BUDDY_STAGES
 // line.) The Today habitat is the glanceable version; this is the fuller look.
-function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) {
+function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, onChat, isPremium }) {
   const buddy = db.buddy || {};
   const incubating = buddy.hatched === false;
   const named = !!bp.name;
@@ -3290,13 +3441,9 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
   return (
     <div className="fade-in">
       <div className="flex flex-col items-center text-center mb-4">
-        <div className="pixel-box mb-3 relative overflow-hidden buddy-scene" style={{ width: 132, height: 130, boxShadow: 'none' }}>
-          <div className="absolute left-0 right-0 bottom-0" style={{ height: 28, background: 'var(--surface2)', borderTop: '2px solid var(--border)' }} />
-          <div className={'absolute' + (asleep ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: 17, width: 70, height: 10, transform: 'translateX(-50%)', background: 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
-          <div className="absolute" style={{ left: '50%', bottom: 8, transform: 'translateX(-50%)' }}>
-            <div className={'inline-block leading-none' + (asleep ? '' : ' buddy-bob')}><BuddyAvatar buddy={buddy} px={4} asleep={asleep} /></div>
-          </div>
-          {asleep && <span className="pf absolute" style={{ top: 4, right: 6, fontSize: 11, color: 'var(--carb)' }}>Zz</span>}
+        <div className="pixel-box mb-3" style={{ boxShadow: 'none', lineHeight: 0 }}>
+          <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w={132} h={130}
+            floor={28} spriteBottom={8} shadowBottom={17} shadowW={70} eq={equippedCosmetics(buddy)} asleep={asleep} />
         </div>
         <div className="text-lg font-bold">{who}</div>
         {incubating
@@ -3314,6 +3461,12 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
         <div className="pixel-bar"><i style={{ display: 'block', width: (prog * 100) + '%', height: '100%', background: 'var(--good)' }} /></div>
         <div className="text-[9px] text-[#8A8A90] mt-1.5">{nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`}</div>
       </div>}
+      {/* Talk back. Everything else the buddy does is one-way (it speaks on Today, you tap a CTA); this
+          is the one place the conversation runs both ways. Premium, and shown to free users too so the
+          feature is discoverable rather than hidden behind a tier they cannot see. */}
+      {!incubating && onChat && <button onClick={onChat} className="pixel-btn w-full py-2.5 mb-2 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+        <PixelGlyph kind="chat" color="currentColor" size={13} /> TALK TO {(named ? bp.name : 'YOUR BUDDY').toUpperCase()}{isPremium ? '' : ' · PREMIUM'}
+      </button>}
       {/* Rename lives in the Shop now (an Amber spend), so it isn't duplicated here. */}
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
       {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
@@ -3324,27 +3477,119 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies }) 
     </div>
   );
 }
-function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName }) {
+/* The buddy, answering back. A short conversation grounded in the same day snapshot the deeper dive
+   uses. Deliberately EPHEMERAL: the thread lives in component state and is gone when the sheet closes,
+   so nothing is added to the synced user_state blob (which merges wholesale across devices) and no
+   chat history is ever persisted. Premium-gated on the client for a clean paywall hand-off, and again
+   in ai-proxy so the gate is real rather than cosmetic. */
+const CHAT_OPENERS = ['How am I doing today?', 'What should I eat next?', 'Am I on track for my goal?'];
+function BuddyChatModal({ db, onClose, isPremium }) {
+  useBackClose(onClose);
+  const who = (db.buddy && db.buddy.name) || 'Your buddy';
+  const [turns, setTurns] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+  useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ block: 'end' }); }, [turns, busy]);
+  async function send(text) {
+    const q = String(text || '').trim().slice(0, CHAT_MAX_CHARS);
+    if (!q || busy) return;
+    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'chat' }); } catch (_) {} return; }
+    const next = turns.concat([{ role: 'user', text: q }]);
+    setTurns(next); setDraft(''); setErr(null); setBusy(true);
+    try {
+      const reply = await buddyChatReply(db, next);
+      setTurns(t => t.concat([{ role: 'buddy', text: reply }]));
+    } catch (e) {
+      // The proxy already opened the paywall for tier errors; here we just say why nothing came back.
+      // Take the unanswered question back out of the thread and return it to the box: it keeps the
+      // turns strictly alternating (two user turns in a row is not a valid conversation to send) and
+      // means a retry is one tap rather than a retype.
+      setTurns(t => t.slice(0, -1));
+      setDraft(q);
+      setErr((e && e.message) || 'I could not answer that just now.');
+    }
+    setBusy(false);
+    try { inputRef.current && inputRef.current.focus(); } catch (_) {}
+  }
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 flex flex-col sheet-up" style={{ height: '82vh', maxHeight: 640, paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}><BuddyAvatar buddy={db.buddy || {}} px={1.6} /></div>
+            <div className="min-w-0"><div className="text-[14px] font-bold truncate">{who}</div><div className="pf text-[7px] uppercase text-[#8A8A90]">{busy ? 'Thinking…' : 'Ask me anything'}</div></div>
+          </div>
+          <button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto -mx-1 px-1">
+          {!turns.length && (
+            <div className="text-center py-4">
+              <div className="text-[11px] text-[#8A8A90] leading-snug mb-4 max-w-[17rem] mx-auto">I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it.</div>
+              <div className="space-y-2">
+                {CHAT_OPENERS.map(o => <button key={o} onClick={() => send(o)} className="pixel-box w-full p-2.5 text-[11px] text-left active:opacity-60" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{o}</button>)}
+              </div>
+            </div>
+          )}
+          {turns.map((t, i) => (
+            <div key={i} className={'mb-2 flex ' + (t.role === 'user' ? 'justify-end' : 'justify-start')}>
+              <div className="pixel-box p-2.5 max-w-[85%] text-[11.5px] leading-snug" style={t.role === 'user'
+                ? { background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'none' }
+                : { background: 'var(--surface3)', boxShadow: 'none' }}>{t.text}</div>
+            </div>
+          ))}
+          {busy && <div className="mb-2 flex justify-start"><div className="pixel-box p-2.5 text-[11.5px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div></div>}
+          {err && <div className="text-[10px] leading-snug mb-2 px-1" style={{ color: 'var(--danger)' }}>{err}</div>}
+          <div ref={endRef} />
+        </div>
+        <div className="shrink-0 pt-3 flex gap-2 items-end" style={{ borderTop: '2px solid var(--border)' }}>
+          <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value.slice(0, CHAT_MAX_CHARS))}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }}
+            placeholder={isPremium ? 'Ask ' + who + '…' : 'Premium feature'} disabled={busy}
+            className="flex-1 min-w-0 pixel-box px-3 py-2.5 text-[12px] bg-transparent" style={{ boxShadow: 'none' }} />
+          <button onClick={() => send(draft)} disabled={busy || !draft.trim()} className="pixel-btn px-3 py-2.5 text-[9px] pf shrink-0"
+            style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (busy || !draft.trim()) ? 0.5 : 1 }}>SEND</button>
+        </div>
+        <div className="text-[9px] text-[#8A8A90] mt-2 leading-snug shrink-0">{who} is an AI and can get things wrong. This chat is not saved.</div>
+      </div>
+    </div>
+  );
+}
+function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, isPremium }) {
   useBackClose(onClose);
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
   const today = Store.todayISO();
   const [trophies, setTrophies] = useState(false);
+  const [chatting, setChatting] = useState(false);
   const [view, setView] = useState('buddy'); // Buddy | Battle | Shop: one sub-view at a time so the hub isn't one long stack
   const amber = Game.amberBalance(db.amber_ledger);
   // Buddy profile for the Buddy tab (same derivation the Today companion uses).
   const bp = buddyProfile(db, streak, Game.buddyView((db.buddy && db.buddy.stage) || 0, streak), buddyLevel(db));
   const freezeReady = Game.freezeReady(new Set((db.freezes && db.freezes.frozen) || []), today);
   // Buy a cosmetic with Amber: spend appends a negative ledger entry (merge-safe), the cosmetic lands
-  // in buddy.cosmetics (owned once). Blocked if you can't afford it or already own it.
+  // in buddy.cosmetics (owned once) and is worn straight away, so the purchase is visible immediately
+  // rather than needing a second tap. Blocked if you can't afford it or already own it.
   function buy(id) {
-    const price = Game.shopPrice(id); if (price == null) return;
+    const c = Game.COSMETIC_BY_ID[id]; if (!c) return;
     update(d => {
       d.amber_ledger = d.amber_ledger || [];
-      if (Game.amberBalance(d.amber_ledger) < price) return;
+      if (Game.amberBalance(d.amber_ledger) < c.price) return;
       d.buddy = d.buddy || {}; d.buddy.cosmetics = d.buddy.cosmetics || [];
       if (d.buddy.cosmetics.indexOf(id) >= 0) return;
       d.buddy.cosmetics.push(id);
-      d.amber_ledger.push({ id: Store.uid(), date: today, delta: -price, reason: 'buy:' + id });
+      d.buddy.equipped = Object.assign({}, d.buddy.equipped || {}, { [c.kind]: id });
+      d.amber_ledger.push({ id: Store.uid(), date: today, delta: -c.price, reason: 'buy:' + id });
+    });
+  }
+  // Wear an owned cosmetic, or take the slot off by passing null. Free, and reversible.
+  function equip(kind, id) {
+    if (Game.COSMETIC_KINDS.indexOf(kind) < 0) return;
+    update(d => {
+      d.buddy = d.buddy || {};
+      if (id != null && (d.buddy.cosmetics || []).indexOf(id) < 0) return;   // can only wear what you own
+      d.buddy.equipped = Object.assign({}, d.buddy.equipped || {}, { [kind]: id });
     });
   }
   return (
@@ -3358,16 +3603,17 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName })
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
           <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
-          {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} />}
+          {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} onChat={() => setChatting(true)} isPremium={isPremium} />}
 
           {/* Battle: the arena is embedded straight into the tab (no teaser, no second modal) so tapping
               Battle lands you right on Daily Hunt + Boss Climb. The Play tabs above stay put. */}
           {view === 'battle' && <FightModal db={db} update={update} streak={streak} onClose={onClose} embedded />}
 
           {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
-          {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} update={update} onRename={onOpenName} />}
+          {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} equip={equip} update={update} onRename={onOpenName} />}
         </>)}
       </div>
+      {chatting && <BuddyChatModal db={db} isPremium={isPremium} onClose={() => setChatting(false)} />}
     </div>
   );
 }
@@ -3437,23 +3683,45 @@ function TrophyCabinet({ db, streak, onBack }) {
 }
 // The Amber shop: spend hard-won currency on buddy cosmetics (FX auras shown on your buddy)
 // (consumables that flow into the item system). Prices come from the pure Game.shopPrice table.
-function ShopView({ db, amber, buy, update, onRename, onBack }) {
+// Small previews so a scene or prop can be judged before it is bought, drawn from the same tables the
+// terrarium renders from (so what you see in the shop is exactly what you get).
+function ScenePreview({ id, size = 40 }) {
+  const s = SCENE_ART[id]; if (!s) return null;
+  return <div style={{ width: size, height: size, background: 'linear-gradient(180deg, ' + s.top + ' 0%, ' + s.bottom + ' 100%)', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: Math.round(size * 0.3), background: s.ground, borderTop: '2px solid ' + s.line }} />
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%', background: 'radial-gradient(60% 70% at 50% 100%, ' + s.glow + ', transparent 70%)' }} />
+  </div>;
+}
+function PropPreview({ id }) {
+  const p = PROP_ART[id]; if (!p) return null;
+  return <span style={{ lineHeight: 0 }}><Sprite art={p.art} colors={p.colors} px={2.6} /></span>;
+}
+function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   const owned = (db.buddy && db.buddy.cosmetics) || [];
+  const worn = equippedCosmetics(db.buddy);
   const [colourOpen, setColourOpen] = useState(false);
   // onBuy overrides the default cosmetic purchase, so the same Row renders one-off actions (rename,
   // recolour) that open a flow instead of buying an owned item.
-  const Row = ({ id, name, desc, price, preview, ownedLabel, onBuy }) => {
+  // One shop row. An unowned item shows its price; an owned one shows WEAR / WORN, so buying is only
+  // ever the first step and swapping between things you already own costs nothing.
+  const Row = ({ id, name, desc, price, preview, ownedLabel, onBuy, kind }) => {
     const afford = amber >= price;
+    const isOwned = kind ? owned.indexOf(id) >= 0 : false;
+    const isWorn = kind ? worn[kind] === id : false;
     return (
-      <div className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pixel-box shrink-0 inline-flex items-center justify-center" style={{ background: 'var(--surface2)', boxShadow: 'none', width: 40, height: 40 }}>{preview}</div>
+      <div className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: isWorn ? 'var(--accent)' : 'var(--border)' }}>
+        <div className="pixel-box shrink-0 inline-flex items-center justify-center overflow-hidden" style={{ background: 'var(--surface2)', boxShadow: 'none', width: 40, height: 40 }}>{preview}</div>
         <div className="min-w-0 flex-1 leading-tight">
           <div className="text-[11px] font-bold truncate">{name}</div>
           <div className="text-[9px] text-[#8A8A90] leading-snug">{desc}</div>
         </div>
-        {ownedLabel
-          ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>{ownedLabel}</span>
-          : <button onClick={onBuy || (() => buy(id))} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}><Spark size={9} /> {price}</button>}
+        {isOwned
+          ? (isWorn
+            ? <button onClick={() => equip(kind, null)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
+            : <button onClick={() => equip(kind, id)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>WEAR</button>)
+          : ownedLabel
+            ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>{ownedLabel}</span>
+            : <button onClick={onBuy || (() => buy(id))} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}><Spark size={9} /> {price}</button>}
       </div>
     );
   };
@@ -3479,11 +3747,24 @@ function ShopView({ db, amber, buy, update, onRename, onBack }) {
         </div>
       </>}
 
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Buddy cosmetics</div>
+      {/* Three slots, one worn item each. Scenes and props dress the terrarium the buddy lives in,
+          which is why the shop keeps earning after the auras are all bought. */}
+      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Auras</div>
+      <div className="space-y-2 mb-5">
+        {Game.cosmeticsOfKind('aura').map(c => <Row key={c.id} id={c.id} kind="aura" name={c.name} desc={c.desc} price={c.price}
+          preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat)' }}><Spark size={18} /></span>} />)}
+      </div>
+
+      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Terrarium scenes</div>
+      <div className="space-y-2 mb-5">
+        {Game.cosmeticsOfKind('scene').map(c => <Row key={c.id} id={c.id} kind="scene" name={c.name} desc={c.desc} price={c.price}
+          preview={<ScenePreview id={c.id} />} />)}
+      </div>
+
+      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Terrarium props</div>
       <div className="space-y-2">
-        {Game.COSMETICS.map(c => <Row key={c.id} id={c.id} name={c.name} desc={c.desc} price={c.price}
-          preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat)' }}><Spark size={18} /></span>}
-          ownedLabel={owned.indexOf(c.id) >= 0 ? 'OWNED' : null} />)}
+        {Game.cosmeticsOfKind('prop').map(c => <Row key={c.id} id={c.id} kind="prop" name={c.name} desc={c.desc} price={c.price}
+          preview={<PropPreview id={c.id} />} />)}
       </div>
       {colourOpen && update && <BuddyColourModal db={db} update={update} onClose={() => setColourOpen(false)} />}
     </div>
@@ -4639,6 +4920,10 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
       d.buddy = d.buddy || { stage: 0 };
       d.buddy.species = species; d.buddy.palette = d.buddy.palette || 'female';
       d.buddy.hatched = true; d.buddy.name = nm;
+      // Hatching IS the growth moment for the stage it comes out at, so mark that stage celebrated
+      // and let the NEXT rung earn its own. (A founding member re-hatches at whatever stage their
+      // streak already bought, which must not replay as a pile of stage-ups.)
+      d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, d.buddy.stage || 0);
       d.buddy.hatchedISO = d.buddy.hatchedISO || Store.todayISO();
       if (d.buddy.stage == null) d.buddy.stage = 0;
       d.onboarding = d.onboarding || {}; d.onboarding.eggPicked = true; d.onboarding.foundingMember = true;
@@ -4729,6 +5014,58 @@ function MilestoneCelebration({ db, milestone, etaText, showToast, onClose, onMa
             : <button onClick={onClose} className="pixel-btn flex-1 py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{milestone.cta}</button>}
         </div>
         {onMaintain && <button onClick={onClose} className="mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Keep my current goal</button>}
+      </div>
+    </div>
+  );
+}
+/* The GROWTH moment. Reaching a new BUDDY_STAGES rung used to be a silent number change on a progress
+   bar, which made the longest loop in the app (a 30-day streak) the least celebrated. This is the
+   payoff: confetti, the new stage named, and the old size shown beside the new one so the thing the
+   streak actually bought is visible rather than asserted. onClose records the stage as celebrated. */
+const STAGE_UP_LINES = [
+  'Look at me! All that logging is paying off.',
+  'I grew! That is your consistency doing that, not mine.',
+  'Bigger, stronger, and still hungry. Keep it coming.',
+  'Every day you logged got me here. Thank you for that.',
+];
+function StageUpCelebration({ db, stage, onClose }) {
+  useBackClose(onClose);
+  const buddy = db.buddy || {};
+  const who = buddy.name || 'Your buddy';
+  const st = BUDDY_STAGES[Math.min(stage, BUDDY_STAGES.length - 1)];
+  const prev = BUDDY_STAGES[Math.max(0, stage - 1)];
+  const s = buddyStageSprite(stage, buddy);
+  const eq = equippedCosmetics(buddy);
+  const line = STAGE_UP_LINES[crHash((db.game_salt || '') + 'stage' + stage) % STAGE_UP_LINES.length];
+  const fromPx = 5 * stageScale(Math.max(0, stage - 1));
+  const toPx = 5 * stageScale(stage);
+  return (
+    <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
+      <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
+      <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative">
+        <div className="pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />{who} grew<Spark size={10} /></div>
+        <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 200, minHeight: 190 }}>
+          <div className="celebrate-bounce inline-block" style={{ filter: auraFilter(eq) || undefined }}>
+            <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={toPx} fps={s.fps} />
+          </div>
+        </div>
+        <div className="text-3xl font-bold mb-3" style={{ color: 'var(--accent)' }}>{st.name}</div>
+        {/* The size jump, shown rather than claimed: the stage it left beside the stage it reached. */}
+        {stage > 1 && (
+          <div className="flex items-end justify-center gap-4 mb-4">
+            <div className="text-center" style={{ opacity: 0.45 }}>
+              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={fromPx * 0.5} fps={s.fps} />
+              <div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
+            </div>
+            <span className="pf text-[10px] pb-4" style={{ color: 'var(--accent)' }}>›</span>
+            <div className="text-center">
+              <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={toPx * 0.5} fps={s.fps} />
+              <div className="pf text-[7px] uppercase mt-1" style={{ color: 'var(--accent)' }}>{st.name}</div>
+            </div>
+          </div>
+        )}
+        <div className="pixel-box p-3 mb-6 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{line}<span style={{ color: 'var(--accent)' }}>”</span></div>
+        <button onClick={onClose} className="pixel-btn w-full max-w-xs py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NICE ONE</button>
       </div>
     </div>
   );
@@ -5010,6 +5347,10 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     if (!buddy.ratchet && streak <= longest) return;
     update(d => {
       d.buddy = d.buddy || { stage: 0 };
+      // Seed the celebration marker BEFORE any growth lands, so an account that predates it reads its
+      // existing stage as already-celebrated rather than as a fresh multi-stage rise. Game.stageUp
+      // treats a null marker as "never fire", which is what keeps the very first seed silent.
+      if (d.buddy.stageSeen == null) d.buddy.stageSeen = d.buddy.stage || 0;
       if (buddy.stage > (d.buddy.stage || 0)) d.buddy.stage = buddy.stage;
       d.records = d.records || { longestStreak: 0 };
       if (streak > (d.records.longestStreak || 0)) d.records.longestStreak = streak;
@@ -5054,6 +5395,10 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   const markMiles = keys => update(d => { d.profile = d.profile || {}; d.profile.milestonesShown = Array.from(new Set([...(d.profile.milestonesShown || []), ...(keys || [])])); });
   const milestone = eggIncubating ? null : goalMilestoneFor(db);
   const milestoneEta = milestone && milestone.kind !== 'reached' ? (goalProjection(db) || {}).text : null;
+  // A growth stage reached but not yet celebrated. Queued behind hatch and milestone rather than
+  // stacked on top of them, so two full-screen moments never fight; whichever waits shows next render.
+  const grewTo = eggIncubating ? null : Game.stageUp((db.buddy || {}).stage, (db.buddy || {}).stageSeen);
+  const markGrown = () => update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, grewTo); });
   const msg = (() => {
     const m = buddyMessage(db, today, streak); if (!m) return null;
     const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
@@ -5094,8 +5439,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   })();
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
-      {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
+      {hatching && <HatchCelebration buddy={db.buddy} suggestedName={randomBuddyName(db.game_salt)} onDone={(nm) => { setHatching(false); update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.name = nm; d.buddy.hatched = true; d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, d.buddy.stage || 0); d.onboarding = d.onboarding || {}; d.onboarding.hatched = true; }); if (showToast) showToast(nm + ' hatched! Keep logging to help it grow.'); }} />}
       {milestone && !hatching && <MilestoneCelebration db={db} milestone={milestone} etaText={milestoneEta} showToast={showToast} onClose={() => markMiles(milestone.coveredKeys)} onMaintain={milestone.kind === 'reached' ? () => { markMiles(milestone.coveredKeys); setView('goals'); } : null} />}
+      {grewTo != null && !hatching && !milestone && <StageUpCelebration db={db} stage={grewTo} onClose={markGrown} />}
       <PageHeader kicker={prettyDate(today)} title="Today" />
       <OnboardingChecklist db={db} update={update} onLog={() => onQuickAdd(false)} onOpenDex={onOpenPlay} />
       {/* For free users, the upsell leads Today as the first box (dismissable, re-shows after 7 days so
@@ -8303,7 +8649,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
   if (db.buddy && db.buddy.hatched === false) return null; // while incubating, the tasks live in the buddy habitat
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
-  const proteinTgt = et ? et.eff.protein : 0;
+  const proteinTgt = et ? et.eff.protein_g : 0;
   const todayProtein = sumMacros(entriesOn(db, today)).protein;
   const items = [
     { k: 'meal', label: 'Log your first meal', done: db.log_entries.length > 0, go: onLog },
@@ -10194,7 +10540,7 @@ function App() {
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
-      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} />}
+      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} isPremium={isPremium} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       <Toast toast={toast} onClose={() => setToast(null)} />
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} buddy={db.buddy} onDone={() => setShowWelcome(false)} />}

@@ -165,7 +165,9 @@ test('existing persisted state migrates with sensible gamification defaults', ()
   assert.strictEqual(s.fight.dailyBest, 0);
   assert.strictEqual(s.game_salt, null);               // minted lazily on first run
   assert.deepStrictEqual(s.badges, { checkins: 0, inRange: 0 });
-  assert.deepStrictEqual(s.buddy, { stage: 0, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [] });
+  // stageSeen backfills as NULL, not 0: a returning buddy already at stage 4 must not read as four
+  // uncelebrated rises. The Dashboard seeds it to the current stage before any growth is applied.
+  assert.deepStrictEqual(s.buddy, { stage: 0, stageSeen: null, name: '', personality: '', hatchedISO: null, speciesId: null, evoStage: 0, affinity: null, cosmetics: [], equipped: {} });
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
   assert.deepStrictEqual(s.amber_ledger, []);          // new currency ledger backfilled
   assert.strictEqual(s.catch_log, undefined);          // Macrodex catch state stripped on migrate
@@ -661,4 +663,62 @@ test('canAfford reads the balance against the price', () => {
   assert.strictEqual(Game.canAfford(rich, 'aura_ember'), true);   // aura_ember = 180
   assert.strictEqual(Game.canAfford(poor, 'aura_ember'), false);
   assert.strictEqual(Game.canAfford(rich, 'not_a_thing'), false); // no price → cannot buy
+});
+
+// ---- Cosmetic slots: what is owned vs what is actually worn ----
+
+test('every cosmetic has a known kind, a price and a unique id', () => {
+  const seen = {};
+  Game.COSMETICS.forEach(c => {
+    assert.ok(Game.COSMETIC_KINDS.indexOf(c.kind) >= 0, c.id + ' has an unknown kind');
+    assert.ok(c.price > 0, c.id + ' needs a price');
+    assert.ok(c.name && c.desc, c.id + ' needs a name and description');
+    assert.ok(!seen[c.id], 'duplicate cosmetic id ' + c.id);
+    seen[c.id] = 1;
+  });
+  // Every slot has something to buy, or the shop section would render empty.
+  Game.COSMETIC_KINDS.forEach(k => assert.ok(Game.cosmeticsOfKind(k).length > 0, 'no cosmetics of kind ' + k));
+});
+
+test('equippedFor: nothing owned means nothing worn', () => {
+  assert.deepStrictEqual(Game.equippedFor([], {}), { aura: null, scene: null, prop: null });
+  assert.deepStrictEqual(Game.equippedFor(null, null), { aura: null, scene: null, prop: null });
+});
+
+test('equippedFor: an explicit choice is worn', () => {
+  const eq = Game.equippedFor(['aura_ember', 'scene_tar', 'prop_fern'], { aura: 'aura_ember', scene: 'scene_tar', prop: 'prop_fern' });
+  assert.deepStrictEqual(eq, { aura: 'aura_ember', scene: 'scene_tar', prop: 'prop_fern' });
+});
+
+test('equippedFor: an explicit null takes the slot off, without forgetting the item is owned', () => {
+  const eq = Game.equippedFor(['aura_ember', 'scene_tar'], { aura: null });
+  assert.strictEqual(eq.aura, null);      // explicitly removed
+  assert.strictEqual(eq.scene, 'scene_tar'); // slot never chosen, so it falls back to the owned one
+});
+
+test('equippedFor: a slot never chosen falls back to the last owned item of that kind', () => {
+  // This is the legacy own-it-and-it-is-worn behaviour, which is what aura-only accounts rely on.
+  const eq = Game.equippedFor(['aura_ember', 'aura_frost'], undefined);
+  assert.strictEqual(eq.aura, 'aura_frost');
+});
+
+test('equippedFor: an unowned or mismatched pick is never worn', () => {
+  assert.strictEqual(Game.equippedFor([], { aura: 'aura_ember' }).aura, null);           // not owned
+  assert.strictEqual(Game.equippedFor(['scene_tar'], { aura: 'scene_tar' }).aura, null); // wrong slot
+  assert.strictEqual(Game.equippedFor(['aura_ember'], { aura: 'nope' }).aura, null);     // unknown id
+});
+
+// ---- Growth celebrations: fire on a genuine rise, never retroactively ----
+
+test('stageUp fires only when the stage climbs past what was already celebrated', () => {
+  assert.strictEqual(Game.stageUp(3, 2), 3);
+  assert.strictEqual(Game.stageUp(3, 3), null);
+  assert.strictEqual(Game.stageUp(2, 3), null); // a nap never celebrates on the way back up
+});
+
+test('stageUp stays silent until the marker is seeded', () => {
+  // An account that predates stageSeen must not fire a moment for growth it has long since had.
+  assert.strictEqual(Game.stageUp(5, null), null);
+  assert.strictEqual(Game.stageUp(5, undefined), null);
+  assert.strictEqual(Game.stageUp(1, 0), 1); // once seeded at 0, the first real rung fires
 });
