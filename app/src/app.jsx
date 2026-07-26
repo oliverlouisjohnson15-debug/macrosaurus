@@ -10250,7 +10250,10 @@ function App() {
     const firstMeal = meals[0] && meals[0].id;
     if (action === 'log') setAdding({ date: Store.todayISO(), mealId: firstMeal });
     else if (action === 'scan') setAdding({ date: Store.todayISO(), mealId: firstMeal, scan: true });
-    else if (action === 'weigh') { setView('dashboard'); setTimeout(() => { const el = document.getElementById('checkin-card'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 400); }
+    // ?action=weigh used to scroll to a #checkin-card that no longer exists (the buddy took over the
+    // check-in and the standalone card went with it), so the home-screen shortcut and the check-in
+    // push both landed on Today doing nothing. Open the check-in flow App already owns instead.
+    else if (action === 'weigh') { setView('dashboard'); setCheckingIn(true); }
     if (isShared) (async () => {
       try {
         const cache = await caches.open('share-incoming');

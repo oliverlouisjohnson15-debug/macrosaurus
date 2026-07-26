@@ -1,13 +1,19 @@
 // push-nudge: the buddy reaches you outside the app.
 //
-// Invoked hourly by pg_cron (via pg_net) with an `x-cron-secret` header. For every enabled push
-// subscription whose owner's LOCAL time is their chosen nudge hour and who has not logged food today,
-// it sends a Web Push "your buddy is peckish" nudge. At most one nudge per local day per device
-// (last_nudge_date dedupe). Expired subscriptions (404/410) are pruned. Deployed with verify_jwt
-// disabled because it authenticates itself with the shared cron secret below.
+// Invoked hourly by pg_cron (via pg_net) with an `x-cron-secret` header. Each subscription has two
+// windows a day: the owner's chosen nudge_hour, and STREAK_SAVE_HOUR in the evening. In whichever
+// window is open, decide.ts picks the single most useful thing the buddy has to say (streak-save >
+// hatch > peckish > overdue check-in) or stays silent. Each window has its own dedupe marker
+// (last_nudge_date / last_streaksave_date), so both are capped at one per local day and a user only
+// ever gets two when they were nudged, still logged nothing by the evening, and had a run to lose.
+// Expired subscriptions (404/410) are pruned. Deployed with verify_jwt disabled because it
+// authenticates itself with the shared cron secret below.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+// The ladder that decides whether to send and what to say lives in its own Deno/npm-free module so
+// it can be unit-tested under node (see tests/push-nudge.test.js).
+import { decideNudge, STREAK_SAVE_HOUR, type Nudge } from "./decide.ts";
 
 Deno.serve(async (req) => {
   try {
@@ -44,34 +50,30 @@ Deno.serve(async (req) => {
     for (const sub of subs || []) {
       const { date: localDate, hour: localHour } = localParts(now, sub.tz || "UTC");
 
-      if (!force) {
-        if (sub.nudge_hour == null || localHour !== sub.nudge_hour) { skipped++; continue; }
-        if (sub.last_nudge_date === localDate) { skipped++; continue; }
-      }
+      // Two windows a day, each with its own dedupe marker (see the streak-save migration):
+      //   - the user's chosen nudge_hour, for the ordinary "what needs doing" push
+      //   - STREAK_SAVE_HOUR, purely for a run that is about to break
+      // Anything outside both is not this subscription's moment, so skip without reading their state.
+      const inNormal = sub.nudge_hour != null && localHour === sub.nudge_hour && sub.last_nudge_date !== localDate;
+      const inStreakSave = localHour === STREAK_SAVE_HOUR && sub.last_streaksave_date !== localDate;
+      if (!force && !inNormal && !inStreakSave) { skipped++; continue; }
 
-      let buddyName = "Rex";
-      if (!force) {
+      let msg: Nudge | null = null;
+      if (force) {
+        msg = { kind: "test", title: "Rex is peckish", body: "Test nudge from Macrosaurus.", url: "/?action=log" };
+      } else {
         const { data: st } = await admin.from("user_state").select("data").eq("user_id", sub.user_id).maybeSingle();
-        const d = (st && st.data) || {};
-        if (d.paused) { skipped++; continue; }
-        const logged = Array.isArray(d.log_entries) && d.log_entries.some((e: { date?: string }) => e && e.date === localDate);
-        if (logged) { skipped++; continue; }
-        if (d.buddy && d.buddy.name) buddyName = String(d.buddy.name).slice(0, 24);
+        msg = decideNudge((st && st.data) || {}, localDate, { normal: inNormal, streakSave: inStreakSave });
+        if (!msg) { skipped++; continue; }
       }
 
-      // The buddy speaks in the first person, and the line rotates by day so a daily nudge never reads
-      // like the same robotic reminder. Keeps the app's copy voice: warm, British, no em dashes.
-      const nudgeLines = [
-        "I have not eaten yet today. Log a meal and I will grow a little stronger.",
-        "Nothing logged yet. Pop your last meal in and I will do the maths for you.",
-        "Feed me before the day slips away. A quick log keeps us both on track.",
-      ];
-      const dayIdx = parseInt(String(localDate).slice(-2), 10) || 0;
       const payload = JSON.stringify({
-        title: buddyName + " is peckish",
-        body: nudgeLines[dayIdx % nudgeLines.length],
-        url: "/?action=log",
-        tag: "macrosaurus-nudge-" + localDate,
+        title: msg.title,
+        body: msg.body,
+        url: msg.url,
+        // Tagged per kind as well as per day, so a streak-save never replaces the earlier nudge in the
+        // tray (same tag would collapse them) and a repeat of the same kind still cannot stack.
+        tag: "macrosaurus-" + msg.kind + "-" + localDate,
       });
 
       try {
@@ -80,7 +82,10 @@ Deno.serve(async (req) => {
           payload,
         );
         sent++;
-        if (!force) await admin.from("push_subscriptions").update({ last_nudge_date: localDate }).eq("endpoint", sub.endpoint);
+        if (!force) {
+          const mark = msg.kind === "streaksave" ? { last_streaksave_date: localDate } : { last_nudge_date: localDate };
+          await admin.from("push_subscriptions").update(mark).eq("endpoint", sub.endpoint);
+        }
       } catch (err) {
         const code = (err as { statusCode?: number; status?: number }).statusCode ?? (err as { status?: number }).status;
         if (code === 404 || code === 410) { await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); pruned++; }
@@ -96,15 +101,4 @@ Deno.serve(async (req) => {
 
 function json(o: unknown, status = 200) {
   return new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
-}
-
-// Local calendar date (YYYY-MM-DD) and 0-23 hour for an IANA timezone.
-function localParts(d: Date, tz: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false,
-  }).formatToParts(d);
-  const g = (t: string) => { const p = parts.find((x) => x.type === t); return p ? p.value : ""; };
-  let hour = parseInt(g("hour"), 10);
-  if (hour === 24 || isNaN(hour)) hour = 0;
-  return { date: g("year") + "-" + g("month") + "-" + g("day"), hour };
 }
