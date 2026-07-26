@@ -483,18 +483,26 @@ async function buddyDeepDive(db) {
   const m = sumMacros(logged);
   const night = lastSleepNight(db);
   const rf = readinessFor(db, today);
+  // The dive is usually read first thing, so hand the model the clock and yesterday's numbers as well.
+  // Without them it reads an empty morning as a failure ("you haven't logged anything, no steps yet")
+  // when in truth the day simply hasn't happened yet.
+  const hour = new Date().getHours();
+  const partOfDay = hour < 11 ? 'early morning' : hour < 15 ? 'midday' : hour < 20 ? 'afternoon' : 'evening';
   const payload = {
+    partOfDay: partOfDay, hourOfDay: hour,
     readiness: isFinite(rf) ? Math.round(rf) : null,
     sleepHours: night ? +(night.rec.min / 60).toFixed(1) : null,
     stepsToday: +((db.steps || {})[today]) || 0,
+    stepsYesterday: +((db.steps || {})[shiftISO(today, -1)]) || 0,
     stepGoal: stepGoalFor(db) || null,
     loggedToday: logged.length > 0,
     proteinSoFar: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein) : null,
     kcalSoFar: Math.round(m.kcal), kcalTarget: et ? Math.round(et.eff.kcal) : null,
     weighCadence: db.profile.weighCadence || 'daily',
+    weighedToday: (db.weight_entries || []).some(w => w.date === today),
   };
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
-  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
+  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. TIME OF DAY MATTERS: partOfDay tells you where in the day they are. In the early morning the day has not happened yet, so NEVER treat zero steps, a low calorie or protein total, or loggedToday being false as a shortfall, a slip or something to fix. Talk about the day ahead instead, and if you mention movement in the morning refer to stepsYesterday, not stepsToday. Only frame today\'s totals as behind if it is afternoon or evening. If weighCadence is daily and weighedToday is false in the morning, your one next thing should be a quick weigh-in before food or drink. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, messages: [{ role: 'user', content: rules + '\n\nToday (JSON):\n' + JSON.stringify(payload) + '\n\nYour deeper dive:' }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
@@ -2569,6 +2577,33 @@ function engagementNudge(db, today) {
   if (doy % 2 !== 0) return null; // surface at most every other day
   return cands[doy % cands.length];
 }
+// Whether the buddy should be asking for a weight right now, and in what words. Daily weighers get
+// asked for TODAY's weight every morning (the weigh-in is the first job of the day, before food goes
+// anywhere near a log); weekly weighers keep the softer "not weighed this week" nudge. Pure, so both
+// the morning read and the habitat line read from one place and can never disagree. Callers decide
+// when to surface it (the morning ask is clock-gated; the read sheet shows it whenever it's open).
+function weighAsk(db, today) {
+  const p = db.profile || {};
+  const ws = db.weight_entries || [];
+  const weighedToday = ws.some(w => w.date === today);
+  // Cadence is null until the buddy has asked; treat that as weekly so we don't pre-empt the question.
+  const daily = p.weighCadence === 'daily';
+  if (daily) {
+    return {
+      due: !weighedToday, daily: true, weighedToday: weighedToday, cta: 'Weigh in',
+      habitatText: "Morning. Let's get you on the scales first, before food or drink, and I'll log today's weight.",
+      laterText: "No weight in for today yet. Pop on the scales when you get a chance, or catch it first thing tomorrow before food, and I'll keep your trend honest.",
+      recapText: "First job: hop on the scales before food or drink and I'll log today's weight. Same time each morning gives me the truest trend.",
+    };
+  }
+  const weighedRecently = ws.some(w => Game.daysBetween(w.date, today) <= 6);
+  return {
+    due: !weighedRecently, daily: false, weighedToday: weighedToday, cta: 'Weigh in',
+    habitatText: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.',
+    laterText: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.',
+    recapText: "Not weighed this week? Same time each morning, after the loo and before food or drink, gives me the truest trend, just the once.",
+  };
+}
 function buddyCoach(db, today, streak) {
   // Teach first for new users: the day's lesson takes the coach slot until acknowledged.
   const lesson = nextLesson(db, today);
@@ -2582,7 +2617,6 @@ function buddyCoach(db, today, streak) {
   const et = effectiveTarget(db, today);
   const proteinTgt = et ? Math.round(et.eff.protein) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
-  const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
   const weighedToday = (db.weight_entries || []).some(w => w.date === today);
   const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
   // Streak-save: late in the day with a live streak and nothing logged or weighed yet, lean on loss
@@ -2591,8 +2625,11 @@ function buddyCoach(db, today, streak) {
     return { text: "Don't break the chain! Log anything before midnight and your " + streak + "-day streak lives on.", cta: 'Log it', action: 'log', key: 'coach_streaksave' };
   }
   if (!logged.length && !snoozed('coach_log', 12)) {
+    // First thing in the morning an empty log isn't a slip, it's just a day that hasn't started, so the
+    // line looks forward rather than pointing out what's missing.
+    if (hour < 9) return { text: "Morning. Clean slate today. Log your breakfast whenever you get to it and I’ll do the maths.", cta: 'Log breakfast', action: 'log', key: 'coach_log' };
     return hour < 11
-      ? { text: "Morning. Nothing logged yet, what did you have for breakfast?", cta: 'Log it', action: 'log', key: 'coach_log' }
+      ? { text: 'Had breakfast yet? Pop it in when you do and I’ll do the maths.', cta: 'Log it', action: 'log', key: 'coach_log' }
       : { text: 'Nothing logged yet today. Pop your ' + meal + ' in and I’ll do the maths.', cta: 'Log it', action: 'log', key: 'coach_log' };
   }
   // Protein nudge only makes sense once something's been logged (a gap against zero intake is just the
@@ -2608,8 +2645,11 @@ function buddyCoach(db, today, streak) {
     const left = stepGoal - todaySteps;
     if (left >= 400) return { text: "You're only " + left.toLocaleString() + " steps off your " + stepGoal.toLocaleString() + " goal. A quick walk and it's yours, go get them!", cta: null, action: null, key: 'coach_steps' };
   }
-  if (!weighedRecently && !snoozed('coach_weigh', 20)) {
-    return { text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.', cta: 'Weigh in', action: 'weigh', key: 'coach_weigh' };
+  // Weigh nudge. buddyMessage already owns the daily weigher's morning ask, so this is the later-in-the-
+  // day catch (and the weekly weigher's once-a-week prompt), worded by the same helper.
+  const wa = weighAsk(db, today);
+  if (wa.due && !(wa.daily && hour < 12) && !snoozed('coach_weigh', wa.daily ? 8 : 20)) {
+    return { text: wa.laterText, cta: wa.cta, action: 'weigh', key: 'coach_weigh' };
   }
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
@@ -2735,13 +2775,35 @@ function buddyMessage(db, today, streak) {
   // 3. Morning read: the buddy's daily orientation, shown once and then gone for the day. Only when
   // there's genuine sleep/step data to talk about, and only through the daytime so an evening open
   // doesn't get a stale "morning" read.
-  if (!incubating && new Date().getHours() < 14 && p.readAckDate !== today) {
+  const hour = new Date().getHours();
+  const weigh = weighAsk(db, today);
+  // A daily weigher's morning starts on the scales, so the read fires for them even with no wearable
+  // data to talk about, and it leads with the weigh-in rather than burying it behind a sheet.
+  const weighFirst = !incubating && !db.paused && weigh.daily && weigh.due && hour < 12;
+  if (!incubating && hour < 14 && p.readAckDate !== today) {
     const recap = readinessRecap(db, today);
-    if (recap.items.some(it => it.key === 'sleep' || it.key === 'steps')) {
+    const hasData = recap.items.some(it => it.key === 'sleep' || it.key === 'steps');
+    if (hasData || weighFirst) {
       const lead = recap.items.find(it => it.key === 'ready') || recap.items[0];
+      // Weigh-in outstanding: the read still speaks, but the tap goes straight to the scales and the
+      // full read waits behind the secondary. Weighing doesn't ack the read, so it's there afterwards.
+      if (weighFirst) return { kind: 'read',
+        text: (hasData ? lead.text + ' ' : '') + "First things first though, hop on the scales before food or drink and I'll log today's weight.",
+        primary: { label: 'Weigh in', act: 'weigh' },
+        secondary: { label: 'See the full read', act: 'read_open' } };
       return { kind: 'read', text: lead.text,
         primary: { label: 'See the full read', act: 'read_open' },
         secondary: { label: 'Got it', act: 'read_ack' } };
+    }
+  }
+  // 3b. Daily weigh-in still outstanding once the read has been acked: keep asking for it through the
+  // morning, ahead of anything about food, so the scales come before the first log of the day.
+  if (weighFirst) {
+    const dm = p.nudgesDismissed || {};
+    if (!(dm.weigh_daily && (Date.now() - dm.weigh_daily) < 4 * 3600 * 1000)) {
+      return { kind: 'say', text: weigh.habitatText,
+        primary: { label: weigh.cta, act: 'weigh' },
+        dismiss: { key: 'weigh_daily' } };
     }
   }
   // 4. Lesson: teaching takes the slot for new users until the day's lesson is acknowledged. This is the
@@ -4031,9 +4093,14 @@ function readinessRecap(db, today) {
   }
   const rc = recoveryCoachLine(db, today);
   items.push({ key: 'ready', tone: Game.readinessBand(readinessFor(db, today)) === 'drowsy' ? 'warn' : 'good', text: rc.text });
-  const weighNeeded = !(db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
-  if (weighNeeded) items.push({ key: 'weigh', tone: 'accent', text: "Not weighed this week? Same time each morning, after the loo and before food or drink, gives me the truest trend, just the once." });
-  return { items: items, weighNeeded: weighNeeded };
+  // Weigh-in. For daily weighers this is the first job of the morning, not a weekly afterthought, so it
+  // leads the read and asks for TODAY's weight; weekly weighers keep the gentler once-a-week nudge.
+  const w = weighAsk(db, today);
+  if (w.due) {
+    const item = { key: 'weigh', tone: 'accent', text: w.recapText };
+    if (w.daily) items.unshift(item); else items.push(item);
+  }
+  return { items: items, weighNeeded: w.due, weighDaily: w.daily, weighCta: w.cta };
 }
 // The buddy delivers the daily readiness read on its own little screen: the dino, then a line each on
 // sleep, steps, readiness (how hard to push) and a weigh-in nudge. Opened from the Recovery card.
@@ -4066,7 +4133,7 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
             <div key={it.key} className="p-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', borderLeft: '4px solid ' + (toneColor[it.tone] || 'var(--border)') }}>{it.text}</div>
           ))}
         </div>
-        {recap.weighNeeded && onWeigh && <button onClick={() => { onWeigh(); onClose(); }} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN NOW</button>}
+        {recap.weighNeeded && onWeigh && <button onClick={() => { onWeigh(); onClose(); }} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{recap.weighDaily ? "LOG TODAY'S WEIGHT" : 'WEIGH IN NOW'}</button>}
         {/* Premium AI deeper dive: ties the day's numbers into one personalised focus. Free users get a
             gentle upsell; premium runs the AI, degrading gracefully if the proxy is unreachable. */}
         {dive
@@ -5123,7 +5190,9 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
       <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg} />
-      {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={onCheckIn} />}
+      {/* Daily weighers get the quick weigh sheet (it's a one-number job, every morning); weekly weighers
+          get the full check-in, where the weight is meant to retune the plan. */}
+      {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => { if ((db.profile || {}).weighCadence === 'daily') setWeighOpen(true); else onCheckIn(); }} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
