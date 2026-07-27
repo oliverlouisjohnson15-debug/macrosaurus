@@ -29,7 +29,7 @@
 // fixtures (tests/recipe-extract.test.js); this file is the network I/O and the request handler.
 import {
   clip, decodeEntities, unescapeJson, jsonAfter, youtubeId, ytCaptionTracks, pickCaptionTrack,
-  instagramShortcode, captionFromHtml, igVideoUrl, igAltText, igAuthor,
+  instagramShortcode, shortcodeToMediaId, igFromApiJson, captionFromHtml, igVideoUrl, igAltText, igAuthor,
   isTikTokHost, vttToText, tiktokSubtitleUrls, tiktokVideoUrl,
 } from './parse.ts';
 
@@ -139,16 +139,45 @@ async function extractYouTube(u: URL) {
 }
 
 // ---- Instagram --------------------------------------------------------------------------------
+// Instagram is the hardest of the three and the one the ladder can help least by itself: unlike
+// YouTube and TikTok it publishes NO subtitle track, so there is no free way to hear a Reel. Its
+// recipe is on screen, which means everything depends on getting the video. Hunting the embed HTML
+// for a video_url only works when Instagram feels like shipping one, so we ask the endpoint its own
+// web client asks first, and keep the embed scrapers as the fallback.
+const IG_APP_ID = '936619743392459'; // the public web-client id Instagram's own site sends
+async function igApiMedia(code: string) {
+  const id = shortcodeToMediaId(code);
+  if (!id) return null;
+  try {
+    const r = await fetch('https://www.instagram.com/api/v1/media/' + id + '/info/', {
+      headers: { 'user-agent': UA_BROWSER, 'x-ig-app-id': IG_APP_ID, accept: '*/*', 'accept-language': 'en-US,en;q=0.9' },
+    });
+    if (!r.ok) { try { await r.body?.cancel(); } catch { /* ignore */ } return { status: r.status, data: null }; }
+    return { status: r.status, data: igFromApiJson(await r.json()) };
+  } catch { return null; }
+}
+
 async function extractInstagram(u: URL) {
   const code = instagramShortcode(u);
   if (!code) return { ok: false, platform: 'instagram', note: 'Could not read the Instagram post id from that link.' };
+  let caption = '', thumbnail = '', diag = '', mediaUrl = '', alt = '', author = '';
+
+  const api = await igApiMedia(code);
+  if (api?.data) {
+    caption = api.data.caption; thumbnail = api.data.thumbnail; mediaUrl = api.data.videoUrl; author = api.data.author;
+    diag = 'api ' + (caption ? caption.length + 'ch' : 'no-caption') + (mediaUrl ? '/video' : '') + (thumbnail ? '/cover' : '');
+  } else {
+    diag = 'api ' + (api ? api.status : 'err');
+  }
+
+  // Whatever the API withheld, try to scrape. Nothing here re-fetches what we already have.
   const attempts: Array<{ url: string; ua: string }> = [
     { url: 'https://www.instagram.com/reel/' + code + '/embed/captioned/', ua: UA_BROWSER },
     { url: 'https://www.instagram.com/p/' + code + '/embed/captioned/', ua: UA_BROWSER },
     { url: 'https://www.instagram.com/reel/' + code + '/', ua: UA_BOT },
   ];
-  let caption = '', thumbnail = '', diag = '', mediaUrl = '', alt = '', author = '';
   for (const a of attempts) {
+    if (caption && thumbnail) break;
     try {
       const r = await fetch(a.url, { headers: { 'user-agent': a.ua, 'accept-language': 'en-US,en;q=0.9' }, redirect: 'follow' });
       const html = await r.text();
@@ -159,9 +188,9 @@ async function extractInstagram(u: URL) {
       if (!mediaUrl) { mediaUrl = igVideoUrl(html); if (mediaUrl) diag += '/video'; }
       if (!alt) alt = igAltText(html);
       if (!author) author = igAuthor(html);
-      // Stop as soon as we have the caption: the media URL is nice to have here but never worth an
-      // extra round trip, because the frames rung re-resolves it on its own request anyway.
-      if (found.text) { caption = found.text; break; }
+      // The API's caption is the full one; a scraped caption is often truncated, so only take it
+      // when we have nothing.
+      if (!caption && found.text) caption = found.text;
     } catch (e) { diag += (diag ? ' | ' : '') + 'err ' + (e as Error).message; }
   }
   const parts = { author, caption, screen: alt };
@@ -274,6 +303,9 @@ async function resolveMedia(u: URL, platform: string): Promise<{ url: string; re
   if (platform === 'instagram') {
     const code = instagramShortcode(u);
     if (!code) return { url: '', referer: '' };
+    // Same order as the extract: the media API is the one that reliably has a playable URL.
+    const api = await igApiMedia(code);
+    if (api?.data?.videoUrl) return { url: api.data.videoUrl, referer: 'https://www.instagram.com/' };
     for (const target of [
       'https://www.instagram.com/reel/' + code + '/embed/captioned/',
       'https://www.instagram.com/p/' + code + '/embed/captioned/',

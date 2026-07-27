@@ -126,6 +126,14 @@ request succeed"):
 | 3 | stills sampled across the video, for the on-screen ingredient card | `POST {url, action:'media'}` | one AI vision call |
 | 4 | speech-to-text of the audio | `POST {url, action:'transcribe'}` | AI call **+ transcription** |
 
+**Instagram is the awkward one.** It publishes no subtitle track, so rung 1 can only ever read its
+caption — a Reel's recipe is on screen, which makes rung 3 (and therefore getting the video) the
+whole game. So for Instagram the function first converts the shortcode in the share link back to a
+media id (`shortcodeToMediaId` — the shortcode *is* the id in base64) and calls the same
+`/api/v1/media/{id}/info/` endpoint Instagram's own web client calls, which returns the full caption
+(og:description only carries a truncated copy), a playable MP4, the cover and the real creator
+handle in one request. The embed-page scrapers stay as the fallback for whatever that withholds.
+
 Rungs 1–3 add no third-party spend. `action:'media'` streams the video bytes to the **browser**,
 which decodes the frames locally and sends only the few it picks to the AI; the fetch target is
 always re-resolved server-side from the allow-listed share link, never taken from the request body,

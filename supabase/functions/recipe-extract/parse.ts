@@ -94,6 +94,46 @@ export function instagramShortcode(u: URL): string | null {
   return i >= 0 ? (parts[i + 1] || null) : null;
 }
 
+// A Reel's shortcode IS its media id, written in base64 with Instagram's alphabet. Converting it
+// back is what lets us call the endpoint Instagram's own web client uses (/api/v1/media/{id}/info/)
+// instead of hunting through embed HTML - and that endpoint is the only reliable way to get the
+// video URL, which for Instagram is everything: it has no public subtitle track, so unless we can
+// see the video, a Reel whose caption is just a hook has nothing left to read.
+const IG_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+export function shortcodeToMediaId(code: string): string {
+  const c = String(code || '').split('?')[0].split('/')[0];
+  if (!c || c.length > 32) return '';
+  let n = 0n;
+  for (const ch of c) {
+    const i = IG_ALPHABET.indexOf(ch);
+    if (i < 0) return '';
+    n = n * 64n + BigInt(i);
+  }
+  return n > 0n ? n.toString() : '';
+}
+// Pull what we need out of an /api/v1/media/.../info/ response: the FULL caption (og:description
+// only ever carries a truncated copy), a playable MP4, the cover, and the real creator handle.
+// Every field is optional - Instagram drops them for some posts - so this reports what it found.
+export function igFromApiJson(j: any): { caption: string; videoUrl: string; thumbnail: string; author: string; seconds: number } {
+  const item = j?.items?.[0] ?? j?.item ?? j;
+  const media = Array.isArray(item?.carousel_media)
+    ? (item.carousel_media.find((m: any) => m?.video_versions?.length) || item.carousel_media[0] || item)
+    : item;
+  // video_versions are the same clip at different sizes. Prefer the largest that is still sane to
+  // download: the frames rung wants readable on-screen text, not a 4k master.
+  const versions: any[] = Array.isArray(media?.video_versions) ? media.video_versions : [];
+  const usable = versions.filter((v) => typeof v?.url === 'string' && /^https:\/\//.test(v.url));
+  const best = usable.filter((v) => Number(v.width) <= 1080).sort((a, b) => Number(b.width) - Number(a.width))[0] || usable[0];
+  const cover = (media?.image_versions2?.candidates || []).find((c: any) => typeof c?.url === 'string');
+  return {
+    caption: String(item?.caption?.text || '').trim(),
+    videoUrl: String(best?.url || ''),
+    thumbnail: String(cover?.url || ''),
+    author: String(item?.user?.username || media?.user?.username || '').trim(),
+    seconds: Number(item?.video_duration || media?.video_duration) || 0,
+  };
+}
+
 // Read a <meta> content value tolerant of attribute order and quote style. `key` is the property/name.
 export function metaContent(html: string, key: string): string {
   const k = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

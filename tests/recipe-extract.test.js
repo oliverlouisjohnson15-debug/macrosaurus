@@ -80,6 +80,67 @@ test('igVideoUrl / igAltText / igAuthor read the rest of what the embed leaks', 
   assert.strictEqual(igAuthor('<html>nothing here</html>'), '');
 });
 
+// Instagram publishes no subtitle track, so a Reel's recipe is only reachable through the video
+// itself - which makes the shortcode -> media id -> /api/v1/media/{id}/info/ path the whole game.
+// The reference encoder below is the inverse of the shipped decoder; round-tripping it is what
+// proves the base-64 conversion, since we cannot call Instagram from a test.
+const IG_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const idToShortcode = (id) => {
+  let n = BigInt(id), out = '';
+  while (n > 0n) { out = IG_ALPHABET[Number(n % 64n)] + out; n /= 64n; }
+  return out;
+};
+
+test('shortcodeToMediaId round-trips real-shaped Instagram ids', async () => {
+  const { shortcodeToMediaId } = await load();
+  ['2818195408236934073', '3391234567890123456', '1', '64', '4095'].forEach((id) => {
+    assert.strictEqual(shortcodeToMediaId(idToShortcode(id)), id, 'id ' + id);
+  });
+  // the shapes that actually arrive off a share link
+  assert.strictEqual(shortcodeToMediaId('CxYz123'), shortcodeToMediaId('CxYz123?igsh=abc'));
+  assert.strictEqual(shortcodeToMediaId('CxYz123/'), shortcodeToMediaId('CxYz123'));
+  assert.ok(/^\d+$/.test(shortcodeToMediaId('C8QltIvIQyc')));
+});
+test('shortcodeToMediaId refuses anything that is not a shortcode', async () => {
+  const { shortcodeToMediaId } = await load();
+  ['', 'has space', 'nope!', 'A'.repeat(40), 'A'].forEach(c => assert.strictEqual(shortcodeToMediaId(c), '', JSON.stringify(c)));
+});
+test('igFromApiJson reads the full caption, a playable MP4 and the creator', async () => {
+  const { igFromApiJson } = await load();
+  const out = igFromApiJson({ items: [{
+    caption: { text: 'Creamy chicken pasta\n200g pasta\n150g chicken\nServes 2' },
+    user: { username: 'chefjoe' },
+    video_duration: 41.2,
+    video_versions: [
+      { width: 1920, url: 'https://cdn.example/master.mp4' },
+      { width: 1080, url: 'https://cdn.example/hd.mp4' },
+      { width: 480, url: 'https://cdn.example/sd.mp4' },
+    ],
+    image_versions2: { candidates: [{ url: 'https://cdn.example/cover.jpg' }] },
+  }] });
+  assert.ok(out.caption.includes('200g pasta'));
+  assert.strictEqual(out.videoUrl, 'https://cdn.example/hd.mp4'); // biggest that is still sane to fetch
+  assert.strictEqual(out.thumbnail, 'https://cdn.example/cover.jpg');
+  assert.strictEqual(out.author, 'chefjoe');
+  assert.strictEqual(out.seconds, 41.2);
+});
+test('igFromApiJson digs the video out of a carousel and survives a stripped response', async () => {
+  const { igFromApiJson } = await load();
+  const carousel = igFromApiJson({ items: [{
+    caption: { text: 'three ways with oats' }, user: { username: 'chefjoe' },
+    carousel_media: [
+      { image_versions2: { candidates: [{ url: 'https://cdn.example/photo.jpg' }] } },
+      { video_versions: [{ width: 720, url: 'https://cdn.example/clip.mp4' }] },
+    ],
+  }] });
+  assert.strictEqual(carousel.videoUrl, 'https://cdn.example/clip.mp4');
+  assert.strictEqual(carousel.caption, 'three ways with oats');
+  // Instagram drops fields without warning; nothing here may throw
+  assert.deepStrictEqual(igFromApiJson({}), { caption: '', videoUrl: '', thumbnail: '', author: '', seconds: 0 });
+  assert.deepStrictEqual(igFromApiJson(null), { caption: '', videoUrl: '', thumbnail: '', author: '', seconds: 0 });
+  assert.strictEqual(igFromApiJson({ items: [{ video_versions: [{ url: 'http://insecure/clip.mp4' }] }] }).videoUrl, '');
+});
+
 // ---- TikTok: the spoken recipe ---------------------------------------------------------------
 const TT_VTT = `WEBVTT
 
