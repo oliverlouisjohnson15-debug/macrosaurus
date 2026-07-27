@@ -28,7 +28,7 @@
 // Every pure "read it out of this page" rule lives in parse.ts so it can be unit-tested against
 // fixtures (tests/recipe-extract.test.js); this file is the network I/O and the request handler.
 import {
-  clip, decodeEntities, jsonAfter, youtubeId, ytCaptionTracks, pickCaptionTrack,
+  clip, decodeEntities, unescapeJson, jsonAfter, youtubeId, ytCaptionTracks, pickCaptionTrack,
   instagramShortcode, captionFromHtml, igVideoUrl, igAltText, igAuthor,
   isTikTokHost, vttToText, tiktokSubtitleUrls, tiktokVideoUrl,
 } from './parse.ts';
