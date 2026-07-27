@@ -111,6 +111,41 @@ select net.http_post(
 > Settings toggle detects this and tells the user to Add to Home Screen first. Android/desktop
 > Chrome/Firefox/Edge work in-browser.
 
+## Recipe import (the `recipe-extract` function)
+
+Sharing a Reel/Short/TikTok into the app has to end in a real recipe, and most cooking videos never
+write one down: it is **spoken**, and shown **on screen**. The function reads as many of those
+sources as it can and the client (`importRecipeFromLink` in `app/src/app.jsx`) climbs them only as
+far as it needs to, stopping as soon as the draft is a real recipe (`Rcp.draftQuality`, not "did the
+request succeed"):
+
+| Rung | Source | Action | Cost |
+|---|---|---|---|
+| 1 | caption / description, plus the creator's spoken words from **YouTube caption tracks** and **TikTok auto-captions** | `POST {url}` | one fast AI call |
+| 2 | the cover frame (when there is no video to pull) | — | one AI vision call |
+| 3 | stills sampled across the video, for the on-screen ingredient card | `POST {url, action:'media'}` | one AI vision call |
+| 4 | speech-to-text of the audio | `POST {url, action:'transcribe'}` | AI call **+ transcription** |
+
+Rungs 1–3 add no third-party spend. `action:'media'` streams the video bytes to the **browser**,
+which decodes the frames locally and sends only the few it picks to the AI; the fetch target is
+always re-resolved server-side from the allow-listed share link, never taken from the request body,
+so this is not an open proxy. All page parsing lives in `recipe-extract/parse.ts` and is unit-tested
+(`tests/recipe-extract.test.js`) — that is the half that breaks when a platform changes shape.
+
+**Rung 4 is opt-in and off by default.** Set these function secrets to switch it on:
+
+| Secret | Default | What it does |
+|---|---|---|
+| `TRANSCRIBE_API_KEY` | *(unset — rung disabled)* | Key for an OpenAI-compatible `audio/transcriptions` endpoint |
+| `TRANSCRIBE_URL` | `https://api.openai.com/v1/audio/transcriptions` | Point it at another provider |
+| `TRANSCRIBE_MODEL` | `whisper-1` | Model name |
+| `TRANSCRIBE_USD_PER_MIN` | `0.006` | Used only to bill the spend |
+
+With no key set the function answers `not_configured` and the ladder simply stops one rung lower.
+When it is set, each transcription's cost is recorded against the caller's monthly `ai_usage` via
+`add_ai_usage`, the same pot ai-proxy uses, so the fair-use ceiling stays meaningful. Downloads are
+capped at 25 MB.
+
 ## Outstanding security-advisor items (not code — needs a dashboard toggle)
 
 - **Leaked-password protection is disabled.** Enable it in *Auth → Providers → Password* (checks

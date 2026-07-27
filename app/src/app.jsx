@@ -611,6 +611,116 @@ function coverBlobFromSrc(src) {
     return new Blob([arr], { type: src.thumb_mime || 'image/jpeg' });
   } catch (e) { return null; }
 }
+// Ask the extractor for the video's own bytes so we can look at it. Returns a Blob, or null when the
+// platform gives us nothing downloadable (always the case for YouTube, whose caption track carries
+// the words instead). Never throws: a missing video just means the ladder skips this rung.
+async function fetchShareVideo(url) {
+  try {
+    const sess = supa ? (await supa.auth.getSession()).data.session : null;
+    const token = sess && sess.access_token;
+    if (!token) return null;
+    const res = await fetch(RECIPE_EXTRACT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+      body: JSON.stringify({ url, action: 'media' }),
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return blob && blob.size > 1024 ? blob : null;
+  } catch (e) { return null; }
+}
+// Ask the extractor to listen to the video. Only does anything when server-side transcription is
+// switched on (TRANSCRIBE_API_KEY); otherwise it answers not_configured and we stop a rung lower.
+async function transcribeShare(url) {
+  try {
+    const sess = supa ? (await supa.auth.getSession()).data.session : null;
+    const token = sess && sess.access_token;
+    if (!token) return '';
+    const res = await fetch(RECIPE_EXTRACT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+      body: JSON.stringify({ url, action: 'transcribe' }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return j && j.ok ? String(j.transcript || '') : '';
+  } catch (e) { return ''; }
+}
+// ---- Reading the video itself ----------------------------------------------------------------
+// A cooking Reel almost always PUTS THE RECIPE ON SCREEN, even when the caption is just a hook. We
+// pull the video into the browser, sample stills across it, and hand the most text-heavy, most
+// different-looking ones to the vision model. All of it is local: the bytes go from our extractor to
+// the user's own browser and only the chosen stills are ever sent to the AI.
+const FRAME_SAMPLES = 12;   // stills to consider across the clip
+const FRAME_KEEP = 6;       // stills actually shown to the model
+// Draw the video's current frame and measure it: a small greyscale fingerprint (for "is this the
+// same shot again?") and a text-likelihood score (dense small-scale contrast = writing on screen).
+function measureFrame(video, work) {
+  const W = 48, H = 48;
+  work.width = W; work.height = H;
+  const c = work.getContext('2d', { willReadFrequently: true });
+  c.drawImage(video, 0, 0, W, H);
+  const px = c.getImageData(0, 0, W, H).data;
+  const lum = new Array(W * H);
+  for (let i = 0; i < W * H; i++) lum[i] = (px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114) | 0;
+  let edges = 0;
+  for (let y = 0; y < H; y++) for (let x = 1; x < W; x++) if (Math.abs(lum[y * W + x] - lum[y * W + x - 1]) > 38) edges++;
+  // A 16x16 fingerprint is plenty to tell two shots apart and cheap to compare.
+  const sig = [];
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) sig.push(lum[(y * 3) * W + (x * 3)]);
+  return { sig, text: edges / (W * H) };
+}
+function seekTo(video, t) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; video.removeEventListener('seeked', finish); resolve(); };
+    const timer = setTimeout(finish, 4000); // a stalled seek must never hang the import
+    video.addEventListener('seeked', () => { clearTimeout(timer); finish(); }, { once: true });
+    try { video.currentTime = t; } catch (e) { clearTimeout(timer); finish(); }
+  });
+}
+// Sample the clip and return the best few stills as JPEG Blobs, in time order. Returns [] rather
+// than throwing on any decoding problem, so a codec the browser dislikes just costs us this rung.
+async function videoFrames(blob, opts) {
+  opts = opts || {};
+  const want = opts.want || FRAME_KEEP, samples = opts.samples || FRAME_SAMPLES;
+  const src = URL.createObjectURL(blob);
+  const video = document.createElement('video');
+  video.muted = true; video.playsInline = true; video.preload = 'auto'; video.crossOrigin = 'anonymous'; video.src = src;
+  const full = document.createElement('canvas'), work = document.createElement('canvas');
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('video load timed out')), 20000);
+      video.addEventListener('loadeddata', () => { clearTimeout(timer); resolve(); }, { once: true });
+      video.addEventListener('error', () => { clearTimeout(timer); reject(new Error('video could not be decoded')); }, { once: true });
+    });
+    const dur = (isFinite(video.duration) && video.duration > 0) ? video.duration : 0;
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return [];
+    const scale = Math.min(1, 960 / Math.max(w, h));
+    full.width = Math.max(1, Math.round(w * scale)); full.height = Math.max(1, Math.round(h * scale));
+    const fc = full.getContext('2d');
+    const times = dur > 0
+      ? Array.from({ length: samples }, (_, i) => Math.min(dur - 0.05, dur * ((i + 0.5) / samples)))
+      : [0];
+    const cands = [];
+    for (const t of times) {
+      await seekTo(video, t);
+      let m;
+      try { m = measureFrame(video, work); } catch (e) { continue; } // a black/undecoded frame
+      fc.drawImage(video, 0, 0, full.width, full.height);
+      const jpeg = await new Promise((r) => full.toBlob(r, 'image/jpeg', 0.82));
+      if (!jpeg) continue;
+      cands.push({ t, sig: m.sig, text: m.text, blob: jpeg });
+    }
+    if (!cands.length) return [];
+    return Rcp.pickFrames(cands, want).map(i => cands[i].blob);
+  } catch (e) {
+    return [];
+  } finally {
+    try { video.removeAttribute('src'); video.load(); } catch (e) { /* ignore */ }
+    URL.revokeObjectURL(src);
+  }
+}
 // Turn extracted source text into a normalised recipe via the existing ai-proxy. `meta` carries the
 // platform/url/thumbnail we already know so the model doesn't have to guess them.
 async function structureRecipe(sourceText, meta) {
@@ -619,6 +729,121 @@ async function structureRecipe(sourceText, meta) {
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 4096, messages: [{ role: 'user', content: RECIPE_PROMPT + '\n\nSOURCE TEXT:\n' + sourceText }] });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   return Rcp.normalize(parseModelJSON(txt), meta || {});
+}
+// How the model should weigh the different things we managed to read off one video. Written once
+// here so every rung of the ladder gives the same instructions.
+const MULTISOURCE_GUIDE = '\n\nYou are given SEVERAL views of the same short cooking video, and they '
+  + 'disagree in predictable ways. Use them together, and prefer the source that is most likely to be right:\n'
+  + '- Still frames captured from the video (in time order). Creators put the ingredient list ON SCREEN even '
+  + 'when they never write it in the caption, so read every word visible in them, including small overlay text '
+  + 'and handwritten cards. The frames are the most reliable source for AMOUNTS shown as text.\n'
+  + '- An audio transcript / subtitles of what the creator SAYS. This is speech-to-text, so expect amounts as '
+  + 'words ("two hundred grams", "a heaped tablespoon") and mis-heard ingredient names; convert amounts to '
+  + 'numerals with metric units and silently correct obvious mishearings using cooking sense.\n'
+  + '- The caption and description, which are the best source for any per-serving macros the creator states, '
+  + 'and often carry the full written recipe.\n'
+  + 'Reconcile them into ONE recipe: never list the same ingredient twice because two sources named it '
+  + 'differently, and where two sources give different amounts for the same ingredient, prefer on-screen text, '
+  + 'then the caption, then the spoken words. If the sources genuinely show no recipe, return empty ingredients.';
+// The ladder's structuring call: everything we have read about one video (labelled text plus any
+// still frames) in a single request, so the model reconciles the sources itself rather than us
+// stitching together separate half-recipes.
+async function structureRecipeFromSources(parts, frames, meta) {
+  const text = Rcp.buildSourceText(parts || {});
+  if (!frames || !frames.length) {
+    if (!text || text.trim().length < 20) throw new Error('There was nothing readable behind that link.');
+    return structureRecipe(text, meta);
+  }
+  const prompt = RECIPE_PROMPT + MULTISOURCE_GUIDE + (text ? '\n\nWHAT WE READ AROUND THE VIDEO:\n' + text : '\n\nThere is no usable caption for this video, so the frames are all you have.');
+  // Frames are the hard read (small overlay text, awkward angles), so this rung uses the reasoning
+  // model rather than the fast one. It only runs when the free text sources came up short.
+  const raw = await claudeVision(null, frames, prompt, { model: AI_MODEL, maxTokens: 4096, maxImg: 1024 });
+  return Rcp.normalize(raw, meta || {});
+}
+// ---- The import ladder -----------------------------------------------------------------------
+// One shared link -> one finished recipe, climbing only as far as it needs to. Each rung costs more
+// than the last, so we stop the moment the draft is actually a recipe (Rcp.draftQuality decides,
+// not "did the request succeed"): the old flow accepted the first answer it got, which is why a
+// Reel whose caption is just "this broke the internet" landed in the cookbook as a two-line stub.
+//
+//   1. free text     caption, description, and the creator's own words from platform subtitles
+//                    (YouTube caption tracks, TikTok auto-captions). Costs one fast AI call.
+//   2. the cover     the single cover frame, when there is no video to pull.
+//   3. the video     stills sampled across the clip, so on-screen ingredient cards get read.
+//   4. the audio     real speech-to-text, when the server has it switched on.
+//
+// Returns { draft, sources, note }. Throws only when every rung failed, so the caller can offer the
+// manual paste / screenshot fallback with something useful to say.
+async function importRecipeFromLink(url, say) {
+  const tell = say || (() => {});
+  tell('Reading the post...');
+  const src = await extractRecipeSource(url);
+  const meta = {
+    platform: src.platform || (Rcp.detectShare(url) || {}).platform || '',
+    url, title: src.title || '', author: src.author || '',
+    thumbnail: (await inlineThumb(src)) || src.thumbnail || '',
+  };
+  const tiers = src.tiers || {};
+  // Older extractor deployments only return sourceText; treat it as the caption so a stale function
+  // still imports fine while the new one rolls out.
+  const parts = Object.assign({}, src.parts || {});
+  if (!parts.caption && !parts.description && !parts.subtitles && src.sourceText) parts.caption = src.sourceText;
+  if (!parts.title && src.title) parts.title = src.title;
+  if (!parts.author && src.author) parts.author = src.author;
+
+  let draft = null, lastErr = null, sawFrames = false;
+  // Run one rung. A rung that simply fails to read anything is not fatal (the next one may do
+  // better), but hitting the free-call limit or the fair-use ceiling stops the climb dead: every
+  // further rung would be another refused call, and the paywall is already open.
+  const HARD_STOP = ['free_limit', 'premium_required', 'budget_exceeded'];
+  const attempt = async (fn) => {
+    try { draft = Rcp.bestDraft(draft, await fn()); }
+    catch (e) { if (e && e.aiError && HARD_STOP.indexOf(e.aiError.type) >= 0) throw e; lastErr = e; }
+    return Rcp.draftQuality(draft);
+  };
+
+  // 1. Everything free and textual.
+  let q = Rcp.draftQuality(draft);
+  if (Rcp.buildSourceText(parts).length >= 20) {
+    tell('Building the recipe...');
+    q = await attempt(() => structureRecipeFromSources(parts, null, meta));
+    if (!q.thin) return { draft, sources: Rcp.sourceSummary(parts), note: '' };
+  }
+
+  // 2/3. Look at it. Prefer stills sampled from the video; fall back to the cover frame, which is
+  // where a lot of Reels put the ingredient list anyway.
+  let frames = [];
+  if (tiers.frames !== false) {
+    tell('Watching the video...');
+    const video = await fetchShareVideo(url);
+    if (video) frames = await videoFrames(video);
+  }
+  if (!frames.length) { const cover = coverBlobFromSrc(src); if (cover) frames = [cover]; }
+  if (frames.length) {
+    sawFrames = true;
+    tell(frames.length > 1 ? 'Reading what is on screen...' : 'Reading the recipe from the video...');
+    q = await attempt(() => structureRecipeFromSources(parts, frames, meta));
+    if (!q.thin) return { draft, sources: Rcp.sourceSummary(parts).concat(['the screen']), note: '' };
+  }
+
+  // 4. Listen to it. Server-side and opt-in, so this rung is simply absent unless it is switched on.
+  if (tiers.transcribe) {
+    tell('Listening to the video...');
+    const heard = await transcribeShare(url);
+    if (heard && heard.length > 20) {
+      parts.transcript = heard;
+      tell('Building the recipe...');
+      q = await attempt(() => structureRecipeFromSources(parts, frames, meta));
+    }
+  }
+
+  const sources = Rcp.sourceSummary(parts).concat(sawFrames ? ['the screen'] : []);
+  if (draft && Rcp.draftQuality(draft).ingredients) {
+    // Something, but thin: hand it over anyway with an honest note, since a half-filled review screen
+    // the user can finish beats bouncing them to a blank manual form.
+    return { draft, sources, note: q.issues.length ? 'Only got part of this one (' + q.issues.join(', ') + '). Check it over before saving.' : '' };
+  }
+  throw new Error(lastErr ? (lastErr.message || 'Import failed.') : (src.note || 'Could not read a recipe from that link.'));
 }
 // Vision path: structure a recipe straight from image(s): a shared video's cover frame or the user's
 // screenshots (reuses claudeVision). `hint` is any caption/title text we did manage to read, used as a
@@ -779,7 +1004,7 @@ function autoClose(json) {
 }
 const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the numbers printed on it. UK labels usually have a PER 100 g / 100 ml column, and sometimes also a PER SERVING / PER PORTION / PER PACK column. Read each column EXACTLY as printed. Do NOT convert, scale, invent or mix columns. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number}, "macros_estimated": boolean}. per_100g = the per-100 g/ml column (all 0 if not printed). per_serving = the per-serving/portion/pack column (all 0 if not printed). If only one column exists, fill it and leave the other all 0; NEVER scale one column into the other. serving_g and serving_label describe ONE natural unit the person would count and log, chosen in this priority order: (1) if the pack states a piece/item COUNT and a total pack WEIGHT (for example "12 meatballs" with "340 g", or "6 fish fingers 200 g"), set serving_g to the weight of ONE piece = round(total weight divided by count) and serving_label to a singular piece name like "1 meatball" or "1 fish finger"; (2) else if a single serving or portion size is stated (for example "per 30 g", "1 pot 125 g"), use it with a label like "1 pot" or "1 serving"; (3) else if only a whole pack/can/bottle size is stated, use it with a label like "1 can"; (4) else serving_g 0 and serving_label "". Use the product photo and all pack text (piece count, total weight, "contains N portions") to work this out. ACCURACY IS CRITICAL: read the EXACT printed digits for every value that is visible on the label (for example if it prints "Fat 2.5g", return 2.5, not a rounded or guessed number). Look carefully at the small print. Only when a macro is genuinely absent, blank or physically unreadable should you ESTIMATE it from the product name/type and the stated calories so that protein_g×4 + carbs_g×4 + fat_g×9 approximately equals the stated kcal for that column, and set "macros_estimated": true; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0. Write the product name in British English spelling, keeping the JSON keys exactly as specified.';
 const AI_PROMPT = 'You are a BRUTALLY HONEST UK nutrition estimator helping someone log a meal accurately to build muscle and lose fat. Accuracy over reassurance. Most people badly UNDER-count, so never lowball and never round down.\n\nMETHOD, anchor to real published nutrition where you can:\n- RESTAURANT / CHAIN meals: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips). If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): assume more oil, ghee, butter and bigger portions than a chain equivalent, these are calorie-dense, so err high.\n- HOME-COOKED: estimate from the visible ingredients and typical home portions, and count the cooking oils, butter and sauces.\nCount everything the eye misses: oils, butter, dressings, mayo, breading, glazes, cheese and sides. Use every clue from the image(s) and notes, and break the meal into its components.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. kcal_low/kcal_high = an honest plausible range (wider when unsure). grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence on the biggest drivers and any chain you anchored to. If unsure, err to the realistic higher end. Do not round down. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
-const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given the text behind a shared cooking video (a title, description, spoken transcript and/or caption). Reconstruct the recipe as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Do NOT estimate nutrition (a nutrition database does that from the ingredient lines). Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [string], "steps": [string], "stated_macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number} | null, "macros_confidence": "low"|"medium"|"high", "tags": {"meal": string, "cuisine": string, "main": string, "effort": string, "diet": [string]}}. ingredients = an array of plain ingredient LINES, each written like a shopping/recipe list item: the AMOUNT then the FOOD, ready to look up in a nutrition database, for example "150 g cottage cheese", "1 tbsp olive oil", "2 cloves garlic", "1 wholemeal pitta", "200 g chicken breast". Prefer metric weights (g/ml) and give your best weight when the source is vague, but keep natural counts for whole items (eggs, cloves, slices, pittas). Every line MUST include both an amount and the food, and MUST NOT include brand names or nutrition. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). steps = the method as short ordered instructions. stated_macros_per_serving = ONLY the per-serving nutrition the source EXPLICITLY states (e.g. the caption says "480 kcal, 42g protein per serving"); if it does not clearly state per-serving macros, return null, do not estimate. macros_confidence reflects how complete the source text was. tags = classify the dish for browsing, using ONLY these values: meal is one of breakfast, lunch, dinner, snack, dessert, drink (or "" if genuinely unclear); cuisine is one of british, italian, indian, chinese, thai, mexican, japanese, mediterranean, middle-eastern, american, french, korean, vietnamese, greek, spanish, caribbean, or other; main is the primary protein or base ingredient, one of chicken, beef, pork, lamb, fish, seafood, eggs, tofu, beans, veg, cheese, or other; effort is quick (roughly 15 minutes or under, few steps), standard, or project (long or involved); diet is an array of any that clearly apply from high-protein, vegetarian, vegan, pescatarian, gluten-free, dairy-free (empty array if none clearly apply). Write all text in British English spelling (fibre, yoghurt, flavour), keeping the JSON keys exactly as specified.';
+const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given whatever could be read from a shared cooking video: its title, description or caption, what the creator says out loud (subtitles or an audio transcript), and/or still frames from the video itself. Reconstruct the recipe as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Do NOT estimate nutrition (a nutrition database does that from the ingredient lines). Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [string], "steps": [string], "stated_macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number} | null, "macros_confidence": "low"|"medium"|"high", "tags": {"meal": string, "cuisine": string, "main": string, "effort": string, "diet": [string]}}. ingredients = an array of plain ingredient LINES, each written like a shopping/recipe list item: the AMOUNT then the FOOD, ready to look up in a nutrition database, for example "150 g cottage cheese", "1 tbsp olive oil", "2 cloves garlic", "1 wholemeal pitta", "200 g chicken breast". Prefer metric weights (g/ml) and give your best weight when the source is vague, but keep natural counts for whole items (eggs, cloves, slices, pittas). Every line MUST include both an amount and the food, and MUST NOT include brand names or nutrition. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). steps = the method as short ordered instructions. stated_macros_per_serving = ONLY the per-serving nutrition the source EXPLICITLY states (e.g. the caption says "480 kcal, 42g protein per serving"); if it does not clearly state per-serving macros, return null, do not estimate. macros_confidence reflects how complete the source text was. tags = classify the dish for browsing, using ONLY these values: meal is one of breakfast, lunch, dinner, snack, dessert, drink (or "" if genuinely unclear); cuisine is one of british, italian, indian, chinese, thai, mexican, japanese, mediterranean, middle-eastern, american, french, korean, vietnamese, greek, spanish, caribbean, or other; main is the primary protein or base ingredient, one of chicken, beef, pork, lamb, fish, seafood, eggs, tofu, beans, veg, cheese, or other; effort is quick (roughly 15 minutes or under, few steps), standard, or project (long or involved); diet is an array of any that clearly apply from high-protein, vegetarian, vegan, pescatarian, gluten-free, dairy-free (empty array if none clearly apply). Write all text in British English spelling (fibre, yoghurt, flavour), keeping the JSON keys exactly as specified.';
 // Backfill classifier for recipes imported before tagging existed: title + ingredient lines are
 // enough to bucket a dish, so this is one cheap fast-model call, no re-extraction of the video.
 const TAG_PROMPT = 'You classify a UK recipe for a macro-tracking app\'s browse filters. Respond ONLY with compact JSON {"meal": string, "cuisine": string, "main": string, "effort": string, "diet": [string]} using ONLY these values: meal one of breakfast, lunch, dinner, snack, dessert, drink (or "" if unclear); cuisine one of british, italian, indian, chinese, thai, mexican, japanese, mediterranean, middle-eastern, american, french, korean, vietnamese, greek, spanish, caribbean, other; main (primary protein or base) one of chicken, beef, pork, lamb, fish, seafood, eggs, tofu, beans, veg, cheese, other; effort one of quick, standard, project; diet an array from high-protein, vegetarian, vegan, pescatarian, gluten-free, dairy-free (empty if none). Judge only from what is given.';
@@ -8712,6 +8937,11 @@ function RecipeMacroStrip({ macros, per }) {
   </div>);
 }
 const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' };
+// "a", "a and b", "a, b and c" - for reading a short list back to the user in a sentence.
+function listJoin(items) {
+  const a = (items || []).filter(Boolean);
+  return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+}
 // Recipe art with a graceful pixel fallback: recipes imported before thumbnails were inlined can
 // hold expired CDN links, so a failed load swaps to the placeholder instead of a broken grey block.
 function RecipeImg({ src, iconSize = 34 }) {
@@ -8781,40 +9011,31 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   const [imgs, setImgs] = useState([]); // { id, file, url }
   const [showFallback, setShowFallback] = useState(false);
   const [busy, setBusy] = useState(''); const [err, setErr] = useState('');
+  const [note, setNote] = useState(''); // "only got part of this one" - shown on the review screen
   const [draft, setDraft] = useState(null);
   const ran = useRef(false);
   function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, 3)); }
   function removeImg(id) { setImgs(x => x.filter(f => f.id !== id)); }
 
+  // Climb the import ladder (caption -> subtitles -> video frames -> audio). importRecipeFromLink
+  // reports each rung it reaches so the loader says what is actually happening ("Watching the
+  // video...", "Listening to the video..."), and only throws when every source came up empty.
   async function fromLink(u) {
-    setErr(''); setBusy('Reading the video...');
+    setErr(''); setBusy('Reading the post...');
     try {
-      const src = await extractRecipeSource(u);
-      // Prefer inlined thumbnail bytes over the (expiring) CDN link; fall back to the URL if absent.
-      const meta = { platform: src.platform || (Rcp.detectShare(u) || {}).platform || '', url: u, title: src.title || '', author: src.author || '', thumbnail: (await inlineThumb(src)) || src.thumbnail || '' };
-      if (!src.ok || !src.sourceText) {
-        // No usable caption text. Before falling back to manual entry, try reading the recipe straight
-        // off the video's cover frame; Reels/TikToks very often overlay the ingredient list on it.
-        const coverBlob = coverBlobFromSrc(src);
-        if (coverBlob) {
-          setBusy('Reading the recipe from the video...');
-          try {
-            const draft = await structureRecipeFromImages([coverBlob], meta, [src.title, src.sourceText].filter(Boolean).join('\n'));
-            if (draft && Array.isArray(draft.ingredients) && draft.ingredients.length) { setDraft(draft); setBusy(''); return; }
-          } catch (e) { /* fall through to the manual fallback below */ }
-        }
-        setShowFallback(true);
-        setErr(src.note || 'Could not read that link automatically. Paste the caption or add a screenshot below.');
-        setBusy(''); return;
-      }
-      setBusy('Building the recipe...');
-      setDraft(await structureRecipe(src.sourceText, meta)); // review prices the macros in the background
-    } catch (e) { setErr(e.message || 'Import failed.'); setShowFallback(true); }
+      const out = await importRecipeFromLink(u, setBusy);
+      const draft = Object.assign({}, out.draft, { import_sources: out.sources || [] });
+      setNote(out.note || '');
+      setDraft(draft); // review prices the macros in the background
+    } catch (e) {
+      setErr((e.message || 'Import failed.') + ' Paste the caption or add a screenshot below.');
+      setShowFallback(true);
+    }
     setBusy('');
   }
   async function fromCaption() {
     if (!caption.trim()) { setErr('Paste the recipe caption or text first.'); return; }
-    setErr(''); setBusy('Building the recipe...');
+    setErr(''); setNote(''); setBusy('Building the recipe...');
     try {
       const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
       setDraft(await structureRecipe(caption.trim(), meta));
@@ -8823,7 +9044,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   }
   async function fromImages() {
     if (!imgs.length) { setErr('Add at least one screenshot of the recipe.'); return; }
-    setErr(''); setBusy('Reading the screenshots...');
+    setErr(''); setNote(''); setBusy('Reading the screenshots...');
     try {
       const meta = { platform: (Rcp.detectShare(url) || {}).platform || '', url: url.trim(), title: '' };
       setDraft(await structureRecipeFromImages(imgs.map(i => i.file), meta));
@@ -8833,7 +9054,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   // Auto-run once when opened straight from a share.
   useEffect(() => { if (initialUrl && !ran.current) { ran.current = true; fromLink(initialUrl); } }, [initialUrl]);
 
-  if (draft) return <RecipeReview recipe={draft} onSave={onSaved} onCancel={() => setDraft(null)} />;
+  if (draft) return <RecipeReview recipe={draft} note={note} onSave={onSaved} onCancel={() => { setNote(''); setDraft(null); }} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
@@ -8858,7 +9079,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   </div>);
 }
 // Editable review before saving: title, servings (rescales amounts), ingredients, steps, per-serving macros.
-function RecipeReview({ recipe, onSave, onCancel }) {
+function RecipeReview({ recipe, note, onSave, onCancel }) {
   const [d, setD] = useState(recipe);
   const set = (patch) => setD(x => Object.assign({}, x, patch));
   const setLine = (i, v) => setD(x => { const ings = x.ingredients.slice(); ings[i] = Object.assign({}, ings[i], { line: v, name: Rcp.nameFromLine(v) }); return Object.assign({}, x, { ingredients: ings }); });
@@ -8870,6 +9091,10 @@ function RecipeReview({ recipe, onSave, onCancel }) {
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
     <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your cookbook, you can work out the macros or cook it whenever.</div>
+    {/* Say plainly which parts of the video we actually read. When the importer had to watch or listen
+        to the clip, that is worth knowing: those sources are the ones most worth double-checking. */}
+    {(d.import_sources || []).length > 0 && <div className="text-[11px] text-[#8A8A90] mb-3 -mt-1">Read from {listJoin(d.import_sources)}.</div>}
+    {note && <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>{note}</div>}
     {priced && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Macros per serving</div><RecipeMacroStrip macros={d.macros_per_serving} per /></Card>}
     {priced && (() => { const s = Rcp.macroSanity(d); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg}</div> : null; })()}
     <Field label="Title"><input value={d.title} onChange={e => set({ title: e.target.value })} className={inputCls} /></Field>

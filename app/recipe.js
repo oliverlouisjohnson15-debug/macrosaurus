@@ -129,6 +129,154 @@
   }
   function platformLabel(p) { return p === 'youtube' ? 'YouTube' : p === 'instagram' ? 'Instagram' : p === 'tiktok' ? 'TikTok' : 'Link'; }
 
+  // ---- Import quality: when to stop, when to try harder ----------------------------------------
+  // A video import can "succeed" and still be hollow: a Reel caption is often a hook line ("this
+  // one broke the internet 🤯") with the real recipe only ever spoken out loud or shown on screen.
+  // The old importer took whatever the first pass produced, which is why so many shares landed as a
+  // two-line half-recipe. The importer now climbs a ladder of sources (caption -> platform
+  // subtitles -> video frames -> audio transcription) and uses draftQuality() to decide whether the
+  // draft it has is good enough to stop. Pure, so the stopping rule is unit-tested and identical
+  // everywhere it is used.
+
+  // Does an ingredient line carry a usable leading amount ("200 g chicken", "2 cloves garlic")?
+  // Amount-less lines cost us a macro lookup, so they are what the quality score punishes.
+  function hasAmount(line) { return !!parseQtyToken(String(line || '')); }
+  // Score a draft 0-100 on how much of a real recipe it actually captured, and flag the gaps.
+  // Weighting: ingredients matter most (they are what gets priced), then their amounts, then the
+  // method. `thin` is the ladder's "keep going" signal.
+  function draftQuality(recipe, opts) {
+    opts = opts || {};
+    var ings = ((recipe || {}).ingredients || []).map(lineOf).filter(function (l) { return l && l.trim(); });
+    var withAmount = ings.filter(hasAmount).length;
+    var steps = ((recipe || {}).steps || []).filter(function (s) { return String(s || '').trim(); }).length;
+    var amountPct = ings.length ? withAmount / ings.length : 0;
+    var score = ings.length === 0 ? 0 : Math.round(
+      (Math.min(ings.length, 8) / 8) * 55 + amountPct * 30 + (Math.min(steps, 5) / 5) * 15
+    );
+    var issues = [];
+    if (!ings.length) issues.push('no ingredients');
+    else if (ings.length < 3) issues.push('only ' + ings.length + ' ingredient' + (ings.length === 1 ? '' : 's'));
+    if (ings.length && amountPct < 0.6) issues.push('most lines have no amount');
+    if (!steps) issues.push('no method');
+    var floor = opts.minScore == null ? 60 : opts.minScore;
+    return {
+      ingredients: ings.length, withAmount: withAmount, steps: steps,
+      amountPct: Math.round(amountPct * 100) / 100, score: score,
+      thin: score < floor, issues: issues,
+    };
+  }
+  // Of two drafts, the one that captured more recipe (ties keep the first, so an earlier/cheaper
+  // tier wins when a heavier tier adds nothing).
+  function betterDraft(a, b) {
+    if (!a) return b || null; if (!b) return a;
+    return draftQuality(b).score > draftQuality(a).score ? b : a;
+  }
+  // The ladder's accumulator: keep whichever draft captured more, then backfill its gaps from the
+  // other, so climbing a rung can only ever add.
+  function bestDraft(a, b) { var win = betterDraft(a, b); return mergeDrafts(win, win === a ? b : a); }
+  // Fill `primary`'s gaps from `secondary` without ever overwriting something primary already has.
+  // This is what stops a heavier tier (frames, audio) from throwing away a good caption's stated
+  // macros or title just because it read the ingredients better.
+  function mergeDrafts(primary, secondary) {
+    if (!primary) return secondary || null; if (!secondary) return primary;
+    var out = Object.assign({}, primary);
+    if (!(out.ingredients || []).length && (secondary.ingredients || []).length) out.ingredients = secondary.ingredients;
+    if (!(out.steps || []).length && (secondary.steps || []).length) out.steps = secondary.steps;
+    if ((!out.title || out.title === 'Recipe') && secondary.title && secondary.title !== 'Recipe') out.title = secondary.title;
+    if (!out.stated_macros && secondary.stated_macros) {
+      out.stated_macros = secondary.stated_macros;
+      if (out.macros_source === 'pending') { out.macros_per_serving = secondary.stated_macros; out.macros_source = 'stated'; }
+    }
+    if (!out.source_author && secondary.source_author) out.source_author = secondary.source_author;
+    if (!out.thumbnail && secondary.thumbnail) out.thumbnail = secondary.thumbnail;
+    var pt = out.tags || {}, st = secondary.tags || {};
+    out.tags = {
+      meal: pt.meal || st.meal || '', cuisine: pt.cuisine || st.cuisine || '',
+      main: pt.main || st.main || '', effort: pt.effort || st.effort || '',
+      diet: (pt.diet && pt.diet.length) ? pt.diet : (st.diet || []),
+    };
+    return out;
+  }
+
+  // ---- Frame picking: which stills from a video are worth showing to the vision model ----------
+  // Sampling a Reel evenly gives near-identical frames of the same pan, which burns tokens and
+  // teaches the model nothing. The client scores each candidate for how text-like it looks (an
+  // ingredient card is high-contrast text) and how different it is from the frames already kept;
+  // this picks the set. `sig` is a small greyscale fingerprint (equal length across candidates),
+  // `text` a 0-1 text-likelihood. Pure + tested; the canvas work stays in the client.
+  function frameDistance(a, b) {
+    a = a || []; b = b || [];
+    var n = Math.min(a.length, b.length);
+    if (!n) return 1;
+    var d = 0;
+    for (var i = 0; i < n; i++) d += Math.abs(num(a[i]) - num(b[i]));
+    return (d / n) / 255;
+  }
+  function pickFrames(cands, n, opts) {
+    opts = opts || {};
+    var minDist = opts.minDist == null ? 0.06 : opts.minDist;
+    var list = (cands || []).map(function (c, i) { return { i: i, sig: (c && c.sig) || [], text: num(c && c.text) }; });
+    if (!list.length || !(n > 0)) return [];
+    // Best-looking first, but keep a stable order for equal scores so the pick is deterministic.
+    var ranked = list.slice().sort(function (x, y) { return (y.text - x.text) || (x.i - y.i); });
+    var kept = [];
+    ranked.forEach(function (c) {
+      if (kept.length >= n) return;
+      if (kept.every(function (k) { return frameDistance(k.sig, c.sig) >= minDist; })) kept.push(c);
+    });
+    // Under quota: top up with whatever is left, most distinct from the kept set first, so a static
+    // video still contributes a couple of frames rather than one.
+    if (kept.length < n) {
+      var rest = ranked.filter(function (c) { return kept.indexOf(c) < 0; });
+      rest.sort(function (x, y) {
+        var dx = Math.min.apply(null, kept.map(function (k) { return frameDistance(k.sig, x.sig); }).concat([1]));
+        var dy = Math.min.apply(null, kept.map(function (k) { return frameDistance(k.sig, y.sig); }).concat([1]));
+        return (dy - dx) || (x.i - y.i);
+      });
+      kept = kept.concat(rest.slice(0, n - kept.length));
+    }
+    return kept.map(function (c) { return c.i; }).sort(function (a, b) { return a - b; });
+  }
+
+  // ---- Source text assembly --------------------------------------------------------------------
+  // Stitch everything we managed to read about one video into a single labelled block for the
+  // structurer, in priority order, de-duplicated (platform subtitles and our own transcription can
+  // be the same words twice) and capped so one chatty transcript cannot crowd out the caption.
+  var SOURCE_LABEL = {
+    title: 'Video title', author: 'Creator', description: 'Video description',
+    caption: 'Post caption', subtitles: 'On-video subtitles (what the creator says)',
+    transcript: 'Audio transcript (what the creator says)', screen: 'Text shown on screen',
+  };
+  var SOURCE_ORDER = ['title', 'author', 'caption', 'description', 'subtitles', 'transcript', 'screen'];
+  function buildSourceText(parts, opts) {
+    parts = parts || {}; opts = opts || {};
+    var cap = opts.max || 14000, perPart = opts.maxPart || 8000;
+    var used = [], out = [];
+    SOURCE_ORDER.forEach(function (k) {
+      var v = String(parts[k] == null ? '' : parts[k]).trim();
+      if (!v) return;
+      if (v.length > perPart) v = v.slice(0, perPart) + '...';
+      var key = norm(v);
+      // Skip a block that is already contained in something we kept (subtitles == transcript).
+      if (used.some(function (u) { return u === key || (u.length > 40 && u.indexOf(key) >= 0) || (key.length > 40 && key.indexOf(u) >= 0); })) return;
+      used.push(key);
+      out.push(SOURCE_LABEL[k] + ':\n' + v);
+    });
+    var text = out.join('\n\n');
+    return text.length > cap ? text.slice(0, cap) : text;
+  }
+  // Which sources actually made it into a draft, as a short human line for the review screen
+  // ("Read from: the caption, what they say, the screen"). Honesty about what we heard.
+  var SOURCE_HUMAN = { caption: 'the caption', description: 'the description', subtitles: 'what they say', transcript: 'what they say', screen: 'the screen', title: 'the title' };
+  function sourceSummary(parts) {
+    var seen = {}, out = [];
+    SOURCE_ORDER.forEach(function (k) {
+      if (!String((parts || {})[k] || '').trim()) return;
+      var h = SOURCE_HUMAN[k]; if (!h || seen[h]) return; seen[h] = 1; out.push(h);
+    });
+    return out;
+  }
+
   // Clean the raw AI JSON into the stored recipe shape. Ingredients arrive as strings (lines); we also
   // tolerate legacy object ingredients. Per-serving macros are only taken from the source when it
   // explicitly stated them, else they stay pending until the ingredients are analysed.
@@ -570,6 +718,8 @@
     perServingIngredients: perServingIngredients, newShoppingItems: newShoppingItems, fitScore: fitScore,
     parseQtyToken: parseQtyToken, addQty: addQty, fmtQty: fmtQty, shoppingCategory: shoppingCategory,
     addToShoppingList: addToShoppingList, CATEGORY_ORDER: CATEGORY_ORDER,
+    hasAmount: hasAmount, draftQuality: draftQuality, betterDraft: betterDraft, mergeDrafts: mergeDrafts, bestDraft: bestDraft,
+    frameDistance: frameDistance, pickFrames: pickFrames, buildSourceText: buildSourceText, sourceSummary: sourceSummary,
     macroSanity: macroSanity, scaleServings: scaleServings, scaleLine: scaleLine, scaleMacros: scaleMacros, fitPortion: fitPortion,
     planMacros: planMacros, batchLeft: batchLeft,
     foodTokens: foodTokens, isBasicStaple: isBasicStaple, buildHaveIndex: buildHaveIndex,

@@ -48,6 +48,106 @@ test('addToShoppingList does not mutate the input list or items', () => {
   assert.deepStrictEqual(before, snapshot); // untouched
 });
 
+// ---- import ladder: when is a draft good enough to stop climbing? -----------------------------
+const draftOf = (lines, steps) => Recipe.normalize({ title: 'T', servings: 2, ingredients: lines, steps: steps || [] }, {});
+
+test('hasAmount spots ingredient lines that carry a usable amount', () => {
+  assert.strictEqual(Recipe.hasAmount('200 g chicken breast'), true);
+  assert.strictEqual(Recipe.hasAmount('2 cloves garlic'), true);
+  assert.strictEqual(Recipe.hasAmount('½ lemon'), true);
+  assert.strictEqual(Recipe.hasAmount('chicken breast'), false);
+  assert.strictEqual(Recipe.hasAmount('salt to taste'), false);
+  assert.strictEqual(Recipe.hasAmount(''), false);
+});
+test('draftQuality flags a hollow caption-only import as thin', () => {
+  // the failure this whole ladder exists for: a hook caption yields a 2-line stub
+  const stub = Recipe.draftQuality(draftOf(['chicken', 'some rice']));
+  assert.strictEqual(stub.thin, true);
+  assert.ok(stub.issues.includes('only 2 ingredients'));
+  assert.ok(stub.issues.includes('no method'));
+  // nothing at all scores zero rather than dividing by zero
+  const empty = Recipe.draftQuality(draftOf([]));
+  assert.strictEqual(empty.score, 0);
+  assert.strictEqual(empty.thin, true);
+  assert.strictEqual(Recipe.draftQuality(null).ingredients, 0);
+});
+test('draftQuality accepts a real recipe, and a full ingredient list with no method', () => {
+  const full = draftOf(['200 g chicken breast', '150 g basmati rice', '1 tbsp olive oil', '2 cloves garlic', '100 g spinach', '1 tsp paprika'], ['Fry the chicken', 'Boil the rice', 'Wilt the spinach']);
+  const q = Recipe.draftQuality(full);
+  assert.strictEqual(q.thin, false);
+  assert.strictEqual(q.withAmount, 6);
+  assert.deepStrictEqual(q.issues, []);
+  // ingredients are what get priced, so a complete amounts list is enough on its own
+  assert.strictEqual(Recipe.draftQuality(draftOf(['200 g chicken breast', '150 g rice', '1 tbsp olive oil', '2 cloves garlic', '100 g spinach', '1 tsp paprika', '1 lemon', '30 g butter'])).thin, false);
+  // amounts missing everywhere keeps climbing even with plenty of lines
+  assert.strictEqual(Recipe.draftQuality(draftOf(['chicken', 'rice', 'olive oil', 'garlic', 'spinach'], ['Cook it'])).thin, true);
+});
+test('bestDraft keeps the fuller draft and backfills its gaps from the other', () => {
+  const fromCaption = Recipe.normalize({ title: 'Creamy chicken pasta', servings: 2, ingredients: ['chicken'], stated_macros_per_serving: { kcal: 520, protein_g: 45 }, tags: { meal: 'dinner' } }, {});
+  const fromFrames = Recipe.normalize({ title: 'Recipe', servings: 2, ingredients: ['200 g chicken breast', '150 g pasta', '100 ml cream', '2 cloves garlic'], steps: ['Boil the pasta', 'Fry the chicken'] }, {});
+  const out = Recipe.bestDraft(fromCaption, fromFrames);
+  assert.strictEqual(out.ingredients.length, 4);            // the frames won on substance
+  assert.strictEqual(out.title, 'Creamy chicken pasta');    // but the caption's real title survived
+  assert.strictEqual(out.macros_per_serving.kcal, 520);     // and its stated macros were not thrown away
+  assert.strictEqual(out.macros_source, 'stated');
+  assert.strictEqual(out.tags.meal, 'dinner');
+  // order must not matter, and a missing side is a no-op
+  assert.strictEqual(Recipe.bestDraft(fromFrames, fromCaption).ingredients.length, 4);
+  assert.strictEqual(Recipe.bestDraft(null, fromFrames).ingredients.length, 4);
+  assert.strictEqual(Recipe.bestDraft(fromCaption, null).ingredients.length, 1);
+  assert.strictEqual(Recipe.bestDraft(null, null), null);
+});
+test('mergeDrafts never overwrites something the primary already has', () => {
+  const a = Recipe.normalize({ title: 'Mine', servings: 1, ingredients: ['1 egg'], steps: ['Fry it'] }, {});
+  const b = Recipe.normalize({ title: 'Theirs', servings: 1, ingredients: ['2 eggs'], steps: ['Boil it'] }, {});
+  const m = Recipe.mergeDrafts(a, b);
+  assert.strictEqual(m.title, 'Mine');
+  assert.deepStrictEqual(m.steps, ['Fry it']);
+  assert.strictEqual(Recipe.lineOf(m.ingredients[0]), '1 egg');
+});
+
+// ---- frame picking ---------------------------------------------------------------------------
+const sig = (v) => new Array(16).fill(v);
+test('pickFrames prefers text-heavy frames and skips near-duplicates', () => {
+  const cands = [
+    { sig: sig(10), text: 0.05 },   // 0 plain shot
+    { sig: sig(11), text: 0.04 },   // 1 same shot again
+    { sig: sig(200), text: 0.40 },  // 2 the ingredient card
+    { sig: sig(120), text: 0.20 },  // 3 a different shot
+  ];
+  assert.deepStrictEqual(Recipe.pickFrames(cands, 2), [2, 3]); // best text, and distinct from it
+  // indices come back in time order, not score order, so the model sees the video in sequence
+  const picked = Recipe.pickFrames(cands, 3);
+  assert.deepStrictEqual(picked, picked.slice().sort((x, y) => x - y));
+});
+test('pickFrames still fills its quota when every frame looks the same', () => {
+  const same = [{ sig: sig(50), text: 0.1 }, { sig: sig(50), text: 0.1 }, { sig: sig(50), text: 0.1 }];
+  assert.strictEqual(Recipe.pickFrames(same, 2).length, 2); // a static video must not yield one frame
+  assert.deepStrictEqual(Recipe.pickFrames([], 4), []);
+  assert.deepStrictEqual(Recipe.pickFrames(same, 0), []);
+  assert.strictEqual(Recipe.pickFrames(same, 10).length, 3); // never more than we have
+});
+test('frameDistance is 0 for identical fingerprints and scales to 1', () => {
+  assert.strictEqual(Recipe.frameDistance(sig(50), sig(50)), 0);
+  assert.strictEqual(Recipe.frameDistance(sig(0), sig(255)), 1);
+  assert.strictEqual(Recipe.frameDistance([], []), 1); // no data = assume different, never dedupe blindly
+});
+
+// ---- source assembly -------------------------------------------------------------------------
+test('buildSourceText labels each source and drops duplicated blocks', () => {
+  const text = Recipe.buildSourceText({ caption: 'Best high protein pasta', subtitles: 'add two hundred grams of chicken', transcript: 'add two hundred grams of chicken' });
+  assert.ok(text.includes('Post caption:'));
+  assert.ok(text.includes('what the creator says'));
+  // subtitles and our own transcription are the same words: only one copy is sent to the model
+  assert.strictEqual(text.split('add two hundred grams of chicken').length - 1, 1);
+  assert.strictEqual(Recipe.buildSourceText({}), '');
+  assert.ok(Recipe.buildSourceText({ caption: 'x'.repeat(50000) }).length <= 14000);
+});
+test('sourceSummary reads back the sources in plain words, deduped', () => {
+  assert.deepStrictEqual(Recipe.sourceSummary({ caption: 'c', subtitles: 's', transcript: 't' }), ['the caption', 'what they say']);
+  assert.deepStrictEqual(Recipe.sourceSummary({ caption: '  ' }), []);
+});
+
 // ---- detectShare -----------------------------------------------------------------------------
 test('detectShare finds YouTube/Instagram/TikTok links in shared text', () => {
   assert.deepStrictEqual(Recipe.detectShare('nice wrap https://www.youtube.com/shorts/abc go'), { platform: 'youtube', url: 'https://www.youtube.com/shorts/abc' });
