@@ -5177,7 +5177,10 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
         <Row label="Sleep: time asleep and sleep stages" detail="Your nightly sleep-quality score and sleep insights." />
         <Row label="Health metrics: HRV, resting heart rate, blood oxygen" detail="Your daily recovery / readiness score, which adapts your coaching." />
         <p className="text-[12px] leading-snug mt-4" style={{ color: 'var(--muted)' }}>
-          Access is <b>read-only</b>, and we never change your Google Health data. It's used <b>only</b> for the features above. We never sell it, share it, use it for advertising, or use it to train AI models. You can disconnect any time in Settings. See our <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>Privacy Policy</a>.
+          Access is <b>read-only</b>, and we never change your Google Health data. It's used <b>only</b> for the features above. We never sell it, use it for advertising, or use it to train AI models.
+        </p>
+        <p className="text-[12px] leading-snug mt-3" style={{ color: 'var(--muted)' }}>
+          If you use the AI coaching chat, three derived figures (readiness, hours asleep, today's steps) are sent to Anthropic, our AI provider, to write that reply. It never sees your raw Google Health records or your Google account, and it does not train on what we send. You can disconnect any time in Settings. See our <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>Privacy Policy</a>.
         </p>
         <p className="text-[12px] leading-snug mt-3" style={{ color: 'var(--muted)' }}>
           Tap Connect and Google will ask you to choose your account and approve this access.

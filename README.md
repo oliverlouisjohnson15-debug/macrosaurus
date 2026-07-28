@@ -47,5 +47,6 @@ compile + JSX transpile + inline vendors) and commit the new `index.html`.
 Auth and per-user data use Supabase (project `Macrosaurus`, table `user_state`,
 row-level security so each user sees only their own data). The Supabase URL and
 publishable key are embedded in the client, which is expected and safe; RLS is what
-protects the data. AI photo features (label scan, meal estimate) use a Gemini key
-each user pastes in Settings, stored in their account.
+protects the data. AI features (label scan, meal estimate, recipe import, buddy coaching)
+run server-side through the `ai-proxy` edge function, which holds the Anthropic key and
+enforces the free/premium tiers. No provider key ever reaches the client.

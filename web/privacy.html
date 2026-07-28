@@ -58,8 +58,9 @@ a{color:var(--purple);}
   <h2>Where in the world</h2>
   <p>Some of our providers (such as Supabase and Google) may process data outside the UK. Where that happens, we rely on those providers having appropriate safeguards in place for international transfers.</p>
 
-  <h2>AI photo &amp; label features</h2>
-  <p>The optional AI features (label scan, meal estimate) use a Google Gemini API key that you provide and that is stored on your account. When you use them, the photo or text you submit is sent to Google&rsquo;s Gemini API to return an estimate. We do not use your content to train our own models. Google&rsquo;s handling of that request is covered by Google&rsquo;s terms for the API.</p>
+  <h2>AI features</h2>
+  <p>Some features are powered by AI: the label scan and meal estimate, the recipe importer, and your buddy&rsquo;s coaching notes and chat. These run through our own server, which passes your request to <b>Anthropic</b> (the Claude API) and returns the result. We never expose an AI provider key to the app, and you do not need to supply one.</p>
+  <p>When you use one of these features, only the content that feature needs is sent: the photo or text you submitted, or a short snapshot of the figures shown on your screen. Anthropic processes it on our behalf to return that single answer. Under Anthropic&rsquo;s API terms, your content is <b>not</b> used to train their models, and we do not use it to train any model of our own.</p>
 
   <h2>Connecting Google Health</h2>
   <p>Connecting Google Health is optional. If you choose to connect it, Macrosaurus requests <b>read-only</b> access to a limited set of daily fitness and health signals so it can show your movement, sleep and recovery and adapt your coaching:</p>
@@ -72,12 +73,14 @@ a{color:var(--purple);}
   <ul>
     <li>Access is <b>read-only</b>. We never write to, or change, your Google Health data.</li>
     <li>Your Google sign-in tokens are held securely on our server and are never exposed to the app or to any third party. The health readings are stored on your own account under row-level security, readable only by you.</li>
-    <li>We do <b>not</b> sell this data, use it for advertising, or share it with third parties, and we do <b>not</b> use it to train AI or machine-learning models.</li>
+    <li>We do <b>not</b> sell this data, use it for advertising, or transfer it to data brokers, advertisers, or anyone else for their own purposes. We do <b>not</b> use it to develop, improve or train AI or machine-learning models, and we do not allow anyone we work with to do so.</li>
+    <li><b>The one place it leaves our systems:</b> if you use the AI coaching features (your buddy&rsquo;s &ldquo;deeper dive&rdquo; and chat), a small snapshot of the figures on your screen is sent to <b>Anthropic</b>, our AI provider, to write that one reply. Where you have connected Google Health, that snapshot can include three derived daily values: your readiness score, your hours asleep last night, and today&rsquo;s step count. It never includes raw Google Health records, your Google account details, or your Google tokens. Anthropic acts purely as our processor: it returns the reply and, under its API terms, does <b>not</b> use the content to train its models. If you do not use the AI coaching features, no Google Health data is sent to any third party at all.</li>
     <li>You can disconnect at any time from Settings in the app, or revoke access directly at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. Disconnecting stops all future syncing and deletes the stored Google connection.</li>
   </ul>
 
   <h2>Limited Use of Google user data</h2>
   <p>Macrosaurus&rsquo;s use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the <b>Limited Use</b> requirements, and to any additional requirements that apply to Google Health and Fitness data. In particular, information obtained through Google Health is used only to provide and improve the user-facing features described above; is not transferred to others except as necessary to provide those features, with your consent, or as required for security or law; is not used for advertising; and is not read by humans unless you have given consent, it is necessary for security or to comply with the law, or the data has been aggregated and anonymised.</p>
+  <p>This applies to our use of AI as well. Neither the raw data we receive from Google APIs nor anything derived or aggregated from it is used to develop, improve or train any AI or machine-learning model, ours or a third party&rsquo;s. Where an AI provider processes this data to deliver a feature you asked for, it does so as our processor, under terms that prohibit training on that content.</p>
 
   <h2>Cookies &amp; analytics</h2>
   <p>We use the storage needed to keep you signed in. We do not run third-party advertising trackers. If we add privacy-respecting analytics later, we will update this page first.</p>
