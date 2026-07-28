@@ -512,6 +512,8 @@ async function buddyDeepDive(db) {
     proteinSoFar: Math.round(m.protein), proteinTarget: et ? Math.round(et.eff.protein_g) : null,
     kcalSoFar: Math.round(m.kcal), kcalTarget: et ? Math.round(et.eff.kcal) : null,
     weighCadence: db.profile.weighCadence || 'daily',
+    weighDay: db.profile.weighCadence === 'single' && db.profile.weighDay != null ? DOW_FULL[db.profile.weighDay] : null,
+    weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null),
   };
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
   const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
@@ -550,6 +552,9 @@ function buddyChatSnapshot(db) {
     currentWeightKg: span.last != null ? +span.last.toFixed(1) : null,
     goalWeightKg: p.goalWeightKg != null ? +p.goalWeightKg.toFixed(1) : null,
     weeksToGoalAtCurrentPace: proj ? proj.weeks : null,
+    weighCadence: p.weighCadence || 'daily',
+    weighDay: p.weighCadence === 'single' && p.weighDay != null ? DOW_FULL[p.weighDay] : null,
+    weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null),
   };
 }
 async function buddyChatReply(db, history) {
@@ -1651,7 +1656,7 @@ function TrendCard({ db }) {
         <div className="text-center py-8 px-4">
           <div className="flex justify-center mb-3 opacity-40"><PixelEgg size={40} color="var(--weight)" /></div>
           <div className="text-[13px] font-semibold mb-1">{tab === 'weight' ? 'No weigh-ins yet' : tab === 'bodyfat' ? 'No body-fat readings yet' : 'No lean-mass data yet'}</div>
-          <div className="text-[11px] text-[#8A8A90] leading-relaxed max-w-[16rem] mx-auto">{tab === 'weight' ? 'Add today’s weight from Home and your trend line starts building right here.' : tab === 'bodyfat' ? 'Add a body-fat % with any weigh-in and it’ll chart here over time.' : 'Log a weight and a body-fat % on the same day to see your lean mass tracked here.'}</div>
+          <div className="text-[11px] text-[#8A8A90] leading-relaxed max-w-[16rem] mx-auto">{tab === 'weight' ? 'Log today’s weight with the button above, or when your buddy asks on Today, and your trend line starts building right here.' : tab === 'bodyfat' ? 'Add a body-fat % with any weigh-in and it’ll chart here over time.' : 'Log a weight and a body-fat % on the same day to see your lean mass tracked here.'}</div>
         </div>
       ) : <>
       <div className="flex items-end justify-between mb-1 px-0.5">
@@ -2055,10 +2060,11 @@ function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
    DASHBOARD
    ===================================================================== */
 // One combined check-in + coaching card: status line and cycle progress, the weigh-in row, and a
-// The buddy opens weighing now that the standalone check-in card is gone: a small sheet for a daily
-// weigh-in, or "weigh in & resume" when a paused goal is coming back. Weighing is otherwise folded
-// into the weekly check-in (CheckInModal). The full weight trend lives in the Progress tab.
-function WeighSheet({ db, update, resume, onClose }) {
+// The one weigh sheet in the app, owned by App and opened from everywhere that asks for a weight:
+// the buddy's habitat, the "log today's weight" button in Progress, and the ?action=weigh shortcut
+// the home-screen icon and the morning push both use. Also handles "weigh in & resume" when a paused
+// goal is coming back. The full weight trend and back-dating live in the Progress tab.
+function WeighSheet({ db, update, resume, showToast, onClose }) {
   useBackClose(onClose);
   const unit = db.profile.weight_unit; const today = Store.todayISO();
   const todays = db.weight_entries.find(w => w.date === today);
@@ -2066,15 +2072,21 @@ function WeighSheet({ db, update, resume, onClose }) {
   const seedKg = todays ? todays.scale_weight : (lastEntry ? lastEntry.scale_weight : db.profile.weightKg);
   const s0 = kgToStLb(seedKg);
   const [kg, setKg] = useState(seedKg); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
+  // Body fat is optional and folded in here rather than being a reason to go and find the full
+  // editor: giving it sharpens the protein target, skipping it costs nothing.
+  const [bf, setBf] = useState(todays && todays.bodyfat != null ? todays.bodyfat : '');
   const last7 = avgWeight(db.weight_entries, shiftISO(today, -6), today);
   function save() {
     const w = unit === 'st_lb' ? stLbToKg(st, lb) : +kg; if (!w) return;
+    const bfVal = bf === '' || bf == null ? null : +bf;
     update(d => {
       const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
-      if (ex) ex.scale_weight = +w.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: t, scale_weight: +w.toFixed(2) });
+      if (ex) { ex.scale_weight = +w.toFixed(2); if (bfVal != null) ex.bodyfat = bfVal; }
+      else { const ne = { id: Store.uid(), date: t, scale_weight: +w.toFixed(2) }; if (bfVal != null) ne.bodyfat = bfVal; d.weight_entries.push(ne); }
       recomputeTrend(d);
       if (resume) { d.paused = false; d.profile.weightKg = +w.toFixed(2); d.last_checkin = t; }
     });
+    showToast && showToast(resume ? 'Welcome back, plan resumed.' : 'Logged ' + fmtWeight(w, unit) + '. Nice one.');
     onClose();
   }
   const weighInputs = unit === 'st_lb'
@@ -2091,6 +2103,10 @@ function WeighSheet({ db, update, resume, onClose }) {
         </div>
         <div className="text-[11.5px] text-[#8A8A90] mb-3 leading-snug">{resume ? "Pop today's weight in and I'll pick your plan back up from here." : "Same time each morning, after the loo and before food or drink, gives the truest trend."}</div>
         {weighInputs}
+        <div className="mt-3">
+          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">Body fat % · optional</div>
+          <NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder="optional" />
+        </div>
         {last7 != null && <div className="text-[11px] text-[#8A8A90] mt-2">7-day avg <span className="text-white tnum">{fmtWeight(last7, unit)}</span></div>}
         <button onClick={save} className="pixel-btn w-full py-3 mt-4" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[10px]">{resume ? 'WEIGH IN & RESUME' : 'SAVE WEIGHT'}</span></button>
       </div>
@@ -2426,11 +2442,11 @@ function WeighInLog({ db, update }) {
   return (
     <Card className="p-4 mb-6">
       <div className="flex items-start justify-between mb-3">
-        <div><div className="font-semibold mb-0.5">Weigh-in log</div><div className="text-[11px] text-[#8A8A90]">Tap an entry to edit</div></div>
+        <div><div className="font-semibold mb-0.5">Weigh-in log</div><div className="text-[11px] text-[#8A8A90]">Tap an entry to edit. “+ Add” back-dates a day you missed.</div></div>
         <button onClick={() => setEditing({ new: true })} className="pixel-box px-3 py-1.5 text-[11px] shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>+ Add</button>
       </div>
       {!entries.length
-        ? <div className="text-[12px] text-[#8A8A90] py-2">No weigh-ins yet. Your buddy prompts you to weigh in on Today, or add any day here with “+ Add”.</div>
+        ? <div className="text-[12px] text-[#8A8A90] py-2">No weigh-ins yet. Use “Log today’s weight” above (your buddy asks you each morning too), or back-date one with “+ Add”.</div>
         : <div>{shown.map(e => {
           const lean = e.bodyfat != null ? e.scale_weight * (1 - e.bodyfat / 100) : null;
           return (
@@ -2508,12 +2524,23 @@ function CheckInHistory({ db }) {
     </Card>
   );
 }
-// One condensed panel: switch between the trend Graph, the Daily weigh-in log, and Check-ins.
-function ProgressPanel({ db, update }) {
+// One condensed panel: switch between the trend Graph, the Weigh-ins log, and Check-ins.
+// Logging today's weight sits ABOVE the tabs as a plain button. It used to be reachable only as a
+// "+ Add" tucked inside the Daily tab, so putting a weight in meant Progress → Daily → + Add → a
+// modal with a date picker; three of those four steps were navigation. The tabs are for reading your
+// history, the button is for adding to it.
+function ProgressPanel({ db, update, onWeigh }) {
   const [view, setView] = useState('graph');
-  const tabs = [['graph', 'Graph'], ['daily', 'Daily'], ['checkins', 'Check-ins']];
+  const tabs = [['graph', 'Graph'], ['daily', 'Weigh-ins'], ['checkins', 'Check-ins']];
+  const today = Store.todayISO();
+  const todays = (db.weight_entries || []).find(w => w.date === today && w.scale_weight != null);
   return (
     <div className="mb-2">
+      {onWeigh && (
+        <button onClick={onWeigh} className="pixel-btn w-full py-2.5 mb-3" style={{ background: todays ? 'var(--surface2)' : 'var(--accent)', color: todays ? 'var(--text)' : 'var(--on-accent)' }}>
+          <span className="pf text-[9px]">{todays ? 'WEIGHED TODAY · ' + fmtWeight(todays.scale_weight, db.profile.weight_unit).toUpperCase() : "LOG TODAY'S WEIGHT"}</span>
+        </button>
+      )}
       <div className="flex gap-1 mb-3 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
         {tabs.map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>{l}</button>)}
       </div>
@@ -2929,7 +2956,6 @@ function buddyCoach(db, today, streak) {
   const et = effectiveTarget(db, today);
   const proteinTgt = et ? Math.round(et.eff.protein_g) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
-  const weighedRecently = (db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
   const weighedToday = (db.weight_entries || []).some(w => w.date === today);
   const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
   // Streak-save: late in the day with a live streak and nothing logged or weighed yet, lean on loss
@@ -2955,9 +2981,8 @@ function buddyCoach(db, today, streak) {
     const left = stepGoal - todaySteps;
     if (left >= 400) return { text: "You're only " + left.toLocaleString() + " steps off your " + stepGoal.toLocaleString() + " goal. A quick walk and it's yours, go get them!", cta: null, action: null, key: 'coach_steps' };
   }
-  if (!weighedRecently && !snoozed('coach_weigh', 20)) {
-    return { text: 'No weigh-in this week yet. A quick one keeps your plan tuned to the real you.', cta: 'Weigh in', action: 'weigh', key: 'coach_weigh' };
-  }
+  // (The old "no weigh-in this week" line lived here. weighAsk owns weighing now, cadence and all,
+  // from much higher up the ladder, so repeating it down here would just be the same nag twice.)
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
   if (eng) return eng;
@@ -3051,6 +3076,44 @@ function recapDue(db, today) {
   if (p.recapAckDate && Game.daysBetween(p.recapAckDate, today) < 6) return false;
   return weeklyRecapFor(db, today).daysLogged >= 3;
 }
+// The buddy's weigh-in ask: the one prompt that owns weighing end to end. It settles the cadence
+// first (and, for a weekly weigher, WHICH day), then asks for the number on the days that cadence
+// says are due, with the input right there in the habitat so a weigh-in is a number and a tap rather
+// than a trip into Progress. "Not today" snoozes for 14h: long enough to clear the day, short enough
+// that tomorrow morning it asks again. Returns a buddyMessage-shaped object or null.
+const WEIGH_SNOOZE_HOURS = 14;
+function weighAsk(db, today) {
+  const p = db.profile || {};
+  const dm = p.nudgesDismissed || {};
+  if (dm.weigh_prompt && (Date.now() - dm.weigh_prompt) < WEIGH_SNOOZE_HOURS * 3600 * 1000) return null;
+  // Cadence unknown: ask that first, since it decides when the weigh-in ask is due at all. Both
+  // buttons resolve it in a single tap.
+  if (p.weighCadence == null) return { kind: 'ask',
+    text: "How often do you want to weigh in? I read your trend either way, so pick whatever you'll actually stick to.",
+    primary: { label: 'Most mornings', act: 'cadence_daily' },
+    secondary: { label: 'Once a week', act: 'cadence_single' } };
+  // Weekly, but no day picked yet: the follow-up that makes "asks on the right day" possible.
+  if (p.weighCadence === 'single' && p.weighDay == null) return { kind: 'ask',
+    text: 'Which morning suits you? I’ll only ask on that day, so pick the one you’re most likely to be home and unhurried.',
+    choices: DOW.map((d, i) => ({ label: d, act: 'weighday_' + i })) };
+  const entries = db.weight_entries || [];
+  const lastISO = entries.reduce((a, w) => (w.date > a ? w.date : a), '');
+  const due = Game.weighDue({
+    cadence: p.weighCadence, weighDay: p.weighDay, today: today, hour: new Date().getHours(),
+    weighedToday: entries.some(w => w.date === today && w.scale_weight != null),
+    lastWeighISO: lastISO || null,
+  });
+  if (!due) return null;
+  const text = due.kind === 'weekly'
+    ? "It's " + DOW_FULL[due.day] + ", your weigh-in day. Pop your weight in and I'll keep your trend honest."
+    : due.kind === 'daily'
+      ? "Morning! On the scales before food or drink is the truest read. What did it say?"
+      : (p.weighCadence === 'single'
+        ? "We've missed a weigh-in or two, so your trend's gone quiet. Whenever you next step on, I'm ready."
+        : "No weigh-in for a couple of days. Pop one in whenever you're near the scales and I'll keep your plan tuned.");
+  return { kind: 'weigh', text: text, weigh: { reason: due.kind },
+    secondary: { label: 'Not today', act: 'snooze', snoozeKey: 'weigh_prompt' } };
+}
 // The buddy speaks with ONE voice. Rather than three separate cards (a coach line, a yes/no breakout,
 // a morning-read button) competing on Today, this aggregator returns the single highest-priority thing
 // the buddy has to say right now, so the habitat is the only place it talks and it never stacks up into
@@ -3071,6 +3134,11 @@ function buddyMessage(db, today, streak) {
     text: "Your new plan from this week's check-in is ready. Want to take a look?",
     primary: { label: 'Review it', act: 'review' } };
   // (Goal milestones are celebrated as a full-screen moment owned by the Dashboard, not a habitat line.)
+  // 2b. Weigh-in: the first thing the buddy asks on a morning it's due (see weighAsk). It sits this
+  // high deliberately. The reading is only honest before food or drink, so a prompt that waits its
+  // turn behind the week's recap is a prompt that arrives after breakfast, and the number goes in
+  // right here rather than sending anyone hunting through Progress for the log.
+  if (!incubating) { const wa = weighAsk(db, today); if (wa) return wa; }
   // 2c. Weekly recap: once a week, the buddy offers to read the past week back to you (the immersive
   // detail lives in a sheet). Surfaces above the daily read on its day.
   if (!incubating && recapDue(db, today)) {
@@ -3097,12 +3165,8 @@ function buddyMessage(db, today, streak) {
   if (lesson) return { kind: 'lesson', text: lesson.title + ': ' + lesson.text,
     primary: { label: 'Got it', act: 'lesson', lessonKey: lesson.key } };
   if (incubating) return null;
-  // 5. Weigh cadence: asked once, only if it was never chosen (new users set it in onboarding; this
-  // catches everyone else). Both buttons set the cadence, so it resolves in a single tap.
-  if (p.weighCadence == null) return { kind: 'ask',
-    text: "How often do you want to weigh in? I read your trend either way, so pick whatever you'll actually stick to.",
-    primary: { label: 'Most days', act: 'cadence_daily' },
-    secondary: { label: 'Once a week', act: 'cadence_single' } };
+  // 5. (Weigh cadence used to be asked here; weighAsk now owns it, up at step 2b, because nothing
+  // else the buddy says about weighing works until the cadence is known.)
   // 6. Ask: a proactive yes/no (currently an overdue check-in). "Not now" snoozes it via nudgesDismissed.
   const ask = buddyBreakout(db, today);
   if (ask) return { kind: 'ask', text: ask.text,
@@ -3119,6 +3183,40 @@ function buddyMessage(db, today, streak) {
   return null;
 }
 
+// The weigh-in itself, right where the buddy asks for it: a number, a tap, done. Seeded with the
+// last known weight so most mornings it's a nudge of one digit, and it saves without leaving Today
+// (the old path was Progress → Daily → + Add → a modal, four steps for one number). Body fat and
+// back-dating still live in the full weigh-in editor over in Progress.
+function WeighInline({ unit, seedKg, onSave }) {
+  const s0 = kgToStLb(seedKg || 0);
+  const [kg, setKg] = useState(seedKg ? +seedKg.toFixed(1) : '');
+  const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
+  const [err, setErr] = useState('');
+  function save() {
+    const w = unit === 'st_lb' ? stLbToKg(+st || 0, +lb || 0) : +kg;
+    if (!w || w <= 0) { setErr('Pop a number in first.'); return; }
+    onSave(w);
+  }
+  return (
+    <div className="mt-2.5">
+      <div className="flex items-center gap-2">
+        {unit === 'st_lb'
+          ? <div className="flex gap-1.5 items-center flex-1 min-w-0">
+              <NumInput value={st} onChange={e => { setSt(e.target.value); setErr(''); }} aria-label="Stone" />
+              <span className="text-[11px] text-[#8A8A90]">st</span>
+              <NumInput value={lb} onChange={e => { setLb(e.target.value); setErr(''); }} aria-label="Pounds" />
+              <span className="text-[11px] text-[#8A8A90]">lb</span>
+            </div>
+          : <div className="flex gap-1.5 items-center flex-1 min-w-0">
+              <NumInput value={kg} onChange={e => { setKg(e.target.value); setErr(''); }} aria-label="Weight in kilograms" />
+              <span className="text-[11px] text-[#8A8A90]">kg</span>
+            </div>}
+        <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[8px]">SAVE</span></button>
+      </div>
+      {err && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{err}</div>}
+    </div>
+  );
+}
 // The buddy's home on Today: a framed terrarium "window" (ground platform + floor shadow) so the
 // animated dino is standing somewhere rather than floating, paired with its name/stage, a warm mood
 // line, and a next-stage progress bar. Replaces the old CompanionStrip: taps through to the Play
@@ -3188,7 +3286,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
       {msg && (() => {
         const speaker = msg.kind === 'lesson' ? (bp.name || 'Your buddy') : who;
         const head = msg.kind === 'read' ? speaker + '’s morning read'
-          : msg.kind === 'ask' ? speaker + ' asks'
+          : (msg.kind === 'ask' || msg.kind === 'weigh') ? speaker + ' asks'
           : msg.kind === 'lesson' ? speaker + ' is teaching'
           : msg.kind === 'recap' ? speaker + '’s week'
           : speaker + ' says';
@@ -3199,6 +3297,15 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
               {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
             </div>
             <div className="text-[11.5px] leading-snug">{msg.text}</div>
+            {/* The weigh-in answers itself: the scale number goes in on the spot. */}
+            {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={msg.weigh.onSave} />}
+            {/* A wider set of one-tap answers (the weekly weigh day) than primary/secondary allows. */}
+            {msg.choices && msg.choices.length > 0 && (
+              // One row, however many answers: a week of days must not wrap onto a stray second line.
+              <div className="grid gap-1 mt-2" style={{ gridTemplateColumns: 'repeat(' + msg.choices.length + ', minmax(0, 1fr))' }}>
+                {msg.choices.map(c => <button key={c.label} onClick={c.onClick} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[8px]">{c.label}</span></button>)}
+              </div>
+            )}
             {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
               <div className="flex gap-2 mt-2">
                 {msg.primary && msg.primary.onClick && <button onClick={msg.primary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
@@ -5502,12 +5609,11 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
     </div>
   );
 }
-function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, isPremium, aiCalls }) {
+function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
-  const [weighOpen, setWeighOpen] = useState(false); // buddy-opened weigh sheet: true = daily weigh, 'resume' = un-pause
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
   const todayTot = sumMacros(entriesOn(db, today));
@@ -5579,7 +5685,7 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
     { k: 'meal', label: 'Log a meal', done: (db.log_entries || []).length > 0, go: () => onQuickAdd(false) },
     { k: 'ai', label: 'Try a Photo or Describe estimate', done: (db.log_entries || []).some(e => e.source === 'ai_estimate' || e.source === 'label'), go: () => onQuickAdd(false) },
     { k: 'protein', label: 'Hit your protein target', done: hatchProteinTgt > 0 && sumMacros(entriesOn(db, today)).protein >= hatchProteinTgt, go: () => onQuickAdd(false) },
-    { k: 'weigh', label: 'Add a weigh-in', done: (db.weight_entries || []).length > 0, go: onCheckIn },
+    { k: 'weigh', label: 'Add a weigh-in', done: (db.weight_entries || []).length > 0, go: () => onWeigh(true) },
   ];
   const hatchStaplesDone = hatchTasks.every(t => t.done);
   const forceHatchNow = DEMO && new URLSearchParams(window.location.search).has('hatchnow');
@@ -5641,6 +5747,16 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
   // stacked on top of them, so two full-screen moments never fight; whichever waits shows next render.
   const grewTo = eggIncubating ? null : Game.stageUp((db.buddy || {}).stage, (db.buddy || {}).stageSeen);
   const markGrown = () => update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.stageSeen = Math.max(d.buddy.stageSeen || 0, grewTo); });
+  // Saving the weight the buddy just asked for: today's entry (overwriting any earlier one), the
+  // trend recomputed, and the number read back in a toast so it's obvious where it landed.
+  const saveTodayWeight = (kg) => {
+    update(d => {
+      const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
+      if (ex) ex.scale_weight = +kg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: t, scale_weight: +kg.toFixed(2) });
+      recomputeTrend(d);
+    });
+    showToast && showToast('Logged ' + fmtWeight(kg, unit) + '. Nice one.');
+  };
   const msg = (() => {
     const m = buddyMessage(db, today, streak); if (!m) return null;
     const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
@@ -5656,10 +5772,13 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
         : a === 'lesson' ? () => ackLesson(btn.lessonKey)
         : a === 'snooze' ? () => snoozeKey(btn.snoozeKey)
         : a === 'review' ? onReview
-        : a === 'resume' ? () => setWeighOpen('resume')
-        : a === 'weigh' ? () => setWeighOpen(true)
+        : a === 'resume' ? () => onWeigh('resume')
+        : a === 'weigh' ? () => onWeigh(true)
         : a === 'checkin' ? onCheckIn
         : (a === 'cadence_daily' || a === 'cadence_single') ? () => update(d => { d.profile = d.profile || {}; d.profile.weighCadence = a === 'cadence_daily' ? 'daily' : 'single'; })
+        // The weekly weigh day, picked from the buddy's day row. Storing it is what lets the ask
+        // arrive on the right morning instead of every morning.
+        : a.indexOf('weighday_') === 0 ? () => { const dayIdx = +a.slice(9); update(d => { d.profile = d.profile || {}; d.profile.weighDay = dayIdx; }); showToast && showToast('Weigh-in day set to ' + DOW_FULL[dayIdx] + '. I’ll ask that morning.'); }
         : a === 'log' ? () => onQuickAdd(false)
         : a === 'cook' ? () => { snoozeKey(btn.key); setView('recipes'); }
         : a === 'cook_fridge' ? () => { snoozeKey(btn.key); onOpenFridge(); }
@@ -5677,7 +5796,14 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       m.kind === 'recap' ? ackRecap
       : (m.dismiss && m.dismiss.key) ? () => snoozeKey(m.dismiss.key)
       : null;
-    return { kind: m.kind, text: m.text, primary: resolve(m.primary), secondary: resolve(m.secondary), dismiss };
+    // The inline weigh-in: seeded from the latest reading (or the profile weight for a first-timer)
+    // and saved straight to today, so the buddy's ask and the logging are the same gesture.
+    const weigh = m.weigh ? (() => {
+      const ents = db.weight_entries || [];
+      const latest = ents.reduce((a, w) => (!a || w.date > a.date ? w : a), null);
+      return { unit: db.profile.weight_unit, seedKg: latest ? latest.scale_weight : db.profile.weightKg, onSave: saveTodayWeight };
+    })() : null;
+    return { kind: m.kind, text: m.text, weigh, choices: (m.choices || []).map(resolve), primary: resolve(m.primary), secondary: resolve(m.secondary), dismiss };
   })();
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
@@ -5730,16 +5856,12 @@ function Dashboard({ db, update, onCheckIn, onReview, setView, onQuickAdd, showT
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
       <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg} />
-      {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={onCheckIn} />}
+      {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => onWeigh(true)} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
 
       {/* Move / Sleep / Ready glance (Google Health), prominent on Today. Shows the dials when there's
           data, or a prominent Connect invite when not linked. The Fight payoff lives in Play. */}
       <StepsSleepCard db={db} update={update} onOpenPlay={onOpenPlay} onCheckIn={onCheckIn} />
-
-      {/* The weekly check-in, weigh-ins and resume are all driven by the buddy in the habitat now; the
-          full weight trend lives in the Progress tab. The buddy opens WeighSheet for a quick weigh. */}
-      {weighOpen && <WeighSheet db={db} update={update} resume={weighOpen === 'resume'} onClose={() => setWeighOpen(false)} />}
 
       {/* Only ever renders when a diet break is active or genuinely due, so it stays out of the way. */}
       <DietBreakCard db={db} update={update} />
@@ -7300,7 +7422,7 @@ function GoalCard({ active, onClick, title, sub, glyph }) {
   );
 }
 
-function Goals({ db, update, showToast, onCheckIn }) {
+function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
@@ -7367,7 +7489,7 @@ function Goals({ db, update, showToast, onCheckIn }) {
       {/* Progress: the full weight trend, weigh-in log, check-in history and live burn estimate.
           Moved here from the dashboard so Home stays a quick daily glance. */}
       <div className="text-lg font-bold mb-3">Progress</div>
-      <ProgressPanel db={db} update={update} />
+      <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
       <ExpenditureCard db={db} />
       <div className="mb-6"><ConsistencyHeatmap db={db} today={today} /></div>
 
@@ -7678,8 +7800,13 @@ function AdvancedTab({ db, update }) {
   const mset = (k, v) => setManual(m => Object.assign({}, m, { [k]: v }));
   const [coach, setCoach] = useState(p.program_mode);
   const [weigh, setWeigh] = useState(p.weighCadence || 'daily');
+  // Which morning a once-a-week weigher wants to be asked. Seeded from their check-in day (a weekly
+  // weigh-in belongs on the day their plan is read), so the picker always shows a real choice rather
+  // than an empty row. The buddy reads this to know which morning to ask on.
+  const [weighDay, setWeighDay] = useState(p.weighDay != null ? p.weighDay : (p.checkinDay != null ? p.checkinDay : weekdayIdx(Store.todayISO())));
   const [saved, setSaved] = useState(false);
-  const dirty = manual.enabled || coach !== p.program_mode || weigh !== (p.weighCadence || 'daily') || JSON.stringify({ carry, cyc }) !== JSON.stringify({ carry: initCarry(), cyc: initCyc() });
+  const dirty = manual.enabled || coach !== p.program_mode || weigh !== (p.weighCadence || 'daily')
+    || (weigh === 'single' && weighDay !== p.weighDay) || JSON.stringify({ carry, cyc }) !== JSON.stringify({ carry: initCarry(), cyc: initCyc() });
   function save() {
     update(d => {
       // Editing the high/low pattern restarts the carryover window from today: days already eaten
@@ -7691,6 +7818,7 @@ function AdvancedTab({ db, update }) {
       // Only write cadence once it's been set or actively changed, so an untouched existing user stays
       // "unset" and still gets the one-time onboarding prompt rather than a silent default.
       if (p.weighCadence != null || weigh !== 'daily') d.profile.weighCadence = weigh;
+      if (weigh === 'single') d.profile.weighDay = weighDay;
       if (manual.enabled) {
         const kcal = Math.round(+manual.kcal || 0);
         if (kcal > 0) { const cur = currentTargets(d) || {}; d.targets.push({ id: Store.uid(), effective_date: Store.todayISO(), source: 'manual', kcal, protein_g: Math.round(+manual.protein_g || 0), carbs_g: Math.round(+manual.carbs_g || 0), fat_g: Math.round(+manual.fat_g || 0), estimatedTDEE: cur.estimatedTDEE }); }
@@ -7749,12 +7877,24 @@ function AdvancedTab({ db, update }) {
     </Collapsible>
     <Section title="Weigh-ins">
       <div className="text-[12px] text-[#8A8A90] mb-3">How often you step on the scale. Your check-in reads the trend either way.</div>
-      <Seg value={weigh} onChange={setWeigh} options={[{ v: 'daily', l: 'Most days' }, { v: 'single', l: 'Once a week' }]} />
+      <Seg value={weigh} onChange={setWeigh} options={[{ v: 'daily', l: 'Most mornings' }, { v: 'single', l: 'Once a week' }]} />
       <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mt-3">
         {weigh === 'daily'
-          ? <><span className="font-semibold">Most days</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Weigh in when you can and we average out the daily wobble for the most accurate read.</span></>
-          : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Just weigh in on your check-in day. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
+          ? <><span className="font-semibold">Most mornings</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your buddy asks first thing each morning and averages out the daily wobble for the most accurate read.</span></>
+          : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Your buddy only asks on the day you pick below. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
       </div>
+      {/* The day the weekly ask lands on. Without it the buddy would either nag daily or never ask. */}
+      {weigh === 'single' && (
+        <div className="mt-3">
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Weigh-in day</div>
+          <div className="flex gap-1.5">
+            {DOW.map((d, i) => (
+              <button key={d} onClick={() => setWeighDay(i)} className={`flex-1 pixel-box py-2 text-[11px] ${weighDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>
+            ))}
+          </div>
+          <div className="text-[11px] text-[#8A8A90] mt-2">I'll ask for your weight on {DOW_FULL[weighDay]} morning, and stay quiet the rest of the week.</div>
+        </div>
+      )}
     </Section>
     <Collapsible label="Custom calories & macros">
       <div className="text-[12px] text-[#8A8A90] mb-3">Ignore the engine and set your own numbers. Heads up: in Coached mode a check-in can still change these, so set Coaching mode to Manual above to lock them.</div>
@@ -10286,6 +10426,7 @@ function App() {
   const [adding, setAdding] = useState(null);
   const [fresh, setFresh] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false); // true = fresh check-in, 'review' = reopen the pending proposal
+  const [weighing, setWeighing] = useState(false);     // the quick weigh sheet: true = weigh, 'resume' = un-pause
   const [adjusting, setAdjusting] = useState(null);    // log-entry id being tweaked from the post-log "Adjust" toast action
   const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
   const [recipeImport, setRecipeImport] = useState(null); // a shared YouTube/Instagram link to import as a recipe
@@ -10492,10 +10633,10 @@ function App() {
     const firstMeal = meals[0] && meals[0].id;
     if (action === 'log') setAdding({ date: Store.todayISO(), mealId: firstMeal });
     else if (action === 'scan') setAdding({ date: Store.todayISO(), mealId: firstMeal, scan: true });
-    // ?action=weigh used to scroll to a #checkin-card that no longer exists (the buddy took over the
-    // check-in and the standalone card went with it), so the home-screen shortcut and the check-in
-    // push both landed on Today doing nothing. Open the check-in flow App already owns instead.
-    else if (action === 'weigh') { setView('dashboard'); setCheckingIn(true); }
+    // ?action=weigh is the home-screen shortcut and the buddy's morning push. It wants the quick
+    // weigh sheet (a number and a Save), not the whole weekly check-in it used to open: someone
+    // tapping a "weigh in" notification is standing on the scales, not sitting down to review a plan.
+    else if (action === 'weigh') { setView('dashboard'); setWeighing(true); }
     if (isShared) (async () => {
       try {
         const cache = await caches.open('share-incoming');
@@ -10764,15 +10905,18 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
-      {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} />}
+      {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} />}
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} />}
+      {/* One quick weigh sheet for the whole app: the buddy's ask, the Progress button and the
+          ?action=weigh shortcut all land here rather than each growing their own entry point. */}
+      {weighing && <WeighSheet db={db} update={update} resume={weighing === 'resume'} showToast={showToast} onClose={() => setWeighing(false)} />}
       {adjusting && (() => { const en = db.log_entries.find(x => x.id === adjusting); return en ? <EditEntryModal entry={en} title="Adjust entry" onSave={(patch) => { applyEntryPatch(update, adjusting, patch); setAdjusting(null); showToast('Updated ' + patch.name); }} onClose={() => setAdjusting(null)} /> : null; })()}
       {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
         <BackClose onClose={() => setShared(null)} />

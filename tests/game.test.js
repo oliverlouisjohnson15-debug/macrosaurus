@@ -722,3 +722,46 @@ test('stageUp stays silent until the marker is seeded', () => {
   assert.strictEqual(Game.stageUp(5, undefined), null);
   assert.strictEqual(Game.stageUp(1, 0), 1); // once seeded at 0, the first real rung fires
 });
+
+// ---- Weigh-in cadence: WHEN the buddy asks for a weight ----
+// 2026-07-27 is a Monday, so the weekday-sensitive cases below read plainly.
+const MON = '2026-07-27', TUE = '2026-07-28';
+
+test('weighDue: a most-days weigher is asked first thing in the morning', () => {
+  const d = Game.weighDue({ cadence: 'daily', today: MON, hour: 7, weighedToday: false, lastWeighISO: '2026-07-26' });
+  assert.strictEqual(d.kind, 'daily');
+  assert.strictEqual(d.morning, true);
+});
+
+test('weighDue: never asks once today is already weighed', () => {
+  assert.strictEqual(Game.weighDue({ cadence: 'daily', today: MON, hour: 7, weighedToday: true }), null);
+  assert.strictEqual(Game.weighDue({ cadence: 'single', weighDay: 1, today: MON, hour: 7, weighedToday: true }), null);
+});
+
+test('weighDue: an afternoon open the day after a weigh-in stays quiet', () => {
+  assert.strictEqual(Game.weighDue({ cadence: 'daily', today: MON, hour: 16, weighedToday: false, lastWeighISO: '2026-07-26' }), null);
+});
+
+test('weighDue: a real gap is chased whatever the hour', () => {
+  const d = Game.weighDue({ cadence: 'daily', today: MON, hour: 16, weighedToday: false, lastWeighISO: '2026-07-24' });
+  assert.strictEqual(d.kind, 'missed');
+  // Never weighed at all counts as a gap too.
+  assert.strictEqual(Game.weighDue({ cadence: 'daily', today: MON, hour: 16, weighedToday: false, lastWeighISO: null }).kind, 'missed');
+});
+
+test('weighDue: a weekly weigher is asked on their day and only their day', () => {
+  const on = Game.weighDue({ cadence: 'single', weighDay: 1, today: MON, hour: 8, weighedToday: false, lastWeighISO: '2026-07-20' });
+  assert.strictEqual(on.kind, 'weekly');
+  assert.strictEqual(on.day, 1);
+  // The very next morning, having weighed on the day, the buddy says nothing.
+  assert.strictEqual(Game.weighDue({ cadence: 'single', weighDay: 1, today: TUE, hour: 8, weighedToday: false, lastWeighISO: MON }), null);
+});
+
+test('weighDue: a weekly weigher who has drifted past the grace window is asked off-day', () => {
+  const d = Game.weighDue({ cadence: 'single', weighDay: 1, today: TUE, hour: 8, weighedToday: false, lastWeighISO: '2026-07-19' });
+  assert.strictEqual(d.kind, 'missed');
+});
+
+test('weighDue: an unset cadence reads as most-days, so legacy accounts still get asked', () => {
+  assert.strictEqual(Game.weighDue({ today: MON, hour: 8, weighedToday: false, lastWeighISO: '2026-07-26' }).kind, 'daily');
+});
