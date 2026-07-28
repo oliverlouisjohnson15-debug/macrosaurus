@@ -122,6 +122,8 @@ test('every line the buddy can send is in house style', async () => {
     [{ buddy: { hatched: false }, log_entries: [] }, NORMAL],
     [{ log_entries: days(TODAY), last_checkin: '2026-01-01' }, NORMAL],
     [{ log_entries: days('2026-07-25', '2026-07-24') }, EVENING],
+    [{ profile: { weighCadence: 'single', weighDay: 0 }, log_entries: [], weight_entries: [{ date: '2026-07-19', scale_weight: 80 }] }, { normal: true, streakSave: false, hour: 8 }],
+    [{ profile: { weighCadence: 'daily' }, log_entries: [], weight_entries: [{ date: '2026-07-20', scale_weight: 80 }] }, { normal: true, streakSave: false, hour: 8 }],
   ];
   // Rotate through a month of dates so every line in every pool is covered, not just today's.
   for (let day = 1; day <= 28; day++) {
@@ -135,4 +137,51 @@ test('every line the buddy can send is in house style', async () => {
       assert.ok(n.url.startsWith('/?action='), 'bad url: ' + n.url);
     }
   }
+});
+
+// ---- The morning weigh-in: the buddy asking for a number on the right day ----
+// TODAY (2026-07-26) is a Sunday, so weighDay 0 is 'today' and weighDay 1 is 'tomorrow'.
+const MORNING = { normal: true, streakSave: false, hour: 8 };
+const AFTERNOON = { normal: true, streakSave: false, hour: 15 };
+const weighed = (...ds) => ds.map(d => ({ date: d, scale_weight: 80 }));
+
+test('a weekly weigher is asked on the day they picked, ahead of the food nudge', async () => {
+  // Sunday, cadence single, weighDay 0 (Sunday), nothing logged: the weigh-in outranks "peckish"
+  // because a scale reading is only honest before the day's first food.
+  const st = { profile: { weighCadence: 'single', weighDay: 0 }, log_entries: [], weight_entries: weighed('2026-07-19') };
+  const n = (await load()).decideNudge(st, TODAY, MORNING);
+  assert.strictEqual(n.kind, 'weigh');
+  assert.strictEqual(n.url, '/?action=weigh');
+});
+
+test('a weekly weigher hears nothing about weighing on the other six days', async () => {
+  const st = { profile: { weighCadence: 'single', weighDay: 1 }, log_entries: days(TODAY), weight_entries: weighed('2026-07-25') };
+  assert.strictEqual((await load()).decideNudge(st, TODAY, MORNING), null);
+});
+
+test('a regular daily weigher still gets the ordinary nudge, not a scale reminder', async () => {
+  // Weighed yesterday, so there is no gap: the buddy has nothing new to say about the scales.
+  const st = { profile: { weighCadence: 'daily' }, log_entries: [], weight_entries: weighed('2026-07-25') };
+  assert.strictEqual((await load()).decideNudge(st, TODAY, MORNING).kind, 'peckish');
+});
+
+test('a daily weigher who has gone quiet for a couple of days is chased', async () => {
+  const st = { profile: { weighCadence: 'daily' }, log_entries: days(TODAY), weight_entries: weighed('2026-07-23') };
+  assert.strictEqual((await load()).decideNudge(st, TODAY, MORNING).kind, 'weigh');
+});
+
+test('no weigh nudge outside the morning, or when the hour is unknown', async () => {
+  const st = { profile: { weighCadence: 'single', weighDay: 0 }, log_entries: days(TODAY), weight_entries: weighed('2026-07-19') };
+  assert.strictEqual((await load()).decideNudge(st, TODAY, AFTERNOON), null);
+  assert.strictEqual((await load()).decideNudge(st, TODAY, NORMAL), null);
+});
+
+test('no weigh nudge once today already has a reading', async () => {
+  const st = { profile: { weighCadence: 'single', weighDay: 0 }, log_entries: days(TODAY), weight_entries: weighed(TODAY) };
+  assert.strictEqual((await load()).decideNudge(st, TODAY, MORNING), null);
+});
+
+test('an egg still hears about hatching first', async () => {
+  const st = { buddy: { hatched: false }, profile: { weighCadence: 'single', weighDay: 0 }, log_entries: [], weight_entries: [] };
+  assert.strictEqual((await load()).decideNudge(st, TODAY, MORNING).kind, 'hatch');
 });

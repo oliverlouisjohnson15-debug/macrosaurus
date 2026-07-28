@@ -584,6 +584,44 @@
     return (streak || 0) >= 2 && !activeToday && h >= (eveningHour || 18);
   }
 
+  // ---- Weigh-in cadence: WHEN the buddy should ask for a weight ----
+  // Weighing is the one thing the plan cannot be tuned without, and the honest reading is the one
+  // taken first thing, before food or drink. So the buddy asks in the morning rather than leaving
+  // people to find the scale log themselves: every day for a most-days weigher, and only on their
+  // chosen day for a once-a-week one. Pure (the caller passes the date and hour) so both the app's
+  // priority ladder and the push sender can share one definition of "due".
+  var WEIGH_MORNING_END = 12;   // "first thing" runs until midday, local
+  var WEIGH_STALE_DAYS = 2;     // a daily weigher who missed the morning is only chased after a gap
+  var WEIGH_WEEKLY_GRACE = 8;   // a weekly weigher who missed their day gets asked again after this
+
+  function weekdayOf(iso) { return new Date(iso + 'T00:00:00').getDay(); }
+
+  // Should the buddy ask for a weight right now? Returns null (say nothing) or a small decision:
+  //   kind 'daily'  - the morning ask for a most-days weigher
+  //   kind 'weekly' - it is the weigh day a once-a-week weigher picked
+  //   kind 'missed' - overdue whatever the cadence, so ask whenever they next open the app
+  // opts: { cadence, weighDay, today, hour, weighedToday, lastWeighISO }. An unset cadence reads as
+  // 'daily' (the recommended default) so a legacy account still gets asked.
+  function weighDue(opts) {
+    var o = opts || {};
+    if (o.weighedToday) return null;
+    var hour = o.hour == null ? 9 : o.hour;
+    var morning = hour < WEIGH_MORNING_END;
+    var since = o.lastWeighISO ? daysBetween(o.lastWeighISO, o.today) : null;
+    if (o.cadence === 'single') {
+      var day = o.weighDay == null ? null : +o.weighDay;
+      if (day != null && weekdayOf(o.today) === day) return { kind: 'weekly', morning: morning, day: day };
+      // Off-day silence is the whole point of the weekly cadence, so only an overdue gap breaks it.
+      if (since == null || since >= WEIGH_WEEKLY_GRACE) return { kind: 'missed', morning: morning, day: day };
+      return null;
+    }
+    if (morning) return { kind: 'daily', morning: true, day: null };
+    // Past midday the daily ask has had its moment: chase only once a real gap has opened up, so an
+    // afternoon open the day after a weigh-in stays quiet.
+    if (since == null || since >= WEIGH_STALE_DAYS) return { kind: 'missed', morning: false, day: null };
+    return null;
+  }
+
   // Aggregate a 7-day window for the weekly recap. `days` is an array of
   // { logged, kcal, protein, proteinTarget }; `weight` is { startKg, endKg } for the week's trend, or
   // null. Returns plain numbers only, so the caller owns all wording and unit formatting.
@@ -743,6 +781,10 @@
     shopPrice: shopPrice,
     canAfford: canAfford,
     streakAtRisk: streakAtRisk,
+    WEIGH_MORNING_END: WEIGH_MORNING_END,
+    WEIGH_STALE_DAYS: WEIGH_STALE_DAYS,
+    WEIGH_WEEKLY_GRACE: WEIGH_WEEKLY_GRACE,
+    weighDue: weighDue,
     weeklyRecap: weeklyRecap,
     goalMilestone: goalMilestone,
     trendRatePerWeek: trendRatePerWeek,

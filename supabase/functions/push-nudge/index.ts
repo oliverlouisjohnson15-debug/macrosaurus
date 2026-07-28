@@ -63,7 +63,8 @@ Deno.serve(async (req) => {
         msg = { kind: "test", title: "Rex is peckish", body: "Test nudge from Macrosaurus.", url: "/?action=log" };
       } else {
         const { data: st } = await admin.from("user_state").select("data").eq("user_id", sub.user_id).maybeSingle();
-        msg = decideNudge((st && st.data) || {}, localDate, { normal: inNormal, streakSave: inStreakSave });
+        // The local hour rides along so the ladder can keep the weigh-in ask to the morning.
+        msg = decideNudge((st && st.data) || {}, localDate, { normal: inNormal, streakSave: inStreakSave, hour: localHour });
         if (!msg) { skipped++; continue; }
       }
 

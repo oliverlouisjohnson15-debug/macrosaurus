@@ -11,8 +11,9 @@
  * Order, most important first:
  *   1. streak-save  - a run of 2+ days with nothing logged or weighed, late in the evening
  *   2. hatch        - still incubating and nothing logged today
- *   3. peckish      - nothing logged today (the original nudge)
- *   4. check-in     - logged fine, but the weekly read is well overdue
+ *   3. weigh        - a morning window, and their cadence says a weigh-in is due today
+ *   4. peckish      - nothing logged today (the original nudge)
+ *   5. check-in     - logged fine, but the weekly read is well overdue
  *
  * Kept free of Deno and npm imports so index.ts can import it in the edge runtime and
  * tests/push-nudge.test.js can import the very same file under node --experimental-strip-types.
@@ -21,9 +22,14 @@
 export const STREAK_SAVE_HOUR = 20;      // local hour for the evening streak-save window
 export const STREAK_SAVE_MIN = 2;        // a 1-day "streak" is not yet worth protecting
 export const CHECKIN_OVERDUE_DAYS = 8;   // the app asks at 5; push waits longer before interrupting
+export const WEIGH_MORNING_END = 12;     // a weigh-in push is only honest before the day's food
+export const WEIGH_GAP_DAYS = 2;         // a most-days weigher is only chased once a gap has opened
+export const WEIGH_WEEKLY_GRACE = 8;     // a weekly weigher who missed their day, asked again after this
 
 export type Nudge = { kind: string; title: string; body: string; url: string };
-export type Windows = { normal: boolean; streakSave: boolean };
+// `hour` is the subscriber's LOCAL hour, needed by the morning-only weigh nudge. Older callers that
+// omit it simply never send that one.
+export type Windows = { normal: boolean; streakSave: boolean; hour?: number };
 
 export function isoShift(iso: string, n: number): string {
   const d = new Date(iso + "T00:00:00Z");
@@ -58,6 +64,44 @@ export function activeStreak(d: Record<string, unknown>, today: string): number 
 export function pick(lines: string[], date: string): string {
   const n = parseInt(String(date).replace(/-/g, "").slice(-3), 10) || 0;
   return lines[n % lines.length];
+}
+
+export function weekdayOf(iso: string): number {
+  return new Date(iso + "T00:00:00Z").getUTCDay();
+}
+
+// The latest date with a scale reading, or null. Weigh entries are stored oldest-first but a scan
+// costs nothing and does not depend on that holding.
+export function lastWeighISO(d: Record<string, unknown>): string | null {
+  const rows = d.weight_entries;
+  if (!Array.isArray(rows)) return null;
+  let latest: string | null = null;
+  for (const r of rows as { date?: string; scale_weight?: number }[]) {
+    if (r && r.date && r.scale_weight != null && (latest == null || r.date > latest)) latest = r.date;
+  }
+  return latest;
+}
+
+// Is a weigh-in worth a push this morning? Deliberately narrower than the in-app ask (app/game.js
+// weighDue), which can afford to prompt every morning because it is sitting there waiting rather
+// than buzzing a phone. Push only earns the interruption when:
+//   - a once-a-week weigher is on the day they chose (or has drifted past the grace window), or
+//   - a most-days weigher has actually gone quiet for a couple of days.
+// A regular daily weigher therefore keeps getting the ordinary "what needs doing" nudge, not a
+// scale reminder they were about to act on anyway.
+export function weighPushDue(d: Record<string, unknown>, today: string, hour?: number): "weekly" | "gap" | null {
+  if (hour == null || hour >= WEIGH_MORNING_END) return null;
+  const weighedToday = Array.isArray(d.weight_entries)
+    && (d.weight_entries as { date?: string }[]).some((w) => w && w.date === today);
+  if (weighedToday) return null;
+  const profile = (d.profile || {}) as { weighCadence?: string; weighDay?: number };
+  const last = lastWeighISO(d);
+  const since = last ? daysBetween(last, today) : null;
+  if (profile.weighCadence === "single") {
+    if (profile.weighDay != null && weekdayOf(today) === Number(profile.weighDay)) return "weekly";
+    return (since == null || since >= WEIGH_WEEKLY_GRACE) ? "gap" : null;
+  }
+  return (since != null && since >= WEIGH_GAP_DAYS) ? "gap" : null;
 }
 
 export function decideNudge(d: Record<string, unknown>, today: string, win: Windows): Nudge | null {
@@ -102,7 +146,27 @@ export function decideNudge(d: Record<string, unknown>, today: string, win: Wind
     };
   }
 
-  // 3. Nothing logged today: the original nudge, unchanged in spirit.
+  // 3. The morning weigh-in. Above the food nudge on purpose: the reading is only honest before the
+  //    day's first food or drink, so if this one waits its turn it is already too late to be useful.
+  const weighDue = weighPushDue(d, today, win.hour);
+  if (weighDue) {
+    return {
+      kind: "weigh",
+      title: weighDue === "weekly" ? "Weigh-in day" : who + " needs a weigh-in",
+      body: weighDue === "weekly"
+        ? pick([
+          "It is your weigh-in morning. Hop on the scales before breakfast and I will read your trend.",
+          "Weigh-in day! One number before food or drink and your plan stays tuned to the real you.",
+        ], today)
+        : pick([
+          "Your trend has gone quiet. A weigh-in this morning and I can keep your targets honest.",
+          "No weigh-in for a bit. Step on before breakfast and I will pick the trend back up.",
+        ], today),
+      url: "/?action=weigh",
+    };
+  }
+
+  // 4. Nothing logged today: the original nudge, unchanged in spirit.
   if (!loggedToday) {
     return {
       kind: "peckish",
@@ -116,7 +180,7 @@ export function decideNudge(d: Record<string, unknown>, today: string, win: Wind
     };
   }
 
-  // 4. Eating fine, but the weekly read is overdue. This is the one nudge that can reach someone who
+  // 5. Eating fine, but the weekly read is overdue. This is the one nudge that can reach someone who
   //    HAS logged, which is exactly why it waits longer than the in-app ask before interrupting.
   const last = typeof d.last_checkin === "string" ? d.last_checkin : null;
   if (last && daysBetween(last, today) >= CHECKIN_OVERDUE_DAYS) {
