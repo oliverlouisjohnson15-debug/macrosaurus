@@ -1094,6 +1094,24 @@ function avgWeight(entries, startISO, endISO) {
   return ws.length ? ws.reduce((a, b) => a + b, 0) / ws.length : null;
 }
 function countWeighIns(entries, startISO, endISO) { return entries.filter(w => w.date >= startISO && w.date <= endISO && w.scale_weight != null).length; }
+// The two weights a check-in is actually decided between, for whichever way this person weighs.
+// It mirrors E.checkInDecision exactly: daily-ish weighing averages the cycle against the one
+// before it, a single weekly weigh-in diffs the latest reading against the previous one. The UI
+// reads from here so the number on screen is never a different number from the one in the maths.
+function checkInReadings(entries, cs, todayISO, cycleDays, single) {
+  const ws = entries.filter(w => w.scale_weight != null).slice().sort((a, b) => a.date.localeCompare(b.date));
+  if (single) {
+    const inCycle = ws.filter(w => w.date >= cs && w.date <= todayISO);
+    const before = ws.filter(w => w.date < cs);
+    const prev = before.length ? before[before.length - 1] : null;
+    const now = inCycle.length ? inCycle[inCycle.length - 1] : null;
+    return { now: now ? now.scale_weight : null, prev: prev ? prev.scale_weight : null, count: inCycle.length, nowDate: now ? now.date : null, prevDate: prev ? prev.date : null };
+  }
+  return {
+    now: avgWeight(ws, cs, todayISO), prev: avgWeight(ws, shiftISO(cs, -cycleDays), shiftISO(cs, -1)),
+    count: countWeighIns(ws, cs, todayISO), nowDate: null, prevDate: null,
+  };
+}
 function recomputeTrend(d) {
   d.weight_entries.sort((a, b) => a.date.localeCompare(b.date));
   // A body-fat-only entry (a reading taken on a morning you didn't weigh) carries no scale weight,
@@ -2217,28 +2235,35 @@ function CheckInModal({ db, update, onClose, resume }) {
   const liveEntries = typedKg != null
     ? db.weight_entries.filter(w => w.date !== today).concat([{ date: today, scale_weight: typedKg }])
     : db.weight_entries;
-  const liveAvg = avgWeight(liveEntries, cs, today);
-  const liveCount = countWeighIns(liveEntries, cs, today);
-  const prevCycleAvg = avgWeight(db.weight_entries, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
+  const live = checkInReadings(liveEntries, cs, today, cycleDays, singleWeigh);
+  const liveAvg = live.now, prevCycleAvg = live.prev, liveCount = live.count;
   const avgDelta = shownDelta(liveAvg, prevCycleAvg, unit);
+  // A once-a-week weigher has a single reading carrying the whole cycle, so the average framing
+  // (and the "average is enough, skip today" escape) only applies to the daily-ish lane.
+  const soloRead = !singleWeigh && liveCount === 1;
   // Already weighed enough this cycle? Then a missed morning shouldn't block the check-in: it can
-  // read the average it already has instead of forcing you to invent today's number.
-  const canSkipWeight = wkAvg != null && weighDays >= needWeigh;
+  // read the weights it already has instead of forcing you to invent today's number.
+  const canSkipWeight = singleWeigh
+    ? checkInReadings(db.weight_entries, cs, today, cycleDays, true).now != null
+    : (wkAvg != null && weighDays >= needWeigh);
   const bfNum = (bf === '' || bf == null || isNaN(+bf)) ? null : +bf;
   const leanPreview = (bfNum != null && bfNum > 0 && bfNum < 70 && (typedKg != null || liveAvg != null))
     ? (typedKg != null ? typedKg : liveAvg) * (1 - bfNum / 100) : null;
   function complete() {
     const weightKg = typedKg;
-    if (!weightKg && !canSkipWeight) { setWErr("Enter today's weight to check in, or weigh in a couple more days this cycle."); return; }
+    if (!weightKg && !canSkipWeight) { setWErr(singleWeigh ? "Enter this week's weigh-in to check in, it's the only reading I've got to read." : "Enter today's weight to check in, or weigh in a couple more days this cycle."); return; }
     setWErr('');
     const bfVal = bfNum; // body fat optional: only written when you actually enter a reading
     const todayEntry = weightKg ? Object.assign({ date: today, scale_weight: +weightKg }, bfVal != null ? { bodyfat: bfVal } : {}) : null;
     const entries = todayEntry ? db.weight_entries.filter(w => w.date !== today).concat([todayEntry]) : db.weight_entries.slice();
-    const curAvg = avgWeight(entries, cs, today);
-    const prevAvg = avgWeight(entries, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
-    // Every outcome screen carries the two averages the decision was actually made from, so the
+    const read = checkInReadings(entries, cs, today, cycleDays, singleWeigh);
+    // The weight everything downstream stands on: this cycle's average when you weigh through the
+    // week, the latest reading when you weigh once. Same rule the engine diffs on.
+    const curAvg = read.now != null ? read.now : avgWeight(entries, cs, today);
+    const prevAvg = read.prev;
+    // Every outcome screen carries the two weights the decision was actually made from, so the
     // result can show the comparison instead of only the rate it produced.
-    const summary = { avgNow: curAvg, avgPrev: prevAvg, weighCount: countWeighIns(entries, cs, today), bfNew: bfVal };
+    const summary = { avgNow: read.now, avgPrev: read.prev, weighCount: read.count, prevDate: read.prevDate, single: singleWeigh, bfNew: bfVal };
     const finish = (r) => setResult(Object.assign({}, summary, r));
     update(d => {
       const ex = d.weight_entries.find(x => x.date === today);
@@ -2345,14 +2370,16 @@ function CheckInModal({ db, update, onClose, resume }) {
                 The rate below is derived from these two numbers, so showing them first makes the
                 whole result checkable rather than something the app asserts. */}
             {result.avgNow != null && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">Read from your averages</div>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">{result.single ? 'Read from your weigh-ins' : 'Read from your averages'}</div>
               <div className="flex items-baseline gap-2 flex-wrap text-[13px]">
                 <span className="tnum text-[#8A8A90]">{result.avgPrev != null ? fmtWeight(result.avgPrev, unit) : '–'}</span>
                 <span className="text-[#8A8A90]">→</span>
                 <span className="tnum font-bold text-[15px]">{fmtWeight(result.avgNow, unit)}</span>
                 {result.avgPrev != null && <span className="tnum font-semibold" style={{ color: 'var(--muted)' }}>{fmtWeightDelta(shownDelta(result.avgNow, result.avgPrev, unit), unit)}</span>}
               </div>
-              <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">{result.avgPrev != null ? 'Last cycle’s average against this cycle’s' : 'This cycle’s average'}, from {result.weighCount} weigh-in{result.weighCount === 1 ? '' : 's'}{result.bfNew != null ? ` · body fat logged at ${(+result.bfNew).toFixed(1)}%` : ''}.</div>
+              <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">{result.single
+                ? (result.avgPrev != null ? `Your reading from ${result.prevDate ? fmtShortDay(result.prevDate) : 'last week'} against this week’s` : 'This week’s reading, your first, so there’s nothing to diff it against yet')
+                : (result.avgPrev != null ? 'Last cycle’s average against this cycle’s' : 'This cycle’s average') + `, from ${result.weighCount} weigh-in${result.weighCount === 1 ? '' : 's'}`}{result.bfNew != null ? ` · body fat logged at ${(+result.bfNew).toFixed(1)}%` : ''}.</div>
             </div>}
             {result.estimate && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
               <div className="grid grid-cols-2 gap-2">
@@ -2420,26 +2447,36 @@ function CheckInModal({ db, update, onClose, resume }) {
                 the sheet. It updates live as you type today's weight, so "the average" is never a
                 figure the app worked out privately after you pressed the button. */}
             <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your check-in weight</div>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'Your check-in weight'}</div>
               <div className="flex items-baseline gap-2 flex-wrap">
                 <div className="text-2xl font-bold tnum leading-none">{liveAvg != null ? fmtWeight(liveAvg, unit) : '–'}</div>
-                {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}>{fmtWeightDelta(avgDelta, unit)} vs last cycle</div>}
+                {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
               </div>
               <div className="text-[11.5px] text-[#8A8A90] leading-snug mt-1.5">
-                {liveAvg != null
-                  ? <span>The average of your {liveCount} weigh-in{liveCount === 1 ? '' : 's'} since {fmtShortDay(cs)}{typedKg != null ? ', including the one you\'re entering below' : ''}. I retune from this average, never a single morning{prevCycleAvg != null ? `, and compare it with last cycle's ${fmtWeight(prevCycleAvg, unit)}` : ''}.</span>
-                  : <span>Pop today's weight in below and it becomes the first reading of this cycle's average, which is what I retune from.</span>}
+                {liveAvg == null
+                  ? (singleWeigh
+                    ? <span>Pop this week's weigh-in in below. On a once-a-week weigh-in I read it straight against your last one, so it's the only number this check-in has to go on.</span>
+                    : <span>Pop today's weight in below and it becomes the first reading of this cycle's average, which is what I retune from.</span>)
+                  : singleWeigh
+                    ? <span>{typedKg != null ? 'The reading you\'re entering below' : 'Your reading from ' + fmtShortDay(live.nowDate)}. Weighing once a week, I compare it straight with {prevCycleAvg != null ? `your last one on ${fmtShortDay(live.prevDate)} (${fmtWeight(prevCycleAvg, unit)})` : 'your next one'}, so same morning, same conditions each week keeps it honest. Weighing most mornings instead lets me average the water swings out (Settings).</span>
+                  : soloRead
+                    ? <span>Your one weigh-in this cycle{typedKg != null ? ', the one you\'re entering below' : ''}, so it's carrying the whole read on its own. A few more mornings and I average them, which stops one odd day swinging your macros{prevCycleAvg != null ? `. Last cycle came out at ${fmtWeight(prevCycleAvg, unit)}` : ''}.</span>
+                    : <span>The average of your {liveCount} weigh-ins since {fmtShortDay(cs)}{typedKg != null ? ', including the one you\'re entering below' : ''}. I retune from this average, never a single morning{prevCycleAvg != null ? `, and compare it with last cycle's ${fmtWeight(prevCycleAvg, unit)}` : ''}.</span>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <MiniStat label="Food logs so far" value={loggedDays + '/' + logWindow} ok={laneMode === 'weightOnly' ? true : loggedDays >= needLogs} />
-              <MiniStat label="Weigh-ins so far" value={weighDays + '/' + weighWindow} ok={weighDays >= needWeigh} />
+              {singleWeigh
+                ? <MiniStat label="Weigh-in this week" value={liveCount ? 'Done' : 'Needed'} ok={liveCount > 0} />
+                : <MiniStat label="Weigh-ins so far" value={weighDays + '/' + weighWindow} ok={weighDays >= needWeigh} />}
             </div>
             {!readyToAdjust && <div className="text-[12px] text-[#F5C542] mb-3">{laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'}</div>}
-            <Field label={todaysEntry ? "Today's weight · already logged" : "Today's weight"} hint={
-              (todaysEntry && typedKg == null) ? `Cleared, but this morning's saved ${fmtWeight(todaysEntry.scale_weight, unit)} still counts in the average. Type a number to correct it.`
-              : (canSkipWeight && typedKg == null) ? 'Leave it blank if you haven’t weighed today, I’ll check in on the average above.'
-              : 'Goes straight into the average above.'}>
+            <Field label={(singleWeigh ? "This week's weigh-in" : "Today's weight") + (todaysEntry ? ' · already logged' : '')} hint={
+              (todaysEntry && typedKg == null) ? `Cleared, but this morning's saved ${fmtWeight(todaysEntry.scale_weight, unit)} still ${singleWeigh ? 'stands as this week\'s reading' : 'counts in the average'}. Type a number to correct it.`
+              : (canSkipWeight && typedKg == null) ? (singleWeigh
+                ? `Leave it blank if you’ve already weighed this week, I’ll check in on your ${fmtShortDay(live.nowDate)} reading.`
+                : 'Leave it blank if you haven’t weighed today, I’ll check in on the average above.')
+              : (singleWeigh ? 'This is the number this week’s check-in reads.' : 'Goes straight into the average above.')}>
               {unit === 'st_lb'
                 ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} placeholder="st" /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} placeholder="lb" /><span className="text-[#8A8A90]">lb</span></div>
                 : <div className="flex gap-2 items-center"><NumInput value={kg} onChange={e => setKg(e.target.value)} placeholder={last ? last.scale_weight.toFixed(1) : ''} /><span className="text-[#8A8A90]">kg</span></div>}
