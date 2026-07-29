@@ -1131,6 +1131,37 @@ function plannedKcalOn(db, dISO) {
   return t.kcal + cyc;
 }
 function isCompleteDayOn(db, dISO) { return E.isCompleteDay(sumMacros(entriesOn(db, dISO)).kcal, plannedKcalOn(db, dISO)); }
+// Body-fat readings shaped for the engine: every recorded reading with the ruler it came from
+// ('scale' = smart scale / BIA, 'photo' = the AI visual estimate, 'manual' = DEXA, calipers or a
+// figure you typed). Older entries predate the source field and read as 'manual'.
+function bfReadings(db) {
+  return (db.weight_entries || []).filter(w => w.bodyfat != null)
+    .map(w => ({ date: w.date, pct: +w.bodyfat, source: w.bf_source || 'manual' }));
+}
+// The body fat the app ACTS on: the trend, not the last reading, so a hydration-swung morning on a
+// smart scale can't move your protein target. Falls back to the profile figure from onboarding.
+function bodyFatNow(db) {
+  const now = E.bodyFatNow(bfReadings(db));
+  if (now) return now;
+  const p = db.profile || {};
+  return p.bodyFatPct != null ? { pct: +p.bodyFatPct, raw: +p.bodyFatPct, date: null, source: 'manual', n: 0, nSameSource: 0 } : null;
+}
+// Is a fresh body-fat reading worth asking for? Pairs the last reading with the weight the body was
+// at when it was taken, so "you've moved 4 kg since" is a real comparison rather than a guess.
+function bodyFatReadingDue(db, todayISO) {
+  const readings = bfReadings(db);
+  const now = E.bodyFatNow(readings);
+  const entries = (db.weight_entries || []).filter(w => w.scale_weight != null);
+  const atReading = now ? (entries.filter(w => w.date <= now.date).slice(-1)[0] || null) : null;
+  const latest = entries.slice(-1)[0] || null;
+  return E.bodyFatReadingDue({
+    readings: readings, today: todayISO,
+    weightKg: latest ? (latest.trend_weight != null ? latest.trend_weight : latest.scale_weight) : (db.profile || {}).weightKg,
+    weightAtLastReadingKg: atReading ? (atReading.trend_weight != null ? atReading.trend_weight : atReading.scale_weight) : null,
+  });
+}
+const BF_SOURCE_LABEL = { scale: 'smart scale', photo: 'photo estimate', manual: 'measured' };
+const BF_SOURCE_SHORT = { scale: 'Smart scale', photo: 'Photo estimate', manual: 'Measured' };
 // ONE definition of "how's your tracking going", for every counter in the app. The window is the
 // current check-in cycle (not a calendar week), a logged day is a COMPLETE day (>= 60% of that day's
 // plan, same rule the engine uses), and a weigh-in is any scale reading. Today is dropped from the
@@ -1656,11 +1687,17 @@ function TrendCard({ db }) {
   const cut = range === 'all' ? '0000-00-00' : shiftISO(today, -range);
   const ents = db.weight_entries.slice().filter(e => e.date >= cut).sort((a, b) => a.date.localeCompare(b.date));
   const toDisp = kg => unit === 'st_lb' ? +(kg * LB_PER_KG).toFixed(1) : +kg.toFixed(1);
+  // Body fat gets a trend line for the same reason weight does: a smart-scale reading swings a couple
+  // of points on hydration alone, and the trend is what the app acts on. Lean mass is built from BOTH
+  // trends, so it moves at the pace a body actually changes rather than jittering daily.
+  const bfTrendByDate = {};
+  E.bodyFatTrend(ents.filter(e => e.bodyfat != null).map(e => ({ date: e.date, pct: +e.bodyfat, source: e.bf_source || 'manual' })))
+    .forEach(r => { bfTrendByDate[r.date] = r.trendPct; });
   const series = ents.map(e => {
     let v = null;
     if (tab === 'weight') v = toDisp(e.trend_weight != null ? e.trend_weight : e.scale_weight);
-    else if (tab === 'bodyfat') v = e.bodyfat != null ? +e.bodyfat : null;
-    else if (e.bodyfat != null && e.scale_weight != null) v = toDisp(e.scale_weight * (1 - e.bodyfat / 100));
+    else if (tab === 'bodyfat') v = bfTrendByDate[e.date] != null ? bfTrendByDate[e.date] : null;
+    else if (bfTrendByDate[e.date] != null && e.scale_weight != null) v = toDisp((e.trend_weight != null ? e.trend_weight : e.scale_weight) * (1 - bfTrendByDate[e.date] / 100));
     return { date: e.date, value: v };
   });
   // Raw measured points (scale weight / measured bf / measured lean) so daily values show as dots even when the smoothed line is flat.
@@ -1681,8 +1718,8 @@ function TrendCard({ db }) {
   const valid = dots.filter(s => s.value != null);
   const validTrend = series.filter(s => s.value != null);
   const first = valid[0], last = valid[valid.length - 1];
-  const headFirst = tab === 'weight' && validTrend.length ? validTrend[0] : first;
-  const headLast = tab === 'weight' && validTrend.length ? validTrend[validTrend.length - 1] : last;
+  const headFirst = validTrend.length ? validTrend[0] : first;
+  const headLast = validTrend.length ? validTrend[validTrend.length - 1] : last;
   const delta = (headFirst && headLast) ? +(headLast.value - headFirst.value).toFixed(1) : null;
   const rangeLabel = { 7: 'past week', 30: 'past month', 90: 'past 3 months', 180: 'past 6 months', 365: 'past year', all: 'all time' }[range];
   const deltaStr = delta == null ? '' : (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + (tab === 'bodyfat' ? '%' : ' ' + yl);
@@ -1711,12 +1748,12 @@ function TrendCard({ db }) {
       <div className="flex items-end justify-between mb-1 px-0.5">
         <div>
           <span className="text-2xl font-bold tnum">{headLast ? headLast.value : '–'}</span><span className="text-[11px] text-[#8A8A90] ml-1">{tab === 'bodyfat' ? '%' : yl}</span>
-          {tab === 'weight' && <div className="text-[10px] text-[#8A8A90] tnum">trend weight today{last ? ` · last morning ${last.value} ${yl}` : ''}</div>}
+          <div className="text-[10px] text-[#8A8A90] tnum">{tab === 'weight' ? 'trend weight today' : tab === 'bodyfat' ? 'body-fat trend' : 'lean mass'}{last ? ` · last reading ${last.value}${tab === 'bodyfat' ? '%' : ' ' + yl}` : ''}</div>
         </div>
         {delta != null && <div className="text-right"><div className="text-[13px] font-semibold tnum" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good)' : 'var(--fat)' }}>{deltaStr}</div><div className="text-[10px] text-[#8A8A90]">{rangeLabel}</div></div>}
       </div>
-      <LineChart points={dots} trend={tab === 'weight' ? series : null} color={color} decimals={tab === 'bodyfat' ? 1 : 1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
-      <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{tab === 'weight' && <span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
+      <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
+      <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
       <div className="flex items-center justify-between mt-2">
         <div className="flex gap-1">{[['W', 7], ['M', 30], ['3M', 90], ['6M', 180], ['Y', 365], ['All', 'all']].map(([l, v]) => <button key={l} onClick={() => setRange(v)} className={`px-2 py-1 rounded-lg text-[11px] ${range === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}>{l}</button>)}</div>
         <div className="text-[10px] text-[#8A8A90]">{tab === 'bodyfat' ? '%' : yl}</div>
@@ -2130,15 +2167,20 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
   // Body fat is optional and folded in here rather than being a reason to go and find the full
   // editor: giving it sharpens the protein target, skipping it costs nothing.
   const [bf, setBf] = useState(todays && todays.bodyfat != null ? todays.bodyfat : '');
+  // Body fat is optional here too, but when it IS given it carries the ruler it came from, because a
+  // smart scale, a photo estimate and a DEXA are three different measurements of the same thing.
+  const bfState = bodyFatNow(db);
+  const [bfSrc, setBfSrc] = useState((todays && todays.bf_source) || (bfState && bfState.source) || 'scale');
   const last7 = avgWeight(db.weight_entries, shiftISO(today, -6), today);
   function save() {
     const w = unit === 'st_lb' ? stLbToKg(st, lb) : +kg; if (!w) return;
     const bfVal = bf === '' || bf == null ? null : +bf;
     update(d => {
       const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
-      if (ex) { ex.scale_weight = +w.toFixed(2); if (bfVal != null) ex.bodyfat = bfVal; }
-      else { const ne = { id: Store.uid(), date: t, scale_weight: +w.toFixed(2) }; if (bfVal != null) ne.bodyfat = bfVal; d.weight_entries.push(ne); }
+      if (ex) { ex.scale_weight = +w.toFixed(2); if (bfVal != null) { ex.bodyfat = bfVal; ex.bf_source = bfSrc; } }
+      else { const ne = { id: Store.uid(), date: t, scale_weight: +w.toFixed(2) }; if (bfVal != null) { ne.bodyfat = bfVal; ne.bf_source = bfSrc; } d.weight_entries.push(ne); }
       recomputeTrend(d);
+      if (bfVal != null) { const bn = E.bodyFatNow(bfReadings(d)); if (bn) d.profile.bodyFatPct = bn.pct; }
       if (resume) { d.paused = false; d.profile.weightKg = +w.toFixed(2); d.last_checkin = t; }
     });
     showToast && showToast(resume ? 'Welcome back, plan resumed.' : 'Logged ' + fmtWeight(w, unit) + '. Nice one.');
@@ -2160,7 +2202,10 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
         {weighInputs}
         <div className="mt-3">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">Body fat % · optional</div>
-          <NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder="optional" />
+          <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
+          {/* The ruler is only asked for once there IS a reading, so the morning sheet stays a
+              number and a Save for everyone who never touches this. */}
+          {bf !== '' && <div className="mt-2"><Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} /></div>}
         </div>
         {last7 != null && <div className="text-[11px] text-[#8A8A90] mt-2">7-day avg <span className="text-white tnum">{fmtWeight(last7, unit)}</span></div>}
         <button onClick={save} className="pixel-btn w-full py-3 mt-4" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[10px]">{resume ? 'WEIGH IN & RESUME' : 'SAVE WEIGHT'}</span></button>
@@ -2197,7 +2242,11 @@ function CheckInModal({ db, update, onClose, resume }) {
   // lean-mass chart) every single check-in, whether or not you'd actually measured anything.
   const [bf, setBf] = useState(todaysEntry && todaysEntry.bodyfat != null ? todaysEntry.bodyfat : '');
   const lastBfEntry = db.weight_entries.filter(w => w.bodyfat != null && w.date !== today).slice(-1)[0];
-  const lastBfPct = lastBfEntry ? lastBfEntry.bodyfat : (p.bodyFatPct != null ? p.bodyFatPct : null);
+  const bfState = bodyFatNow(db);                     // the trend the app is acting on right now
+  const lastBfPct = bfState ? bfState.pct : null;
+  // Which ruler this reading came from. Defaults to the one you used last, because whatever you
+  // measure with, using it consistently is what makes the trend mean anything.
+  const [bfSrc, setBfSrc] = useState((todaysEntry && todaysEntry.bf_source) || (bfState && bfState.source) || 'scale');
   // A persisted, still-undecided proposal (from d.pending_adjustment) reopens straight on the result screen.
   const [result, setResult] = useState(resume && resume.result ? resume.result : null);
   const [bfPick, setBfPick] = useState(false);
@@ -2268,8 +2317,13 @@ function CheckInModal({ db, update, onClose, resume }) {
     ? checkInReadings(db.weight_entries, cs, today, cycleDays, true).now != null
     : (wkAvg != null && weighDays >= needWeigh);
   const bfNum = (bf === '' || bf == null || isNaN(+bf)) ? null : +bf;
-  const leanPreview = (bfNum != null && bfNum > 0 && bfNum < 70 && (typedKg != null || liveAvg != null))
-    ? (typedKg != null ? typedKg : liveAvg) * (1 - bfNum / 100) : null;
+  // What the trend becomes once this reading is in, which is the figure the protein target and the
+  // lean-mass line will actually use.
+  const bfAfter = bfNum != null ? E.bodyFatNow(bfReadings(db).filter(r => r.date !== today).concat([{ date: today, pct: bfNum, source: bfSrc }])) : null;
+  // Lean mass off the TRENDED body fat and the trended weight: both sides of the sum are the figures
+  // the app acts on, so the number here is the number your protein target is built from.
+  const leanPreview = (bfAfter && bfAfter.pct > 0 && bfAfter.pct < 70 && liveAvg != null)
+    ? liveAvg * (1 - bfAfter.pct / 100) : null;
   // The cycle you're checking in on, drawn: every weigh-in from the previous cycle through today,
   // with the smoothed trend through them. Seeing the scatter around the line is what makes "I read
   // the trend, not one morning" land, and the typed weight appears on it as you go.
@@ -2292,7 +2346,7 @@ function CheckInModal({ db, update, onClose, resume }) {
   // the state and then shows this same object, so the headline you're given up front is exactly the
   // result you get. Returns null when there's no weight to read at all.
   function decisionFor(weightKg, bfVal) {
-    const todayEntry = weightKg ? Object.assign({ date: today, scale_weight: +weightKg }, bfVal != null ? { bodyfat: bfVal } : {}) : null;
+    const todayEntry = weightKg ? Object.assign({ date: today, scale_weight: +weightKg }, bfVal != null ? { bodyfat: bfVal, bf_source: bfSrc } : {}) : null;
     const entries = todayEntry ? db.weight_entries.filter(w => w.date !== today).concat([todayEntry]) : db.weight_entries.slice();
     const read = checkInReadings(entries, cs, today, cycleDays, singleWeigh);
     if (read.now == null) return null;
@@ -2301,7 +2355,16 @@ function CheckInModal({ db, update, onClose, resume }) {
     const curAvg = read.now;
     // Every outcome screen carries the two weights the decision was actually made from, so the
     // result can show the comparison instead of only the rate it produced.
-    const summary = { avgNow: read.now, avgPrev: read.prev, weighCount: read.count, prevDate: read.prevDate, single: singleWeigh, bfNew: bfVal, curAvg: curAvg };
+    // Lean mass then vs now. On a cut this is the line that actually answers "am I losing the right
+    // thing?", and it only exists because body fat is tracked alongside weight.
+    const bfBefore = E.bodyFatNow(bfReadings(db).filter(r => r.date < cs));
+    const bfNowT = bfVal != null
+      ? E.bodyFatNow(bfReadings(db).filter(r => r.date !== today).concat([{ date: today, pct: bfVal, source: bfSrc }]))
+      : E.bodyFatNow(bfReadings(db));
+    const leanNow = (bfNowT && read.now != null) ? read.now * (1 - bfNowT.pct / 100) : null;
+    const leanPrev = (bfBefore && read.prev != null) ? read.prev * (1 - bfBefore.pct / 100) : null;
+    const summary = { avgNow: read.now, avgPrev: read.prev, weighCount: read.count, prevDate: read.prevDate, single: singleWeigh, bfNew: bfVal, bfSource: bfVal != null ? bfSrc : null, curAvg: curAvg,
+      bfTrend: bfNowT ? bfNowT.pct : null, bfTrendPrev: bfBefore ? bfBefore.pct : null, leanNow: leanNow, leanPrev: leanPrev };
     const out = (r) => Object.assign({}, summary, r);
     if (dietBreakActive(db, today)) return out({ status: 'held', reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.` });
     if (adhered === 'no') return out({ status: 'held', offPlan: true, reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.` });
@@ -2352,13 +2415,15 @@ function CheckInModal({ db, update, onClose, resume }) {
     if (res.offPlan) res.dinoLine = DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)];
     update(d => {
       const ex = d.weight_entries.find(x => x.date === today);
-      if (ex) { if (weightKg) ex.scale_weight = +weightKg.toFixed(2); if (bfVal != null) ex.bodyfat = bfVal; }
+      if (ex) { if (weightKg) ex.scale_weight = +weightKg.toFixed(2); if (bfVal != null) { ex.bodyfat = bfVal; ex.bf_source = bfSrc; } }
       else if (weightKg || bfVal != null) {
         const ne = { id: Store.uid(), date: today }; if (weightKg) ne.scale_weight = +weightKg.toFixed(2);
-        if (bfVal != null) ne.bodyfat = bfVal; d.weight_entries.push(ne);
+        if (bfVal != null) { ne.bodyfat = bfVal; ne.bf_source = bfSrc; } d.weight_entries.push(ne);
       }
       recomputeTrend(d);
-      if (bfVal != null) d.profile.bodyFatPct = bfVal;
+      // The protein target is sized off lean mass, so it follows the body-fat TREND rather than
+      // whatever the scale said this morning.
+      if (bfVal != null) { const bn = E.bodyFatNow(bfReadings(d)); if (bn) d.profile.bodyFatPct = bn.pct; }
       if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
@@ -2430,9 +2495,28 @@ function CheckInModal({ db, update, onClose, resume }) {
                 <span className="tnum font-bold text-[15px]">{fmtWeight(result.avgNow, unit)}</span>
                 {result.avgPrev != null && <span className="tnum font-semibold" style={{ color: 'var(--muted)' }}>{fmtWeightDelta(shownDelta(result.avgNow, result.avgPrev, unit), unit)}</span>}
               </div>
+              {result.leanNow != null && result.leanPrev != null && (() => {
+                const dLean = shownDelta(result.leanNow, result.leanPrev, unit);
+                const dFat = shownDelta((result.avgNow - result.leanNow), (result.avgPrev - result.leanPrev), unit);
+                // Holding lean mass while fat comes off is the whole point of a cut, so it gets said
+                // in those words rather than left for you to work out from two percentages.
+                const held = Math.abs(dLean) < 0.25;
+                return <div className="mt-2 pt-2 border-t border-[#262629]">
+                  <div className="flex items-baseline gap-2 flex-wrap text-[12px]">
+                    <span className="text-[#8A8A90]">Lean mass</span><span className="tnum font-semibold">{fmtWeight(result.leanNow, unit)}</span>
+                    <span className="tnum" style={{ color: held ? 'var(--good)' : dLean > 0 ? 'var(--good)' : 'var(--fat)' }}>{held ? 'held' : fmtWeightDelta(dLean, unit)}</span>
+                    <span className="text-[#8A8A90]">· fat</span><span className="tnum" style={{ color: dFat < 0 ? 'var(--good)' : 'var(--muted)' }}>{fmtWeightDelta(dFat, unit)}</span>
+                  </div>
+                  <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{held && dFat < -0.1
+                    ? 'Weight down, lean mass steady: that\'s fat you lost, which is exactly the idea.'
+                    : dLean < -0.25 && dFat < -0.1 ? 'Some of that came off your lean mass. Keep protein up and keep lifting, and the next cycle should shift the balance.'
+                    : dLean > 0.25 ? 'Lean mass up. Whatever you\'re doing in the gym, keep doing it.'
+                    : 'From your body-fat trend against your weight trend, so it moves slowly and honestly.'}</div>
+                </div>;
+              })()}
               <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">{result.single
                 ? (result.avgPrev != null ? `Your reading from ${result.prevDate ? fmtShortDay(result.prevDate) : 'last week'} against this week’s` : 'This week’s reading, your first, so there’s nothing to diff it against yet')
-                : (result.avgPrev != null ? 'Last cycle’s trend weight against this cycle’s' : 'This cycle’s trend weight') + `, from ${result.weighCount} weigh-in${result.weighCount === 1 ? '' : 's'}`}{result.bfNew != null ? ` · body fat logged at ${(+result.bfNew).toFixed(1)}%` : ''}.</div>
+                : (result.avgPrev != null ? 'Last cycle’s trend weight against this cycle’s' : 'This cycle’s trend weight') + `, from ${result.weighCount} weigh-in${result.weighCount === 1 ? '' : 's'}`}{result.bfNew != null ? ` · body fat logged at ${(+result.bfNew).toFixed(1)}% (${BF_SOURCE_LABEL[result.bfSource] || 'measured'})` : ''}.</div>
             </div>}
             {result.estimate && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
               <div className="grid grid-cols-2 gap-2">
@@ -2574,16 +2658,27 @@ function CheckInModal({ db, update, onClose, resume }) {
               {wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}
             </Field>
             <button onClick={() => setBackfill(true)} className="text-[12px] text-[#4A9EEB] -mt-2 mb-3.5">Missed a morning? Add it here →</button>
-            {/* A NEW reading, deliberately blank. Your existing figure sits beside it as context rather
-                than pre-filled into the box, so an untouched check-in can never stamp last month's
-                number onto today as though you'd measured it. */}
+            {/* Body fat, treated as a real signal rather than an afterthought: the app acts on the
+                TREND (a smart scale swings +-2 points on hydration alone), and a reading is tagged
+                with the ruler it came from, because a DEXA and a scale are not the same number. The
+                box is deliberately blank so an untouched check-in never invents a reading. */}
             <Field label="New body-fat reading · optional"
-              hint={leanPreview != null ? null : (lastBfPct != null
-                ? `Only fill this in if you've taken a fresh reading. Yours is ${(+lastBfPct).toFixed(1)}%${lastBfEntry ? ' from ' + fmtShortDay(lastBfEntry.date) : ''}, and it stays put if you leave this blank.`
+              hint={bfNum != null ? null : (bfState
+                ? `Only fill this in if you've taken a fresh one. I'm working from ${bfState.pct.toFixed(1)}%${bfState.date ? ' (' + BF_SOURCE_LABEL[bfState.source] + ', ' + fmtShortDay(bfState.date) + ')' : ''}, and that stays put if you leave this blank.`
                 : 'No reading yet. Add one and it sharpens your protein target and starts your lean-mass trend.')}>
-              <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={lastBfPct != null ? (+lastBfPct).toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
-              {leanPreview != null && <div className="text-[12px] mt-1.5 leading-snug"><span className="text-[#8A8A90]">That's </span><span className="tnum font-semibold">{fmtWeight(leanPreview, unit)}</span><span className="text-[#8A8A90]"> lean{lastBfPct != null && Math.abs(bfNum - lastBfPct) > 0.05 ? `, ${fmtPct1(bfNum - lastBfPct)} on your last reading of ${(+lastBfPct).toFixed(1)}%` : ''}.</span></div>}
-              <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it visually →</button>
+              <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
+              {bfNum != null && <div className="mt-2">
+                <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">Measured with</div>
+                <Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} />
+              </div>}
+              {bfNum != null && bfAfter && <div className="text-[12px] mt-2 leading-snug">
+                <span className="text-[#8A8A90]">Your trend moves to </span><span className="tnum font-semibold">{bfAfter.pct.toFixed(1)}%</span>
+                {leanPreview != null && <span><span className="text-[#8A8A90]">, about </span><span className="tnum font-semibold">{fmtWeight(leanPreview, unit)}</span><span className="text-[#8A8A90]"> of you is lean</span></span>}
+                <span className="text-[#8A8A90]">. {bfState && bfState.source !== bfSrc
+                  ? 'Different ruler from last time, so I start the trend fresh here rather than reading a jump that never happened.'
+                  : (bfState && Math.abs(bfAfter.pct - bfState.pct) > 0.05 ? fmtPct1(bfAfter.pct - bfState.pct) + ' on where it was.' : 'Right where it was.')}</span>
+              </div>}
+              <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it from photos →</button>
             </Field>
             {/* Which data the targets get built from is a decision the app can make from your actual
                 logging, so it states what it picked and tucks the override behind one tap instead of
@@ -2604,7 +2699,7 @@ function CheckInModal({ db, update, onClose, resume }) {
           </div>
         )}
       </div>
-      {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={p.bodyFatPct} onPick={v => setBf(v)} onClose={() => setBfPick(false)} />}
+      {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
       {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
     </div>
   );
@@ -2625,6 +2720,8 @@ function WeighInEditModal({ db, update, entry, onClose }) {
   const [date, setDate] = useState(entry ? entry.date : today);
   const [kg, setKg] = useState(seedKg || ''); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
   const [bf, setBf] = useState(entry && entry.bodyfat != null ? entry.bodyfat : '');
+  const bfState = bodyFatNow(db);
+  const [bfSrc, setBfSrc] = useState((entry && entry.bf_source) || (bfState && bfState.source) || 'scale');
   const [bfPick, setBfPick] = useState(false);
   // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
   // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
@@ -2637,9 +2734,10 @@ function WeighInEditModal({ db, update, entry, onClose }) {
     const bfVal = (bf === '' || bf == null || isNaN(+bf)) ? null : +bf;
     update(d => {
       const ex = d.weight_entries.find(x => x.date === date);
-      if (ex) { ex.scale_weight = +w.toFixed(2); if (bfVal != null) ex.bodyfat = bfVal; else delete ex.bodyfat; }
-      else { const ne = { id: Store.uid(), date, scale_weight: +w.toFixed(2) }; if (bfVal != null) ne.bodyfat = bfVal; d.weight_entries.push(ne); }
+      if (ex) { ex.scale_weight = +w.toFixed(2); if (bfVal != null) { ex.bodyfat = bfVal; ex.bf_source = bfSrc; } else { delete ex.bodyfat; delete ex.bf_source; } }
+      else { const ne = { id: Store.uid(), date, scale_weight: +w.toFixed(2) }; if (bfVal != null) { ne.bodyfat = bfVal; ne.bf_source = bfSrc; } d.weight_entries.push(ne); }
       recomputeTrend(d);
+      if (bfVal != null) { const bn = E.bodyFatNow(bfReadings(d)); if (bn) d.profile.bodyFatPct = bn.pct; }
     });
     onClose();
   }
@@ -2654,10 +2752,14 @@ function WeighInEditModal({ db, update, entry, onClose }) {
           ? <Field label="Date"><input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className={inputCls} />{dupe && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat)' }}>You already weighed in on this day, saving overwrites it.</div>}</Field>
           : <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">{fmtWeighDay(date)}</div>}
         <Field label="Weight">{weighInputs}{wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}</Field>
-        <Field label="Body fat %" hint="Optional. Sets your protein target and lean-mass trend."><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder="optional" /><button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it visually →</button></Field>
+        <Field label="Body fat %" hint="Optional. Sets your protein target and lean-mass trend.">
+          <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
+          {bf !== '' && <div className="mt-2"><Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} /></div>}
+          <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it from photos →</button>
+        </Field>
         <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={save}>Save</Btn><Btn kind="ghost" onClick={onClose}>Cancel</Btn></div>
       </div>
-      {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={p.bodyFatPct} onPick={v => setBf(v)} onClose={() => setBfPick(false)} />}
+      {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={bfState ? bfState.pct : p.bodyFatPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
       {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
     </div>
   );
@@ -2688,7 +2790,7 @@ function WeighInLog({ db, update }) {
                   <span className="text-[13px] text-[#C9C9CF]">{fmtWeighDay(e.date)}</span>
                   <span className="text-[13px] tnum font-semibold">{fmtWeight(e.scale_weight, unit)}</span>
                 </div>
-                {e.bodyfat != null && <div className="text-[11px] text-[#8A8A90] tnum mt-0.5">{e.bodyfat}% bf · lean {fmtWeight(lean, unit)}</div>}
+                {e.bodyfat != null && <div className="text-[11px] text-[#8A8A90] tnum mt-0.5">{e.bodyfat}% bf · {BF_SOURCE_LABEL[e.bf_source || 'manual']} · lean {fmtWeight(lean, unit)}</div>}
               </button>
               <button onClick={() => setConfirmDel(e)} className="hit text-[#8A8A90] pl-3 pr-1 text-xl leading-none shrink-0" aria-label="Delete">×</button>
             </div>
@@ -3158,6 +3260,16 @@ function engagementNudge(db, today) {
   // weigh-in), their protein is already sized to fat-free mass and this nudge is just noise.
   const hasBodyFat = (db.profile && db.profile.bodyFatPct != null) || (db.weight_entries || []).some(w => w.bodyfat != null);
   if (!hasBodyFat && fresh('nudge_finetune', 14)) cands.push({ key: 'nudge_finetune', text: "Want me to sharpen your plan? Pop your body fat in with a weigh-in over in Progress and I'll size your protein just right.", cta: 'Show me', action: 'progress' });
+  // Body fat goes stale by MOVEMENT, not by calendar: your protein target is sized off lean mass, so
+  // what matters is how far the body has travelled since the reading. Someone holding steady is never
+  // chased; someone 4 kg down is told exactly why it's worth measuring again.
+  if (hasBodyFat && fresh('nudge_bf_refresh', 10)) {
+    const rd = bodyFatReadingDue(db, today);
+    if (rd.due) cands.push({ key: 'nudge_bf_refresh', action: 'progress', cta: 'Update it',
+      text: rd.reason === 'moved'
+        ? "You're " + fmtWeightDelta(-Math.abs(rd.kgMoved), (db.profile || {}).weight_unit).replace('−', '') + " different since your last body-fat reading, so the one I'm using is out of date. A fresh one keeps your protein sized to the body you've got now."
+        : "It's been a few months since your last body-fat reading. Take a fresh one when you get a chance and I'll re-size your protein around it." });
+  }
   if (fresh('nudge_amber', 6)) cands.push({ key: 'nudge_amber', text: "Did you know I earn you Amber? A little for logging each day, more for winning fights. Spend it in the shop to kit me out.", cta: 'See shop', action: 'shop' });
   // Buy-me-something: a friendly explainer of how the shop works, so the Amber has an obvious payoff.
   const amber = Game.amberBalance(db.amber_ledger);

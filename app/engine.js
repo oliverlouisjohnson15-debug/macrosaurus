@@ -620,6 +620,73 @@
     return { base: base, cyc: cyc, carry: carry, eff: eff, carryDetail: carryDetail, floorLimited: floorLimited };
   }
 
+  // ---- body-fat trend ------------------------------------------------------------------------
+  // Body fat comes from three very different rulers: a smart scale (a reading every morning, noisy
+  // by +-2 points on hydration alone), a photo estimate (episodic, directional), and a deliberate
+  // measurement like DEXA or calipers (rare, the most trustworthy single number). All three are
+  // worth having, so the app takes any of them and reads the TREND rather than the last number.
+  //
+  // Two rules make that honest:
+  //   1. Gap-aware EMA at a slower alpha than weight. Daily scale noise is damped, but a reading
+  //      after a six-week gap effectively becomes the trend, which is what you want from an
+  //      episodic measurement.
+  //   2. A change of METHOD restarts the trend instead of blending across it. A DEXA 18% after a
+  //      scale's 24% is not a six-point drop in a day, it is a different ruler, and smoothing the
+  //      two together would invent a fat loss that never happened (and move the protein target
+  //      with it).
+  var BF_TREND_ALPHA = 0.15;
+  function bfSourceOf(r) { return (r && r.source) || 'manual'; }
+  // readings: [{ date, pct, source }] in any order. Returns them sorted, each with trendPct.
+  function bodyFatTrend(readings, alpha) {
+    alpha = alpha == null ? BF_TREND_ALPHA : alpha;
+    var rs = (readings || []).filter(function (r) { return r && r.pct != null && isFinite(+r.pct); })
+      .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var out = [], trend = null, prevDate = null, prevSource = null;
+    for (var i = 0; i < rs.length; i++) {
+      var pct = +rs[i].pct, src = bfSourceOf(rs[i]);
+      if (trend == null || src !== prevSource) trend = pct;   // first reading, or a new ruler
+      else {
+        var gap = prevDate != null ? daysBetweenISO(prevDate, rs[i].date) : 1;
+        if (!isFinite(gap) || gap < 1) gap = 1;
+        var effAlpha = 1 - Math.pow(1 - alpha, gap);
+        trend = trend + effAlpha * (pct - trend);
+      }
+      prevDate = rs[i].date; prevSource = src;
+      out.push({ date: rs[i].date, pct: pct, source: src, trendPct: round(trend, 1) });
+    }
+    return out;
+  }
+  // The body fat the app should ACT on (protein target, lean mass), plus the context needed to say
+  // where it came from and whether it is getting stale. null when nothing has ever been recorded.
+  function bodyFatNow(readings) {
+    var ts = bodyFatTrend(readings);
+    if (!ts.length) return null;
+    var last = ts[ts.length - 1];
+    var sameRuler = 0;
+    for (var i = ts.length - 1; i >= 0 && ts[i].source === last.source; i--) sameRuler++;
+    return { pct: last.trendPct, raw: last.pct, date: last.date, source: last.source, n: ts.length, nSameSource: sameRuler };
+  }
+  // Is a body-fat reading due? Not on a calendar: when the number would actually be WRONG. Body fat
+  // only earns its keep by sizing the protein target off lean mass, so what matters is how far the
+  // body has moved since the last reading. A deliberate measurement also goes stale slower than a
+  // scale reading nobody took on purpose.
+  //   opts: { readings, weightKg, weightAtLastReadingKg, today, minDays }
+  // Returns { due, reason:'moved'|'stale'|null, kgMoved, daysSince } (due:false when never recorded,
+  // so a first reading is invited elsewhere rather than nagged for here).
+  function bodyFatReadingDue(opts) {
+    var now = bodyFatNow(opts && opts.readings);
+    if (!now) return { due: false, reason: null, kgMoved: null, daysSince: null };
+    var days = daysBetweenISO(now.date, opts.today);
+    var moved = (opts.weightKg != null && opts.weightAtLastReadingKg != null)
+      ? Math.abs(opts.weightKg - opts.weightAtLastReadingKg) : null;
+    var minDays = opts.minDays == null ? 14 : opts.minDays;
+    // 3% of bodyweight is roughly where a stale body-fat figure starts to misprice protein.
+    var moveTrigger = opts.weightKg != null ? Math.max(2, opts.weightKg * 0.03) : 3;
+    if (days >= minDays && moved != null && moved >= moveTrigger) return { due: true, reason: 'moved', kgMoved: round(moved, 1), daysSince: days };
+    if (days >= 84) return { due: true, reason: 'stale', kgMoved: moved != null ? round(moved, 1) : null, daysSince: days };
+    return { due: false, reason: null, kgMoved: moved != null ? round(moved, 1) : null, daysSince: days };
+  }
+
   // ---- check-in decision pipeline (extracted from the UI, pure) ----
   // Complete-day filtering, gap-aware trend cycle means, early vs normal adjustment choice,
   // expenditure smoothing and plateau detection. Coverage/adherence gating against minDays happens
@@ -818,7 +885,8 @@
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
-    trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
+    trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA,
+    bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
