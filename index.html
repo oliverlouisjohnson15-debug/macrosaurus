@@ -9132,21 +9132,7 @@ function CheckInModal({
     }
   }, fmtWeightDelta(avgDelta, unit), " vs ", singleWeigh ? 'last time' : 'last cycle')), /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] text-[#8A8A90] leading-snug mt-1.5"
-  }, liveAvg == null ? singleWeigh ? /*#__PURE__*/React.createElement("span", null, "Pop this week's weigh-in in below. On a once-a-week weigh-in I read it straight against your last one, so it's the only number this check-in has to go on.") : /*#__PURE__*/React.createElement("span", null, "Pop today's weight in below and it becomes the first reading behind this cycle's trend weight, which is what I retune from.") : singleWeigh ? /*#__PURE__*/React.createElement("span", null, typedKg != null ? 'The reading you\'re entering below' : 'Your reading from ' + fmtShortDay(live.nowDate), ". Weighing once a week, I compare it straight with ", prevCycleAvg != null ? `your last one on ${fmtShortDay(live.prevDate)} (${fmtWeight(prevCycleAvg, unit)})` : 'your next one', ", so same morning, same conditions each week keeps it honest. Weighing most mornings instead lets me average the water swings out (Settings).") : soloRead ? /*#__PURE__*/React.createElement("span", null, "Your one weigh-in this cycle", typedKg != null ? ', the one you\'re entering below' : '', ", so it's carrying the whole read on its own. A few more mornings and I smooth them together, which stops one odd day swinging your macros", prevCycleAvg != null ? `. Last cycle came out at ${fmtWeight(prevCycleAvg, unit)}` : '', ".") : /*#__PURE__*/React.createElement("span", null, "Your ", liveCount, " weigh-ins since ", fmtShortDay(cs), typedKg != null ? ', including the one you\'re entering below' : '', ", smoothed into one figure so a heavy-salt Sunday can't swing your macros. This is the number I retune from", prevCycleAvg != null ? `, against last cycle's ${fmtWeight(prevCycleAvg, unit)}` : '', "."))), chartDots.length >= 2 && /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-2 pt-3 mb-3",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
-    }
-  }, /*#__PURE__*/React.createElement(LineChart, {
-    points: chartDots,
-    trend: singleWeigh ? null : chartTrend,
-    color: "var(--weight)",
-    decimals: 1,
-    unitLabel: unit === 'st_lb' ? 'lb' : 'kg'
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] px-1 pb-0.5 leading-snug"
-  }, singleWeigh ? 'Your weekly readings through last cycle and this one.' : 'Every morning you weighed since ' + fmtShortDay(chartFrom) + ', with the trend line I read through them.')), preview && (() => {
+  }, liveAvg == null ? singleWeigh ? /*#__PURE__*/React.createElement("span", null, "Pop this week's weigh-in in below. On a once-a-week weigh-in I read it straight against your last one, so it's the only number this check-in has to go on.") : /*#__PURE__*/React.createElement("span", null, "Pop today's weight in below and it becomes the first reading behind this cycle's trend weight, which is what I retune from.") : singleWeigh ? /*#__PURE__*/React.createElement("span", null, typedKg != null ? 'The reading you\'re entering below' : 'Your reading from ' + fmtShortDay(live.nowDate), ". Weighing once a week, I compare it straight with ", prevCycleAvg != null ? `your last one on ${fmtShortDay(live.prevDate)} (${fmtWeight(prevCycleAvg, unit)})` : 'your next one', ", so same morning, same conditions each week keeps it honest. Weighing most mornings instead lets me average the water swings out (Settings).") : soloRead ? /*#__PURE__*/React.createElement("span", null, "Your one weigh-in this cycle", typedKg != null ? ', the one you\'re entering below' : '', ", so it's carrying the whole read on its own. A few more mornings and I smooth them together, which stops one odd day swinging your macros", prevCycleAvg != null ? `. Last cycle came out at ${fmtWeight(prevCycleAvg, unit)}` : '', ".") : /*#__PURE__*/React.createElement("span", null, "Your ", liveCount, " weigh-ins since ", fmtShortDay(cs), typedKg != null ? ', including the one you\'re entering below' : '', ", smoothed into one figure so a heavy-salt Sunday can't swing your macros. This is the number I retune from", prevCycleAvg != null ? `, against last cycle's ${fmtWeight(prevCycleAvg, unit)}` : '', "."))), preview && (() => {
     const est = preview.estimate;
     const changed = preview.status === 'proposed' && preview.changed;
     const tone = changed ? 'var(--accent)' : preview.status === 'proposed' ? 'var(--good)' : 'var(--muted)';
@@ -9154,7 +9140,7 @@ function CheckInModal({
     return /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-3 mb-3",
       style: {
-        background: 'var(--surface2)',
+        background: 'var(--surface3)',
         boxShadow: 'none',
         borderLeft: '4px solid ' + tone
       }
@@ -9170,7 +9156,21 @@ function CheckInModal({
     }, "Trending ", fmtRate(est.weeklyChangeKg), " against your ", fmtRate(tgtRate), " target."), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] mt-1 leading-snug"
     }, "Nothing is saved until you complete the check-in below."));
-  })(), /*#__PURE__*/React.createElement("div", {
+  })(), chartDots.length >= 2 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2 pt-3 mb-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(LineChart, {
+    points: chartDots,
+    trend: singleWeigh ? null : chartTrend,
+    color: "var(--weight)",
+    decimals: 1,
+    unitLabel: unit === 'st_lb' ? 'lb' : 'kg'
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] px-1 pb-0.5 leading-snug"
+  }, singleWeigh ? 'Your weekly readings through last cycle and this one.' : 'Every morning you weighed since ' + fmtShortDay(chartFrom) + ', with the trend line I read through them.')), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
   }, /*#__PURE__*/React.createElement(MiniStat, {
     label: "Food logs so far",
@@ -9187,7 +9187,7 @@ function CheckInModal({
   })), !readyToAdjust && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mb-3"
   }, laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'), /*#__PURE__*/React.createElement(Field, {
-    label: (singleWeigh ? "This week's weigh-in" : "Today's weight") + (todaysEntry ? ' · already logged' : ''),
+    label: (singleWeigh ? 'Your reading' : "Today's weight") + (todaysEntry ? ' · already logged' : ''),
     hint: todaysEntry && typedKg == null ? `Cleared, but this morning's saved ${fmtWeight(todaysEntry.scale_weight, unit)} still ${singleWeigh ? 'stands as this week\'s reading' : 'counts toward the trend weight'}. Type a number to correct it.` : canSkipWeight && typedKg == null ? singleWeigh ? `Leave it blank if you’ve already weighed this week, I’ll check in on your ${fmtShortDay(live.nowDate)} reading.` : 'Leave it blank if you haven’t weighed today, I’ll check in on the trend weight above.' : singleWeigh ? 'This is the number this week’s check-in reads.' : 'Goes straight into the trend weight above.'
   }, unit === 'st_lb' ? /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 items-center"

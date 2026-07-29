@@ -2615,12 +2615,6 @@ function CheckInModal({ db, update, onClose, resume }) {
                     : <span>Your {liveCount} weigh-ins since {fmtShortDay(cs)}{typedKg != null ? ', including the one you\'re entering below' : ''}, smoothed into one figure so a heavy-salt Sunday can't swing your macros. This is the number I retune from{prevCycleAvg != null ? `, against last cycle's ${fmtWeight(prevCycleAvg, unit)}` : ''}.</span>}
               </div>
             </div>
-            {chartDots.length >= 2 && <div className="pixel-box p-2 pt-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <LineChart points={chartDots} trend={singleWeigh ? null : chartTrend} color="var(--weight)" decimals={1} unitLabel={unit === 'st_lb' ? 'lb' : 'kg'} />
-              <div className="text-[10px] text-[#8A8A90] px-1 pb-0.5 leading-snug">{singleWeigh
-                ? 'Your weekly readings through last cycle and this one.'
-                : 'Every morning you weighed since ' + fmtShortDay(chartFrom) + ', with the trend line I read through them.'}</div>
-            </div>}
             {/* The answer, before you commit to it. Everything below this is the inputs it was
                 worked out from, there to correct rather than to fill in from scratch. */}
             {preview && (() => {
@@ -2632,13 +2626,19 @@ function CheckInModal({ db, update, onClose, resume }) {
                 : preview.status === 'proposed' ? 'On track. No change to your macros.'
                 : preview.status === 'held' ? 'Your macros will hold this cycle.'
                 : 'Not enough to retune from yet.';
-              return <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none', borderLeft: '4px solid ' + tone }}>
+              return <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + tone }}>
                 <div className="pf text-[8px] uppercase mb-1" style={{ color: tone }}>What this check-in will say</div>
                 <div className="text-[13.5px] font-semibold leading-snug">{head}</div>
                 {est && <div className="text-[11.5px] text-[#8A8A90] mt-1 leading-snug tnum">Trending {fmtRate(est.weeklyChangeKg)} against your {fmtRate(tgtRate)} target.</div>}
                 <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">Nothing is saved until you complete the check-in below.</div>
               </div>;
             })()}
+            {chartDots.length >= 2 && <div className="pixel-box p-2 pt-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+              <LineChart points={chartDots} trend={singleWeigh ? null : chartTrend} color="var(--weight)" decimals={1} unitLabel={unit === 'st_lb' ? 'lb' : 'kg'} />
+              <div className="text-[10px] text-[#8A8A90] px-1 pb-0.5 leading-snug">{singleWeigh
+                ? 'Your weekly readings through last cycle and this one.'
+                : 'Every morning you weighed since ' + fmtShortDay(chartFrom) + ', with the trend line I read through them.'}</div>
+            </div>}
             <div className="grid grid-cols-2 gap-3 mb-3">
               <MiniStat label="Food logs so far" value={loggedDays + '/' + logWindow} ok={laneMode === 'weightOnly' ? true : loggedDays >= needLogs} />
               {singleWeigh
@@ -2646,7 +2646,7 @@ function CheckInModal({ db, update, onClose, resume }) {
                 : <MiniStat label="Weigh-ins so far" value={weighDays + '/' + weighWindow} ok={weighDays >= needWeigh} />}
             </div>
             {!readyToAdjust && <div className="text-[12px] text-[#F5C542] mb-3">{laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'}</div>}
-            <Field label={(singleWeigh ? "This week's weigh-in" : "Today's weight") + (todaysEntry ? ' · already logged' : '')} hint={
+            <Field label={(singleWeigh ? 'Your reading' : "Today's weight") + (todaysEntry ? ' · already logged' : '')} hint={
               (todaysEntry && typedKg == null) ? `Cleared, but this morning's saved ${fmtWeight(todaysEntry.scale_weight, unit)} still ${singleWeigh ? 'stands as this week\'s reading' : 'counts toward the trend weight'}. Type a number to correct it.`
               : (canSkipWeight && typedKg == null) ? (singleWeigh
                 ? `Leave it blank if you’ve already weighed this week, I’ll check in on your ${fmtShortDay(live.nowDate)} reading.`
