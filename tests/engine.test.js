@@ -323,3 +323,68 @@ test('bodyFatReadingDue: asks when the body has moved, not on a calendar', () =>
   // Never recorded: invited elsewhere, never nagged for here.
   assert.strictEqual(E.bodyFatReadingDue({ readings: [], weightKg: 84, today: '2026-09-01' }).due, false);
 });
+
+// ---- the log that never reconciles ----
+const underReportCase = (checkins) => {
+  const weights = [], kcalByDate = {}, targetByDate = {};
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date('2026-07-29T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    weights.push({ date: iso, kg: 91.5 });        // flat as a pancake
+    kcalByDate[iso] = 1600; targetByDate[iso] = 2000;   // while claiming to eat well under target
+  }
+  return E.checkInDecision({
+    profile: Object.assign({}, baseProfile, { weightKg: 91.5, rateKgPerWeek: 0.5 }),
+    currentTargets: { kcal: 2000, protein_g: 180, carbs_g: 180, fat_g: 65 },
+    weights, kcalByDate, targetByDate, cycleStart: '2026-07-23', today: '2026-07-29', cycleDays: 7,
+    weighDays: 7, minDays: 4, periodDays: 7, expenditure: { kcal: 2600, n: 3 }, checkins,
+  });
+};
+
+test('under-reporting: the first suspicious cycle holds rather than acting on a log it distrusts', () => {
+  const first = underReportCase([{ date: '2026-07-22', adhered: true }]);
+  assert.strictEqual(first.underReportFlagged, true);
+  assert.strictEqual(first.changed, false);
+  assert.strictEqual(first.laneSwitched, undefined, 'one strike is not enough to change lane');
+  assert.match(first.reason, /under-logged/i);
+});
+
+test('under-reporting twice: stop waiting for the log and steer from the scale', () => {
+  const second = underReportCase([{ date: '2026-07-22', adhered: true, underReport: true }]);
+  assert.strictEqual(second.laneSwitched, 'weightOnly');
+  assert.strictEqual(second.estimate.weightOnly, true, 'the read now comes from the weigh-ins');
+  assert.match(second.reason, /steer from your weigh-ins alone/i);
+  // Flat weight on a cut means the target has to come down: the whole point of not holding forever.
+  assert.strictEqual(second.changed, true);
+  assert.ok(second.newTargets.kcal < 2000, 'a stalled cut on the scale must move the target');
+});
+
+// ---- a window too short for this person's own wobble ----
+test('readReliability: a big swinger on a gentle target is told to wait, and when', () => {
+  const swings = [0, 1.4, -1.2, 1.1, -1.3, 1.5, -1.1, 1.2, -1.4, 1.0, -1.2, 1.3];
+  const weights = swings.map((d, i) => {
+    const dt = new Date('2026-07-18T00:00:00Z'); dt.setUTCDate(dt.getUTCDate() + i);
+    return { date: dt.toISOString().slice(0, 10), kg: +(95 + d).toFixed(2) };
+  });
+  const r = E.readReliability({ weights, cycleStart: '2026-07-25', today: '2026-07-29', cycleDays: 5, targetRatePerWeek: 0.25, weighCadence: 'daily' });
+  assert.strictEqual(r.readable, false);
+  assert.ok(r.noiseKg > r.signalKg, 'the wobble genuinely exceeds the change being looked for');
+  assert.ok(r.daysNeeded > 5 && r.readyOn > '2026-07-29', 'it must name a date worth coming back on');
+});
+
+test('readReliability: a steady weigher on a normal target is left alone', () => {
+  const weights = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date('2026-07-29T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    weights.push({ date: d.toISOString().slice(0, 10), kg: +(84 - (11 - i) * 0.08 + (i % 2 ? 0.15 : -0.15)).toFixed(2) });
+  }
+  assert.strictEqual(E.readReliability({ weights, cycleStart: '2026-07-23', today: '2026-07-29', cycleDays: 7, targetRatePerWeek: 0.5, weighCadence: 'daily' }).readable, true);
+});
+
+test('readReliability: says nothing it cannot support, on thin data or a weekly weigher', () => {
+  const thin = [{ date: '2026-07-28', kg: 84 }, { date: '2026-07-29', kg: 83.8 }];
+  assert.strictEqual(E.readReliability({ weights: thin, cycleStart: '2026-07-23', today: '2026-07-29', cycleDays: 7, targetRatePerWeek: 0.5, weighCadence: 'daily' }).readable, true);
+  assert.strictEqual(E.readReliability({ weights: thin, cycleStart: '2026-07-23', today: '2026-07-29', cycleDays: 7, targetRatePerWeek: 0.5, weighCadence: 'single' }).readable, true);
+  // Maintenance has no target movement, so there is no noise floor to speak to.
+  assert.strictEqual(E.readReliability({ weights: thin, cycleStart: '2026-07-23', today: '2026-07-29', cycleDays: 7, targetRatePerWeek: 0, weighCadence: 'daily' }).readable, true);
+});

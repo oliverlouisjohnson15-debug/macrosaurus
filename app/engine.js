@@ -620,6 +620,72 @@
     return { base: base, cyc: cyc, carry: carry, eff: eff, carryDetail: carryDetail, floorLimited: floorLimited };
   }
 
+  // ---- can this cycle actually be read? -------------------------------------------------------
+  // A short cycle cannot see a small change when the scale swings more than the change does. Someone
+  // whose weight bounces 1.4 kg between mornings needs more days than someone who reads +-0.2 kg, and
+  // the difference is not a matter of opinion: it is the standard error of the difference between two
+  // cycle means, sd * sqrt(2/n). Reporting "flat" from a window too short to see the target is worse
+  // than saying nothing, because it looks like a verdict on the person rather than on the data.
+  //   opts: { weights:[{date,kg}], cycleStart, today, cycleDays, targetRatePerWeek, weighCadence }
+  // Returns { readable, sd, noiseKg, signalKg, n, daysNeeded, readyOn } (readable:true when there is
+  // nothing to warn about, including when there is too little data to judge noise at all).
+  function readReliability(opts) {
+    var cs = opts.cycleStart, today = opts.today;
+    var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
+    var rate = Math.abs(opts.targetRatePerWeek || 0);
+    // A single weekly reading has no within-cycle spread to measure, and maintenance has no target
+    // movement to detect, so neither has a noise floor this can speak to.
+    if (opts.weighCadence === 'single' || !(rate > 0)) return { readable: true, sd: null, n: 0 };
+    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null; })
+      .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    // Day-to-day noise, measured the robust way: the typical size of an overnight change, which for a
+    // steady-ish series is about 1.4 sd. Uses up to the last 28 readings so it reflects this person now.
+    var recent = ws.slice(-28), diffs = [];
+    for (var i = 1; i < recent.length; i++) {
+      var gap = daysBetweenISO(recent[i - 1].date, recent[i].date);
+      if (gap === 1) diffs.push(Math.abs(recent[i].kg - recent[i - 1].kg));
+    }
+    if (diffs.length < 4) return { readable: true, sd: null, n: diffs.length };
+    diffs.sort(function (a, b) { return a - b; });
+    var med = diffs.length % 2 ? diffs[(diffs.length - 1) / 2] : (diffs[diffs.length / 2 - 1] + diffs[diffs.length / 2]) / 2;
+    var sd = med / 1.128;   // median absolute successive difference -> sd, for a stable series
+    var n = 0;
+    for (var j = 0; j < ws.length; j++) if (ws[j].date >= cs && ws[j].date <= today) n++;
+    if (n < 2) return { readable: true, sd: round(sd, 3), n: n };
+    // Consecutive mornings are not independent: a salty meal or a big day inflates two or three
+    // readings together, so five weigh-ins can carry less information than five coin flips. Discount
+    // the count by the lag-1 autocorrelation of the readings around their own trend, the standard
+    // effective-sample-size correction, so clustered water weight cannot masquerade as evidence.
+    var nEff = Math.max(1.5, n * (1 - lag1Autocorr(recent)) / (1 + lag1Autocorr(recent)));
+    // What we could detect from that many independent readings a side, versus what the goal should
+    // have moved by now.
+    var noise = sd * Math.sqrt(2 / nEff);
+    var signal = rate * (cycleDays / 7);
+    if (signal >= noise) return { readable: true, sd: round(sd, 3), noiseKg: round(noise, 2), signalKg: round(signal, 2), n: n };
+    // How many more days of daily weighing until the target movement clears the noise. Both sides grow
+    // with the window, so solve for the day count where signal >= sd * sqrt(2/days).
+    var days = cycleDays;
+    var perDayEff = nEff / n;   // hold this person's information-per-weigh-in as the window grows
+    while (days < 28 && rate * (days / 7) < sd * Math.sqrt(2 / Math.max(1.5, days * perDayEff))) days++;
+    return {
+      readable: false, sd: round(sd, 3), noiseKg: round(noise, 2), signalKg: round(signal, 2), n: n,
+      daysNeeded: days, readyOn: shiftISOdays(cs, days - 1),
+    };
+  }
+
+  // Lag-1 autocorrelation of weigh-ins around their own trend line. 0 means each morning is fresh
+  // information; higher means readings move in runs, as they do when water is coming and going.
+  function lag1Autocorr(ws) {
+    if (!ws || ws.length < 4) return 0;
+    var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }));
+    var res = ws.map(function (w, i) { return w.kg - ts[i].trendKg; });
+    var m = mean(res), num = 0, den = 0;
+    for (var i = 1; i < res.length; i++) num += (res[i] - m) * (res[i - 1] - m);
+    for (var j = 0; j < res.length; j++) den += (res[j] - m) * (res[j] - m);
+    if (!(den > 0)) return 0;
+    return clamp(num / den, 0, 0.9);
+  }
+
   // ---- body-fat trend ------------------------------------------------------------------------
   // Body fat comes from three very different rulers: a smart scale (a reading every morning, noisy
   // by +-2 points on hydration alone), a photo estimate (episodic, directional), and a deliberate
@@ -816,6 +882,26 @@
       var est2 = estimateExpenditure({ dailyKcal: vals, trendStartKg: prevAvg, trendEndKg: curAvg, days: spanDaysForRate });
       result = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: est2, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, weighCadence: opts.weighCadence });
     }
+    // Two strikes and the food log is out. Holding once on a suspicious log is prudent; holding every
+    // cycle is a dead end, because the person whose log never reconciles is exactly the person whose
+    // plan never adapts. When the previous check-in flagged under-reporting and this one does too,
+    // stop waiting for a log we don't believe and steer from the scale instead, which is what the
+    // weight-only lane already exists to do.
+    var priorFlagged = (function () {
+      var cis = opts.checkins || [];
+      for (var i = cis.length - 1; i >= 0; i--) if (cis[i] && cis[i].underReport != null) return !!cis[i].underReport;
+      return false;
+    })();
+    if (result.underReportFlagged && priorFlagged && !wOnly && curAvg != null && prevAvg != null) {
+      var curKcalS = opts.currentTargets.kcal;
+      var wChgS = ((curAvg - prevAvg) / spanDaysForRate) * 7;
+      var estS = { tdee: round(curKcalS - (wChgS * KCAL_PER_KG) / 7), avgKcal: round(curKcalS), weeklyChangeKg: round(wChgS, 3), days: cycleDays, weightOnly: true };
+      var switched = weeklyAdjust({ profile: opts.profile, currentTargets: opts.currentTargets, estimate: estS, adherenceDays: completeDays, weighDays: opts.weighDays, minDays: opts.minDays, periodDays: opts.periodDays || cycleDays, expenditure: opts.expenditure, waterHigh: opts.waterHigh, mode: 'weightOnly', weighCadence: opts.weighCadence });
+      switched.laneSwitched = 'weightOnly';
+      switched.underReportFlagged = true;
+      switched.reason = 'Your food log and your scale have disagreed two cycles running, so I\'m going to stop trying to reconcile them and steer from your weigh-ins alone. ' + (switched.reason || '');
+      result = switched;
+    }
     result.status = 'proposed';
     result.completeDays = completeDays;
     // Plateau: judge history plus this cycle's outcome.
@@ -885,7 +971,7 @@
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
-    trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA,
+    trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
     bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,
   };

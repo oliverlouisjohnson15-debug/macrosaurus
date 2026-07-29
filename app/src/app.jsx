@@ -2395,6 +2395,16 @@ function CheckInModal({ db, update, onClose, resume }) {
     const stPrev = E.avgStepsInRange(db.steps, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
     const behindTarget = dec.status === 'proposed' && (p.goalType === 'gain' ? dec.direction === 'up' : dec.direction === 'down');
     dec.stepsCoaching = E.stepsCoaching({ thisCycle: stThis, prevCycle: stPrev, baseline: prof.avgSteps, behindTarget });
+    // Before reporting a rate, check the window can actually see the change being looked for. Saying
+    // "flat" from a window narrower than the person's own daily swing reads as a verdict on them.
+    const rel = E.readReliability({
+      weights: entries.filter(w => w.scale_weight != null).map(w => ({ date: w.date, kg: w.scale_weight })),
+      cycleStart: cs, today, cycleDays,
+      targetRatePerWeek: p.goalType === 'maintain' ? 0 : Math.abs(p.rateKgPerWeek || 0),
+      weighCadence: p.weighCadence,
+    });
+    if (!rel.readable && dec.status === 'proposed' && dec.changed) return out({ status: 'held', tooShort: rel, estimate: dec.estimate,
+      reason: `Your weight swings about ${fmtWeight(rel.sd, unit)} between mornings on its own, and over ${cycleDays} days that's bigger than the ${fmtWeight(rel.signalKg, unit)} your goal should have moved. I'd only be reading noise, so I'm holding your plan rather than guessing. Weigh in as normal and check back around ${fmtShortDay(rel.readyOn)}, when there's enough movement to read.` });
     if (dec.status === 'needdata') return out({ status: 'needdata', reason: dec.reasonCode === 'weighins'
       ? 'Not enough weigh-ins this cycle yet. Weigh in daily and your first adjustment will come through.'
       : 'Not enough history yet. Keep weighing in daily and logging full days, and your next check-in will retune from the averages.' });
@@ -2445,6 +2455,12 @@ function CheckInModal({ db, update, onClose, resume }) {
         if (res.expenditure && res.expenditure.kcal > 0) d.expenditure = { kcal: res.expenditure.kcal, n: res.expenditure.n, updated: today };
         const ci = (d.checkins || [])[(d.checkins || []).length - 1];
         if (ci && ci.date === today && res.estimate) { ci.weeklyChangeKg = res.estimate.weeklyChangeKg; ci.deltaKcal = 0; ci.tdee = Math.round((res.expenditure && res.expenditure.kcal) || res.estimate.tdee || 0) || null; }
+        // Whether the food log reconciled with the scale this cycle. The engine reads it back next
+        // time: two disagreements running and it stops waiting for the log.
+        if (ci && ci.date === today) ci.underReport = !!res.underReportFlagged;
+        // Once it has switched to steering by the scale, that sticks, so the lane question is
+        // pre-filled honestly from here rather than reverting to "logged everything" next week.
+        if (res.laneSwitched === 'weightOnly') d.profile.trackingLane = 'weightOnly';
         // Mis-tap protection: a changed proposal is persisted until explicitly approved or rejected,
         // so an accidental dismissal (or an app reload) never loses this week's suggestion.
         if (res.changed) d.pending_adjustment = { date: today, result: res };
@@ -2558,6 +2574,10 @@ function CheckInModal({ db, update, onClose, resume }) {
                 </div>
               </div>;
             })()}
+            {result.laneSwitched === 'weightOnly' && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--fat)' }}>
+              <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--fat)' }}>Switched to your scale</div>
+              <div className="text-[12.5px] leading-snug">Your food log and your weigh-ins have disagreed two cycles running, so I'm not going to keep holding your plan while I wait for them to agree. From here I steer by the scale and your log stays a day-to-day guide. Nothing you did wrong, it's the most common thing in tracking.</div>
+            </div>}
             {result.status === 'proposed' && result.changed && !result.accepted && <div className="my-3">
               <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5">New daily targets</div>
               <div className="grid grid-cols-2 min-[381px]:grid-cols-4 gap-2">{[
@@ -3344,7 +3364,7 @@ function buddyBreakout(db, today) {
   const snoozed = (key, hrs) => dm[key] && (Date.now() - dm[key]) < hrs * 3600 * 1000;
   const daysSince = db.last_checkin ? Game.daysBetween(db.last_checkin, today) : 999;
   const checkedInToday = db.last_checkin === today;
-  if (!db.paused && !checkedInToday && daysSince >= 5 && !snoozed('breakout_checkin', 20)) {
+  if (!db.paused && !checkedInToday && daysSince >= 7 && !snoozed('breakout_checkin', 20)) {
     const howLong = daysSince >= 900 ? "It's been a while" : "It's been " + daysSince + ' days';
     // Once-a-week weighers do the weigh-in AS the check-in, so ask for the reading. Daily weighers
     // have already given me the week, so the ask is to come and read it, not to fetch the scales.
@@ -7826,7 +7846,10 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
 
       {!db.paused && (() => {
         const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
-        const ready = daysSince >= 5, due = daysSince >= 7;
+        // A full week, not five days. Offering the button at five is what produced cycles too short
+        // to read: people check in when invited, and the shorter the window the more one salty day
+        // dominates it.
+        const ready = daysSince >= 7, due = daysSince >= 7;
         return <Card className="p-4 mb-5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -9234,7 +9257,7 @@ function demoState() {
   ];
   s.weight_entries = [[14, 84.6], [12, 84.4], [10, 84.1], [8, 83.9], [6, 83.6], [4, 83.5], [2, 83.2], [0, 83.0]]
     .map(([ago, w]) => ({ id: Store.uid(), date: shiftISO(today, -ago), scale_weight: w }));
-  s.last_checkin = shiftISO(today, -6);
+  s.last_checkin = shiftISO(today, -7);   // a full cycle ago, so the demo can actually run a check-in
   s.googleHealth = { connected: true, lastSync: new Date().toISOString() }; // demo: show the synced Today card
   s.steps = {}; [8200, 11040, 7650, 9980, 12010, 8420, 9310].forEach((v, i) => { s.steps[shiftISO(today, -(6 - i))] = v; });
   // A week of synced sleep (keyed by wake date) with a couple of stage-detailed nights, so the sleep
