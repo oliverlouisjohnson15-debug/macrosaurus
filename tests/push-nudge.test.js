@@ -75,7 +75,14 @@ test('an overdue check-in reaches someone who HAS logged', async () => {
   const st = { log_entries: days(TODAY), last_checkin: '2026-07-18' }; // 8 days
   const n = (await load()).decideNudge(st, TODAY, NORMAL);
   assert.strictEqual(n.kind, 'checkin');
-  assert.strictEqual(n.url, '/?action=weigh');
+  // Daily weigher: their week is already on record, so the push opens the read, not the scales.
+  assert.strictEqual(n.url, '/?action=checkin');
+  assert.match(n.body, /already|waiting/i);
+  // Once-a-week weigher: the reading IS the check-in, so it still opens the weigh sheet.
+  const weekly = (await load()).decideNudge(Object.assign({ profile: { weighCadence: 'single' } }, st), TODAY, NORMAL);
+  assert.strictEqual(weekly.kind, 'checkin');
+  assert.strictEqual(weekly.url, '/?action=weigh');
+  assert.match(weekly.body, /scales|weigh-in/i);
   // A day earlier it is not yet overdue.
   assert.strictEqual((await load()).decideNudge({ log_entries: days(TODAY), last_checkin: '2026-07-19' }, TODAY, NORMAL), null);
 });

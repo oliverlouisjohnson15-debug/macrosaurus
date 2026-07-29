@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-4{margin-top:1rem;margin-bottom:1rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-2{margin-top:-.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[68px\]{width:68px}.w-\[72px\]{width:72px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-grab{cursor:grab}.cursor-not-allowed{cursor:not-allowed}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;-moz-user-select:none;user-select:none}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#141417\]{--tw-bg-opacity:1;background-color:rgb(20 20 23/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-0\.5{padding-bottom:.125rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#34D399\]{--tw-text-opacity:1;color:rgb(52 211 153/var(--tw-text-opacity,1))}.text-\[\#4A4A50\]{--tw-text-opacity:1;color:rgb(74 74 80/var(--tw-text-opacity,1))}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:381px){.min-\[381px\]\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -796,8 +796,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Gap-aware EMA: a 5-day gap between weigh-ins decays the trend as five daily steps would
   // (effAlpha = 1 - (1-alpha)^gapDays), so sparse weighing can't freeze the trend in the past.
   // Non-ISO or same-day dates fall back to a single step, matching the old behaviour.
+  // TREND_ALPHA is the app's ONE smoothing: the chart's trend line, the stored trend_weight and the
+  // check-in's cycle means all use it, so "your trend weight" is a single number wherever it appears.
+  var TREND_ALPHA = 0.3;
   function trendSeries(entries, alpha) {
-    alpha = alpha == null ? 0.1 : alpha;
+    alpha = alpha == null ? TREND_ALPHA : alpha;
     var out = [], trend = null, prevDate = null;
     for (var i = 0; i < entries.length; i++) {
       var w = entries[i].weightKg;
@@ -1223,6 +1226,73 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { base: base, cyc: cyc, carry: carry, eff: eff, carryDetail: carryDetail, floorLimited: floorLimited };
   }
 
+  // ---- body-fat trend ------------------------------------------------------------------------
+  // Body fat comes from three very different rulers: a smart scale (a reading every morning, noisy
+  // by +-2 points on hydration alone), a photo estimate (episodic, directional), and a deliberate
+  // measurement like DEXA or calipers (rare, the most trustworthy single number). All three are
+  // worth having, so the app takes any of them and reads the TREND rather than the last number.
+  //
+  // Two rules make that honest:
+  //   1. Gap-aware EMA at a slower alpha than weight. Daily scale noise is damped, but a reading
+  //      after a six-week gap effectively becomes the trend, which is what you want from an
+  //      episodic measurement.
+  //   2. A change of METHOD restarts the trend instead of blending across it. A DEXA 18% after a
+  //      scale's 24% is not a six-point drop in a day, it is a different ruler, and smoothing the
+  //      two together would invent a fat loss that never happened (and move the protein target
+  //      with it).
+  var BF_TREND_ALPHA = 0.15;
+  function bfSourceOf(r) { return (r && r.source) || 'manual'; }
+  // readings: [{ date, pct, source }] in any order. Returns them sorted, each with trendPct.
+  function bodyFatTrend(readings, alpha) {
+    alpha = alpha == null ? BF_TREND_ALPHA : alpha;
+    var rs = (readings || []).filter(function (r) { return r && r.pct != null && isFinite(+r.pct); })
+      .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var out = [], trend = null, prevDate = null, prevSource = null;
+    for (var i = 0; i < rs.length; i++) {
+      var pct = +rs[i].pct, src = bfSourceOf(rs[i]);
+      if (trend == null || src !== prevSource) trend = pct;   // first reading, or a new ruler
+      else {
+        var gap = prevDate != null ? daysBetweenISO(prevDate, rs[i].date) : 1;
+        if (!isFinite(gap) || gap < 1) gap = 1;
+        var effAlpha = 1 - Math.pow(1 - alpha, gap);
+        trend = trend + effAlpha * (pct - trend);
+      }
+      prevDate = rs[i].date; prevSource = src;
+      out.push({ date: rs[i].date, pct: pct, source: src, trendPct: round(trend, 1) });
+    }
+    return out;
+  }
+  // The body fat the app should ACT on (protein target, lean mass), plus the context needed to say
+  // where it came from and whether it is getting stale. null when nothing has ever been recorded.
+  function bodyFatNow(readings) {
+    var ts = bodyFatTrend(readings);
+    if (!ts.length) return null;
+    var last = ts[ts.length - 1];
+    var sameRuler = 0;
+    for (var i = ts.length - 1; i >= 0 && ts[i].source === last.source; i--) sameRuler++;
+    return { pct: last.trendPct, raw: last.pct, date: last.date, source: last.source, n: ts.length, nSameSource: sameRuler };
+  }
+  // Is a body-fat reading due? Not on a calendar: when the number would actually be WRONG. Body fat
+  // only earns its keep by sizing the protein target off lean mass, so what matters is how far the
+  // body has moved since the last reading. A deliberate measurement also goes stale slower than a
+  // scale reading nobody took on purpose.
+  //   opts: { readings, weightKg, weightAtLastReadingKg, today, minDays }
+  // Returns { due, reason:'moved'|'stale'|null, kgMoved, daysSince } (due:false when never recorded,
+  // so a first reading is invited elsewhere rather than nagged for here).
+  function bodyFatReadingDue(opts) {
+    var now = bodyFatNow(opts && opts.readings);
+    if (!now) return { due: false, reason: null, kgMoved: null, daysSince: null };
+    var days = daysBetweenISO(now.date, opts.today);
+    var moved = (opts.weightKg != null && opts.weightAtLastReadingKg != null)
+      ? Math.abs(opts.weightKg - opts.weightAtLastReadingKg) : null;
+    var minDays = opts.minDays == null ? 14 : opts.minDays;
+    // 3% of bodyweight is roughly where a stale body-fat figure starts to misprice protein.
+    var moveTrigger = opts.weightKg != null ? Math.max(2, opts.weightKg * 0.03) : 3;
+    if (days >= minDays && moved != null && moved >= moveTrigger) return { due: true, reason: 'moved', kgMoved: round(moved, 1), daysSince: days };
+    if (days >= 84) return { due: true, reason: 'stale', kgMoved: moved != null ? round(moved, 1) : null, daysSince: days };
+    return { due: false, reason: null, kgMoved: moved != null ? round(moved, 1) : null, daysSince: days };
+  }
+
   // ---- check-in decision pipeline (extracted from the UI, pure) ----
   // Complete-day filtering, gap-aware trend cycle means, early vs normal adjustment choice,
   // expenditure smoothing and plateau detection. Coverage/adherence gating against minDays happens
@@ -1239,6 +1309,53 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // }
   // Returns { status: 'needdata' } or { status: 'proposed', ...adjust result, completeDays,
   // expenditure, plateau }.
+  // The two weights a check-in is decided between, and the real span between them. Split out of
+  // checkInDecision so the UI can SHOW the same numbers the decision is made from, rather than a
+  // second, similar-looking average of its own.
+  //   opts: { weights:[{date,kg}], cycleStart, today, cycleDays, weighCadence }
+  // Returns { cur, prev, curCycle:[{date,weightKg}], spanDays, count, curDate, prevDate, source }
+  // where source is 'trend' (EMA cycle means) or 'reading' (single weekly weigh-in).
+  function cycleMeans(opts) {
+    var cs = opts.cycleStart, today = opts.today;
+    var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
+    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null; })
+      .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    // Single weigh-in cadence: one reading per cycle, so EMA cycle means over a lone point add
+    // nothing. Diff the two most recent raw weigh-ins directly, over their real gap.
+    if (opts.weighCadence === 'single') {
+      var curPts = ws.filter(function (w) { return w.date >= cs && w.date <= today; });
+      var prevPts = ws.filter(function (w) { return w.date < cs; });
+      var curPt = curPts.length ? curPts[curPts.length - 1] : null;
+      var prevPt = prevPts.length ? prevPts[prevPts.length - 1] : null;
+      return {
+        cur: curPt ? curPt.kg : null, prev: prevPt ? prevPt.kg : null,
+        curCycle: curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; }),
+        spanDays: (curPt && prevPt) ? Math.max(1, daysBetweenISO(prevPt.date, curPt.date)) : cycleDays,
+        count: curPts.length, curDate: curPt ? curPt.date : null, prevDate: prevPt ? prevPt.date : null,
+        source: 'reading',
+      };
+    }
+    // Cycle means diff SMOOTHED trend values (gap-aware EMA), not raw scale weights, so one odd
+    // morning or a weigh-in gap cannot swing the read. The decision trend uses a faster alpha (0.3)
+    // than the chart's 0.1: it still soaks up day-to-day water noise but lags only ~2 days, so the
+    // measured rate tracks the CURRENT cycle instead of echoing last cycle's deficit (which would
+    // bias the expenditure estimate and invite oscillation).
+    var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), TREND_ALPHA);
+    var prevStart = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
+    var curVals = [], prevVals = [], curCycle = [];
+    for (var i = 0; i < ts.length; i++) {
+      var pnt = ts[i];
+      if (pnt.date >= cs && pnt.date <= today) { curVals.push(pnt.trendKg); curCycle.push(pnt); }
+      else if (pnt.date >= prevStart && pnt.date <= prevEnd) prevVals.push(pnt.trendKg);
+    }
+    return {
+      cur: curVals.length ? mean(curVals) : null, prev: prevVals.length ? mean(prevVals) : null,
+      curCycle: curCycle, spanDays: cycleDays, count: curVals.length,
+      curDate: curCycle.length ? curCycle[curCycle.length - 1].date : null, prevDate: null,
+      source: 'trend',
+    };
+  }
+
   function checkInDecision(opts) {
     var cs = opts.cycleStart, today = opts.today;
     var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
@@ -1255,32 +1372,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // Balance lane needs real logged intake; the weight-only lane doesn't, so skip the logs gate there.
     if (!wOnly && vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
     var avgKcal = vals.length ? mean(vals) : null;
-    // Cycle means diff SMOOTHED trend values (gap-aware EMA), not raw scale weights, so one odd
-    // morning or a weigh-in gap cannot swing the read. The decision trend uses a faster alpha (0.3)
-    // than the chart's 0.1: it still soaks up day-to-day water noise but lags only ~2 days, so the
-    // measured rate tracks the CURRENT cycle instead of echoing last cycle's deficit (which would
-    // bias the expenditure estimate and invite oscillation).
-    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null; })
-      .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-    var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), 0.3);
-    var prevStart = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
-    var curVals = [], prevVals = [], curCycle = [];
-    for (var i = 0; i < ts.length; i++) {
-      var pnt = ts[i];
-      if (pnt.date >= cs && pnt.date <= today) { curVals.push(pnt.trendKg); curCycle.push(pnt); }
-      else if (pnt.date >= prevStart && pnt.date <= prevEnd) prevVals.push(pnt.trendKg);
-    }
-    var curAvg = curVals.length ? mean(curVals) : null;
-    var prevAvg = prevVals.length ? mean(prevVals) : null;
-    var spanDaysForRate = cycleDays;
-    // Single weigh-in cadence: one reading per cycle, so EMA cycle means over a lone point add nothing.
-    // Diff the two most recent raw weigh-ins directly and measure the rate over their real gap.
+    var cm = cycleMeans(opts);
+    var curAvg = cm.cur, prevAvg = cm.prev, curCycle = cm.curCycle, spanDaysForRate = cm.spanDays;
     if (opts.weighCadence === 'single') {
-      var curPts = ws.filter(function (w) { return w.date >= cs && w.date <= today; });
-      var prevPts = ws.filter(function (w) { return w.date < cs; });
-      curAvg = curPts.length ? curPts[curPts.length - 1].kg : null;
-      prevAvg = prevPts.length ? prevPts[prevPts.length - 1].kg : null;
-      curCycle = curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; });
       if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
       if (prevAvg == null) {
         // First single weigh-in ever: nothing to diff, so hold and let this reading set the baseline.
@@ -1289,7 +1383,6 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
           reason: 'This weigh-in sets your baseline. On a single weekly weigh-in I need two readings to see a trend, so I\'m holding your targets. Weigh in again on your next check-in and I\'ll retune.',
           estimate: { tdee: (opts.expenditure && opts.expenditure.kcal) || opts.currentTargets.kcal, avgKcal: opts.currentTargets.kcal, weeklyChangeKg: 0, days: cycleDays, weightOnly: wOnly } };
       }
-      spanDaysForRate = Math.max(1, daysBetweenISO(prevPts[prevPts.length - 1].date, curPts[curPts.length - 1].date));
     }
     var result;
     if (wOnly) {
@@ -1396,9 +1489,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
-    composeDayTarget: composeDayTarget, checkInDecision: checkInDecision,
+    composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
-    trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
+    trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA,
+    bodyFatTrend: bodyFatTrend, bodyFatNow: bodyFatNow, bodyFatReadingDue: bodyFatReadingDue, BF_TREND_ALPHA: BF_TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
@@ -5302,13 +5396,41 @@ function avgWeight(entries, startISO, endISO) {
 function countWeighIns(entries, startISO, endISO) {
   return entries.filter(w => w.date >= startISO && w.date <= endISO && w.scale_weight != null).length;
 }
+// The two weights a check-in is actually decided between, for whichever way this person weighs.
+// It is E.cycleMeans, the engine's own function, so the number on screen is literally the number in
+// the maths: a smoothed trend weight when you weigh through the week, your latest raw reading when
+// you weigh once. `count` is the weigh-ins behind this cycle's figure.
+function checkInReadings(entries, cs, todayISO, cycleDays, single) {
+  const cm = E.cycleMeans({
+    weights: entries.filter(w => w.scale_weight != null).map(w => ({
+      date: w.date,
+      kg: w.scale_weight
+    })),
+    cycleStart: cs,
+    today: todayISO,
+    cycleDays,
+    weighCadence: single ? 'single' : 'daily'
+  });
+  return {
+    now: cm.cur,
+    prev: cm.prev,
+    count: cm.count,
+    nowDate: cm.curDate,
+    prevDate: cm.prevDate,
+    spanDays: cm.spanDays,
+    source: cm.source
+  };
+}
 function recomputeTrend(d) {
   d.weight_entries.sort((a, b) => a.date.localeCompare(b.date));
-  const ts = E.trendSeries(d.weight_entries.map(x => ({
+  // A body-fat-only entry (a reading taken on a morning you didn't weigh) carries no scale weight,
+  // so it sits out of the trend rather than feeding it an undefined.
+  const withWeight = d.weight_entries.filter(x => x.scale_weight != null);
+  const ts = E.trendSeries(withWeight.map(x => ({
     date: x.date,
     weightKg: x.scale_weight
   })));
-  d.weight_entries.forEach((x, i) => x.trend_weight = ts[i].trendKg);
+  withWeight.forEach((x, i) => x.trend_weight = ts[i].trendKg);
 }
 function daysBetween(aISO, bISO) {
   return Math.floor((new Date(bISO + 'T00:00:00') - new Date(aISO + 'T00:00:00')) / 86400000);
@@ -5332,6 +5454,77 @@ function plannedKcalOn(db, dISO) {
 }
 function isCompleteDayOn(db, dISO) {
   return E.isCompleteDay(sumMacros(entriesOn(db, dISO)).kcal, plannedKcalOn(db, dISO));
+}
+// Body-fat readings shaped for the engine: every recorded reading with the ruler it came from
+// ('scale' = smart scale / BIA, 'photo' = the AI visual estimate, 'manual' = DEXA, calipers or a
+// figure you typed). Older entries predate the source field and read as 'manual'.
+function bfReadings(db) {
+  return (db.weight_entries || []).filter(w => w.bodyfat != null).map(w => ({
+    date: w.date,
+    pct: +w.bodyfat,
+    source: w.bf_source || 'manual'
+  }));
+}
+// The body fat the app ACTS on: the trend, not the last reading, so a hydration-swung morning on a
+// smart scale can't move your protein target. Falls back to the profile figure from onboarding.
+function bodyFatNow(db) {
+  const now = E.bodyFatNow(bfReadings(db));
+  if (now) return now;
+  const p = db.profile || {};
+  return p.bodyFatPct != null ? {
+    pct: +p.bodyFatPct,
+    raw: +p.bodyFatPct,
+    date: null,
+    source: 'manual',
+    n: 0,
+    nSameSource: 0
+  } : null;
+}
+// Is a fresh body-fat reading worth asking for? Pairs the last reading with the weight the body was
+// at when it was taken, so "you've moved 4 kg since" is a real comparison rather than a guess.
+function bodyFatReadingDue(db, todayISO) {
+  const readings = bfReadings(db);
+  const now = E.bodyFatNow(readings);
+  const entries = (db.weight_entries || []).filter(w => w.scale_weight != null);
+  const atReading = now ? entries.filter(w => w.date <= now.date).slice(-1)[0] || null : null;
+  const latest = entries.slice(-1)[0] || null;
+  return E.bodyFatReadingDue({
+    readings: readings,
+    today: todayISO,
+    weightKg: latest ? latest.trend_weight != null ? latest.trend_weight : latest.scale_weight : (db.profile || {}).weightKg,
+    weightAtLastReadingKg: atReading ? atReading.trend_weight != null ? atReading.trend_weight : atReading.scale_weight : null
+  });
+}
+const BF_SOURCE_LABEL = {
+  scale: 'smart scale',
+  photo: 'photo estimate',
+  manual: 'measured'
+};
+const BF_SOURCE_SHORT = {
+  scale: 'Smart scale',
+  photo: 'Photo estimate',
+  manual: 'Measured'
+};
+// ONE definition of "how's your tracking going", for every counter in the app. The window is the
+// current check-in cycle (not a calendar week), a logged day is a COMPLETE day (>= 60% of that day's
+// plan, same rule the engine uses), and a weigh-in is any scale reading. Today is dropped from the
+// denominators until it actually has one, so an untouched morning isn't held against you. Four
+// counters with three definitions is how the same week came to read 0/5, 0/6 and 1/7 on one screen.
+function cycleCoverage(db, todayISO) {
+  const cs = cycleStartISO(db, todayISO);
+  const days = Math.max(1, daysBetween(cs, todayISO) + 1);
+  const todayLogged = isCompleteDayOn(db, todayISO);
+  const todayWeighed = (db.weight_entries || []).some(w => w.date === todayISO && w.scale_weight != null);
+  return {
+    cs: cs,
+    days: days,
+    logged: completeLoggedDates(db, cs, todayISO).length,
+    weighed: countWeighIns(db.weight_entries || [], cs, todayISO),
+    logWindow: Math.max(1, days - (todayLogged ? 0 : 1)),
+    weighWindow: Math.max(1, days - (todayWeighed ? 0 : 1)),
+    todayLogged: todayLogged,
+    todayWeighed: todayWeighed
+  };
 }
 // Distinct COMPLETE logged dates in a range: part-logged days don't count toward coverage.
 function completeLoggedDates(db, startISO, endISO) {
@@ -6435,11 +6628,9 @@ function ConsistencyHeatmap({
   for (let i = 0; i < N; i++) cells.push(shiftISO(start, i));
   const level = d => (logSet.has(d) ? 1 : 0) + (weighSet.has(d) ? 1 : 0);
   const colorFor = lv => lv === 2 ? 'var(--good)' : lv === 1 ? 'var(--carb)' : 'var(--track)';
-  const last7 = Array.from({
-    length: 7
-  }, (_, i) => shiftISO(today, -(6 - i)));
-  const logWk = last7.filter(d => logSet.has(d)).length,
-    weighWk = last7.filter(d => weighSet.has(d)).length;
+  // The footer counter reports the SAME cycle coverage the check-in judges you on, so the two screens
+  // can't describe one week with two different fractions. The grid above stays a map of any activity.
+  const cov = cycleCoverage(db, today);
   const activeDays = Array.from({
     length: N
   }, (_, i) => shiftISO(start, i)).filter(d => level(d) > 0).length;
@@ -6503,7 +6694,7 @@ function ConsistencyHeatmap({
     }
   }), " logged and weighed"), /*#__PURE__*/React.createElement("span", {
     className: "ml-auto tnum"
-  }, "This week: ", logWk, "/7 logged · ", weighWk, "/7 weighed")));
+  }, "This cycle: ", cov.logged, "/", cov.logWindow, " logged · ", cov.weighed, "/", cov.weighWindow, " weighed")));
 }
 // Adaptive weight-app chart. FEW points → your ACTUAL weight is the bold line with markers, so real
 // movement shows. MANY points (long range) → the smoothed TREND becomes the bold line (a moving
@@ -6707,6 +6898,21 @@ function LineChart({
   }, "trend ", (+trendByDate[selPt.date]).toFixed(dec))));
 }
 // Signed weight delta in the user's unit (small deltas read better in lb than st/lb).
+// Difference two weights AS THEY ARE SHOWN (one decimal in the display unit), so a delta printed
+// next to both numbers always equals the subtraction the reader can do on screen.
+function shownDelta(now, prev, unit) {
+  if (now == null || prev == null) return null;
+  if (unit === 'st_lb') {
+    const l = v => +(v * LB_PER_KG).toFixed(1);
+    return (l(now) - l(prev)) / LB_PER_KG;
+  }
+  return +now.toFixed(1) - +prev.toFixed(1);
+}
+// Signed percentage-point change, one decimal (body fat: "−0.8 pts").
+function fmtPct1(pts) {
+  const sign = pts > 0 ? '+' : pts < 0 ? '−' : '';
+  return sign + Math.abs(pts).toFixed(1) + ' pts';
+}
 function fmtWeightDelta(kg, unit, suffix) {
   if (kg == null || isNaN(kg)) return '–';
   const sign = kg > 0 ? '+' : kg < 0 ? '−' : '';
@@ -6724,9 +6930,20 @@ function TrendCard({
   const cut = range === 'all' ? '0000-00-00' : shiftISO(today, -range);
   const ents = db.weight_entries.slice().filter(e => e.date >= cut).sort((a, b) => a.date.localeCompare(b.date));
   const toDisp = kg => unit === 'st_lb' ? +(kg * LB_PER_KG).toFixed(1) : +kg.toFixed(1);
+  // Body fat gets a trend line for the same reason weight does: a smart-scale reading swings a couple
+  // of points on hydration alone, and the trend is what the app acts on. Lean mass is built from BOTH
+  // trends, so it moves at the pace a body actually changes rather than jittering daily.
+  const bfTrendByDate = {};
+  E.bodyFatTrend(ents.filter(e => e.bodyfat != null).map(e => ({
+    date: e.date,
+    pct: +e.bodyfat,
+    source: e.bf_source || 'manual'
+  }))).forEach(r => {
+    bfTrendByDate[r.date] = r.trendPct;
+  });
   const series = ents.map(e => {
     let v = null;
-    if (tab === 'weight') v = toDisp(e.trend_weight != null ? e.trend_weight : e.scale_weight);else if (tab === 'bodyfat') v = e.bodyfat != null ? +e.bodyfat : null;else if (e.bodyfat != null && e.scale_weight != null) v = toDisp(e.scale_weight * (1 - e.bodyfat / 100));
+    if (tab === 'weight') v = toDisp(e.trend_weight != null ? e.trend_weight : e.scale_weight);else if (tab === 'bodyfat') v = bfTrendByDate[e.date] != null ? bfTrendByDate[e.date] : null;else if (bfTrendByDate[e.date] != null && e.scale_weight != null) v = toDisp((e.trend_weight != null ? e.trend_weight : e.scale_weight) * (1 - bfTrendByDate[e.date] / 100));
     return {
       date: e.date,
       value: v
@@ -6744,11 +6961,17 @@ function TrendCard({
   const color = tab === 'weight' ? 'var(--weight)' : tab === 'bodyfat' ? FAT : CARB;
   const yl = tab === 'bodyfat' ? '%' : unit === 'st_lb' ? 'lb' : 'kg';
   const dec = tab === 'bodyfat' ? 1 : 1;
-  // Headline + change track the ACTUAL measured weight (not the smoothed trend), so real movement shows.
+  // The weight tab headlines the TREND weight, the same smoothed figure the check-in decides on and
+  // names, with the raw morning reading underneath. Two headline weights half a kilo apart on
+  // adjacent screens is how "which number is my weight?" started. Body fat and lean mass have no
+  // trend line, so they still headline the measured value.
   const valid = dots.filter(s => s.value != null);
+  const validTrend = series.filter(s => s.value != null);
   const first = valid[0],
     last = valid[valid.length - 1];
-  const delta = first && last ? +(last.value - first.value).toFixed(1) : null;
+  const headFirst = validTrend.length ? validTrend[0] : first;
+  const headLast = validTrend.length ? validTrend[validTrend.length - 1] : last;
+  const delta = headFirst && headLast ? +(headLast.value - headFirst.value).toFixed(1) : null;
   const rangeLabel = {
     7: 'past week',
     30: 'past month',
@@ -6806,9 +7029,11 @@ function TrendCard({
     className: "flex items-end justify-between mb-1 px-0.5"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
     className: "text-2xl font-bold tnum"
-  }, last ? last.value : '–'), /*#__PURE__*/React.createElement("span", {
+  }, headLast ? headLast.value : '–'), /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] text-[#8A8A90] ml-1"
-  }, tab === 'bodyfat' ? '%' : yl)), delta != null && /*#__PURE__*/React.createElement("div", {
+  }, tab === 'bodyfat' ? '%' : yl), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] tnum"
+  }, tab === 'weight' ? 'trend weight today' : tab === 'bodyfat' ? 'body-fat trend' : 'lean mass', last ? ` · last reading ${last.value}${tab === 'bodyfat' ? '%' : ' ' + yl}` : '')), delta != null && /*#__PURE__*/React.createElement("div", {
     className: "text-right"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold tnum",
@@ -6819,9 +7044,9 @@ function TrendCard({
     className: "text-[10px] text-[#8A8A90]"
   }, rangeLabel))), /*#__PURE__*/React.createElement(LineChart, {
     points: dots,
-    trend: tab === 'weight' ? series : null,
+    trend: series,
     color: color,
-    decimals: tab === 'bodyfat' ? 1 : 1,
+    decimals: 1,
     unitLabel: tab === 'bodyfat' ? '%' : yl
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"
@@ -6835,7 +7060,7 @@ function TrendCard({
       opacity: tab === 'weight' && valid.length > 45 ? 0.3 : 1,
       display: 'inline-block'
     }
-  }), " ", tab === 'weight' ? 'weight' : 'measured'), tab === 'weight' && /*#__PURE__*/React.createElement("span", {
+  }), " ", tab === 'weight' ? 'weight' : 'measured'), /*#__PURE__*/React.createElement("span", {
     className: "inline-flex items-center gap-1"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -7718,6 +7943,9 @@ function Wizard({
   }));
   const [proteinTouched, setProteinTouched] = useState(false);
   const [bfPick, setBfPick] = useState(false);
+  // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
+  // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
+  const [backfill, setBackfill] = useState(false);
   const s0 = kgToStLb(f.weightKg);
   const [st, setSt] = useState(s0.st);
   const [lb, setLb] = useState(s0.lb);
@@ -8055,6 +8283,10 @@ function WeighSheet({
   // Body fat is optional and folded in here rather than being a reason to go and find the full
   // editor: giving it sharpens the protein target, skipping it costs nothing.
   const [bf, setBf] = useState(todays && todays.bodyfat != null ? todays.bodyfat : '');
+  // Body fat is optional here too, but when it IS given it carries the ruler it came from, because a
+  // smart scale, a photo estimate and a DEXA are three different measurements of the same thing.
+  const bfState = bodyFatNow(db);
+  const [bfSrc, setBfSrc] = useState(todays && todays.bf_source || bfState && bfState.source || 'scale');
   const last7 = avgWeight(db.weight_entries, shiftISO(today, -6), today);
   function save() {
     const w = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
@@ -8065,17 +8297,27 @@ function WeighSheet({
       const ex = d.weight_entries.find(x => x.date === t);
       if (ex) {
         ex.scale_weight = +w.toFixed(2);
-        if (bfVal != null) ex.bodyfat = bfVal;
+        if (bfVal != null) {
+          ex.bodyfat = bfVal;
+          ex.bf_source = bfSrc;
+        }
       } else {
         const ne = {
           id: Store.uid(),
           date: t,
           scale_weight: +w.toFixed(2)
         };
-        if (bfVal != null) ne.bodyfat = bfVal;
+        if (bfVal != null) {
+          ne.bodyfat = bfVal;
+          ne.bf_source = bfSrc;
+        }
         d.weight_entries.push(ne);
       }
       recomputeTrend(d);
+      if (bfVal != null) {
+        const bn = E.bodyFatNow(bfReadings(d));
+        if (bn) d.profile.bodyFatPct = bn.pct;
+      }
       if (resume) {
         d.paused = false;
         d.profile.weightKg = +w.toFixed(2);
@@ -8138,11 +8380,30 @@ function WeighSheet({
     className: "mt-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-1.5"
-  }, "Body fat % · optional"), /*#__PURE__*/React.createElement(NumInput, {
+  }, "Body fat % · optional"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement(NumInput, {
     value: bf,
     onChange: e => setBf(e.target.value),
-    placeholder: "optional"
-  })), last7 != null && /*#__PURE__*/React.createElement("div", {
+    placeholder: bfState ? bfState.pct.toFixed(1) : 'optional'
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "%")), bf !== '' && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: bfSrc,
+    onChange: setBfSrc,
+    options: [{
+      v: 'scale',
+      l: 'Smart scale'
+    }, {
+      v: 'photo',
+      l: 'Photo'
+    }, {
+      v: 'manual',
+      l: 'DEXA / calipers'
+    }]
+  }))), last7 != null && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2"
   }, "7-day avg ", /*#__PURE__*/React.createElement("span", {
     className: "text-white tnum"
@@ -8169,17 +8430,13 @@ function CheckInModal({
   const today = Store.todayISO();
   const base = currentTargets(db);
   // Windows derive from the actual cadence (cycle start → today), not a fixed week.
-  const cs = cycleStartISO(db, today);
-  const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
-  const loggedDays = completeLoggedDates(db, cs, today).length; // only complete days count toward coverage
-  const weighDays = countWeighIns(db.weight_entries, cs, today);
-  // Check-ins are recommended first thing, before you've logged (or weighed) today, so an un-actioned
-  // TODAY shouldn't count against your coverage. Judge over the days you could realistically have
-  // completed by now: drop today from the denominator until it actually has a log / weigh-in.
-  const todayLogged = isCompleteDayOn(db, today);
-  const todayWeighed = db.weight_entries.some(w => w.date === today && w.scale_weight != null);
-  const logWindow = Math.max(1, cycleDays - (todayLogged ? 0 : 1));
-  const weighWindow = Math.max(1, cycleDays - (todayWeighed ? 0 : 1));
+  const cov = cycleCoverage(db, today);
+  const cs = cov.cs,
+    cycleDays = cov.days;
+  const loggedDays = cov.logged,
+    weighDays = cov.weighed;
+  const logWindow = cov.logWindow,
+    weighWindow = cov.weighWindow;
   const needLogs = Math.max(4, Math.ceil(logWindow * 0.7));
   // Single weigh-in cadence only needs today's reading; daily-averaged wants a fuller spread.
   const singleWeigh = p.weighCadence === 'single';
@@ -8187,14 +8444,33 @@ function CheckInModal({
   const onTrack = loggedDays >= needLogs && weighDays >= needWeigh;
   const wkAvg = avgWeight(db.weight_entries, cs, today);
   const last = db.weight_entries[db.weight_entries.length - 1];
-  const seed = kgToStLb(last ? last.scale_weight : p.weightKg);
-  const [kg, setKg] = useState(last ? last.scale_weight : p.weightKg);
+  // Today's weight is only ever pre-filled from TODAY's own entry. Seeding it from the last
+  // reading (which could be days old) meant tapping straight through invented a weigh-in for
+  // today, and that invented number then moved the very average the check-in decides on.
+  const todaysEntry = db.weight_entries.find(w => w.date === today && w.scale_weight != null);
+  const seed = todaysEntry ? kgToStLb(todaysEntry.scale_weight) : {
+    st: '',
+    lb: ''
+  };
+  const [kg, setKg] = useState(todaysEntry ? todaysEntry.scale_weight : '');
   const [st, setSt] = useState(seed.st);
   const [lb, setLb] = useState(seed.lb);
-  const [bf, setBf] = useState(p.bodyFatPct != null ? p.bodyFatPct : '');
+  // Body fat starts EMPTY: this box is a NEW reading, not a display of the figure you're already
+  // carrying. Pre-filling the old number stamped a fake reading onto today's entry (and the
+  // lean-mass chart) every single check-in, whether or not you'd actually measured anything.
+  const [bf, setBf] = useState(todaysEntry && todaysEntry.bodyfat != null ? todaysEntry.bodyfat : '');
+  const lastBfEntry = db.weight_entries.filter(w => w.bodyfat != null && w.date !== today).slice(-1)[0];
+  const bfState = bodyFatNow(db); // the trend the app is acting on right now
+  const lastBfPct = bfState ? bfState.pct : null;
+  // Which ruler this reading came from. Defaults to the one you used last, because whatever you
+  // measure with, using it consistently is what makes the trend mean anything.
+  const [bfSrc, setBfSrc] = useState(todaysEntry && todaysEntry.bf_source || bfState && bfState.source || 'scale');
   // A persisted, still-undecided proposal (from d.pending_adjustment) reopens straight on the result screen.
   const [result, setResult] = useState(resume && resume.result ? resume.result : null);
   const [bfPick, setBfPick] = useState(false);
+  // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
+  // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
+  const [backfill, setBackfill] = useState(false);
   const [adhered, setAdhered] = useState('yes'); // self-reported: did you actually follow the plan this cycle?
   // Tracking lane: how completely did they log? "logged_all" trusts intake for the energy-balance read;
   // "roughly" steers by the scale alone. Pre-filled from this cycle's actual logging (no AI call needed):
@@ -8257,44 +8533,221 @@ function CheckInModal({
     };
   }, [result && result.status, result && result.accepted]);
   const [wErr, setWErr] = useState('');
+  // The weight typed into the box right now (null when it's empty), so the average on screen is the
+  // average the check-in will actually read, updating as you type rather than after you commit.
+  const typedKg = unit === 'st_lb' ? st === '' && lb === '' ? null : stLbToKg(st, lb) || null : kg === '' || kg == null || isNaN(+kg) ? null : +kg;
+  const liveEntries = typedKg != null ? db.weight_entries.filter(w => w.date !== today).concat([{
+    date: today,
+    scale_weight: typedKg
+  }]) : db.weight_entries;
+  const live = checkInReadings(liveEntries, cs, today, cycleDays, singleWeigh);
+  const liveAvg = live.now,
+    prevCycleAvg = live.prev,
+    liveCount = live.count;
+  const avgDelta = shownDelta(liveAvg, prevCycleAvg, unit);
+  // A once-a-week weigher has a single reading carrying the whole cycle, so the average framing
+  // (and the "average is enough, skip today" escape) only applies to the daily-ish lane.
+  const soloRead = !singleWeigh && liveCount === 1;
+  // Already weighed enough this cycle? Then a missed morning shouldn't block the check-in: it can
+  // read the weights it already has instead of forcing you to invent today's number.
+  const canSkipWeight = singleWeigh ? checkInReadings(db.weight_entries, cs, today, cycleDays, true).now != null : wkAvg != null && weighDays >= needWeigh;
+  const bfNum = bf === '' || bf == null || isNaN(+bf) ? null : +bf;
+  // What the trend becomes once this reading is in, which is the figure the protein target and the
+  // lean-mass line will actually use.
+  const bfAfter = bfNum != null ? E.bodyFatNow(bfReadings(db).filter(r => r.date !== today).concat([{
+    date: today,
+    pct: bfNum,
+    source: bfSrc
+  }])) : null;
+  // Lean mass off the TRENDED body fat and the trended weight: both sides of the sum are the figures
+  // the app acts on, so the number here is the number your protein target is built from.
+  const leanPreview = bfAfter && bfAfter.pct > 0 && bfAfter.pct < 70 && liveAvg != null ? liveAvg * (1 - bfAfter.pct / 100) : null;
+  // The cycle you're checking in on, drawn: every weigh-in from the previous cycle through today,
+  // with the smoothed trend through them. Seeing the scatter around the line is what makes "I read
+  // the trend, not one morning" land, and the typed weight appears on it as you go.
+  const chartFrom = shiftISO(cs, -cycleDays);
+  const chartEntries = liveEntries.filter(w => w.scale_weight != null && w.date >= chartFrom && w.date <= today).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const toDispKg = v => unit === 'st_lb' ? +(v * LB_PER_KG).toFixed(1) : +v.toFixed(1);
+  const chartDots = chartEntries.map(w => ({
+    date: w.date,
+    value: toDispKg(w.scale_weight)
+  }));
+  const chartTrend = (() => {
+    const ts = E.trendSeries(chartEntries.map(w => ({
+      date: w.date,
+      weightKg: w.scale_weight
+    })));
+    return ts.map(t => ({
+      date: t.date,
+      value: toDispKg(t.trendKg)
+    }));
+  })();
+  // What this check-in is going to say, worked out live from what's in the boxes. It's the same
+  // function complete() commits, so this is the actual outcome shown early, not a second opinion.
+  // For someone weighing daily the reading has already happened all week, so the sheet can open on
+  // the answer and keep the inputs underneath as corrections.
+  const preview = !result && (typedKg != null || canSkipWeight) ? decisionFor(typedKg, bfNum) : null;
+  // Pure: what this check-in WOULD say for a given weight and body-fat reading, with nothing
+  // written. The sheet previews from this while you're still filling it in, and complete() writes
+  // the state and then shows this same object, so the headline you're given up front is exactly the
+  // result you get. Returns null when there's no weight to read at all.
+  function decisionFor(weightKg, bfVal) {
+    const todayEntry = weightKg ? Object.assign({
+      date: today,
+      scale_weight: +weightKg
+    }, bfVal != null ? {
+      bodyfat: bfVal,
+      bf_source: bfSrc
+    } : {}) : null;
+    const entries = todayEntry ? db.weight_entries.filter(w => w.date !== today).concat([todayEntry]) : db.weight_entries.slice();
+    const read = checkInReadings(entries, cs, today, cycleDays, singleWeigh);
+    if (read.now == null) return null;
+    // The weight everything downstream stands on: this cycle's trend weight when you weigh through
+    // the week, the latest reading when you weigh once. Same rule the engine diffs on.
+    const curAvg = read.now;
+    // Every outcome screen carries the two weights the decision was actually made from, so the
+    // result can show the comparison instead of only the rate it produced.
+    // Lean mass then vs now. On a cut this is the line that actually answers "am I losing the right
+    // thing?", and it only exists because body fat is tracked alongside weight.
+    const bfBefore = E.bodyFatNow(bfReadings(db).filter(r => r.date < cs));
+    const bfNowT = bfVal != null ? E.bodyFatNow(bfReadings(db).filter(r => r.date !== today).concat([{
+      date: today,
+      pct: bfVal,
+      source: bfSrc
+    }])) : E.bodyFatNow(bfReadings(db));
+    const leanNow = bfNowT && read.now != null ? read.now * (1 - bfNowT.pct / 100) : null;
+    const leanPrev = bfBefore && read.prev != null ? read.prev * (1 - bfBefore.pct / 100) : null;
+    const summary = {
+      avgNow: read.now,
+      avgPrev: read.prev,
+      weighCount: read.count,
+      prevDate: read.prevDate,
+      single: singleWeigh,
+      bfNew: bfVal,
+      bfSource: bfVal != null ? bfSrc : null,
+      curAvg: curAvg,
+      bfTrend: bfNowT ? bfNowT.pct : null,
+      bfTrendPrev: bfBefore ? bfBefore.pct : null,
+      leanNow: leanNow,
+      leanPrev: leanPrev
+    };
+    const out = r => Object.assign({}, summary, r);
+    if (dietBreakActive(db, today)) return out({
+      status: 'held',
+      reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.`
+    });
+    if (adhered === 'no') return out({
+      status: 'held',
+      offPlan: true,
+      reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.`
+    });
+    if (!readyToAdjust) return out({
+      status: 'held',
+      reason: laneMode === 'weightOnly' ? `You've weighed in on ${weighDays}/${weighWindow} days this cycle so far. I need a few more weigh-ins to read your trend safely, so you'll stay on your current plan. Weigh in a bit more and your next check-in can adjust.` : `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.`
+    });
+    // Everything from here is the pure engine pipeline: complete-day filtering, gap-aware trend
+    // cycle means, early vs normal adjustment, expenditure smoothing and plateau detection.
+    const byDate = {};
+    db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
+    const targetByDate = {};
+    Object.keys(byDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
+    const prof = withActivity(Object.assign({}, p, {
+      weightKg: curAvg != null ? curAvg : p.weightKg
+    }));
+    const priorBurn = expenditurePrior(db, prof);
+    const dec = E.checkInDecision({
+      profile: prof,
+      currentTargets: base,
+      weights: entries.filter(w => w.scale_weight != null).map(w => ({
+        date: w.date,
+        kg: w.scale_weight
+      })),
+      kcalByDate: byDate,
+      targetByDate,
+      cycleStart: cs,
+      today,
+      cycleDays,
+      weighDays,
+      minDays: needLogs,
+      periodDays: cycleDays,
+      earlyCap: 150,
+      expenditure: priorBurn,
+      checkins: db.checkins || [],
+      waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
+      mode: laneMode,
+      weighCadence: p.weighCadence
+    });
+    // Steps-first coaching: decide which lever to lead with (walk more vs eat less) from this cycle's
+    // average daily steps versus last cycle and the activity-band baseline. The engine has ALREADY set
+    // the calorie number; this only shapes the ADVICE, so a slow week that was really just a drop in
+    // steps gets answered with "get your steps back up" before any talk of cutting food.
+    const stThis = E.avgStepsInRange(db.steps, cs, today);
+    const stPrev = E.avgStepsInRange(db.steps, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
+    const behindTarget = dec.status === 'proposed' && (p.goalType === 'gain' ? dec.direction === 'up' : dec.direction === 'down');
+    dec.stepsCoaching = E.stepsCoaching({
+      thisCycle: stThis,
+      prevCycle: stPrev,
+      baseline: prof.avgSteps,
+      behindTarget
+    });
+    if (dec.status === 'needdata') return out({
+      status: 'needdata',
+      reason: dec.reasonCode === 'weighins' ? 'Not enough weigh-ins this cycle yet. Weigh in daily and your first adjustment will come through.' : 'Not enough history yet. Keep weighing in daily and logging full days, and your next check-in will retune from the averages.'
+    });
+    // What this cycle taught the app about your burn, and how far that moved. The learned expenditure
+    // IS the adaptive part, so the result says it out loud instead of leaving it in a footnote.
+    dec.burnNow = Math.round(dec.expenditure && dec.expenditure.kcal || dec.estimate && dec.estimate.tdee || 0) || null;
+    dec.burnPrev = priorBurn && priorBurn.n > 0 && priorBurn.kcal > 0 ? Math.round(priorBurn.kcal) : null;
+    return out(dec);
+  }
   function complete() {
-    const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
-    if (!weightKg) {
-      setWErr("Enter today's weight to check in.");
+    const weightKg = typedKg;
+    if (!weightKg && !canSkipWeight) {
+      setWErr(singleWeigh ? "Enter this week's weigh-in to check in, it's the only reading I've got to read." : "Enter today's weight to check in, or weigh in a couple more days this cycle.");
       return;
     }
     setWErr('');
-    const bfVal = bf === '' || bf == null || isNaN(+bf) ? null : +bf; // body fat optional
-    const todayEntry = {
-      date: today,
-      scale_weight: +weightKg
-    };
-    if (bfVal != null) todayEntry.bodyfat = bfVal;
-    const entries = db.weight_entries.filter(w => w.date !== today).concat([todayEntry]);
-    const curAvg = avgWeight(entries, cs, today);
-    const prevAvg = avgWeight(entries, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
+    const bfVal = bfNum; // body fat optional: only written when you actually enter a reading
+    const res = decisionFor(weightKg, bfVal);
+    if (!res) {
+      setWErr(singleWeigh ? "Enter this week's weigh-in to check in, it's the only reading I've got to read." : "Enter today's weight to check in, or weigh in a couple more days this cycle.");
+      return;
+    }
+    const curAvg = res.curAvg;
+    if (res.offPlan) res.dinoLine = DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)];
     update(d => {
       const ex = d.weight_entries.find(x => x.date === today);
       if (ex) {
-        ex.scale_weight = +weightKg.toFixed(2);
-        if (bfVal != null) ex.bodyfat = bfVal;
-      } else {
+        if (weightKg) ex.scale_weight = +weightKg.toFixed(2);
+        if (bfVal != null) {
+          ex.bodyfat = bfVal;
+          ex.bf_source = bfSrc;
+        }
+      } else if (weightKg || bfVal != null) {
         const ne = {
           id: Store.uid(),
-          date: today,
-          scale_weight: +weightKg.toFixed(2)
+          date: today
         };
-        if (bfVal != null) ne.bodyfat = bfVal;
+        if (weightKg) ne.scale_weight = +weightKg.toFixed(2);
+        if (bfVal != null) {
+          ne.bodyfat = bfVal;
+          ne.bf_source = bfSrc;
+        }
         d.weight_entries.push(ne);
       }
       recomputeTrend(d);
-      if (bfVal != null) d.profile.bodyFatPct = bfVal;
+      // The protein target is sized off lean mass, so it follows the body-fat TREND rather than
+      // whatever the scale said this morning.
+      if (bfVal != null) {
+        const bn = E.bodyFatNow(bfReadings(d));
+        if (bn) d.profile.bodyFatPct = bn.pct;
+      }
       if (curAvg != null) d.profile.weightKg = +curAvg.toFixed(2);
       d.last_checkin = today;
       d.pending_adjustment = null; // a new check-in supersedes any older un-actioned proposal
       d.checkins = (d.checkins || []).concat([{
         date: today,
-        weightKg: curAvg != null ? +curAvg.toFixed(2) : +weightKg.toFixed(2),
+        weightKg: curAvg != null ? +curAvg.toFixed(2) : weightKg ? +weightKg.toFixed(2) : p.weightKg,
         onTrack: onTrack,
         adhered: adhered === 'yes',
         lane: lane,
@@ -8321,113 +8774,41 @@ function CheckInModal({
       on_track: !!onTrack,
       adhered: adhered === 'yes'
     });
-    if (dietBreakActive(db, today)) {
-      setResult({
-        status: 'held',
-        reason: `You're on a diet break at maintenance. I've logged your weigh-in, but I'll hold your goal targets until the break ends, then adaptive adjustments pick right back up.`
-      });
-      return;
-    }
-    if (adhered === 'no') {
-      setResult({
-        status: 'held',
-        offPlan: true,
-        dinoLine: DINO_OFFPLAN[Math.floor(Math.random() * DINO_OFFPLAN.length)],
-        reason: `Macros held, no point retuning off a week that wasn't on plan. Your weigh-in's saved, so the trend stays honest. Log a clean cycle and your next check-in will dial things in properly.`
-      });
-      return;
-    }
-    if (!readyToAdjust) {
-      setResult({
-        status: 'held',
-        reason: laneMode === 'weightOnly' ? `You've weighed in on ${weighDays}/${weighWindow} days this cycle so far. I need a few more weigh-ins to read your trend safely, so you'll stay on your current plan. Weigh in a bit more and your next check-in can adjust.` : `You logged food on ${loggedDays}/${logWindow} days and weighed in on ${weighDays}/${weighWindow} this cycle so far. Not enough to safely change your macros, so you'll stay on your current plan. Log and weigh in more consistently to unlock a change next time.`
-      });
-      return;
-    }
-    // Everything from here is the pure engine pipeline: complete-day filtering, gap-aware trend
-    // cycle means, early vs normal adjustment, expenditure smoothing and plateau detection.
-    const byDate = {};
-    db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
-    const targetByDate = {};
-    Object.keys(byDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
-    const prof = withActivity(Object.assign({}, p, {
-      weightKg: curAvg != null ? curAvg : p.weightKg
-    }));
-    const dec = E.checkInDecision({
-      profile: prof,
-      currentTargets: base,
-      weights: entries.map(w => ({
-        date: w.date,
-        kg: w.scale_weight
-      })),
-      kcalByDate: byDate,
-      targetByDate,
-      cycleStart: cs,
-      today,
-      cycleDays,
-      weighDays,
-      minDays: needLogs,
-      periodDays: cycleDays,
-      earlyCap: 150,
-      expenditure: expenditurePrior(db, prof),
-      checkins: db.checkins || [],
-      waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
-      mode: laneMode,
-      weighCadence: p.weighCadence
-    });
-    // Steps-first coaching: decide which lever to lead with (walk more vs eat less) from this cycle's
-    // average daily steps versus last cycle and the activity-band baseline. The engine has ALREADY set
-    // the calorie number; this only shapes the ADVICE, so a slow week that was really just a drop in
-    // steps gets answered with "get your steps back up" before any talk of cutting food.
-    const stThis = E.avgStepsInRange(db.steps, cs, today);
-    const stPrev = E.avgStepsInRange(db.steps, shiftISO(cs, -cycleDays), shiftISO(cs, -1));
-    const behindTarget = dec.status === 'proposed' && (p.goalType === 'gain' ? dec.direction === 'up' : dec.direction === 'down');
-    dec.stepsCoaching = E.stepsCoaching({
-      thisCycle: stThis,
-      prevCycle: stPrev,
-      baseline: prof.avgSteps,
-      behindTarget
-    });
-    if (dec.status === 'needdata') {
-      setResult({
-        status: 'needdata',
-        reason: dec.reasonCode === 'weighins' ? 'Not enough weigh-ins this cycle yet. Weigh in daily and your first adjustment will come through.' : 'Not enough history yet. Keep weighing in daily and logging full days, and your next check-in will retune from the averages.'
-      });
-      return;
-    }
-    // Persist what this cycle taught us (regardless of whether the target change is approved):
-    // the smoothed expenditure, and the trend/step data plateau detection reads next time.
-    update(d => {
-      if (dec.expenditure && dec.expenditure.kcal > 0) d.expenditure = {
-        kcal: dec.expenditure.kcal,
-        n: dec.expenditure.n,
-        updated: today
-      };
-      const ci = (d.checkins || [])[(d.checkins || []).length - 1];
-      if (ci && ci.date === today && dec.estimate) {
-        ci.weeklyChangeKg = dec.estimate.weeklyChangeKg;
-        ci.deltaKcal = 0;
-        ci.tdee = Math.round(dec.expenditure && dec.expenditure.kcal || dec.estimate.tdee || 0) || null;
-      }
-      // Mis-tap protection: a changed proposal is persisted until explicitly approved or rejected,
-      // so an accidental dismissal (or an app reload) never loses this week's suggestion.
-      if (dec.status === 'proposed' && dec.changed) d.pending_adjustment = {
-        date: today,
-        result: dec
-      };
-      // In-range badge: the cycle trended within 0.1 kg/wk of the target rate (or held on goal).
-      const inRange = dec.estimate && (Game.checkinInRange(dec.estimate.weeklyChangeKg, tgtRate) || dec.status === 'proposed' && !dec.changed);
-      if (inRange && !(d.game_awards || {})['checkin_inrange:' + today]) {
-        d.game_awards = d.game_awards || {};
-        d.game_awards['checkin_inrange:' + today] = true;
-        d.badges = d.badges || {
-          checkins: 0,
-          inRange: 0
+    if (res.status === 'proposed') {
+      // Persist what this cycle taught us (regardless of whether the target change is approved):
+      // the smoothed expenditure, and the trend/step data plateau detection reads next time.
+      update(d => {
+        if (res.expenditure && res.expenditure.kcal > 0) d.expenditure = {
+          kcal: res.expenditure.kcal,
+          n: res.expenditure.n,
+          updated: today
         };
-        d.badges.inRange = (d.badges.inRange || 0) + 1;
-      }
-    });
-    setResult(dec);
+        const ci = (d.checkins || [])[(d.checkins || []).length - 1];
+        if (ci && ci.date === today && res.estimate) {
+          ci.weeklyChangeKg = res.estimate.weeklyChangeKg;
+          ci.deltaKcal = 0;
+          ci.tdee = Math.round(res.expenditure && res.expenditure.kcal || res.estimate.tdee || 0) || null;
+        }
+        // Mis-tap protection: a changed proposal is persisted until explicitly approved or rejected,
+        // so an accidental dismissal (or an app reload) never loses this week's suggestion.
+        if (res.changed) d.pending_adjustment = {
+          date: today,
+          result: res
+        };
+        // In-range badge: the cycle trended within 0.1 kg/wk of the target rate (or held on goal).
+        const inRange = res.estimate && (Game.checkinInRange(res.estimate.weeklyChangeKg, tgtRate) || !res.changed);
+        if (inRange && !(d.game_awards || {})['checkin_inrange:' + today]) {
+          d.game_awards = d.game_awards || {};
+          d.game_awards['checkin_inrange:' + today] = true;
+          d.badges = d.badges || {
+            checkins: 0,
+            inRange: 0
+          };
+          d.badges.inRange = (d.badges.inRange || 0) + 1;
+        }
+      });
+    }
+    setResult(res);
   }
   function approve() {
     update(d => {
@@ -8504,7 +8885,59 @@ function CheckInModal({
     className: "text-[13px] font-semibold leading-snug"
   }, result.dinoLine)), /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
-  }, result.reason), result.estimate && /*#__PURE__*/React.createElement("div", {
+  }, result.reason), result.avgNow != null && /*#__PURE__*/React.createElement("div", {
+    className: "mt-3 pixel-box p-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-1.5"
+  }, result.single ? 'Read from your weigh-ins' : 'Read from your cycle trend weight'), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2 flex-wrap text-[13px]"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "tnum text-[#8A8A90]"
+  }, result.avgPrev != null ? fmtWeight(result.avgPrev, unit) : '–'), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "→"), /*#__PURE__*/React.createElement("span", {
+    className: "tnum font-bold text-[15px]"
+  }, fmtWeight(result.avgNow, unit)), result.avgPrev != null && /*#__PURE__*/React.createElement("span", {
+    className: "tnum font-semibold",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, fmtWeightDelta(shownDelta(result.avgNow, result.avgPrev, unit), unit))), result.leanNow != null && result.leanPrev != null && (() => {
+    const dLean = shownDelta(result.leanNow, result.leanPrev, unit);
+    const dFat = shownDelta(result.avgNow - result.leanNow, result.avgPrev - result.leanPrev, unit);
+    // Holding lean mass while fat comes off is the whole point of a cut, so it gets said
+    // in those words rather than left for you to work out from two percentages.
+    const held = Math.abs(dLean) < 0.25;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "mt-2 pt-2 border-t border-[#262629]"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline gap-2 flex-wrap text-[12px]"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, "Lean mass"), /*#__PURE__*/React.createElement("span", {
+      className: "tnum font-semibold"
+    }, fmtWeight(result.leanNow, unit)), /*#__PURE__*/React.createElement("span", {
+      className: "tnum",
+      style: {
+        color: held ? 'var(--good)' : dLean > 0 ? 'var(--good)' : 'var(--fat)'
+      }
+    }, held ? 'held' : fmtWeightDelta(dLean, unit)), /*#__PURE__*/React.createElement("span", {
+      className: "text-[#8A8A90]"
+    }, "· fat"), /*#__PURE__*/React.createElement("span", {
+      className: "tnum",
+      style: {
+        color: dFat < 0 ? 'var(--good)' : 'var(--muted)'
+      }
+    }, fmtWeightDelta(dFat, unit))), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
+    }, held && dFat < -0.1 ? 'Weight down, lean mass steady: that\'s fat you lost, which is exactly the idea.' : dLean < -0.25 && dFat < -0.1 ? 'Some of that came off your lean mass. Keep protein up and keep lifting, and the next cycle should shift the balance.' : dLean > 0.25 ? 'Lean mass up. Whatever you\'re doing in the gym, keep doing it.' : 'From your body-fat trend against your weight trend, so it moves slowly and honestly.'));
+  })(), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-1.5 leading-snug"
+  }, result.single ? result.avgPrev != null ? `Your reading from ${result.prevDate ? fmtShortDay(result.prevDate) : 'last week'} against this week’s` : 'This week’s reading, your first, so there’s nothing to diff it against yet' : (result.avgPrev != null ? 'Last cycle’s trend weight against this cycle’s' : 'This cycle’s trend weight') + `, from ${result.weighCount} weigh-in${result.weighCount === 1 ? '' : 's'}`, result.bfNew != null ? ` · body fat logged at ${(+result.bfNew).toFixed(1)}% (${BF_SOURCE_LABEL[result.bfSource] || 'measured'})` : '', ".")), result.estimate && /*#__PURE__*/React.createElement("div", {
     className: "mt-3 pixel-box p-3",
     style: {
       background: 'var(--surface3)',
@@ -8523,9 +8956,27 @@ function CheckInModal({
     style: {
       color: rateOnGoal == null ? 'var(--text)' : rateOnGoal ? 'var(--good)' : 'var(--fat)'
     }
-  }, fmtRate(actRate)))), /*#__PURE__*/React.createElement("div", {
+  }, fmtRate(actRate)))), !result.earlyPhase && result.burnNow ? (() => {
+    const mv = result.burnPrev != null ? result.burnNow - result.burnPrev : null;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "mt-2 pt-2 border-t border-[#262629]"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline gap-2 flex-wrap"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[9px] uppercase tracking-widest text-[#8A8A90]"
+    }, "Your burn now reads"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] tnum font-semibold"
+    }, result.burnNow, " kcal/day"), mv != null && mv !== 0 && /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] tnum",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, mv > 0 ? '+' : '−', Math.abs(mv), " on last cycle")), /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
+    }, mv == null ? 'First read of what you actually burn. It sharpens every cycle from here.' : Math.abs(mv) < 25 ? 'Steady, so your plan is built on a burn I\'m now confident in.' : mv > 0 ? 'You\'re burning more than I had you down for, which is why the numbers moved.' : 'You\'re burning less than I had you down for, which is why the numbers moved.', " ", result.estimate && result.estimate.weightOnly ? 'Read from how your weight moved against your target.' : 'Worked out from your intake versus how your weight moved.'));
+  })() : /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]"
-  }, result.earlyPhase ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.' : 'Your body is burning about ' + (result.expenditure && result.expenditure.kcal || result.estimate.tdee) + ' kcal a day, ' + (result.estimate && result.estimate.weightOnly ? 'read from how your weight moved against your target.' : 'worked out from your intake versus how your weight moved.'))), (() => {
+  }, "Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.")), (() => {
     const steps = result.stepsCoaching && stepsCoachLine(result.stepsCoaching);
     const body = coach && coach.text ? coach.text : steps || null;
     const loading = coach && coach.loading;
@@ -8663,58 +9114,164 @@ function CheckInModal({
   }, /*#__PURE__*/React.createElement(Tick, {
     size: 11
   }), " New macros applied.")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Compares this cycle's average weight to the previous one, so one odd morning never throws it off."), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-1"
+  }, singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2 flex-wrap"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-2xl font-bold tnum leading-none"
+  }, liveAvg != null ? fmtWeight(liveAvg, unit) : '–'), avgDelta != null && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] tnum font-semibold",
+    style: {
+      color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)'
+    }
+  }, fmtWeightDelta(avgDelta, unit), " vs ", singleWeigh ? 'last time' : 'last cycle')), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11.5px] text-[#8A8A90] leading-snug mt-1.5"
+  }, liveAvg == null ? singleWeigh ? /*#__PURE__*/React.createElement("span", null, "Pop this week's weigh-in in below. On a once-a-week weigh-in I read it straight against your last one, so it's the only number this check-in has to go on.") : /*#__PURE__*/React.createElement("span", null, "Pop today's weight in below and it becomes the first reading behind this cycle's trend weight, which is what I retune from.") : singleWeigh ? /*#__PURE__*/React.createElement("span", null, typedKg != null ? 'The reading you\'re entering below' : 'Your reading from ' + fmtShortDay(live.nowDate), ". Weighing once a week, I compare it straight with ", prevCycleAvg != null ? `your last one on ${fmtShortDay(live.prevDate)} (${fmtWeight(prevCycleAvg, unit)})` : 'your next one', ", so same morning, same conditions each week keeps it honest. Weighing most mornings instead lets me average the water swings out (Settings).") : soloRead ? /*#__PURE__*/React.createElement("span", null, "Your one weigh-in this cycle", typedKg != null ? ', the one you\'re entering below' : '', ", so it's carrying the whole read on its own. A few more mornings and I smooth them together, which stops one odd day swinging your macros", prevCycleAvg != null ? `. Last cycle came out at ${fmtWeight(prevCycleAvg, unit)}` : '', ".") : /*#__PURE__*/React.createElement("span", null, "Your ", liveCount, " weigh-ins since ", fmtShortDay(cs), typedKg != null ? ', including the one you\'re entering below' : '', ", smoothed into one figure so a heavy-salt Sunday can't swing your macros. This is the number I retune from", prevCycleAvg != null ? `, against last cycle's ${fmtWeight(prevCycleAvg, unit)}` : '', "."))), preview && (() => {
+    const est = preview.estimate;
+    const changed = preview.status === 'proposed' && preview.changed;
+    const tone = changed ? 'var(--accent)' : preview.status === 'proposed' ? 'var(--good)' : 'var(--muted)';
+    const head = changed ? `${preview.deltaKcal > 0 ? '+' : '−'}${Math.abs(preview.deltaKcal)} kcal, to ${preview.newTargets.kcal} a day` : preview.status === 'proposed' ? 'On track. No change to your macros.' : preview.status === 'held' ? 'Your macros will hold this cycle.' : 'Not enough to retune from yet.';
+    return /*#__PURE__*/React.createElement("div", {
+      className: "pixel-box p-3 mb-3",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none',
+        borderLeft: '4px solid ' + tone
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-1",
+      style: {
+        color: tone
+      }
+    }, "What this check-in will say"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13.5px] font-semibold leading-snug"
+    }, head), est && /*#__PURE__*/React.createElement("div", {
+      className: "text-[11.5px] text-[#8A8A90] mt-1 leading-snug tnum"
+    }, "Trending ", fmtRate(est.weeklyChangeKg), " against your ", fmtRate(tgtRate), " target."), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] mt-1 leading-snug"
+    }, "Nothing is saved until you complete the check-in below."));
+  })(), chartDots.length >= 2 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2 pt-3 mb-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(LineChart, {
+    points: chartDots,
+    trend: singleWeigh ? null : chartTrend,
+    color: "var(--weight)",
+    decimals: 1,
+    unitLabel: unit === 'st_lb' ? 'lb' : 'kg'
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-[#8A8A90] px-1 pb-0.5 leading-snug"
+  }, singleWeigh ? 'Your weekly readings through last cycle and this one.' : 'Every morning you weighed since ' + fmtShortDay(chartFrom) + ', with the trend line I read through them.')), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
   }, /*#__PURE__*/React.createElement(MiniStat, {
     label: "Food logs so far",
     value: loggedDays + '/' + logWindow,
     ok: laneMode === 'weightOnly' ? true : loggedDays >= needLogs
-  }), /*#__PURE__*/React.createElement(MiniStat, {
+  }), singleWeigh ? /*#__PURE__*/React.createElement(MiniStat, {
+    label: "Weigh-in this week",
+    value: liveCount ? 'Done' : 'Needed',
+    ok: liveCount > 0
+  }) : /*#__PURE__*/React.createElement(MiniStat, {
     label: "Weigh-ins so far",
     value: weighDays + '/' + weighWindow,
     ok: weighDays >= needWeigh
   })), !readyToAdjust && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mb-3"
-  }, laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'), wkAvg != null && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3 bg-[#1E1E22] rounded-xl px-3 py-2.5"
-  }, "This cycle: average ", /*#__PURE__*/React.createElement("span", {
-    className: "text-white tnum font-semibold"
-  }, fmtWeight(wkAvg, unit))), /*#__PURE__*/React.createElement(Field, {
-    label: "Today's weight"
+  }, laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'), /*#__PURE__*/React.createElement(Field, {
+    label: (singleWeigh ? 'Your reading' : "Today's weight") + (todaysEntry ? ' · already logged' : ''),
+    hint: todaysEntry && typedKg == null ? `Cleared, but this morning's saved ${fmtWeight(todaysEntry.scale_weight, unit)} still ${singleWeigh ? 'stands as this week\'s reading' : 'counts toward the trend weight'}. Type a number to correct it.` : canSkipWeight && typedKg == null ? singleWeigh ? `Leave it blank if you’ve already weighed this week, I’ll check in on your ${fmtShortDay(live.nowDate)} reading.` : 'Leave it blank if you haven’t weighed today, I’ll check in on the trend weight above.' : singleWeigh ? 'This is the number this week’s check-in reads.' : 'Goes straight into the trend weight above.'
   }, unit === 'st_lb' ? /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 items-center"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: st,
-    onChange: e => setSt(+e.target.value)
+    onChange: e => setSt(e.target.value),
+    placeholder: "st"
   }), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
   }, "st"), /*#__PURE__*/React.createElement(NumInput, {
     value: lb,
-    onChange: e => setLb(+e.target.value)
+    onChange: e => setLb(e.target.value),
+    placeholder: "lb"
   }), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
-  }, "lb")) : /*#__PURE__*/React.createElement(NumInput, {
+  }, "lb")) : /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
+  }, /*#__PURE__*/React.createElement(NumInput, {
     value: kg,
-    onChange: e => setKg(e.target.value)
-  }), wErr && /*#__PURE__*/React.createElement("div", {
+    onChange: e => setKg(e.target.value),
+    placeholder: last ? last.scale_weight.toFixed(1) : ''
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "kg")), wErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
       color: 'var(--danger)'
     }
-  }, wErr)), /*#__PURE__*/React.createElement(Field, {
-    label: "Body fat %",
-    hint: "Optional. Leave it blank to keep your last figure. This sets your protein target and lean-mass trend."
+  }, wErr)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setBackfill(true),
+    className: "text-[12px] text-[#4A9EEB] -mt-2 mb-3.5"
+  }, "Missed a morning? Add it here →"), /*#__PURE__*/React.createElement(Field, {
+    label: "New body-fat reading · optional",
+    hint: bfNum != null ? null : bfState ? `Only fill this in if you've taken a fresh one. I'm working from ${bfState.pct.toFixed(1)}%${bfState.date ? ' (' + BF_SOURCE_LABEL[bfState.source] + ', ' + fmtShortDay(bfState.date) + ')' : ''}, and that stays put if you leave this blank.` : 'No reading yet. Add one and it sharpens your protein target and starts your lean-mass trend.'
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: bf,
     onChange: e => setBf(e.target.value),
-    placeholder: "optional"
-  }), /*#__PURE__*/React.createElement("button", {
+    placeholder: bfState ? bfState.pct.toFixed(1) : 'optional'
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "%")), bfNum != null && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-1.5"
+  }, "Measured with"), /*#__PURE__*/React.createElement(Seg, {
+    value: bfSrc,
+    onChange: setBfSrc,
+    options: [{
+      v: 'scale',
+      l: 'Smart scale'
+    }, {
+      v: 'photo',
+      l: 'Photo'
+    }, {
+      v: 'manual',
+      l: 'DEXA / calipers'
+    }]
+  })), bfNum != null && bfAfter && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-2 leading-snug"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "Your trend moves to "), /*#__PURE__*/React.createElement("span", {
+    className: "tnum font-semibold"
+  }, bfAfter.pct.toFixed(1), "%"), leanPreview != null && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, ", about "), /*#__PURE__*/React.createElement("span", {
+    className: "tnum font-semibold"
+  }, fmtWeight(leanPreview, unit)), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, " of you is lean")), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, ". ", bfState && bfState.source !== bfSrc ? 'Different ruler from last time, so I start the trend fresh here rather than reading a jump that never happened.' : bfState && Math.abs(bfAfter.pct - bfState.pct) > 0.05 ? fmtPct1(bfAfter.pct - bfState.pct) + ' on where it was.' : 'Right where it was.')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
-  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement(Field, {
+  }, "Not sure? Estimate it from photos →")), /*#__PURE__*/React.createElement(Collapsible, {
+    className: "mb-3.5",
+    variant: "inline",
+    sub: "Change",
+    label: lane === 'logged_all' ? 'Tuning from your food logs and weigh-ins together' : 'Tuning from your weigh-ins alone'
+  }, /*#__PURE__*/React.createElement(Field, {
     label: "How did tracking go this week?",
-    hint: "This sets what your next targets are built from. We pre-filled it from your logging, so change it only if it's off."
+    hint: lane === 'logged_all' ? '“Logged everything” tunes from your food and weigh-ins together, for the most precise targets.' : '“Roughly on plan” steers by your weigh-ins alone, and your food log stays a day-to-day guide.'
   }, /*#__PURE__*/React.createElement(Seg, {
     value: lane,
     onChange: setLane,
@@ -8725,9 +9282,7 @@ function CheckInModal({
       v: 'roughly',
       l: 'Roughly on plan'
     }]
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, lane === 'logged_all' ? 'We\'ll tune from your food and weigh-ins together, for the most precise targets.' : 'We\'ll steer by your weigh-ins alone. Your food log stays a day-to-day guide, never trusted for the maths.'), /*#__PURE__*/React.createElement(Field, {
+  }))), /*#__PURE__*/React.createElement(Field, {
     label: "Did you stick to your targets this cycle?",
     hint: "Be honest, an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week."
   }, /*#__PURE__*/React.createElement(Seg, {
@@ -8749,9 +9304,17 @@ function CheckInModal({
   }, "Complete check-in"))), bfPick && /*#__PURE__*/React.createElement(BodyFatPicker, {
     sex: p.sex,
     apiKey: p.aiKey,
-    prevBf: p.bodyFatPct,
-    onPick: v => setBf(v),
+    prevBf: lastBfPct,
+    onPick: v => {
+      setBf(v);
+      setBfSrc('photo');
+    },
     onClose: () => setBfPick(false)
+  }), backfill && /*#__PURE__*/React.createElement(WeighInEditModal, {
+    db: db,
+    update: update,
+    entry: null,
+    onClose: () => setBackfill(false)
   }));
 }
 function fmtWeighDay(dateISO) {
@@ -8782,7 +9345,12 @@ function WeighInEditModal({
   const [st, setSt] = useState(s0.st);
   const [lb, setLb] = useState(s0.lb);
   const [bf, setBf] = useState(entry && entry.bodyfat != null ? entry.bodyfat : '');
+  const bfState = bodyFatNow(db);
+  const [bfSrc, setBfSrc] = useState(entry && entry.bf_source || bfState && bfState.source || 'scale');
   const [bfPick, setBfPick] = useState(false);
+  // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
+  // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
+  const [backfill, setBackfill] = useState(false);
   const [wErr, setWErr] = useState('');
   const dupe = isNew && db.weight_entries.some(w => w.date === date);
   function save() {
@@ -8797,17 +9365,30 @@ function WeighInEditModal({
       const ex = d.weight_entries.find(x => x.date === date);
       if (ex) {
         ex.scale_weight = +w.toFixed(2);
-        if (bfVal != null) ex.bodyfat = bfVal;else delete ex.bodyfat;
+        if (bfVal != null) {
+          ex.bodyfat = bfVal;
+          ex.bf_source = bfSrc;
+        } else {
+          delete ex.bodyfat;
+          delete ex.bf_source;
+        }
       } else {
         const ne = {
           id: Store.uid(),
           date,
           scale_weight: +w.toFixed(2)
         };
-        if (bfVal != null) ne.bodyfat = bfVal;
+        if (bfVal != null) {
+          ne.bodyfat = bfVal;
+          ne.bf_source = bfSrc;
+        }
         d.weight_entries.push(ne);
       }
       recomputeTrend(d);
+      if (bfVal != null) {
+        const bn = E.bodyFatNow(bfReadings(d));
+        if (bn) d.profile.bodyFatPct = bn.pct;
+      }
     });
     onClose();
   }
@@ -8868,14 +9449,33 @@ function WeighInEditModal({
   }, wErr)), /*#__PURE__*/React.createElement(Field, {
     label: "Body fat %",
     hint: "Optional. Sets your protein target and lean-mass trend."
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 items-center"
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: bf,
     onChange: e => setBf(e.target.value),
-    placeholder: "optional"
-  }), /*#__PURE__*/React.createElement("button", {
+    placeholder: bfState ? bfState.pct.toFixed(1) : 'optional'
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[#8A8A90]"
+  }, "%")), bf !== '' && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: bfSrc,
+    onChange: setBfSrc,
+    options: [{
+      v: 'scale',
+      l: 'Smart scale'
+    }, {
+      v: 'photo',
+      l: 'Photo'
+    }, {
+      v: 'manual',
+      l: 'DEXA / calipers'
+    }]
+  })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
-  }, "Not sure? Estimate it visually →")), /*#__PURE__*/React.createElement("div", {
+  }, "Not sure? Estimate it from photos →")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -8887,9 +9487,17 @@ function WeighInEditModal({
   }, "Cancel"))), bfPick && /*#__PURE__*/React.createElement(BodyFatPicker, {
     sex: p.sex,
     apiKey: p.aiKey,
-    prevBf: p.bodyFatPct,
-    onPick: v => setBf(v),
+    prevBf: bfState ? bfState.pct : p.bodyFatPct,
+    onPick: v => {
+      setBf(v);
+      setBfSrc('photo');
+    },
     onClose: () => setBfPick(false)
+  }), backfill && /*#__PURE__*/React.createElement(WeighInEditModal, {
+    db: db,
+    update: update,
+    entry: null,
+    onClose: () => setBackfill(false)
   }));
 }
 function WeighInLog({
@@ -8945,7 +9553,7 @@ function WeighInLog({
       className: "text-[13px] tnum font-semibold"
     }, fmtWeight(e.scale_weight, unit))), e.bodyfat != null && /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] tnum mt-0.5"
-    }, e.bodyfat, "% bf · lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
+    }, e.bodyfat, "% bf · ", BF_SOURCE_LABEL[e.bf_source || 'manual'], " · lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(e),
       className: "hit text-[#8A8A90] pl-3 pr-1 text-xl leading-none shrink-0",
       "aria-label": "Delete"
@@ -9174,7 +9782,7 @@ function ExpenditureCard({
       ok: logGap === 0
     })), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"
-    }, /*#__PURE__*/React.createElement("div", null, "weigh-ins"), /*#__PURE__*/React.createElement("div", null, "days logged")));
+    }, /*#__PURE__*/React.createElement("div", null, "weigh-ins · last 14 days"), /*#__PURE__*/React.createElement("div", null, "days logged · last 14 days")));
   }
   if (est.implausible) {
     const rate = unit === 'st_lb' ? (Math.abs(est.weeklyChangeKg) * 2.20462).toFixed(1) + ' lb/wk' : Math.abs(est.weeklyChangeKg).toFixed(2) + ' kg/wk';
@@ -9856,6 +10464,18 @@ function engagementNudge(db, today) {
     cta: 'Show me',
     action: 'progress'
   });
+  // Body fat goes stale by MOVEMENT, not by calendar: your protein target is sized off lean mass, so
+  // what matters is how far the body has travelled since the reading. Someone holding steady is never
+  // chased; someone 4 kg down is told exactly why it's worth measuring again.
+  if (hasBodyFat && fresh('nudge_bf_refresh', 10)) {
+    const rd = bodyFatReadingDue(db, today);
+    if (rd.due) cands.push({
+      key: 'nudge_bf_refresh',
+      action: 'progress',
+      cta: 'Update it',
+      text: rd.reason === 'moved' ? "You're " + fmtWeightDelta(-Math.abs(rd.kgMoved), (db.profile || {}).weight_unit).replace('−', '') + " different since your last body-fat reading, so the one I'm using is out of date. A fresh one keeps your protein sized to the body you've got now." : "It's been a few months since your last body-fat reading. Take a fresh one when you get a chance and I'll re-size your protein around it."
+    });
+  }
   if (fresh('nudge_amber', 6)) cands.push({
     key: 'nudge_amber',
     text: "Did you know I earn you Amber? A little for logging each day, more for winning fights. Spend it in the shop to kit me out.",
@@ -10003,11 +10623,14 @@ function buddyBreakout(db, today) {
   const checkedInToday = db.last_checkin === today;
   if (!db.paused && !checkedInToday && daysSince >= 5 && !snoozed('breakout_checkin', 20)) {
     const howLong = daysSince >= 900 ? "It's been a while" : "It's been " + daysSince + ' days';
+    // Once-a-week weighers do the weigh-in AS the check-in, so ask for the reading. Daily weighers
+    // have already given me the week, so the ask is to come and read it, not to fetch the scales.
+    const single = (db.profile || {}).weighCadence === 'single';
     return {
       key: 'breakout_checkin',
-      text: howLong + ' since your last check-in. Fancy weighing in? I’ll read your trend and retune your targets.',
+      action: 'checkin',
       yes: 'Yes, let’s do it',
-      action: 'checkin'
+      text: single ? howLong + ' since your last check-in. Hop on the scales and I’ll read it against your last one and retune your targets.' : howLong + ' since your last check-in. I’ve got your weigh-ins already, so come and see what they say about your targets.'
     };
   }
   return null;
@@ -16132,11 +16755,6 @@ function Dashboard({
   const logSet = new Set(db.log_entries.map(e => e.date));
   const weighDays = last30.map(d => weighSet.has(d));
   const logDays = last30.map(d => logSet.has(d));
-  const last7 = Array.from({
-    length: 7
-  }, (_, i) => shiftISO(today, -(6 - i)));
-  const weighWk = last7.filter(d => weighSet.has(d)).length;
-  const logWk = last7.filter(d => logSet.has(d)).length;
   const t = currentTargets(db);
   const unit = db.profile.weight_unit;
   const tot = todayTot;
@@ -21537,7 +22155,7 @@ function Goals({
       className: "text-[13px] font-bold"
     }, due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`), /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90]"
-    }, "Reads your week and suggests a small tweak. Nothing changes until you approve it.")), /*#__PURE__*/React.createElement(Btn, {
+    }, (db.profile || {}).weighCadence === 'single' ? 'Your weigh-in and your weekly read in one go. Nothing changes until you approve it.' : 'Reads the week you’ve already weighed and suggests a small tweak. Nothing changes until you approve it.')), /*#__PURE__*/React.createElement(Btn, {
       kind: ready ? 'accent' : 'ghost',
       disabled: !ready,
       style: {
@@ -30387,6 +31005,13 @@ function App() {
     else if (action === 'weigh') {
       setView('dashboard');
       setWeighing(true);
+    }
+    // ?action=checkin is the overdue-check-in push for someone who weighs most mornings: their week
+    // is already on record, so the notification opens the read rather than asking for a number they
+    // have given six times. (The once-a-week push still sends ?action=weigh.)
+    else if (action === 'checkin') {
+      setView('goals');
+      setCheckingIn(true);
     }
     if (isShared) (async () => {
       try {

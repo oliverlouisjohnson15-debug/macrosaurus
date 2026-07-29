@@ -199,3 +199,127 @@ test('liveExpenditure: refuses to guess without enough data, and produces a band
   assert.ok(['low', 'medium', 'high'].includes(r.confidence));
   assert.ok(r.forecast && typeof r.forecast.text === 'string');
 });
+
+// cycleMeans is what the check-in SHEET shows and what checkInDecision decides on. If the two ever
+// drift apart, the app starts displaying one number and acting on another, which is the exact
+// confusion this split was made to end.
+test('cycleMeans: daily cadence returns the EMA cycle means the decision uses', () => {
+  const weights = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date('2026-07-14T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    weights.push({ date: d.toISOString().slice(0, 10), kg: +(84 - (13 - i) * 0.1).toFixed(2) });
+  }
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7 });
+  assert.strictEqual(cm.source, 'trend');
+  assert.strictEqual(cm.count, 7);
+  assert.strictEqual(cm.spanDays, 7);
+  assert.ok(cm.cur < cm.prev, 'a falling series should read lower this cycle than last');
+  // Smoothed, so the cycle mean lags the raw mean of the same days (which is 83.0).
+  const rawCur = weights.filter(w => w.date >= '2026-07-08').reduce((a, w) => a + w.kg, 0) / 7;
+  assert.ok(cm.cur > rawCur, 'EMA cycle mean should lag the raw mean of a falling series');
+});
+
+test('cycleMeans: single cadence diffs the two latest readings over their real gap', () => {
+  const weights = [
+    { date: '2026-06-29', kg: 85.0 },
+    { date: '2026-07-06', kg: 84.2 },   // last reading before the cycle
+    { date: '2026-07-14', kg: 83.4 },   // this cycle's reading
+  ];
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-07-07', today: '2026-07-14', cycleDays: 8, weighCadence: 'single' });
+  assert.strictEqual(cm.source, 'reading');
+  assert.strictEqual(cm.cur, 83.4);
+  assert.strictEqual(cm.prev, 84.2);
+  assert.strictEqual(cm.prevDate, '2026-07-06');
+  assert.strictEqual(cm.spanDays, 8, 'span is the gap between the two readings, not the cycle length');
+  assert.strictEqual(cm.count, 1);
+});
+
+test('cycleMeans: says nothing rather than guessing when a side has no weigh-ins', () => {
+  const cm = E.cycleMeans({ weights: [{ date: '2026-07-14', kg: 83.4 }], cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7, weighCadence: 'single' });
+  assert.strictEqual(cm.cur, 83.4);
+  assert.strictEqual(cm.prev, null);
+  const empty = E.cycleMeans({ weights: [], cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7 });
+  assert.strictEqual(empty.cur, null);
+  assert.strictEqual(empty.prev, null);
+  assert.strictEqual(empty.count, 0);
+});
+
+test('cycleMeans matches what checkInDecision reports back for the same inputs', () => {
+  const weights = [], kcalByDate = {}, targetByDate = {};
+  for (let i = 27; i >= 0; i--) {
+    const d = new Date('2026-07-14T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    weights.push({ date: iso, kg: +(92.5 - (27 - i) * 0.07).toFixed(2) });
+    kcalByDate[iso] = 2300; targetByDate[iso] = 2300;
+  }
+  const opts = {
+    profile: baseProfile, currentTargets: { kcal: 2300, protein_g: 180, carbs_g: 230, fat_g: 70 },
+    weights, kcalByDate, targetByDate, cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7,
+    weighDays: 7, minDays: 4, periodDays: 7, expenditure: { kcal: 2800, n: 3 }, checkins: [],
+  };
+  const cm = E.cycleMeans(opts);
+  const dec = E.checkInDecision(opts);
+  assert.strictEqual(dec.status, 'proposed');
+  // The rate the decision reports is exactly the movement between the two means it was handed.
+  near(dec.estimate.weeklyChangeKg, ((cm.cur - cm.prev) / cm.spanDays) * 7, 0.01);
+});
+
+// ---- body fat: three rulers, one honest trend ----
+test('bodyFatTrend: damps daily smart-scale noise instead of chasing it', () => {
+  const noisy = [24.0, 26.0, 22.5, 25.5, 23.0, 25.0, 23.5].map((pct, i) => {
+    const d = new Date('2026-07-01T00:00:00Z'); d.setUTCDate(d.getUTCDate() + i);
+    return { date: d.toISOString().slice(0, 10), pct, source: 'scale' };
+  });
+  const ts = E.bodyFatTrend(noisy);
+  const last = ts[ts.length - 1];
+  // Readings swing 3.5 points; the trend must sit near their middle, not on the last reading.
+  assert.ok(Math.abs(last.trendPct - 24.2) < 1.2, `trend ${last.trendPct} should sit near the middle`);
+  assert.notStrictEqual(last.trendPct, last.pct);
+});
+
+test('bodyFatTrend: a new measurement method restarts the trend rather than blending rulers', () => {
+  const ts = E.bodyFatTrend([
+    { date: '2026-06-01', pct: 24, source: 'scale' },
+    { date: '2026-06-02', pct: 24, source: 'scale' },
+    { date: '2026-06-03', pct: 18, source: 'manual' },   // a DEXA: a different ruler, not a 6-point drop
+  ]);
+  assert.strictEqual(ts[2].trendPct, 18, 'the DEXA reading stands on its own');
+  assert.strictEqual(E.bodyFatNow(ts.map(r => ({ date: r.date, pct: r.pct, source: r.source }))).source, 'manual');
+});
+
+test('bodyFatTrend: an episodic reading after a long gap becomes the trend', () => {
+  const ts = E.bodyFatTrend([
+    { date: '2026-04-01', pct: 24, source: 'photo' },
+    { date: '2026-06-01', pct: 19, source: 'photo' },    // 61 days later, same ruler
+  ]);
+  assert.ok(Math.abs(ts[1].trendPct - 19) < 0.2, 'a two-month-old reading should not hold the trend back');
+});
+
+test('bodyFatNow: reports the trend to act on, plus where it came from', () => {
+  assert.strictEqual(E.bodyFatNow([]), null);
+  const now = E.bodyFatNow([
+    { date: '2026-07-01', pct: 22, source: 'scale' },
+    { date: '2026-07-02', pct: 23, source: 'scale' },
+  ]);
+  assert.strictEqual(now.source, 'scale');
+  assert.strictEqual(now.n, 2);
+  assert.strictEqual(now.nSameSource, 2);
+  assert.ok(now.pct > 22 && now.pct < 23, 'acts on the trend, not the last reading');
+});
+
+test('bodyFatReadingDue: asks when the body has moved, not on a calendar', () => {
+  const readings = [{ date: '2026-06-01', pct: 22, source: 'scale' }];
+  // Same weight, three weeks on: nothing to say.
+  const quiet = E.bodyFatReadingDue({ readings, weightKg: 84, weightAtLastReadingKg: 84, today: '2026-06-22' });
+  assert.strictEqual(quiet.due, false);
+  // 4 kg down on an 84 kg frame is past 3%: the old figure now misprices protein.
+  const moved = E.bodyFatReadingDue({ readings, weightKg: 80, weightAtLastReadingKg: 84, today: '2026-06-22' });
+  assert.strictEqual(moved.due, true);
+  assert.strictEqual(moved.reason, 'moved');
+  // ...but not the very next day, however fast the scale moved.
+  assert.strictEqual(E.bodyFatReadingDue({ readings, weightKg: 80, weightAtLastReadingKg: 84, today: '2026-06-05' }).due, false);
+  // Twelve weeks with no movement at all still goes stale eventually.
+  assert.strictEqual(E.bodyFatReadingDue({ readings, weightKg: 84, weightAtLastReadingKg: 84, today: '2026-09-01' }).reason, 'stale');
+  // Never recorded: invited elsewhere, never nagged for here.
+  assert.strictEqual(E.bodyFatReadingDue({ readings: [], weightKg: 84, today: '2026-09-01' }).due, false);
+});
