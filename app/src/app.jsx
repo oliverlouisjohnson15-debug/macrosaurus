@@ -1131,6 +1131,25 @@ function plannedKcalOn(db, dISO) {
   return t.kcal + cyc;
 }
 function isCompleteDayOn(db, dISO) { return E.isCompleteDay(sumMacros(entriesOn(db, dISO)).kcal, plannedKcalOn(db, dISO)); }
+// ONE definition of "how's your tracking going", for every counter in the app. The window is the
+// current check-in cycle (not a calendar week), a logged day is a COMPLETE day (>= 60% of that day's
+// plan, same rule the engine uses), and a weigh-in is any scale reading. Today is dropped from the
+// denominators until it actually has one, so an untouched morning isn't held against you. Four
+// counters with three definitions is how the same week came to read 0/5, 0/6 and 1/7 on one screen.
+function cycleCoverage(db, todayISO) {
+  const cs = cycleStartISO(db, todayISO);
+  const days = Math.max(1, daysBetween(cs, todayISO) + 1);
+  const todayLogged = isCompleteDayOn(db, todayISO);
+  const todayWeighed = (db.weight_entries || []).some(w => w.date === todayISO && w.scale_weight != null);
+  return {
+    cs: cs, days: days,
+    logged: completeLoggedDates(db, cs, todayISO).length,
+    weighed: countWeighIns(db.weight_entries || [], cs, todayISO),
+    logWindow: Math.max(1, days - (todayLogged ? 0 : 1)),
+    weighWindow: Math.max(1, days - (todayWeighed ? 0 : 1)),
+    todayLogged: todayLogged, todayWeighed: todayWeighed,
+  };
+}
 // Distinct COMPLETE logged dates in a range: part-logged days don't count toward coverage.
 function completeLoggedDates(db, startISO, endISO) {
   const dates = Array.from(new Set(db.log_entries.filter(e => e.date >= startISO && e.date <= endISO).map(e => e.date)));
@@ -1522,8 +1541,9 @@ function ConsistencyHeatmap({ db, today }) {
   for (let i = 0; i < N; i++) cells.push(shiftISO(start, i));
   const level = d => (logSet.has(d) ? 1 : 0) + (weighSet.has(d) ? 1 : 0);
   const colorFor = lv => lv === 2 ? 'var(--good)' : lv === 1 ? 'var(--carb)' : 'var(--track)';
-  const last7 = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i)));
-  const logWk = last7.filter(d => logSet.has(d)).length, weighWk = last7.filter(d => weighSet.has(d)).length;
+  // The footer counter reports the SAME cycle coverage the check-in judges you on, so the two screens
+  // can't describe one week with two different fractions. The grid above stays a map of any activity.
+  const cov = cycleCoverage(db, today);
   const activeDays = Array.from({ length: N }, (_, i) => shiftISO(start, i)).filter(d => level(d) > 0).length;
   return (
     <Card className="p-4 mb-4">
@@ -1542,7 +1562,7 @@ function ConsistencyHeatmap({ db, today }) {
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--track)' }} /> none</span>
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--carb)' }} /> one</span>
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--good)' }} /> logged and weighed</span>
-        <span className="ml-auto tnum">This week: {logWk}/7 logged · {weighWk}/7 weighed</span>
+        <span className="ml-auto tnum">This cycle: {cov.logged}/{cov.logWindow} logged · {cov.weighed}/{cov.weighWindow} weighed</span>
       </div>
     </Card>
   );
@@ -1654,10 +1674,16 @@ function TrendCard({ db }) {
   const color = tab === 'weight' ? 'var(--weight)' : tab === 'bodyfat' ? FAT : CARB;
   const yl = tab === 'bodyfat' ? '%' : (unit === 'st_lb' ? 'lb' : 'kg');
   const dec = tab === 'bodyfat' ? 1 : 1;
-  // Headline + change track the ACTUAL measured weight (not the smoothed trend), so real movement shows.
+  // The weight tab headlines the TREND weight, the same smoothed figure the check-in decides on and
+  // names, with the raw morning reading underneath. Two headline weights half a kilo apart on
+  // adjacent screens is how "which number is my weight?" started. Body fat and lean mass have no
+  // trend line, so they still headline the measured value.
   const valid = dots.filter(s => s.value != null);
+  const validTrend = series.filter(s => s.value != null);
   const first = valid[0], last = valid[valid.length - 1];
-  const delta = (first && last) ? +(last.value - first.value).toFixed(1) : null;
+  const headFirst = tab === 'weight' && validTrend.length ? validTrend[0] : first;
+  const headLast = tab === 'weight' && validTrend.length ? validTrend[validTrend.length - 1] : last;
+  const delta = (headFirst && headLast) ? +(headLast.value - headFirst.value).toFixed(1) : null;
   const rangeLabel = { 7: 'past week', 30: 'past month', 90: 'past 3 months', 180: 'past 6 months', 365: 'past year', all: 'all time' }[range];
   const deltaStr = delta == null ? '' : (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + (tab === 'bodyfat' ? '%' : ' ' + yl);
   const deltaGood = (delta == null || delta === 0) ? null : (tab === 'bodyfat' ? delta < 0 : tab === 'lean' ? delta > 0 : db.profile.goalType === 'gain' ? delta > 0 : db.profile.goalType === 'cut' ? delta < 0 : true);
@@ -1683,7 +1709,10 @@ function TrendCard({ db }) {
         </div>
       ) : <>
       <div className="flex items-end justify-between mb-1 px-0.5">
-        <div><span className="text-2xl font-bold tnum">{last ? last.value : '–'}</span><span className="text-[11px] text-[#8A8A90] ml-1">{tab === 'bodyfat' ? '%' : yl}</span></div>
+        <div>
+          <span className="text-2xl font-bold tnum">{headLast ? headLast.value : '–'}</span><span className="text-[11px] text-[#8A8A90] ml-1">{tab === 'bodyfat' ? '%' : yl}</span>
+          {tab === 'weight' && <div className="text-[10px] text-[#8A8A90] tnum">trend weight today{last ? ` · last morning ${last.value} ${yl}` : ''}</div>}
+        </div>
         {delta != null && <div className="text-right"><div className="text-[13px] font-semibold tnum" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good)' : 'var(--fat)' }}>{deltaStr}</div><div className="text-[10px] text-[#8A8A90]">{rangeLabel}</div></div>}
       </div>
       <LineChart points={dots} trend={tab === 'weight' ? series : null} color={color} decimals={tab === 'bodyfat' ? 1 : 1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
@@ -1986,6 +2015,9 @@ function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
   const set = (k, v) => setF(p => Object.assign({}, p, { [k]: v }));
   const [proteinTouched, setProteinTouched] = useState(false);
   const [bfPick, setBfPick] = useState(false);
+  // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
+  // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
+  const [backfill, setBackfill] = useState(false);
   const s0 = kgToStLb(f.weightKg); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
   const h0 = cmToFtIn(f.heightCm); const [ft, setFt] = useState(h0.ft); const [inch, setInch] = useState(h0.inch);
   const profile = useMemo(() => {
@@ -2142,17 +2174,10 @@ function CheckInModal({ db, update, onClose, resume }) {
   const p = db.profile; const unit = p.weight_unit; const today = Store.todayISO();
   const base = currentTargets(db);
   // Windows derive from the actual cadence (cycle start → today), not a fixed week.
-  const cs = cycleStartISO(db, today);
-  const cycleDays = Math.max(1, daysBetween(cs, today) + 1);
-  const loggedDays = completeLoggedDates(db, cs, today).length; // only complete days count toward coverage
-  const weighDays = countWeighIns(db.weight_entries, cs, today);
-  // Check-ins are recommended first thing, before you've logged (or weighed) today, so an un-actioned
-  // TODAY shouldn't count against your coverage. Judge over the days you could realistically have
-  // completed by now: drop today from the denominator until it actually has a log / weigh-in.
-  const todayLogged = isCompleteDayOn(db, today);
-  const todayWeighed = db.weight_entries.some(w => w.date === today && w.scale_weight != null);
-  const logWindow = Math.max(1, cycleDays - (todayLogged ? 0 : 1));
-  const weighWindow = Math.max(1, cycleDays - (todayWeighed ? 0 : 1));
+  const cov = cycleCoverage(db, today);
+  const cs = cov.cs, cycleDays = cov.days;
+  const loggedDays = cov.logged, weighDays = cov.weighed;
+  const logWindow = cov.logWindow, weighWindow = cov.weighWindow;
   const needLogs = Math.max(4, Math.ceil(logWindow * 0.7));
   // Single weigh-in cadence only needs today's reading; daily-averaged wants a fuller spread.
   const singleWeigh = p.weighCadence === 'single';
@@ -2176,6 +2201,9 @@ function CheckInModal({ db, update, onClose, resume }) {
   // A persisted, still-undecided proposal (from d.pending_adjustment) reopens straight on the result screen.
   const [result, setResult] = useState(resume && resume.result ? resume.result : null);
   const [bfPick, setBfPick] = useState(false);
+  // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
+  // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
+  const [backfill, setBackfill] = useState(false);
   const [adhered, setAdhered] = useState('yes'); // self-reported: did you actually follow the plan this cycle?
   // Tracking lane: how completely did they log? "logged_all" trusts intake for the energy-balance read;
   // "roughly" steers by the scale alone. Pre-filled from this cycle's actual logging (no AI call needed):
@@ -2242,6 +2270,18 @@ function CheckInModal({ db, update, onClose, resume }) {
   const bfNum = (bf === '' || bf == null || isNaN(+bf)) ? null : +bf;
   const leanPreview = (bfNum != null && bfNum > 0 && bfNum < 70 && (typedKg != null || liveAvg != null))
     ? (typedKg != null ? typedKg : liveAvg) * (1 - bfNum / 100) : null;
+  // The cycle you're checking in on, drawn: every weigh-in from the previous cycle through today,
+  // with the smoothed trend through them. Seeing the scatter around the line is what makes "I read
+  // the trend, not one morning" land, and the typed weight appears on it as you go.
+  const chartFrom = shiftISO(cs, -cycleDays);
+  const chartEntries = liveEntries.filter(w => w.scale_weight != null && w.date >= chartFrom && w.date <= today)
+    .slice().sort((a, b) => a.date.localeCompare(b.date));
+  const toDispKg = v => unit === 'st_lb' ? +(v * LB_PER_KG).toFixed(1) : +v.toFixed(1);
+  const chartDots = chartEntries.map(w => ({ date: w.date, value: toDispKg(w.scale_weight) }));
+  const chartTrend = (() => {
+    const ts = E.trendSeries(chartEntries.map(w => ({ date: w.date, weightKg: w.scale_weight })));
+    return ts.map(t => ({ date: t.date, value: toDispKg(t.trendKg) }));
+  })();
   // What this check-in is going to say, worked out live from what's in the boxes. It's the same
   // function complete() commits, so this is the actual outcome shown early, not a second opinion.
   // For someone weighing daily the reading has already happened all week, so the sheet can open on
@@ -2273,13 +2313,14 @@ function CheckInModal({ db, update, onClose, resume }) {
     const byDate = {}; db.log_entries.filter(e => e.date >= cs && e.date <= today).forEach(e => byDate[e.date] = (byDate[e.date] || 0) + e.computed_macros.kcal);
     const targetByDate = {}; Object.keys(byDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
     const prof = withActivity(Object.assign({}, p, { weightKg: curAvg != null ? curAvg : p.weightKg }));
+    const priorBurn = expenditurePrior(db, prof);
     const dec = E.checkInDecision({
       profile: prof, currentTargets: base,
       weights: entries.filter(w => w.scale_weight != null).map(w => ({ date: w.date, kg: w.scale_weight })),
       kcalByDate: byDate, targetByDate,
       cycleStart: cs, today, cycleDays,
       weighDays, minDays: needLogs, periodDays: cycleDays, earlyCap: 150,
-      expenditure: expenditurePrior(db, prof), checkins: db.checkins || [],
+      expenditure: priorBurn, checkins: db.checkins || [],
       waterHigh: !!(E.menstrualPhase(db.menstrual, today) || {}).waterHigh,
       mode: laneMode, weighCadence: p.weighCadence,
     });
@@ -2294,6 +2335,10 @@ function CheckInModal({ db, update, onClose, resume }) {
     if (dec.status === 'needdata') return out({ status: 'needdata', reason: dec.reasonCode === 'weighins'
       ? 'Not enough weigh-ins this cycle yet. Weigh in daily and your first adjustment will come through.'
       : 'Not enough history yet. Keep weighing in daily and logging full days, and your next check-in will retune from the averages.' });
+    // What this cycle taught the app about your burn, and how far that moved. The learned expenditure
+    // IS the adaptive part, so the result says it out loud instead of leaving it in a footnote.
+    dec.burnNow = Math.round((dec.expenditure && dec.expenditure.kcal) || (dec.estimate && dec.estimate.tdee) || 0) || null;
+    dec.burnPrev = (priorBurn && priorBurn.n > 0 && priorBurn.kcal > 0) ? Math.round(priorBurn.kcal) : null;
     return out(dec);
   }
   function complete() {
@@ -2378,7 +2423,7 @@ function CheckInModal({ db, update, onClose, resume }) {
                 The rate below is derived from these two numbers, so showing them first makes the
                 whole result checkable rather than something the app asserts. */}
             {result.avgNow != null && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">{result.single ? 'Read from your weigh-ins' : 'Read from your trend weight'}</div>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">{result.single ? 'Read from your weigh-ins' : 'Read from your cycle trend weight'}</div>
               <div className="flex items-baseline gap-2 flex-wrap text-[13px]">
                 <span className="tnum text-[#8A8A90]">{result.avgPrev != null ? fmtWeight(result.avgPrev, unit) : '–'}</span>
                 <span className="text-[#8A8A90]">→</span>
@@ -2394,9 +2439,23 @@ function CheckInModal({ db, update, onClose, resume }) {
                 <div><div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">Aiming for</div><div className="text-[13px] tnum font-semibold">{fmtRate(tgtRate)}</div></div>
                 <div><div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">You trended</div><div className="text-[13px] tnum font-semibold" style={{ color: rateOnGoal == null ? 'var(--text)' : rateOnGoal ? 'var(--good)' : 'var(--fat)' }}>{fmtRate(actRate)}</div></div>
               </div>
-              <div className="text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]">{result.earlyPhase
-                ? 'Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.'
-                : 'Your body is burning about ' + ((result.expenditure && result.expenditure.kcal) || result.estimate.tdee) + ' kcal a day, ' + ((result.estimate && result.estimate.weightOnly) ? 'read from how your weight moved against your target.' : 'worked out from your intake versus how your weight moved.')}</div>
+              {/* Your learned burn, and how far this cycle moved it. This number IS the adaptive part
+                  of the app, so it gets a line of its own rather than a footnote clause. */}
+              {!result.earlyPhase && result.burnNow ? (() => {
+                const mv = result.burnPrev != null ? result.burnNow - result.burnPrev : null;
+                return <div className="mt-2 pt-2 border-t border-[#262629]">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">Your burn now reads</div>
+                    <div className="text-[13px] tnum font-semibold">{result.burnNow} kcal/day</div>
+                    {mv != null && mv !== 0 && <div className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>{mv > 0 ? '+' : '−'}{Math.abs(mv)} on last cycle</div>}
+                  </div>
+                  <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{mv == null
+                    ? 'First read of what you actually burn. It sharpens every cycle from here.'
+                    : Math.abs(mv) < 25 ? 'Steady, so your plan is built on a burn I\'m now confident in.'
+                    : mv > 0 ? 'You\'re burning more than I had you down for, which is why the numbers moved.'
+                    : 'You\'re burning less than I had you down for, which is why the numbers moved.'} {(result.estimate && result.estimate.weightOnly) ? 'Read from how your weight moved against your target.' : 'Worked out from your intake versus how your weight moved.'}</div>
+                </div>;
+              })() : <div className="text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]">Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.</div>}
             </div>}
             {/* One buddy note instead of two stacked coaching blocks: the dino gives a concise take
                 (AI when available), falling back to the deterministic steps-first line offline. */}
@@ -2455,7 +2514,7 @@ function CheckInModal({ db, update, onClose, resume }) {
                 the sheet. It updates live as you type today's weight, so "the average" is never a
                 figure the app worked out privately after you pressed the button. */}
             <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'Your trend weight'}</div>
+              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
               <div className="flex items-baseline gap-2 flex-wrap">
                 <div className="text-2xl font-bold tnum leading-none">{liveAvg != null ? fmtWeight(liveAvg, unit) : '–'}</div>
                 {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
@@ -2472,6 +2531,12 @@ function CheckInModal({ db, update, onClose, resume }) {
                     : <span>Your {liveCount} weigh-ins since {fmtShortDay(cs)}{typedKg != null ? ', including the one you\'re entering below' : ''}, smoothed into one figure so a heavy-salt Sunday can't swing your macros. This is the number I retune from{prevCycleAvg != null ? `, against last cycle's ${fmtWeight(prevCycleAvg, unit)}` : ''}.</span>}
               </div>
             </div>
+            {chartDots.length >= 2 && <div className="pixel-box p-2 pt-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+              <LineChart points={chartDots} trend={singleWeigh ? null : chartTrend} color="var(--weight)" decimals={1} unitLabel={unit === 'st_lb' ? 'lb' : 'kg'} />
+              <div className="text-[10px] text-[#8A8A90] px-1 pb-0.5 leading-snug">{singleWeigh
+                ? 'Your weekly readings through last cycle and this one.'
+                : 'Every morning you weighed since ' + fmtShortDay(chartFrom) + ', with the trend line I read through them.'}</div>
+            </div>}
             {/* The answer, before you commit to it. Everything below this is the inputs it was
                 worked out from, there to correct rather than to fill in from scratch. */}
             {preview && (() => {
@@ -2508,6 +2573,7 @@ function CheckInModal({ db, update, onClose, resume }) {
                 : <div className="flex gap-2 items-center"><NumInput value={kg} onChange={e => setKg(e.target.value)} placeholder={last ? last.scale_weight.toFixed(1) : ''} /><span className="text-[#8A8A90]">kg</span></div>}
               {wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}
             </Field>
+            <button onClick={() => setBackfill(true)} className="text-[12px] text-[#4A9EEB] -mt-2 mb-3.5">Missed a morning? Add it here →</button>
             {/* A NEW reading, deliberately blank. Your existing figure sits beside it as context rather
                 than pre-filled into the box, so an untouched check-in can never stamp last month's
                 number onto today as though you'd measured it. */}
@@ -2539,6 +2605,7 @@ function CheckInModal({ db, update, onClose, resume }) {
         )}
       </div>
       {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={p.bodyFatPct} onPick={v => setBf(v)} onClose={() => setBfPick(false)} />}
+      {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
     </div>
   );
 }
@@ -2559,6 +2626,9 @@ function WeighInEditModal({ db, update, entry, onClose }) {
   const [kg, setKg] = useState(seedKg || ''); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
   const [bf, setBf] = useState(entry && entry.bodyfat != null ? entry.bodyfat : '');
   const [bfPick, setBfPick] = useState(false);
+  // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
+  // gap in the cycle can be filled where you notice it, and the reading above updates behind it.
+  const [backfill, setBackfill] = useState(false);
   const [wErr, setWErr] = useState('');
   const dupe = isNew && db.weight_entries.some(w => w.date === date);
   function save() {
@@ -2588,6 +2658,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
         <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={save}>Save</Btn><Btn kind="ghost" onClick={onClose}>Cancel</Btn></div>
       </div>
       {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={p.bodyFatPct} onPick={v => setBf(v)} onClose={() => setBfPick(false)} />}
+      {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
     </div>
   );
 }
@@ -2735,7 +2806,9 @@ function ExpenditureCard({ db }) {
           <MiniStat label={weighGap > 0 ? weighGap + ' more to go' : 'enough'} value={est.weighDays + '/' + est.needWeigh} ok={weighGap === 0} />
           <MiniStat label={logGap > 0 ? logGap + ' more to go' : 'enough'} value={est.loggedDays + '/' + est.needLog} ok={logGap === 0} />
         </div>
-        <div className="grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"><div>weigh-ins</div><div>days logged</div></div>
+        {/* Explicitly a 14-day window, not this cycle: the burn estimate needs a fortnight before it
+            can say anything, and unlabelled it read as another version of your weekly coverage. */}
+        <div className="grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"><div>weigh-ins · last 14 days</div><div>days logged · last 14 days</div></div>
       </Card>
     );
   }
@@ -3161,7 +3234,13 @@ function buddyBreakout(db, today) {
   const checkedInToday = db.last_checkin === today;
   if (!db.paused && !checkedInToday && daysSince >= 5 && !snoozed('breakout_checkin', 20)) {
     const howLong = daysSince >= 900 ? "It's been a while" : "It's been " + daysSince + ' days';
-    return { key: 'breakout_checkin', text: howLong + ' since your last check-in. Fancy weighing in? I’ll read your trend and retune your targets.', yes: 'Yes, let’s do it', action: 'checkin' };
+    // Once-a-week weighers do the weigh-in AS the check-in, so ask for the reading. Daily weighers
+    // have already given me the week, so the ask is to come and read it, not to fetch the scales.
+    const single = (db.profile || {}).weighCadence === 'single';
+    return { key: 'breakout_checkin', action: 'checkin', yes: 'Yes, let’s do it',
+      text: single
+        ? howLong + ' since your last check-in. Hop on the scales and I’ll read it against your last one and retune your targets.'
+        : howLong + ' since your last check-in. I’ve got your weigh-ins already, so come and see what they say about your targets.' };
   }
   return null;
 }
@@ -5785,8 +5864,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const weighSet = new Set(db.weight_entries.map(w => w.date));
   const logSet = new Set(db.log_entries.map(e => e.date));
   const weighDays = last30.map(d => weighSet.has(d)); const logDays = last30.map(d => logSet.has(d));
-  const last7 = Array.from({ length: 7 }, (_, i) => shiftISO(today, -(6 - i)));
-  const weighWk = last7.filter(d => weighSet.has(d)).length; const logWk = last7.filter(d => logSet.has(d)).length;
   const t = currentTargets(db);
   const unit = db.profile.weight_unit;
   const tot = todayTot;
@@ -7643,7 +7720,9 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
             <div className="min-w-0">
               <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Weekly check-in</div>
               <div className="text-[13px] font-bold">{due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
-              <div className="text-[10px] text-[#8A8A90]">Reads your week and suggests a small tweak. Nothing changes until you approve it.</div>
+              <div className="text-[10px] text-[#8A8A90]">{(db.profile || {}).weighCadence === 'single'
+                ? 'Your weigh-in and your weekly read in one go. Nothing changes until you approve it.'
+                : 'Reads the week you’ve already weighed and suggests a small tweak. Nothing changes until you approve it.'}</div>
             </div>
             <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} style={{ opacity: ready ? 1 : .5 }} onClick={onCheckIn}>Check in</Btn>
           </div>
@@ -10801,6 +10880,10 @@ function App() {
     // weigh sheet (a number and a Save), not the whole weekly check-in it used to open: someone
     // tapping a "weigh in" notification is standing on the scales, not sitting down to review a plan.
     else if (action === 'weigh') { setView('dashboard'); setWeighing(true); }
+    // ?action=checkin is the overdue-check-in push for someone who weighs most mornings: their week
+    // is already on record, so the notification opens the read rather than asking for a number they
+    // have given six times. (The once-a-week push still sends ?action=weigh.)
+    else if (action === 'checkin') { setView('goals'); setCheckingIn(true); }
     if (isShared) (async () => {
       try {
         const cache = await caches.open('share-incoming');

@@ -190,8 +190,11 @@
   // Gap-aware EMA: a 5-day gap between weigh-ins decays the trend as five daily steps would
   // (effAlpha = 1 - (1-alpha)^gapDays), so sparse weighing can't freeze the trend in the past.
   // Non-ISO or same-day dates fall back to a single step, matching the old behaviour.
+  // TREND_ALPHA is the app's ONE smoothing: the chart's trend line, the stored trend_weight and the
+  // check-in's cycle means all use it, so "your trend weight" is a single number wherever it appears.
+  var TREND_ALPHA = 0.3;
   function trendSeries(entries, alpha) {
-    alpha = alpha == null ? 0.1 : alpha;
+    alpha = alpha == null ? TREND_ALPHA : alpha;
     var out = [], trend = null, prevDate = null;
     for (var i = 0; i < entries.length; i++) {
       var w = entries[i].weightKg;
@@ -664,7 +667,7 @@
     // than the chart's 0.1: it still soaks up day-to-day water noise but lags only ~2 days, so the
     // measured rate tracks the CURRENT cycle instead of echoing last cycle's deficit (which would
     // bias the expenditure estimate and invite oscillation).
-    var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), 0.3);
+    var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), TREND_ALPHA);
     var prevStart = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
     var curVals = [], prevVals = [], curCycle = [];
     for (var i = 0; i < ts.length; i++) {
@@ -815,7 +818,7 @@
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
-    trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
+    trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;

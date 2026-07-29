@@ -184,14 +184,23 @@ export function decideNudge(d: Record<string, unknown>, today: string, win: Wind
   //    HAS logged, which is exactly why it waits longer than the in-app ask before interrupting.
   const last = typeof d.last_checkin === "string" ? d.last_checkin : null;
   if (last && daysBetween(last, today) >= CHECKIN_OVERDUE_DAYS) {
+    // Someone who weighs once a week is being asked for the reading itself, so the nudge opens the
+    // weigh sheet. Someone who weighs most mornings has already given us the week, so asking them to
+    // "weigh in" is asking for something they have done six times: send them to the read instead.
+    const single = ((d.profile || {}) as { weighCadence?: string }).weighCadence === "single";
     return {
       kind: "checkin",
       title: "Time for our check-in",
-      body: pick([
-        "It has been a while since we read your trend. Weigh in and I will retune your targets.",
-        "Your plan is due a tune-up. A quick weigh-in is all I need to sort it.",
-      ], today),
-      url: "/?action=weigh",
+      body: single
+        ? pick([
+          "It has been a while since we read your trend. Hop on the scales and I will retune your targets.",
+          "Your plan is due a tune-up. This week's weigh-in is all I need to sort it.",
+        ], today)
+        : pick([
+          "I have got your weigh-ins already. Come and see what they say about your targets.",
+          "Your plan is due a tune-up, and your trend is sitting here waiting to be read.",
+        ], today),
+      url: single ? "/?action=weigh" : "/?action=checkin",
     };
   }
   return null;

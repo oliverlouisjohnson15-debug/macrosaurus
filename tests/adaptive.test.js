@@ -185,17 +185,22 @@ test('trendSeries: a date gap decays the EMA as that many daily steps would', ()
     { date: '2026-07-01', weightKg: 80 },
     { date: '2026-07-08', weightKg: 79 }, // 7-day gap
   ]);
-  const effAlpha = 1 - Math.pow(0.9, 7);
+  // Asserted against the exported smoothing constant, not a hardcoded number, so the app can retune
+  // TREND_ALPHA (chart, stored trend_weight and check-in all share it) without this going stale.
+  const A = E.TREND_ALPHA;
+  const effAlpha = 1 - Math.pow(1 - A, 7);
   near(s[1].trendKg, 80 + effAlpha * (79 - 80), 0.02);
-  // Daily entries behave exactly as before.
+  // A single day's gap is one plain EMA step.
   const daily = E.trendSeries([
     { date: '2026-07-01', weightKg: 80 },
     { date: '2026-07-02', weightKg: 79 },
   ]);
-  near(daily[1].trendKg, 79.9, 0.01);
+  near(daily[1].trendKg, 80 - A, 0.01);
   // Non-ISO dates (or duplicates) fall back to a single step, never NaN.
   const weird = E.trendSeries([{ date: 'a', weightKg: 80 }, { date: 'b', weightKg: 79 }]);
-  near(weird[1].trendKg, 79.9, 0.01);
+  near(weird[1].trendKg, 80 - A, 0.01);
+  // An explicit alpha still wins over the shared default.
+  near(E.trendSeries([{ date: '2026-07-01', weightKg: 80 }, { date: '2026-07-02', weightKg: 79 }], 0.1)[1].trendKg, 79.9, 0.01);
 });
 
 // ---- item 10: robust slope ----
