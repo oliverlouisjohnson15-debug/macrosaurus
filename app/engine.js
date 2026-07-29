@@ -633,6 +633,53 @@
   // }
   // Returns { status: 'needdata' } or { status: 'proposed', ...adjust result, completeDays,
   // expenditure, plateau }.
+  // The two weights a check-in is decided between, and the real span between them. Split out of
+  // checkInDecision so the UI can SHOW the same numbers the decision is made from, rather than a
+  // second, similar-looking average of its own.
+  //   opts: { weights:[{date,kg}], cycleStart, today, cycleDays, weighCadence }
+  // Returns { cur, prev, curCycle:[{date,weightKg}], spanDays, count, curDate, prevDate, source }
+  // where source is 'trend' (EMA cycle means) or 'reading' (single weekly weigh-in).
+  function cycleMeans(opts) {
+    var cs = opts.cycleStart, today = opts.today;
+    var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
+    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null; })
+      .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    // Single weigh-in cadence: one reading per cycle, so EMA cycle means over a lone point add
+    // nothing. Diff the two most recent raw weigh-ins directly, over their real gap.
+    if (opts.weighCadence === 'single') {
+      var curPts = ws.filter(function (w) { return w.date >= cs && w.date <= today; });
+      var prevPts = ws.filter(function (w) { return w.date < cs; });
+      var curPt = curPts.length ? curPts[curPts.length - 1] : null;
+      var prevPt = prevPts.length ? prevPts[prevPts.length - 1] : null;
+      return {
+        cur: curPt ? curPt.kg : null, prev: prevPt ? prevPt.kg : null,
+        curCycle: curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; }),
+        spanDays: (curPt && prevPt) ? Math.max(1, daysBetweenISO(prevPt.date, curPt.date)) : cycleDays,
+        count: curPts.length, curDate: curPt ? curPt.date : null, prevDate: prevPt ? prevPt.date : null,
+        source: 'reading',
+      };
+    }
+    // Cycle means diff SMOOTHED trend values (gap-aware EMA), not raw scale weights, so one odd
+    // morning or a weigh-in gap cannot swing the read. The decision trend uses a faster alpha (0.3)
+    // than the chart's 0.1: it still soaks up day-to-day water noise but lags only ~2 days, so the
+    // measured rate tracks the CURRENT cycle instead of echoing last cycle's deficit (which would
+    // bias the expenditure estimate and invite oscillation).
+    var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), 0.3);
+    var prevStart = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
+    var curVals = [], prevVals = [], curCycle = [];
+    for (var i = 0; i < ts.length; i++) {
+      var pnt = ts[i];
+      if (pnt.date >= cs && pnt.date <= today) { curVals.push(pnt.trendKg); curCycle.push(pnt); }
+      else if (pnt.date >= prevStart && pnt.date <= prevEnd) prevVals.push(pnt.trendKg);
+    }
+    return {
+      cur: curVals.length ? mean(curVals) : null, prev: prevVals.length ? mean(prevVals) : null,
+      curCycle: curCycle, spanDays: cycleDays, count: curVals.length,
+      curDate: curCycle.length ? curCycle[curCycle.length - 1].date : null, prevDate: null,
+      source: 'trend',
+    };
+  }
+
   function checkInDecision(opts) {
     var cs = opts.cycleStart, today = opts.today;
     var cycleDays = opts.cycleDays || Math.max(1, daysBetweenISO(cs, today) + 1);
@@ -649,32 +696,9 @@
     // Balance lane needs real logged intake; the weight-only lane doesn't, so skip the logs gate there.
     if (!wOnly && vals.length < 3) return { status: 'needdata', reasonCode: 'logs', completeDays: completeDays };
     var avgKcal = vals.length ? mean(vals) : null;
-    // Cycle means diff SMOOTHED trend values (gap-aware EMA), not raw scale weights, so one odd
-    // morning or a weigh-in gap cannot swing the read. The decision trend uses a faster alpha (0.3)
-    // than the chart's 0.1: it still soaks up day-to-day water noise but lags only ~2 days, so the
-    // measured rate tracks the CURRENT cycle instead of echoing last cycle's deficit (which would
-    // bias the expenditure estimate and invite oscillation).
-    var ws = (opts.weights || []).filter(function (w) { return w && w.kg != null; })
-      .slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-    var ts = trendSeries(ws.map(function (w) { return { date: w.date, weightKg: w.kg }; }), 0.3);
-    var prevStart = shiftISOdays(cs, -cycleDays), prevEnd = shiftISOdays(cs, -1);
-    var curVals = [], prevVals = [], curCycle = [];
-    for (var i = 0; i < ts.length; i++) {
-      var pnt = ts[i];
-      if (pnt.date >= cs && pnt.date <= today) { curVals.push(pnt.trendKg); curCycle.push(pnt); }
-      else if (pnt.date >= prevStart && pnt.date <= prevEnd) prevVals.push(pnt.trendKg);
-    }
-    var curAvg = curVals.length ? mean(curVals) : null;
-    var prevAvg = prevVals.length ? mean(prevVals) : null;
-    var spanDaysForRate = cycleDays;
-    // Single weigh-in cadence: one reading per cycle, so EMA cycle means over a lone point add nothing.
-    // Diff the two most recent raw weigh-ins directly and measure the rate over their real gap.
+    var cm = cycleMeans(opts);
+    var curAvg = cm.cur, prevAvg = cm.prev, curCycle = cm.curCycle, spanDaysForRate = cm.spanDays;
     if (opts.weighCadence === 'single') {
-      var curPts = ws.filter(function (w) { return w.date >= cs && w.date <= today; });
-      var prevPts = ws.filter(function (w) { return w.date < cs; });
-      curAvg = curPts.length ? curPts[curPts.length - 1].kg : null;
-      prevAvg = prevPts.length ? prevPts[prevPts.length - 1].kg : null;
-      curCycle = curPts.map(function (w) { return { date: w.date, weightKg: w.kg }; });
       if (curAvg == null) return { status: 'needdata', reasonCode: 'weighins', completeDays: completeDays };
       if (prevAvg == null) {
         // First single weigh-in ever: nothing to diff, so hold and let this reading set the baseline.
@@ -683,7 +707,6 @@
           reason: 'This weigh-in sets your baseline. On a single weekly weigh-in I need two readings to see a trend, so I\'m holding your targets. Weigh in again on your next check-in and I\'ll retune.',
           estimate: { tdee: (opts.expenditure && opts.expenditure.kcal) || opts.currentTargets.kcal, avgKcal: opts.currentTargets.kcal, weeklyChangeKg: 0, days: cycleDays, weightOnly: wOnly } };
       }
-      spanDaysForRate = Math.max(1, daysBetweenISO(prevPts[prevPts.length - 1].date, curPts[curPts.length - 1].date));
     }
     var result;
     if (wOnly) {
@@ -790,7 +813,7 @@
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
     cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
-    composeDayTarget: composeDayTarget, checkInDecision: checkInDecision,
+    composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, estimateExpenditure: estimateExpenditure, weeklyAdjust: weeklyAdjust, earlyAdjust: earlyAdjust, round: round,
     avgStepsInRange: avgStepsInRange, stepsCoaching: stepsCoaching,

@@ -199,3 +199,67 @@ test('liveExpenditure: refuses to guess without enough data, and produces a band
   assert.ok(['low', 'medium', 'high'].includes(r.confidence));
   assert.ok(r.forecast && typeof r.forecast.text === 'string');
 });
+
+// cycleMeans is what the check-in SHEET shows and what checkInDecision decides on. If the two ever
+// drift apart, the app starts displaying one number and acting on another, which is the exact
+// confusion this split was made to end.
+test('cycleMeans: daily cadence returns the EMA cycle means the decision uses', () => {
+  const weights = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date('2026-07-14T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    weights.push({ date: d.toISOString().slice(0, 10), kg: +(84 - (13 - i) * 0.1).toFixed(2) });
+  }
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7 });
+  assert.strictEqual(cm.source, 'trend');
+  assert.strictEqual(cm.count, 7);
+  assert.strictEqual(cm.spanDays, 7);
+  assert.ok(cm.cur < cm.prev, 'a falling series should read lower this cycle than last');
+  // Smoothed, so the cycle mean lags the raw mean of the same days (which is 83.0).
+  const rawCur = weights.filter(w => w.date >= '2026-07-08').reduce((a, w) => a + w.kg, 0) / 7;
+  assert.ok(cm.cur > rawCur, 'EMA cycle mean should lag the raw mean of a falling series');
+});
+
+test('cycleMeans: single cadence diffs the two latest readings over their real gap', () => {
+  const weights = [
+    { date: '2026-06-29', kg: 85.0 },
+    { date: '2026-07-06', kg: 84.2 },   // last reading before the cycle
+    { date: '2026-07-14', kg: 83.4 },   // this cycle's reading
+  ];
+  const cm = E.cycleMeans({ weights, cycleStart: '2026-07-07', today: '2026-07-14', cycleDays: 8, weighCadence: 'single' });
+  assert.strictEqual(cm.source, 'reading');
+  assert.strictEqual(cm.cur, 83.4);
+  assert.strictEqual(cm.prev, 84.2);
+  assert.strictEqual(cm.prevDate, '2026-07-06');
+  assert.strictEqual(cm.spanDays, 8, 'span is the gap between the two readings, not the cycle length');
+  assert.strictEqual(cm.count, 1);
+});
+
+test('cycleMeans: says nothing rather than guessing when a side has no weigh-ins', () => {
+  const cm = E.cycleMeans({ weights: [{ date: '2026-07-14', kg: 83.4 }], cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7, weighCadence: 'single' });
+  assert.strictEqual(cm.cur, 83.4);
+  assert.strictEqual(cm.prev, null);
+  const empty = E.cycleMeans({ weights: [], cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7 });
+  assert.strictEqual(empty.cur, null);
+  assert.strictEqual(empty.prev, null);
+  assert.strictEqual(empty.count, 0);
+});
+
+test('cycleMeans matches what checkInDecision reports back for the same inputs', () => {
+  const weights = [], kcalByDate = {}, targetByDate = {};
+  for (let i = 27; i >= 0; i--) {
+    const d = new Date('2026-07-14T00:00:00Z'); d.setUTCDate(d.getUTCDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    weights.push({ date: iso, kg: +(92.5 - (27 - i) * 0.07).toFixed(2) });
+    kcalByDate[iso] = 2300; targetByDate[iso] = 2300;
+  }
+  const opts = {
+    profile: baseProfile, currentTargets: { kcal: 2300, protein_g: 180, carbs_g: 230, fat_g: 70 },
+    weights, kcalByDate, targetByDate, cycleStart: '2026-07-08', today: '2026-07-14', cycleDays: 7,
+    weighDays: 7, minDays: 4, periodDays: 7, expenditure: { kcal: 2800, n: 3 }, checkins: [],
+  };
+  const cm = E.cycleMeans(opts);
+  const dec = E.checkInDecision(opts);
+  assert.strictEqual(dec.status, 'proposed');
+  // The rate the decision reports is exactly the movement between the two means it was handed.
+  near(dec.estimate.weeklyChangeKg, ((cm.cur - cm.prev) / cm.spanDays) * 7, 0.01);
+});
