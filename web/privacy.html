@@ -52,6 +52,18 @@ a{color:var(--purple);}
   <h2>Where it lives</h2>
   <p>Your data is stored with our hosting provider (Supabase) under row-level security, which means each account can only read and write its own rows. We do not sell your data, and we do not share it with advertisers.</p>
 
+  <h2>How we protect your data</h2>
+  <p>We treat your health and fitness data as sensitive, and protect it with the following measures:</p>
+  <ul>
+    <li><b>Encrypted in transit.</b> All traffic between the app, our servers and any provider we use is encrypted with HTTPS/TLS. The app is served over HTTPS only.</li>
+    <li><b>Encrypted at rest.</b> Your data is stored encrypted at rest by our hosting provider (Supabase), using AES-256.</li>
+    <li><b>Isolated per account.</b> Every table holding your data enforces row-level security in the database itself, so one account cannot read or write another account&rsquo;s rows even if the app were to ask it to.</li>
+    <li><b>Access tokens never leave our server.</b> Your Google OAuth tokens are held only in server-side storage, are never sent to the browser or app, and are never exposed to any third party. Provider API keys are likewise held only as server-side secrets.</li>
+    <li><b>Least-privilege access.</b> Privileged database credentials are used only by our server-side functions, never by the client. Access to production systems is restricted to those who need it, protected by two-factor authentication, and we do not browse identifiable user health data in the ordinary course of running the service.</li>
+    <li><b>Deletion on disconnect.</b> Disconnecting Google Health revokes the token with Google and deletes the stored connection from our systems.</li>
+  </ul>
+  <p>No system can be guaranteed perfectly secure, but we keep the amount of data we hold small and review these measures as the app changes. If you have a security concern, email <a href="mailto:olly@macrosaurus.com">olly@macrosaurus.com</a>.</p>
+
   <h2>How long we keep it</h2>
   <p>We keep your data for as long as your account is active. If you close your account or ask us to delete it, we remove your personal data, other than anything we&rsquo;re required to keep for legal or accounting reasons.</p>
 
