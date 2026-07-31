@@ -26,6 +26,9 @@
     newToTracking: false,   // set at onboarding; true = the buddy runs its teaching curriculum
     lessonState: { seen: [], lastAck: null }, // curriculum progress: lesson keys learnt + last ack date
     readAckDate: null,      // ISO date the buddy's morning read was dismissed, so it shows once a day
+    premiumSince: null,     // ISO date the current Premium run began; null while free. Bounds how far
+                            // back food-quality scoring will fill in missing nutrients, so nothing
+                            // logged as a free user is ever rewritten (see useNutrientBackfill).
   };
 
   // Recursively fill in any keys missing from `target` using `defaults`,
@@ -89,6 +92,11 @@
       ],
       day_meals: {},      // per-date meal lists overriding meal_templates: { 'YYYY-MM-DD': [{id,user_id,name,sort_order}] }
       foods: [],          // saved foods: favorites (is_favorite) + recents (updated_at); remembered serving
+      // Both foods and log_entries may carry `nq`: the nutrients behind the nutrient-density score
+      // ({ protein, fiber, fat, satfat, sugars, salt } in grams PER 100 KCAL, plus `ed`, the food's
+      // energy density in kcal per 100 g). Held per 100 kcal so it never needs rescaling when the
+      // portion changes, and left null when a food was logged without that data (see Engine.ndDay,
+      // which reports how much of a day it could score rather than assuming the rest was fine).
       log_entries: [],    // what was eaten, per date+meal
       weight_entries: [], // check-ins (weight + body fat)
       targets: [],        // history of targets; last is current

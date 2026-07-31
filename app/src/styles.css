@@ -167,12 +167,46 @@ input, select { color-scheme: dark; }
 /* ---- pixel shapes: square everything, chunky borders + hard shadow ---- */
 .rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-full { border-radius: 0 !important; }
 .pixel-box { border: 4px solid var(--border) !important; box-shadow: 4px 4px 0 0 var(--shadow); }
+/* The !important above exists to beat Tailwind's border utilities, but it also silently kills any
+   inline borderColor a component sets, which has cost real debugging time: React cannot emit
+   !important, so the inline style just does nothing and the box stays grey. Use these modifiers to
+   tint a box instead of fighting it. `--box-border` is the escape hatch for a one-off colour. */
+.pixel-box.box-accent { border-color: var(--accent) !important; }
+.pixel-box.box-good   { border-color: var(--good) !important; }
+.pixel-box.box-warn   { border-color: var(--warn) !important; }
+.pixel-box.box-danger { border-color: var(--danger) !important; }
+.pixel-box.box-tint   { border-color: var(--box-border, var(--border)) !important; }
 .pixel-btn { border: 4px solid var(--border) !important; box-shadow: 4px 4px 0 0 var(--shadow); transition: transform .05s, box-shadow .05s; }
 .pixel-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 0 var(--shadow); }
 /* chunky macro/xp progress bar */
 .pixel-bar { border: 3px solid var(--border); height: 18px; background: var(--track); overflow: hidden; }
 .pixel-bar > i { display: block; height: 100%; box-shadow: inset -2px -2px 0 rgba(0,0,0,0.25); }
 .theme-dark .pixel-bar > i { box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35); filter: brightness(1.05); }
+
+/* ---- segmented meters (the house bar) ----------------------------------------
+   Every tracked quantity in the app is drawn as discrete cells rather than a smooth
+   fill. Three reasons, in order of importance:
+   1. It is what the hardware did. A Game Boy had four shades and no partial pixels,
+      so its meters were blocks. A gradient fill is the one thing that reads instantly
+      as "not a Game Boy".
+   2. Countable beats measured. Six of ten blocks is read at a glance and needs no
+      number beside it; 61% of a smooth bar does. That is what lets the cards below
+      carry one number each instead of three.
+   3. The blocks are honest about precision. Food logging is estimates, and a bar
+      that stops on a block edge claims exactly as much accuracy as we have.
+   Cells are separated by a 2px gap in the surface colour, never by a border, so the
+   ink stays data and the separation stays air. */
+.pip-bar { display: flex; gap: 2px; border: 3px solid var(--border); background: var(--track); padding: 2px; }
+.pip-bar > i { flex: 1 1 0; height: 12px; background: var(--surface2); transition: background .35s steps(4); }
+.pip-bar.pip-sm > i { height: 8px; }
+.theme-dark .pip-bar > i { box-shadow: inset -1px -1px 0 rgba(0,0,0,0.35); }
+/* the target notch: a gap in the frame itself, so the goal is part of the meter
+   rather than a line drawn on top of the data */
+.pip-bar { position: relative; }
+.pip-bar > .pip-goal { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--text); opacity: 0.55; pointer-events: none; }
+/* vertical variant, for the week */
+.pip-col { display: flex; flex-direction: column-reverse; gap: 2px; justify-content: flex-start; }
+.pip-col > i { flex: 1 1 0; background: var(--surface2); min-height: 3px; }
 /* blinking retro cursor */
 .blink { animation: blink 1.05s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }

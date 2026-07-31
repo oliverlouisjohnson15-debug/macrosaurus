@@ -61,6 +61,11 @@ function featureOf(prompt: string): string {
   // system prompt in app/src/app.jsx.
   if (p.includes('You are Macrosaurus, speaking as')) return 'chat';
   if (p.includes('You are Macrosaurus')) return 'coach';
+  // Food-quality nutrient estimates (single food and the day's batch). Classified for two reasons:
+  // to gate them as Premium here rather than trusting the client flag, and so their spend is
+  // attributable per feature in ai_requests instead of disappearing into 'other'.
+  // Signatures must stay in step with aiEstimateNutrients/aiEstimateNutrientsBatch in app/src/app.jsx.
+  if (p.includes('estimate the SATURATED FAT, TOTAL SUGARS and SALT')) return 'density';
   return 'other';
 }
 
@@ -145,6 +150,15 @@ Deno.serve(async (req) => {
           return json({ error: {
             type: 'premium_required', feature: 'chat',
             message: 'Chatting with your buddy is a Premium feature.',
+          } }, 402);
+        }
+        // Food quality is Premium, and the client flag that hides it (window.MISPREMIUM) is only a
+        // display decision. Without this a free account could spend its free monthly allowance on
+        // nutrient estimates for a score it is never shown, which costs money and helps nobody.
+        if (feature === 'density') {
+          return json({ error: {
+            type: 'quality', feature: 'density',
+            message: 'Food quality scoring is a Premium feature.',
           } }, 402);
         }
         const freeLimit = Number(cfg?.free_ai_monthly ?? FALLBACK_FREE_MONTHLY);
