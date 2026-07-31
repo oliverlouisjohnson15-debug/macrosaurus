@@ -325,6 +325,59 @@ test('composeDayTarget: with a plan history, earlier days carry over scored agai
   assert.strictEqual(r.carry, 0);
 });
 
+// ---- a mid-week change: the days left take up the difference ----
+test('cyclingSpread: three low days eaten, then the rest made high, and the week still nets to base', () => {
+  const base = 2000, floor = 1200;
+  // Window Sun 2026-07-26 .. Sat 2026-08-01. Old plan: Saturday high, so Sun/Mon/Tue ran low.
+  // On Wed 07-29 the user makes Wed/Thu/Fri/Sat high.
+  const hist = [
+    { effective_date: null, enabled: true, highDays: [6], deltaPct: 0.15 },
+    { effective_date: '2026-07-29', enabled: true, highDays: [3, 4, 5, 6], deltaPct: 0.15 },
+  ];
+  const sp = E.cyclingSpread({ cycling: hist[1], cyclingHistory: hist, changeDate: '2026-07-29', windowStart: '2026-07-26', baseKcal: base, floorKcal: floor });
+  assert.strictEqual(sp.until, '2026-08-01');
+  hist[1].spreadKcal = sp.spreadKcal; hist[1].spreadUntil = sp.until;
+  // With the share recorded, the seven days of the window net back to the base target.
+  let week = 0;
+  for (let i = 0; i < 7; i++) week += E.cyclingDeltaOn(hist[1], hist, isoAdd('2026-07-26', i), base, floor);
+  near(week, 0, 4); // rounding only
+  // The three days already eaten are untouched; the four left carry the correction.
+  assert.strictEqual(E.cyclingDeltaOn(hist[1], hist, '2026-07-26', base, floor), E.cyclingDelta(hist[0], 0, base, floor));
+  assert.ok(sp.spreadKcal < 0, `four high days after three low ones should be pulled down, got ${sp.spreadKcal}`);
+});
+
+test('cyclingSpread: a change landing on the window start owes nothing', () => {
+  const hist = [
+    { effective_date: null, enabled: true, highDays: [6], deltaPct: 0.15 },
+    { effective_date: '2026-07-26', enabled: true, highDays: [1, 3, 5], deltaPct: 0.15 },
+  ];
+  const sp = E.cyclingSpread({ cycling: hist[1], cyclingHistory: hist, changeDate: '2026-07-26', windowStart: '2026-07-26', baseKcal: 2000, floorKcal: 1200 });
+  assert.strictEqual(sp.spreadKcal, 0); // the new plan runs the whole window and is neutral over it
+});
+
+test('cyclingSpread: turning cycling off mid-week still settles what the high days took', () => {
+  const hist = [
+    { effective_date: null, enabled: true, highDays: [0, 6], deltaPct: 0.2 },
+    { effective_date: '2026-07-28', enabled: false, highDays: [], deltaPct: 0.2 },
+  ];
+  const sp = E.cyclingSpread({ cycling: hist[1], cyclingHistory: hist, changeDate: '2026-07-28', windowStart: '2026-07-26', baseKcal: 2000, floorKcal: 1200 });
+  hist[1].spreadKcal = sp.spreadKcal; hist[1].spreadUntil = sp.until;
+  // Sunday ran high (+800) and Monday low, so the five even days left owe that back.
+  assert.ok(sp.spreadKcal < 0, `got ${sp.spreadKcal}`);
+  let week = 0;
+  for (let i = 0; i < 7; i++) week += E.cyclingDeltaOn(hist[1], hist, isoAdd('2026-07-26', i), 2000, 1200);
+  near(week, 0, 4);
+});
+
+test('cyclingDeltaOn: a recorded share stops at the end of its own window', () => {
+  const hist = [
+    { effective_date: null, enabled: false, highDays: [], deltaPct: 0.15 },
+    { effective_date: '2026-07-29', enabled: true, highDays: [1], deltaPct: 0.15, spreadKcal: -100, spreadUntil: '2026-08-01' },
+  ];
+  assert.strictEqual(E.cyclingDeltaOn(hist[1], hist, '2026-08-01', 2000, 1200), E.cyclingDelta(hist[1], 6, 2000, 1200) - 100);
+  assert.strictEqual(E.cyclingDeltaOn(hist[1], hist, '2026-08-02', 2000, 1200), E.cyclingDelta(hist[1], 0, 2000, 1200)); // next window: shape only
+});
+
 test('composeDayTarget: a change dated before the cycle leaves the whole window intact', () => {
   const base = { kcal: 2000, protein_g: 160, fat_g: 74, carbs_g: 174 };
   const r = E.composeDayTarget({

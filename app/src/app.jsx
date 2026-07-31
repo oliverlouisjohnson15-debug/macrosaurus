@@ -1251,9 +1251,33 @@ function plannedKcalOn(db, dISO) {
   const p = db.profile || {};
   // The plan as it stood on THAT day, not as it stands now: retuning next week's high days must not
   // move the bar a day you already ate was judged against.
-  const plan = E.cyclingOn(p.cycling, p.cyclingHistory, dISO);
-  const cyc = (plan && plan.enabled) ? E.cyclingDelta(plan, weekdayIdx(dISO), t.kcal, E.kcalFloor(p)) : 0;
-  return t.kcal + cyc;
+  return t.kcal + E.cyclingDeltaOn(p.cycling, p.cyclingHistory, dISO, t.kcal, E.kcalFloor(p));
+}
+// The plan history as it would read after saving `next` today, with the rebalance that change owes
+// the rest of the current window recorded on the new entry. One definition for both the Advanced
+// tab's preview and its save, so what you're shown before saving is what actually gets written.
+function pendingCyclingChange(db, next, todayISO, windowStart) {
+  const p = db.profile || {};
+  const prev = p.cycling || {};
+  const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
+  if (key(prev) === key(next)) return null;
+  const snap = (c, from) => ({ effective_date: from, enabled: !!c.enabled, highDays: (c.highDays || []).slice(), deltaPct: +c.deltaPct || 0.15 });
+  const hist = (p.cyclingHistory || []).slice();
+  // The first edit back-fills the outgoing plan with an open start (null = since the beginning),
+  // which is the only honest reading of every day before we began dating changes.
+  if (!hist.length) hist.push(snap(prev, null));
+  const entry = snap(next, todayISO);
+  // Several edits in one day are one change to the plan, not a stack of them.
+  if (hist[hist.length - 1].effective_date === todayISO) hist[hist.length - 1] = entry;
+  else hist.push(entry);
+  const base = currentTargets(db);
+  const sp = base ? E.cyclingSpread({
+    cycling: next, cyclingHistory: hist, changeDate: todayISO,
+    windowStart: windowStart, baseKcal: base.kcal, floorKcal: E.kcalFloor(p),
+  }) : { spreadKcal: 0, until: null };
+  entry.spreadKcal = sp.spreadKcal;
+  entry.spreadUntil = sp.until;
+  return { history: hist, entry: entry, spreadKcal: sp.spreadKcal, spreadUntil: sp.until };
 }
 function isCompleteDayOn(db, dISO) { return E.isCompleteDay(sumMacros(entriesOn(db, dISO)).kcal, plannedKcalOn(db, dISO)); }
 // Body-fat readings shaped for the engine: every recorded reading with the ruler it came from
@@ -8870,12 +8894,13 @@ function SettingsTab({ db, update }) {
 
 function AdvancedTab({ db, update }) {
   const p = db.profile; const base = currentTargets(db);
-  // Days already run in the current check-in period are locked: you can't retune a high/low day you've
-  // already eaten. The window is the current cycle (last check-in), capped at 7 days so an overdue
-  // check-in can't grey out the whole week. Editing is only allowed for today and the days ahead.
+  // Any day can be retuned at any time, including one whose weekday has already run this week. The
+  // days already eaten keep the plan they ran under, and the days LEFT in this check-in period take
+  // up the difference (E.cyclingSpread), so three low days followed by an all-high rest-of-week
+  // still lands the window where it was meant to. The window is the current cycle (last check-in),
+  // capped at 7 days so an overdue check-in can't stretch it.
   const cycToday = Store.todayISO();
   const cycStart = (() => { const floor = shiftISO(cycToday, -6); const cs = db.last_checkin || floor; return cs < floor ? floor : cs; })();
-  const lockedWeekdays = (() => { const s = new Set(); for (let d = cycStart; d < cycToday; d = shiftISO(d, 1)) s.add(weekdayIdx(d)); return s; })();
   const initCarry = () => ({ enabled: !!(p.carryover && p.carryover.enabled), mode: (p.carryover && p.carryover.mode) || 'aggressive', capKcal: (p.carryover && p.carryover.capKcal) || 400 });
   const initCyc = () => ({ enabled: !!(p.cycling && p.cycling.enabled), highDays: (p.cycling && p.cycling.highDays) || [], deltaPct: (p.cycling && p.cycling.deltaPct) || 0.15 });
   const [carry, setCarry] = useState(initCarry);
@@ -8895,22 +8920,12 @@ function AdvancedTab({ db, update }) {
     update(d => {
       // Editing the high/low pattern is a DATED change: the new plan starts today and the outgoing
       // one stays on the days it actually ran, so days already eaten keep the targets they were
-      // logged against instead of being restated by a plan set after the fact.
-      const prev = d.profile.cycling || {};
-      const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
-      if (key(prev) !== key(cyc)) {
-        const today = Store.todayISO();
-        d.profile.cyclingChangedAt = today;
-        const snap = (c, from) => ({ effective_date: from, enabled: !!c.enabled, highDays: (c.highDays || []).slice(), deltaPct: +c.deltaPct || 0.15 });
-        const hist = (d.profile.cyclingHistory || []).slice();
-        // The first edit back-fills the outgoing plan with an open start (null = since the
-        // beginning), which is the only honest reading of every day before we began dating changes.
-        if (!hist.length) hist.push(snap(prev, null));
-        const entry = snap(cyc, today);
-        // Several edits in one day are one change to the plan, not a stack of them.
-        if (hist[hist.length - 1].effective_date === today) hist[hist.length - 1] = entry;
-        else hist.push(entry);
-        d.profile.cyclingHistory = hist;
+      // logged against instead of being restated by a plan set after the fact. The change also
+      // records what it owes the rest of this window, so the week still adds up.
+      const pend = pendingCyclingChange(d, cyc, Store.todayISO(), cycStart);
+      if (pend) {
+        d.profile.cyclingChangedAt = Store.todayISO();
+        d.profile.cyclingHistory = pend.history;
       }
       d.profile.carryover = carry; d.profile.cycling = cyc; d.profile.program_mode = coach;
       // Only write cadence once it's been set or actively changed, so an untouched existing user stays
@@ -8933,6 +8948,9 @@ function AdvancedTab({ db, update }) {
     { id: 'training', label: 'Training', highDays: [1, 3, 5] },
     { id: 'custom', label: 'Custom', highDays: null },
   ];
+  // What the pending edit would owe the rest of this week, computed the same way the save writes it,
+  // so the note under the grid is the number that actually lands.
+  const pendingSpread = (() => { const pd = pendingCyclingChange(db, cyc, cycToday, cycStart); return pd ? pd.spreadKcal : 0; })();
   const sortedHi = cyc.enabled ? cyc.highDays.slice().sort((a, b) => a - b) : [];
   const hiKey = JSON.stringify(sortedHi);
   const activePreset = sortedHi.length === 0 ? 'even' : hiKey === '[0,6]' ? 'weekend' : hiKey === '[1,3,5]' ? 'training' : 'custom';
@@ -8952,12 +8970,13 @@ function AdvancedTab({ db, update }) {
       <div className="text-[12px] text-[#8A8A90] mb-3">Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.</div>
       <div className="text-[11px] text-[#8A8A90] mb-2">Shape your week</div>
       <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>)}</div>
+      {!cyc.enabled && pendingSpread !== 0 && <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">Days you've already eaten this week keep the plan they ran under, so the days you have left take {pendingSpread > 0 ? '+' : ''}{pendingSpread} kcal each to settle the week.</div>}
       {cyc.enabled && <div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2">Your high days. The rest come down to keep the weekly total the same.</div>
-        <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => { const on = cyc.highDays.includes(i); const locked = lockedWeekdays.has(i); return <button key={i} disabled={locked} onClick={() => { if (locked) return; setCyc(c => Object.assign({}, c, { highDays: on ? c.highDays.filter(x => x !== i) : c.highDays.concat([i]) })); }} title={locked ? 'Already run this check-in period' : ''} className={`flex-1 pixel-box py-2 text-[11px] ${locked ? 'bg-[#141417] text-[#4A4A50] cursor-not-allowed opacity-60' : on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>; })}</div>
-        {lockedWeekdays.size > 0 && <div className="text-[11px] text-[#8A8A90] mb-3 leading-snug">Greyed days have already run this check-in period and are locked. New picks shape the days you have left; your check-in resets them all.</div>}
+        <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => { const on = cyc.highDays.includes(i); return <button key={i} onClick={() => setCyc(c => Object.assign({}, c, { highDays: on ? c.highDays.filter(x => x !== i) : c.highDays.concat([i]) }))} className={`flex-1 pixel-box py-2 text-[11px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>; })}</div>
         <Field label={`High-day boost: +${Math.round(cyc.deltaPct * 100)}%`}><input type="range" min="5" max="35" value={Math.round(cyc.deltaPct * 100)} onChange={e => setCyc(c => Object.assign({}, c, { deltaPct: +e.target.value / 100 }))} className="w-full accent-[#4A9EEB]" /></Field>
-        {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => { const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal); const hi = cyc.highDays.includes(i); const locked = lockedWeekdays.has(i); return <div key={i} className={`text-center ${locked ? 'opacity-40' : ''}`}><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>; })}</div>}
+        {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => { const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal); const hi = cyc.highDays.includes(i); return <div key={i} className="text-center"><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>; })}</div>}
+        <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.{pendingSpread ? ` To land this week where it was meant to, the days you have left take ${pendingSpread > 0 ? '+' : ''}${pendingSpread} kcal each on top.` : ''}</div>
       </div>}
       <div className="h-px bg-[#262629] my-4" />
       <RowToggle label="Even out over the week" on={carry.enabled} onClick={() => setCarry(c => Object.assign({}, c, { enabled: !c.enabled }))} />

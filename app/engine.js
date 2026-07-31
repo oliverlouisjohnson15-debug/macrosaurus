@@ -688,6 +688,50 @@
     return chosen || hs[0] || current || null;
   }
 
+  function weekdayOfISO(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); }
+
+  // The cycling delta a day actually carries: its own plan's high/low shape, plus any mid-window
+  // rebalance recorded on that plan (see cyclingSpread). Both are read from the plan in force ON the
+  // day, so the number a past day carries never changes.
+  function cyclingDeltaOn(current, history, dateISO, baseKcal, floorKcal) {
+    var p = cyclingOn(current, history, dateISO);
+    if (!p) return 0;
+    // A plan that turned cycling OFF mid-window still owes the rest of that window its rebalance,
+    // so the spread is read even when there is no high/low shape left to apply it to.
+    var d = p.enabled ? cyclingDelta(p, weekdayOfISO(dateISO), baseKcal, floorKcal) : 0;
+    if (p.spreadKcal && (!p.spreadUntil || dateISO <= p.spreadUntil)) d += p.spreadKcal;
+    return round(d);
+  }
+
+  // What a mid-window plan change owes the days it has left.
+  // Changing the shape of your week partway through leaves the week lopsided: three low days already
+  // eaten under the old plan, then every remaining day made high, and the week no longer nets to the
+  // base target. Nothing can be done about the days already eaten, so the correction goes where it
+  // still can: the difference is spread evenly across the days left in the window (the change day
+  // included), and the week lands where it was meant to.
+  //   opts: { cycling, cyclingHistory (INCLUDING the new entry, minus its spread), changeDate,
+  //           windowStart (first day of the current check-in window), baseKcal, floorKcal }
+  // Returns { spreadKcal, until }: record both on the new history entry, so the correction stays
+  // attached to the window it was computed for and no later day, or later reading, is touched by it.
+  // A change landing on (or before) the window start owes nothing: the new plan runs the whole
+  // window and is neutral over it by construction.
+  function cyclingSpread(opts) {
+    var ws = opts.windowStart, cd = opts.changeDate, base = +opts.baseKcal || 0;
+    var until = ws ? shiftISOdays(ws, 6) : null;
+    if (!ws || !cd || cd <= ws || cd > until || !base) return { spreadKcal: 0, until: until };
+    var total = 0, remaining = 0;
+    for (var i = 0; i < 7; i++) {
+      var day = shiftISOdays(ws, i);
+      total += cyclingDeltaOn(opts.cycling, opts.cyclingHistory, day, base, opts.floorKcal);
+      if (day >= cd) remaining++;
+    }
+    if (!remaining || !total) return { spreadKcal: 0, until: until };
+    // One day left to absorb a whole week's lopsidedness would be a wild swing, so the share is
+    // capped at the boost slider's own ceiling. The floor still applies underneath (composeDayTarget).
+    var cap = Math.abs(base) * 0.35;
+    return { spreadKcal: round(clamp(-total / remaining, -cap, cap)), until: until };
+  }
+
   // ---- carryover (aggressive): bank yesterday's surplus/deficit into today ----
   function carryover(prevTargetKcal, prevConsumedKcal, capKcal) {
     var cap = capKcal == null ? 500 : capKcal;
@@ -1103,13 +1147,11 @@
     if (!base) return null;
     var floor = opts.floorKcal != null ? opts.floorKcal : KCAL_FLOOR;
     var date = opts.date;
-    function wdOf(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); }
-    // Every day is composed against the plan that was in force ON THAT DAY (see cyclingOn), so
+    // Every day is composed against the plan that was in force ON THAT DAY (see cyclingDeltaOn), so
     // changing the high/low plan today can never restate a day already eaten.
     var cycHist = opts.cyclingHistory || null;
-    function planOn(iso) { var c = cyclingOn(opts.cycling, cycHist, iso); return (c && c.enabled) ? c : null; }
-    var cycCfg = planOn(date);
-    var cyc = cycCfg ? cyclingDelta(cycCfg, wdOf(date), base.kcal, floor) : 0;
+    function planDelta(iso) { return cyclingDeltaOn(opts.cycling, cycHist, iso, base.kcal, floor); }
+    var cyc = planDelta(date);
     var carry = 0, carryDetail = null;
     var co = opts.carryover;
     if (co && co.enabled && opts.cycleStart) {
@@ -1133,8 +1175,7 @@
           if (accrueFrom && dISO < accrueFrom) continue;
           var e = eatenByDate[dISO];
           if (!(e > 0)) continue;
-          var pastCfg = planOn(dISO);
-          var tgt = base.kcal + (pastCfg ? cyclingDelta(pastCfg, wdOf(dISO), base.kcal, floor) : 0);
+          var tgt = base.kcal + planDelta(dISO);
           if (!isCompleteDay(e, tgt)) continue; // a half-logged day would fake a huge deficit
           var eaten = Math.round(e);
           acc += tgt - eaten;
@@ -1503,7 +1544,7 @@
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
-    cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
+    cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
