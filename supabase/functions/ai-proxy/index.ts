@@ -63,7 +63,7 @@ function featureOf(prompt: string): string {
   if (p.includes('You are Macrosaurus')) return 'coach';
   // Food-quality nutrient estimates (single food and the day's batch). Classified for two reasons:
   // to gate them as Premium here rather than trusting the client flag, and so their spend is
-  // attributable per feature in ai_requests instead of disappearing into 'other'.
+  // attributable per feature in ai_logs instead of disappearing into 'other'.
   // Signatures must stay in step with aiEstimateNutrients/aiEstimateNutrientsBatch in app/src/app.jsx.
   if (p.includes('estimate the SATURATED FAT, TOTAL SUGARS and SALT')) return 'density';
   return 'other';
