@@ -316,6 +316,16 @@ Deno.serve(async (req) => {
   );
   const table = admin.from('google_health_connections');
 
+  // Google Health is admin-only until the app passes CASA and Google verifies it for general use.
+  // This is the gate; the hidden buttons in the client are only the polite half. `status` and
+  // `disconnect` stay open to everyone so an account connected before this rule can still see that
+  // it is connected and cut the link — locking someone out of disconnecting their own data would be
+  // the one failure mode worse than not syncing.
+  if (action === 'exchange' || action === 'sync') {
+    const { data: adminRow } = await admin.from('admins').select('user_id').eq('user_id', userId).maybeSingle();
+    if (!adminRow) return json({ error: { message: 'Google Health sync is not available on this account yet.' } }, 403);
+  }
+
   try {
     if (action === 'status') {
       const { data } = await table.select('last_sync').eq('user_id', userId).maybeSingle();

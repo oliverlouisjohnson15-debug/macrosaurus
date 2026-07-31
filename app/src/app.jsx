@@ -331,7 +331,20 @@ async function aiRequest(body) {
 // ---- Google Health steps sync (client half) -------------------------------------------------
 // The Google secret lives only in the edge function. Here we run the PKCE OAuth redirect, then hand
 // the returned one-time code to the proxy, which exchanges it and returns step counts. Steps only.
-const ghConfigured = () => !!GOOGLE_CLIENT_ID;
+// Google Health ships to admin accounts only for now. The restricted Health scopes oblige us to pass
+// an annual CASA security assessment before Google will verify the app for general use, so rather than
+// carry that cost early we keep the integration live on our own accounts and dark for everyone else.
+// Set GH_ADMIN_ONLY to false to open it up once verification is through; nothing else needs changing.
+// Hiding the buttons is NOT the gate: google-health-proxy rejects connect and sync for non-admins.
+const GH_ADMIN_ONLY = true;
+let ghIsAdmin = false;
+function ghSetAdmin(v) { ghIsAdmin = !!v; }
+// Do we hold Google credentials at all? Governs the OAuth callback and the background refresh, which
+// must keep working for an account that is already connected regardless of when the admin lookup
+// resolves, otherwise returning from Google's consent screen could race the check and drop the code.
+const ghCredentialed = () => !!GOOGLE_CLIENT_ID;
+// Should this account be offered Google Health? Governs every "Connect" entry point in the UI.
+const ghConfigured = () => ghCredentialed() && (!GH_ADMIN_ONLY || ghIsAdmin);
 function b64url(bytes) { let s = ''; const a = new Uint8Array(bytes); for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function ghRandom(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0, n); }
 async function ghChallenge(verifier) { const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)); return b64url(d); }
@@ -1820,7 +1833,7 @@ const LEGAL = {
       { h: "AI features", p: "When you use photo or text estimation, the content you submit is sent to our AI provider, Anthropic, to generate an estimate that is returned to you. Photos are not stored by us after processing, and your inputs are not used to train AI models. Anthropic processes this data under its own API terms." },
       { h: "Who we share it with", p: "We use trusted providers to run the app: Supabase (database and sign-in), Vercel (hosting), Anthropic (AI estimates and coaching replies), Open Food Facts (food lookups), Sentry (error monitoring, so we can fix crashes) and PostHog, hosted in the EU, for cookieless product analytics. Our analytics and crash reports record only actions like signing up or logging a meal, and errors, tied to your account id, never your food names, photos or health values, and never anything we receive from Google Health. They process data only to provide their service to us, and are not permitted to use it for their own purposes or to train models on it. We do not sell your data and we do not use it for advertising." },
       { h: "Connecting Google Health", p: "Connecting Google Health is optional and off until you turn it on. If you connect it, we request read-only access to a limited set of daily signals: your step counts, your time asleep and sleep stages, and your heart-rate variability, resting heart rate and blood oxygen. We use these only to power the Move, Sleep and Readiness features you can see in the app. We never write to your Google Health data, never sell or advertise with it, and never use it to train AI or machine-learning models. If you use the AI coaching features, a small snapshot of the figures on your screen (which can include your readiness score, hours asleep and step count) is sent to Anthropic to write that one reply, and is not used for training. You can disconnect at any time in Settings, or at myaccount.google.com/permissions, which revokes the token with Google and deletes the stored connection and synced readings." },
-      { h: "Storage, security and retention", p: "We treat your health and fitness data, including anything we receive from Google APIs, as sensitive. It is encrypted in transit with TLS 1.2 or higher and encrypted at rest with AES-256 by our hosting provider. Every table holding your data enforces row-level security in the database itself, so one account cannot read another account's rows. Your Google tokens and our provider API keys are held only in server-side storage and are never sent to the app. Access to production systems is limited to those who need it and protected by two-factor authentication, and changes are reviewed before deployment. Because the app uses restricted Google Health scopes, it is required to undergo an annual independent security assessment (CASA), which we are completing as part of Google's verification. If a security incident affects your data we will investigate it and notify you and the ICO where the law requires. We keep your data while your account is active; you can export a full copy or permanently delete everything at any time from Menu, Account, and deleted data falls out of encrypted backups within 30 days. The full detail is in our published policy at macrosaurus.com/privacy." },
+      { h: "Storage, security and retention", p: "We treat your health and fitness data, including anything we receive from Google APIs, as sensitive. It is encrypted in transit with TLS 1.2 or higher and encrypted at rest with AES-256 by our hosting provider. Every table holding your data enforces row-level security in the database itself, so one account cannot read another account's rows. Your Google tokens and our provider API keys are held only in server-side storage and are never sent to the app. Access to production systems is limited to those who need it and protected by two-factor authentication, and changes are reviewed before deployment. Because the Google Health scopes are restricted, the app must pass an annual independent security assessment (CASA) before that connection is offered generally, so for now it is enabled only on our own internal accounts. If a security incident affects your data we will investigate it and notify you and the ICO where the law requires. We keep your data while your account is active; you can export a full copy or permanently delete everything at any time from Menu, Account, and deleted data falls out of encrypted backups within 30 days. The full detail is in our published policy at macrosaurus.com/privacy." },
       { h: "Your rights", p: "Under UK data protection law you can access, correct, export, restrict, object to or erase your personal data, and withdraw consent. Use the export and delete tools in the app, or contact us. You also have the right to complain to the Information Commissioner's Office (ico.org.uk)." },
       { h: "Cookies and local storage", p: "We use only the essential local storage needed to keep you signed in and to work offline. Our product analytics are cookieless and set no advertising or cross-site tracking cookies." },
       { h: "Children", p: "Macrosaurus is not intended for anyone under 18." },
@@ -5217,7 +5230,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       <Card className="p-4 mb-4" style={{ background: 'var(--accent-dim)' }}>
         <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--sleep)' }}>Recovery</div>
         <div className="text-[13px] font-bold mb-1">Train hard, rest harder</div>
-        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. Connect Google Health to track your steps, sleep and readiness here every day, and let your buddy read it back to you each morning.</div>
+        <div className="text-[11px] text-[#8A8A90] leading-snug mb-3">Recovery is a pillar alongside food and training. {ghConfigured() ? 'Connect Google Health to track your steps, sleep and readiness here every day, and let your buddy read it back to you each morning.' : 'Steps, sleep and readiness will land here once health sync arrives, and your buddy will read them back to you each morning.'}</div>
         {ghConfigured()
           ? <button onClick={ghConnectGated} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>CONNECT GOOGLE HEALTH</button>
           : <div className="pf text-[8px] uppercase text-center" style={{ color: 'var(--muted)' }}>Health sync coming soon</div>}
@@ -5376,7 +5389,9 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
         ) : (
           <div>
             <p className="text-[13px] leading-snug mb-4" style={{ color: 'var(--text2)' }}>
-              Your steps sync automatically from Google Health. Connect it once and your daily movement, step-goal streak and steps-first coaching all fill in on their own. There's no manual step entry.
+              {ghConfigured()
+                ? "Your steps sync automatically from Google Health. Connect it once and your daily movement, step-goal streak and steps-first coaching all fill in on their own. There's no manual step entry."
+                : "Steps sync automatically from Google Health, filling in your daily movement, step-goal streak and steps-first coaching on their own. That connection is coming soon; there's no manual step entry in the meantime."}
             </p>
             {ghConfigured()
               ? <Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn>
@@ -5416,7 +5431,9 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
         <p className="text-[13px] leading-snug" style={{ color: 'var(--text2)' }}>
           {synced
             ? "No night has synced yet. Once your device records a night's sleep it'll appear here, scored automatically."
-            : "Sleep syncs from Google Health. Connect it and we'll score each night automatically."}
+            : ghConfigured()
+              ? "Sleep syncs from Google Health. Connect it and we'll score each night automatically."
+              : "Sleep syncs from Google Health, and we'll score each night automatically once that connection arrives."}
           {!synced && ghConfigured() && <span className="block mt-4"><Btn kind="accent" className="w-full" onClick={() => { onClose(); ghConnectGated(); }}>Connect Google Health</Btn></span>}
         </p>
       );
@@ -10854,10 +10871,13 @@ function App() {
   // Am I an admin? A user may read only their own admins row (RLS), so this just decides whether to
   // surface the admin entry. Real authorisation is enforced server-side by the admin-api function.
   useEffect(() => {
-    if (!session || !supa) { setIsAdmin(false); return; }
+    if (!session || !supa) { ghSetAdmin(false); setIsAdmin(false); return; }
     let cancelled = false;
+    // ghSetAdmin before setIsAdmin: the state change is what re-renders, and ghConfigured() is read
+    // during that render, so the flag must already be right when the Connect buttons re-evaluate.
     supa.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle()
-      .then(function (r) { if (!cancelled) setIsAdmin(!!(r && r.data)); }, function () { if (!cancelled) setIsAdmin(false); });
+      .then(function (r) { if (!cancelled) { ghSetAdmin(!!(r && r.data)); setIsAdmin(!!(r && r.data)); } },
+            function () { if (!cancelled) { ghSetAdmin(false); setIsAdmin(false); } });
     return function () { cancelled = true; };
   }, [session]);
   // Subscription status + this month's AI usage (drives the paywall, premium badge and free meter).
@@ -11042,7 +11062,7 @@ function App() {
   // Ongoing freshness is handled by the foreground/interval effect below. Tokens stay server-side.
   useEffect(() => {
     if (!db || !db.profile || !session || ghHandled.current) return;
-    if (!ghConfigured()) { ghHandled.current = true; return; }
+    if (!ghCredentialed()) { ghHandled.current = true; return; }
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code'), state = params.get('state');
     const savedState = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('gh_state') : null;
@@ -11094,7 +11114,7 @@ function App() {
   // Keep Google Health fresh through the day: re-sync when the app returns to the foreground and on a
   // slow interval, throttled to GH_SYNC_GAP_MS so we never poll harder than roughly four times an hour.
   useEffect(() => {
-    if (!session || !ghConfigured()) return;
+    if (!session || !ghCredentialed()) return;
     let syncing = false;
     async function ghRefresh() {
       const gh = dbRef.current && dbRef.current.googleHealth;
