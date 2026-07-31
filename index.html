@@ -18608,6 +18608,7 @@ function FoodLog({
   const [editMeal, setEditMeal] = useState(null);
   const [mealName, setMealName] = useState('');
   const [nameSheet, setNameSheet] = useState(null); // { meal, entries } for "Save as meal"
+  const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the day card
   const [showCal, setShowCal] = useState(false);
   const [copyTo, setCopyTo] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -19053,7 +19054,9 @@ function FoodLog({
         setShowCal(false);
       }
     }
-  }, /*#__PURE__*/React.createElement(PageHeader, {
+  }, densityHelp && /*#__PURE__*/React.createElement(DensityExplainer, {
+    onClose: () => setDensityHelp(false)
+  }), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Your food diary",
     title: "Food log"
   }), /*#__PURE__*/React.createElement("div", {
@@ -19205,7 +19208,38 @@ function FoodLog({
       style: {
         color: e > t ? 'var(--danger)' : 'var(--text2)'
       }
-    }, e > t ? Math.round(e - t) + 'g over' : Math.max(0, Math.round(t - e)) + 'g left')))));
+    }, e > t ? Math.round(e - t) + 'g over' : Math.max(0, Math.round(t - e)) + 'g left'))), (() => {
+      if (window.MISPREMIUM !== true) return null;
+      const dnd = E.ndDay(day.map(e => ({
+        kcal: (e.computed_macros || {}).kcal,
+        nq: e.nq,
+        alcohol: !!e.is_alcohol
+      })));
+      return /*#__PURE__*/React.createElement("button", {
+        onClick: () => setDensityHelp(true),
+        className: "w-full flex items-center gap-2.5 active:opacity-70"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "pf text-[8px] w-8 shrink-0 text-left",
+        style: {
+          color: 'var(--muted)'
+        }
+      }, "DENS"), /*#__PURE__*/React.createElement("div", {
+        className: "flex-1 min-w-0"
+      }, /*#__PURE__*/React.createElement(PipMeter, {
+        value: dnd.score == null ? 0 : dnd.score,
+        target: dnd.target,
+        cells: 10,
+        scale: 100 / dnd.target,
+        color: densityColor(dnd.score),
+        small: true,
+        overIsFine: true
+      })), /*#__PURE__*/React.createElement("span", {
+        className: "tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap",
+        style: {
+          color: dnd.score == null ? 'var(--muted)' : dnd.hit ? 'var(--good)' : 'var(--text2)'
+        }
+      }, dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target));
+    })()));
   })()), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, db.log_entries.length === 0 && /*#__PURE__*/React.createElement(Card, {

@@ -6688,6 +6688,7 @@ function FoodLog({ db, update, openLog, showToast }) {
   const swipe = useRef(null); // swipe-between-days: touchstart point, consumed on touchend
   const [editMeal, setEditMeal] = useState(null); const [mealName, setMealName] = useState('');
   const [nameSheet, setNameSheet] = useState(null); // { meal, entries } for "Save as meal"
+  const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the day card
   const [showCal, setShowCal] = useState(false);
   const [copyTo, setCopyTo] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -6864,6 +6865,7 @@ function FoodLog({ db, update, openLog, showToast }) {
       onClick={() => { if (menu) setMenu(null); if (mealMenu) setMealMenu(null); if (dayMenu) setDayMenu(false); }}
       onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
       onTouchEnd={(e) => { if (!swipe.current || drag) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
+      {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
       <PageHeader kicker="Your food diary" title="Food log" />
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
       <div className="min-w-0">
@@ -6921,6 +6923,30 @@ function FoodLog({ db, update, openLog, showToast }) {
                 </span>
               </div>
             ))}
+            {/* Density belongs here: this is the page where you are looking at the food that produced
+                the score. It takes the same one-line shape as the macros above rather than the taller
+                Today treatment, because this card is a reminder of where the day stands, not the place
+                you study it. Scored for THIS date, so paging back a day scores that day.
+                Premium only, and unlike Today it carries no locked upsell row: the upgrade path is
+                already on Today, and a second one on the next tab along is nagging rather than
+                offering. */}
+            {(() => {
+              if (window.MISPREMIUM !== true) return null;
+              const dnd = E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
+              return (
+                <button onClick={() => setDensityHelp(true)} className="w-full flex items-center gap-2.5 active:opacity-70">
+                  <span className="pf text-[8px] w-8 shrink-0 text-left" style={{ color: 'var(--muted)' }}>DENS</span>
+                  <div className="flex-1 min-w-0">
+                    <PipMeter value={dnd.score == null ? 0 : dnd.score} target={dnd.target} cells={10}
+                      scale={100 / dnd.target} color={densityColor(dnd.score)} small overIsFine />
+                  </div>
+                  <span className="tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap"
+                    style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good)' : 'var(--text2)') }}>
+                    {dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target}
+                  </span>
+                </button>
+              );
+            })()}
           </div>
         </Card>;
       })()}
