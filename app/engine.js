@@ -670,6 +670,24 @@
     return round(lowDelta);
   }
 
+  // The high/low plan is a DATED setting, not a global one. A day you have already eaten was run
+  // under whatever plan was in force that morning, so re-reading it against a plan you set today
+  // would rewrite history: yesterday's low day silently becomes a high day you "missed".
+  // `history` is the append-only record of the plan, ascending: [{ effective_date, enabled,
+  // highDays, deltaPct }]. A day takes the last entry effective on or before it; effective_date
+  // null means "since the beginning", which is how the plan in force before the app started
+  // recording changes is carried. No history at all falls back to `current` (existing state).
+  function cyclingOn(current, history, dateISO) {
+    if (!history || !history.length) return current || null;
+    var hs = history.filter(function (h) { return !!h; })
+      .slice().sort(function (x, y) { return (x.effective_date || '') < (y.effective_date || '') ? -1 : 1; });
+    var chosen = null;
+    for (var i = 0; i < hs.length; i++) {
+      if (!dateISO || !hs[i].effective_date || hs[i].effective_date <= dateISO) chosen = hs[i];
+    }
+    return chosen || hs[0] || current || null;
+  }
+
   // ---- carryover (aggressive): bank yesterday's surplus/deficit into today ----
   function carryover(prevTargetKcal, prevConsumedKcal, capKcal) {
     var cap = capKcal == null ? 500 : capKcal;
@@ -1065,14 +1083,19 @@
   //   base: {kcal, protein_g, fat_g, carbs_g},          current base targets
   //   date: 'YYYY-MM-DD',                                the day being composed
   //   floorKcal: number,                                 kcal floor (use kcalFloor(profile))
-  //   cycling: {enabled, highDays, deltaPct} | null,
+  //   cycling: {enabled, highDays, deltaPct} | null,     the plan as it stands NOW
+  //   cyclingHistory: [{effective_date, enabled, highDays, deltaPct}] | null   dated plan changes;
+  //                                                      each day is composed against the plan in
+  //                                                      force on it, so an edit today can't
+  //                                                      restate a day already eaten
   //   carryover: {enabled, mode, capKcal} | null,        capKcal default 400 (store default)
   //   cycleStart: 'YYYY-MM-DD',                          first day of the CURRENT cycle, i.e. the
   //                                                      day AFTER the last check-in (exclusive)
   //   eatenByDate: {iso: kcal},                          logged intake for past days of the cycle
   //   overrideShiftKcal: number                          per-day carb->fat rebalance (0 = none)
-  //   cyclingChangedAt: 'YYYY-MM-DD' | null              day the high/low plan was last edited; days
-  //                                                      eaten before it are locked out of carryover
+  //   cyclingChangedAt: 'YYYY-MM-DD' | null              legacy fallback for state with no history:
+  //                                                      day the plan was last edited; days eaten
+  //                                                      before it are locked out of carryover
   // }
   // Returns { base, cyc, carry, eff, carryDetail, floorLimited }.
   function composeDayTarget(opts) {
@@ -1081,7 +1104,11 @@
     var floor = opts.floorKcal != null ? opts.floorKcal : KCAL_FLOOR;
     var date = opts.date;
     function wdOf(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); }
-    var cycCfg = (opts.cycling && opts.cycling.enabled) ? opts.cycling : null;
+    // Every day is composed against the plan that was in force ON THAT DAY (see cyclingOn), so
+    // changing the high/low plan today can never restate a day already eaten.
+    var cycHist = opts.cyclingHistory || null;
+    function planOn(iso) { var c = cyclingOn(opts.cycling, cycHist, iso); return (c && c.enabled) ? c : null; }
+    var cycCfg = planOn(date);
     var cyc = cycCfg ? cyclingDelta(cycCfg, wdOf(date), base.kcal, floor) : 0;
     var carry = 0, carryDetail = null;
     var co = opts.carryover;
@@ -1094,17 +1121,20 @@
         carryDetail = { days: [], balance: 0, mode: co.mode, cap: cap, remaining: 0, applied: 0, cycleStart: opts.cycleStart, expired: true };
       } else {
         var eatenByDate = opts.eatenByDate || {};
-        // A mid-cycle change to the high/low plan locks in the days already eaten under the old plan:
-        // we don't re-score them against the new cycling targets (that would invent a phantom
-        // surplus/deficit). Only eating from the change date forward carries across remaining days.
-        var accrueFrom = opts.cyclingChangedAt || null;
+        // A mid-cycle change to the high/low plan must not re-score the days already eaten under the
+        // old plan (that would invent a phantom surplus/deficit). With a plan history each day is
+        // scored against its own targets, so nothing needs locking out. Only state saved before the
+        // history existed still needs the blunt version: we know the plan changed but not what it
+        // was, so those days sit out of the carryover entirely.
+        var accrueFrom = (cycHist && cycHist.length) ? null : (opts.cyclingChangedAt || null);
         var acc = 0, days = [];
         for (var i = 0; i < idx; i++) {
           var dISO = shiftISOdays(opts.cycleStart, i);
           if (accrueFrom && dISO < accrueFrom) continue;
           var e = eatenByDate[dISO];
           if (!(e > 0)) continue;
-          var tgt = base.kcal + (cycCfg ? cyclingDelta(cycCfg, wdOf(dISO), base.kcal, floor) : 0);
+          var pastCfg = planOn(dISO);
+          var tgt = base.kcal + (pastCfg ? cyclingDelta(pastCfg, wdOf(dISO), base.kcal, floor) : 0);
           if (!isCompleteDay(e, tgt)) continue; // a half-logged day would fake a huge deficit
           var eaten = Math.round(e);
           acc += tgt - eaten;
@@ -1473,7 +1503,7 @@
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
-    cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
+    cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,

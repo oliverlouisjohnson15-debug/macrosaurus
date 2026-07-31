@@ -274,6 +274,57 @@ test('composeDayTarget: a mid-cycle high/low change locks out earlier days from 
   near(withLock.eff.kcal, 1986 + 397, 1);           // full high day restored (~2383)
 });
 
+// ---- the plan is dated: editing it never restates a day already eaten ----
+test('cyclingOn: a day takes the plan that was in force on it, not the one set afterwards', () => {
+  const old = { effective_date: null, enabled: true, highDays: [0, 6], deltaPct: 0.15 };
+  const now = { effective_date: '2026-07-20', enabled: true, highDays: [1, 3, 5], deltaPct: 0.2 };
+  const hist = [old, now];
+  assert.deepStrictEqual(E.cyclingOn(now, hist, '2026-07-19'), old);  // day before the edit
+  assert.deepStrictEqual(E.cyclingOn(now, hist, '2026-07-20'), now);  // the day of it
+  assert.deepStrictEqual(E.cyclingOn(now, hist, '2026-08-01'), now);  // after
+  // Out-of-order history still resolves by date, and no history at all means the current plan.
+  assert.deepStrictEqual(E.cyclingOn(now, [now, old], '2026-07-19'), old);
+  assert.deepStrictEqual(E.cyclingOn(now, null, '2026-07-19'), now);
+  assert.strictEqual(E.cyclingOn(null, [], '2026-07-19'), null);
+});
+
+test('composeDayTarget: making a weekday high leaves the same weekday already eaten on its old target', () => {
+  const base = { kcal: 2000, protein_g: 160, fat_g: 74, carbs_g: 174 };
+  // 2026-07-27 is a Monday. Old plan: weekends high, so Monday was a low day. New plan, set on the
+  // 29th: Monday is high. The Monday already eaten must still read as the low day it was.
+  const hist = [
+    { effective_date: null, enabled: true, highDays: [0, 6], deltaPct: 0.15 },
+    { effective_date: '2026-07-29', enabled: true, highDays: [1], deltaPct: 0.15 },
+  ];
+  const opts = { base, floorKcal: 1200, cycling: hist[1], cyclingHistory: hist, carryover: null };
+  const past = E.composeDayTarget(Object.assign({ date: '2026-07-27' }, opts));
+  const next = E.composeDayTarget(Object.assign({ date: '2026-08-03' }, opts));
+  assert.strictEqual(past.cyc, E.cyclingDelta(hist[0], 1, base.kcal, 1200)); // low, as it ran
+  assert.ok(past.cyc < 0, `past Monday ${past.cyc} should still be a low day`);
+  assert.ok(next.cyc > 0, `next Monday ${next.cyc} should be a high day`);
+});
+
+test('composeDayTarget: with a plan history, earlier days carry over scored against their OWN plan', () => {
+  const base = { kcal: 1986, protein_g: 163, fat_g: 74, carbs_g: 168 };
+  // Same setup as the lock test below, but with the old plan on record: Sun 07-19 and Mon 07-20 ran
+  // as EVEN days (no cycling) and were eaten bang on 1986, so there is no surplus to claw back, and
+  // no need to throw the days away to avoid inventing one.
+  const hist = [
+    { effective_date: null, enabled: false, highDays: [], deltaPct: 0.15 },
+    { effective_date: '2026-07-21', enabled: true, highDays: [2, 3, 4], deltaPct: 0.2 },
+  ];
+  const r = E.composeDayTarget({
+    base, date: '2026-07-21', floorKcal: 1500,
+    cycling: hist[1], cyclingHistory: hist,
+    carryover: { enabled: true, mode: 'aggressive', capKcal: 500 },
+    cycleStart: '2026-07-19', eatenByDate: { '2026-07-19': 1986, '2026-07-20': 1986 },
+    cyclingChangedAt: '2026-07-21',
+  });
+  assert.strictEqual(r.carryDetail.days.length, 2); // both days counted, neither locked out
+  assert.strictEqual(r.carryDetail.balance, 0);     // and scored flat against the plan they ran
+  assert.strictEqual(r.carry, 0);
+});
+
 test('composeDayTarget: a change dated before the cycle leaves the whole window intact', () => {
   const base = { kcal: 2000, protein_g: 160, fat_g: 74, carbs_g: 174 };
   const r = E.composeDayTarget({

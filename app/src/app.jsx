@@ -1249,7 +1249,10 @@ function cycleStartISO(db, todayISO) {
 function plannedKcalOn(db, dISO) {
   const t = currentTargets(db); if (!t) return 0;
   const p = db.profile || {};
-  const cyc = (p.cycling && p.cycling.enabled) ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), t.kcal, E.kcalFloor(p)) : 0;
+  // The plan as it stood on THAT day, not as it stands now: retuning next week's high days must not
+  // move the bar a day you already ate was judged against.
+  const plan = E.cyclingOn(p.cycling, p.cyclingHistory, dISO);
+  const cyc = (plan && plan.enabled) ? E.cyclingDelta(plan, weekdayIdx(dISO), t.kcal, E.kcalFloor(p)) : 0;
   return t.kcal + cyc;
 }
 function isCompleteDayOn(db, dISO) { return E.isCompleteDay(sumMacros(entriesOn(db, dISO)).kcal, plannedKcalOn(db, dISO)); }
@@ -1411,7 +1414,7 @@ function effectiveTarget(db, date) {
   const ov = (db.day_overrides || {})[date];
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
-    cycling: p.cycling, carryover: p.carryover,
+    cycling: p.cycling, cyclingHistory: p.cyclingHistory || null, carryover: p.carryover,
     cycleStart: cs, eatenByDate,
     cyclingChangedAt: p.cyclingChangedAt || null,
     overrideShiftKcal: (ov && ov.shiftKcal) || 0,
@@ -8890,11 +8893,25 @@ function AdvancedTab({ db, update }) {
     || (weigh === 'single' && weighDay !== p.weighDay) || JSON.stringify({ carry, cyc }) !== JSON.stringify({ carry: initCarry(), cyc: initCyc() });
   function save() {
     update(d => {
-      // Editing the high/low pattern restarts the carryover window from today: days already eaten
-      // under the old plan stay locked in rather than being re-scored against the new targets.
+      // Editing the high/low pattern is a DATED change: the new plan starts today and the outgoing
+      // one stays on the days it actually ran, so days already eaten keep the targets they were
+      // logged against instead of being restated by a plan set after the fact.
       const prev = d.profile.cycling || {};
       const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
-      if (key(prev) !== key(cyc)) d.profile.cyclingChangedAt = Store.todayISO();
+      if (key(prev) !== key(cyc)) {
+        const today = Store.todayISO();
+        d.profile.cyclingChangedAt = today;
+        const snap = (c, from) => ({ effective_date: from, enabled: !!c.enabled, highDays: (c.highDays || []).slice(), deltaPct: +c.deltaPct || 0.15 });
+        const hist = (d.profile.cyclingHistory || []).slice();
+        // The first edit back-fills the outgoing plan with an open start (null = since the
+        // beginning), which is the only honest reading of every day before we began dating changes.
+        if (!hist.length) hist.push(snap(prev, null));
+        const entry = snap(cyc, today);
+        // Several edits in one day are one change to the plan, not a stack of them.
+        if (hist[hist.length - 1].effective_date === today) hist[hist.length - 1] = entry;
+        else hist.push(entry);
+        d.profile.cyclingHistory = hist;
+      }
       d.profile.carryover = carry; d.profile.cycling = cyc; d.profile.program_mode = coach;
       // Only write cadence once it's been set or actively changed, so an untouched existing user stays
       // "unset" and still gets the one-time onboarding prompt rather than a silent default.

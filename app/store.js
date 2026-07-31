@@ -20,6 +20,10 @@
   var PROFILE_DEFAULTS = {
     carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
+    cyclingHistory: [],     // dated record of the high/low plan: [{ effective_date, enabled, highDays, deltaPct }],
+                            // ascending, effective_date null = since the beginning. A day is always
+                            // composed against the plan in force ON it, so editing the plan today
+                            // cannot restate days already eaten (see Engine.cyclingOn).
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
     trackingLane: 'balance',

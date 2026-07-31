@@ -1330,6 +1330,24 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return round(lowDelta);
   }
 
+  // The high/low plan is a DATED setting, not a global one. A day you have already eaten was run
+  // under whatever plan was in force that morning, so re-reading it against a plan you set today
+  // would rewrite history: yesterday's low day silently becomes a high day you "missed".
+  // `history` is the append-only record of the plan, ascending: [{ effective_date, enabled,
+  // highDays, deltaPct }]. A day takes the last entry effective on or before it; effective_date
+  // null means "since the beginning", which is how the plan in force before the app started
+  // recording changes is carried. No history at all falls back to `current` (existing state).
+  function cyclingOn(current, history, dateISO) {
+    if (!history || !history.length) return current || null;
+    var hs = history.filter(function (h) { return !!h; })
+      .slice().sort(function (x, y) { return (x.effective_date || '') < (y.effective_date || '') ? -1 : 1; });
+    var chosen = null;
+    for (var i = 0; i < hs.length; i++) {
+      if (!dateISO || !hs[i].effective_date || hs[i].effective_date <= dateISO) chosen = hs[i];
+    }
+    return chosen || hs[0] || current || null;
+  }
+
   // ---- carryover (aggressive): bank yesterday's surplus/deficit into today ----
   function carryover(prevTargetKcal, prevConsumedKcal, capKcal) {
     var cap = capKcal == null ? 500 : capKcal;
@@ -1725,14 +1743,19 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   //   base: {kcal, protein_g, fat_g, carbs_g},          current base targets
   //   date: 'YYYY-MM-DD',                                the day being composed
   //   floorKcal: number,                                 kcal floor (use kcalFloor(profile))
-  //   cycling: {enabled, highDays, deltaPct} | null,
+  //   cycling: {enabled, highDays, deltaPct} | null,     the plan as it stands NOW
+  //   cyclingHistory: [{effective_date, enabled, highDays, deltaPct}] | null   dated plan changes;
+  //                                                      each day is composed against the plan in
+  //                                                      force on it, so an edit today can't
+  //                                                      restate a day already eaten
   //   carryover: {enabled, mode, capKcal} | null,        capKcal default 400 (store default)
   //   cycleStart: 'YYYY-MM-DD',                          first day of the CURRENT cycle, i.e. the
   //                                                      day AFTER the last check-in (exclusive)
   //   eatenByDate: {iso: kcal},                          logged intake for past days of the cycle
   //   overrideShiftKcal: number                          per-day carb->fat rebalance (0 = none)
-  //   cyclingChangedAt: 'YYYY-MM-DD' | null              day the high/low plan was last edited; days
-  //                                                      eaten before it are locked out of carryover
+  //   cyclingChangedAt: 'YYYY-MM-DD' | null              legacy fallback for state with no history:
+  //                                                      day the plan was last edited; days eaten
+  //                                                      before it are locked out of carryover
   // }
   // Returns { base, cyc, carry, eff, carryDetail, floorLimited }.
   function composeDayTarget(opts) {
@@ -1741,7 +1764,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var floor = opts.floorKcal != null ? opts.floorKcal : KCAL_FLOOR;
     var date = opts.date;
     function wdOf(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); }
-    var cycCfg = (opts.cycling && opts.cycling.enabled) ? opts.cycling : null;
+    // Every day is composed against the plan that was in force ON THAT DAY (see cyclingOn), so
+    // changing the high/low plan today can never restate a day already eaten.
+    var cycHist = opts.cyclingHistory || null;
+    function planOn(iso) { var c = cyclingOn(opts.cycling, cycHist, iso); return (c && c.enabled) ? c : null; }
+    var cycCfg = planOn(date);
     var cyc = cycCfg ? cyclingDelta(cycCfg, wdOf(date), base.kcal, floor) : 0;
     var carry = 0, carryDetail = null;
     var co = opts.carryover;
@@ -1754,17 +1781,20 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         carryDetail = { days: [], balance: 0, mode: co.mode, cap: cap, remaining: 0, applied: 0, cycleStart: opts.cycleStart, expired: true };
       } else {
         var eatenByDate = opts.eatenByDate || {};
-        // A mid-cycle change to the high/low plan locks in the days already eaten under the old plan:
-        // we don't re-score them against the new cycling targets (that would invent a phantom
-        // surplus/deficit). Only eating from the change date forward carries across remaining days.
-        var accrueFrom = opts.cyclingChangedAt || null;
+        // A mid-cycle change to the high/low plan must not re-score the days already eaten under the
+        // old plan (that would invent a phantom surplus/deficit). With a plan history each day is
+        // scored against its own targets, so nothing needs locking out. Only state saved before the
+        // history existed still needs the blunt version: we know the plan changed but not what it
+        // was, so those days sit out of the carryover entirely.
+        var accrueFrom = (cycHist && cycHist.length) ? null : (opts.cyclingChangedAt || null);
         var acc = 0, days = [];
         for (var i = 0; i < idx; i++) {
           var dISO = shiftISOdays(opts.cycleStart, i);
           if (accrueFrom && dISO < accrueFrom) continue;
           var e = eatenByDate[dISO];
           if (!(e > 0)) continue;
-          var tgt = base.kcal + (cycCfg ? cyclingDelta(cycCfg, wdOf(dISO), base.kcal, floor) : 0);
+          var pastCfg = planOn(dISO);
+          var tgt = base.kcal + (pastCfg ? cyclingDelta(pastCfg, wdOf(dISO), base.kcal, floor) : 0);
           if (!isCompleteDay(e, tgt)) continue; // a half-logged day would fake a huge deficit
           var eaten = Math.round(e);
           acc += tgt - eaten;
@@ -2133,7 +2163,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
-    cyclingDelta: cyclingDelta, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
+    cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
@@ -2172,6 +2202,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var PROFILE_DEFAULTS = {
     carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
+    cyclingHistory: [],     // dated record of the high/low plan: [{ effective_date, enabled, highDays, deltaPct }],
+                            // ascending, effective_date null = since the beginning. A day is always
+                            // composed against the plan in force ON it, so editing the plan today
+                            // cannot restate days already eaten (see Engine.cyclingOn).
     program_mode: 'collaborative',
     proteinGPerKgLBM: 2.0,
     trackingLane: 'balance',
@@ -6273,7 +6307,10 @@ function plannedKcalOn(db, dISO) {
   const t = currentTargets(db);
   if (!t) return 0;
   const p = db.profile || {};
-  const cyc = p.cycling && p.cycling.enabled ? E.cyclingDelta(p.cycling, weekdayIdx(dISO), t.kcal, E.kcalFloor(p)) : 0;
+  // The plan as it stood on THAT day, not as it stands now: retuning next week's high days must not
+  // move the bar a day you already ate was judged against.
+  const plan = E.cyclingOn(p.cycling, p.cyclingHistory, dISO);
+  const cyc = plan && plan.enabled ? E.cyclingDelta(plan, weekdayIdx(dISO), t.kcal, E.kcalFloor(p)) : 0;
   return t.kcal + cyc;
 }
 function isCompleteDayOn(db, dISO) {
@@ -6538,6 +6575,7 @@ function effectiveTarget(db, date) {
     date,
     floorKcal: E.kcalFloor(p),
     cycling: p.cycling,
+    cyclingHistory: p.cyclingHistory || null,
     carryover: p.carryover,
     cycleStart: cs,
     eatenByDate,
@@ -24678,11 +24716,29 @@ function AdvancedTab({
   });
   function save() {
     update(d => {
-      // Editing the high/low pattern restarts the carryover window from today: days already eaten
-      // under the old plan stay locked in rather than being re-scored against the new targets.
+      // Editing the high/low pattern is a DATED change: the new plan starts today and the outgoing
+      // one stays on the days it actually ran, so days already eaten keep the targets they were
+      // logged against instead of being restated by a plan set after the fact.
       const prev = d.profile.cycling || {};
       const key = c => JSON.stringify([!!c.enabled, (c.highDays || []).slice().sort((a, b) => a - b), +c.deltaPct || 0]);
-      if (key(prev) !== key(cyc)) d.profile.cyclingChangedAt = Store.todayISO();
+      if (key(prev) !== key(cyc)) {
+        const today = Store.todayISO();
+        d.profile.cyclingChangedAt = today;
+        const snap = (c, from) => ({
+          effective_date: from,
+          enabled: !!c.enabled,
+          highDays: (c.highDays || []).slice(),
+          deltaPct: +c.deltaPct || 0.15
+        });
+        const hist = (d.profile.cyclingHistory || []).slice();
+        // The first edit back-fills the outgoing plan with an open start (null = since the
+        // beginning), which is the only honest reading of every day before we began dating changes.
+        if (!hist.length) hist.push(snap(prev, null));
+        const entry = snap(cyc, today);
+        // Several edits in one day are one change to the plan, not a stack of them.
+        if (hist[hist.length - 1].effective_date === today) hist[hist.length - 1] = entry;else hist.push(entry);
+        d.profile.cyclingHistory = hist;
+      }
       d.profile.carryover = carry;
       d.profile.cycling = cyc;
       d.profile.program_mode = coach;
