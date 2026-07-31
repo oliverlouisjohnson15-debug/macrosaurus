@@ -17,12 +17,17 @@ const read = (p) => readFileSync(p, 'utf8');
 mkdirSync('.build', { recursive: true });
 writeFileSync('.build/tw-in.css', '@tailwind base;\n@tailwind utilities;\n');
 writeFileSync('.build/tw.config.cjs',
-  'module.exports = { content: ["./app/src/app.jsx"], corePlugins: { preflight: true } };\n');
+  'module.exports = { content: ["./app/src/*.jsx"], corePlugins: { preflight: true } };\n');
 execSync('npx tailwindcss -c .build/tw.config.cjs -i .build/tw-in.css -o .build/tw.css --minify', { stdio: 'pipe' });
 const twCss = read('.build/tw.css').trim();
 
-// ---- 2. transpile app.jsx ----
-const appSrc = read('app/src/app.jsx');
+// ---- 2. transpile the app sources ----
+// app.jsx has no imports: everything lives in one shared scope, so the sources are simply
+// concatenated in order before Babel sees them. That means a file can be split off without
+// rewriting anything, as long as it is listed BEFORE the code that uses it (function declarations
+// hoist, but `const` does not). Keep this list in dependency order.
+const APP_SOURCES = ['app/src/prompts.jsx', 'app/src/app.jsx'];
+const appSrc = APP_SOURCES.map(f => '/* ---- ' + f + ' ---- */\n' + read(f)).join('\n');
 const transpiled = transformSync(appSrc, {
   presets: [['@babel/preset-react', { runtime: 'classic' }]],
   compact: false,

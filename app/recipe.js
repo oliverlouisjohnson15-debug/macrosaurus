@@ -382,7 +382,10 @@
   function perServingIngredients(recipe) {
     var s = Math.max(1, num(recipe.servings) || 1);
     return (recipe.ingredients || []).filter(function (ing) { return ing && ing.macros; }).map(function (ing) {
-      return { id: ing.id, name: ing.name || nameFromLine(ing.line), grams: ing.grams ? Math.round(ing.grams / s) : 0, macros: { kcal: Math.round(num(ing.macros.kcal) / s), protein: round1(num(ing.macros.protein) / s), carbs: round1(num(ing.macros.carbs) / s), fat: round1(num(ing.macros.fat) / s), fiber: round1(num(ing.macros.fiber) / s) }, source: (ing.resolved && ing.resolved.source) || 'recipe' };
+      // `nq` is held per 100 kcal, so it is already portion-independent and passes through the
+      // per-serving divide untouched. That is what lets a recipe's ingredients carry their food
+      // quality into the diary instead of landing there unscored.
+      return { id: ing.id, name: ing.name || nameFromLine(ing.line), grams: ing.grams ? Math.round(ing.grams / s) : 0, macros: { kcal: Math.round(num(ing.macros.kcal) / s), protein: round1(num(ing.macros.protein) / s), carbs: round1(num(ing.macros.carbs) / s), fat: round1(num(ing.macros.fat) / s), fiber: round1(num(ing.macros.fiber) / s) }, nq: ing.nq || null, source: (ing.resolved && ing.resolved.source) || 'recipe' };
     }).filter(function (x) { return x.name && (x.macros.kcal || x.macros.protein || x.macros.carbs || x.macros.fat); });
   }
 
