@@ -73,6 +73,24 @@
     // can't linger, resurface through a merge, or be read by code that no longer expects it. Keep
     // items (Fight trophies), game_awards (badge idempotency), amber_ledger, fight and buddy.
     ['catch_log', 'dex_boost', 'sleepDex', 'primed', 'eggs', 'breakthrough'].forEach(function (k) { delete s[k]; });
+    // Back-fill the high/low plan history for state saved before the plan was dated. With no
+    // history there is nothing for a day to be read against but the plan as it stands NOW, so a
+    // plan set today reshapes every day already eaten: exactly what the history exists to stop.
+    // What the old state does record is cyclingChangedAt, the day the plan last changed, and that
+    // is enough to know the current shape did NOT run before it. Those earlier days are therefore
+    // written down as having no shape at all, the base target they were planned around, rather than
+    // being handed a shape invented after the fact; the shape we do have runs from the change date.
+    // A plan that has never been changed has always been the plan, so it back-fills as a single
+    // open-start entry, which is what the app already assumed. Nothing is invented either way, and
+    // both leave a record for later changes to date themselves against.
+    if (s.profile && s.profile.cycling && !(s.profile.cyclingHistory || []).length) {
+      var cy = s.profile.cycling;
+      var pct = +cy.deltaPct || 0.15;
+      var known = function (from) { return { effective_date: from, enabled: !!cy.enabled, highDays: (cy.highDays || []).slice(), deltaPct: pct }; };
+      s.profile.cyclingHistory = s.profile.cyclingChangedAt
+        ? [{ effective_date: null, enabled: false, highDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
+        : [known(null)];
+    }
     // Reconcile the last_checkin pointer to the append-only checkins ledger on every load. A cross-device
     // merge can leave the scalar stale while the union preserves a newer check-in (see mergeStates), which
     // makes the app read "check-in due" despite a saved check-in. Healing here covers the single-copy load

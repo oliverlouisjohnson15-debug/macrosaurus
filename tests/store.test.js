@@ -29,6 +29,31 @@ test('migrate backfills the smoothed-expenditure field for old state shapes', ()
   assert.strictEqual(kept.expenditure.n, 4);
 });
 
+test('migrate: a plan changed before the history existed does not reach back over earlier days', () => {
+  // The live shape of the bug: a plan set today, no history, so every day since the start of
+  // logging was being read against a shape that only came into force this morning.
+  const s = Store.migrate({ profile: { goalType: 'cut', cycling: { enabled: true, highDays: [6], deltaPct: 0.31 }, cyclingChangedAt: '2026-07-31' } });
+  assert.strictEqual(s.profile.cyclingHistory.length, 2);
+  const [before, after] = s.profile.cyclingHistory;
+  assert.strictEqual(before.effective_date, null);
+  assert.strictEqual(before.enabled, false);          // the shape that ran then is not known: no shape
+  assert.deepStrictEqual(before.highDays, []);
+  assert.strictEqual(after.effective_date, '2026-07-31');
+  assert.deepStrictEqual(after.highDays, [6]);        // the shape we do have, from the day it started
+  assert.strictEqual(after.deltaPct, 0.31);
+});
+
+test('migrate: a plan that has never been changed back-fills as having always been the plan', () => {
+  const s = Store.migrate({ profile: { goalType: 'cut', cycling: { enabled: true, highDays: [0, 6], deltaPct: 0.15 } } });
+  assert.strictEqual(s.profile.cyclingHistory.length, 1);
+  assert.strictEqual(s.profile.cyclingHistory[0].effective_date, null); // since the beginning
+  assert.deepStrictEqual(s.profile.cyclingHistory[0].highDays, [0, 6]);
+  // A history already on record is never rewritten.
+  const kept = Store.migrate({ profile: { cycling: { enabled: false, highDays: [], deltaPct: 0.15 }, cyclingChangedAt: '2026-07-31', cyclingHistory: [{ effective_date: null, enabled: true, highDays: [3], deltaPct: 0.2 }] } });
+  assert.strictEqual(kept.profile.cyclingHistory.length, 1);
+  assert.deepStrictEqual(kept.profile.cyclingHistory[0].highDays, [3]);
+});
+
 test('self-heal snaps grossly-inflated calories back to the macro maths', () => {
   const s = Store.migrate({
     log_entries: [
