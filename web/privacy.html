@@ -36,7 +36,7 @@ a{color:var(--purple);}
 <nav class="nav"><div class="nav-in"><a class="brand" href="/"><span class="dino">&#129430;</span> MACROSAURUS</a></div></nav>
 <main class="wrap">
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: 22 July 2026</p>
+  <p class="updated">Last updated: 31 July 2026</p>
   <div class="note">This is a plain-English summary of how Macrosaurus handles your data. If anything is unclear, email <a href="mailto:olly@macrosaurus.com">olly@macrosaurus.com</a>.</div>
 
   <p>Macrosaurus (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is an adaptive macro and body-composition tracker. We try to collect as little as we need to run the app, and to keep what we do hold under your control.</p>
@@ -51,21 +51,27 @@ a{color:var(--purple);}
 
   <h2>Where it lives</h2>
   <p>Your data is stored with our hosting provider (Supabase) under row-level security, which means each account can only read and write its own rows. We do not sell your data, and we do not share it with advertisers.</p>
+  <p>The only companies that process your data are the providers we need to run the app: <b>Supabase</b> (database and sign-in), <b>Vercel</b> (hosting), <b>Anthropic</b> (the AI features described below), <b>Open Food Facts</b> (food lookups), <b>Sentry</b> (error monitoring, so we can fix crashes) and <b>PostHog</b>, hosted in the EU, for cookieless product analytics. Each processes your data only to provide that service to us, under terms that forbid using it for their own purposes or to train models on it. We use no advertising or cross-site tracking software.</p>
 
   <h2>How we protect your data</h2>
-  <p>We treat your health and fitness data as sensitive, and protect it with the following measures:</p>
+  <p>We treat your health and fitness data &mdash; including everything we receive from Google APIs under the Google Health scopes &mdash; as sensitive data, and protect it with the following technical and organisational measures:</p>
   <ul>
-    <li><b>Encrypted in transit.</b> All traffic between the app, our servers and any provider we use is encrypted with HTTPS/TLS. The app is served over HTTPS only.</li>
-    <li><b>Encrypted at rest.</b> Your data is stored encrypted at rest by our hosting provider (Supabase), using AES-256.</li>
-    <li><b>Isolated per account.</b> Every table holding your data enforces row-level security in the database itself, so one account cannot read or write another account&rsquo;s rows even if the app were to ask it to.</li>
-    <li><b>Access tokens never leave our server.</b> Your Google OAuth tokens are held only in server-side storage, are never sent to the browser or app, and are never exposed to any third party. Provider API keys are likewise held only as server-side secrets.</li>
-    <li><b>Least-privilege access.</b> Privileged database credentials are used only by our server-side functions, never by the client. Access to production systems is restricted to those who need it, protected by two-factor authentication, and we do not browse identifiable user health data in the ordinary course of running the service.</li>
-    <li><b>Deletion on disconnect.</b> Disconnecting Google Health revokes the token with Google and deletes the stored connection from our systems.</li>
+    <li><b>Encrypted in transit.</b> All traffic between the app, our servers and any provider we use is encrypted with TLS 1.2 or higher. The app and this site are served over HTTPS only, and our server-side functions refuse plaintext connections. We never transmit health data over an unencrypted channel.</li>
+    <li><b>Encrypted at rest.</b> Your data is stored encrypted at rest by our hosting provider (Supabase), using AES-256. Backups are encrypted to the same standard.</li>
+    <li><b>Isolated per account.</b> Every table holding your data enforces row-level security in the database itself, so one account cannot read or write another account&rsquo;s rows even if the app were to ask it to. Isolation is enforced by the database, not only by the app.</li>
+    <li><b>Access tokens never leave our server.</b> Your Google OAuth access and refresh tokens are held only in server-side storage, are never sent to the browser or app, and are never exposed to any third party. Provider API keys are likewise held only as server-side secrets, never in client code.</li>
+    <li><b>Least-privilege access.</b> Privileged database credentials are used only by our server-side functions, never by the client. Access to production systems is restricted to the small number of people who need it, protected by two-factor authentication, and we do not browse identifiable user health data in the ordinary course of running the service.</li>
+    <li><b>Authentication.</b> Sign-in and session handling are managed by our authentication provider (Supabase Auth). We never see or store your Google password, and passwords for email sign-in are stored only as salted hashes by that provider.</li>
+    <li><b>Secure development and testing.</b> Changes are reviewed before they are deployed, dependencies are kept up to date, and secrets are held in managed secret storage rather than in source code. We test the access rules that isolate one account&rsquo;s data from another as part of our normal release process.</li>
+    <li><b>Independent security assessment.</b> Because Macrosaurus uses restricted Google Health scopes, our application is subject to an annual independent security assessment against the Cloud Application Security Assessment (CASA) standard, which is based on the OWASP Application Security Verification Standard.</li>
+    <li><b>Incident response.</b> If we become aware of a security incident affecting your personal data, we investigate and contain it, and we notify affected users and the UK Information Commissioner&rsquo;s Office where the law requires it &mdash; within 72 hours of becoming aware, in the cases where that duty applies.</li>
+    <li><b>Deletion on disconnect.</b> Disconnecting Google Health revokes the token with Google and deletes the stored connection and the synced health readings from our systems.</li>
+    <li><b>Deletion on request.</b> You can delete your account and its data from within the app, or ask us to. We remove it from our live systems promptly, and it falls out of encrypted backups within 30 days.</li>
   </ul>
-  <p>No system can be guaranteed perfectly secure, but we keep the amount of data we hold small and review these measures as the app changes. If you have a security concern, email <a href="mailto:olly@macrosaurus.com">olly@macrosaurus.com</a>.</p>
+  <p>No system can be guaranteed perfectly secure, but we keep the amount of data we hold small and review these measures as the app changes. If you have a security concern, email <a href="mailto:olly@macrosaurus.com">olly@macrosaurus.com</a> and we will respond.</p>
 
   <h2>How long we keep it</h2>
-  <p>We keep your data for as long as your account is active. If you close your account or ask us to delete it, we remove your personal data, other than anything we&rsquo;re required to keep for legal or accounting reasons.</p>
+  <p>We keep your data for as long as your account is active. You can delete your account, and everything in it, at any time from Menu &rarr; Account in the app, or by emailing us. When you do, we remove your personal data from our live systems promptly and it falls out of our encrypted backups within 30 days &mdash; other than anything we&rsquo;re required to keep for legal or accounting reasons. You can also export a full copy of your data from the same place at any time.</p>
 
   <h2>Where in the world</h2>
   <p>Some of our providers (such as Supabase and Google) may process data outside the UK. Where that happens, we rely on those providers having appropriate safeguards in place for international transfers.</p>
@@ -95,13 +101,14 @@ a{color:var(--purple);}
   <p>This applies to our use of AI as well. Neither the raw data we receive from Google APIs nor anything derived or aggregated from it is used to develop, improve or train any AI or machine-learning model, ours or a third party&rsquo;s. Where an AI provider processes this data to deliver a feature you asked for, it does so as our processor, under terms that prohibit training on that content.</p>
 
   <h2>Cookies &amp; analytics</h2>
-  <p>We use the storage needed to keep you signed in. We do not run third-party advertising trackers. If we add privacy-respecting analytics later, we will update this page first.</p>
+  <p>We use only the storage needed to keep you signed in and to let the app work offline. We do not run third-party advertising trackers, and we set no advertising or cross-site tracking cookies.</p>
+  <p>We do use two privacy-respecting tools to keep the app working: <b>PostHog</b> (hosted in the EU) for product analytics, and <b>Sentry</b> for crash and error reporting. PostHog is configured to be cookieless, with session recording and autocapture switched off; Sentry is configured for errors only, with session replay and tracing switched off. Both record only what we need to run and fix the app &mdash; which actions you take (for example signing up, or logging a meal) and any errors, tied to your account id. They never receive your food names, your photos, your health values, or any data we receive from Google Health.</p>
 
   <h2>Your rights</h2>
   <p>Under UK GDPR you can ask us to access, export, correct or delete your data, and you can close your account at any time. To make a request, email <a href="mailto:olly@macrosaurus.com">olly@macrosaurus.com</a> and we will action it.</p>
 
   <h2>Children</h2>
-  <p>Macrosaurus is not intended for children under 16. If you believe a child has created an account, contact us and we will remove it.</p>
+  <p>Macrosaurus is not intended for anyone under 18. If you believe a child has created an account, contact us and we will remove it.</p>
 
   <h2>Changes</h2>
   <p>If this policy changes in a meaningful way, we will update the date above and, where appropriate, let you know in the app.</p>
