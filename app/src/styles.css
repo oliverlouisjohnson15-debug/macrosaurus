@@ -24,6 +24,17 @@
   --fat: #FF2FD0;           /* neon magenta */
   --cal: #39FF14;
   --weight: #B388FF;
+  /* Food-type colours. Worn by the diary tiles on a FREE account, where there is no Density Score
+     for colour to mean, so it may as well say what the food is. A premium account never sees these
+     (its tiles carry the score instead), which is what keeps a green tile from being ambiguous
+     between "a vegetable" and "a good choice". Neon, to sit with the rest of the dark theme. */
+  --food-meat: #FF6B6B;
+  --food-plant: #39FF14;
+  --food-drink: #00F3FF;
+  --food-egg: #FFD93D;
+  --food-grain: #FFA94D;
+  --food-sweet: #FF2FD0;
+  --food-other: #B388FF;
   --danger: #FF5555;
   --good: #39FF14;
   --warn: #FFB020;           /* amber: "drowsy" readiness, over/under a target, take-it-easy */
@@ -61,6 +72,15 @@
   --fat: #F5C518;           /* gold */
   --cal: #2E6FD4;
   --weight: #7c3aed;
+  /* The same food-type set, darkened so the black pixel glyph still reads on top of them in the
+     light (Game Boy Color) theme. */
+  --food-meat: #E4572E;
+  --food-plant: #2E9E4F;
+  --food-drink: #1B9AAA;
+  --food-egg: #E8B93B;
+  --food-grain: #D98324;
+  --food-sweet: #C64191;
+  --food-other: #7c3aed;
   --danger: #E5342A;
   --good: #17A398;
   --warn: #B26A00;           /* darker amber: readable on white (4.5:1) */

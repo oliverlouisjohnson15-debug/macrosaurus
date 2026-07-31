@@ -24,43 +24,49 @@ function withActivity(p) { const a = ACTIVITY.find(x => x.v === p.activityLevel)
 // Lean (fat-free) mass in kg when body fat is known, else bodyweight.
 function leanKg(p) { const f = E.fatFreeMassKg(p.weightKg, p.bodyFatPct); return (f != null && f > 0) ? f : p.weightKg; }
 // ---- pixel-art glyphs (no emoji) ----
+// Pixel icon art, on an 8x8 grid.
+//
+// These were 6x6, which is why they read as blobs: at that size a drumstick, a bread roll and a
+// biscuit all resolve to "filled rounded shape", and the food ones were genuinely hard to tell
+// apart. 8x8 is also the Game Boy's actual tile size, so it is both the more legible grid and the
+// more honest one. The extra two rows are enough for a silhouette to become a thing: a leg bone,
+// a cup with a handle, a slice with a crust.
+//
+// Rules for editing: every row is exactly 8 characters, '#' is ink and '.' is empty, and each icon
+// should read at 16px. Test at the real size, not zoomed in.
 const PX_ICONS = {
-  meat: ['.####.', '######', '######', '.####.', '...##.', '...##.'],
-  chat: ['######', '#....#', '#....#', '######', '.##...', '.#....'],
-  plant: ['....#.', '..###.', '.####.', '####..', '.##.#.', '.#....'],
-  drink: ['######', '#....#', '#....#', '.####.', '.####.', '..##..'],
-  egg: ['..##..', '.####.', '######', '######', '.####.', '..##..'],
-  grain: ['.####.', '######', '#.##.#', '######', '######', '.####.'],
-  sweet: ['#....#', '.####.', '######', '######', '.####.', '#....#'],
-  drop: ['..#...', '..#...', '.###..', '#####', '#####', '.###..'],
-  dino: ['.####.', '#.##.#', '######', '#....#', '.#### ', '#....#'],
-  down: ['..##..', '..##..', '..##..', '######', '.####.', '..##..'],
-  up: ['..##..', '.####.', '######', '..##..', '..##..', '..##..'],
-  scale: ['......', '######', '......', '......', '######', '......'],
-  sun: ['#.#.#.', '.###..', '#####.', '.###..', '#.#.#.', '......'],
-  moon: ['.###..', '###...', '##....', '###...', '.###..', '......'],
-  doc: ['#####.', '#...#.', '#.#.#.', '#...#.', '#.#.#.', '#####.'],
-  plate: ['.####.', '#....#', '#....#', '#....#', '.####.', '......'],
-  glove: ['.###..', '#####.', '######', '######', '.####.', '.####.'],
-  trophy: ['#.##.#', '######', '.####.', '..##..', '..##..', '.####.'],
-  cup: ['######', '#....#', '#....#', '.####.', '.####.', '..##..'],
-  snow: ['#.#.#.', '.###..', '######', '.###..', '#.#.#.', '..#...'],
-  check: ['......', '.....#', '....##', '#..##.', '.###..', '..#...'],
-  star: ['#.##.#', '.####.', '######', '######', '.####.', '#.##.#'],
-};
-function foodKind(name, isAlc) {
-  if (isAlc) return 'drink';
-  const n = (name || '').toLowerCase();
-  if (/chicken|beef|steak|pork|bacon|ham|turkey|lamb|rib|sausage|fish|tuna|salmon|prawn|shrimp|meat/.test(n)) return 'meat';
-  if (/salad|veg|broccoli|spinach|kale|leaf|greens|tomato|carrot|pepper|mushroom|bean|avocado|cucumber/.test(n)) return 'plant';
-  if (/coffee|tea|juice|water|shake|smoothie|cola|milk|drink/.test(n)) return 'drink';
-  if (/\begg/.test(n)) return 'egg';
-  if (/bread|toast|rice|pasta|oat|cereal|bagel|roll|wrap|noodle|grain|granola|potato|pizza|burger/.test(n)) return 'grain';
-  if (/cake|cookie|chocolate|candy|sweet|ice cream|donut|biscuit|honey|sugar/.test(n)) return 'sweet';
-  return 'dino';
-}
+  // --- food ---
+  meat: ['....###.', '...#####', '...#####', '..#####.', '.####...', '###.....', '##......', '.#......'],
+  plant: ['..#..#..', '.######.', '########', '.######.', '..####..', '...##...', '...##...', '..####..'],
+  drink: ['########', '.######.', '.#....#.', '.#....#.', '.#....#.', '.#....#.', '..####..', '........'],
+  egg: ['...##...', '..####..', '.######.', '.######.', '########', '########', '.######.', '..####..'],
+  grain: ['........', '#......#', '#......#', '########', '########', '.######.', '..####..', '........'],
+  sweet: ['..####..', '.##..##.', '##....##', '##....##', '##....##', '##....##', '.##..##.', '..####..'],
+  // --- everything else, redrawn to the same grid ---
+  chat: ['.######.', '#......#', '#......#', '#......#', '.######.', '..##....', '.#......', '........'],
+  drop: ['...##...', '...##...', '..####..', '.######.', '########', '########', '.######.', '..####..'],
+  dino: ['....####', '...#####', '...##.##', '...#####', '.#######', '#######.', '.##..##.', '.#....#.'],
+  down: ['...##...', '...##...', '...##...', '...##...', '########', '.######.', '..####..', '...##...'],
+  up: ['...##...', '..####..', '.######.', '########', '...##...', '...##...', '...##...', '...##...'],
+  scale: ['...##...', '########', '#..##..#', '#..##..#', '...##...', '...##...', '.######.', '########'],
+  sun: ['#..#..#.', '.#.#.#..', '..###...', '#######.', '..###...', '.#.#.#..', '#..#..#.', '........'],
+  moon: ['..####..', '.###....', '###.....', '###.....', '###.....', '.###....', '..####..', '........'],
+  doc: ['#######.', '#.....#.', '#.###.#.', '#.....#.', '#.###.#.', '#.....#.', '#######.', '........'],
+  plate: ['........', '.######.', '########', '#.####.#', '#......#', '.######.', '..####..', '........'],
+  glove: ['..####..', '.######.', '########', '########', '##.####.', '#..####.', '...####.', '...###..'],
+  trophy: ['#.####.#', '########', '.######.', '..####..', '...##...', '...##...', '..####..', '.######.'],
+  cup: ['.######.', '.#....#.', '.#....##', '.#....#.', '..####..', '...##...', '..####..', '........'],
+  snow: ['#..#..#.', '.#.#.#..', '..###...', '#######.', '..###...', '.#.#.#..', '#..#..#.', '...#....'],
+  check: ['........', '......##', '.....##.', '#...##..', '##.##...', '.###....', '..#.....', '........'],
+  star: ['...##...', '...##...', '#..##..#', '.######.', '..####..', '.##..##.', '##....##', '........'],
+};// Classification lives in the engine (pure, and tested there, because these regexes run over
+// whatever anyone types into a food name). This keeps the old call sites unchanged.
+function foodKind(name, isAlc) { return E.foodKind(name, isAlc); }
 function PixelGlyph({ kind, color, size }) {
-  const g = PX_ICONS[kind] || PX_ICONS.dino; const w = 6, h = g.length; const rects = [];
+  // Width comes from the art itself. It used to be hardcoded to 6 while two icons were drawn at a
+  // different width, which silently stretched them.
+  const g = PX_ICONS[kind] || PX_ICONS.dino;
+  const w = g.reduce((m, r) => Math.max(m, r.length), 0), h = g.length; const rects = [];
   g.forEach((row, y) => row.split('').forEach((c, x) => { if (c === '#') rects.push(<rect key={x + '_' + y} x={x} y={y} width="1" height="1" />); }));
   return <svg viewBox={`0 0 ${w} ${h}`} width={size || 20} height={size || 20} fill={color} style={{ imageRendering: 'pixelated', shapeRendering: 'crispEdges' }}>{rects}</svg>;
 }
@@ -6793,34 +6799,43 @@ function FoodLog({ db, update, openLog, showToast }) {
   const renderEntry = (e, m, mc) => { const dragging = drag && drag.id === e.id; return (
     <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="flex items-center gap-2 py-2.5 mt-2 relative" style={{ borderTop: '1px solid var(--surface2)', borderLeft: '4px solid ' + mc, paddingLeft: 8, opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
       {drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && <div className="absolute -top-1 left-0 right-0 h-1.5 pointer-events-none" style={{ background: 'var(--accent)', boxShadow: '2px 2px 0 0 var(--shadow)' }} />}
-      {/* The per-row food glyph is gone. It was a 36px saturated block in the meal's colour on every
-          row, which cost the food's own name the width it needed (names were truncating to
-          "Porridge, …") and put a fifth decorative hue on a screen that already carries meal
-          stripes, macro meters and density blocks. The meal identity it repeated is still there, in
-          the coloured stripe down the left of the row. */}
+      {/* The food tile: a pixel glyph of what this is, in the colour of how good it is.
+          It came back, smaller and re-pointed, after being cut entirely. Cutting it was half right:
+          at 36px in an arbitrary per-meal hue it stole the name's width and coloured nothing
+          meaningful. But a list of names in one weight is slow AND joyless, and the research is
+          blunt about the cost: people find an item about 37% faster when rows differ by colour AND
+          icon rather than text alone. So the tile is back at 28px, and its colour is the Density
+          Score, which makes the fun and the information the same pixel: a green tile is a good
+          choice, an amber one is middling, and you read that before you read a word.
+          A food we could not score keeps its glyph on a plain outlined tile, so an unscored row
+          still has a face rather than being a hole in the list. */}
+      <FoodTile name={e.name} isAlcohol={e.is_alcohol} nq={e.nq} />
       {/* The food's NAME is the thing you scan for, so it gets the row's width and the only real
-          type weight. Everything else is support, on one quiet line beneath in text ink.
-          The old row printed five numbers in four different colours and truncated the name to make
-          room for them, which inverted the hierarchy: you could read "26.6P" perfectly and could
-          not tell which food it belonged to. Colour now lives on the meters and the density blocks,
-          never on the digits. */}
+          type weight. Everything else is support, on one quiet line beneath in text ink. */}
       <div className="min-w-0 flex-1">
         {/* The name wraps to a second line rather than clipping. A row is scanned by its name, and
             "Porridge, ban…" fails at the one job the row has; an occasional two-line row is a much
             smaller cost than a name you cannot read. Capped at two lines so nothing runs away. */}
-        <div className="flex items-baseline gap-2 min-w-0">
-          <span className="text-sm flex-1 min-w-0 leading-tight" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{e.name}</span>
-          <span className="tnum text-sm shrink-0" style={{ color: 'var(--text)' }}>{Math.round(e.computed_macros.kcal)}</span>
+        {/* The name owns its line outright. Sharing it with the calories left only 136px, about
+            sixteen characters, so anything longer than "Chicken & rice bowl" wrapped and then
+            clipped anyway. The calories move down to lead the support line, where they are still
+            the first thing on it and still the boldest thing on it. */}
+        <div className="min-w-0">
+          <span className="text-[13.5px]" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.25 }}>{e.name}</span>
         </div>
-        {/* Amount and protein only. Carbs and fat were being truncated mid-digit anyway on a 375px
-            row ("360 g · 26.…"), and a clipped number is worse than an absent one. They are totalled
-            on the meal and the day above, and shown in full when you tap to edit, so nothing is lost.
-            Protein earns its place because it is the macro this app actually coaches. */}
+        {/* Calories and amount, and that is all. Every macro has come off this line in turn because
+            each one pushed the next into a truncation ("360 g · 26.…"), and a number clipped
+            mid-digit is worse than one that is simply somewhere else. They are totalled on the meal
+            and the day directly above, and shown in full the moment you tap the row to edit it. */}
         <div className="flex items-center gap-2 mt-1 min-w-0">
           <span className="text-[11px] tnum truncate" style={{ color: 'var(--muted)' }}>
-            {e.qty_label || '1 portion'}{e.computed_macros.protein > 0 ? ' · ' + Math.round(e.computed_macros.protein) + 'g protein' : ''}
+            <span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(e.computed_macros.kcal)} kcal</span>
+            {' · ' + (e.qty_label || '1 portion')}
           </span>
-          <span className="ml-auto shrink-0"><DensityChip nq={e.nq} showNumber={false} /></span>
+          {/* Just the score. The blocks moved into the tile's colour, so repeating them here would
+              say the same thing twice in one row. The number stays because colour alone is not a
+              channel everyone has, and a phone has no hover to fall back on. */}
+          <DensityScoreText nq={e.nq} className="ml-auto shrink-0" />
         </div>
       </div>
       <button onPointerDown={(ev) => startDrag(ev, e, mc)} className="hit shrink-0 px-2 py-2 cursor-grab select-none flex items-center justify-center" style={{ touchAction: 'none', color: (dragging || arming === e.id) ? 'var(--accent)' : 'var(--muted)', transform: arming === e.id ? 'scale(1.35)' : 'none', transition: 'transform .16s ease' }} title="Press and hold to drag"><PixelGrip /></button>
@@ -6945,8 +6960,12 @@ function FoodLog({ db, update, openLog, showToast }) {
                     (No meal-level Density Score either: it would sit on the day's per-calorie scale
                     while the blocks beside each food sit on the per-100 g one, so a meal holding one
                     food would disagree with the food inside it.) */}
-                <div className="text-[12px] tnum text-right leading-tight pt-0.5" style={{ color: me.length ? 'var(--text2)' : 'var(--muted)' }}>
-                  {Math.round(ms.kcal)} kcal
+                {/* An empty meal reads as an invitation, not a report. "0 kcal" is the lazy
+                    placeholder the empty-state literature warns about: it states a fact nobody
+                    needed and makes an ordinary mid-afternoon look like a failure. The dash is
+                    quieter and truer, and the add action right below it is the way out. */}
+                <div className="text-[12px] tnum text-right leading-tight pt-0.5" style={{ color: me.length ? 'var(--text2)' : 'var(--muted2)' }}>
+                  {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
                 </div>
                 <div className="relative">
                   <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu === m.id ? null : m.id); }} className="hit px-1 text-[#8A8A90]" aria-label="Meal options">⋯</button>
@@ -7457,6 +7476,50 @@ function densityColor(score) { return TONE_VAR[E.densityTone(score)]; }
 // chip was the wrong instrument here: it put a saturated block against the food's own name and made
 // a quiet piece of context shout louder than the thing it describes. Blocks sit beside the name at
 // the weight of a rating, the number stays in text ink, and the row still reads name-first.
+// A food's tile: what it is (the pixel glyph) in the colour of how good it is (the Density Score).
+// One mark doing both jobs, which is why the colour is allowed to be loud here when it is not
+// allowed to be loud on the digits: it is carrying meaning, not decoration.
+//
+// Unscored is a designed state, not an absence. A food we could not score, or a free account that
+// does not get scores at all, still gets its glyph on an outlined tile, so the row keeps its face
+// and the list keeps its rhythm. Alcohol is never graded, so it always takes that neutral form.
+const FOOD_TONE = {
+  meat: 'var(--food-meat)', plant: 'var(--food-plant)', drink: 'var(--food-drink)',
+  egg: 'var(--food-egg)', grain: 'var(--food-grain)', sweet: 'var(--food-sweet)', dino: 'var(--food-other)',
+};
+function FoodTile({ name, isAlcohol, nq, size = 28 }) {
+  const premium = window.MISPREMIUM === true;
+  const ns = (!isAlcohol && nq && premium) ? E.nsFromNq(nq) : null;
+  const kind = foodKind(name, isAlcohol);
+  const tone = E.foodTileTone({ premium, scored: !!ns, isAlcohol });
+  const bg = tone === 'score' ? densityColor(ns.score)
+    : tone === 'kind' ? FOOD_TONE[kind]
+      : 'var(--surface2)';
+  // Ink is dark on a colour and muted on the neutral tile, so the glyph reads either way.
+  const ink = tone === 'neutral' ? 'var(--muted)' : 'rgba(0,0,0,0.75)';
+  const label = tone === 'score' ? name + ' · Density Score ' + ns.score
+    : tone === 'kind' ? name
+      : name + ' · not scored';
+  return (
+    <div className="pixel-box flex items-center justify-center shrink-0"
+      style={{ width: size, height: size, background: bg, boxShadow: 'none' }} title={label}>
+      <PixelGlyph kind={kind} color={ink} size={Math.round(size * 0.62)} />
+    </div>
+  );
+}
+function DensityScoreText({ nq, className = '' }) {
+  if (window.MISPREMIUM !== true) return null;
+  const ns = nq ? E.nsFromNq(nq) : null;
+  if (!ns) return null;
+  // Framed, because sitting bare at the end of "425 kcal · 360 g" it read as a third item in that
+  // list rather than a different kind of thing. The border says "this is a score", the tile beside
+  // it says how good, and the number itself stays quiet.
+  return (
+    <span className={'tnum text-[10px] px-1 leading-[1.4] ' + className}
+      style={{ color: 'var(--muted)', border: '1px solid var(--border)' }}
+      title={'Density Score ' + ns.score + ' out of 100 (' + ns.band.label.toLowerCase() + ')'}>{ns.score}</span>
+  );
+}
 function DensityChip({ nq, className = '', showNumber = true }) {
   if (window.MISPREMIUM !== true) return null;
   const ns = nq ? E.nsFromNq(nq) : null;

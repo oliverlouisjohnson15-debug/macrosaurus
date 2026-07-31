@@ -338,6 +338,45 @@
   }
 
   // ---------------------------------------------------------------------------
+  // What kind of food is this?
+  //
+  // Drives the icon on every diary row, and on a free account the colour of its tile too. Lives here
+  // rather than in the UI because it is a pile of regexes over user-entered text, which is exactly
+  // the kind of thing that quietly rots: someone adds "turkey mince" and it lands on the fallback.
+  // Order matters. The first match wins, so the more specific patterns go first.
+  function foodKind(name, isAlcohol) {
+    if (isAlcohol) return 'drink';
+    var n = String(name || '').toLowerCase();
+    // DRINK first: "orange juice" and "banana smoothie" are drinks that happen to name fruit, so a
+    // fruit rule running earlier would swallow them.
+    // \bcola\b is deliberate. Without the word boundary "cola" matches inside "choCOLAte", which is
+    // how chocolate spent its life being classified as a drink.
+    if (/coffee|\btea\b|juice|\bwater\b|shake|smoothie|\bcola\b|lemonade|squash|milk|drink/.test(n)) return 'drink';
+    if (/chicken|beef|steak|pork|bacon|ham|turkey|lamb|rib|sausage|fish|tuna|salmon|prawn|shrimp|mince|meat/.test(n)) return 'meat';
+    if (/salad|veg|broccoli|spinach|kale|leaf|greens|tomato|carrot|pepper|mushroom|bean|lentil|\bpea\b|avocado|cucumber|fruit|apple|banana|berry|berries|orange/.test(n)) return 'plant';
+    // GRAIN before EGG, so "egg noodles" and "egg fried rice" read as the carb they mostly are,
+    // while "scrambled egg" still lands on egg. It also puts "sweet potato" here rather than in
+    // sweets, which is where the word "sweet" would otherwise drag it.
+    if (/bread|toast|rice|pasta|oat|cereal|bagel|roll|wrap|noodle|grain|granola|potato|pizza|burger|couscous|quinoa/.test(n)) return 'grain';
+    if (/\begg/.test(n)) return 'egg';
+    if (/cake|cookie|chocolate|candy|sweet|ice cream|donut|doughnut|biscuit|honey|sugar|crisps|pudding/.test(n)) return 'sweet';
+    return 'dino';
+  }
+
+  // How a food's tile should be coloured. Two palettes that must never share a screen:
+  //   'score'   - premium, scored: the tile wears the Density Score, so colour carries meaning
+  //   'neutral' - premium, unscored (or alcohol): plainly "not scored", never a status colour
+  //   'kind'    - free: the tile wears its food type, which is decoration and nothing more
+  // A free account never sees a status colour here, so its green cannot be misread as "good"; a
+  // premium account never sees a type colour, so its amber cannot be misread as "grain".
+  function foodTileTone(opts) {
+    opts = opts || {};
+    if (!opts.premium) return 'kind';
+    if (opts.isAlcohol || !opts.scored) return 'neutral';
+    return 'score';
+  }
+
+  // ---------------------------------------------------------------------------
   // Display decisions
   //
   // These used to live in the UI file, where nothing could test them, and every one of them has
@@ -1427,7 +1466,7 @@
     ndClampEstimate: ndClampEstimate, ndBreakdown: ndBreakdown, ndTrend: ndTrend,
     ND_POPULATION_AVERAGE: ND_POPULATION_AVERAGE,
     nutriScore: nutriScore, nsFromNq: nsFromNq, densityScore: densityScore, dsBand: dsBand, dsReasons: dsReasons,
-    meterCells: meterCells, densityTone: densityTone,
+    meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
