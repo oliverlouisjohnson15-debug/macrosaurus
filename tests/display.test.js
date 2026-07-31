@@ -91,3 +91,62 @@ test('the tone never disagrees with the band', () => {
     if (band === 'treat') assert.equal(tone, 'danger', `score ${s}: ${band} vs ${tone}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// The backfill trigger
+//
+// These cover a bug that reached production: the effect that fills in missing nutrients keyed off
+// `db.log_entries`, and the app's update() deep-clones state, so that array had a new identity after
+// every unrelated write. The effect restarted constantly and cancelled its own in-flight AI call, so
+// the answer came back, was thrown away, and the entry stayed unscored forever. Five calls were paid
+// for and none were kept. The trigger is now the SET of entries needing work.
+
+const DAY = '2026-07-31';
+const entry = (id, over) => Object.assign({ id, date: DAY, computed_macros: { kcal: 400 } }, over);
+
+test('the trigger is the same for an identical set of work', () => {
+  const a = [entry('1'), entry('2')];
+  const b = [entry('1'), entry('2')];   // same work, different array identity, as a clone gives
+  assert.equal(E.pendingNqIds(a, DAY), E.pendingNqIds(b, DAY));
+  assert.notEqual(a, b, 'the arrays really are different objects');
+});
+
+test('order does not change the trigger', () => {
+  // A drag-reorder must not look like new work.
+  assert.equal(E.pendingNqIds([entry('a'), entry('b')], DAY),
+               E.pendingNqIds([entry('b'), entry('a')], DAY));
+});
+
+test('the trigger changes when there is genuinely something new to do', () => {
+  const before = E.pendingNqIds([entry('1')], DAY);
+  const after = E.pendingNqIds([entry('1'), entry('2')], DAY);
+  assert.notEqual(before, after);
+});
+
+test('scoring an entry removes it from the work', () => {
+  const before = E.pendingNqIds([entry('1'), entry('2')], DAY);
+  const after = E.pendingNqIds([entry('1'), entry('2', { nq: { protein: 5 } })], DAY);
+  assert.notEqual(before, after);
+  assert.equal(after, '1');
+});
+
+test('alcohol, other days and tiny entries are never work', () => {
+  const list = [
+    entry('booze', { is_alcohol: true }),
+    entry('yesterday', { date: '2026-07-30' }),
+    entry('sip', { computed_macros: { kcal: 2 } }),
+    entry('real'),
+  ];
+  assert.equal(E.pendingNqIds(list, DAY), 'real');
+});
+
+test('a fully scored day asks for no work at all', () => {
+  const done = [entry('1', { nq: { protein: 5 } }), entry('2', { nq: { protein: 3 } })];
+  assert.equal(E.pendingNqIds(done, DAY), '');
+});
+
+test('missing or malformed entries do not break the trigger', () => {
+  assert.equal(E.pendingNqIds(null, DAY), '');
+  assert.equal(E.pendingNqIds([null, undefined], DAY), '');
+  assert.equal(E.pendingNqIds([{ id: 'x', date: DAY }], DAY), '');   // no macros at all
+});

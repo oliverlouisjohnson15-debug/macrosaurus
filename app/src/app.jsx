@@ -6291,6 +6291,10 @@ const NQ_BACKFILL_MAX = 12;
 function useNutrientBackfill(db, update, date, isPremium) {
   const tried = useRef({});
   const premiumSince = (db.profile || {}).premiumSince || null;
+  // The trigger is the SET of entries needing work, not the array holding them. update() deep-clones
+  // state, so db.log_entries has a fresh identity after every change anywhere in the app; keying the
+  // effect on that identity made it restart on every unrelated write.
+  const pending = E.pendingNqIds(db.log_entries, date);
   useEffect(() => {
     if (!isPremium || !premiumSince || date < premiumSince) return;
     const todo = (db.log_entries || []).filter(e =>
@@ -6301,23 +6305,24 @@ function useNutrientBackfill(db, update, date, isPremium) {
     const batch = todo.slice(0, NQ_BACKFILL_MAX);
     // Marked before the call, so a refusal or an error is not retried on every render.
     batch.forEach(e => { tried.current[e.id] = true; });
-    let dead = false;
     (async () => {
       try {
         const out = await aiEstimateNutrientsBatch(batch.map(e => ({
           name: e.name, grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : 0, macros: e.computed_macros,
         })));
-        if (dead) return;
         const patch = {};
         batch.forEach((e, i) => {
           const x = out[i]; if (!x) return;
-          const nq = E.ndPer100kcal(
-            Object.assign({}, e.computed_macros, { fat: (e.computed_macros || {}).fat }),
-            Object.assign({}, x, { grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : 0 })
-          );
+          const nq = E.ndPer100kcal(e.computed_macros,
+            Object.assign({}, x, { grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : 0 }));
           if (nq) { nq.est = true; patch[e.id] = nq; }
         });
         if (!Object.keys(patch).length) return;
+        // Deliberately NOT guarded by an "is this effect still current" flag. It used to be, and that
+        // is what stopped this working at all: the answer came back, an unrelated state write had
+        // already torn the effect down, and a call we had paid for was binned. The write below is
+        // idempotent (it only fills entries that are still unscored), so applying it late is always
+        // better than throwing it away.
         update(d => { (d.log_entries || []).forEach(e => { if (patch[e.id] && !e.nq) e.nq = patch[e.id]; }); });
       } catch (e) {
         // Leave them unscored (the card says so honestly), but do not leave it unreported: this is
@@ -6325,8 +6330,7 @@ function useNutrientBackfill(db, update, date, isPremium) {
         try { window.MTRACK && MTRACK('density_backfill_failed', { items: batch.length, message: String((e && e.message) || e).slice(0, 120) }); } catch (_) {}
       }
     })();
-    return () => { dead = true; };
-  }, [db.log_entries, date, isPremium, premiumSince]);
+  }, [pending, date, isPremium, premiumSince]);
 }
 function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card

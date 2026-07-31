@@ -997,6 +997,23 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     };
   }
 
+  // Which of a day's entries still need a nutrient estimate, as a STABLE key.
+  //
+  // This exists because the app's update() deep-clones state, so `db.log_entries` has a new array
+  // identity after every change anywhere in the app. An effect that depends on that identity re-runs
+  // constantly, and if it cancels its in-flight work on cleanup it will never finish anything. The
+  // key changes only when the actual set of unscored entries changes, which is the real trigger.
+  function pendingNqIds(entries, date) {
+    return (entries || [])
+      .filter(function (e) {
+        return e && e.date === date && !e.nq && !e.is_alcohol
+          && Math.max(0, +((e.computed_macros || {}).kcal) || 0) >= 5;
+      })
+      .map(function (e) { return e.id; })
+      .sort()
+      .join(',');
+  }
+
   // ---------------------------------------------------------------------------
   // What kind of food is this?
   //
@@ -2126,7 +2143,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     ndClampEstimate: ndClampEstimate, ndBreakdown: ndBreakdown, ndTrend: ndTrend,
     ND_POPULATION_AVERAGE: ND_POPULATION_AVERAGE,
     nutriScore: nutriScore, nsFromNq: nsFromNq, densityScore: densityScore, dsBand: dsBand, dsReasons: dsReasons,
-    meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone,
+    meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone, pendingNqIds: pendingNqIds,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
@@ -17816,6 +17833,10 @@ const NQ_BACKFILL_MAX = 12;
 function useNutrientBackfill(db, update, date, isPremium) {
   const tried = useRef({});
   const premiumSince = (db.profile || {}).premiumSince || null;
+  // The trigger is the SET of entries needing work, not the array holding them. update() deep-clones
+  // state, so db.log_entries has a fresh identity after every change anywhere in the app; keying the
+  // effect on that identity made it restart on every unrelated write.
+  const pending = E.pendingNqIds(db.log_entries, date);
   useEffect(() => {
     if (!isPremium || !premiumSince || date < premiumSince) return;
     const todo = (db.log_entries || []).filter(e => e.date === date && !e.nq && !e.is_alcohol && ((e.computed_macros || {}).kcal || 0) >= 5 && !tried.current[e.id]);
@@ -17825,7 +17846,6 @@ function useNutrientBackfill(db, update, date, isPremium) {
     batch.forEach(e => {
       tried.current[e.id] = true;
     });
-    let dead = false;
     (async () => {
       try {
         const out = await aiEstimateNutrientsBatch(batch.map(e => ({
@@ -17833,14 +17853,11 @@ function useNutrientBackfill(db, update, date, isPremium) {
           grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : 0,
           macros: e.computed_macros
         })));
-        if (dead) return;
         const patch = {};
         batch.forEach((e, i) => {
           const x = out[i];
           if (!x) return;
-          const nq = E.ndPer100kcal(Object.assign({}, e.computed_macros, {
-            fat: (e.computed_macros || {}).fat
-          }), Object.assign({}, x, {
+          const nq = E.ndPer100kcal(e.computed_macros, Object.assign({}, x, {
             grams: +e.amount > 0 && e.unit === 'g' ? +e.amount : 0
           }));
           if (nq) {
@@ -17849,6 +17866,11 @@ function useNutrientBackfill(db, update, date, isPremium) {
           }
         });
         if (!Object.keys(patch).length) return;
+        // Deliberately NOT guarded by an "is this effect still current" flag. It used to be, and that
+        // is what stopped this working at all: the answer came back, an unrelated state write had
+        // already torn the effect down, and a call we had paid for was binned. The write below is
+        // idempotent (it only fills entries that are still unscored), so applying it late is always
+        // better than throwing it away.
         update(d => {
           (d.log_entries || []).forEach(e => {
             if (patch[e.id] && !e.nq) e.nq = patch[e.id];
@@ -17865,10 +17887,7 @@ function useNutrientBackfill(db, update, date, isPremium) {
         } catch (_) {}
       }
     })();
-    return () => {
-      dead = true;
-    };
-  }, [db.log_entries, date, isPremium, premiumSince]);
+  }, [pending, date, isPremium, premiumSince]);
 }
 function Dashboard({
   db,

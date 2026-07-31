@@ -337,6 +337,23 @@
     };
   }
 
+  // Which of a day's entries still need a nutrient estimate, as a STABLE key.
+  //
+  // This exists because the app's update() deep-clones state, so `db.log_entries` has a new array
+  // identity after every change anywhere in the app. An effect that depends on that identity re-runs
+  // constantly, and if it cancels its in-flight work on cleanup it will never finish anything. The
+  // key changes only when the actual set of unscored entries changes, which is the real trigger.
+  function pendingNqIds(entries, date) {
+    return (entries || [])
+      .filter(function (e) {
+        return e && e.date === date && !e.nq && !e.is_alcohol
+          && Math.max(0, +((e.computed_macros || {}).kcal) || 0) >= 5;
+      })
+      .map(function (e) { return e.id; })
+      .sort()
+      .join(',');
+  }
+
   // ---------------------------------------------------------------------------
   // What kind of food is this?
   //
@@ -1466,7 +1483,7 @@
     ndClampEstimate: ndClampEstimate, ndBreakdown: ndBreakdown, ndTrend: ndTrend,
     ND_POPULATION_AVERAGE: ND_POPULATION_AVERAGE,
     nutriScore: nutriScore, nsFromNq: nsFromNq, densityScore: densityScore, dsBand: dsBand, dsReasons: dsReasons,
-    meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone,
+    meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone, pendingNqIds: pendingNqIds,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
