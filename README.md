@@ -42,6 +42,45 @@ The app is built from source in `app/`:
 The root `index.html` is the built bundle. When source changes, rebuild it (Tailwind
 compile + JSX transpile + inline vendors) and commit the new `index.html`.
 
+## Running it locally
+
+You need Node 22+ (`node -v`). On a Mac: `brew install node`.
+
+```bash
+npm install     # once
+npm run dev     # http://localhost:5173
+```
+
+Save any file under `app/` and the browser reloads with the change. A `styles.css` or
+`engine.js` edit rebuilds in well under a second; an `app.jsx` edit takes ~2s, since
+that is a full Tailwind scan plus a JSX transpile of a very large file.
+
+Flags (note the `--` so npm passes them through):
+
+```bash
+npm run dev -- --open        # open the browser on start
+npm run dev -- --port 3000   # different port (default 5173, auto-bumps if taken)
+npm run dev -- --host        # also serve on your LAN, to test on a phone
+```
+
+Two things worth knowing:
+
+- **`npm run dev` never writes `index.html`.** It builds in memory, so a dev session
+  leaves your working tree clean. Run `npm run build` when you want the deployable
+  bundle updated for a commit.
+- **The service worker is stubbed in dev.** The real `sw.js` caches the app shell,
+  which would serve you a stale bundle; the dev server substitutes a no-op worker that
+  clears any caches a previous real one left behind. Test service-worker behaviour
+  against a real deploy, not locally.
+
+If a build breaks, the page shows the error (with the source line) as an overlay and
+keeps serving the last good bundle, so you can fix and save without losing your session.
+
+```bash
+npm test        # 317 unit tests, ~1s
+npm run build   # rebuild index.html for committing
+```
+
 ## Backend
 
 Auth and per-user data use Supabase (project `Macrosaurus`, table `user_state`,
