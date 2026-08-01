@@ -72,6 +72,14 @@ test('migrate: a back-filled plan change settles up with the window it landed in
   assert.strictEqual(entry.effective_date, shiftISO(today, -1));
   assert.strictEqual(typeof entry.spreadKcal, 'number');
   assert.strictEqual(entry.spreadUntil, shiftISO(shiftISO(today, -3), 6)); // bounded by its own window
+  // Recovered a day late, so it settles from TODAY: yesterday has been eaten and is not up for
+  // restating, and the days still to come carry the whole of it.
+  assert.strictEqual(entry.spreadFrom, today);
+  const bare = s.profile.cyclingHistory.map(h => Object.assign({}, h, { spreadKcal: 0 }));
+  const on = d => E.cyclingDeltaOn(s.profile.cycling, s.profile.cyclingHistory, d, base, E.kcalFloor(s.profile));
+  const locked = d => E.cyclingDeltaOn(s.profile.cycling, bare, d, base, E.kcalFloor(s.profile));
+  [-3, -2, -1].forEach(n => assert.strictEqual(on(shiftISO(today, n)), locked(shiftISO(today, n)), 'day ' + n + ' should be locked'));
+  assert.strictEqual(on(today), locked(today) + entry.spreadKcal);
   // What the rebalance is for: the seven days of the window now add up to seven days at base.
   // Before it they did not, because the days already eaten kept the flat plan while every day from
   // the change on took the new shape, leaving the high day's bump with nothing to cancel it.

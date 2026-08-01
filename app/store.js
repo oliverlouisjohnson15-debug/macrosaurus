@@ -117,13 +117,18 @@
         // The same window the app's own edit uses: this check-in's, never more than seven days back.
         // cyclingSpread is neutral by construction for a change on or before the window start, or
         // past its end, so a plan last changed in an older window settles at 0 and moves nothing.
-        var floorISO = shiftISO(todayISO(), -6);
+        var today = todayISO();
+        var floorISO = shiftISO(today, -6);
         var ws = (s.last_checkin && s.last_checkin > floorISO) ? s.last_checkin : floorISO;
+        // Settled from TODAY, not from the change: the days between the two have already been
+        // eaten, and a rebalance worked out after the fact must not reach back and restate them.
+        // What is left carries the whole of it.
         var sp = E.cyclingSpread({
           cycling: s.profile.cycling, cyclingHistory: cycHist, changeDate: newest.effective_date,
-          windowStart: ws, baseKcal: lastTarget.kcal, floorKcal: E.kcalFloor(s.profile),
+          settleFrom: today, windowStart: ws, baseKcal: lastTarget.kcal, floorKcal: E.kcalFloor(s.profile),
         });
         newest.spreadKcal = sp.spreadKcal;
+        newest.spreadFrom = sp.from;
         newest.spreadUntil = sp.until;
       }
     }

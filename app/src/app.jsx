@@ -1247,10 +1247,11 @@ function cycleStartISO(db, todayISO) {
 // Planned kcal for a given day: base target plus that day's cycling delta (floor-aware). Used to
 // judge whether a logged day is "complete" (>= 60% of plan) without the circular carryover maths.
 function plannedKcalOn(db, dISO) {
-  const t = currentTargets(db); if (!t) return 0;
+  // Both halves of the bar as they stood on THAT day, the base target and the plan shaping it:
+  // retuning next week's high days, or changing your target, must not move the bar a day you have
+  // already eaten was judged against.
+  const t = E.targetOn(db.targets, dISO) || currentTargets(db); if (!t) return 0;
   const p = db.profile || {};
-  // The plan as it stood on THAT day, not as it stands now: retuning next week's high days must not
-  // move the bar a day you already ate was judged against.
   return t.kcal + E.cyclingDeltaOn(p.cycling, p.cyclingHistory, dISO, t.kcal, E.kcalFloor(p));
 }
 // The plan history as it would read after saving `next` today, with the rebalance that change owes
@@ -1271,11 +1272,14 @@ function pendingCyclingChange(db, next, todayISO, windowStart) {
   if (hist[hist.length - 1].effective_date === todayISO) hist[hist.length - 1] = entry;
   else hist.push(entry);
   const base = currentTargets(db);
+  // Edited in the app, so the change and the working-out are the same day: it settles from today,
+  // which is also the first day it applies to, and every day before it stays exactly as eaten.
   const sp = base ? E.cyclingSpread({
-    cycling: next, cyclingHistory: hist, changeDate: todayISO,
+    cycling: next, cyclingHistory: hist, changeDate: todayISO, settleFrom: todayISO,
     windowStart: windowStart, baseKcal: base.kcal, floorKcal: E.kcalFloor(p),
-  }) : { spreadKcal: 0, until: null };
+  }) : { spreadKcal: 0, from: todayISO, until: null };
   entry.spreadKcal = sp.spreadKcal;
+  entry.spreadFrom = sp.from;
   entry.spreadUntil = sp.until;
   return { history: hist, entry: entry, spreadKcal: sp.spreadKcal, spreadUntil: sp.until };
 }
@@ -1417,7 +1421,10 @@ function weekForecastTargets(db, days) {
   return out;
 }
 function effectiveTarget(db, date) {
-  let base = currentTargets(db); if (!base) return null;
+  // The target in force ON this day, not the newest one. For today and any day ahead those are the
+  // same; for a day already eaten it is the bar that day was actually set, which a target changed
+  // since must not rewrite (see Engine.targetOn).
+  let base = E.targetOn(db.targets, date) || currentTargets(db); if (!base) return null;
   const p = db.profile;
   // Diet break: eat at maintenance, no cycling/carryover, goal targets untouched underneath.
   if (dietBreakActive(db, date)) {
@@ -1439,7 +1446,7 @@ function effectiveTarget(db, date) {
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
     cycling: p.cycling, cyclingHistory: p.cyclingHistory || null, carryover: p.carryover,
-    cycleStart: cs, eatenByDate,
+    cycleStart: cs, eatenByDate, targets: db.targets,
     cyclingChangedAt: p.cyclingChangedAt || null,
     overrideShiftKcal: (ov && ov.shiftKcal) || 0,
   });

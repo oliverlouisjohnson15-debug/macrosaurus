@@ -690,3 +690,129 @@ test('weeklyAdjust: holds instead of cutting during the water window, but still 
   assert.strictEqual(up.direction, 'up');
   assert.strictEqual(up.changed, true);
 });
+
+/* ---------------------------------------------------------------------------------------------
+   Retuning the week at any point in a check-in cycle.
+   The rule these hold to: a day already elapsed in the cycle is LOCKED. Changing the high/low
+   plan, or the base target, applies from today forward, and whatever the change owes the week is
+   settled across the days that are left.
+   --------------------------------------------------------------------------------------------- */
+
+// The change and the working-out are not always the same day. When they are not, the days in
+// between have been eaten, and the correction must start where it can still be eaten.
+test('cyclingSpread: a rebalance settled later than the change leaves the days between untouched', () => {
+  const base = 2000, floor = 1200, ws = '2026-07-26';
+  const hist = [
+    { effective_date: null, enabled: false, highDays: [], deltaPct: 0.31 },
+    { effective_date: '2026-07-28', enabled: true, highDays: [6], deltaPct: 0.31 },
+  ];
+  // Solved on the 30th, two days after the plan changed.
+  const sp = E.cyclingSpread({
+    cycling: hist[1], cyclingHistory: hist, changeDate: '2026-07-28', settleFrom: '2026-07-30',
+    windowStart: ws, baseKcal: base, floorKcal: floor,
+  });
+  assert.strictEqual(sp.from, '2026-07-30');
+  assert.strictEqual(sp.until, '2026-08-01');
+  assert.ok(sp.spreadKcal !== 0, 'the window is lopsided and something is owed');
+  const bare = hist.map(h => Object.assign({}, h));
+  hist[1].spreadKcal = sp.spreadKcal; hist[1].spreadFrom = sp.from; hist[1].spreadUntil = sp.until;
+  // The 28th and 29th ran under the new shape but before the rebalance: shape only, unchanged.
+  ['2026-07-26', '2026-07-27', '2026-07-28', '2026-07-29'].forEach(d => {
+    assert.strictEqual(E.cyclingDeltaOn(hist[1], hist, d, base, floor), E.cyclingDeltaOn(hist[1], bare, d, base, floor), d + ' should be locked');
+  });
+  // From the 30th it carries the share, and the window still nets to base.
+  assert.strictEqual(E.cyclingDeltaOn(hist[1], hist, '2026-07-30', base, floor), E.cyclingDeltaOn(hist[1], bare, '2026-07-30', base, floor) + sp.spreadKcal);
+  let week = 0;
+  for (let i = 0; i < 7; i++) week += E.cyclingDeltaOn(hist[1], hist, isoAdd(ws, i), base, floor);
+  near(week, 0, 4);
+});
+
+test('cyclingDeltaOn: a share with no recorded start still runs from the entry, as it always did', () => {
+  const hist = [
+    { effective_date: null, enabled: false, highDays: [], deltaPct: 0.15 },
+    { effective_date: '2026-07-29', enabled: true, highDays: [1], deltaPct: 0.15, spreadKcal: -100, spreadUntil: '2026-08-01' },
+  ];
+  assert.strictEqual(E.cyclingDeltaOn(hist[1], hist, '2026-07-29', 2000, 1200), E.cyclingDelta(hist[1], 3, 2000, 1200) - 100);
+});
+
+// The whole point, swept: whichever day of the cycle you retune on, nothing behind you moves and
+// the week still adds up in front of you.
+test('retuning on any day of the cycle locks what is behind it and still nets to base', () => {
+  const base = 2000, floor = 1200;
+  const SHAPES = [
+    { enabled: false, highDays: [], deltaPct: 0.15 },
+    { enabled: true, highDays: [6], deltaPct: 0.31 },
+    { enabled: true, highDays: [0, 6], deltaPct: 0.2 },
+    { enabled: true, highDays: [1, 3, 5], deltaPct: 0.15 },
+    { enabled: true, highDays: [3, 4, 5, 6], deltaPct: 0.15 },
+  ];
+  const settle = (hist, next, changeDay, ws) => {
+    const sp = E.cyclingSpread({ cycling: next, cyclingHistory: hist, changeDate: changeDay, settleFrom: changeDay, windowStart: ws, baseKcal: base, floorKcal: floor });
+    const e = hist[hist.length - 1];
+    e.spreadKcal = sp.spreadKcal; e.spreadFrom = sp.from; e.spreadUntil = sp.until;
+    return sp;
+  };
+  for (const ws of ['2026-07-26', '2026-07-29', '2026-07-31']) {
+    const days = Array.from({ length: 7 }, (_, i) => isoAdd(ws, i));
+    for (const start of SHAPES) for (const next of SHAPES) {
+      if (start === next) continue;
+      for (let ci = 0; ci < 7; ci++) {
+        const hist = [Object.assign({ effective_date: null }, start)];
+        const before = days.map(d => E.cyclingDeltaOn(start, hist, d, base, floor));
+        hist.push(Object.assign({ effective_date: days[ci] }, next));
+        const sp = settle(hist, next, days[ci], ws);
+        const after = days.map(d => E.cyclingDeltaOn(next, hist, d, base, floor));
+        for (let k = 0; k < ci; k++) {
+          assert.strictEqual(after[k], before[k], `${ws} change on ${days[ci]}: ${days[k]} moved ${before[k]} -> ${after[k]}`);
+        }
+        // The week nets to base unless one day was asked to absorb more than the boost ceiling,
+        // which is capped on purpose rather than swinging a single day wildly.
+        const sum = after.reduce((a, b) => a + b, 0);
+        if (Math.abs(sp.spreadKcal) < base * 0.35 - 1) near(sum, 0, 7);
+      }
+    }
+  }
+});
+
+test('targetOn: a day takes the base target in force on it, not the newest one', () => {
+  const targets = [
+    { effective_date: '2026-07-01', kcal: 2000 },
+    { effective_date: '2026-07-19', kcal: 1900 },
+    { effective_date: '2026-07-19', kcal: 1986 }, // a goal change, same day as the formula one
+    { effective_date: '2026-07-29', kcal: 2100 },
+  ];
+  assert.strictEqual(E.targetOn(targets, '2026-07-10').kcal, 2000);
+  assert.strictEqual(E.targetOn(targets, '2026-07-19').kcal, 1986); // same-day ties: the later entry
+  assert.strictEqual(E.targetOn(targets, '2026-07-28').kcal, 1986);
+  assert.strictEqual(E.targetOn(targets, '2026-08-05').kcal, 2100);
+  assert.strictEqual(E.targetOn(targets, '2026-06-01').kcal, 2000); // before any target: the first bar there was
+  assert.strictEqual(E.targetOn([], '2026-07-10'), null);
+});
+
+test('composeDayTarget: raising the target mid-cycle leaves the days already eaten on their own', () => {
+  const ws = '2026-07-26', floor = 1200;
+  const cycling = { enabled: true, highDays: [6], deltaPct: 0.15 };
+  const hist = [{ effective_date: null, enabled: true, highDays: [6], deltaPct: 0.15 }];
+  const eatenByDate = { '2026-07-26': 1700, '2026-07-27': 1900, '2026-07-28': 2100 };
+  const before = [{ effective_date: '2026-07-01', kcal: 2000, protein_g: 160, fat_g: 70, carbs_g: 180 }];
+  const after = before.concat([{ effective_date: '2026-07-29', kcal: 2200, protein_g: 170, fat_g: 75, carbs_g: 200 }]);
+  const mk = (targets, date) => E.composeDayTarget({
+    base: E.targetOn(targets, date), date, floorKcal: floor, cycling, cyclingHistory: hist,
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 700 }, cycleStart: ws, eatenByDate, targets,
+  });
+  // Sunday the 26th was eaten against a 2000 base and stays there.
+  assert.strictEqual(mk(before, '2026-07-26').eff.kcal, mk(after, '2026-07-26').eff.kcal);
+  assert.strictEqual(mk(after, '2026-07-26').base.kcal, 2000);
+  // The day it was raised on, and every day after, takes the new one.
+  assert.strictEqual(mk(after, '2026-07-29').base.kcal, 2200);
+  assert.strictEqual(mk(after, '2026-08-01').base.kcal, 2200);
+  // ...and the balance is not moved by re-scoring days that were logged against the old bar.
+  const d0 = mk(before, '2026-07-29').carryDetail.days, d1 = mk(after, '2026-07-29').carryDetail.days;
+  assert.deepStrictEqual(d1.map(x => x.delta), d0.map(x => x.delta));
+  // Without a target ledger every day reads the base it is handed, exactly as before.
+  const flat = E.composeDayTarget({
+    base: { kcal: 2200, protein_g: 170, fat_g: 75, carbs_g: 200 }, date: '2026-07-26', floorKcal: floor,
+    cycling, cyclingHistory: hist, carryover: null, cycleStart: ws,
+  });
+  assert.strictEqual(flat.base.kcal, 2200);
+});

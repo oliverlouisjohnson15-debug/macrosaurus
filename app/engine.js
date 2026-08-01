@@ -690,6 +690,25 @@
 
   function weekdayOfISO(iso) { return new Date(iso + 'T00:00:00Z').getUTCDay(); }
 
+  // The base target in force ON a day. Targets are already a dated, append-only ledger, but reading
+  // only the newest lets a target set today restate every day already eaten this cycle: the same
+  // rewriting of history the plan history exists to stop, arriving through the base instead of the
+  // shape. Raising the target mid-cycle would move yesterday's bar and, with it, the surplus or
+  // deficit the carryover has already banked against it.
+  // Array order is the tiebreak, so same-day targets resolve exactly as taking the newest does
+  // (a goal change writes a second entry dated the same day as the formula one it replaces).
+  // A day before any target existed takes the earliest: the first bar there ever was.
+  function targetOn(targets, dateISO) {
+    if (!targets || !targets.length) return null;
+    var chosen = null;
+    for (var i = 0; i < targets.length; i++) {
+      var t = targets[i];
+      if (!t) continue;
+      if (!dateISO || !t.effective_date || t.effective_date <= dateISO) chosen = t;
+    }
+    return chosen || targets[0] || null;
+  }
+
   // The cycling delta a day actually carries: its own plan's high/low shape, plus any mid-window
   // rebalance recorded on that plan (see cyclingSpread). Both are read from the plan in force ON the
   // day, so the number a past day carries never changes.
@@ -699,7 +718,14 @@
     // A plan that turned cycling OFF mid-window still owes the rest of that window its rebalance,
     // so the spread is read even when there is no high/low shape left to apply it to.
     var d = p.enabled ? cyclingDelta(p, weekdayOfISO(dateISO), baseKcal, floorKcal) : 0;
-    if (p.spreadKcal && (!p.spreadUntil || dateISO <= p.spreadUntil)) d += p.spreadKcal;
+    // The rebalance is bounded at BOTH ends: spreadFrom is the first day it was allowed to touch,
+    // spreadUntil the last. The lower bound is what keeps a day already eaten locked when the
+    // correction is worked out later than the change itself (the migration back-fill does exactly
+    // that), since the entry is in force from its effective_date but the days between that and the
+    // day the rebalance was solved have already been eaten. Entries recorded before spreadFrom
+    // existed were always solved on the change day, so no lower bound is the right reading of them.
+    var from = p.spreadFrom || null;
+    if (p.spreadKcal && (!from || dateISO >= from) && (!p.spreadUntil || dateISO <= p.spreadUntil)) d += p.spreadKcal;
     return round(d);
   }
 
@@ -710,26 +736,34 @@
   // still can: the difference is spread evenly across the days left in the window (the change day
   // included), and the week lands where it was meant to.
   //   opts: { cycling, cyclingHistory (INCLUDING the new entry, minus its spread), changeDate,
+  //           settleFrom (first day that may carry the correction, default changeDate),
   //           windowStart (first day of the current check-in window), baseKcal, floorKcal }
-  // Returns { spreadKcal, until }: record both on the new history entry, so the correction stays
-  // attached to the window it was computed for and no later day, or later reading, is touched by it.
+  // Returns { spreadKcal, from, until }: record all three on the new history entry, so the
+  // correction stays attached to the window it was computed for and reaches neither a day outside
+  // it nor a day already eaten.
   // A change landing on (or before) the window start owes nothing: the new plan runs the whole
   // window and is neutral over it by construction.
+  // settleFrom exists because the change and the working-out are not always the same day. Editing
+  // the plan in the app settles it there and then, so the two coincide; a rebalance recovered later
+  // (the migration back-fill) must not reach back over the days eaten in between, so it settles
+  // from today over what is genuinely left. Solving over fewer days makes each share bigger, which
+  // is the honest answer: the days that can still absorb it are the only ones that will.
   function cyclingSpread(opts) {
     var ws = opts.windowStart, cd = opts.changeDate, base = +opts.baseKcal || 0;
+    var from = opts.settleFrom || cd;
     var until = ws ? shiftISOdays(ws, 6) : null;
-    if (!ws || !cd || cd <= ws || cd > until || !base) return { spreadKcal: 0, until: until };
+    if (!ws || !cd || !from || cd <= ws || from > until || !base) return { spreadKcal: 0, from: from, until: until };
     var total = 0, remaining = 0;
     for (var i = 0; i < 7; i++) {
       var day = shiftISOdays(ws, i);
       total += cyclingDeltaOn(opts.cycling, opts.cyclingHistory, day, base, opts.floorKcal);
-      if (day >= cd) remaining++;
+      if (day >= from) remaining++;
     }
-    if (!remaining || !total) return { spreadKcal: 0, until: until };
+    if (!remaining || !total) return { spreadKcal: 0, from: from, until: until };
     // One day left to absorb a whole week's lopsidedness would be a wild swing, so the share is
     // capped at the boost slider's own ceiling. The floor still applies underneath (composeDayTarget).
     var cap = Math.abs(base) * 0.35;
-    return { spreadKcal: round(clamp(-total / remaining, -cap, cap)), until: until };
+    return { spreadKcal: round(clamp(-total / remaining, -cap, cap)), from: from, until: until };
   }
 
   // ---- carryover (aggressive): bank yesterday's surplus/deficit into today ----
@@ -1136,6 +1170,11 @@
   //   cycleStart: 'YYYY-MM-DD',                          first day of the CURRENT cycle, i.e. the
   //                                                      day AFTER the last check-in (exclusive)
   //   eatenByDate: {iso: kcal},                          logged intake for past days of the cycle
+  //   targets: [{effective_date, kcal, ...}] | null      the dated target ledger; earlier days in
+  //                                                      the cycle are scored against the base in
+  //                                                      force on them, so a target set today can't
+  //                                                      restate a day already eaten either. Absent,
+  //                                                      every day reads `base`, as it always did.
   //   overrideShiftKcal: number                          per-day carb->fat rebalance (0 = none)
   //   cyclingChangedAt: 'YYYY-MM-DD' | null              legacy fallback for state with no history:
   //                                                      day the plan was last edited; days eaten
@@ -1150,7 +1189,15 @@
     // Every day is composed against the plan that was in force ON THAT DAY (see cyclingDeltaOn), so
     // changing the high/low plan today can never restate a day already eaten.
     var cycHist = opts.cyclingHistory || null;
-    function planDelta(iso) { return cyclingDeltaOn(opts.cycling, cycHist, iso, base.kcal, floor); }
+    // ...and against the base target in force on it, for the same reason (see targetOn). The shape
+    // is a percentage of the base, so an earlier day needs its own base for its own bump to read
+    // right, not just for the flat part.
+    function baseKcalOn(iso) {
+      if (!opts.targets || !opts.targets.length) return base.kcal;
+      var t = targetOn(opts.targets, iso);
+      return (t && t.kcal) || base.kcal;
+    }
+    function planDelta(iso) { return cyclingDeltaOn(opts.cycling, cycHist, iso, baseKcalOn(iso), floor); }
     var cyc = planDelta(date);
     var carry = 0, carryDetail = null;
     var co = opts.carryover;
@@ -1175,7 +1222,7 @@
           if (accrueFrom && dISO < accrueFrom) continue;
           var e = eatenByDate[dISO];
           if (!(e > 0)) continue;
-          var tgt = base.kcal + planDelta(dISO);
+          var tgt = baseKcalOn(dISO) + planDelta(dISO);
           if (!isCompleteDay(e, tgt)) continue; // a half-logged day would fake a huge deficit
           var eaten = Math.round(e);
           acc += tgt - eaten;
@@ -1544,7 +1591,7 @@
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
-    cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
+    cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
     trendSeries: trendSeries, TREND_ALPHA: TREND_ALPHA, readReliability: readReliability,
