@@ -2237,6 +2237,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   function isoOf(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
   function todayISO() { return isoOf(new Date()); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function shiftISO(iso, delta) { var t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + delta); return t.toISOString().slice(0, 10); }
+  // The engine, resolved lazily: in the bundle it is the block above this one, and under node the
+  // store is required on its own. Never at load time, so neither order can leave it undefined.
+  function engine() {
+    if (root.Engine) return root.Engine;
+    try { return typeof require === 'function' ? require('./engine.js') : null; } catch (e) { return null; }
+  }
 
   // Profile-level defaults (profile is null in defaultState, so it needs its own
   // backfill map for deep-merge migration of nested settings).
@@ -2313,6 +2320,35 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       s.profile.cyclingHistory = s.profile.cyclingChangedAt
         ? [{ effective_date: null, enabled: false, highDays: [], deltaPct: pct }, known(s.profile.cyclingChangedAt)]
         : [known(null)];
+    }
+    // A back-filled change lands mid-window exactly as a live one does, and owes that window the same
+    // rebalance (see Engine.cyclingSpread). The back-fill above cannot write one: it recovers the
+    // shape of the plan, not what the change owed, so the entry it leaves is the only one the app can
+    // produce with no rebalance on it at all. Without one the week keeps the change's overshoot, the
+    // days already eaten stay flat, every day from the change on takes the new shape, and the window
+    // no longer nets to the base target, so the days after a high day never come back down as far as
+    // they should. Settle it here, on the newest dated entry, the only one whose window can still be
+    // running. An edit made in the app always records its own spread (see pendingCyclingChange), so
+    // `spreadKcal` missing entirely is what marks a back-filled entry, and writing a number, 0
+    // included, is what stops this running again on the next load.
+    var cycHist = (s.profile && s.profile.cyclingHistory) || [];
+    var newest = cycHist.length ? cycHist[cycHist.length - 1] : null;
+    if (newest && newest.effective_date && !('spreadKcal' in newest)) {
+      var E = engine();
+      var lastTarget = (s.targets && s.targets.length) ? s.targets[s.targets.length - 1] : null;
+      if (E && lastTarget && lastTarget.kcal) {
+        // The same window the app's own edit uses: this check-in's, never more than seven days back.
+        // cyclingSpread is neutral by construction for a change on or before the window start, or
+        // past its end, so a plan last changed in an older window settles at 0 and moves nothing.
+        var floorISO = shiftISO(todayISO(), -6);
+        var ws = (s.last_checkin && s.last_checkin > floorISO) ? s.last_checkin : floorISO;
+        var sp = E.cyclingSpread({
+          cycling: s.profile.cycling, cyclingHistory: cycHist, changeDate: newest.effective_date,
+          windowStart: ws, baseKcal: lastTarget.kcal, floorKcal: E.kcalFloor(s.profile),
+        });
+        newest.spreadKcal = sp.spreadKcal;
+        newest.spreadUntil = sp.until;
+      }
     }
     // Reconcile the last_checkin pointer to the append-only checkins ledger on every load. A cross-device
     // merge can leave the scalar stale while the union preserves a newer check-in (see mergeStates), which

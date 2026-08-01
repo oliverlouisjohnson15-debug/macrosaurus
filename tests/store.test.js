@@ -4,6 +4,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const Store = require('../app/store.js');
+const E = require('../app/engine.js');
+
+const shiftISO = (iso, d) => { const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); };
 
 test('defaultState ships the standard meal names', () => {
   const s = Store.defaultState();
@@ -52,6 +55,57 @@ test('migrate: a plan that has never been changed back-fills as having always be
   const kept = Store.migrate({ profile: { cycling: { enabled: false, highDays: [], deltaPct: 0.15 }, cyclingChangedAt: '2026-07-31', cyclingHistory: [{ effective_date: null, enabled: true, highDays: [3], deltaPct: 0.2 }] } });
   assert.strictEqual(kept.profile.cyclingHistory.length, 1);
   assert.deepStrictEqual(kept.profile.cyclingHistory[0].highDays, [3]);
+});
+
+// The back-fill recovers the SHAPE of a plan change but not what that change owed the week it
+// landed in, so the entry it leaves is the only one the app can produce with no rebalance on it.
+// Left that way the window keeps the change's overshoot and never nets to the base target.
+test('migrate: a back-filled plan change settles up with the window it landed in', () => {
+  const today = Store.todayISO();
+  const base = 1986;
+  const s = Store.migrate({
+    profile: { sex: 'male', goalType: 'cut', cycling: { enabled: true, highDays: [6], deltaPct: 0.31 }, cyclingChangedAt: shiftISO(today, -1) },
+    targets: [{ id: 't', effective_date: shiftISO(today, -13), kcal: base, protein_g: 163, fat_g: 74, carbs_g: 168 }],
+    last_checkin: shiftISO(today, -3),
+  });
+  const entry = s.profile.cyclingHistory[1];
+  assert.strictEqual(entry.effective_date, shiftISO(today, -1));
+  assert.strictEqual(typeof entry.spreadKcal, 'number');
+  assert.strictEqual(entry.spreadUntil, shiftISO(shiftISO(today, -3), 6)); // bounded by its own window
+  // What the rebalance is for: the seven days of the window now add up to seven days at base.
+  // Before it they did not, because the days already eaten kept the flat plan while every day from
+  // the change on took the new shape, leaving the high day's bump with nothing to cancel it.
+  let planned = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = shiftISO(shiftISO(today, -3), i);
+    planned += base + E.cyclingDeltaOn(s.profile.cycling, s.profile.cyclingHistory, d, base, E.kcalFloor(s.profile));
+  }
+  assert.ok(Math.abs(planned - base * 7) <= 7, 'window should net to base, got ' + planned + ' vs ' + base * 7);
+});
+
+test('migrate: a rebalance already on record is never recomputed, and an old change owes nothing', () => {
+  const today = Store.todayISO();
+  const targets = [{ id: 't', effective_date: shiftISO(today, -30), kcal: 2000, protein_g: 160, fat_g: 70, carbs_g: 180 }];
+  // An edit made in the app records its own spread; migrate must not touch it on the next load.
+  const kept = Store.migrate({
+    profile: {
+      sex: 'male', cycling: { enabled: true, highDays: [6], deltaPct: 0.2 }, cyclingChangedAt: shiftISO(today, -1),
+      cyclingHistory: [
+        { effective_date: null, enabled: false, highDays: [], deltaPct: 0.2 },
+        { effective_date: shiftISO(today, -1), enabled: true, highDays: [6], deltaPct: 0.2, spreadKcal: -123, spreadUntil: shiftISO(today, 3) },
+      ],
+    },
+    targets, last_checkin: shiftISO(today, -3),
+  });
+  assert.strictEqual(kept.profile.cyclingHistory[1].spreadKcal, -123);
+  assert.strictEqual(kept.profile.cyclingHistory[1].spreadUntil, shiftISO(today, 3));
+  // A plan last changed in a window that has long since closed ran the whole of every window since,
+  // so it is neutral over them and owes nothing. Settled at 0, which also stops this re-running.
+  const old = Store.migrate({
+    profile: { sex: 'male', cycling: { enabled: true, highDays: [6], deltaPct: 0.2 }, cyclingChangedAt: shiftISO(today, -60) },
+    targets, last_checkin: shiftISO(today, -3),
+  });
+  assert.strictEqual(old.profile.cyclingHistory[1].spreadKcal, 0);
 });
 
 test('self-heal snaps grossly-inflated calories back to the macro maths', () => {
