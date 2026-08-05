@@ -1537,8 +1537,15 @@ function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'da
 }
 function Seg({ value, options, onChange }) { return (<div className="flex gap-2 flex-wrap">{options.map(o => (<button key={o.v} onClick={() => onChange(o.v)} className={`pixel-box flex-1 min-w-[28%] py-2.5 px-2 text-[13px] ${value === o.v ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{o.l}</button>))}</div>); }
 function Pill({ value, options, onChange }) { return (<div className="inline-flex pixel-box bg-[#1E1E22] p-1 gap-1">{options.map(o => (<button key={o.v} onClick={() => onChange(o.v)} className={`px-3.5 py-1.5 text-[12px] font-bold ${value === o.v ? 'bg-white text-black' : 'text-[#8A8A90]'}`}>{o.l}</button>))}</div>); }
-function Dropdown({ value, options, onChange }) {
+// `compact` swaps the full-height input for an inline trigger that reads as a line of text with a
+// caret, for places where a labelled box would cost more room than the choice is worth.
+function Dropdown({ value, options, onChange, compact }) {
   const [open, setOpen] = useState(false); const cur = options.find(o => o.v === value);
+  if (compact) return (<div className="relative">
+    <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-[13px] text-left max-w-full" style={{ color: 'var(--accent)', minHeight: 32 }}>
+      <span className="truncate">{cur ? cur.l : 'Select'}</span><span className="shrink-0">▾</span></button>
+    {open && <div className="absolute z-40 mt-1 min-w-[10rem] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}
+  </div>);
   return (<div className="relative"><button onClick={() => setOpen(o => !o)} className={inputCls + ' flex justify-between items-center text-left'}><span className="truncate">{cur ? cur.l : 'Select'}</span><span className="text-[#8A8A90] ml-2">▾</span></button>
     {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
 }
@@ -1607,6 +1614,15 @@ if (typeof window !== 'undefined') {
     top.close();
     setTimeout(() => { if (BACK_LAYERS.length) _armBack(); }, 0);
   });
+  // Escape closes the top layer too. The back gesture covers this on a phone, but the app also
+  // runs in a desktop browser, where Escape is the only thing anyone reaches for and nothing at
+  // all happened. Routed through the same history unwind so the two ways out stay in step.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !BACK_LAYERS.length || e.defaultPrevented) return;
+    e.preventDefault();
+    if (_backArmed) { try { window.history.back(); return; } catch (_) {} }
+    BACK_LAYERS[BACK_LAYERS.length - 1].close();
+  });
 }
 function useBackClose(onClose) {
   const ref = useRef(onClose); ref.current = onClose;
@@ -1628,6 +1644,21 @@ function useBackClose(onClose) {
 }
 // For inline layers (JSX without a dedicated component): mounts the back-close hook and nothing else.
 function BackClose({ onClose }) { useBackClose(onClose); return null; }
+// Swapping the contents of a scrolling panel does not move the scrollbar, so stepping from a long
+// list of search results into the confirm screen landed you halfway down it, with the food's name
+// and the portion picker off the top of the panel. Returns a ref: put it on the new screen's root
+// and the panel it lives in is sent back to the top when that screen mounts.
+function useScrolledToTop() {
+  const ref = useRef(null);
+  useEffect(() => {
+    let el = ref.current && ref.current.parentElement;
+    while (el && el !== document.body) {
+      if (el.scrollHeight > el.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(el).overflowY)) { el.scrollTop = 0; return; }
+      el = el.parentElement;
+    }
+  }, []);
+  return ref;
+}
 
 /* ---------- icons ---------- */
 const Icon = {
@@ -7184,12 +7215,24 @@ function FoodLog({ db, update, openLog, showToast }) {
     arr.splice(insertAt, 0, item);
   });
   const beginDrag = (entry, mc, x, y) => { const m = entry.computed_macros || {}; setDrag({ id: entry.id, name: entry.name, mc, kind: foodKind(entry.name, entry.is_alcohol), kcal: Math.round(m.kcal || 0), qty: entry.qty_label, p: m.protein, c: m.carbs, f: m.fat }); setGhost({ x, y }); if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} } };
-  // Small friction: require a brief press-and-hold before a drag arms, so a quick brush doesn't grab.
+  // Press and hold anywhere on the row to pick it up; a plain tap opens it for editing. The grab
+  // handle this replaced was a permanent 38px column on a row that only had 295px to begin with,
+  // and the row's one job is to be readable. 450ms is the conventional long-press: the old 180ms
+  // was tuned for a dedicated handle, where nothing else could have been meant, and would now
+  // arm a drag on a great many ordinary taps.
   const [arming, setArming] = useState(null); // entry id currently being held
+  // When a drag ends the browser may or may not fire a click, depending on whether the pointer
+  // moved and on the platform, so a plain "swallow the next click" flag can be left set forever and
+  // eat a real tap on some other row later. A timestamp cannot get stuck: clicks are ignored only
+  // in the moment right after a drag, and it heals itself whatever the browser decides to send.
+  const draggedAt = useRef(0);
   const startDrag = (ev, entry, mc) => {
-    ev.preventDefault(); ev.stopPropagation(); setMenu(null); setMealMenu(null);
+    if (ev.button != null && ev.button !== 0) return;
+    // No preventDefault here: it would cancel the click this row now depends on. Selection and the
+    // long-press callout are held off in CSS on the row instead.
+    ev.stopPropagation(); setMenu(null); setMealMenu(null);
     const sx = ev.clientX, sy = ev.clientY; setArming(entry.id);
-    const timer = setTimeout(() => { cleanup(); setArming(null); beginDrag(entry, mc, sx, sy); }, 180);
+    const timer = setTimeout(() => { cleanup(); setArming(null); draggedAt.current = Date.now(); beginDrag(entry, mc, sx, sy); }, 450);
     const onMove = (e) => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) { clearTimeout(timer); cleanup(); setArming(null); } };
     const onUp = () => { clearTimeout(timer); cleanup(); setArming(null); };
     function cleanup() { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); }
@@ -7224,6 +7267,9 @@ function FoodLog({ db, update, openLog, showToast }) {
       ev.preventDefault();
     };
     const up = (ev) => {
+      // Re-stamp on the drop, not just when the drag armed: a long drag can easily outlast the
+      // window measured from the press, and it is the click after the DROP that has to be ignored.
+      draggedAt.current = Date.now();
       const t = computeDrop(ev.clientX, ev.clientY);
       if (t && t.beforeId !== drag.id) moveEntry(drag.id, t.mealId, t.beforeId);
       setDrag(null); setDropAt(null); setGhost(null);
@@ -7247,6 +7293,15 @@ function FoodLog({ db, update, openLog, showToast }) {
           choice, an amber one is middling, and you read that before you read a word.
           A food we could not score keeps its glyph on a plain outlined tile, so an unscored row
           still has a face rather than being a hole in the list. */}
+      {/* The row itself is the control: tap to edit, press and hold to move it. Editing used to be
+          two taps behind the ⋯ menu, which is not where anyone looks for it, and is not what the
+          rest of the category does. */}
+      <button
+        onClick={() => { if (Date.now() - draggedAt.current < 500) return; setMenu(null); setMealMenu(null); setEditing(e); }}
+        onPointerDown={(ev) => startDrag(ev, e, mc)}
+        className="flex items-center gap-2 min-w-0 flex-1 text-left"
+        style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', transform: arming === e.id ? 'scale(.985)' : 'none', transition: 'transform .16s ease' }}
+        title="Tap to edit, press and hold to move">
       <FoodTile name={e.name} isAlcohol={e.is_alcohol} nq={e.nq} />
       {/* The food's NAME is the thing you scan for, so it gets the row's width and the only real
           type weight. Everything else is support, on one quiet line beneath in text ink. */}
@@ -7258,25 +7313,35 @@ function FoodLog({ db, update, openLog, showToast }) {
             sixteen characters, so anything longer than "Chicken & rice bowl" wrapped and then
             clipped anyway. The calories move down to lead the support line, where they are still
             the first thing on it and still the boldest thing on it. */}
+        {/* The amount rides with the name. Measured, the support line needs 286px to hold calories,
+            amount, macros and the score, and it has 216: something had to move or be cut. Up here
+            it costs nothing, because this box WRAPS to a second line rather than truncating, so
+            "· 360 g" simply flows on after the name instead of clipping anything. */}
         <div className="min-w-0">
-          <span className="text-[13.5px]" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.25 }}>{e.name}</span>
+          <span className="text-[13.5px]" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.25 }}>{e.name}
+            {e.qty_label ? <span style={{ color: 'var(--muted)' }}>{' · ' + e.qty_label}</span> : ''}</span>
         </div>
-        {/* Calories and amount, and that is all. Every macro has come off this line in turn because
-            each one pushed the next into a truncation ("360 g · 26.…"), and a number clipped
-            mid-digit is worse than one that is simply somewhere else. They are totalled on the meal
-            and the day directly above, and shown in full the moment you tap the row to edit it. */}
-        <div className="flex items-center gap-2 mt-1 min-w-0">
-          <span className="text-[11px] tnum truncate" style={{ color: 'var(--muted)' }}>
-            <span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(e.computed_macros.kcal)} kcal</span>
-            {' · ' + (e.qty_label || '1 portion')}
+        {/* The macros are back, now that dropping the grab handle and moving the amount up have paid
+            for them. They earn the place: this is a macro tracker, and "how much protein was that?"
+            is the question the row is actually asked. They were cut before because they shared one
+            truncating span with the amount and were what got clipped mid-digit; with the amount gone
+            from this line the whole thing fits, and nothing here truncates at all. */}
+        {/* No "·" between the calories and the macros: it measured 16px, which was exactly the
+            16px the line was over by, and the colour change already does a separator's job. */}
+        <div className="flex items-center gap-1.5 mt-1 min-w-0">
+          <span className="text-[11px] tnum truncate min-w-0">
+            <span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(e.computed_macros.kcal)} kcal</span>{'  '}
+            <span style={{ color: PRO }}>P{Math.round(e.computed_macros.protein || 0)}</span>{' '}
+            <span style={{ color: CARB }}>C{Math.round(e.computed_macros.carbs || 0)}</span>{' '}
+            <span style={{ color: FAT }}>F{Math.round(e.computed_macros.fat || 0)}</span>
           </span>
           {/* Just the score. The blocks moved into the tile's colour, so repeating them here would
               say the same thing twice in one row. The number stays because colour alone is not a
               channel everyone has, and a phone has no hover to fall back on. */}
-          <DensityScoreText nq={e.nq} className="ml-auto shrink-0" />
+          <DensityScoreText nq={e.nq} className="shrink-0" />
         </div>
       </div>
-      <button onPointerDown={(ev) => startDrag(ev, e, mc)} className="hit shrink-0 px-2 py-2 cursor-grab select-none flex items-center justify-center" style={{ touchAction: 'none', color: (dragging || arming === e.id) ? 'var(--accent)' : 'var(--muted)', transform: arming === e.id ? 'scale(1.35)' : 'none', transition: 'transform .16s ease' }} title="Press and hold to drag"><PixelGrip /></button>
+      </button>
       <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu === e.id ? null : e.id); }} className="hit px-2 text-[#8A8A90] shrink-0" aria-label="Entry options">⋯</button>
       {menu === e.id && (<div className="absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl" onClick={ev => ev.stopPropagation()}>
         <button onClick={() => { setEditing(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Edit</button>
@@ -7370,7 +7435,7 @@ function FoodLog({ db, update, openLog, showToast }) {
               if (window.MISPREMIUM !== true) return null;
               const dnd = E.ndDay(day.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
               return (
-                <button onClick={() => setDensityHelp(true)} className="w-full flex items-center gap-2.5 active:opacity-70">
+                <button onClick={() => setDensityHelp(true)} className="w-full flex items-center gap-2.5 active:opacity-70" style={{ minHeight: 24 }}>
                   <span className="pf text-[8px] w-8 shrink-0 text-left" style={{ color: 'var(--muted)' }}>DENS</span>
                   <div className="flex-1 min-w-0">
                     <PipMeter value={dnd.score == null ? 0 : dnd.score} target={dnd.target} cells={10}
@@ -7449,9 +7514,13 @@ function FoodLog({ db, update, openLog, showToast }) {
             {/* An empty meal is an invitation, not a report, so it gets the one thing you would want
                 to do with it and no divider above it. A full meal keeps the rule, because there the
                 button is separating the add action from a list of food. */}
+            {/* The one action every meal card exists for, so it is sized like one. It used to be a
+                19px-tall strip of text in an empty meal, under the 24px WCAG floor and a long way
+                under the 44px anyone can actually hit; the row is full width and 44px tall in both
+                states now, and only the divider still tells the two apart. */}
             <button onClick={() => openLog({ date, mealId: m.id })}
-              className={'text-[13px] font-medium ' + (me.length ? 'mt-2 pt-2 border-t border-[#262629] w-full text-left' : 'mt-1')}
-              style={{ color: 'var(--accent)' }}>+ Add food</button>
+              className={'text-[13px] font-medium w-full text-left flex items-center ' + (me.length ? 'mt-2 pt-2 border-t border-[#262629]' : 'mt-1')}
+              style={{ color: 'var(--accent)', minHeight: 44 }}>+ Add food</button>
           </Card>);
       })}
       {(() => {
@@ -7645,10 +7714,64 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
 // Unified "Food" tab: one search box over your own foods AND the Open Food Facts database, your
 // recents/favourites when empty, saved meals, and a manual-entry fallback. Replaces the old
 // separate Recent / Search / Meals / Manual tabs so logging is one clean screen.
-function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
+/* ---------- UK food tables (CoFID) ----------------------------------------------------------
+   Open Food Facts only knows things with a barcode on them. That left the most ordinary food
+   there is with no right answer at all: search "chicken breast" and you got sliced deli meat,
+   and anyone cooking from scratch was pushed to the AI estimator for a plain grilled chicken
+   breast. This is CoFID (McCance & Widdowson's Composition of Foods Integrated Dataset, OHID,
+   Open Government Licence v3.0), the UK reference for unpackaged food: 2,854 generic foods, half
+   of them carrying the saturates, sugars and salt the Density Score needs, so a home-cooked meal
+   can be scored from measured figures instead of an estimate. Regenerate with
+   tools/build-generic-foods.py.
+   Fetched on first use rather than inlined into the bundle: it is 219 KB (58 KB over the wire),
+   the app shell is served network-first on every open, and plenty of sessions never search. */
+let GENERIC_FOODS = null, GENERIC_LOAD = null;
+function loadGenericFoods() {
+  if (GENERIC_FOODS) return Promise.resolve(GENERIC_FOODS);
+  if (!GENERIC_LOAD) {
+    GENERIC_LOAD = fetch('/foods-uk.json')
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)))
+      .then(d => {
+        GENERIC_FOODS = (d.foods || []).map(f => ({
+          name: f[0],
+          per100: { kcal: f[1], protein: f[2] || 0, carbs: f[3] || 0, fat: f[4] || 0, fiber: f[5] || 0 },
+          // Only hand over the density inputs when the food carries ALL of them, fibre included.
+          // A null here means nobody measured it, which is not the same as none, and scoring an
+          // unmeasured value as a virtuous zero is exactly how a food gets rated better than it is.
+          extra: (f[5] != null && f[6] != null && f[7] != null && f[8] != null)
+            ? { satfat: f[6], sugars: f[7], salt: f[8] } : null,
+          lc: f[0].toLowerCase()
+        }));
+        return GENERIC_FOODS;
+      })
+      .catch(e => { GENERIC_LOAD = null; throw e; });
+  }
+  return GENERIC_LOAD;
+}
+// CoFID names qualify from left to right ("Chicken, breast, grilled without skin, meat only"), so a
+// match at the front of the name, and the shortest name among equals, is reliably the plainest form
+// of the food. That puts "Chicken, breast, grilled without skin" above "Chicken and mushroom pie".
+function searchGenericFoods(list, query, limit) {
+  const terms = query.split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  const hits = [];
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i];
+    let ok = true;
+    for (let t = 0; t < terms.length; t++) if (f.lc.indexOf(terms[t]) < 0) { ok = false; break; }
+    if (!ok) continue;
+    const at = f.lc.indexOf(terms[0]);
+    const rank = at === 0 ? 0 : (/[\s,(]/.test(f.lc.charAt(at - 1)) ? 1 : 2);
+    hits.push({ f: f, k: rank * 10000 + f.name.length });
+  }
+  hits.sort((a, b) => a.k - b.k);
+  return hits.slice(0, limit || 12).map(x => x.f);
+}
+function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
+  const [generic, setGeneric] = useState([]); const [genericErr, setGenericErr] = useState(false);
   const [qtyFor, setQtyFor] = useState(null); // tap the qty text on a row to adjust the amount before logging
   const query = q.trim().toLowerCase();
   const foods = db.foods.filter(f => !f.is_alcohol);
@@ -7662,14 +7785,26 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
   const myMatches = foods.filter(f => !query || f.name.toLowerCase().includes(query));
   const favs = !query ? myMatches.filter(f => f.is_favorite).sort((a, b) => b.updated_at - a.updated_at) : [];
   const nonFav = query ? myMatches : myMatches.filter(f => !f.is_favorite);
-  const ranked = nonFav.slice().sort((a, b) => query ? (b.updated_at - a.updated_at) : ((score(b) - score(a)) || (b.updated_at - a.updated_at)));
+  // Frequency first, whether or not you are searching. Sorting a typed search by updated_at alone
+  // meant the porridge you log every morning lost to whatever you happened to edit last.
+  const ranked = nonFav.slice().sort((a, b) => (score(b) - score(a)) || (b.updated_at - a.updated_at));
   const myShown = ranked.slice(0, query ? 40 : 25);
+  useEffect(() => {
+    if (query.length < 2) { setGeneric([]); setGenericErr(false); return; }
+    let cancel = false;
+    loadGenericFoods().then(list => { if (!cancel) { setGeneric(searchGenericFoods(list, query)); setGenericErr(false); } })
+      .catch(() => { if (!cancel) { setGeneric([]); setGenericErr(true); } });
+    return () => { cancel = true; };
+  }, [query]);
   useEffect(() => {
     if (query.length < 2) { setDbResults([]); setDbErr(''); setDbLoading(false); return; }
     let cancel = false; setDbLoading(true); setDbErr('');
     const t = setTimeout(async () => {
       try {
-        const url = 'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=30&fields=product_name,brands,nutriments,serving_size,serving_quantity,categories_tags';
+        // Scoped to products sold in the UK and ordered by popularity. Unfiltered, this is the
+        // WORLD database in no particular order: "chicken breast" came back as four French deli
+        // products and a Spanish one before it reached anything you could buy here.
+        const url = 'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' + encodeURIComponent(query) + '&search_simple=1&action=process&json=1&page_size=30&tagtype_0=countries&tag_contains_0=contains&tag_0=united-kingdom&sort_by=popularity_key&fields=product_name,brands,nutriments,serving_size,serving_quantity,categories_tags';
         const data = await (await fetch(url)).json();
         if (cancel) return;
         const items = (data.products || []).map(p => { const n = p.nutriments || {}; const k = n['energy-kcal_100g']; if (!p.product_name || k == null) return null; return { name: p.product_name, brand: p.brands || '', serving: p.serving_size || null, servingG: +p.serving_quantity || null, per100: { kcal: +k, protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 }, extra: offWithKind(offExtras(n), p) }; }).filter(Boolean);
@@ -7687,6 +7822,9 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
   // gram-scalable confirm so it can be re-logged at any weight; otherwise one-tap log the last amount.
   const pickMine = (f) => { if (!f.is_alcohol && f.corrected && f.saved_base) { setSel({ name: f.name }); return; } onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty }); };
   if (sel) { const sc = savedCorrection(db, sel.name); if (sc) return <ConfirmFood {...parsedFromSaved(sc, 'Using the values you saved for this food.')} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} />;
+    if (sel.generic) return <ConfirmFood note="From the UK food tables. Figures are for the food exactly as described." per100 source="cofid" extra={sel.generic.extra}
+      initial={{ name: sel.generic.name, kcal: sel.generic.per100.kcal, protein: sel.generic.per100.protein, carbs: sel.generic.per100.carbs, fat: sel.generic.per100.fat, fiber: sel.generic.per100.fiber }}
+      onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} />;
     return <ConfirmFood note="From the food database. Check it looks right before logging." per100 source="off" branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} />; }
   if (manual) return <ManualTab onPick={onPick} onCancel={() => setManual(false)} />;
   const MyRow = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
@@ -7694,7 +7832,9 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
     <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="18" height="18" fill="currentColor" /></button></div>);
   const Head = (t) => <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mt-4 mb-2">{t}</div>;
   return (<div>
-    <TextInput placeholder="Search your foods and the database…" value={q} onChange={e => setQ(e.target.value)} />
+    {/* Focused on open. Searching is what this tab is for, and making the first move a tap on the
+        field before you can type is a step that never had a reason to exist. */}
+    <TextInput autoFocus placeholder="Search foods and brands…" value={q} onChange={e => setQ(e.target.value)} />
     {!query && <>
       {favs.length > 0 && <>{Head('Favourites')}<div className="space-y-2">{favs.map(MyRow)}</div></>}
       {myShown.length > 0 && <>{Head('Recent')}<div className="space-y-2">{myShown.map(MyRow)}</div></>}
@@ -7703,11 +7843,21 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
     </>}
     {query && <>
       {myShown.length > 0 && <>{Head('Your foods')}<div className="space-y-2">{myShown.map(MyRow)}</div></>}
+      {/* Generic foods sit ABOVE the branded database. If you cooked it yourself, the plain entry
+          is the answer you want, and putting the packaged results first meant scrolling past six
+          supermarket versions of a thing to reach it. */}
+      {generic.length > 0 && <>{Head('UK food tables')}<div className="space-y-2">{generic.map((g, idx) => (
+        <button key={'gen' + idx} onClick={() => setSel({ generic: g })} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left">
+          <div className="min-w-0"><div className="text-sm truncate">{g.name}</div>
+            <div className="text-[11px] text-[#8A8A90] tnum">{Math.round(g.per100.kcal)} kcal · <span style={{ color: PRO }}>P {Math.round(g.per100.protein)}g</span> / 100 g</div></div>
+          <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
+        </button>))}</div></>}
       {Head('Food database')}
       {dbLoading && <div className="text-[12px] text-[#4A9EEB] py-2">Searching…</div>}
       {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span></button>))}</div>}
       {!dbLoading && !dbResults.length && !dbErr && <div className="text-[12px] text-[#8A8A90] py-1">No database matches.</div>}
       {dbErr && <div className="text-[12px] text-[#F5C542] py-1">{dbErr}</div>}
+      {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">The UK food tables aren't loaded, so only packaged products are shown.</div>}
     </>}
     <div className="mt-5">
       <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">Can't find it?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
@@ -7721,6 +7871,14 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI }) {
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Enter it manually</div><div className="text-[11px] text-[#8A8A90]">Type in the macros yourself</div></div>
         <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
       </button>
+      {/* Where the Food/Alcohol toggle used to live. A drink is an occasional detour, not a mode you
+          pick before every single log, so it waits down here with the other "it isn't in the list"
+          answers instead of taxing the top of the sheet on every visit. */}
+      {onAlcohol && <button onClick={onAlcohol} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><PixelGlyph kind="drink" color="var(--muted)" size={17} /></div>
+        <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Log a drink</div><div className="text-[11px] text-[#8A8A90]">Beer, wine or spirits, with the units</div></div>
+        <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
+      </button>}
     </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
     {qtyFor && <EditEntryModal title="How much this time?" saveLabel="Add to log" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} />}
@@ -7799,17 +7957,24 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box sheet-up flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="p-5 pb-3 flex-none">
-          <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-semibold">Log {isAlc ? 'alcohol' : 'food'}</h2>
-            <div className="flex items-center gap-4">
-              <button onClick={() => { setTab('photo'); setScanNow(n => n + 1); }} className="hit text-[#8A8A90]" aria-label="Scan a barcode" title="Scan a barcode"><Icon.barcode width="20" height="20" /></button>
-              <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button>
+        {/* This header was 300px tall: a grab bar, a title, a full-height Meal box, a Food/Alcohol
+            toggle and a tab row. On a 667px phone that is HALF the sheet, permanently, leaving about
+            three search results visible, and it stayed pinned over the confirm screen where none of
+            it applied. The meal is now a line of text under the title, the Type toggle is gone (see
+            the tabs note below) and the barcode icon went with it, since "Scan" is a tab 40px away. */}
+        <div className="px-5 pt-4 pb-3 flex-none">
+          <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-3" />
+          <div className="flex justify-between items-start gap-3 mb-3">
+            <div className="min-w-0">
+              {/* Alcohol as the labelled detour the comment below always described: entered from
+                  the bottom of the Food tab, left by this link. The meal picker stays put either
+                  way, so a drink still lands where you want it. */}
+              {isAlc && <button onClick={() => setIsAlc(false)} className="block text-[11px] mb-0.5" style={{ color: 'var(--accent)' }}>‹ Back to food</button>}
+              <h2 className="text-lg font-semibold leading-tight">Log {isAlc ? 'alcohol' : 'food'}</h2>
+              <Dropdown compact value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />
             </div>
+            <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
           </div>
-          <div className="mb-3"><Field label="Meal"><Dropdown value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} /></Field></div>
-          <div className="mb-3"><Field label="Type"><Seg value={isAlc ? 'alc' : 'food'} onChange={v => setIsAlc(v === 'alc')} options={[{ v: 'food', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="plate" color="currentColor" size={15} /> Food</span> }, { v: 'alc', l: <span className="inline-flex items-center justify-center gap-2"><PixelGlyph kind="drink" color="currentColor" size={15} /> Alcohol</span> }]} /></Field></div>
           <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl">{tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
         </div>
         <div className="px-5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
@@ -7820,7 +7985,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
               <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Go unlimited ›</span>
             </button>;
           })()}
-          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} />}
+          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} />}
           {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} />}
           {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onScan={() => setTab('photo')} />}
           {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} />)}
@@ -8134,6 +8299,7 @@ function _macScale(m, f) { return Q.macScale(m, f); }
 function _macRound(m) { return Q.macRound(m); }
 function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, extra, onAdd, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol }) {
   useBackClose(onCancel);
+  const topRef = useScrolledToTop();
   const basisIsServing = !!perServing;
   const base0 = perServing || { kcal: initial.kcal, protein: initial.protein, carbs: initial.carbs, fat: initial.fat, fiber: initial.fiber };
   const [v, setV] = useState({ name: initial.name || '', kcal: base0.kcal || '', protein: base0.protein || '', carbs: base0.carbs || '', fat: base0.fat || '', fiber: base0.fiber || '' });
@@ -8168,6 +8334,12 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   const servNoun = (!servNounRaw || /^(g|kg|mg|ml|cl|l|oz|fl oz|lb)$/.test(servNounRaw)) ? 'serving' : servNounRaw;
   const complexNoun = /[\s(]/.test(servNoun);
   const servNounPlural = complexNoun ? servNoun : servNoun + (/s$/.test(servNoun) ? '' : 's');
+  // Beside the +/- stepper there is room for a word, not a phrase. A serving label like
+  // "1 portion (56 g)" arrives here as "portion (56 g)" and wrapped onto three lines inside its
+  // 64px box. The full phrase is still on the unit toggle above and in the "Logging 1 portion
+  // (56 g)" line below, so the stepper keeps the bare noun.
+  const shortNoun = complexNoun ? (servNoun.split(/[\s(]/)[0] || 'serving') : servNoun;
+  const shortNounPlural = shortNoun + (/s$/.test(shortNoun) ? '' : 's');
   const units = [];
   if (perServMac) units.push('serv');
   if (perGram) units.push('g');
@@ -8230,7 +8402,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   if (nq && ndExtra.estimated) nq.est = true;
   const implausible = final.kcal > 4000;
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-  return (<div className="fade-in">
+  return (<div className="fade-in" ref={topRef}>
     {explain && <DensityExplainer onClose={() => setExplain(false)} />}
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-2">‹ Back</button>
     {estimated
@@ -8251,7 +8423,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       <button onClick={() => stepBy(-step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="Less">−</button>
       <div className="flex-1"><NumInput value={amount} onChange={e => setAmount(e.target.value)} className={inputCls + ' text-center'} /></div>
       <button onClick={() => stepBy(step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
-      <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">{unit === 'g' ? 'grams' : servNounPlural}</div>
+      <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center leading-tight">{unit === 'g' ? 'grams' : shortNounPlural}</div>
     </div>
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {qtyLabel}</div>
@@ -8457,7 +8629,7 @@ function DescribeTab({ db, onPick, onScan }) {
       <div className="text-[11px] text-[#8A8A90] leading-snug">Packaged, with a barcode or label? Scanning it is more accurate.</div>
       <button onClick={onScan} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}>Scan instead</button>
     </div>}
-    <textarea ref={taRef} value={text} onChange={e => { setText(e.target.value); if (e.target.value.trim()) setPushText(false); }} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words for a sharper estimate: how big it was, how it was cooked, oil or butter, sauces, the brand, and how much you ate' : 'e.g. Starbucks grande oat milk caramel macchiato and a butter croissant'} />
+    <textarea ref={taRef} value={text} onChange={e => { setText(e.target.value); if (e.target.value.trim()) setPushText(false); }} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
     {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mt-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
