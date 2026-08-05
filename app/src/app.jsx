@@ -1939,62 +1939,6 @@ function MiniSpark({ points, color }) {
 function HabitGrid({ days, color }) {
   return (<div className="grid grid-cols-10 gap-1">{days.map((on, i) => <div key={i} className="aspect-square rounded-[3px]" style={{ background: on ? color : 'var(--border)' }} />)}</div>);
 }
-// Consistency "dig site": one pixel tile per day over the last 12 weeks, week-aligned into columns.
-// Each active day is a fossil you uncovered (a Macrodex catch), so the grid doubles as a picture of
-// how much of your collection you have earned. Tile = neither / logged or weighed / both.
-function ConsistencyHeatmap({ db, today, defaultFull, fixed, bare }) {
-  // Twelve weeks is 84 cells and 340px of card, and on a young account eleven of them have anything
-  // in them. Four weeks tells the same story in a third of the height; the full twelve is one tap
-  // away for anyone who wants the long view.
-  const [full, setFull] = useState(!!defaultFull);
-  const WEEKS = full ? 12 : 4, N = WEEKS * 7;
-  const logSet = new Set(db.log_entries.map(e => e.date));
-  const weighSet = new Set(db.weight_entries.map(w => w.date));
-  const start = shiftISO(today, -(N - 1));
-  const pad = (new Date(start + 'T00:00:00').getDay() + 6) % 7; // Mon=0, so columns are weeks
-  const cells = [];
-  for (let i = 0; i < pad; i++) cells.push(null);
-  for (let i = 0; i < N; i++) cells.push(shiftISO(start, i));
-  const level = d => (logSet.has(d) ? 1 : 0) + (weighSet.has(d) ? 1 : 0);
-  const colorFor = lv => lv === 2 ? 'var(--good)' : lv === 1 ? 'var(--carb)' : 'var(--track)';
-  // The footer counter reports the SAME cycle coverage the check-in judges you on, so the two screens
-  // can't describe one week with two different fractions. The grid above stays a map of any activity.
-  const cov = cycleCoverage(db, today);
-  const activeDays = Array.from({ length: N }, (_, i) => shiftISO(start, i)).filter(d => level(d) > 0).length;
-  return (
-    <Panel bare={bare} className={bare ? '' : 'p-4 mb-4'}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="pf text-[9px] uppercase text-[#8A8A90] inline-flex items-center gap-1.5"><PixelEgg size={13} color="var(--good)" /> Consistency</span>
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">Last {WEEKS} weeks</span>
-      </div>
-      <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-2xl font-bold tnum" style={{ color: 'var(--good-ink)' }}>{activeDays}</span>
-        <span className="text-[10px] text-[#8A8A90] leading-tight">active days</span>
-      </div>
-      {/* The cell is sized, not the column. On 1fr columns a square cell grows as the grid narrows,
-          so asking for four weeks instead of twelve made the card TALLER, 592px against 340. Capped
-          at 22px it stays a small block of days at any range. */}
-      {(() => {
-        const cols = Math.ceil(cells.length / 7);
-        const cell = Math.max(9, Math.min(14, Math.floor((295 - (cols - 1) * 3) / cols)));
-        return <div style={{ display: 'grid', gridTemplateRows: `repeat(7, ${cell}px)`, gridTemplateColumns: `repeat(${cols}, ${cell}px)`, gridAutoFlow: 'column', gap: '3px' }}>
-          {cells.map((d, i) => <div key={i} title={d || ''} style={{ background: d ? colorFor(level(d)) : 'transparent', boxShadow: d && level(d) > 0 ? 'inset -1px -1px 0 rgba(0,0,0,0.22)' : 'none' }} />)}
-        </div>;
-      })()}
-      {/* The legend was a row of its own explaining three colours that the line below it describes in
-          words anyway. Both jobs fit on one line. */}
-      <div className="flex items-center justify-between gap-3 mt-2.5">
-        <span className="text-[10px] text-[#8A8A90] tnum">
-          <span className="w-2 h-2 inline-block mr-1" style={{ background: 'var(--carb)' }} />{cov.logged}/{cov.logWindow} logged
-          <span className="w-2 h-2 inline-block mr-1 ml-2.5" style={{ background: 'var(--good)' }} />{cov.weighed}/{cov.weighWindow} weighed
-        </span>
-        {/* Inside the sheet the range is already fixed at twelve weeks, so a control to change it
-            would be a control inside a control. */}
-        {!fixed && <TextBtn onClick={() => setFull(v => !v)} className="shrink-0">{full ? '4 weeks' : '12 weeks'}</TextBtn>}
-      </div>
-    </Panel>
-  );
-}
 // Adaptive weight-app chart. FEW points → your ACTUAL weight is the bold line with markers, so real
 // movement shows. MANY points (long range) → the smoothed TREND becomes the bold line (a moving
 // average across the range) and raw weight fades to a faint background, so a year of daily weigh-ins
@@ -2193,9 +2137,6 @@ function HistorySheet({ db, update, onClose }) {
         {metrics.length > 1 && <Dropdown compact value={metric} onChange={setMetric} options={metrics} />}
       </div>
       <TrendCard db={db} tab={metric} range={range} bare />
-      <div className="pt-5" style={{ borderTop: '2px solid var(--surface2)' }}>
-        <ConsistencyHeatmap db={db} today={Store.todayISO()} defaultFull fixed bare />
-      </div>
     </>}
     {tab === 'weighins' && <WeighInLog db={db} update={update} bare />}
     {tab === 'checkins' && <CheckInHistory db={db} bare />}
@@ -3774,7 +3715,113 @@ function progressVerdict(db) {
     const need = p.goalWeightKg - nowKg;
     if ((need < 0) === (rate < 0)) weeksToGoal = Math.max(1, Math.round(need / rate));
   }
-  return { rate, target, goal, nowKg, headline, tone, weeksToGoal, goalWeightKg: p.goalWeightKg };
+  // Distance covered against the distance set, taken from where the goal was actually started.
+  let done = null, total = null;
+  const startKg = (db.targets || []).length && ents.length ? val(ents[0]) : null;
+  if (p.goalWeightKg > 0 && startKg != null) {
+    total = Math.abs(p.goalWeightKg - startKg);
+    done = Math.max(0, Math.min(total, Math.abs(nowKg - startKg) * ((p.goalWeightKg < startKg) === (nowKg < startKg) ? 1 : 0)));
+  }
+  return { rate, target, goal, nowKg, headline, tone, weeksToGoal, goalWeightKg: p.goalWeightKg, done, total, startKg };
+}
+/* ---------- what you have actually been doing ---------------------------------------------------
+   The grid this replaces asked you to decode 84 squares to learn something it never labelled. These
+   are the same days, counted, against the targets they were judged by. Framed as a record rather
+   than a report card: "protein on 11 of 14 days" is a fact, "you failed 3 days" is a telling-off,
+   and the sustainable-process framing is the one the evidence backs for people who are going to be
+   doing this for months. */
+function behaviourStats(db, days, endISO) {
+  const end = endISO || Store.todayISO();
+  const start = shiftISO(end, -(days - 1));
+  const dates = [];
+  for (let d = start; d <= end; d = shiftISO(d, 1)) dates.push(d);
+  let proteinHit = 0, complete = 0, ndSum = 0, ndDays = 0;
+  dates.forEach(dt => {
+    const ents = entriesOn(db, dt);
+    if (!ents.length) return;
+    const tot = sumMacros(ents);
+    const t = E.targetOn(db.targets, dt) || currentTargets(db);
+    if (t && t.protein_g > 0 && tot.protein >= t.protein_g * 0.9) proteinHit++;
+    if (isCompleteDayOn(db, dt)) complete++;
+    const nd = E.ndDay(ents.map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
+    if (nd && nd.score != null) { ndSum += nd.score; ndDays++; }
+  });
+  const loggedDays = dates.filter(dt => entriesOn(db, dt).length > 0).length;
+  return {
+    days: dates.length,
+    proteinHit, complete, loggedDays,
+    density: ndDays ? Math.round(ndSum / ndDays) : null,
+    steps: Math.round(E.avgStepsInRange(db.steps, start, end) || 0)
+  };
+}
+function StatTile({ label, value, unit, sub, tone }) {
+  const color = tone === 'good' ? 'var(--good-ink)' : tone === 'warn' ? 'var(--fat-ink)' : 'var(--text)';
+  return (<div className="min-w-0">
+    <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{label}</div>
+    <div className="tnum leading-none"><span className="text-[19px] font-bold" style={{ color }}>{value}</span>{unit && <span className="text-[10px] text-[#8A8A90]"> {unit}</span>}</div>
+    {sub && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{sub}</div>}
+  </div>);
+}
+function BehaviourCard({ db }) {
+  const [range, setRange] = useState(14);
+  const now = behaviourStats(db, range);
+  const stepGoal = stepGoalFor(db);
+  if (!now.loggedDays) return null;
+  const dens = now.density;
+  return (<Card className="p-4 mb-4">
+    <div className="flex items-center justify-between gap-3 mb-3">
+      <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0">Lately</span>
+      <Pill value={range} onChange={setRange} options={[{ v: 7, l: '7d' }, { v: 14, l: '14d' }, { v: 30, l: '30d' }]} />
+    </div>
+    <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+      <StatTile label="Protein" value={now.proteinHit} unit={'of ' + now.loggedDays + ' logged'} sub="hit your target"
+        tone={now.loggedDays && now.proteinHit >= now.loggedDays * 0.7 ? 'good' : null} />
+      <StatTile label="Days logged" value={now.complete} unit={'of ' + now.days} sub="a full day's food"
+        tone={now.complete >= now.days * 0.7 ? 'good' : null} />
+      {/* Density is NOT here. The Food quality card directly above owns it, with a day-by-day strip
+          this tile could not carry, and 77 twice on one screen is the repetition this whole pass has
+          been removing. */}
+      {now.steps > 0 && <StatTile label="Steps" value={now.steps.toLocaleString()} unit="a day" sub={stepGoal ? 'target ' + stepGoal.toLocaleString() : 'average'}
+        tone={stepGoal && now.steps >= stepGoal ? 'good' : null} />}
+    </div>
+  </Card>);
+}
+/* ---------- what the coach changed, and why -----------------------------------------------------
+   The adaptive retune is the product. Its history is the receipt that the thing works, and it was
+   living three taps down as the third tab of a sheet behind a chart. Each check-in already stores
+   what it saw and each target row already stores the sentence explaining what it did about it. */
+function CoachTimeline({ db }) {
+  const unit = (db.profile || {}).weight_unit;
+  const [showAll, setShowAll] = useState(false);
+  const all = (db.checkins || []).slice().reverse();
+  if (!all.length) return null;
+  const shown = showAll ? all : all.slice(0, 3);
+  const rationaleFor = (dateISO) => {
+    const t = (db.targets || []).find(x => x.effective_date === dateISO && x.rationale);
+    return t ? t.rationale : null;
+  };
+  return (<Card className="p-4 mb-4">
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">Your plan over time</div>
+    <div className="space-y-3.5">
+      {shown.map((c, i) => {
+        const d = new Date(c.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        const moved = c.weeklyChangeKg != null ? fmtWeightDelta(c.weeklyChangeKg, unit, '/wk') : null;
+        const delta = +c.deltaKcal || 0;
+        const why = rationaleFor(c.date);
+        return (<div key={c.date + i} className={i ? 'pt-3.5' : ''} style={i ? { borderTop: '2px solid var(--surface2)' } : null}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[12px] font-semibold">{d}</span>
+            <span className="text-[11px] tnum shrink-0" style={{ color: delta > 0 ? 'var(--good-ink)' : delta < 0 ? 'var(--fat-ink)' : 'var(--muted)' }}>
+              {delta ? (delta > 0 ? '+' : '−') + Math.abs(delta) + ' kcal' : 'no change'}
+            </span>
+          </div>
+          {moved && <div className="text-[10px] text-[#8A8A90] tnum mt-0.5">weight {moved}{c.logged != null ? ' · ' + c.logged + '/' + c.logWindow + ' days logged' : ''}</div>}
+          {why && <div className="text-[11px] text-[#8A8A90] leading-snug mt-1.5">{why}</div>}
+        </div>);
+      })}
+    </div>
+    {all.length > 3 && <div className="mt-3"><TextBtn onClick={() => setShowAll(v => !v)}>{showAll ? 'Show fewer' : 'All ' + all.length + ' check-ins'}</TextBtn></div>}
+  </Card>);
 }
 function VerdictCard({ db, onWeigh }) {
   const v = progressVerdict(db);
@@ -3798,14 +3845,30 @@ function VerdictCard({ db, onWeigh }) {
         {v.weeksToGoal != null && <> At this rate you reach <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{fmtWeight(v.goalWeightKg, unit)}</span> in about <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{v.weeksToGoal}</span> week{v.weeksToGoal === 1 ? '' : 's'}.</>}
       </div>
     </> : <div className="text-[12px] text-[#8A8A90] leading-relaxed">Weigh in for a week or so and this will tell you whether your plan is working, and how far off you are if it is not.</div>}
+    {/* How far through the goal you are. The sentence above says the rate and the date; this says
+        the distance, which is the bit that gets more motivating the closer it gets. */}
+    {v && v.total > 0.2 && (() => {
+      const pct = Math.round(v.done / v.total * 100);
+      return <div className="mt-3">
+        <div className="flex items-baseline justify-between gap-2 mb-1">
+          <span className="pf text-[8px] uppercase text-[#8A8A90]">To your goal</span>
+          <span className="tnum text-[11px] text-[#8A8A90]">{fmtWeightDelta(v.done, unit).replace(/^[+−]/, '')} of {fmtWeightDelta(v.total, unit).replace(/^[+−]/, '')}</span>
+        </div>
+        <PipMeter value={pct} target={100} cells={10} scale={1} color="var(--good)" small overIsFine />
+      </div>;
+    })()}
     {/* Coverage, as a caveat rather than a card. The verdict above is only as good as the days it is
         built from, and a 258px grid on the same page never actually said that: it sat below as a
         separate score, 65% of it empty, while the headline claimed certainty it had not earned. */}
     {v && (() => {
       const cov = cycleCoverage(db, today);
-      const thin = cov.logged < Math.ceil(cov.logWindow * 0.6) || cov.weighed < 2;
+      // A cycle that started yesterday is not thin data, it is a new cycle, and saying "0 of 1 days
+      // logged, treat this as a rough read" the morning after a check-in undercuts a verdict that is
+      // read off three weeks of trend and has not changed at all.
+      const young = cov.logWindow < 4;
+      const thin = !young && (cov.logged < Math.ceil(cov.logWindow * 0.6) || cov.weighed < 2);
       return <div className="text-[10px] mt-2 leading-snug" style={{ color: thin ? 'var(--fat-ink)' : 'var(--muted)' }}>
-        {thin ? 'Thin data so far: ' : 'Based on '}{cov.logged} of {cov.logWindow} days logged and {cov.weighed} of {cov.weighWindow} weigh-ins{thin ? ', so treat this as a rough read.' : '.'}
+        {young ? 'New cycle, ' : thin ? 'Thin data so far: ' : 'Based on '}{cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}{thin ? ', so treat this as a rough read.' : '.'}
       </div>;
     })()}
     {/* The weight, once. It used to be stated three times inside 130px: a button caption, a headline
@@ -9443,6 +9506,12 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan }) {
           heading that used to sit here was the page title again, 200px below the page title. */}
       <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
 
+      {/* What you have been doing, in place of the 84-square grid that never labelled its axes. */}
+      <BehaviourCard db={db} />
+
+      {/* The receipt that the adaptive plan is adapting. Nobody else can show this. */}
+      <CoachTimeline db={db} />
+
       {/* A check-in is an ACTION, not a reading, so it gets a line rather than a card. The three
           sentences explaining what a check-in does ran every time you opened the tab, which is a
           tutorial that never finishes. They live in the check-in itself, where they are the answer
@@ -9471,7 +9540,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan }) {
           including this one. Two doors to one 700-line editor is one door too many. */}
       <Card className="p-4 mb-5">
         <div className="flex items-center justify-between">
-          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div>{base ? <div className="text-xl font-bold tnum">{base.kcal} kcal</div> : <div className="text-[15px] font-bold mt-0.5">Not set yet</div>}</div>
+          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div>{base ? <div className="tnum whitespace-nowrap"><span className="text-xl font-bold">{base.kcal}</span><span className="text-[11px] text-[#8A8A90]"> kcal</span></div> : <div className="text-[15px] font-bold mt-0.5">Not set yet</div>}</div>
           {base && <div className="text-right text-[13px] tnum"><span style={{ color: PRO_T }}>P{base.protein_g}</span> <span style={{ color: CARB_T }}>C{base.carbs_g}</span> <span style={{ color: FAT_T }}>F{base.fat_g}</span></div>}
         </div>
         {base && <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>}
