@@ -9261,75 +9261,78 @@ function RemindersScreen({ db, update, onBack }) {
   </SubScreen>);
 }
 
-// What we can connect to, and what each one would actually bring. Ordered by what it does for YOUR
-// plan rather than by brand: a scale that fills in your weigh-ins beats a watch that counts steps we
-// can already get. "note" is the honest caveat, shown so a roadmap row never over-promises.
+// The three most people will look for sit on the screen; the rest sit behind More, and anything we
+// haven't thought of comes in as a free-text request. One line each on what it brings, because a
+// connector that doesn't exist yet has not earned a paragraph.
 const INTEGRATIONS = [
-  { id: 'withings', name: 'Withings scales', status: 'next',
-    brings: 'Weigh-ins and body fat, straight off the scale',
-    detail: 'Step on in the morning and your check-in fills itself in, body composition included. The one that removes the most daily faff.' },
-  { id: 'apple', name: 'Apple Health', status: 'planned',
+  { id: 'apple', name: 'Apple Health', top: true, status: 'planned',
     brings: 'Steps, sleep, workouts and weight from iPhone and Apple Watch',
-    detail: 'The most asked for, and the most involved. Apple keeps health data on your phone rather than on their servers, so this one needs a proper iPhone app rather than the web app you are using now.',
-    note: 'Needs an iPhone app first' },
-  { id: 'oura', name: 'Oura', status: 'planned',
-    brings: 'Sleep stages and readiness',
-    detail: 'Feeds the same morning catch and readiness score your sleep already drives, with a cleaner signal than a wrist tracker.' },
-  { id: 'whoop', name: 'Whoop', status: 'planned',
-    brings: 'Recovery, strain and sleep',
-    detail: 'Recovery and strain would let your plan ease off on the days your body is asking for it.' },
-  { id: 'garmin', name: 'Garmin', status: 'planned',
-    brings: 'Steps, sleep, HRV and training load',
-    detail: 'For anyone whose running or cycling already lives in Garmin. Training load would feed the same expenditure your steps do.' },
-  { id: 'strava', name: 'Strava', status: 'exploring',
-    brings: 'Runs, rides and sessions',
-    detail: 'Your training would land in your expenditure without logging it twice.' },
-  { id: 'scales', name: 'Other smart scales', status: 'exploring',
-    brings: 'Weigh-ins from cheaper scales',
-    detail: 'Renpho, Eufy and the like, for the budget end of the scale shelf.' },
+    note: 'Apple keeps health data on your phone, not on their servers, so this one needs an iPhone app first.' },
+  { id: 'garmin', name: 'Garmin', top: true, status: 'planned',
+    brings: 'Steps, sleep, HRV and training load' },
+  { id: 'withings', name: 'Withings scales', top: true, status: 'next',
+    brings: 'Weigh-ins and body fat, straight off the scale' },
+  { id: 'whoop', name: 'Whoop', status: 'planned', brings: 'Recovery, strain and sleep' },
+  { id: 'oura', name: 'Oura', status: 'planned', brings: 'Sleep stages and readiness' },
+  { id: 'strava', name: 'Strava', status: 'exploring', brings: 'Runs, rides and sessions' },
+  { id: 'scales', name: 'Other smart scales', status: 'exploring', brings: 'Weigh-ins from Renpho, Eufy and the like' },
 ];
 const INT_STATUS = {
   next: { label: 'Up next', color: 'var(--good)' },
   planned: { label: 'Planned', color: 'var(--accent)' },
   exploring: { label: 'Exploring', color: 'var(--muted)' },
 };
-// Registering interest doubles as the roadmap vote: it records locally (so it works offline and
-// shows instantly) and best-effort files a feature ticket, which lands in the same admin queue the
-// feedback sheet already feeds. No new table, and it turns a dead "coming soon" row into a signal
-// about what to build first.
+// Asking for one records it locally (so it works offline and shows straight away) and best-effort
+// files a feature ticket through the same queue the feedback sheet uses. No new table, and a
+// coming-soon row produces a signal about what to build first instead of just sitting there.
 function IntegrationsScreen({ db, update, onBack, showToast }) {
   const want = (db.profile && db.profile.integrationInterest) || [];
   const [busy, setBusy] = useState(null);
-  async function notifyMe(it) {
-    if (busy || want.indexOf(it.id) >= 0) return;
-    setBusy(it.id);
-    update(d => {
+  const [showMore, setShowMore] = useState(false);
+  const [other, setOther] = useState('');
+  const [sent, setSent] = useState(false);
+  async function ask(id, label) {
+    if (busy) return;
+    setBusy(id);
+    if (id) update(d => {
       d.profile = d.profile || {};
       const cur = d.profile.integrationInterest || [];
-      if (cur.indexOf(it.id) < 0) d.profile.integrationInterest = cur.concat([it.id]);
+      if (cur.indexOf(id) < 0) d.profile.integrationInterest = cur.concat([id]);
     });
-    try { await submitTicket({ kind: 'feature', body: 'Integration request: ' + it.name }); } catch (_) { /* the vote is recorded locally either way */ }
+    try { await submitTicket({ kind: 'feature', body: 'Integration request: ' + label }); } catch (_) { /* recorded locally either way */ }
     setBusy(null);
-    showToast && showToast("Noted. We'll let you know when " + it.name + ' lands.');
+    showToast && showToast(id ? "Noted. We'll let you know when " + label + ' lands.' : 'Thanks, request sent.');
   }
-  return (<SubScreen title="More integrations" onBack={onBack} intro="What we're building next, and what each one would bring to your plan. Tell us which you want and it moves up the list.">
-    <div className="space-y-2.5">
-      {INTEGRATIONS.map(it => {
-        const st = INT_STATUS[it.status];
-        const on = want.indexOf(it.id) >= 0;
-        return (<div key={it.id} className="pixel-box p-4" style={{ background: 'var(--card)' }}>
-          <div className="flex items-start justify-between gap-3 mb-1">
-            <div className="text-sm font-semibold">{it.name}</div>
-            <span className="pf text-[8px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
-          </div>
-          <div className="text-[12px] mb-1.5" style={{ color: 'var(--text2)' }}>{it.brings}</div>
-          <div className="text-[11.5px] text-[#8A8A90] leading-snug mb-3">{it.detail}</div>
-          {it.note && <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--warn)' }}>{it.note}</div>}
-          <Btn kind={on ? 'ghost' : 'accent'} className="w-full text-sm" disabled={on || busy === it.id} style={{ opacity: on ? 0.7 : 1 }} onClick={() => notifyMe(it)}>
-            {on ? <><Tick size={10} /> On your list</> : busy === it.id ? 'Adding…' : 'I want this'}
-          </Btn>
-        </div>);
-      })}
+  const Row = (it) => {
+    const st = INT_STATUS[it.status];
+    const on = want.indexOf(it.id) >= 0;
+    return (<div key={it.id} className="pixel-box p-3.5" style={{ background: 'var(--card)' }}>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <div className="text-sm font-semibold">{it.name}</div>
+        <span className="pf text-[8px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+      </div>
+      <div className="text-[11.5px] text-[#8A8A90] leading-snug mb-2.5">{it.brings}</div>
+      {it.note && <div className="text-[11px] mb-2.5 leading-snug" style={{ color: 'var(--warn)' }}>{it.note}</div>}
+      <Btn kind={on ? 'ghost' : 'accent'} className="w-full text-sm" disabled={on || busy === it.id} style={{ opacity: on ? 0.7 : 1 }} onClick={() => ask(it.id, it.name)}>
+        {on ? <><Tick size={10} /> On your list</> : busy === it.id ? 'Adding…' : 'I want this'}
+      </Btn>
+    </div>);
+  };
+  const top = INTEGRATIONS.filter(x => x.top), rest = INTEGRATIONS.filter(x => !x.top);
+  return (<SubScreen title="More integrations" onBack={onBack} intro="What we're building next. Tell us which you want and it moves up the list.">
+    <div className="space-y-2.5">{top.map(Row)}</div>
+    {!showMore
+      ? <button onClick={() => setShowMore(true)} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-2.5">More ({rest.length})</button>
+      : <div className="space-y-2.5 mt-2.5 fade-in">{rest.map(Row)}</div>}
+
+    <div className="mt-5">
+      <Field label="Want something else?" hint="Tell us what you use and we'll look at it.">
+        <TextInput value={other} onChange={e => { setOther(e.target.value); setSent(false); }} placeholder="Polar, Samsung Health, MyFitnessPal…" onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+      </Field>
+      <Btn kind="ghost" className="w-full text-sm" disabled={!other.trim() || busy === 'other' || sent} style={{ opacity: (other.trim() && !sent) ? 1 : 0.5 }}
+        onClick={async () => { const v = other.trim(); if (!v) return; await ask(null, v); setOther(''); setSent(true); }}>
+        {sent ? <><Tick size={10} /> Sent</> : busy === 'other' ? 'Sending…' : 'Send request'}
+      </Btn>
     </div>
     <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">Every one of these is read-only when it arrives: we take the numbers, we never write back to your other apps.</div>
   </SubScreen>);
@@ -9419,8 +9422,8 @@ function SettingsOverview({ db, update, onOpen, onFreshStart }) {
     { title: 'Apps & data', rows: [
       { key: 'integrations', label: 'More integrations', status: (() => {
         const w = (p.integrationInterest || []).length;
-        return INTEGRATIONS.map(x => x.name.replace(' scales', '')).slice(0, 3).join(', ') + ' and ' + (INTEGRATIONS.length - 3) + ' more on the way' + (w ? ' · ' + w + ' on your list' : '');
-      })(), kw: 'apple health healthkit iphone watch withings scales oura whoop garmin strava samsung renpho eufy integrations connect coming soon roadmap' },
+        return 'Apple Health, Garmin, Withings and more' + (w ? ' · ' + w + ' on your list' : '');
+      })(), kw: 'apple health healthkit iphone watch withings scales oura whoop garmin strava samsung polar renpho eufy myfitnesspal integrations connect coming soon roadmap request' },
       { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
     ] },
   ];
