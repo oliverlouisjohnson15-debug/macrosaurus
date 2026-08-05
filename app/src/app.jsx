@@ -3633,10 +3633,18 @@ function progressVerdict(db) {
   }
   // Distance covered against the distance set, taken from where the goal was actually started.
   let done = null, total = null;
-  const startKg = (db.targets || []).length && ents.length ? val(ents[0]) : null;
+  // Anchored to when THIS goal was set, not to the first weigh-in on the account. Measuring from
+  // the earliest reading ever made this "lifetime progress": on an account with months of history
+  // behind an older goal, the total was a distance the current goal never asked for.
+  const goalStart = (db.targets || []).filter(t => t.source === 'goal-change' && t.effective_date)
+    .map(t => t.effective_date).sort().pop() || null;
+  const anchor = goalStart ? (ents.find(e => e.date >= goalStart) || ents[ents.length - 1]) : ents[0];
+  const startKg = anchor ? val(anchor) : null;
   if (p.goalWeightKg > 0 && startKg != null) {
     total = Math.abs(p.goalWeightKg - startKg);
-    done = Math.max(0, Math.min(total, Math.abs(nowKg - startKg) * ((p.goalWeightKg < startKg) === (nowKg < startKg) ? 1 : 0)));
+    // Progress only counts in the goal's own direction; drifting the wrong way is zero, not negative.
+    const moved = (p.goalWeightKg < startKg) ? (startKg - nowKg) : (nowKg - startKg);
+    done = Math.max(0, Math.min(total, moved));
   }
   return { rate, target, goal, nowKg, headline, tone, weeksToGoal, goalWeightKg: p.goalWeightKg, done, total, startKg };
 }
