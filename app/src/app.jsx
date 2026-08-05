@@ -1693,15 +1693,23 @@ const Icon = {
 // overshoot zone and putting the goal notch on a block boundary rather than floating between two.
 // Blocks past the target fill in the danger colour. A part-filled block is never drawn: the meter
 // rounds to whole blocks, which is honest about how precisely anyone can log a day of food.
-function PipMeter({ value, target, color, cells = 10, scale = 1.15, small, dim, overIsFine }) {
+function PipMeter({ value, target, color, cells = 10, scale = 1.15, small, dim, overIsFine, addValue }) {
   // The arithmetic (how many blocks, where the goal notch falls, which blocks count as an
   // overshoot) lives in the engine where it is tested. This draws the answer.
   const m = E.meterCells(value, target, { cells, scale, overIsFine });
+  // `addValue` is a second, lighter fill: what the day WOULD be if you committed the change you are
+  // making. It lets the edit sheet answer "where does this leave me" without becoming a different
+  // instrument from the one on the day card. Same blocks, same notch, just not yours yet.
+  const p = addValue > 0 ? E.meterCells(value + addValue, target, { cells, scale, overIsFine }) : null;
   return (
     <div className={'pip-bar' + (small ? ' pip-sm' : '')} style={dim ? { opacity: 0.4 } : null}>
-      {Array.from({ length: m.cells }, (_, i) => (
-        <i key={i} style={{ background: i < m.lit ? (i >= m.cells - m.over ? 'var(--danger)' : color) : undefined }} />
-      ))}
+      {Array.from({ length: m.cells }, (_, i) => {
+        const lit = i < m.lit;
+        const preview = !lit && p && i < p.lit;
+        const bg = lit ? (i >= m.cells - m.over ? 'var(--danger)' : color)
+          : preview ? (i >= p.cells - p.over ? 'var(--danger)' : color) : undefined;
+        return <i key={i} style={{ background: bg, opacity: preview ? 0.45 : undefined }} />;
+      })}
       {target > 0 && m.goal < m.cells && (
         <span className="pip-goal" style={{ left: 'calc(' + (m.goal / m.cells * 100) + '% + 1px)' }} />
       )}
@@ -1720,6 +1728,56 @@ function PipLine({ pct, color = 'var(--good)', height = 10, cells = 10, classNam
       ))}
     </div>
   );
+}
+// What a food does to the DAY, shown in the sheet that changes it.
+// The reason anyone opens a logged food is almost never the food: it is that they are short on
+// protein or over on calories and want to know whether this entry is why. Answering that used to
+// mean closing the sheet and reading the card behind it. `rest` is the day with this food taken
+// out, `add` is what it would put back, so the solid blocks are what is already banked and the
+// lighter ones are what you are about to commit. Same instrument as the day card, deliberately.
+function DayImpact({ rest, target, add, label = 'Your day if you save this' }) {
+  if (!rest || !target || !(target.kcal > 0)) return null;
+  const rows = [
+    ['KCAL', rest.kcal, add.kcal, target.kcal, 'var(--good)', ''],
+    ['PROT', rest.protein, add.protein, target.protein, PRO, 'g'],
+    ['CARB', rest.carbs, add.carbs, target.carbs, CARB, 'g'],
+    ['FATS', rest.fat, add.fat, target.fat, FAT, 'g']
+  ];
+  return (<div className="mb-3">
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">{label}</div>
+    {rows.map(([cap, base, plus, tgt, color, unit]) => {
+      if (!(tgt > 0)) return null;
+      const end = Math.round(base + plus);
+      const over = end > Math.round(tgt);
+      return (<div key={cap} className="grid items-center gap-2 mb-1.5" style={{ gridTemplateColumns: '2.6rem 1fr auto' }}>
+        <span className="pf text-[8px]" style={{ color: 'var(--muted)' }}>{cap}</span>
+        <PipMeter value={base} target={tgt} addValue={plus} color={color} small />
+        <span className="tnum text-[10px]" style={{ color: over ? 'var(--danger)' : 'var(--muted)' }}>{end}{unit} / {Math.round(tgt)}{unit}</span>
+      </div>);
+    })}
+  </div>);
+}
+// The amount is the sheet's headline, and its own keypad: tap it and type.
+// Steppers are for small adjustments around a common default (Nielsen Norman Group's guidance is
+// explicit that they suit a field with one commonly-chosen value, and not one with a wide range).
+// A food weight is the second kind, and driving it from +/- alone cost forty taps to go from 360 g
+// to 100 g. The buttons stay, at the side and at the size of a trim control, for the one or two
+// gram nudge they really are the fastest way to make.
+function AmountField({ value, onChange, unitLabel, step, onStep, label = 'How much' }) {
+  return (<div className="flex items-end gap-2">
+    <div className="flex-1 min-w-0">
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">{label}</div>
+      <div className="pixel-box flex items-baseline gap-2 px-3 py-2" style={{ background: 'var(--surface2)' }}>
+        <input value={value} onChange={onChange} inputMode="decimal" type="text" aria-label="Amount"
+          onFocus={e => { try { e.target.select(); } catch (_) {} }}
+          className="w-full min-w-0 bg-transparent border-0 outline-none text-[30px] font-bold tnum leading-none py-1"
+          style={{ color: 'var(--text)' }} />
+        <span className="text-[12px] shrink-0 leading-none" style={{ color: 'var(--muted)' }}>{unitLabel}</span>
+      </div>
+    </div>
+    <button type="button" onClick={() => onStep(-step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }} aria-label="Less">−</button>
+    <button type="button" onClick={() => onStep(step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }} aria-label="More">+</button>
+  </div>);
 }
 // One tracked quantity: name on the left, ONE number on the right, blocks underneath.
 // The single number is the point. The old row carried three ("31g left of 131" plus the label), and
@@ -7539,7 +7597,10 @@ function FoodLog({ db, update, openLog, showToast }) {
       })()}
       </div>
       </div>
-      {editing && <EditEntryModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)} />}
+      {editing && (() => { const dc = dayContextFor(db, date, editing.id); const mm = meals.find(x => x.id === editing.meal_id);
+        return <EditEntryModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)}
+          onDelete={() => { del(editing); setEditing(null); }} contextLine={mm ? mm.name : null}
+          dayRest={dc && dc.rest} dayTarget={dc && dc.target} />; })()}
       {nameSheet && <NameSheet title="Save as meal" hint="Save this meal for one-tap logging. Name it:" initial={nameSheet.meal.name} saveLabel="Save meal" onSave={(name) => {
         const items = nameSheet.entries.map(e => ({ name: e.name, source: e.source, is_alcohol: e.is_alcohol, alcohol_split: e.alcohol_split, qtyLabel: e.qty_label, macros: e.computed_macros }));
         update(d => { d.saved_meals = (d.saved_meals || []).concat([{ id: Store.uid(), name, items, created_at: Date.now() }]); });
@@ -7586,6 +7647,7 @@ function applyEntryPatch(update, id, patch) {
     const x = d.log_entries.find(y => y.id === id); if (!x) return;
     x.name = patch.name; x.qty_label = patch.qty; x.computed_macros = patch.macros;
     if (patch.amount != null) x.amount = patch.amount; if (patch.unit) x.unit = patch.unit; if (patch.unit_noun) x.unit_noun = patch.unit_noun;
+    if (patch.serving_g != null) x.serving_g = patch.serving_g; // keeps the grams/portions toggle available next time
     if (patch.alcohol_split !== undefined) x.alcohol_split = patch.alcohol_split;
     const key = patch.name.trim().toLowerCase(); const food = d.foods.find(y => y.name.trim().toLowerCase() === key && !!y.is_alcohol === !!x.is_alcohol);
     if (food) { food.macros = patch.macros; food.last_qty = patch.qty || food.last_qty; food.updated_at = Date.now(); if (patch.alcohol_split !== undefined) food.alcohol_split = patch.alcohol_split; }
@@ -7607,48 +7669,90 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
     </div>
   </div>);
 }
-function EditEntryModal({ entry, onSave, onClose, title, saveLabel }) {
+/* Editing a logged food. This screen used to be strictly weaker than the confirm screen you get when
+   ADDING one: no grams/portions toggle, no Density Score, no calorie sanity check, no way to delete
+   the thing you were looking at. That is backwards, because the diary entry is the record that has
+   to be right. It now shares the quantity control, the fraction chips and the day meter with the
+   confirm screen, so a portion bug has one place to be fixed rather than two. */
+function EditEntryModal({ entry, onSave, onClose, onDelete, title, saveVerb, contextLine, dayRest, dayTarget }) {
   useBackClose(onClose);
+  const topRef = useScrolledToTop();
   const m = entry.computed_macros || {};
   const parsed = (entry.amount && +entry.amount > 0)
     ? { amount: +entry.amount, unit: entry.unit === 'g' || entry.unit === 'oz' ? entry.unit : 'serv', noun: entry.unit_noun || 'serving' }
     : parseQty(entry.qty_label);
   const amt0 = parsed ? parsed.amount : 1;
-  const unit = parsed ? parsed.unit : 'serv';
+  const unit0 = parsed ? parsed.unit : 'serv';
   const noun = parsed ? parsed.noun : 'serving';
   const [name, setName] = useState(entry.name || '');
+  // The name is the sheet's heading, not a permanent 54px text field at the top of it. Renaming a
+  // logged food is rare, and charging the full price of an input for it on every single visit put
+  // the thing you came to change below the fold.
+  const [renaming, setRenaming] = useState(false);
+  const [unit, setUnit] = useState(unit0);
   const [amount, setAmount] = useState(String(amt0));
   const [base, setBase] = useState({ protein: (m.protein || 0) / amt0, carbs: (m.carbs || 0) / amt0, fat: (m.fat || 0) / amt0, fiber: (m.fiber || 0) / amt0, kcal: (m.kcal || 0) / amt0 });
   const [edit, setEdit] = useState(false);
+  // Grams per serving, recorded when the food was logged. Without it the two units cannot be
+  // converted, so entries logged before this was stored keep the single unit they came with.
+  const sg = +entry.serving_g || 0;
+  const canSwitch = sg > 0 && unit !== 'oz';
+  function switchUnit(u) {
+    if (u === unit || !canSwitch) return;
+    const toGrams = u === 'g';
+    setBase(b => ({ protein: toGrams ? b.protein / sg : b.protein * sg, carbs: toGrams ? b.carbs / sg : b.carbs * sg, fat: toGrams ? b.fat / sg : b.fat * sg, fiber: toGrams ? b.fiber / sg : b.fiber * sg, kcal: toGrams ? b.kcal / sg : b.kcal * sg }));
+    setAmount(x => String(Math.round(((+x || 0) * (toGrams ? sg : 1 / sg)) * 100) / 100));
+    setUnit(u);
+  }
   const a = +amount || 0;
   const total = { protein: +(base.protein * a).toFixed(1), carbs: +(base.carbs * a).toFixed(1), fat: +(base.fat * a).toFixed(1), fiber: +(base.fiber * a).toFixed(1), kcal: Math.round(base.kcal * a) };
-  const step = unit === 'g' ? gramStep(a) : 1;
+  const step = unit === 'g' ? gramStep(a) : (a < 2 ? 0.25 : 1);
   const bump = (d) => setAmount(x => String(Math.max(0, +(((+x || 0) + d)).toFixed(2))));
   const setTotalField = (k, val) => { const v = +val || 0; setBase(b => Object.assign({}, b, { [k]: a > 0 ? v / a : v })); };
+  const cap = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+  // A serving label can be a whole phrase ("portion (56 g)"). Beside a stepper there is room for a
+  // word, so keep the head noun there and let the full phrase live on the unit toggle.
+  const shortNoun = /[\s(]/.test(noun) ? (noun.split(/[\s(]/)[0] || 'serving') : noun;
   const plural = (+amount > 1 && /^[a-z]+$/i.test(noun)) ? 's' : '';
   const label = unit === 'g' ? `${fmtCount(amount)} g` : unit === 'oz' ? `${fmtCount(amount)} oz` : `${fmtCount(amount)} ${noun}${plural}`;
-  const unitWord = unit === 'g' ? 'grams' : unit === 'oz' ? 'ounces' : (noun + (/^[a-z]+$/i.test(noun) ? 's' : ''));
   // Alcohol calories carry no protein, they are split across carbs and fat. Let a logged drink's
   // split be re-balanced after the fact with a slider, keeping the calories fixed.
   const isAlc = !!entry.is_alcohol;
   const [carbPct, setCarbPct] = useState(() => (m.kcal > 0 ? Math.max(0, Math.min(100, Math.round(((m.carbs || 0) * 4 / m.kcal) * 10) * 10)) : 50));
   function setSplit(pct) { setCarbPct(pct); setBase(b => Object.assign({}, b, b.kcal > 0 ? { carbs: (b.kcal * pct / 100) / 4, fat: (b.kcal * (100 - pct) / 100) / 9 } : {})); }
-  function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: noun, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
+  function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: unit === 'g' ? 'g' : noun, serving_g: sg || undefined, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
   return (<div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-    <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title || 'Edit food'}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
-      <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much did you have?</div>
-      <div className="flex items-center gap-3">
-        <button onClick={() => bump(-step)} className="w-12 h-12 pixel-box flex items-center justify-center text-2xl leading-none shrink-0" style={{ boxShadow: 'none', background: 'var(--surface2)' }}>−</button>
-        <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" className={inputCls + ' text-center text-lg font-bold flex-1'} />
-        <button onClick={() => bump(step)} className="w-12 h-12 pixel-box flex items-center justify-center text-2xl leading-none shrink-0" style={{ boxShadow: 'none', background: 'var(--surface2)' }}>+</button>
+    <div ref={topRef} className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+      <div className="flex justify-between items-start gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          {renaming
+            ? <TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onBlur={() => setRenaming(false)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setRenaming(false); } }} aria-label="Name" />
+            : <button onClick={() => setRenaming(true)} className="text-left w-full">
+                <h2 className="text-lg font-semibold leading-tight">{name || title || 'Edit food'}</h2>
+                <div className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>{contextLine ? contextLine + ' · ' : ''}tap to rename</div>
+              </button>}
+        </div>
+        <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
       </div>
-      <div className="text-[11px] text-[#8A8A90] mt-1.5 mb-3">{unitWord}{unit === 'g' ? ` · ±${step} g per tap` : ''}</div>
-      <div className="pixel-box p-3 mb-3 flex justify-between items-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="text-[12px] tnum"><span style={{ color: PRO }}>P{total.protein}</span> <span style={{ color: CARB }}>C{total.carbs}</span> <span style={{ color: FAT }}>F{total.fat}</span></div>
-        <div className="text-lg font-bold tnum">{total.kcal}<span className="text-[10px] text-[#8A8A90]"> kcal</span></div>
+      {canSwitch && <div className="mb-3"><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
+        options={[{ v: 'g', l: 'Grams' }, { v: 'serv', l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '') }]} /></div>}
+      <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun} step={step} onStep={bump} />
+      {/* Fractions only where a unit is a discrete thing you can have half of. Grams get no preset
+          buttons: typing a weight is one tap and a couple of digits, and a rack of round numbers
+          would be guessing at an amount the person already knows. */}
+      {unit !== 'g' && unit !== 'oz' && <div className="mt-2.5"><FractionChips value={a} onPick={v => setAmount(String(v))} /></div>}
+      {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">grams · ±{step} g per tap</div>}
+      <div className="pixel-box p-3 mt-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="flex justify-between items-baseline">
+          <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{total.kcal}</span> <span className="text-[10px] text-[#8A8A90]">kcal</span></div>
+          <div className="text-[12px] tnum"><span style={{ color: PRO }}>P{total.protein}</span> <span style={{ color: CARB }}>C{total.carbs}</span> <span style={{ color: FAT }}>F{total.fat}</span></div>
+        </div>
+        {/* The Density Score is invariant to how much you had (it is scored per 100 kcal), so the
+            food's own score can be shown here without recomputing anything as the amount moves. */}
+        {entry.nq && <div className="mt-2 pt-2" style={{ borderTop: '2px solid var(--surface2)' }}><DensityBadge nq={entry.nq} /></div>}
       </div>
+      <DayImpact rest={dayRest} target={dayTarget} add={total} label={saveVerb === 'Add' ? 'Your day if you add this' : 'Your day if you save this'} />
       {isAlc && <div className="mb-3">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Split these calories</div>
         <Field label={`${carbPct}% carbs · ${100 - carbPct}% fat`}>
@@ -7661,7 +7765,15 @@ function EditEntryModal({ entry, onSave, onClose, title, saveLabel }) {
         <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={total.protein} onChange={e => setTotalField('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={total.carbs} onChange={e => setTotalField('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={total.fat} onChange={e => setTotalField('fat', e.target.value)} /></Field></div>
         <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={total.fiber} onChange={e => setTotalField('fiber', e.target.value)} /></Field><Field label="Calories"><NumInput value={total.kcal} onChange={e => setTotalField('kcal', e.target.value)} /></Field></div>
       </div>}
-      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={save}>{saveLabel || 'Save changes'}</Btn><Btn kind="ghost" onClick={onClose}>Cancel</Btn></div>
+      {/* The button says the number it is about to commit, so a mistyped amount gets one more
+          chance to be caught on the control that commits it. Delete sits with the entry it deletes,
+          instead of behind the ... menu on the row you have already left. */}
+      <div className="flex gap-2">
+        <Btn kind="accent" className="flex-1" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={save}>{(saveVerb || 'Save') + ' ' + total.kcal + ' kcal'}</Btn>
+        {onDelete
+          ? <Btn kind="danger" onClick={onDelete}>Delete</Btn>
+          : <Btn kind="ghost" onClick={onClose}>Cancel</Btn>}
+      </div>
     </div>
   </div>);
 }
@@ -7714,6 +7826,19 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
 // Unified "Food" tab: one search box over your own foods AND the Open Food Facts database, your
 // recents/favourites when empty, saved meals, and a manual-entry fallback. Replaces the old
 // separate Recent / Search / Meals / Manual tabs so logging is one clean screen.
+// The day a sheet is logging into, with the entry being changed taken out of it, so the meter can
+// show where you land BEFORE you commit rather than after you close the sheet. `excludeId` is the
+// entry being edited: leaving it in would double-count it against its own replacement.
+function dayContextFor(db, dateISO, excludeId) {
+  if (!db || !dateISO) return null;
+  const et = weekForecastTargets(db, [dateISO])[dateISO];
+  if (!et || !et.eff) return null;
+  const t = sumMacros(entriesOn(db, dateISO).filter(e => !excludeId || e.id !== excludeId));
+  return {
+    rest: { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat },
+    target: { kcal: et.eff.kcal, protein: et.eff.protein_g, carbs: et.eff.carbs_g, fat: et.eff.fat_g }
+  };
+}
 /* ---------- UK food tables (CoFID) ----------------------------------------------------------
    Open Food Facts only knows things with a barcode on them. That left the most ordinary food
    there is with no right answer at all: search "chicken breast" and you got sliced deli meat,
@@ -7767,7 +7892,7 @@ function searchGenericFoods(list, query, limit) {
   hits.sort((a, b) => a.k - b.k);
   return hits.slice(0, limit || 12).map(x => x.f);
 }
-function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol }) {
+function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, day }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
   const [sel, setSel] = useState(null); const [manual, setManual] = useState(false); const [confirmDel, setConfirmDel] = useState(null);
@@ -7821,11 +7946,11 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol }
   // If a saved food carries per-unit values (a smart food or a remembered AI estimate), open the
   // gram-scalable confirm so it can be re-logged at any weight; otherwise one-tap log the last amount.
   const pickMine = (f) => { if (!f.is_alcohol && f.corrected && f.saved_base) { setSel({ name: f.name }); return; } onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty }); };
-  if (sel) { const sc = savedCorrection(db, sel.name); if (sc) return <ConfirmFood {...parsedFromSaved(sc, 'Using the values you saved for this food.')} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} />;
+  if (sel) { const sc = savedCorrection(db, sel.name); if (sc) return <ConfirmFood {...parsedFromSaved(sc, 'Using the values you saved for this food.')} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
     if (sel.generic) return <ConfirmFood note="From the UK food tables. Figures are for the food exactly as described." per100 source="cofid" extra={sel.generic.extra}
       initial={{ name: sel.generic.name, kcal: sel.generic.per100.kcal, protein: sel.generic.per100.protein, carbs: sel.generic.per100.carbs, fat: sel.generic.per100.fat, fiber: sel.generic.per100.fiber }}
-      onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} />;
-    return <ConfirmFood note="From the food database. Check it looks right before logging." per100 source="off" branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} />; }
+      onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
+    return <ConfirmFood note="From the food database. Check it looks right before logging." per100 source="off" branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
   if (manual) return <ManualTab onPick={onPick} onCancel={() => setManual(false)} />;
   const MyRow = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
     <button onClick={() => pickMine(f)} className="text-left min-w-0 flex-1"><div className="flex items-center gap-1.5 min-w-0"><span className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</span><DensityChip nq={f.nq} /></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{f.macros.protein} C{f.macros.carbs} F{f.macros.fat}</div></button>
@@ -7881,7 +8006,7 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol }
       </button>}
     </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
-    {qtyFor && <EditEntryModal title="How much this time?" saveLabel="Add to log" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} />}
+    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
   </div>);
 }
 // Store.uid() is Date.now().toString(36) + 5 random chars, so a log entry's id encodes the exact time
@@ -7950,6 +8075,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
+  const day = dayContextFor(db, target.date);
   // One stable food flow (Food / Scan / Estimate). Alcohol is a labelled DETOUR entered from inside
   // Food and left with the back button, not a persistent Type toggle that reshapes the whole tab bar.
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
@@ -7985,17 +8111,17 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
               <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Go unlimited ›</span>
             </button>;
           })()}
-          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} />}
-          {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} />}
+          {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
+          {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} day={day} />}
           {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onScan={() => setTab('photo')} />}
-          {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} />)}
-          {tab === 'photo' && <PhotoTab db={db} asAlcohol={isAlc} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAskAI={() => setTab('describe')} />}
+          {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} day={day} />)}
+          {tab === 'photo' && <PhotoTab db={db} asAlcohol={isAlc} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAskAI={() => setTab('describe')} day={day} />}
         </div>
       </div>
     </div>
   );
 }
-function RecentTab({ db, update, isAlc, mealName, onPick }) {
+function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
   const [q, setQ] = useState('');
   const [qtyFor, setQtyFor] = useState(null); // tap the qty text on a row to adjust the amount before logging
   const foods = db.foods.filter(f => !!f.is_alcohol === isAlc).filter(f => !q || f.name.toLowerCase().includes(q.toLowerCase()));
@@ -8029,12 +8155,12 @@ function RecentTab({ db, update, isAlc, mealName, onPick }) {
     {!foods.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Nothing here yet. Anything you log shows up here so you can add it again in one tap.</div>}
     {favs.length > 0 && <><div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">Favourites</div><div className="space-y-2 mb-4">{favs.map(Row)}</div></>}
     {recents.length > 0 && <><div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">Recent</div><div className="space-y-2">{recents.map(Row)}</div>{moreCount > 0 && <div className="text-[11px] text-[#8A8A90] mt-3 text-center">+ {moreCount} more, type above to search all your foods.</div>}</>}
-    {qtyFor && <EditEntryModal title="How much this time?" saveLabel="Add to log" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} />}
+    {qtyFor && <EditEntryModal title="How much this time?" saveVerb="Add" entry={{ name: qtyFor.name, qty_label: qtyFor.last_qty, computed_macros: qtyFor.macros }} onSave={(patch) => { onPick({ name: patch.name, source: qtyFor.source, is_alcohol: qtyFor.is_alcohol, alcohol_split: qtyFor.alcohol_split, macros: patch.macros, qtyLabel: patch.qty, amount: patch.amount, unit: patch.unit, unitNoun: patch.unit_noun }); setQtyFor(null); }} onClose={() => setQtyFor(null)} dayRest={day && day.rest} dayTarget={day && day.target} />}
   </div>);
 }
 // Manual entry: capture the food's nutrition on a clear basis (per 100 g, or per serving), then hand
 // off to the SAME confirm screen for the amount, so it scales exactly like a scan or a database hit.
-function ManualTab({ onPick, onCancel }) {
+function ManualTab({ onPick, onCancel, day }) {
   const [parsed, setParsed] = useState(null);
   const [v, setV] = useState({ name: '', protein: '', carbs: '', fat: '', fiber: '', kcal: '', basis: '100g', servG: '', servName: '' });
   const set = (k, x) => setV(p => Object.assign({}, p, { [k]: x }));
@@ -8045,7 +8171,7 @@ function ManualTab({ onPick, onCancel }) {
     if (v.basis === '100g') setParsed({ per100: true, source: 'custom', branded: false, servingG: 0, servingLabel: null, initial: Object.assign({ name: v.name.trim() }, macros) });
     else { const sn = v.servName.trim(); const sgv = +v.servG || 0; setParsed({ perServing: macros, source: 'custom', branded: true, servingG: sgv, servingLabel: sn ? ('1 ' + sn) : (sgv ? ('1 serving (' + sgv + ' g)') : '1 serving'), initial: { name: v.name.trim() } }); }
   }
-  if (parsed) return <ConfirmFood {...parsed} onAdd={onPick} onCancel={() => setParsed(null)} />;
+  if (parsed) return <ConfirmFood {...parsed} onAdd={onPick} onCancel={() => setParsed(null)} dayRest={day && day.rest} dayTarget={day && day.target} />;
   return (<div>
     {onCancel && <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Baked beans" /></Field>
@@ -8297,7 +8423,7 @@ function offExtras(n) {
 function _macNums(v) { return Q.macNums(v); }
 function _macScale(m, f) { return Q.macScale(m, f); }
 function _macRound(m) { return Q.macRound(m); }
-function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, extra, onAdd, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol }) {
+function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, branded, perServing, estimated, extra, onAdd, onCancel, onRescan, onAskAI, saved, barcode, badgeLabel, asAlcohol, dayRest, dayTarget }) {
   useBackClose(onCancel);
   const topRef = useScrolledToTop();
   const basisIsServing = !!perServing;
@@ -8417,20 +8543,20 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center rounded-xl border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--accent)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
     </div>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} /></Field>
-    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much did you have?</div>
     {units.length > 1 && <div className="mb-2.5"><Seg value={unit} onChange={chooseUnit} options={units.map(u => ({ v: u, l: u === 'g' ? 'Grams' : cap(servNoun) }))} /></div>}
-    <div className="flex items-center gap-2">
-      <button onClick={() => stepBy(-step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="Less">−</button>
-      <div className="flex-1"><NumInput value={amount} onChange={e => setAmount(e.target.value)} className={inputCls + ' text-center'} /></div>
-      <button onClick={() => stepBy(step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
-      <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center leading-tight">{unit === 'g' ? 'grams' : shortNounPlural}</div>
-    </div>
+    <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : shortNoun} step={step} onStep={stepBy} label="How much did you have?" />
+    {/* Fractions only where the unit is a discrete thing you can have half of. Grams get no preset
+        buttons: typing a weight is one tap and two digits, and offering round numbers would be
+        guessing at an amount the person already knows. */}
+    {unit !== 'g' && <div className="mt-2.5"><FractionChips value={a} onPick={v => setAmount(String(v))} /></div>}
+    {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">grams · ±{step} g per tap</div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {qtyLabel}</div>
       <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO }}>{final.protein}g P</span> · <span style={{ color: CARB }}>{final.carbs}g C</span> · <span style={{ color: FAT }}>{final.fat}g F</span></div>
       <DensityBadge nq={nq} estimating={estimating} onExplain={() => setExplain(true)} />
       {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat)' }}>That is a very large amount, double-check the quantity.</div>}
     </div>
+    <DayImpact rest={dayRest} target={dayTarget} add={final} label="Your day if you add this" />
     <button onClick={() => setEdit(e => !e)} className="text-[11px] text-[#8A8A90] mb-2">{edit ? '▲ Hide the numbers' : '▾ Numbers look off? Edit them'}</button>
     {edit && <div className="fade-in mb-2">
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">{basisIsServing ? ('Per ' + servNoun) : (per100 ? 'Per 100 g' : 'Per serving')}</div>
@@ -8456,7 +8582,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs and fat only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
       <Btn kind="accent" className="w-full" onClick={applyAtwater}>Use {atwaterK} kcal (from the macros)</Btn>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : 'Add to log'}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
 }
 function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
@@ -8568,7 +8694,7 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug">This totals {final.kcal} kcal, but the protein, carbs and fat only add up to about {atwT} kcal. If that is not right, tweak an item above or use "Tell the AI what to fix".</div>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : 'Add to log'}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
@@ -8923,7 +9049,7 @@ function labelReadReliable(est) {
     return Math.abs(dk - kc) / kc <= 0.20;
   });
 }
-function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
+function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan, day }) {
   const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [parsed, setParsed] = useState(null); const [mode, setMode] = useState(autoScan ? 'scan' : null); const [notFound, setNotFound] = useState(false); const [rescan, setRescan] = useState(false);
   // The LogSheet barcode shortcut (and ?action=scan) jump straight into the live scanner.
   useEffect(() => { if (autoScan) { setNotFound(false); setMode('scan'); } }, [autoScan]);
@@ -8976,7 +9102,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan }) {
     } catch (e) { setErr('Lookup failed. Please try again.'); }
     setBusy('');
   }
-  if (parsed) return <ConfirmFood {...parsed} asAlcohol={asAlcohol} onAdd={onPick} onCancel={() => { setParsed(null); setMode(null); }} onRescan={(parsed.source === 'off' || parsed.source === 'community') ? () => { setRescan(true); setParsed(null); setMode('label'); } : undefined} onAskAI={onAskAI} />;
+  if (parsed) return <ConfirmFood {...parsed} asAlcohol={asAlcohol} onAdd={onPick} onCancel={() => { setParsed(null); setMode(null); }} onRescan={(parsed.source === 'off' || parsed.source === 'community') ? () => { setRescan(true); setParsed(null); setMode('label'); } : undefined} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
   if (mode === 'meal') return <MealEstimate apiKey={key} db={db} onPick={onPick} onBack={() => setMode(null)} />;
   if (mode === 'scan') return <LiveScanner onFound={lookupBarcode} onClose={() => setMode(null)} />;
   if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => setMode(null)} />;
@@ -13022,7 +13148,9 @@ function App() {
       // nq is portion-independent, so one-tap re-logging a food you have logged before inherits the
       // nutrient record it already carries instead of landing in the log as unscored.
       const nq = item.nq || (food && food.nq) || null;
-      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, computed_macros: macros, nq: nq, sort_order: d.log_entries.length });
+      // serving_g rides along so the edit sheet can offer the grams/portions toggle later. Without
+      // it the two units cannot be converted, and editing was stuck with whatever unit you logged in.
+      d.log_entries.push({ id: entryId, date, meal_id: mealId, ref_type: item.is_alcohol ? 'alcohol' : 'food', name: item.name, source: item.source, is_alcohol: !!item.is_alcohol, alcohol_split: item.alcohol_split, qty_label: item.qtyLabel || '', amount: item.amount, unit: item.unit, unit_noun: item.unitNoun, serving_g: +item.savedServingG || undefined, computed_macros: macros, nq: nq, sort_order: d.log_entries.length });
       // A saved food keeps the best record we have ever had for it: a fresh one replaces it, but
       // re-logging from a path that carries none must not wipe it.
       if (food) { food.macros = macros; food.last_qty = item.qtyLabel || food.last_qty; if (item.nq) food.nq = item.nq; food.updated_at = Date.now(); }
@@ -13189,7 +13317,9 @@ function App() {
       {/* One quick weigh sheet for the whole app: the buddy's ask, the Progress button and the
           ?action=weigh shortcut all land here rather than each growing their own entry point. */}
       {weighing && <WeighSheet db={db} update={update} resume={weighing === 'resume'} showToast={showToast} onClose={() => setWeighing(false)} />}
-      {adjusting && (() => { const en = db.log_entries.find(x => x.id === adjusting); return en ? <EditEntryModal entry={en} title="Adjust entry" onSave={(patch) => { applyEntryPatch(update, adjusting, patch); setAdjusting(null); showToast('Updated ' + patch.name); }} onClose={() => setAdjusting(null)} /> : null; })()}
+      {adjusting && (() => { const en = db.log_entries.find(x => x.id === adjusting); if (!en) return null; const dc = dayContextFor(db, en.date, en.id);
+        return <EditEntryModal entry={en} title="Adjust entry" onSave={(patch) => { applyEntryPatch(update, adjusting, patch); setAdjusting(null); showToast('Updated ' + patch.name); }} onClose={() => setAdjusting(null)}
+          dayRest={dc && dc.rest} dayTarget={dc && dc.target} />; })()}
       {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
         <BackClose onClose={() => setShared(null)} />
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>

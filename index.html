@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[30px\]{font-size:30px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.pointer-events-none{pointer-events:none}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[90\]{z-index:90}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-full{width:100%}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-md{border-radius:.375rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-1\.5{padding-top:.375rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[30px\]{font-size:30px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -7754,7 +7754,8 @@ function PipMeter({
   scale = 1.15,
   small,
   dim,
-  overIsFine
+  overIsFine,
+  addValue
 }) {
   // The arithmetic (how many blocks, where the goal notch falls, which blocks count as an
   // overshoot) lives in the engine where it is tested. This draws the answer.
@@ -7763,6 +7764,14 @@ function PipMeter({
     scale,
     overIsFine
   });
+  // `addValue` is a second, lighter fill: what the day WOULD be if you committed the change you are
+  // making. It lets the edit sheet answer "where does this leave me" without becoming a different
+  // instrument from the one on the day card. Same blocks, same notch, just not yours yet.
+  const p = addValue > 0 ? E.meterCells(value + addValue, target, {
+    cells,
+    scale,
+    overIsFine
+  }) : null;
   return /*#__PURE__*/React.createElement("div", {
     className: 'pip-bar' + (small ? ' pip-sm' : ''),
     style: dim ? {
@@ -7770,12 +7779,18 @@ function PipMeter({
     } : null
   }, Array.from({
     length: m.cells
-  }, (_, i) => /*#__PURE__*/React.createElement("i", {
-    key: i,
-    style: {
-      background: i < m.lit ? i >= m.cells - m.over ? 'var(--danger)' : color : undefined
-    }
-  })), target > 0 && m.goal < m.cells && /*#__PURE__*/React.createElement("span", {
+  }, (_, i) => {
+    const lit = i < m.lit;
+    const preview = !lit && p && i < p.lit;
+    const bg = lit ? i >= m.cells - m.over ? 'var(--danger)' : color : preview ? i >= p.cells - p.over ? 'var(--danger)' : color : undefined;
+    return /*#__PURE__*/React.createElement("i", {
+      key: i,
+      style: {
+        background: bg,
+        opacity: preview ? 0.45 : undefined
+      }
+    });
+  }), target > 0 && m.goal < m.cells && /*#__PURE__*/React.createElement("span", {
     className: "pip-goal",
     style: {
       left: 'calc(' + m.goal / m.cells * 100 + '% + 1px)'
@@ -7811,6 +7826,118 @@ function PipLine({
       background: i < m.lit ? color : undefined
     }
   })));
+}
+// What a food does to the DAY, shown in the sheet that changes it.
+// The reason anyone opens a logged food is almost never the food: it is that they are short on
+// protein or over on calories and want to know whether this entry is why. Answering that used to
+// mean closing the sheet and reading the card behind it. `rest` is the day with this food taken
+// out, `add` is what it would put back, so the solid blocks are what is already banked and the
+// lighter ones are what you are about to commit. Same instrument as the day card, deliberately.
+function DayImpact({
+  rest,
+  target,
+  add,
+  label = 'Your day if you save this'
+}) {
+  if (!rest || !target || !(target.kcal > 0)) return null;
+  const rows = [['KCAL', rest.kcal, add.kcal, target.kcal, 'var(--good)', ''], ['PROT', rest.protein, add.protein, target.protein, PRO, 'g'], ['CARB', rest.carbs, add.carbs, target.carbs, CARB, 'g'], ['FATS', rest.fat, add.fat, target.fat, FAT, 'g']];
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
+  }, label), rows.map(([cap, base, plus, tgt, color, unit]) => {
+    if (!(tgt > 0)) return null;
+    const end = Math.round(base + plus);
+    const over = end > Math.round(tgt);
+    return /*#__PURE__*/React.createElement("div", {
+      key: cap,
+      className: "grid items-center gap-2 mb-1.5",
+      style: {
+        gridTemplateColumns: '2.6rem 1fr auto'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[8px]",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, cap), /*#__PURE__*/React.createElement(PipMeter, {
+      value: base,
+      target: tgt,
+      addValue: plus,
+      color: color,
+      small: true
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "tnum text-[10px]",
+      style: {
+        color: over ? 'var(--danger)' : 'var(--muted)'
+      }
+    }, end, unit, " / ", Math.round(tgt), unit));
+  }));
+}
+// The amount is the sheet's headline, and its own keypad: tap it and type.
+// Steppers are for small adjustments around a common default (Nielsen Norman Group's guidance is
+// explicit that they suit a field with one commonly-chosen value, and not one with a wide range).
+// A food weight is the second kind, and driving it from +/- alone cost forty taps to go from 360 g
+// to 100 g. The buttons stay, at the side and at the size of a trim control, for the one or two
+// gram nudge they really are the fastest way to make.
+function AmountField({
+  value,
+  onChange,
+  unitLabel,
+  step,
+  onStep,
+  label = 'How much'
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex items-end gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 min-w-0"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
+  }, label), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box flex items-baseline gap-2 px-3 py-2",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: value,
+    onChange: onChange,
+    inputMode: "decimal",
+    type: "text",
+    "aria-label": "Amount",
+    onFocus: e => {
+      try {
+        e.target.select();
+      } catch (_) {}
+    },
+    className: "w-full min-w-0 bg-transparent border-0 outline-none text-[30px] font-bold tnum leading-none py-1",
+    style: {
+      color: 'var(--text)'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] shrink-0 leading-none",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, unitLabel))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => onStep(-step),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl shrink-0",
+    style: {
+      background: 'var(--surface2)',
+      color: 'var(--text)'
+    },
+    "aria-label": "Less"
+  }, "−"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => onStep(step),
+    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl shrink-0",
+    style: {
+      background: 'var(--surface2)',
+      color: 'var(--text)'
+    },
+    "aria-label": "More"
+  }, "+"));
 }
 // One tracked quantity: name on the left, ONE number on the right, blocks underneath.
 // The single number is the point. The old row carried three ("31g left of 131" plus the label), and
@@ -20637,11 +20764,22 @@ function FoodLog({
     }, Math.round(sumMacros(orphans).kcal), " kcal")), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] mt-1 mb-1"
     }, "These were logged under a meal that isn't on this day. Drag each into a meal above."), orphans.map(e => renderEntry(e, um, 'var(--muted)')));
-  })())), editing && /*#__PURE__*/React.createElement(EditEntryModal, {
-    entry: editing,
-    onSave: saveEdit,
-    onClose: () => setEditing(null)
-  }), nameSheet && /*#__PURE__*/React.createElement(NameSheet, {
+  })())), editing && (() => {
+    const dc = dayContextFor(db, date, editing.id);
+    const mm = meals.find(x => x.id === editing.meal_id);
+    return /*#__PURE__*/React.createElement(EditEntryModal, {
+      entry: editing,
+      onSave: saveEdit,
+      onClose: () => setEditing(null),
+      onDelete: () => {
+        del(editing);
+        setEditing(null);
+      },
+      contextLine: mm ? mm.name : null,
+      dayRest: dc && dc.rest,
+      dayTarget: dc && dc.target
+    });
+  })(), nameSheet && /*#__PURE__*/React.createElement(NameSheet, {
     title: "Save as meal",
     hint: "Save this meal for one-tap logging. Name it:",
     initial: nameSheet.meal.name,
@@ -20798,6 +20936,7 @@ function applyEntryPatch(update, id, patch) {
     if (patch.amount != null) x.amount = patch.amount;
     if (patch.unit) x.unit = patch.unit;
     if (patch.unit_noun) x.unit_noun = patch.unit_noun;
+    if (patch.serving_g != null) x.serving_g = patch.serving_g; // keeps the grams/portions toggle available next time
     if (patch.alcohol_split !== undefined) x.alcohol_split = patch.alcohol_split;
     const key = patch.name.trim().toLowerCase();
     const food = d.foods.find(y => y.name.trim().toLowerCase() === key && !!y.is_alcohol === !!x.is_alcohol);
@@ -20861,14 +21000,24 @@ function NameSheet({
     onClick: () => onSave(name.trim())
   }, saveLabel || 'Save'))));
 }
+/* Editing a logged food. This screen used to be strictly weaker than the confirm screen you get when
+   ADDING one: no grams/portions toggle, no Density Score, no calorie sanity check, no way to delete
+   the thing you were looking at. That is backwards, because the diary entry is the record that has
+   to be right. It now shares the quantity control, the fraction chips and the day meter with the
+   confirm screen, so a portion bug has one place to be fixed rather than two. */
 function EditEntryModal({
   entry,
   onSave,
   onClose,
+  onDelete,
   title,
-  saveLabel
+  saveVerb,
+  contextLine,
+  dayRest,
+  dayTarget
 }) {
   useBackClose(onClose);
+  const topRef = useScrolledToTop();
   const m = entry.computed_macros || {};
   const parsed = entry.amount && +entry.amount > 0 ? {
     amount: +entry.amount,
@@ -20876,9 +21025,14 @@ function EditEntryModal({
     noun: entry.unit_noun || 'serving'
   } : parseQty(entry.qty_label);
   const amt0 = parsed ? parsed.amount : 1;
-  const unit = parsed ? parsed.unit : 'serv';
+  const unit0 = parsed ? parsed.unit : 'serv';
   const noun = parsed ? parsed.noun : 'serving';
   const [name, setName] = useState(entry.name || '');
+  // The name is the sheet's heading, not a permanent 54px text field at the top of it. Renaming a
+  // logged food is rare, and charging the full price of an input for it on every single visit put
+  // the thing you came to change below the fold.
+  const [renaming, setRenaming] = useState(false);
+  const [unit, setUnit] = useState(unit0);
   const [amount, setAmount] = useState(String(amt0));
   const [base, setBase] = useState({
     protein: (m.protein || 0) / amt0,
@@ -20888,6 +21042,23 @@ function EditEntryModal({
     kcal: (m.kcal || 0) / amt0
   });
   const [edit, setEdit] = useState(false);
+  // Grams per serving, recorded when the food was logged. Without it the two units cannot be
+  // converted, so entries logged before this was stored keep the single unit they came with.
+  const sg = +entry.serving_g || 0;
+  const canSwitch = sg > 0 && unit !== 'oz';
+  function switchUnit(u) {
+    if (u === unit || !canSwitch) return;
+    const toGrams = u === 'g';
+    setBase(b => ({
+      protein: toGrams ? b.protein / sg : b.protein * sg,
+      carbs: toGrams ? b.carbs / sg : b.carbs * sg,
+      fat: toGrams ? b.fat / sg : b.fat * sg,
+      fiber: toGrams ? b.fiber / sg : b.fiber * sg,
+      kcal: toGrams ? b.kcal / sg : b.kcal * sg
+    }));
+    setAmount(x => String(Math.round((+x || 0) * (toGrams ? sg : 1 / sg) * 100) / 100));
+    setUnit(u);
+  }
   const a = +amount || 0;
   const total = {
     protein: +(base.protein * a).toFixed(1),
@@ -20896,7 +21067,7 @@ function EditEntryModal({
     fiber: +(base.fiber * a).toFixed(1),
     kcal: Math.round(base.kcal * a)
   };
-  const step = unit === 'g' ? gramStep(a) : 1;
+  const step = unit === 'g' ? gramStep(a) : a < 2 ? 0.25 : 1;
   const bump = d => setAmount(x => String(Math.max(0, +((+x || 0) + d).toFixed(2))));
   const setTotalField = (k, val) => {
     const v = +val || 0;
@@ -20904,9 +21075,12 @@ function EditEntryModal({
       [k]: a > 0 ? v / a : v
     }));
   };
+  const cap = s => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+  // A serving label can be a whole phrase ("portion (56 g)"). Beside a stepper there is room for a
+  // word, so keep the head noun there and let the full phrase live on the unit toggle.
+  const shortNoun = /[\s(]/.test(noun) ? noun.split(/[\s(]/)[0] || 'serving' : noun;
   const plural = +amount > 1 && /^[a-z]+$/i.test(noun) ? 's' : '';
   const label = unit === 'g' ? `${fmtCount(amount)} g` : unit === 'oz' ? `${fmtCount(amount)} oz` : `${fmtCount(amount)} ${noun}${plural}`;
-  const unitWord = unit === 'g' ? 'grams' : unit === 'oz' ? 'ounces' : noun + (/^[a-z]+$/i.test(noun) ? 's' : '');
   // Alcohol calories carry no protein, they are split across carbs and fat. Let a logged drink's
   // split be re-balanced after the fact with a slider, keeping the calories fixed.
   const isAlc = !!entry.is_alcohol;
@@ -20931,7 +21105,8 @@ function EditEntryModal({
       },
       amount: a,
       unit,
-      unit_noun: noun,
+      unit_noun: unit === 'g' ? 'g' : noun,
+      serving_g: sg || undefined,
       alcohol_split: isAlc ? {
         carb_pct: carbPct,
         fat_pct: 100 - carbPct
@@ -20942,55 +21117,85 @@ function EditEntryModal({
     className: "fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center",
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
+    ref: topRef,
     className: "bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up",
     style: {
       paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))'
     },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between items-center mb-3"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-lg font-semibold"
-  }, title || 'Edit food'), /*#__PURE__*/React.createElement("button", {
-    onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
-  }, "×")), /*#__PURE__*/React.createElement(Field, {
-    label: "Name"
-  }, /*#__PURE__*/React.createElement(TextInput, {
+    className: "flex justify-between items-start gap-3 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, renaming ? /*#__PURE__*/React.createElement(TextInput, {
+    autoFocus: true,
     value: name,
-    onChange: e => setName(e.target.value)
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
-  }, "How much did you have?"), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-3"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => bump(-step),
-    className: "w-12 h-12 pixel-box flex items-center justify-center text-2xl leading-none shrink-0",
+    onChange: e => setName(e.target.value),
+    onBlur: () => setRenaming(false),
+    onKeyDown: e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setRenaming(false);
+      }
+    },
+    "aria-label": "Name"
+  }) : /*#__PURE__*/React.createElement("button", {
+    onClick: () => setRenaming(true),
+    className: "text-left w-full"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold leading-tight"
+  }, name || title || 'Edit food'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-0.5",
     style: {
-      boxShadow: 'none',
-      background: 'var(--surface2)'
+      color: 'var(--muted)'
     }
-  }, "−"), /*#__PURE__*/React.createElement("input", {
+  }, contextLine ? contextLine + ' · ' : '', "tap to rename"))), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "hit text-[#8A8A90] text-2xl leading-none shrink-0",
+    "aria-label": "Close"
+  }, "×")), canSwitch && /*#__PURE__*/React.createElement("div", {
+    className: "mb-3"
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: unit === 'g' ? 'g' : 'serv',
+    onChange: switchUnit,
+    options: [{
+      v: 'g',
+      l: 'Grams'
+    }, {
+      v: 'serv',
+      l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '')
+    }]
+  })), /*#__PURE__*/React.createElement(AmountField, {
     value: amount,
     onChange: e => setAmount(e.target.value),
-    inputMode: "decimal",
-    className: inputCls + ' text-center text-lg font-bold flex-1'
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => bump(step),
-    className: "w-12 h-12 pixel-box flex items-center justify-center text-2xl leading-none shrink-0",
-    style: {
-      boxShadow: 'none',
-      background: 'var(--surface2)'
-    }
-  }, "+")), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mt-1.5 mb-3"
-  }, unitWord, unit === 'g' ? ` · ±${step} g per tap` : ''), /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 mb-3 flex justify-between items-center",
+    unitLabel: unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun,
+    step: step,
+    onStep: bump
+  }), unit !== 'g' && unit !== 'oz' && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2.5"
+  }, /*#__PURE__*/React.createElement(FractionChips, {
+    value: a,
+    onPick: v => setAmount(String(v))
+  })), unit === 'g' && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-1.5"
+  }, "grams · ±", step, " g per tap"), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mt-3 mb-3",
     style: {
       background: 'var(--surface3)',
       boxShadow: 'none'
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-baseline"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "tnum"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xl font-bold",
+    style: {
+      color: 'var(--text)'
+    }
+  }, total.kcal), " ", /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] text-[#8A8A90]"
+  }, "kcal")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] tnum"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -21004,11 +21209,19 @@ function EditEntryModal({
     style: {
       color: FAT
     }
-  }, "F", total.fat)), /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold tnum"
-  }, total.kcal, /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] text-[#8A8A90]"
-  }, " kcal"))), isAlc && /*#__PURE__*/React.createElement("div", {
+  }, "F", total.fat))), entry.nq && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 pt-2",
+    style: {
+      borderTop: '2px solid var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement(DensityBadge, {
+    nq: entry.nq
+  }))), /*#__PURE__*/React.createElement(DayImpact, {
+    rest: dayRest,
+    target: dayTarget,
+    add: total,
+    label: saveVerb === 'Add' ? 'Your day if you add this' : 'Your day if you save this'
+  }), isAlc && /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
@@ -21063,8 +21276,15 @@ function EditEntryModal({
   }, /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "flex-1",
+    disabled: a <= 0,
+    style: {
+      opacity: a <= 0 ? 0.5 : 1
+    },
     onClick: save
-  }, saveLabel || 'Save changes'), /*#__PURE__*/React.createElement(Btn, {
+  }, (saveVerb || 'Save') + ' ' + total.kcal + ' kcal'), onDelete ? /*#__PURE__*/React.createElement(Btn, {
+    kind: "danger",
+    onClick: onDelete
+  }, "Delete") : /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     onClick: onClose
   }, "Cancel"))));
@@ -21233,6 +21453,29 @@ function CopyToModal({
 // Unified "Food" tab: one search box over your own foods AND the Open Food Facts database, your
 // recents/favourites when empty, saved meals, and a manual-entry fallback. Replaces the old
 // separate Recent / Search / Meals / Manual tabs so logging is one clean screen.
+// The day a sheet is logging into, with the entry being changed taken out of it, so the meter can
+// show where you land BEFORE you commit rather than after you close the sheet. `excludeId` is the
+// entry being edited: leaving it in would double-count it against its own replacement.
+function dayContextFor(db, dateISO, excludeId) {
+  if (!db || !dateISO) return null;
+  const et = weekForecastTargets(db, [dateISO])[dateISO];
+  if (!et || !et.eff) return null;
+  const t = sumMacros(entriesOn(db, dateISO).filter(e => !excludeId || e.id !== excludeId));
+  return {
+    rest: {
+      kcal: t.kcal,
+      protein: t.protein,
+      carbs: t.carbs,
+      fat: t.fat
+    },
+    target: {
+      kcal: et.eff.kcal,
+      protein: et.eff.protein_g,
+      carbs: et.eff.carbs_g,
+      fat: et.eff.fat_g
+    }
+  };
+}
 /* ---------- UK food tables (CoFID) ----------------------------------------------------------
    Open Food Facts only knows things with a barcode on them. That left the most ordinary food
    there is with no right answer at all: search "chicken breast" and you got sliced deli meat,
@@ -21309,7 +21552,8 @@ function FoodTab({
   onPick,
   onLogMeal,
   onAskAI,
-  onAlcohol
+  onAlcohol,
+  day
 }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]);
@@ -21467,7 +21711,9 @@ function FoodTab({
       ...parsedFromSaved(sc, 'Using the values you saved for this food.'),
       onAdd: onPick,
       onCancel: () => setSel(null),
-      onAskAI: onAskAI
+      onAskAI: onAskAI,
+      dayRest: day && day.rest,
+      dayTarget: day && day.target
     });
     if (sel.generic) return /*#__PURE__*/React.createElement(ConfirmFood, {
       note: "From the UK food tables. Figures are for the food exactly as described.",
@@ -21484,7 +21730,9 @@ function FoodTab({
       },
       onAdd: onPick,
       onCancel: () => setSel(null),
-      onAskAI: onAskAI
+      onAskAI: onAskAI,
+      dayRest: day && day.rest,
+      dayTarget: day && day.target
     });
     return /*#__PURE__*/React.createElement(ConfirmFood, {
       note: "From the food database. Check it looks right before logging.",
@@ -21504,7 +21752,9 @@ function FoodTab({
       },
       onAdd: onPick,
       onCancel: () => setSel(null),
-      onAskAI: onAskAI
+      onAskAI: onAskAI,
+      dayRest: day && day.rest,
+      dayTarget: day && day.target
     });
   }
   if (manual) return /*#__PURE__*/React.createElement(ManualTab, {
@@ -21721,7 +21971,7 @@ function FoodTab({
     onClose: () => setConfirmDel(null)
   }), qtyFor && /*#__PURE__*/React.createElement(EditEntryModal, {
     title: "How much this time?",
-    saveLabel: "Add to log",
+    saveVerb: "Add",
     entry: {
       name: qtyFor.name,
       qty_label: qtyFor.last_qty,
@@ -21741,7 +21991,9 @@ function FoodTab({
       });
       setQtyFor(null);
     },
-    onClose: () => setQtyFor(null)
+    onClose: () => setQtyFor(null),
+    dayRest: day && day.rest,
+    dayTarget: day && day.target
   }));
 }
 // Store.uid() is Date.now().toString(36) + 5 random chars, so a log entry's id encodes the exact time
@@ -21835,6 +22087,7 @@ function LogSheet({
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
+  const day = dayContextFor(db, target.date);
   // One stable food flow (Food / Scan / Estimate). Alcohol is a labelled DETOUR entered from inside
   // Food and left with the back button, not a persistent Type toggle that reshapes the whole tab bar.
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
@@ -21920,13 +22173,15 @@ function LogSheet({
     onPick: i => onAdd(mealId, i),
     onLogMeal: items => onAddMeal(mealId, items),
     onAskAI: () => setTab('describe'),
-    onAlcohol: () => setIsAlc(true)
+    onAlcohol: () => setIsAlc(true),
+    day: day
   }), tab === 'recent' && /*#__PURE__*/React.createElement(RecentTab, {
     db: db,
     update: update,
     isAlc: isAlc,
     mealName: (meals.find(m => m.id === mealId) || {}).name,
-    onPick: i => onAdd(mealId, i)
+    onPick: i => onAdd(mealId, i),
+    day: day
   }), tab === 'describe' && /*#__PURE__*/React.createElement(DescribeTab, {
     db: db,
     onPick: i => onAdd(mealId, isAlc ? Object.assign({}, i, {
@@ -21936,13 +22191,15 @@ function LogSheet({
   }), tab === 'manual' && (isAlc ? /*#__PURE__*/React.createElement(AlcoholTab, {
     onPick: i => onAdd(mealId, i)
   }) : /*#__PURE__*/React.createElement(ManualTab, {
-    onPick: i => onAdd(mealId, i)
+    onPick: i => onAdd(mealId, i),
+    day: day
   })), tab === 'photo' && /*#__PURE__*/React.createElement(PhotoTab, {
     db: db,
     asAlcohol: isAlc,
     autoScan: scanNow,
     onPick: i => onAdd(mealId, i),
-    onAskAI: () => setTab('describe')
+    onAskAI: () => setTab('describe'),
+    day: day
   }))));
 }
 function RecentTab({
@@ -21950,7 +22207,8 @@ function RecentTab({
   update,
   isAlc,
   mealName,
-  onPick
+  onPick,
+  day
 }) {
   const [q, setQ] = useState('');
   const [qtyFor, setQtyFor] = useState(null); // tap the qty text on a row to adjust the amount before logging
@@ -22059,7 +22317,7 @@ function RecentTab({
     className: "text-[11px] text-[#8A8A90] mt-3 text-center"
   }, "+ ", moreCount, " more, type above to search all your foods.")), qtyFor && /*#__PURE__*/React.createElement(EditEntryModal, {
     title: "How much this time?",
-    saveLabel: "Add to log",
+    saveVerb: "Add",
     entry: {
       name: qtyFor.name,
       qty_label: qtyFor.last_qty,
@@ -22079,14 +22337,17 @@ function RecentTab({
       });
       setQtyFor(null);
     },
-    onClose: () => setQtyFor(null)
+    onClose: () => setQtyFor(null),
+    dayRest: day && day.rest,
+    dayTarget: day && day.target
   }));
 }
 // Manual entry: capture the food's nutrition on a clear basis (per 100 g, or per serving), then hand
 // off to the SAME confirm screen for the amount, so it scales exactly like a scan or a database hit.
 function ManualTab({
   onPick,
-  onCancel
+  onCancel,
+  day
 }) {
   const [parsed, setParsed] = useState(null);
   const [v, setV] = useState({
@@ -22140,7 +22401,9 @@ function ManualTab({
   if (parsed) return /*#__PURE__*/React.createElement(ConfirmFood, {
     ...parsed,
     onAdd: onPick,
-    onCancel: () => setParsed(null)
+    onCancel: () => setParsed(null),
+    dayRest: day && day.rest,
+    dayTarget: day && day.target
   });
   return /*#__PURE__*/React.createElement("div", null, onCancel && /*#__PURE__*/React.createElement("button", {
     onClick: onCancel,
@@ -22605,7 +22868,9 @@ function ConfirmFood({
   saved,
   barcode,
   badgeLabel,
-  asAlcohol
+  asAlcohol,
+  dayRest,
+  dayTarget
 }) {
   useBackClose(onCancel);
   const topRef = useScrolledToTop();
@@ -22842,9 +23107,7 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: v.name,
     onChange: e => set('name', e.target.value)
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase text-[#8A8A90] mb-2"
-  }, "How much did you have?"), units.length > 1 && /*#__PURE__*/React.createElement("div", {
+  })), units.length > 1 && /*#__PURE__*/React.createElement("div", {
     className: "mb-2.5"
   }, /*#__PURE__*/React.createElement(Seg, {
     value: unit,
@@ -22853,25 +23116,21 @@ function ConfirmFood({
       v: u,
       l: u === 'g' ? 'Grams' : cap(servNoun)
     }))
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => stepBy(-step),
-    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
-    "aria-label": "Less"
-  }, "−"), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1"
-  }, /*#__PURE__*/React.createElement(NumInput, {
+  })), /*#__PURE__*/React.createElement(AmountField, {
     value: amount,
     onChange: e => setAmount(e.target.value),
-    className: inputCls + ' text-center'
-  })), /*#__PURE__*/React.createElement("button", {
-    onClick: () => stepBy(step),
-    className: "pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]",
-    "aria-label": "More"
-  }, "+"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] shrink-0 w-16 text-center leading-tight"
-  }, unit === 'g' ? 'grams' : shortNounPlural)), /*#__PURE__*/React.createElement("div", {
+    unitLabel: unit === 'g' ? 'g' : shortNoun,
+    step: step,
+    onStep: stepBy,
+    label: "How much did you have?"
+  }), unit !== 'g' && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2.5"
+  }, /*#__PURE__*/React.createElement(FractionChips, {
+    value: a,
+    onPick: v => setAmount(String(v))
+  })), unit === 'g' && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-1.5"
+  }, "grams · ±", step, " g per tap"), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 my-3",
     style: {
       background: 'var(--surface3)',
@@ -22909,7 +23168,12 @@ function ConfirmFood({
     style: {
       color: 'var(--fat)'
     }
-  }, "That is a very large amount, double-check the quantity.")), /*#__PURE__*/React.createElement("button", {
+  }, "That is a very large amount, double-check the quantity.")), /*#__PURE__*/React.createElement(DayImpact, {
+    rest: dayRest,
+    target: dayTarget,
+    add: final,
+    label: "Your day if you add this"
+  }), /*#__PURE__*/React.createElement("button", {
     onClick: () => setEdit(e => !e),
     className: "text-[11px] text-[#8A8A90] mb-2"
   }, edit ? '▲ Hide the numbers' : '▾ Numbers look off? Edit them'), edit && /*#__PURE__*/React.createElement("div", {
@@ -23053,7 +23317,7 @@ function ConfirmFood({
       is_alcohol: !!asAlcohol,
       nq: nq
     })
-  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add to log'));
+  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add ' + final.kcal + ' kcal'));
 }
 function AiConfirm({
   est,
@@ -23430,7 +23694,7 @@ function AiConfirm({
         });
       }
     }
-  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add to log'));
+  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add ' + final.kcal + ' kcal'));
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
@@ -24417,7 +24681,8 @@ function PhotoTab({
   onPick,
   onAskAI,
   asAlcohol,
-  autoScan
+  autoScan,
+  day
 }) {
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
@@ -24584,7 +24849,9 @@ function PhotoTab({
       setParsed(null);
       setMode('label');
     } : undefined,
-    onAskAI: onAskAI
+    onAskAI: onAskAI,
+    dayRest: day && day.rest,
+    dayTarget: day && day.target
   });
   if (mode === 'meal') return /*#__PURE__*/React.createElement(MealEstimate, {
     apiKey: key,
@@ -35237,6 +35504,8 @@ function App() {
       // nq is portion-independent, so one-tap re-logging a food you have logged before inherits the
       // nutrient record it already carries instead of landing in the log as unscored.
       const nq = item.nq || food && food.nq || null;
+      // serving_g rides along so the edit sheet can offer the grams/portions toggle later. Without
+      // it the two units cannot be converted, and editing was stuck with whatever unit you logged in.
       d.log_entries.push({
         id: entryId,
         date,
@@ -35250,6 +35519,7 @@ function App() {
         amount: item.amount,
         unit: item.unit,
         unit_noun: item.unitNoun,
+        serving_g: +item.savedServingG || undefined,
         computed_macros: macros,
         nq: nq,
         sort_order: d.log_entries.length
@@ -35789,7 +36059,9 @@ function App() {
     onClose: () => setWeighing(false)
   }), adjusting && (() => {
     const en = db.log_entries.find(x => x.id === adjusting);
-    return en ? /*#__PURE__*/React.createElement(EditEntryModal, {
+    if (!en) return null;
+    const dc = dayContextFor(db, en.date, en.id);
+    return /*#__PURE__*/React.createElement(EditEntryModal, {
       entry: en,
       title: "Adjust entry",
       onSave: patch => {
@@ -35797,8 +36069,10 @@ function App() {
         setAdjusting(null);
         showToast('Updated ' + patch.name);
       },
-      onClose: () => setAdjusting(null)
-    }) : null;
+      onClose: () => setAdjusting(null),
+      dayRest: dc && dc.rest,
+      dayTarget: dc && dc.target
+    });
   })(), shared && shared.files && shared.files.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center",
     onClick: () => setShared(null)
