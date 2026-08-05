@@ -8545,47 +8545,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
-  const [showAdv, setShowAdv] = useState(false);
   const [editPlan, setEditPlan] = useState(false); // the whole goal editor lives in a sheet now, off the main scroll
-  const seedGW = kgToStLb(p.goalWeightKg || p.weightKg);
-  const [g, setG] = useState({ goalType: p.goalType, rateKgPerWeek: p.rateKgPerWeek, dietStyle: p.dietStyle, proteinGPerKgLBM: p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType) });
-  const setg = (k, v) => setG(x => Object.assign({}, x, { [k]: v }));
-  const [gProteinTouched, setGProteinTouched] = useState(!!p.proteinGPerKgLBM);
-  const pickGoal = (gt) => { setg('goalType', gt); if (!gProteinTouched) setg('proteinGPerKgLBM', E.defaultProteinPerKgLBM(gt)); };
-  const [gwKg, setGwKg] = useState(p.goalWeightKg || ''); const [gwSt, setGwSt] = useState(p.goalWeightKg ? seedGW.st : ''); const [gwLb, setGwLb] = useState(p.goalWeightKg ? seedGW.lb : '');
-  const [confirming, setConfirming] = useState(false);
-  const [pauseOpen, setPauseOpen] = useState(false);
-  const [wErr, setWErr] = useState('');
-  const seed = kgToStLb(p.weightKg); const [kg, setKg] = useState(p.weightKg); const [st, setSt] = useState(seed.st); const [lb, setLb] = useState(seed.lb);
-  const goalWChanged = unit === 'st_lb' ? (gwSt ? +stLbToKg(gwSt, gwLb).toFixed(2) : null) !== (p.goalWeightKg || null) : (+gwKg || null) !== (p.goalWeightKg || null);
-  // Plan-affecting changes retune macros and re-anchor the trend; target weight is just a progress marker.
-  const planChanged = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType));
-  const changed = planChanged || goalWChanged;
-  // Save only the target weight, no current-weight re-anchor, no macro rebuild, no check-in reset.
-  function saveTargetOnly() {
-    const goalW = g.goalType === 'maintain' ? null : (unit === 'st_lb' ? (gwSt ? stLbToKg(gwSt, gwLb) : null) : (+gwKg || null));
-    update(d => { d.profile = Object.assign({}, d.profile, { goalWeightKg: goalW ? +goalW.toFixed(2) : null }); });
-    showToast && showToast('Target weight saved');
-  }
-  function apply() {
-    const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg; if (!weightKg) { setWErr("Enter your current weight to continue."); return; }
-    setWErr('');
-    const goalW = g.goalType === 'maintain' ? null : (unit === 'st_lb' ? (gwSt ? stLbToKg(gwSt, gwLb) : null) : (+gwKg || null));
-    update(d => {
-      d.profile = Object.assign({}, d.profile, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM, weightKg: +weightKg.toFixed(2), goalWeightKg: goalW ? +goalW.toFixed(2) : null });
-      const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
-      if (ex) ex.scale_weight = +weightKg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: t, scale_weight: +weightKg.toFixed(2) });
-      recomputeTrend(d);
-      // Build the new plan on the LEARNED expenditure when we have a recent one, so a goal change
-      // doesn't throw away weeks of adaptive tuning by resetting to the formula.
-      const prior = learnedTdee(d, t);
-      const nt = E.computeInitialTargets(withActivity(d.profile), prior ? { priorTdee: prior } : undefined); nt.id = Store.uid(); nt.effective_date = t; nt.source = 'goal-change'; d.targets.push(nt);
-      d.last_checkin = t; d.paused = false;
-    });
-    setConfirming(false);
-    showToast && showToast('Goal updated, plan re-anchored from today');
-  }
-  function pause() { update(d => { d.paused = true; }); showToast && showToast('Goal paused'); }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <PageHeader kicker="What you're working towards" title="Progress" />
@@ -8635,48 +8595,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
           <span className="w-10" />
         </div>
         <div className="flex-1 overflow-y-auto px-5 pt-5 max-w-md lg:max-w-2xl mx-auto w-full" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Goal</div>
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <GoalCard active={g.goalType === 'cut'} onClick={() => pickGoal('cut')} glyph="down" title="Fat loss" sub="Lose fat" />
-        <GoalCard active={g.goalType === 'maintain'} onClick={() => pickGoal('maintain')} glyph="scale" title="Maintain" sub="Hold steady" />
-        <GoalCard active={g.goalType === 'gain'} onClick={() => pickGoal('gain')} glyph="up" title="Lean gain" sub="Build muscle" />
-      </div>
-
-      <Card className="p-5 mb-6">
-        {g.goalType !== 'maintain' && <>
-          <Field label={`Rate: ${g.rateKgPerWeek} kg/week`} hint={g.goalType === 'gain' ? 'How fast you aim to gain. A gentler pace stays leaner; faster adds more fat alongside the muscle.' : 'How fast you aim to lose. A gentler pace is easier to sustain; faster brings more hunger.'}>
-            <input type="range" min="0.1" max="1.2" step="0.05" value={g.rateKgPerWeek} onChange={e => setg('rateKgPerWeek', +e.target.value)} className="w-full accent-[#4A9EEB]" />
-            {(() => { const rl = rateLabel(g.rateKgPerWeek, g.goalType); return <div className="text-[12px] mt-1.5" style={{ color: rl.c }}>Pace: {rl.t}</div>; })()}
-            {(() => {
-              const rg = E.rateGuidance({ weightKg: p.weightKg, bodyFatPct: p.bodyFatPct, sex: p.sex, goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek });
-              if (!rg.tooFast || !rg.maxKg) return null;
-              const mk = unit === 'st_lb' ? (rg.maxKg * 2.20462).toFixed(1) + ' lb' : rg.maxKg + ' kg';
-              return <div className="text-[11px] mt-1.5 leading-snug" style={{ color: 'var(--fat)' }}>That's ~{rg.pctOfBW}% of your bodyweight a week. The evidence favours ≤ ~{mk}/week ({rg.pctCap * 100}% of bodyweight) {g.goalType === 'gain' ? 'to keep the gain lean' : 'to protect muscle and stay sustainable'}.</div>;
-            })()}
-          </Field>
-          <Field label="Target weight" hint="Optional. Shows your progress towards it.">{unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={gwSt} onChange={e => setGwSt(e.target.value)} placeholder="st" /><span className="text-[#8A8A90]">st</span><NumInput value={gwLb} onChange={e => setGwLb(e.target.value)} placeholder="lb" /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={gwKg} onChange={e => setGwKg(e.target.value)} placeholder="kg" />}</Field>
-        </>}
-        <button type="button" onClick={() => setShowAdv(s => !s)} className="text-[11px] text-[#8A8A90] mb-2">{showAdv ? '▲ Hide advanced' : '▾ Advanced: protein and diet style'}</button>
-        {showAdv && <div className="fade-in">
-          <Field label={`Protein: ${Math.round(g.proteinGPerKgLBM * leanKg(p))} g (${g.proteinGPerKgLBM.toFixed(1)} g/kg lean mass)`} hint={`Set per kg of LEAN mass so body fat doesn't inflate it. Your ${g.goalType === 'gain' ? 'lean-gain' : g.goalType} default is ${E.defaultProteinPerKgLBM(g.goalType)} g/kg lean. Evidence: Helms 2014 = 2.3–3.1 g/kg lean to hold muscle in a deficit; Jeff Nippard = 1.8–2.7 g/kg bodyweight when cutting.`}><input type="range" min="1.8" max="3.1" step="0.1" value={g.proteinGPerKgLBM} onChange={e => { setGProteinTouched(true); setg('proteinGPerKgLBM', +e.target.value); }} className="w-full accent-[#4A9EEB]" /></Field>
-          <Field label="Diet style" hint="Shifts the carb/fat balance. Protein stays fixed."><Seg value={g.dietStyle} onChange={v => setg('dietStyle', v)} options={[{ v: 'balanced', l: 'Balanced' }, { v: 'lower_carb', l: 'Lower carb' }, { v: 'higher_carb', l: 'Higher carb' }]} /></Field>
-        </div>}
-        {!confirming
-          ? <Btn kind="accent" className="w-full" disabled={!changed} style={{ opacity: changed ? 1 : .5 }} onClick={() => planChanged ? setConfirming(true) : saveTargetOnly()}>{!changed ? 'No changes to save' : planChanged ? 'Save & update goal' : 'Save target weight'}</Btn>
-          : <div className="pixel-box bg-[#1E1E22] p-4 mt-1 fade-in" style={{ boxShadow: 'none' }}>
-            <div className="text-[12px] text-[#8A8A90] mb-3">Confirm your current weight to re-anchor. Your next check-in unlocks from day 5 (7-day cycle recommended).</div>
-            <Field label="Current weight">{unit === 'st_lb' ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div> : <NumInput value={kg} onChange={e => setKg(e.target.value)} />}</Field>
-            {wErr && <div className="text-[11px] mb-2" style={{ color: 'var(--danger)' }}>{wErr}</div>}
-            <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={apply}>Confirm & update</Btn><Btn kind="ghost" onClick={() => { setConfirming(false); setWErr(''); }}>Cancel</Btn></div>
-          </div>}
-      </Card>
-
-      <Section title="Pause goal">
-        {db.paused
-          ? <div className="text-[12px] text-[#8A8A90] pixel-box bg-[#1E1E22] px-4 py-3.5" style={{ boxShadow: 'none' }}>Your goal's paused. Resume from the Dashboard when you're ready: you'll weigh in and pick up from there.</div>
-          : <><div className="text-[12px] text-[#8A8A90] mb-3">Going on holiday or taking a break? Pausing stops your check-in clock and holds your macros. Resume any time from the Dashboard.</div><Btn kind="ghost" className="w-full" onClick={() => setPauseOpen(true)}>Pause goal</Btn></>}
-      </Section>
-      {pauseOpen && <ConfirmDialog title="Pause your goal?" body="Your check-in clock stops and your macros hold steady until you resume from the Dashboard." confirmLabel="Pause goal" confirmKind="accent" onConfirm={pause} onClose={() => setPauseOpen(false)} />}
+      <GoalEditor db={db} update={update} showToast={showToast} onDone={() => setEditPlan(false)} />
         </div>
       </div>}
     </div>
@@ -8684,8 +8603,171 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
 }
 
 /* =====================================================================
-   MORE (personal details + settings)
+   GOAL EDITOR
+   What you're working towards: the goal itself, how fast, and what you're aiming at. Rendered in
+   two places from ONE component - Settings > Goal, and the Edit plan sheet on Progress - so there is
+   never a second, divergent way to change the same fields.
+
+   A goal change writes a dated target row and re-anchors the trend, so it takes an explicit commit
+   with a current-weight confirmation. Same rule as everywhere else: if it changes your numbers, it asks.
    ===================================================================== */
+function GoalEditor({ db, update, showToast, onDone }) {
+  const p = db.profile, unit = p.weight_unit;
+  const today = Store.todayISO();
+  const cur = currentTargets(db);
+  const seedGW = kgToStLb(p.goalWeightKg || p.weightKg);
+  const [g, setG] = useState({ goalType: p.goalType, rateKgPerWeek: p.rateKgPerWeek, dietStyle: p.dietStyle, proteinGPerKgLBM: p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType) });
+  const setg = (k, v) => setG(x => Object.assign({}, x, { [k]: v }));
+  const [gProteinTouched, setGProteinTouched] = useState(!!p.proteinGPerKgLBM);
+  const pickGoal = (gt) => { setg('goalType', gt); if (!gProteinTouched) setg('proteinGPerKgLBM', E.defaultProteinPerKgLBM(gt)); };
+  const [gwKg, setGwKg] = useState(p.goalWeightKg || '');
+  const [gwSt, setGwSt] = useState(p.goalWeightKg ? seedGW.st : '');
+  const [gwLb, setGwLb] = useState(p.goalWeightKg ? seedGW.lb : '');
+  const [showAdv, setShowAdv] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const [wErr, setWErr] = useState('');
+  const seed = kgToStLb(p.weightKg);
+  const [kg, setKg] = useState(p.weightKg); const [st, setSt] = useState(seed.st); const [lb, setLb] = useState(seed.lb);
+
+  const goalWKg = g.goalType === 'maintain' ? null : (unit === 'st_lb' ? (gwSt ? +stLbToKg(gwSt, gwLb).toFixed(2) : null) : (+gwKg || null));
+  const goalWChanged = goalWKg !== (p.goalWeightKg || null);
+  // Plan-affecting changes retune macros and re-anchor the trend; target weight is just a progress marker.
+  const planChanged = g.goalType !== p.goalType || g.rateKgPerWeek !== p.rateKgPerWeek || g.dietStyle !== p.dietStyle
+    || g.proteinGPerKgLBM !== (p.proteinGPerKgLBM || E.defaultProteinPerKgLBM(p.goalType));
+  const changed = planChanged || goalWChanged;
+
+  // What this goal would actually cost you per day, worked out the same way the save does, so the
+  // number on screen is the number that lands. Built on the LEARNED expenditure where we have one.
+  const preview = useMemo(() => {
+    try {
+      const np = Object.assign({}, p, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM });
+      const prior = learnedTdee(db, today);
+      return E.computeInitialTargets(withActivity(np), prior ? { priorTdee: prior } : undefined);
+    } catch (_) { return null; }
+  }, [g.goalType, g.rateKgPerWeek, g.dietStyle, g.proteinGPerKgLBM, p.weightKg, p.bodyFatPct]);
+  // goalETA takes a SIGNED rate (negative while cutting), so hand it the target rate in that form.
+  const eta = Game.goalETA({ goalType: g.goalType, currentKg: p.weightKg, goalKg: goalWKg, ratePerWeek: g.goalType === 'cut' ? -g.rateKgPerWeek : g.rateKgPerWeek });
+  const etaDate = eta ? (() => { try { return new Date(Date.now() + eta.weeks * 7 * 86400000).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); } catch (_) { return null; } })() : null;
+  const rg = E.rateGuidance({ weightKg: p.weightKg, bodyFatPct: p.bodyFatPct, sex: p.sex, goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek });
+  const kcalDelta = (preview && cur) ? Math.round(preview.kcal - cur.kcal) : null;
+
+  function saveTargetOnly() {
+    update(d => { d.profile = Object.assign({}, d.profile, { goalWeightKg: goalWKg ? +goalWKg.toFixed(2) : null }); });
+    showToast && showToast('Target weight saved');
+    onDone && onDone();
+  }
+  function apply() {
+    const weightKg = unit === 'st_lb' ? stLbToKg(st, lb) : +kg;
+    if (!weightKg) { setWErr("Enter your current weight to continue."); return; }
+    setWErr('');
+    update(d => {
+      d.profile = Object.assign({}, d.profile, { goalType: g.goalType, rateKgPerWeek: g.rateKgPerWeek, dietStyle: g.dietStyle, proteinGPerKgLBM: g.proteinGPerKgLBM, weightKg: +weightKg.toFixed(2), goalWeightKg: goalWKg ? +goalWKg.toFixed(2) : null });
+      const t = Store.todayISO(); const ex = d.weight_entries.find(x => x.date === t);
+      if (ex) ex.scale_weight = +weightKg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: t, scale_weight: +weightKg.toFixed(2) });
+      recomputeTrend(d);
+      // Build the new plan on the LEARNED expenditure when we have a recent one, so a goal change
+      // doesn't throw away weeks of adaptive tuning by resetting to the formula.
+      const prior = learnedTdee(d, t);
+      const nt = E.computeInitialTargets(withActivity(d.profile), prior ? { priorTdee: prior } : undefined);
+      nt.id = Store.uid(); nt.effective_date = t; nt.source = 'goal-change'; d.targets.push(nt);
+      d.last_checkin = t; d.paused = false;
+    });
+    setConfirming(false);
+    showToast && showToast('Goal updated, plan re-anchored from today');
+    onDone && onDone();
+  }
+
+  return (<>
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">What you're working towards</div>
+    <div className="grid grid-cols-3 gap-2 mb-4">
+      <GoalCard active={g.goalType === 'cut'} onClick={() => pickGoal('cut')} glyph="down" title="Fat loss" sub="Lose fat" />
+      <GoalCard active={g.goalType === 'maintain'} onClick={() => pickGoal('maintain')} glyph="scale" title="Maintain" sub="Hold steady" />
+      <GoalCard active={g.goalType === 'gain'} onClick={() => pickGoal('gain')} glyph="up" title="Lean gain" sub="Build muscle" />
+    </div>
+
+    <Card className="p-5 mb-4">
+      {g.goalType !== 'maintain' && <>
+        <Field label={`Pace: ${g.rateKgPerWeek} kg a week`} hint={g.goalType === 'gain' ? 'How fast you aim to gain. A gentler pace stays leaner; faster adds more fat alongside the muscle.' : 'How fast you aim to lose. A gentler pace is easier to sustain; faster brings more hunger.'}>
+          <input type="range" min="0.1" max="1.2" step="0.05" value={g.rateKgPerWeek} onChange={e => setg('rateKgPerWeek', +e.target.value)} className="w-full accent-[#4A9EEB]" />
+          {/* Pace as a share of bodyweight, with the evidence-backed ceiling shown either way, so the
+              recommended band is visible BEFORE you overshoot it rather than only as a telling-off. */}
+          {(() => {
+            const rl = rateLabel(g.rateKgPerWeek, g.goalType);
+            const mk = rg.maxKg ? (unit === 'st_lb' ? (rg.maxKg * 2.20462).toFixed(1) + ' lb' : rg.maxKg + ' kg') : null;
+            return (<div className="mt-2 leading-snug">
+              <div className="text-[12px]" style={{ color: rg.tooFast ? 'var(--fat)' : 'var(--good)' }}>
+                {rl.t} · ~{rg.pctOfBW}% of your bodyweight a week
+              </div>
+              {mk && <div className="text-[11px] mt-1" style={{ color: rg.tooFast ? 'var(--fat)' : 'var(--muted)' }}>
+                {rg.tooFast ? 'Above the ' : 'Within the '}evidence-backed range of up to ~{mk} a week ({Math.round(rg.pctCap * 1000) / 10}% of bodyweight){rg.tooFast ? (g.goalType === 'gain' ? ', which is where the gain starts carrying more fat.' : ', which is where muscle loss and hunger start to bite.') : '.'}
+              </div>}
+            </div>);
+          })()}
+        </Field>
+        <Field label="Target weight" hint="Optional. Drives your progress bar and the finish-line estimate below.">{unit === 'st_lb'
+          ? <div className="flex gap-2 items-center"><NumInput value={gwSt} onChange={e => setGwSt(e.target.value)} placeholder="st" /><span className="text-[#8A8A90]">st</span><NumInput value={gwLb} onChange={e => setGwLb(e.target.value)} placeholder="lb" /><span className="text-[#8A8A90]">lb</span></div>
+          : <NumInput value={gwKg} onChange={e => setGwKg(e.target.value)} placeholder="kg" />}</Field>
+      </>}
+
+      {/* The summary: what this goal costs you a day, and when it finishes. Both update live as you
+          drag, which is the whole reason the pace slider is worth having. */}
+      {preview && <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What this would give you</div>
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-lg font-bold tnum">{Math.round(preview.kcal)}</span>
+          <span className="text-[12px] text-[#8A8A90]">kcal a day</span>
+          {kcalDelta != null && kcalDelta !== 0 && <span className="text-[11px] tnum ml-auto" style={{ color: kcalDelta > 0 ? 'var(--good)' : 'var(--fat)' }}>{kcalDelta > 0 ? '+' : ''}{kcalDelta} vs now</span>}
+        </div>
+        <div className="text-[11px] tnum text-[#8A8A90]">{Math.round(preview.protein_g)}g protein · {Math.round(preview.carbs_g)}g carbs · {Math.round(preview.fat_g)}g fat</div>
+        <div className="text-[11.5px] mt-2.5 leading-snug" style={{ color: 'var(--text2)' }}>
+          {g.goalType === 'maintain'
+            ? 'Holding steady at maintenance. No deficit, no surplus.'
+            : eta
+              ? <>About {eta.weeks} week{eta.weeks === 1 ? '' : 's'} to {fmtWeight(goalWKg, unit)}{etaDate ? ', so around ' + etaDate : ''}, if the trend holds.</>
+              : !goalWKg
+                ? 'Add a target weight to see when you would get there.'
+                // A target on the wrong side of today's weight is the usual reason there's no
+                // estimate, and saying "set a pace" instead would send you to the wrong control.
+                : (g.goalType === 'cut' ? goalWKg >= p.weightKg : goalWKg <= p.weightKg)
+                  ? <>Your target of {fmtWeight(goalWKg, unit)} is {g.goalType === 'cut' ? 'above' : 'below'} your current {fmtWeight(p.weightKg, unit)}, so there's nothing to {g.goalType === 'cut' ? 'lose' : 'gain'} towards it. Set a target {g.goalType === 'cut' ? 'below' : 'above'} where you are now.</>
+                  : "You're within a whisker of your target already."}
+        </div>
+      </div>}
+
+      <button type="button" onClick={() => setShowAdv(s => !s)} className="text-[11px] text-[#8A8A90] mb-2">{showAdv ? '▲ Hide advanced' : '▾ Advanced: protein and diet style'}</button>
+      {showAdv && <div className="fade-in">
+        <Field label={`Protein: ${Math.round(g.proteinGPerKgLBM * leanKg(p))} g (${g.proteinGPerKgLBM.toFixed(1)} g/kg lean mass)`} hint={`Set per kg of LEAN mass so body fat doesn't inflate it. Your ${g.goalType === 'gain' ? 'lean-gain' : g.goalType} default is ${E.defaultProteinPerKgLBM(g.goalType)} g/kg lean. Evidence: Helms 2014 = 2.3–3.1 g/kg lean to hold muscle in a deficit; Jeff Nippard = 1.8–2.7 g/kg bodyweight when cutting.`}><input type="range" min="1.8" max="3.1" step="0.1" value={g.proteinGPerKgLBM} onChange={e => { setGProteinTouched(true); setg('proteinGPerKgLBM', +e.target.value); }} className="w-full accent-[#4A9EEB]" /></Field>
+        <Field label="Diet style" hint="Shifts the carb/fat balance. Protein stays fixed."><Seg value={g.dietStyle} onChange={v => setg('dietStyle', v)} options={[{ v: 'balanced', l: 'Balanced' }, { v: 'lower_carb', l: 'Lower carb' }, { v: 'higher_carb', l: 'Higher carb' }]} /></Field>
+      </div>}
+
+      {!confirming
+        ? <Btn kind="accent" className="w-full" disabled={!changed} style={{ opacity: changed ? 1 : .5 }} onClick={() => planChanged ? setConfirming(true) : saveTargetOnly()}>{!changed ? 'No changes to save' : planChanged ? 'Save & update goal' : 'Save target weight'}</Btn>
+        : <div className="pixel-box bg-[#1E1E22] p-4 mt-1 fade-in" style={{ boxShadow: 'none' }}>
+          <div className="text-[12px] text-[#8A8A90] mb-3">Confirm your current weight to re-anchor. Your next check-in unlocks from day 5 (7-day cycle recommended).</div>
+          <Field label="Current weight">{unit === 'st_lb'
+            ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
+            : <NumInput value={kg} onChange={e => setKg(e.target.value)} />}</Field>
+          {wErr && <div className="text-[11px] mb-2" style={{ color: 'var(--danger)' }}>{wErr}</div>}
+          <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={apply}>Confirm & update</Btn><Btn kind="ghost" onClick={() => { setConfirming(false); setWErr(''); }}>Cancel</Btn></div>
+        </div>}
+    </Card>
+
+    <Section title="Pause goal">
+      {db.paused
+        ? <div className="text-[12px] text-[#8A8A90] pixel-box bg-[#1E1E22] px-4 py-3.5" style={{ boxShadow: 'none' }}>Your goal's paused. Resume from the Dashboard when you're ready: you'll weigh in and pick up from there.</div>
+        : <><div className="text-[12px] text-[#8A8A90] mb-3">Going on holiday or taking a break? Pausing stops your check-in clock and holds your macros. Resume any time from the Dashboard.</div><Btn kind="ghost" className="w-full" onClick={() => setPauseOpen(true)}>Pause goal</Btn></>}
+    </Section>
+    {pauseOpen && <ConfirmDialog title="Pause your goal?" body="Your check-in clock stops and your macros hold steady until you resume from the Dashboard." confirmLabel="Pause goal" confirmKind="accent" onConfirm={() => { update(d => { d.paused = true; }); showToast && showToast('Goal paused'); }} onClose={() => setPauseOpen(false)} />}
+  </>);
+}
+// A one-line summary of the goal, used on the Settings overview row.
+function goalStatusLine(p, paused) {
+  if (paused) return 'Paused';
+  const t = p.goalType === 'cut' ? 'Fat loss' : p.goalType === 'gain' ? 'Lean gain' : 'Maintain';
+  if (p.goalType === 'maintain') return 'Maintain · holding steady';
+  return t + ' · ' + p.rateKgPerWeek + ' kg/week' + (p.goalWeightKg ? ' · target ' + fmtWeight(p.goalWeightKg, p.weight_unit) : '');
+}
 /* =====================================================================
    SETTINGS SHELL
    One overview of grouped rows, each opening ONE focused screen. Two levels, never three.
@@ -8862,6 +8944,13 @@ function GhDebug({ db, update }) {
 
 /* ---------- subscreens ---------- */
 
+// The goal itself: the most consequential thing in the app, and until now only reachable from a
+// sheet on Progress. Same component the Progress "Edit plan" button opens, so there is one editor.
+function GoalScreen({ db, update, onBack, showToast }) {
+  return (<SubScreen title="Goal" onBack={onBack} intro="What you're working towards, how fast, and what you're aiming at. Everything else in your plan is built from this.">
+    <GoalEditor db={db} update={update} showToast={showToast} />
+  </SubScreen>);
+}
 // Promoted to the first row in the app: it decides whether the plan adapts at all, and a setting
 // that consequential must not sit behind a label that discourages opening it.
 function CoachingScreen({ db, update, onBack }) {
@@ -9237,6 +9326,7 @@ function SettingsOverview({ db, update, onOpen, onFreshStart }) {
   // Each row carries the words a person might search for, not just its label.
   const groups = [
     { title: 'Your plan', rows: [
+      { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
       { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
       { key: 'weekly', label: 'Weekly shape', status: preset.label + (cyc.enabled ? ' · +' + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off'), kw: 'weekly shape cycling high days refeed carryover even out banking calories' },
       { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
@@ -9453,6 +9543,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
   // header stay out of the way while you're inside a single setting.
   const back = () => setScreen(null);
   const SCREENS = {
+    goal: () => <GoalScreen db={db} update={update} onBack={back} showToast={showToast} />,
     coaching: () => <CoachingScreen db={db} update={update} onBack={back} />,
     weekly: () => <WeeklyShapeScreen db={db} update={update} onBack={back} />,
     checkins: () => <CheckinsScreen db={db} update={update} onBack={back} />,
