@@ -1525,6 +1525,15 @@ function PhotoButton({ label = 'Add photo', multiple = false, onFiles, tone = 'r
   );
 }
 function Card({ children, className = '', ...rest }) { return <div className={`bg-[#161618] pixel-box ${className}`} {...rest}>{children}</div>; }
+// A block that only wears a box when it is among other boxes. Nesting cards inside a card breaks
+// the mental model of what a card is, and a unit reads perfectly well without an enclosing border
+// given whitespace and a heading. On the Progress page these are cards; inside a full-screen sheet
+// the sheet is the card, so they render as plain sections and the ten stacked pixel boxes that made
+// History look like a pallet of crates become two.
+function Panel({ bare, className = '', children }) {
+  if (bare) return <div className={'mb-6 ' + className}>{children}</div>;
+  return <Card className={'p-4 mb-6 ' + className}>{children}</Card>;
+}
 function Section({ title, children, className = '' }) { return (<div className={'mb-6 ' + className}><div className="text-lg font-bold mb-3">{title}</div>{children}</div>); }
 function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'danger', onConfirm, onClose }) {
   useBackClose(onClose);
@@ -1933,7 +1942,7 @@ function HabitGrid({ days, color }) {
 // Consistency "dig site": one pixel tile per day over the last 12 weeks, week-aligned into columns.
 // Each active day is a fossil you uncovered (a Macrodex catch), so the grid doubles as a picture of
 // how much of your collection you have earned. Tile = neither / logged or weighed / both.
-function ConsistencyHeatmap({ db, today, defaultFull }) {
+function ConsistencyHeatmap({ db, today, defaultFull, fixed, bare }) {
   // Twelve weeks is 84 cells and 340px of card, and on a young account eleven of them have anything
   // in them. Four weeks tells the same story in a third of the height; the full twelve is one tap
   // away for anyone who wants the long view.
@@ -1953,7 +1962,7 @@ function ConsistencyHeatmap({ db, today, defaultFull }) {
   const cov = cycleCoverage(db, today);
   const activeDays = Array.from({ length: N }, (_, i) => shiftISO(start, i)).filter(d => level(d) > 0).length;
   return (
-    <Card className="p-4 mb-4">
+    <Panel bare={bare} className={bare ? '' : 'p-4 mb-4'}>
       <div className="flex items-center justify-between mb-3">
         <span className="pf text-[9px] uppercase text-[#8A8A90] inline-flex items-center gap-1.5"><PixelEgg size={13} color="var(--good)" /> Consistency</span>
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Last {WEEKS} weeks</span>
@@ -1979,9 +1988,11 @@ function ConsistencyHeatmap({ db, today, defaultFull }) {
           <span className="w-2 h-2 inline-block mr-1" style={{ background: 'var(--carb)' }} />{cov.logged}/{cov.logWindow} logged
           <span className="w-2 h-2 inline-block mr-1 ml-2.5" style={{ background: 'var(--good)' }} />{cov.weighed}/{cov.weighWindow} weighed
         </span>
-        <TextBtn onClick={() => setFull(v => !v)} className="shrink-0">{full ? '4 weeks' : '12 weeks'}</TextBtn>
+        {/* Inside the sheet the range is already fixed at twelve weeks, so a control to change it
+            would be a control inside a control. */}
+        {!fixed && <TextBtn onClick={() => setFull(v => !v)} className="shrink-0">{full ? '4 weeks' : '12 weeks'}</TextBtn>}
       </div>
-    </Card>
+    </Panel>
   );
 }
 // Adaptive weight-app chart. FEW points → your ACTUAL weight is the bold line with markers, so real
@@ -2068,7 +2079,7 @@ function fmtWeightDelta(kg, unit, suffix) {
 // The chart itself, with no controls of its own. On the Progress page it is a summary you tap; in
 // the History sheet the sheet supplies the switches. Trading twelve permanent controls for one was
 // still one more than a card needs: the way to configure a chart is to open the chart.
-function TrendCard({ db, tab = 'weight', range = 90, onOpen }) {
+function TrendCard({ db, tab = 'weight', range = 90, onOpen, bare, header }) {
   const unit = db.profile.weight_unit;
   const today = Store.todayISO();
   const cut = range === 'all' ? '0000-00-00' : shiftISO(today, -range);
@@ -2132,7 +2143,7 @@ function TrendCard({ db, tab = 'weight', range = 90, onOpen }) {
           statements of the same weight inside 130px. It is stated once now, on the verdict card, so
           this line only has to carry what the chart adds: how much it moved over the range shown. */}
       <div className="flex items-baseline justify-between gap-3 mb-1 px-0.5">
-        <span className="pf text-[9px] uppercase text-[#8A8A90]">{tab === 'weight' ? 'Trend weight' : tab === 'bodyfat' ? 'Body fat' : 'Lean mass'}</span>
+        {header || <span className="pf text-[9px] uppercase text-[#8A8A90]">{tab === 'weight' ? 'Trend weight' : tab === 'bodyfat' ? 'Body fat' : 'Lean mass'}</span>}
         {/* The range belongs on the footer next to the control that changes it, not in both places. */}
         {delta != null && <span className="text-[13px] font-semibold tnum shrink-0" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{deltaStr}</span>}
       </div>
@@ -2148,29 +2159,46 @@ function TrendCard({ db, tab = 'weight', range = 90, onOpen }) {
   // it, then the detail behind the plot, with nothing permanently parked on the summary to configure
   // something you are usually happy with.
   if (onOpen) return <Card className="p-4 mb-6"><button onClick={onOpen} className="w-full text-left" aria-label="Open weight history">{body}</button></Card>;
-  return <Card className="p-4 mb-6">{body}</Card>;
+  return <Panel bare={bare}>{body}</Panel>;
 }
 // Everything behind the chart, in one destination: the plot at full size with its switches, how
 // consistently you have been feeding it, and the two logs. These were three separate links on the
 // summary page, which is three doors to one room.
+/* Everything behind the chart, in one destination. The first attempt filled this sheet with the
+   components off the summary page unchanged, which put ten bordered, drop-shadowed boxes in a
+   stack: six range chips wrapping onto two rows, three cards, and two full-width boxes whose only
+   content was the word SHOW. A card inside a card stops meaning anything.
+   So: the sheet is the card. Three tabs are its navigation, which is what a tab strip is FOR when
+   it sits at the top of a destination rather than above a 150px chart on a summary. Everything
+   under them is a plain section on the sheet's own surface. Two boxes, not ten. */
 function HistorySheet({ db, update, onClose }) {
   const hasBf = (db.weight_entries || []).some(e => e.bodyfat != null);
-  const [tab, setTab] = useState('weight');
+  const [tab, setTab] = useState('chart');
+  const [metric, setMetric] = useState('weight');
   const [range, setRange] = useState(90);
   // Only offer a metric there are readings for. Body fat and lean mass on an account with neither
   // led to an empty card, which is not a view, it is a dead end.
   const metrics = [{ v: 'weight', l: 'Weight' }].concat(hasBf ? [{ v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }] : []);
+  // Five, not six. A segmented control past five on a phone is hard to parse and fiddly to hit, and
+  // Week was the one to lose: a smoothed trend over seven days is mostly the smoothing.
+  const RANGES = [{ v: 30, l: '1M' }, { v: 90, l: '3M' }, { v: 180, l: '6M' }, { v: 365, l: '1Y' }, { v: 'all', l: 'All' }];
+  const tabs = [['chart', 'Chart'], ['weighins', 'Weigh-ins'], ['checkins', 'Check-ins']];
   return (<FullSheet title="History" onClose={onClose}>
-    {metrics.length > 1 && <div className="mb-3"><Seg value={tab} onChange={setTab} options={metrics} /></div>}
-    <div className="flex gap-1.5 flex-wrap mb-3">{[['Week', 7], ['Month', 30], ['3 months', 90], ['6 months', 180], ['Year', 365], ['All', 'all']].map(([l, v]) =>
-      <button key={l} onClick={() => setRange(v)} className="pixel-box px-2.5 py-1.5 text-[11px]" style={{ boxShadow: 'none', background: range === v ? 'var(--accent)' : 'var(--surface2)', color: range === v ? 'var(--on-accent)' : 'var(--text)', fontWeight: range === v ? 700 : 400 }}>{l}</button>)}</div>
-    <TrendCard db={db} tab={tab} range={range} />
-    {/* The grid belongs here, where twelve weeks fits and a pattern is actually visible. On the
-        summary page it was 31 cells with 11 in them, which is not a pattern, it is a texture. */}
-    <ConsistencyHeatmap db={db} today={Store.todayISO()} defaultFull />
-    {/* No `sub`: the box variant already carries its own Show/Hide, and passing one printed both. */}
-    <Collapsible label="Weigh-ins"><WeighInLog db={db} update={update} /></Collapsible>
-    <Collapsible label="Check-ins"><CheckInHistory db={db} /></Collapsible>
+    <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl text-[12px]">
+      {tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}
+    </div>
+    {tab === 'chart' && <>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <Pill value={range} onChange={setRange} options={RANGES} />
+        {metrics.length > 1 && <Dropdown compact value={metric} onChange={setMetric} options={metrics} />}
+      </div>
+      <TrendCard db={db} tab={metric} range={range} bare />
+      <div className="pt-5" style={{ borderTop: '2px solid var(--surface2)' }}>
+        <ConsistencyHeatmap db={db} today={Store.todayISO()} defaultFull fixed bare />
+      </div>
+    </>}
+    {tab === 'weighins' && <WeighInLog db={db} update={update} bare />}
+    {tab === 'checkins' && <CheckInHistory db={db} bare />}
   </FullSheet>);
 }
 
@@ -3538,7 +3566,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
     </div>
   );
 }
-function WeighInLog({ db, update }) {
+function WeighInLog({ db, update, bare }) {
   const unit = db.profile.weight_unit;
   const [editing, setEditing] = useState(null);   // { new:true } or an entry
   const [confirmDel, setConfirmDel] = useState(null);
@@ -3548,9 +3576,9 @@ function WeighInLog({ db, update }) {
   const shown = showAll ? entries : entries.slice(0, CAP);
   function del(e) { update(d => { if (e.id) tombstone(d, [e.id]); d.weight_entries = d.weight_entries.filter(x => e.id ? x.id !== e.id : x.date !== e.date); recomputeTrend(d); }); }
   return (
-    <Card className="p-4 mb-6">
-      <div className="flex items-start justify-between mb-3">
-        <div><div className="font-semibold mb-0.5">Weigh-in log</div><div className="text-[11px] text-[#8A8A90]">Tap an entry to edit. “+ Add” back-dates a day you missed.</div></div>
+    <Panel bare={bare}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">{!bare && <div className="font-semibold mb-0.5">Weigh-in log</div>}<div className="text-[11px] text-[#8A8A90] leading-snug">Tap an entry to edit, or add a day you missed.</div></div>
         <button onClick={() => setEditing({ new: true })} className="pixel-box px-3 py-1.5 text-[11px] shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>+ Add</button>
       </div>
       {!entries.length
@@ -3574,11 +3602,11 @@ function WeighInLog({ db, update }) {
         </div>}
       {editing && <WeighInEditModal db={db} update={update} entry={editing.new ? null : editing} onClose={() => setEditing(null)} />}
       {confirmDel && <ConfirmDialog title="Delete weigh-in?" body={`Remove your ${fmtWeight(confirmDel.scale_weight, unit)} weigh-in from ${fmtWeighDay(confirmDel.date)}? Your weight trend will recompute.`} confirmLabel="Delete" onConfirm={() => del(confirmDel)} onClose={() => setConfirmDel(null)} />}
-    </Card>
+    </Panel>
   );
 }
 function fmtShortDay(dateISO) { return new Date(dateISO + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
-function CheckInHistory({ db }) {
+function CheckInHistory({ db, bare }) {
   const unit = db.profile.weight_unit; const goal = db.profile.goalType;
   const [showAll, setShowAll] = useState(false);
   const all = db.checkins || [];
@@ -3600,8 +3628,11 @@ function CheckInHistory({ db }) {
   const CAP = 6;
   const shown = showAll ? rows : rows.slice(0, CAP);
   return (
-    <Card className="p-4 mb-6">
-      <div className="font-semibold mb-0.5">Check-ins</div><div className="text-[11px] text-[#8A8A90] mb-3">Each cycle: how long, weight change, and whether you were compliant.</div>
+    <Panel bare={bare}>
+      {!bare && <div className="font-semibold mb-0.5">Check-ins</div>}
+      {/* The empty state below explains what a check-in is far better than this line does, so with
+          nothing in the list the two together just said it twice. */}
+      {!!rows.length && <div className="text-[11px] text-[#8A8A90] mb-3 leading-snug">Each cycle: how long, weight change, and whether you were compliant.</div>}
       {!rows.length ? <div className="text-[12px] text-[#8A8A90] py-2 leading-relaxed">No check-ins yet. About once a week a check-in reviews how your weight moved and fine-tunes your macros, your first unlocks 5 days after setup. Each one you complete lands here.</div>
         : <div className="space-y-2.5">{shown.map(({ c, startISO, periodDays, changeKg, rate, avgIn, wkRate }, i) => {
           const good = changeKg == null ? null : (goal === 'gain' ? changeKg > 0 : goal === 'cut' ? changeKg < 0 : Math.abs(changeKg) < 0.3);
@@ -3629,7 +3660,7 @@ function CheckInHistory({ db }) {
         })}
           {rows.length > CAP && <button onClick={() => setShowAll(s => !s)} className="text-[12px] text-[#8A8A90] pt-1 w-full text-left">{showAll ? 'Show fewer' : `See all ${rows.length} check-ins`}</button>}
         </div>}
-    </Card>
+    </Panel>
   );
 }
 // One condensed panel: switch between the trend Graph, the Weigh-ins log, and Check-ins.
