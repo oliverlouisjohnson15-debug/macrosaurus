@@ -2023,7 +2023,7 @@ function fmtWeightDelta(kg, unit, suffix) {
 // The chart itself, with no controls of its own. On the Progress page it is a summary you tap; in
 // the History sheet the sheet supplies the switches. Trading twelve permanent controls for one was
 // still one more than a card needs: the way to configure a chart is to open the chart.
-function TrendCard({ db, tab = 'weight', range = 90, onOpen, bare, header }) {
+function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
   const unit = db.profile.weight_unit;
   const today = Store.todayISO();
   const cut = range === 'all' ? '0000-00-00' : shiftISO(today, -range);
@@ -2094,54 +2094,15 @@ function TrendCard({ db, tab = 'weight', range = 90, onOpen, bare, header }) {
       <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
       <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
       </>}
-      {onOpen && <div className="flex items-center justify-between gap-3 mt-2">
-        <span className="text-[10px] text-[#8A8A90]">{rangeLabel}</span>
-        <span className="text-[11px] shrink-0" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 3 }}>History ›</span>
-      </div>}
   </>);
   // Tapping the chart opens the chart. That is the whole control: KPI, then the plot that supports
   // it, then the detail behind the plot, with nothing permanently parked on the summary to configure
   // something you are usually happy with.
-  if (onOpen) return <Card className="p-4 mb-6"><button onClick={onOpen} className="w-full text-left" aria-label="Open weight history">{body}</button></Card>;
   return <Panel bare={bare}>{body}</Panel>;
 }
 // Everything behind the chart, in one destination: the plot at full size with its switches, how
 // consistently you have been feeding it, and the two logs. These were three separate links on the
 // summary page, which is three doors to one room.
-/* Everything behind the chart, in one destination. The first attempt filled this sheet with the
-   components off the summary page unchanged, which put ten bordered, drop-shadowed boxes in a
-   stack: six range chips wrapping onto two rows, three cards, and two full-width boxes whose only
-   content was the word SHOW. A card inside a card stops meaning anything.
-   So: the sheet is the card. Three tabs are its navigation, which is what a tab strip is FOR when
-   it sits at the top of a destination rather than above a 150px chart on a summary. Everything
-   under them is a plain section on the sheet's own surface. Two boxes, not ten. */
-function HistorySheet({ db, update, onClose }) {
-  const hasBf = (db.weight_entries || []).some(e => e.bodyfat != null);
-  const [tab, setTab] = useState('chart');
-  const [metric, setMetric] = useState('weight');
-  const [range, setRange] = useState(90);
-  // Only offer a metric there are readings for. Body fat and lean mass on an account with neither
-  // led to an empty card, which is not a view, it is a dead end.
-  const metrics = [{ v: 'weight', l: 'Weight' }].concat(hasBf ? [{ v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }] : []);
-  // Five, not six. A segmented control past five on a phone is hard to parse and fiddly to hit, and
-  // Week was the one to lose: a smoothed trend over seven days is mostly the smoothing.
-  const RANGES = [{ v: 30, l: '1M' }, { v: 90, l: '3M' }, { v: 180, l: '6M' }, { v: 365, l: '1Y' }, { v: 'all', l: 'All' }];
-  const tabs = [['chart', 'Chart'], ['weighins', 'Weigh-ins'], ['checkins', 'Check-ins']];
-  return (<FullSheet title="History" onClose={onClose}>
-    <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl text-[12px]">
-      {tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}
-    </div>
-    {tab === 'chart' && <>
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <Pill value={range} onChange={setRange} options={RANGES} />
-        {metrics.length > 1 && <Dropdown compact value={metric} onChange={setMetric} options={metrics} />}
-      </div>
-      <TrendCard db={db} tab={metric} range={range} bare />
-    </>}
-    {tab === 'weighins' && <WeighInLog db={db} update={update} bare />}
-    {tab === 'checkins' && <CheckInHistory db={db} bare />}
-  </FullSheet>);
-}
 
 /* =====================================================================
    AUTH (polished email login)
@@ -3547,63 +3508,7 @@ function WeighInLog({ db, update, bare }) {
   );
 }
 function fmtShortDay(dateISO) { return new Date(dateISO + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
-function CheckInHistory({ db, bare }) {
-  const unit = db.profile.weight_unit; const goal = db.profile.goalType;
-  const [showAll, setShowAll] = useState(false);
-  const all = db.checkins || [];
-  // Enrich each check-in from history: period covered, weight change vs previous, weekly rate.
-  const rows = all.map((c, i) => {
-    const prev = i > 0 ? all[i - 1] : null;
-    const periodDays = c.days != null ? c.days : (prev ? Math.max(1, daysBetween(prev.date, c.date)) : null);
-    const startISO = prev ? shiftISO(prev.date, 1) : c.date;
-    const changeKg = prev ? (c.weightKg - prev.weightKg) : null;
-    const rate = (changeKg != null && periodDays) ? changeKg / (periodDays / 7) : null;
-    // Per-cycle "avg intake vs weekly change": what you ate against what the scale did.
-    const byDay = {};
-    db.log_entries.forEach(e => { if (e.date >= startISO && e.date <= c.date) byDay[e.date] = (byDay[e.date] || 0) + ((e.computed_macros && e.computed_macros.kcal) || 0); });
-    const dayKcals = Object.values(byDay);
-    const avgIn = dayKcals.length ? Math.round(dayKcals.reduce((a, b) => a + b, 0) / dayKcals.length) : null;
-    const wkRate = c.weeklyChangeKg != null ? c.weeklyChangeKg : rate;
-    return { c, startISO, periodDays, changeKg, rate, avgIn, wkRate };
-  }).reverse();
-  const CAP = 6;
-  const shown = showAll ? rows : rows.slice(0, CAP);
-  return (
-    <Panel bare={bare}>
-      {!bare && <div className="font-semibold mb-0.5">Check-ins</div>}
-      {/* The empty state below explains what a check-in is far better than this line does, so with
-          nothing in the list the two together just said it twice. */}
-      {!!rows.length && <div className="text-[11px] text-[#8A8A90] mb-3 leading-snug">Each cycle: how long, weight change, and whether you were compliant.</div>}
-      {!rows.length ? <div className="text-[12px] text-[#8A8A90] py-2 leading-relaxed">No check-ins yet. About once a week a check-in reviews how your weight moved and fine-tunes your macros, your first unlocks 5 days after setup. Each one you complete lands here.</div>
-        : <div className="space-y-2.5">{shown.map(({ c, startISO, periodDays, changeKg, rate, avgIn, wkRate }, i) => {
-          const good = changeKg == null ? null : (goal === 'gain' ? changeKg > 0 : goal === 'cut' ? changeKg < 0 : Math.abs(changeKg) < 0.3);
-          const hasCounts = c.logged != null && c.weighed != null && c.days != null;
-          return (
-            <div key={i} className="pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="text-[12px] text-[#C9C9CF]">{periodDays ? `${fmtShortDay(startISO)} – ${fmtShortDay(c.date)}` : fmtShortDay(c.date)}{periodDays ? <span className="text-[#8A8A90]"> · {periodDays} days</span> : ''}</div>
-                <span className="pf text-[8px] px-2 py-1" style={{ background: c.onTrack ? 'var(--accent-dim)' : 'transparent', color: c.onTrack ? 'var(--good-ink)' : 'var(--fat-ink)', border: '2px solid var(--border)' }}>{c.onTrack ? (c.changed ? 'ADJUSTED' : 'ON TRACK') : 'HELD'}</span>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-bold tnum" style={{ color: good == null ? 'var(--text)' : good ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{changeKg == null ? fmtWeight(c.weightKg, unit) : fmtWeightDelta(changeKg, unit)}</span>
-                  {changeKg == null ? <span className="text-[11px] text-[#8A8A90]">baseline</span> : (rate != null && <span className="text-[11px] text-[#8A8A90] tnum">{fmtWeightDelta(rate, unit, '/wk')}</span>)}
-                </div>
-                <span className="text-[11px] tnum text-[#8A8A90]">{changeKg == null ? 'first check-in' : 'avg ' + fmtWeight(c.weightKg, unit)}</span>
-              </div>
-              <div className="text-[11px] mt-1.5 pt-1.5 border-t border-[#262629] flex items-center justify-between">
-                <span className="text-[#8A8A90]">{hasCounts ? `Logged ${c.logged}/${c.logWindow != null ? c.logWindow : c.days} · Weighed ${c.weighed}/${c.weighWindow != null ? c.weighWindow : c.days}` : 'Compliance'}</span>
-                <span style={{ color: c.onTrack ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{c.onTrack ? 'Compliant' : 'Short'}</span>
-              </div>
-              {avgIn != null && wkRate != null && <div className="text-[10px] text-[#8A8A90] tnum mt-1">Ate ~{avgIn.toLocaleString()} kcal/day → trended {fmtWeightDelta(wkRate, unit, '/wk')}</div>}
-            </div>
-          );
-        })}
-          {rows.length > CAP && <button onClick={() => setShowAll(s => !s)} className="text-[12px] text-[#8A8A90] pt-1 w-full text-left">{showAll ? 'Show fewer' : `See all ${rows.length} check-ins`}</button>}
-        </div>}
-    </Panel>
-  );
-}
+
 // One condensed panel: switch between the trend Graph, the Weigh-ins log, and Check-ins.
 // Logging today's weight sits ABOVE the tabs as a plain button. It used to be reachable only as a
 // "+ Add" tucked inside the Daily tab, so putting a weight in meant Progress → Daily → + Add → a
@@ -3754,20 +3659,31 @@ function behaviourStats(db, days, endISO) {
     steps: Math.round(E.avgStepsInRange(db.steps, start, end) || 0)
   };
 }
-function StatTile({ label, value, unit, sub, tone }) {
+function StatTile({ label, value, unit, sub, tone, trend }) {
   const color = tone === 'good' ? 'var(--good-ink)' : tone === 'warn' ? 'var(--fat-ink)' : 'var(--text)';
   return (<div className="min-w-0">
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{label}</div>
-    <div className="tnum leading-none"><span className="text-[19px] font-bold" style={{ color }}>{value}</span>{unit && <span className="text-[10px] text-[#8A8A90]"> {unit}</span>}</div>
+    <div className="tnum leading-none"><span className="text-[19px] font-bold" style={{ color }}>{value}</span>{unit && <span className="text-[10px] text-[#8A8A90]"> {unit}</span>}
+      {trend && <span className="text-[10px] ml-1" style={{ color: trend.t === 'up' ? 'var(--good-ink)' : 'var(--fat-ink)' }} title={'vs the previous period'}>{trend.l}</span>}</div>
     {sub && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{sub}</div>}
   </div>);
 }
 function BehaviourCard({ db }) {
   const [range, setRange] = useState(14);
   const now = behaviourStats(db, range);
+  const prev = behaviourStats(db, range, shiftISO(Store.todayISO(), -range));
   const stepGoal = stepGoalFor(db);
   if (!now.loggedDays) return null;
-  const dens = now.density;
+  // Comparable only when the previous window has something in it to compare against.
+  const rate = (s, k) => (k === 'protein' ? (s.loggedDays ? s.proteinHit / s.loggedDays : null) : s.complete / s.days);
+  const arrow = (k) => {
+    if (!prev.loggedDays) return null;
+    const a = rate(now, k), b = rate(prev, k);
+    if (a == null || b == null || Math.abs(a - b) < 0.08) return null;
+    return a > b ? { t: 'up', l: '▲' } : { t: 'down', l: '▼' };
+  };
+  const stepArrow = (!prev.steps || !now.steps || Math.abs(now.steps - prev.steps) < prev.steps * 0.08) ? null
+    : (now.steps > prev.steps ? { t: 'up', l: '▲' } : { t: 'down', l: '▼' });
   return (<Card className="p-4 mb-4">
     <div className="flex items-center justify-between gap-3 mb-3">
       <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0">Lately</span>
@@ -3775,14 +3691,14 @@ function BehaviourCard({ db }) {
     </div>
     <div className="grid grid-cols-2 gap-x-4 gap-y-4">
       <StatTile label="Protein" value={now.proteinHit} unit={'of ' + now.loggedDays + ' logged'} sub="hit your target"
-        tone={now.loggedDays && now.proteinHit >= now.loggedDays * 0.7 ? 'good' : null} />
+        trend={arrow('protein')} tone={now.loggedDays && now.proteinHit >= now.loggedDays * 0.7 ? 'good' : null} />
       <StatTile label="Days logged" value={now.complete} unit={'of ' + now.days} sub="a full day's food"
-        tone={now.complete >= now.days * 0.7 ? 'good' : null} />
+        trend={arrow('complete')} tone={now.complete >= now.days * 0.7 ? 'good' : null} />
       {/* Density is NOT here. The Food quality card directly above owns it, with a day-by-day strip
           this tile could not carry, and 77 twice on one screen is the repetition this whole pass has
           been removing. */}
       {now.steps > 0 && <StatTile label="Steps" value={now.steps.toLocaleString()} unit="a day" sub={stepGoal ? 'target ' + stepGoal.toLocaleString() : 'average'}
-        tone={stepGoal && now.steps >= stepGoal ? 'good' : null} />}
+        trend={stepArrow} tone={stepGoal && now.steps >= stepGoal ? 'good' : null} />}
     </div>
   </Card>);
 }
@@ -3810,12 +3726,12 @@ function CoachTimeline({ db }) {
         const why = rationaleFor(c.date);
         return (<div key={c.date + i} className={i ? 'pt-3.5' : ''} style={i ? { borderTop: '2px solid var(--surface2)' } : null}>
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[12px] font-semibold">{d}</span>
+            <span className="text-[12px] font-semibold">{d}{c.onTrack ? <span className="pf text-[7px] uppercase ml-2" style={{ color: 'var(--good-ink)' }}>on track</span> : null}</span>
             <span className="text-[11px] tnum shrink-0" style={{ color: delta > 0 ? 'var(--good-ink)' : delta < 0 ? 'var(--fat-ink)' : 'var(--muted)' }}>
               {delta ? (delta > 0 ? '+' : '−') + Math.abs(delta) + ' kcal' : 'no change'}
             </span>
           </div>
-          {moved && <div className="text-[10px] text-[#8A8A90] tnum mt-0.5">weight {moved}{c.logged != null ? ' · ' + c.logged + '/' + c.logWindow + ' days logged' : ''}</div>}
+          {moved && <div className="text-[10px] text-[#8A8A90] tnum mt-0.5">weight {moved}{c.logged != null ? ' · ' + c.logged + '/' + c.logWindow + ' days logged' : ''}{c.weighed != null ? ' · ' + c.weighed + '/' + c.weighWindow + ' weighed' : ''}</div>}
           {why && <div className="text-[11px] text-[#8A8A90] leading-snug mt-1.5">{why}</div>}
         </div>);
       })}
@@ -3882,14 +3798,25 @@ function VerdictCard({ db, onWeigh }) {
     </div>
   </Card>);
 }
+/* The chart, with the two switches it actually needs, in place.
+   The drill-down this replaces opened a destination whose first tab was the same chart again, which
+   is the pogo-stick the List Inlay pattern exists to avoid: you tapped through to look at what you
+   were already looking at. A range control is one row and belongs beside the plot; the logs it was
+   sharing that destination with are records, and they now sit further down this same page. */
 function ProgressPanel({ db, update, onWeigh }) {
-  const [history, setHistory] = useState(false);
+  const hasBf = (db.weight_entries || []).some(e => e.bodyfat != null);
+  const [metric, setMetric] = useState('weight');
+  const [range, setRange] = useState(90);
+  const metrics = [{ v: 'weight', l: 'Weight' }].concat(hasBf ? [{ v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }] : []);
+  const RANGES = [{ v: 30, l: '1M' }, { v: 90, l: '3M' }, { v: 180, l: '6M' }, { v: 365, l: '1Y' }, { v: 'all', l: 'All' }];
   return (
-    <div className="mb-2">
-      <TrendCard db={db} onOpen={() => setHistory(true)} />
-      <DensityWeekCard db={db} />
-      {history && <HistorySheet db={db} update={update} onClose={() => setHistory(false)} />}
-    </div>
+    <Card className="p-4 mb-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <Pill value={range} onChange={setRange} options={RANGES} />
+        {metrics.length > 1 && <Dropdown compact value={metric} onChange={setMetric} options={metrics} />}
+      </div>
+      <TrendCard db={db} tab={metric} range={range} bare />
+    </Card>
   );
 }
 // A plain full-screen layer with a header and a back button, for content that is a list rather than
@@ -3906,7 +3833,7 @@ function FullSheet({ title, onClose, children }) {
   </div>);
 }
 
-function ExpenditureCard({ db }) {
+function ExpenditureCard({ db, plan }) {
   const [showMath, setShowMath] = useState(false);
   const today = Store.todayISO();
   const t = currentTargets(db);
@@ -3932,6 +3859,7 @@ function ExpenditureCard({ db }) {
         {/* Explicitly a 14-day window, not this cycle: the burn estimate needs a fortnight before it
             can say anything, and unlabelled it read as another version of your weekly coverage. */}
         <div className="grid grid-cols-2 gap-2 text-[9px] text-[#8A8A90] mt-1 text-center"><div>weigh-ins · last 14 days</div><div>days logged · last 14 days</div></div>
+        {typeof plan === 'function' ? plan(null) : plan}
       </Card>
     );
   }
@@ -3942,6 +3870,7 @@ function ExpenditureCard({ db }) {
         <div className="pf text-[8px] text-[#8A8A90] mb-2">DAILY BURN</div>
         <div className="text-[13px] font-semibold mb-1">Still settling</div>
         <div className="text-[12px] text-[#8A8A90] leading-relaxed">A sharp weight move ({est.direction === 'up' ? 'up' : 'down'} {rate}, most likely water or a scale blip) is skewing the estimate right now. Keep weighing in daily and it'll steady over the next few days.</div>
+        {typeof plan === 'function' ? plan(null) : plan}
       </Card>
     );
   }
@@ -3997,6 +3926,7 @@ function ExpenditureCard({ db }) {
         </div>;
       })()}
       {/* What the next weekly check-in is likely to do with your targets. */}
+      {typeof plan === 'function' ? plan(est.tdee) : plan}
       <div className="text-[11px] mt-3 pt-3 border-t border-[#262629]" style={{ color: fcColor }}>Next weekly check-in: {est.forecast.text}.</div>
     </Card>
   );
@@ -9498,55 +9428,63 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan }) {
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <PageHeader kicker="What you're working towards" title="Progress" />
 
-      {/* The answer, first. It used to be at pixel 1,399. */}
+      {/* THE ANSWER. */}
       <VerdictCard db={db} onWeigh={onWeigh} />
 
-      {/* Progress: the full weight trend, weigh-in log, check-in history and live burn estimate.
-          Moved here from the dashboard so Home stays a quick daily glance. The second "Progress"
-          heading that used to sit here was the page title again, 200px below the page title. */}
-      <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
-
-      {/* What you have been doing, in place of the 84-square grid that never labelled its axes. */}
-      <BehaviourCard db={db} />
-
-      {/* The receipt that the adaptive plan is adapting. Nobody else can show this. */}
-      <CoachTimeline db={db} />
-
-      {/* A check-in is an ACTION, not a reading, so it gets a line rather than a card. The three
-          sentences explaining what a check-in does ran every time you opened the tab, which is a
-          tutorial that never finishes. They live in the check-in itself, where they are the answer
-          to a question you have just asked. */}
+      {/* THE ACTION IT IMPLIES, right underneath it rather than four cards down. */}
       {!db.paused && (() => {
         // A full week, not five days. Offering the button at five is what produced cycles too short
         // to read: people check in when invited, and the shorter the window the more one salty day
         // dominates it.
         const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
         const ready = daysSince >= 7;
-        return <Card className="p-3.5 mb-5">
+        if (!ready) return null; // a "next in 3 days" card is a card that does nothing
+        return <Card className="p-3.5 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="pf text-[9px] uppercase text-[#8A8A90]">Weekly check-in</div>
-              <div className="text-[12.5px] font-bold mt-0.5">{ready ? 'Due now' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
+              <div className="text-[12.5px] font-bold mt-0.5">Due now</div>
             </div>
-            <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} style={{ opacity: ready ? 1 : .5 }} onClick={onCheckIn}>Check in</Btn>
+            <Btn kind="accent" onClick={onCheckIn}>Check in</Btn>
           </div>
         </Card>;
       })()}
 
-      <ExpenditureCard db={db} />
+      {/* THE EVIDENCE: what your body did. */}
+      <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
+      <DensityWeekCard db={db} />
 
-      {/* Read-only. The plan is the thing the verdict is judged against, so it belongs on the page,
-          but EDITING it lives in Settings, which already has a Your plan section with five entries
-          including this one. Two doors to one 700-line editor is one door too many. */}
-      <Card className="p-4 mb-5">
-        <div className="flex items-center justify-between">
-          <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div>{base ? <div className="tnum whitespace-nowrap"><span className="text-xl font-bold">{base.kcal}</span><span className="text-[11px] text-[#8A8A90]"> kcal</span></div> : <div className="text-[15px] font-bold mt-0.5">Not set yet</div>}</div>
-          {base && <div className="text-right text-[13px] tnum"><span style={{ color: PRO_T }}>P{base.protein_g}</span> <span style={{ color: CARB_T }}>C{base.carbs_g}</span> <span style={{ color: FAT_T }}>F{base.fat_g}</span></div>}
-        </div>
-        {base && <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>}
-        {base && base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
-        <div className="mt-3"><TextBtn onClick={onEditPlan}>{base ? 'Change your goal in Settings' : 'Set your goal'}</TextBtn></div>
-      </Card>
+      {/* THE ENGINE: what you ate plus how your weight moved gives your real burn, and your burn
+          gives your target. That chain is the entire product, and it was split across two cards at
+          the bottom of the page with four unrelated ones in between. One card, in order. */}
+      <ExpenditureCard db={db} plan={(liveBurn) => {
+        if (!base) return <div className="mt-3 pt-3 border-t border-[#262629]"><TextBtn onClick={onEditPlan}>Set your goal</TextBtn></div>;
+        // Against the LIVE figure this card is showing. Reading estimatedTDEE off the target row gave
+        // the burn as it stood when that target was written, so the card said 2,582 and then did its
+        // arithmetic against 2,786 and printed a deficit that did not subtract.
+        const gap = liveBurn > 0 ? base.kcal - Math.round(liveBurn) : null;
+        return <div className="mt-3 pt-3 border-t border-[#262629]">
+          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">So your target is</div>
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <span className="tnum"><span className="text-xl font-bold">{base.kcal}</span><span className="text-[11px] text-[#8A8A90]"> kcal a day</span></span>
+            <span className="tnum text-[12px] shrink-0"><span style={{ color: PRO_T }}>P{base.protein_g}</span> <span style={{ color: CARB_T }}>C{base.carbs_g}</span> <span style={{ color: FAT_T }}>F{base.fat_g}</span></span>
+          </div>
+          <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">
+            {gap ? <>{gap < 0 ? 'A ' + Math.abs(gap) + ' kcal deficit' : 'A ' + gap + ' kcal surplus'}, which is {p.goalType === 'maintain' ? 'roughly maintenance' : 'about ' + p.rateKgPerWeek + ' kg a week'}. </> : null}
+            {p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalWeightKg ? ' towards ' + fmtWeight(p.goalWeightKg, unit) : ''}.{db.paused ? ' Currently paused.' : ''}
+          </div>
+          {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
+          <div className="mt-2"><TextBtn onClick={onEditPlan}>Change your goal in Settings</TextBtn></div>
+        </div>;
+      }} />
+
+      {/* WHAT YOU DID. */}
+      <BehaviourCard db={db} />
+
+      {/* THE RECORD, in place rather than behind a door. */}
+      <CoachTimeline db={db} />
+      <Collapsible label="Weigh-in log"><WeighInLog db={db} update={update} bare /></Collapsible>
+
 
     </div>
   );
