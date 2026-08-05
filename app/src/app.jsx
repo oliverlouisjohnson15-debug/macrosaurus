@@ -2607,37 +2607,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
   </div>);
 }
 
-// Closing the loop. Storing what someone told you and asking about it afterwards is what separates
-// a coach from a form, and the answer teaches the next window's defaults.
-function PlanLoopBack({ plan, onAnswer }) {
-  return (<div className="fade-in">
-    <Bubble>Before anything else, how was {plan.label.toLowerCase() === 'nothing special' ? 'last week' : plan.label.toLowerCase()}?</Bubble>
-    <Choices cols={1} options={[
-      { v: 'went_well', l: 'Went well, stuck to it' },
-      { v: 'roughly', l: 'Roughly, close enough' },
-      { v: 'off_plan', l: 'Went off plan, honestly' },
-      { v: 'didnt_happen', l: "Didn't end up happening" },
-    ]} onPick={onAnswer} />
-  </div>);
-}
 
-// The look-back, in the buddy's voice. Same numbers the check-in already had, said out loud.
-function CheckInRecap({ db, cov, onContinue }) {
-  const p = db.profile;
-  const planned = E.plannedDaysBetween(db.week_plans, cov.cs, Store.todayISO());
-  const expectedLog = Math.max(1, cov.logWindow - planned);
-  const good = cov.logged >= Math.ceil(expectedLog * 0.7);
-  return (<div className="fade-in">
-    <Bubble>
-      Right then. Since {fmtShortDay(cov.cs)} you logged {cov.logged} day{cov.logged === 1 ? '' : 's'} and weighed in {cov.weighed} time{cov.weighed === 1 ? '' : 's'}.
-      {planned > 0 ? ' ' + planned + ' of those days you\'d told me about, so I\'m not counting them against you.' : ''}
-    </Bubble>
-    <Bubble>{good
-      ? 'That\'s plenty for me to read properly. Let\'s see where you are.'
-      : 'A bit thin, so I\'ll steer carefully rather than over-read it. Let\'s take a look.'}</Bubble>
-    <Btn kind="accent" className="w-full" onClick={onContinue}>Let's see it</Btn>
-  </div>);
-}
 
 // The dashboard strip while a declared window is running or easing back.
 function WeekPlanBanner({ db, onOpen }) {
@@ -2695,10 +2665,10 @@ function CheckInModal({ db, update, onClose, resume }) {
   // days have passed without being reviewed gets asked about first, which is what makes it feel
   // like a relationship rather than a form. The forward half can never block the retune.
   const pendingLoop = (db.week_plans || []).filter(w => w && w.end < today && !w.outcome).slice(-1)[0] || null;
-  const [phase, setPhase] = useState(resume ? 'form' : (pendingLoop ? 'loop' : 'recap'));
+  const [phase, setPhase] = useState(resume ? 'verdict' : (pendingLoop ? 'loop' : 'hello'));
   function answerLoop(v) {
     update(d => { const w = (d.week_plans || []).find(x => x.id === pendingLoop.id); if (w) w.outcome = v; });
-    setPhase('recap');
+    setPhase('hello');
   }
   const [bfPick, setBfPick] = useState(false);
   // Back-dating a missed morning without leaving the check-in: the same editor Progress uses, so a
@@ -2941,246 +2911,205 @@ function CheckInModal({ db, update, onClose, resume }) {
   const rateOnGoal = actRate == null ? null : (p.goalType === 'cut' ? actRate < 0.02 : p.goalType === 'gain' ? actRate > -0.02 : Math.abs(actRate) < 0.15);
   const fmtRate = (r) => Math.abs(r) < 0.02 ? 'steady' : fmtWeightDelta(r, unit, '/wk');
   const nextCheckISO = shiftISO(today, 7);
+  // ---- the conversation ------------------------------------------------------------------------
+  // One beat per screen. The buddy says one thing, you answer one thing, you move on. Everything the
+  // old sheet stacked inline (the trend panel, the chart, lean mass, burn, coverage) now lives behind
+  // a single "Show me the numbers" on the beat it belongs to, so the detail is one tap away for the
+  // people who want it and invisible for the people who don't.
+  const beats = ['hello', 'weight', 'adherence', 'reading', 'verdict', 'ahead'];
+  if (pendingLoop) beats.unshift('loop');
+  const beatIdx = beats.indexOf(phase);
+  const go = (b) => setPhase(b);
+  const dots = (<div className="flex gap-1.5 justify-center mb-4">
+    {beats.map((b, i) => <span key={b} className="rounded-full" style={{ width: 6, height: 6, background: i <= beatIdx ? 'var(--accent)' : 'var(--border)', opacity: i <= beatIdx ? 1 : 0.25 }} />)}
+  </div>);
+  // The buddy, saying one thing. Never more than a couple of sentences: anything longer belongs
+  // behind the disclosure, not in the speech.
+  const Say = ({ children, sub }) => (
+    <div className="flex items-start gap-2.5 mb-4">
+      <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={1.6} /></div>
+      <div className="min-w-0 pt-0.5">
+        <div className="text-[14px] leading-snug">{children}</div>
+        {sub && <div className="text-[11.5px] text-[#8A8A90] leading-snug mt-1.5">{sub}</div>}
+      </div>
+    </div>
+  );
+  // One big number, the way a person would say it out loud.
+  const Headline = ({ value, note, tone }) => (
+    <div className="text-center py-3 mb-4">
+      <div className="text-[30px] font-bold tnum leading-none" style={{ color: tone || 'var(--text)' }}>{value}</div>
+      {note && <div className="text-[12px] text-[#8A8A90] mt-2 leading-snug">{note}</div>}
+    </div>
+  );
+  const numbersPanel = (
+    <Collapsible variant="inline" label="The numbers behind it" className="mb-4">
+      <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <div className="text-xl font-bold tnum leading-none">{liveAvg != null ? fmtWeight(liveAvg, unit) : '–'}</div>
+          {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
+        </div>
+        <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">{singleWeigh
+          ? 'Read straight against your last weekly reading.'
+          : 'Your weigh-ins since ' + fmtShortDay(cs) + ', smoothed so one salty morning cannot swing your macros.'}</div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <MiniStat label="Food logs" value={loggedDays + '/' + (cov.expectedLogWindow || logWindow)} ok={laneMode === 'weightOnly' ? true : loggedDays >= needLogs} />
+        {singleWeigh
+          ? <MiniStat label="Weigh-in" value={liveCount ? 'Done' : 'Needed'} ok={liveCount > 0} />
+          : <MiniStat label="Weigh-ins" value={weighDays + '/' + (cov.expectedWeighWindow || weighWindow)} ok={weighDays >= needWeigh} />}
+      </div>
+      {chartDots.length >= 2 && <div className="pixel-box p-2 pt-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <LineChart points={chartDots} trend={singleWeigh ? null : chartTrend} color="var(--weight)" decimals={1} unitLabel={unit === 'st_lb' ? 'lb' : 'kg'} />
+      </div>}
+      <Collapsible variant="inline" label={lane === 'logged_all' ? 'Tuning from your logs and weigh-ins' : 'Tuning from your weigh-ins alone'} sub="Change">
+        <Seg value={lane} onChange={setLane} options={[{ v: 'logged_all', l: 'Logged everything' }, { v: 'roughly', l: 'Roughly on plan' }]} />
+      </Collapsible>
+    </Collapsible>
+  );
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={() => { if (!proposalShown) onClose(); }}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Check-in</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
-        {proposalShown && <div className="text-[10px] text-[#8A8A90] mb-2">This suggestion stays saved on your dashboard until you approve it or stick with your current macros.</div>}
-        {phase === 'loop' && pendingLoop ? <PlanLoopBack plan={pendingLoop} onAnswer={answerLoop} />
-        : phase === 'recap' ? <CheckInRecap db={db} cov={cov} onContinue={() => setPhase('form')} />
-        : phase === 'ahead' ? (<>
-            {/* Strictly optional and strictly last: the retune has already been committed by the
-                time anyone sees this, so closing the app here loses nothing. */}
-            <WeekAheadFlow db={db} update={update} showToast={null} onDone={() => onClose()} />
-            <button onClick={onClose} className="w-full text-[12px] text-[#8A8A90] mt-1 py-2">Skip for now</button>
-          </>)
-        : result ? (
-          <div className="fade-in">
-            <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-2">{result.status === 'proposed' && result.changed ? 'Suggested change' : result.status === 'held' ? 'Macros held' : 'Coaching'}</div>
-            {result.offPlan && result.dinoLine && <div className="flex items-center gap-3 mb-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="shrink-0"><PixelEgg size={30} color="var(--good)" /></div>
-              <div className="text-[13px] font-semibold leading-snug">{result.dinoLine}</div>
-            </div>}
-            <p className="text-sm">{result.reason}</p>
-            {/* What the decision was read from, in plain weights: last cycle's average → this one's.
-                The rate below is derived from these two numbers, so showing them first makes the
-                whole result checkable rather than something the app asserts. */}
-            {result.avgNow != null && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">{result.single ? 'Read from your weigh-ins' : 'Read from your cycle trend weight'}</div>
+        <div className="flex justify-between items-center mb-3">
+          <span className="pf text-[9px] uppercase text-[#8A8A90]">Check-in</span>
+          <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">&times;</button>
+        </div>
+        {beatIdx >= 0 && dots}
+
+        {/* 1. A window that has been and gone gets asked about before anything else. */}
+        {phase === 'loop' && pendingLoop && <div className="fade-in">
+          <Say>How was {pendingLoop.label.toLowerCase()}?</Say>
+          <div className="grid gap-2">
+            {[['went_well', 'Went well, stuck to it'], ['roughly', 'Roughly, close enough'], ['off_plan', 'Went off plan, honestly'], ['didnt_happen', "Didn't end up happening"]].map(([v, l]) => (
+              <button key={v} onClick={() => answerLoop(v)} className="pixel-box py-3 px-3.5 text-[13px] text-left" style={{ background: 'var(--card)' }}>{l}</button>
+            ))}
+          </div>
+        </div>}
+
+        {/* 2. What the week looked like, in one line. */}
+        {phase === 'hello' && <div className="fade-in">
+          <Say sub={cov.planned > 0 ? cov.planned + ' of those days you told me about, so they are not counted against you.' : null}>
+            Since {fmtShortDay(cs)} you logged {loggedDays} day{loggedDays === 1 ? '' : 's'} and weighed in {weighDays} time{weighDays === 1 ? '' : 's'}.
+          </Say>
+          <Btn kind="accent" className="w-full" onClick={() => go('weight')}>{readyToAdjust ? 'Right, let’s see' : 'Carry on anyway'}</Btn>
+          {!readyToAdjust && <div className="text-[11.5px] text-[#8A8A90] mt-2.5 leading-snug">{laneMode === 'weightOnly' ? 'A bit short on weigh-ins, so I will hold your macros rather than guess.' : 'A bit thin on tracking, so I will hold your macros rather than guess.'}</div>}
+        </div>}
+
+        {/* 3. The one number this check-in actually needs. */}
+        {phase === 'weight' && <div className="fade-in">
+          <Say sub={todaysEntry && typedKg == null ? 'Already got ' + fmtWeight(todaysEntry.scale_weight, unit) + ' from this morning. Type over it to correct it.' : (canSkipWeight && typedKg == null ? 'Leave it blank if you have not weighed, I will go on the trend.' : null)}>
+            {singleWeigh ? 'What did the scale say this week?' : 'What is the scale saying this morning?'}
+          </Say>
+          <div className="mb-3">
+            {unit === 'st_lb'
+              ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} placeholder="st" /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} placeholder="lb" /><span className="text-[#8A8A90]">lb</span></div>
+              : <div className="flex gap-2 items-center"><NumInput value={kg} onChange={e => setKg(e.target.value)} placeholder={last ? last.scale_weight.toFixed(1) : ''} /><span className="text-[#8A8A90]">kg</span></div>}
+            {wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}
+          </div>
+          {liveAvg != null && <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug tnum">
+            {singleWeigh ? 'Reading' : 'Trend weight'}: <b style={{ color: 'var(--text)' }}>{fmtWeight(liveAvg, unit)}</b>{avgDelta != null ? <span style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}> {fmtWeightDelta(avgDelta, unit)}</span> : null}
+          </div>}
+          {/* Body fat is genuinely optional, so it stays folded away rather than sitting open and
+              inviting an invented reading every single week. */}
+          <Collapsible variant="inline" label="Add a body-fat reading" sub="Optional" className="mb-4">
+            <div className="flex gap-2 items-center mb-2"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
+            {bfNum != null && <Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA' }]} />}
+            {bfNum != null && bfAfter && <div className="text-[11.5px] mt-2 leading-snug text-[#8A8A90]">Trend moves to <b style={{ color: 'var(--text)' }}>{bfAfter.pct.toFixed(1)}%</b>{leanPreview != null ? ', about ' + fmtWeight(leanPreview, unit) + ' of you lean' : ''}.</div>}
+            <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-2">Not sure? Estimate from photos</button>
+          </Collapsible>
+          <Btn kind="accent" className="w-full" onClick={() => go('adherence')}>Continue</Btn>
+          <button onClick={() => setBackfill(true)} className="w-full text-[12px] text-[#4A9EEB] mt-2.5 py-1">Missed a morning? Add it here</button>
+        </div>}
+
+        {/* 4. The honesty question, which is the only thing the buddy really needs from you. */}
+        {phase === 'adherence' && <div className="fade-in">
+          <Say sub="Be honest. If it was a write-off I will hold your macros rather than chase a misleading week.">Did you stick to it this cycle?</Say>
+          <div className="grid gap-2 mb-4">
+            {[['yes', 'Yes, pretty much'], ['no', 'Not really, off plan']].map(([v, l]) => (
+              <button key={v} onClick={() => setAdhered(v)} className="pixel-box py-3 px-3.5 text-[13px] text-left"
+                style={{ background: adhered === v ? 'var(--accent)' : 'var(--card)', color: adhered === v ? 'var(--on-accent)' : 'var(--text)' }}>{l}</button>
+            ))}
+          </div>
+          {numbersPanel}
+          <Btn kind="accent" className="w-full" onClick={() => { complete(); go('reading'); }}>See what it means</Btn>
+        </div>}
+
+        {/* 5. The read: one number, one sentence. Detail behind the disclosure. */}
+        {phase === 'reading' && result && <div className="fade-in">
+          <Headline
+            value={actRate == null ? '–' : fmtRate(actRate)}
+            tone={rateOnGoal == null ? 'var(--text)' : rateOnGoal ? 'var(--good)' : 'var(--fat)'}
+            note={actRate == null ? null : 'You were aiming for ' + fmtRate(tgtRate)} />
+          <Say>{result.reason}</Say>
+          {(() => {
+            const steps = result.stepsCoaching && stepsCoachLine(result.stepsCoaching);
+            const body = (coach && coach.text) ? coach.text : steps || densityCoachLine(db) || null;
+            if (coach && coach.loading) return <div className="text-[12px] text-[#8A8A90] mb-4">Reading your week…</div>;
+            return body ? <Say>{body}</Say> : null;
+          })()}
+          <Collapsible variant="inline" label="The numbers behind it" className="mb-4">
+            {result.avgNow != null && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
               <div className="flex items-baseline gap-2 flex-wrap text-[13px]">
                 <span className="tnum text-[#8A8A90]">{result.avgPrev != null ? fmtWeight(result.avgPrev, unit) : '–'}</span>
-                <span className="text-[#8A8A90]">→</span>
+                <span className="text-[#8A8A90]">to</span>
                 <span className="tnum font-bold text-[15px]">{fmtWeight(result.avgNow, unit)}</span>
-                {result.avgPrev != null && <span className="tnum font-semibold" style={{ color: 'var(--muted)' }}>{fmtWeightDelta(shownDelta(result.avgNow, result.avgPrev, unit), unit)}</span>}
               </div>
               {result.leanNow != null && result.leanPrev != null && (() => {
                 const dLean = shownDelta(result.leanNow, result.leanPrev, unit);
                 const dFat = shownDelta((result.avgNow - result.leanNow), (result.avgPrev - result.leanPrev), unit);
-                // Holding lean mass while fat comes off is the whole point of a cut, so it gets said
-                // in those words rather than left for you to work out from two percentages.
                 const held = Math.abs(dLean) < 0.25;
-                return <div className="mt-2 pt-2 border-t border-[#262629]">
-                  <div className="flex items-baseline gap-2 flex-wrap text-[12px]">
-                    <span className="text-[#8A8A90]">Lean mass</span><span className="tnum font-semibold">{fmtWeight(result.leanNow, unit)}</span>
-                    <span className="tnum" style={{ color: held ? 'var(--good)' : dLean > 0 ? 'var(--good)' : 'var(--fat)' }}>{held ? 'held' : fmtWeightDelta(dLean, unit)}</span>
-                    <span className="text-[#8A8A90]">· fat</span><span className="tnum" style={{ color: dFat < 0 ? 'var(--good)' : 'var(--muted)' }}>{fmtWeightDelta(dFat, unit)}</span>
-                  </div>
-                  <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{held && dFat < -0.1
-                    ? 'Weight down, lean mass steady: that\'s fat you lost, which is exactly the idea.'
-                    : dLean < -0.25 && dFat < -0.1 ? 'Some of that came off your lean mass. Keep protein up and keep lifting, and the next cycle should shift the balance.'
-                    : dLean > 0.25 ? 'Lean mass up. Whatever you\'re doing in the gym, keep doing it.'
-                    : 'From your body-fat trend against your weight trend, so it moves slowly and honestly.'}</div>
+                return <div className="text-[12px] mt-2 pt-2 border-t border-[#262629] flex items-baseline gap-2 flex-wrap">
+                  <span className="text-[#8A8A90]">Lean</span><span className="tnum font-semibold">{fmtWeight(result.leanNow, unit)}</span>
+                  <span className="tnum" style={{ color: held || dLean > 0 ? 'var(--good)' : 'var(--fat)' }}>{held ? 'held' : fmtWeightDelta(dLean, unit)}</span>
+                  <span className="text-[#8A8A90]">fat</span><span className="tnum" style={{ color: dFat < 0 ? 'var(--good)' : 'var(--muted)' }}>{fmtWeightDelta(dFat, unit)}</span>
                 </div>;
               })()}
-              <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">{result.single
-                ? (result.avgPrev != null ? `Your reading from ${result.prevDate ? fmtShortDay(result.prevDate) : 'last week'} against this week’s` : 'This week’s reading, your first, so there’s nothing to diff it against yet')
-                : (result.avgPrev != null ? 'Last cycle’s trend weight against this cycle’s' : 'This cycle’s trend weight') + `, from ${result.weighCount} weigh-in${result.weighCount === 1 ? '' : 's'}`}{result.bfNew != null ? ` · body fat logged at ${(+result.bfNew).toFixed(1)}% (${BF_SOURCE_LABEL[result.bfSource] || 'measured'})` : ''}.</div>
             </div>}
-            {result.estimate && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="grid grid-cols-2 gap-2">
-                <div><div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">Aiming for</div><div className="text-[13px] tnum font-semibold">{fmtRate(tgtRate)}</div></div>
-                <div><div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">You trended</div><div className="text-[13px] tnum font-semibold" style={{ color: rateOnGoal == null ? 'var(--text)' : rateOnGoal ? 'var(--good)' : 'var(--fat)' }}>{fmtRate(actRate)}</div></div>
-              </div>
-              {/* Your learned burn, and how far this cycle moved it. This number IS the adaptive part
-                  of the app, so it gets a line of its own rather than a footnote clause. */}
-              {!result.earlyPhase && result.burnNow ? (() => {
-                const mv = result.burnPrev != null ? result.burnNow - result.burnPrev : null;
-                return <div className="mt-2 pt-2 border-t border-[#262629]">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">Your burn now reads</div>
-                    <div className="text-[13px] tnum font-semibold">{result.burnNow} kcal/day</div>
-                    {mv != null && mv !== 0 && <div className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>{mv > 0 ? '+' : '−'}{Math.abs(mv)} on last cycle</div>}
-                  </div>
-                  <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">{mv == null
-                    ? 'First read of what you actually burn. It sharpens every cycle from here.'
-                    : Math.abs(mv) < 25 ? 'Steady, so your plan is built on a burn I\'m now confident in.'
-                    : mv > 0 ? 'You\'re burning more than I had you down for, which is why the numbers moved.'
-                    : 'You\'re burning less than I had you down for, which is why the numbers moved.'} {(result.estimate && result.estimate.weightOnly) ? 'Read from how your weight moved against your target.' : 'Worked out from your intake versus how your weight moved.'}</div>
-                </div>;
-              })() : <div className="text-[10px] text-[#8A8A90] tnum mt-2 pt-2 border-t border-[#262629]">Early read from a short trend, so a lot of this is still water weight. It sharpens each check-in as your trend settles.</div>}
-            </div>}
-            {/* One buddy note instead of two stacked coaching blocks: the dino gives a concise take
-                (AI when available), falling back to the deterministic steps-first line offline. */}
-            {(() => {
-              const steps = result.stepsCoaching && stepsCoachLine(result.stepsCoaching);
-              const body = (coach && coach.text) ? coach.text : steps || densityCoachLine(db) || null;
-              const loading = coach && coach.loading;
-              if (!body && !loading) return null;
-              const who = (db.buddy && db.buddy.name) || 'Your buddy';
-              return <div className="mt-3 pixel-box p-3 flex items-start gap-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--good)' }}>
-                <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={1.6} /></div>
-                <div className="min-w-0">
-                  <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--good)' }}>{who} says</div>
-                  {loading ? <div className="text-[12px] text-[#8A8A90]">Reading your week…</div>
-                    : <div className="text-[12.5px] leading-snug">{body}</div>}
-                </div>
-              </div>;
-            })()}
-            {result.laneSwitched === 'weightOnly' && <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--fat)' }}>
-              <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--fat)' }}>Switched to your scale</div>
-              <div className="text-[12.5px] leading-snug">Your food log and your weigh-ins have disagreed two cycles running, so I'm not going to keep holding your plan while I wait for them to agree. From here I steer by the scale and your log stays a day-to-day guide. Nothing you did wrong, it's the most common thing in tracking.</div>
-            </div>}
-            {result.status === 'proposed' && result.changed && !result.accepted && <div className="my-3">
-              <div className="text-[10px] uppercase tracking-widest text-[#8A8A90] mb-1.5">New daily targets</div>
-              <div className="grid grid-cols-2 min-[381px]:grid-cols-4 gap-2">{[
-                { l: 'kcal', now: baseMac.kcal, next: result.newTargets.kcal, c: 'var(--text)', suf: '' },
-                { l: 'protein', now: baseMac.protein_g, next: result.newTargets.protein_g, c: PRO, suf: 'g' },
-                { l: 'carbs', now: baseMac.carbs_g, next: result.newTargets.carbs_g, c: CARB, suf: 'g' },
-                { l: 'fat', now: baseMac.fat_g, next: result.newTargets.fat_g, c: FAT, suf: 'g' }
-              ].map((r, i) => {
-                const d = r.now != null ? Math.round((r.next - r.now) * 10) / 10 : null;
-                return <div key={i} className="pixel-box p-2 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-                  <div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">{r.l}</div>
-                  <div className="text-lg font-bold tnum leading-tight" style={{ color: r.c }}>{r.next}{r.suf}</div>
-                  {d != null && d !== 0
-                    ? <div className="text-[10px] tnum" style={{ color: d > 0 ? 'var(--good)' : 'var(--fat)' }}>{d > 0 ? '+' : ''}{d}{r.suf} · was {r.now}{r.suf}</div>
-                    : <div className="text-[10px] tnum text-[#8A8A90]">no change</div>}
-                </div>;
-              })}</div>
-              {result.newTargets.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat)' }}>Heads up: this target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable at this size.</div>}
-            </div>}
-            {result.plateau && result.plateau.plateau && !result.accepted && (() => {
+            {!result.earlyPhase && result.burnNow ? <div className="pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+              <div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">Your burn now reads</div>
+              <div className="text-[13px] tnum font-semibold">{result.burnNow} kcal/day{result.burnPrev != null && result.burnNow !== result.burnPrev ? <span className="text-[11px] text-[#8A8A90]"> ({result.burnNow > result.burnPrev ? '+' : '−'}{Math.abs(result.burnNow - result.burnPrev)} on last cycle)</span> : null}</div>
+            </div> : <div className="text-[11px] text-[#8A8A90] leading-snug">Early read from a short trend, so plenty of this is still water weight.</div>}
+          </Collapsible>
+          {result.laneSwitched === 'weightOnly' && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--fat)' }}>
+            <div className="text-[12.5px] leading-snug">Your log and your scale have disagreed twice running, so from here I steer by the scale. Nothing you did wrong, it is the most common thing in tracking.</div>
+          </div>}
+          <Btn kind="accent" className="w-full" onClick={() => go('verdict')}>Continue</Btn>
+        </div>}
+
+        {/* 6. The decision, and the only place numbers get stacked, because that IS the answer. */}
+        {phase === 'verdict' && result && <div className="fade-in">
+          {result.status === 'proposed' && result.changed && !result.accepted ? (<>
+            <Say>{result.deltaKcal > 0 ? 'I am giving you a bit more.' : 'I am trimming you back a little.'}</Say>
+            <Headline value={result.newTargets.kcal + ' kcal'} tone="var(--accent)"
+              note={(result.deltaKcal > 0 ? '+' : '−') + Math.abs(result.deltaKcal) + ' a day, was ' + baseMac.kcal} />
+            <div className="grid grid-cols-3 gap-2 mb-4">{[
+              { l: 'protein', next: result.newTargets.protein_g, c: PRO }, { l: 'carbs', next: result.newTargets.carbs_g, c: CARB }, { l: 'fat', next: result.newTargets.fat_g, c: FAT },
+            ].map(r => <div key={r.l} className="pixel-box p-2 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+              <div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">{r.l}</div>
+              <div className="text-[15px] font-bold tnum leading-tight" style={{ color: r.c }}>{r.next}g</div>
+            </div>)}</div>
+            {result.newTargets.squeezed && <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--fat)' }}>This one sits at the safety floor, so fat had to be trimmed to fit.</div>}
+            <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { approve(); go('ahead'); }}>Do it</Btn><Btn kind="ghost" onClick={reject}>Keep current</Btn></div>
+          </>) : (<>
+            <Say>{result.accepted ? 'Applied. Your new numbers are live from today.' : 'No change needed. Your macros stay where they are.'}</Say>
+            <Headline value={(result.accepted && result.newTargets ? result.newTargets.kcal : baseMac.kcal) + ' kcal'} note="a day, as you were" />
+            {result.plateau && result.plateau.plateau && (() => {
               const dbStat = dietBreakStatus(db, today);
-              return <div className="mt-3 pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-                <div className="text-[13px] leading-snug">Your cut looks stalled: {result.plateau.cycles} cycles of little movement despite calorie drops. A one-week diet break at maintenance, or a slower target rate, usually gets things moving again.</div>
-                {dbStat.eligible && <Btn kind="ghost" className="w-full mt-2" onClick={() => { update(d => { d.diet_break = { start: today, end: shiftISO(today, 6), returnGoal: d.profile.goalType }; d.diet_break_snooze = null; }); onClose(); }}>Start a 7-day diet break</Btn>}
+              return <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                <div className="text-[12.5px] leading-snug mb-2">Your cut looks stalled: {result.plateau.cycles} cycles of little movement. A week at maintenance usually gets it going again.</div>
+                {dbStat.eligible && <Btn kind="ghost" className="w-full text-sm" onClick={() => { update(d => { d.diet_break = { start: today, end: shiftISO(today, 6), returnGoal: d.profile.goalType }; d.diet_break_snooze = null; }); onClose(); }}>Start a 7-day diet break</Btn>}
               </div>;
             })()}
-            {!result.accepted && <div className="text-[11px] text-[#8A8A90] mt-3 flex items-start gap-1.5"><span>🗓</span><span>Next check-in around {fmtShortDay(nextCheckISO)}. {(result.estimate && result.estimate.weightOnly) ? 'Keep weighing in regularly so it can retune accurately.' : 'Keep logging and weighing daily so it can retune accurately.'}</span></div>}
-            {/* No upsell here: rewarding a completed check-in with a body-fat-scan pitch felt off. The
-                top-of-Today Premium box and the low-AI nudge already cover the upgrade path. */}
-            {result.status === 'proposed' && result.changed && !result.accepted
-              ? <div className="flex gap-2 mt-2"><Btn kind="accent" className="flex-1" onClick={() => { approve(); setPhase('ahead'); }}>Approve new macros</Btn><Btn kind="ghost" onClick={reject}>Stick to current</Btn></div>
-              : <Btn kind="accent" className="w-full mt-2" onClick={() => setPhase('ahead')}>Next</Btn>}
-            {result.accepted && <div className="text-[#34D399] text-sm mt-3"><Tick size={11} /> New macros applied.</div>}
-          </div>
-        ) : (
-          <div>
-            {/* The number the check-in is actually decided on, at the top and in the biggest type in
-                the sheet. It updates live as you type today's weight, so "the average" is never a
-                figure the app worked out privately after you pressed the button. */}
-            <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <div className="text-2xl font-bold tnum leading-none">{liveAvg != null ? fmtWeight(liveAvg, unit) : '–'}</div>
-                {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
-              </div>
-              <div className="text-[11.5px] text-[#8A8A90] leading-snug mt-1.5">
-                {liveAvg == null
-                  ? (singleWeigh
-                    ? <span>Pop this week's weigh-in in below. On a once-a-week weigh-in I read it straight against your last one, so it's the only number this check-in has to go on.</span>
-                    : <span>Pop today's weight in below and it becomes the first reading behind this cycle's trend weight, which is what I retune from.</span>)
-                  : singleWeigh
-                    ? <span>{typedKg != null ? 'The reading you\'re entering below' : 'Your reading from ' + fmtShortDay(live.nowDate)}. Weighing once a week, I compare it straight with {prevCycleAvg != null ? `your last one on ${fmtShortDay(live.prevDate)} (${fmtWeight(prevCycleAvg, unit)})` : 'your next one'}, so same morning, same conditions each week keeps it honest. Weighing most mornings instead lets me average the water swings out (Settings).</span>
-                  : soloRead
-                    ? <span>Your one weigh-in this cycle{typedKg != null ? ', the one you\'re entering below' : ''}, so it's carrying the whole read on its own. A few more mornings and I smooth them together, which stops one odd day swinging your macros{prevCycleAvg != null ? `. Last cycle came out at ${fmtWeight(prevCycleAvg, unit)}` : ''}.</span>
-                    : <span>Your {liveCount} weigh-ins since {fmtShortDay(cs)}{typedKg != null ? ', including the one you\'re entering below' : ''}, smoothed into one figure so a heavy-salt Sunday can't swing your macros. This is the number I retune from{prevCycleAvg != null ? `, against last cycle's ${fmtWeight(prevCycleAvg, unit)}` : ''}.</span>}
-              </div>
-            </div>
-            {/* The answer, before you commit to it. Everything below this is the inputs it was
-                worked out from, there to correct rather than to fill in from scratch. */}
-            {preview && (() => {
-              const est = preview.estimate;
-              const changed = preview.status === 'proposed' && preview.changed;
-              const tone = changed ? 'var(--accent)' : preview.status === 'proposed' ? 'var(--good)' : 'var(--muted)';
-              const head = changed
-                ? `${preview.deltaKcal > 0 ? '+' : '−'}${Math.abs(preview.deltaKcal)} kcal, to ${preview.newTargets.kcal} a day`
-                : preview.status === 'proposed' ? 'On track. No change to your macros.'
-                : preview.status === 'held' ? 'Your macros will hold this cycle.'
-                : 'Not enough to retune from yet.';
-              return <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid ' + tone }}>
-                <div className="pf text-[8px] uppercase mb-1" style={{ color: tone }}>What this check-in will say</div>
-                <div className="text-[13.5px] font-semibold leading-snug">{head}</div>
-                {est && <div className="text-[11.5px] text-[#8A8A90] mt-1 leading-snug tnum">Trending {fmtRate(est.weeklyChangeKg)} against your {fmtRate(tgtRate)} target.</div>}
-                <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">Nothing is saved until you complete the check-in below.</div>
-              </div>;
-            })()}
-            {chartDots.length >= 2 && <div className="pixel-box p-2 pt-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-              <LineChart points={chartDots} trend={singleWeigh ? null : chartTrend} color="var(--weight)" decimals={1} unitLabel={unit === 'st_lb' ? 'lb' : 'kg'} />
-              <div className="text-[10px] text-[#8A8A90] px-1 pb-0.5 leading-snug">{singleWeigh
-                ? 'Your weekly readings through last cycle and this one.'
-                : 'Every morning you weighed since ' + fmtShortDay(chartFrom) + ', with the trend line I read through them.'}</div>
-            </div>}
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <MiniStat label="Food logs so far" value={loggedDays + '/' + logWindow} ok={laneMode === 'weightOnly' ? true : loggedDays >= needLogs} />
-              {singleWeigh
-                ? <MiniStat label="Weigh-in this week" value={liveCount ? 'Done' : 'Needed'} ok={liveCount > 0} />
-                : <MiniStat label="Weigh-ins so far" value={weighDays + '/' + weighWindow} ok={weighDays >= needWeigh} />}
-            </div>
-            {!readyToAdjust && <div className="text-[12px] text-[#F5C542] mb-3">{laneMode === 'weightOnly' ? 'You are short on weigh-ins. You can still check in, but your macros will hold until you weigh in more this cycle.' : 'You are short on tracking. You can still check in, but your macros will hold until you complete a fuller cycle.'}</div>}
-            <Field label={(singleWeigh ? 'Your reading' : "Today's weight") + (todaysEntry ? ' · already logged' : '')} hint={
-              (todaysEntry && typedKg == null) ? `Cleared, but this morning's saved ${fmtWeight(todaysEntry.scale_weight, unit)} still ${singleWeigh ? 'stands as this week\'s reading' : 'counts toward the trend weight'}. Type a number to correct it.`
-              : (canSkipWeight && typedKg == null) ? (singleWeigh
-                ? `Leave it blank if you’ve already weighed this week, I’ll check in on your ${fmtShortDay(live.nowDate)} reading.`
-                : 'Leave it blank if you haven’t weighed today, I’ll check in on the trend weight above.')
-              : (singleWeigh ? 'This is the number this week’s check-in reads.' : 'Goes straight into the trend weight above.')}>
-              {unit === 'st_lb'
-                ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} placeholder="st" /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} placeholder="lb" /><span className="text-[#8A8A90]">lb</span></div>
-                : <div className="flex gap-2 items-center"><NumInput value={kg} onChange={e => setKg(e.target.value)} placeholder={last ? last.scale_weight.toFixed(1) : ''} /><span className="text-[#8A8A90]">kg</span></div>}
-              {wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}
-            </Field>
-            <button onClick={() => setBackfill(true)} className="text-[12px] text-[#4A9EEB] -mt-2 mb-3.5">Missed a morning? Add it here →</button>
-            {/* Body fat, treated as a real signal rather than an afterthought: the app acts on the
-                TREND (a smart scale swings +-2 points on hydration alone), and a reading is tagged
-                with the ruler it came from, because a DEXA and a scale are not the same number. The
-                box is deliberately blank so an untouched check-in never invents a reading. */}
-            <Field label="New body-fat reading · optional"
-              hint={bfNum != null ? null : (bfState
-                ? `Only fill this in if you've taken a fresh one. I'm working from ${bfState.pct.toFixed(1)}%${bfState.date ? ' (' + BF_SOURCE_LABEL[bfState.source] + ', ' + fmtShortDay(bfState.date) + ')' : ''}, and that stays put if you leave this blank.`
-                : 'No reading yet. Add one and it sharpens your protein target and starts your lean-mass trend.')}>
-              <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
-              {bfNum != null && <div className="mt-2">
-                <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">Measured with</div>
-                <Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} />
-              </div>}
-              {bfNum != null && bfAfter && <div className="text-[12px] mt-2 leading-snug">
-                <span className="text-[#8A8A90]">Your trend moves to </span><span className="tnum font-semibold">{bfAfter.pct.toFixed(1)}%</span>
-                {leanPreview != null && <span><span className="text-[#8A8A90]">, about </span><span className="tnum font-semibold">{fmtWeight(leanPreview, unit)}</span><span className="text-[#8A8A90]"> of you is lean</span></span>}
-                <span className="text-[#8A8A90]">. {bfState && bfState.source !== bfSrc
-                  ? 'Different ruler from last time, so I start the trend fresh here rather than reading a jump that never happened.'
-                  : (bfState && Math.abs(bfAfter.pct - bfState.pct) > 0.05 ? fmtPct1(bfAfter.pct - bfState.pct) + ' on where it was.' : 'Right where it was.')}</span>
-              </div>}
-              <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it from photos →</button>
-            </Field>
-            {/* Which data the targets get built from is a decision the app can make from your actual
-                logging, so it states what it picked and tucks the override behind one tap instead of
-                asking everyone to answer it every week. */}
-            <Collapsible className="mb-3.5" variant="inline" sub="Change"
-              label={lane === 'logged_all' ? 'Tuning from your food logs and weigh-ins together' : 'Tuning from your weigh-ins alone'}>
-              <Field label="How did tracking go this week?" hint={lane === 'logged_all'
-                ? '“Logged everything” tunes from your food and weigh-ins together, for the most precise targets.'
-                : '“Roughly on plan” steers by your weigh-ins alone, and your food log stays a day-to-day guide.'}>
-                <Seg value={lane} onChange={setLane} options={[{ v: 'logged_all', l: 'Logged everything' }, { v: 'roughly', l: 'Roughly on plan' }]} />
-              </Field>
-            </Collapsible>
-            <Field label="Did you stick to your targets this cycle?" hint="Be honest, an adjustment only makes sense off a week you actually followed. Say “off-plan” and I'll hold your macros rather than chase a misleading week.">
-              <Seg value={adhered} onChange={setAdhered} options={[{ v: 'yes', l: 'Yes, on track' }, { v: 'no', l: 'No, off-plan' }]} />
-            </Field>
-            {adhered === 'no' && <div className="text-[12px] text-[#8A8A90] mb-3">No worries, I'll still log your weigh-in and hold your macros steady. We'll retune after a clean cycle.</div>}
-            <Btn kind="accent" className="w-full" onClick={complete}>Complete check-in</Btn>
-          </div>
-        )}
+            <Btn kind="accent" className="w-full" onClick={() => go('ahead')}>Continue</Btn>
+          </>)}
+        </div>}
+
+        {/* 7. The forward half. Strictly last, strictly optional: the retune is already committed. */}
+        {phase === 'ahead' && <div className="fade-in">
+          <WeekAheadFlow db={db} update={update} showToast={null} onDone={() => onClose()} />
+          <button onClick={onClose} className="w-full text-[12px] text-[#8A8A90] mt-1 py-2">Skip for now</button>
+        </div>}
       </div>
       {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
       {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
@@ -10785,6 +10714,32 @@ function demoState() {
   s.amber_ledger = [{ id: 'demo1', date: shiftISO(today, -2), delta: 60, reason: 'Weekly boss' }, { id: 'demo2', date: shiftISO(today, -1), delta: 15, reason: 'Daily Hunt' }, { id: 'demo3', date: today, delta: 15, reason: 'Daily Hunt' }];
   s.game_salt = 'demo-salt';
   s.onboarding = { welcomed: true, sawDex: true, dismissed: true };
+  // ---- week-plan demo scenarios ---------------------------------------------------------------
+  // ?demo&week     a trip that has just finished and never got reviewed, so opening the check-in
+  //                walks the whole conversation: how was it, last week's recap, the numbers, then
+  //                what's coming next. Its days sit inside the current cycle, so the coverage
+  //                exemption and the streak protection are both visible.
+  // ?demo&weeknow  a window running RIGHT NOW, for the dashboard banner and the shifted target.
+  const demoQ = new URLSearchParams(window.location.search);
+  if (demoQ.has('week')) {
+    s.week_plans = [{
+      id: 'demo-week-past', start: shiftISO(today, -6), end: shiftISO(today, -2),
+      kind: 'travel', label: 'Travelling', intent: 'ease', eating: 'more', moving: 'more',
+      data: 'sparse', acceptRateKgPerWeek: 0.25, createdAt: Date.now() - 8 * 86400000, outcome: null,
+    }];
+    // Thin out the logs and weigh-ins across those days, which is what a real trip looks like. The
+    // point of the demo is that this NO LONGER reads as falling off: the recap says as much.
+    const gap = new Set([shiftISO(today, -6), shiftISO(today, -5), shiftISO(today, -4), shiftISO(today, -3)]);
+    s.log_entries = (s.log_entries || []).filter(e => !gap.has(e.date));
+    s.weight_entries = (s.weight_entries || []).filter(w => !gap.has(w.date));
+  }
+  if (demoQ.has('weeknow')) {
+    s.week_plans = (s.week_plans || []).concat([{
+      id: 'demo-week-now', start: today, end: shiftISO(today, 4),
+      kind: 'travel', label: 'Travelling', intent: 'ease', eating: 'more', moving: 'more',
+      data: 'sparse', acceptRateKgPerWeek: 0.25, createdAt: Date.now(), outcome: null,
+    }]);
+  }
   s._rev = Date.now();
   return s;
 }
