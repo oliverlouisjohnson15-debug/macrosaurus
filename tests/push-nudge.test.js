@@ -192,3 +192,55 @@ test('an egg still hears about hatching first', async () => {
   const st = { buddy: { hatched: false }, profile: { weighCadence: 'single', weighDay: 0 }, log_entries: [], weight_entries: [] };
   assert.strictEqual((await load()).decideNudge(st, TODAY, MORNING).kind, 'hatch');
 });
+
+// ---- Declared windows: the phone has to respect what the app was told ----
+// The in-app buddy already goes quiet during a trip. If the phone keeps buzzing, the silence is
+// worthless, because the push is the bit people actually feel.
+const plan = (o) => Object.assign({
+  id: 'p1', start: '2026-07-24', end: '2026-07-28', kind: 'travel', label: 'Travelling', data: 'sparse',
+}, o);
+
+test('silent through a window where the scale stayed at home', async () => {
+  const { decideNudge } = await load();
+  const state = { week_plans: [plan()], log_entries: [], weight_entries: [], buddy: { hatched: true, name: 'Rex' },
+    profile: { weighCadence: 'daily' } };
+  assert.equal(decideNudge(state, TODAY, { normal: true, streakSave: false, hour: 8 }), null, 'no morning weigh push');
+  assert.equal(decideNudge(state, TODAY, NORMAL), null, 'no peckish push');
+  assert.equal(decideNudge(state, TODAY, EVENING), null, 'no midnight streak alarm');
+});
+
+test('a flat-out week still gets the daytime nudge but never the midnight alarm', async () => {
+  const { decideNudge } = await load();
+  const state = { week_plans: [plan({ data: 'rough' })], log_entries: [], weight_entries: [],
+    buddy: { hatched: true, name: 'Rex' }, profile: { weighCadence: 'daily' } };
+  assert.equal(decideNudge(state, TODAY, EVENING), null, 'no streak-save alarm on a declared busy week');
+  assert.ok(decideNudge(state, TODAY, NORMAL), 'but the ordinary daytime nudge still lands');
+});
+
+test('the day after a window closes, the phone speaks again', async () => {
+  const { decideNudge } = await load();
+  const state = { week_plans: [plan({ end: '2026-07-25' })], log_entries: [], weight_entries: [],
+    buddy: { hatched: true, name: 'Rex' }, profile: { weighCadence: 'daily' } };
+  assert.ok(decideNudge(state, TODAY, NORMAL), 'window ended yesterday, so normal service resumes');
+});
+
+test('planned days bridge a streak without inflating it', async () => {
+  const { activeStreak } = await load();
+  // Logged the 20th to the 23rd, away the 24th to the 25th, logged again on the 26th.
+  const state = {
+    log_entries: days('2026-07-20', '2026-07-21', '2026-07-22', '2026-07-23', '2026-07-26'),
+    weight_entries: [],
+    week_plans: [plan({ start: '2026-07-24', end: '2026-07-25' })],
+  };
+  // 5 real active days bridged across the trip: the run survives, but the trip earns nothing.
+  assert.equal(activeStreak(state, TODAY), 5);
+});
+
+test('without the window, the same gap breaks the run', async () => {
+  const { activeStreak } = await load();
+  const state = {
+    log_entries: days('2026-07-20', '2026-07-21', '2026-07-22', '2026-07-23', '2026-07-26'),
+    weight_entries: [], week_plans: [],
+  };
+  assert.equal(activeStreak(state, TODAY), 1, 'only today survives');
+});

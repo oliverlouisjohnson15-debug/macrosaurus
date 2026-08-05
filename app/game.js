@@ -22,14 +22,20 @@
   // Consecutive ACTIVE days (a food log OR a weigh-in) ending today, with a monthly
   // "streak freeze" forgiving a single missed day per calendar month (auto-applied).
   // Returns the streak plus any newly frozen dates to persist.
-  function computeStreak(activeSet, frozenSet, today) {
+  // `plannedSet` holds days inside a declared window (a holiday the user told us about at check-in).
+  // Those days BRIDGE a run without extending it: a declared absence must not snap a streak, but
+  // awarding days for it would pay people to declare holidays and the number would stop meaning
+  // "days I showed up". They also must not spend the monthly freeze.
+  function computeStreak(activeSet, frozenSet, today, plannedSet) {
+    var planned = plannedSet || new Set();
     var monthUsed = {}; frozenSet.forEach(function (fd) { monthUsed[fd.slice(0, 7)] = true; });
-    var d = (activeSet.has(today) || frozenSet.has(today)) ? today : shiftISO(today, -1);
+    var d = (activeSet.has(today) || frozenSet.has(today) || planned.has(today)) ? today : shiftISO(today, -1);
     var streak = 0; var newFrozen = [];
     while (true) {
       if (activeSet.has(d) || frozenSet.has(d)) { streak++; d = shiftISO(d, -1); continue; }
+      if (planned.has(d)) { d = shiftISO(d, -1); continue; }   // bridged, not counted
       var mo = d.slice(0, 7); var prev = shiftISO(d, -1);
-      if (!monthUsed[mo] && (activeSet.has(prev) || frozenSet.has(prev))) { monthUsed[mo] = true; newFrozen.push(d); streak++; d = prev; continue; }
+      if (!monthUsed[mo] && (activeSet.has(prev) || frozenSet.has(prev) || planned.has(prev))) { monthUsed[mo] = true; newFrozen.push(d); streak++; d = prev; continue; }
       break;
     }
     return { streak: streak, newFrozen: newFrozen };

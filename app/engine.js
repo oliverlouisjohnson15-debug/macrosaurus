@@ -1606,7 +1606,10 @@
   // which is a legitimate plan rather than a failed week.
   function planRate(plan, profile) {
     if (!plan) return null;
-    if (plan.intent === 'hold') return 0;
+    // `hold` is an explicit maintenance break. It used to be one of three `intent` values, but the
+    // other two were indistinguishable: the rate is asked outright a screen later, so "push" and
+    // "ease" both just meant "whatever they picked".
+    if (plan.hold || plan.intent === 'hold') return 0;
     if (plan.acceptRateKgPerWeek != null) return Math.abs(plan.acceptRateKgPerWeek);
     return Math.abs((profile && profile.rateKgPerWeek) || 0);
   }
@@ -1660,6 +1663,38 @@
     }
     return null;
   }
+  // Does this person keep doing the same thing? Only claims a pattern when there is one: at least
+  // three windows of a kind, gaps that actually agree with each other, and a next date near enough
+  // to be worth mentioning. Anything looser and the app would be guessing out loud, which is worse
+  // than saying nothing.
+  function recurringPlanHint(plans, todayISO) {
+    var byKind = {};
+    (plans || []).forEach(function (w) {
+      if (!w || !w.kind || !w.start || w.start > todayISO) return;
+      (byKind[w.kind] = byKind[w.kind] || []).push(w);
+    });
+    var best = null;
+    for (var kind in byKind) {
+      var list = byKind[kind].sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+      if (list.length < 3) continue;
+      var gaps = [];
+      for (var i = 1; i < list.length; i++) gaps.push(daysBetweenISO(list[i - 1].start, list[i].start));
+      var avg = mean(gaps);
+      if (!(avg >= 10 && avg <= 120)) continue;                 // not a rhythm we can speak to
+      // The gaps have to agree. One trip in March and one in August is not "every five months".
+      var spread = Math.max.apply(null, gaps) - Math.min.apply(null, gaps);
+      if (spread > Math.max(7, avg * 0.4)) continue;
+      var last = list[list.length - 1];
+      var due = shiftISOdays(last.start, Math.round(avg));
+      var daysAway = daysBetweenISO(todayISO, due);
+      if (daysAway < 0 || daysAway > 14) continue;              // only when it is actually near
+      var span = Math.max(1, daysBetweenISO(last.start, last.end) + 1);
+      var cand = { kind: kind, label: last.label, everyDays: Math.round(avg), dueISO: due, daysAway: daysAway,
+        spanDays: span, acceptRateKgPerWeek: last.acceptRateKgPerWeek, data: last.data, count: list.length };
+      if (!best || cand.daysAway < best.daysAway) best = cand;
+    }
+    return best;
+  }
   // One call for everything the app needs to know about declared windows around a date.
   function weekPlanContext(plans, iso) {
     var active = weekPlanOn(plans, iso);
@@ -1676,6 +1711,7 @@
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
     planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planRecoveryOn: planRecoveryOn, weekPlanContext: weekPlanContext,
+    recurringPlanHint: recurringPlanHint,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
     goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,

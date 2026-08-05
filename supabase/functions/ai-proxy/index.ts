@@ -60,6 +60,10 @@ function featureOf(prompt: string): string {
   // spendable from the free monthly allowance. Signature must stay in step with buddyChatReply()'s
   // system prompt in app/src/app.jsx.
   if (p.includes('You are Macrosaurus, speaking as')) return 'chat';
+  // Free-text "what's coming up" parsing at check-in. Open-ended user text like the chat, so it is
+  // gated to Premium rather than spendable from the free monthly allowance. Signature must stay in
+  // step with aiParseWeekPlan() in app/src/app.jsx.
+  if (p.includes('You turn a sentence about someone\'s week into JSON')) return 'weekplan';
   if (p.includes('You are Macrosaurus')) return 'coach';
   // Food-quality nutrient estimates (single food and the day's batch). Classified for two reasons:
   // to gate them as Premium here rather than trusting the client flag, and so their spend is
@@ -150,6 +154,12 @@ Deno.serve(async (req) => {
           return json({ error: {
             type: 'premium_required', feature: 'chat',
             message: 'Chatting with your buddy is a Premium feature.',
+          } }, 402);
+        }
+        if (feature === 'weekplan') {
+          return json({ error: {
+            type: 'premium_required', feature: 'weekplan',
+            message: 'Describing your week in your own words is a Premium feature.',
           } }, 402);
         }
         // Food quality is Premium, and the client flag that hides it (window.MISPREMIUM) is only a

@@ -44,6 +44,33 @@ export function daysBetween(a: string, b: string): number {
 // Game.computeStreak: it counts already-recorded freezes as active but never applies a NEW one, so
 // where the two differ this reads SHORTER than the app's streak. That errs toward staying quiet,
 // which is the right direction for something that buzzes a phone.
+// A declared window the user told us about at check-in: a holiday, an illness, a flat-out week.
+// The phone must respect these or the app going quiet is worthless, because the buzzing is the bit
+// people actually feel.
+type WeekPlan = { start?: string; end?: string; data?: string; label?: string };
+export function weekPlanOn(d: Record<string, unknown>, iso: string): WeekPlan | null {
+  const rows = d.week_plans;
+  if (!Array.isArray(rows)) return null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const w = rows[i] as WeekPlan;
+    if (w && w.start && w.end && iso >= w.start && iso <= w.end) return w;
+  }
+  return null;
+}
+// Days inside a declared window stop a run breaking, but do NOT earn streak days of their own:
+// awarding them would pay people to declare holidays. Mirrors the app's rule exactly.
+export function plannedDays(d: Record<string, unknown>): Set<string> {
+  const out = new Set<string>();
+  const rows = d.week_plans;
+  if (!Array.isArray(rows)) return out;
+  for (const r of rows) {
+    const w = r as WeekPlan;
+    if (!w || !w.start || !w.end) continue;
+    let day = w.start;
+    for (let n = 0; day <= w.end && n < 400; n++) { out.add(day); day = isoShift(day, 1); }
+  }
+  return out;
+}
 export function activeStreak(d: Record<string, unknown>, today: string): number {
   const active = new Set<string>();
   const add = (rows: unknown, key: string) => {
@@ -51,11 +78,16 @@ export function activeStreak(d: Record<string, unknown>, today: string): number 
   };
   add(d.log_entries, "date");
   add(d.weight_entries, "date");
+  // Bridge planned days so a declared trip cannot snap the run, without counting toward it.
+  const planned = plannedDays(d);
   const frozen = (d.freezes as { frozen?: string[] } | undefined)?.frozen;
   if (Array.isArray(frozen)) for (const f of frozen) if (f) active.add(f);
   let day = active.has(today) ? today : isoShift(today, -1);
   let n = 0;
-  while (active.has(day) && n < 400) { n++; day = isoShift(day, -1); }
+  while ((active.has(day) || planned.has(day)) && n < 400) {
+    if (active.has(day)) n++;              // planned days bridge the run, they do not extend it
+    day = isoShift(day, -1);
+  }
   return n;
 }
 
@@ -106,6 +138,15 @@ export function weighPushDue(d: Record<string, unknown>, today: string, hour?: n
 
 export function decideNudge(d: Record<string, unknown>, today: string, win: Windows): Nudge | null {
   if (d.paused) return null;                       // a paused goal should never be chased
+  // Inside a declared window we asked for this information and promised to act on it. Chasing a
+  // weigh-in or a log from someone who told us they are away is the fastest way to teach them the
+  // app is not listening, and a push is far harder to ignore than an in-app card.
+  const away = weekPlanOn(d, today);
+  if (away) {
+    const off = away.data === "sparse" || away.data === "none";
+    if (off) return null;                          // scale and log both left at home: total silence
+    if (away.data === "rough" && win.streakSave) return null;  // no midnight alarm on a flat-out week
+  }
   const buddy = (d.buddy || {}) as { name?: string; hatched?: boolean };
   const who = buddy.name ? String(buddy.name).slice(0, 24) : "Rex";
   const loggedToday = Array.isArray(d.log_entries)

@@ -187,3 +187,73 @@ test('a user with no week plans gets a byte-identical decision', () => {
   const b = E.checkInDecision(underReportOpts({ plannedDays: 0 }));
   assert.deepEqual(b, a);
 });
+
+// ---- streak: bridge, never award -------------------------------------------------------------
+const Game = require('../app/game.js');
+test('a declared window bridges a streak without inflating it', () => {
+  const active = new Set(['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-08']);
+  const planned = new Set(['2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07']);
+  const r = Game.computeStreak(active, new Set(), '2026-08-08', planned);
+  assert.equal(r.streak, 4, 'four days actually shown up for, bridged across the trip');
+  assert.equal(r.newFrozen.length, 0, 'and the trip must not spend the monthly freeze');
+});
+
+test('without the window the same gap breaks the run', () => {
+  const active = new Set(['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-08']);
+  assert.equal(Game.computeStreak(active, new Set(), '2026-08-08').streak, 1);
+});
+
+test('computeStreak is unchanged for anyone with no plans', () => {
+  const active = new Set(['2026-08-06', '2026-08-07', '2026-08-08']);
+  const a = Game.computeStreak(active, new Set(), '2026-08-08');
+  const b = Game.computeStreak(active, new Set(), '2026-08-08', new Set());
+  assert.deepEqual(b, a);
+});
+
+// ---- precedence: a diet break outranks a window ------------------------------------------------
+test('hold is honoured from the new flag and the legacy intent alike', () => {
+  const p = { goalType: 'cut', rateKgPerWeek: 0.5 };
+  assert.equal(E.planKcalDelta({ hold: true }, p), 550, 'new flag');
+  assert.equal(E.planKcalDelta({ intent: 'hold' }, p), 550, 'plans saved before the collapse');
+});
+
+// ---- phase 7: recurrence, and its refusals -----------------------------------------------------
+// The refusals matter more than the detections here: an app that guesses your life out loud and
+// gets it wrong is worse than one that stays quiet.
+const mk = (kind, start, end, rate) => ({ id: start, kind, label: kind, start, end, acceptRateKgPerWeek: rate, data: 'sparse' });
+
+test('spots a genuine monthly rhythm when the next one is close', () => {
+  const ps = [mk('travel', '2026-05-04', '2026-05-08', 0.25), mk('travel', '2026-06-01', '2026-06-05', 0.25), mk('travel', '2026-07-06', '2026-07-10', 0.25)];
+  const h = E.recurringPlanHint(ps, '2026-08-01');
+  assert.ok(h, 'expected a hint');
+  assert.equal(h.kind, 'travel');
+  assert.equal(h.count, 3);
+  assert.equal(h.spanDays, 5, 'carries the typical length');
+  assert.equal(h.acceptRateKgPerWeek, 0.25, 'and what they settled on last time');
+});
+
+test('stays quiet on only two occurrences', () => {
+  const ps = [mk('travel', '2026-06-01', '2026-06-05', 0.25), mk('travel', '2026-07-01', '2026-07-05', 0.25)];
+  assert.equal(E.recurringPlanHint(ps, '2026-08-01'), null, 'two is a coincidence, not a pattern');
+});
+
+test('stays quiet when the gaps disagree with each other', () => {
+  // March, then August, then September: no honest rhythm to speak of.
+  const ps = [mk('travel', '2026-03-01', '2026-03-05', 0.25), mk('travel', '2026-08-01', '2026-08-05', 0.25), mk('travel', '2026-09-01', '2026-09-05', 0.25)];
+  assert.equal(E.recurringPlanHint(ps, '2026-10-01'), null);
+});
+
+test('stays quiet when the next one is not due for ages', () => {
+  const ps = [mk('travel', '2026-01-05', '2026-01-09', 0.25), mk('travel', '2026-02-02', '2026-02-06', 0.25), mk('travel', '2026-03-02', '2026-03-06', 0.25)];
+  assert.equal(E.recurringPlanHint(ps, '2026-08-01'), null, 'months past due is not a prompt');
+});
+
+test('ignores windows that have not happened yet', () => {
+  const ps = [mk('travel', '2026-05-04', '2026-05-08', 0.25), mk('travel', '2026-06-01', '2026-06-05', 0.25), mk('travel', '2026-12-01', '2026-12-05', 0.25)];
+  assert.equal(E.recurringPlanHint(ps, '2026-08-01'), null, 'a future booking is not evidence of a habit');
+});
+
+test('no plans, no hint', () => {
+  assert.equal(E.recurringPlanHint([], '2026-08-01'), null);
+  assert.equal(E.recurringPlanHint(null, '2026-08-01'), null);
+});

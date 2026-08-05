@@ -1320,9 +1320,10 @@ const BF_SOURCE_SHORT = { scale: 'Smart scale', photo: 'Photo estimate', manual:
 // plan, same rule the engine uses), and a weigh-in is any scale reading. Today is dropped from the
 // denominators until it actually has one, so an untouched morning isn't held against you. Four
 // counters with three definitions is how the same week came to read 0/5, 0/6 and 1/7 on one screen.
-// Days inside a declared window count as active for the streak. Punishing someone for an absence
-// they told us about in advance is the exact opposite of what week plans are for, and the retention
-// research is blunt that the damage from a broken streak is the abandonment that follows it.
+// Days inside a declared window BRIDGE the streak: they stop a run breaking, but do not add to it.
+// Punishing someone for an absence they told us about would be the opposite of the point, and the
+// retention research is blunt that the damage is the abandonment after a break. Awarding the days
+// outright would be the other error, paying people to declare holidays they are not taking.
 function plannedActiveDates(db) {
   const out = [];
   (db.week_plans || []).forEach(w => {
@@ -1340,16 +1341,27 @@ function cycleCoverage(db, todayISO) {
   // Days the user told us about in advance don't count towards what we expect of them. Without this
   // a declared holiday reads as "you didn't log", and the check-in tells someone off for doing
   // exactly what they said they would.
+  //
+  // Logging and weighing are discounted SEPARATELY, because the dial distinguishes them: someone who
+  // said "I'll log fine, I just can't weigh" should still be expected to log. Only 'none' excuses
+  // both; 'sparse' excuses the scale; 'rough' excuses the log.
   const planned = E.plannedDaysBetween(db.week_plans, cs, todayISO);
+  const excused = (kinds) => {
+    let n = 0, d = cs;
+    while (d <= todayISO) { const w = E.weekPlanOn(db.week_plans, d); if (w && kinds.indexOf(w.data) >= 0) n++; d = shiftISO(d, 1); }
+    return n;
+  };
+  const logExcused = excused(['rough', 'none']);
+  const weighExcused = excused(['sparse', 'none']);
   return {
     cs: cs, days: days,
     logged: completeLoggedDates(db, cs, todayISO).length,
     weighed: countWeighIns(db.weight_entries || [], cs, todayISO),
     logWindow: Math.max(1, days - (todayLogged ? 0 : 1)),
     weighWindow: Math.max(1, days - (todayWeighed ? 0 : 1)),
-    planned: planned,
-    expectedLogWindow: Math.max(1, days - (todayLogged ? 0 : 1) - planned),
-    expectedWeighWindow: Math.max(1, days - (todayWeighed ? 0 : 1) - planned),
+    planned: planned, logExcused: logExcused, weighExcused: weighExcused,
+    expectedLogWindow: Math.max(1, days - (todayLogged ? 0 : 1) - logExcused),
+    expectedWeighWindow: Math.max(1, days - (todayWeighed ? 0 : 1) - weighExcused),
     todayLogged: todayLogged, todayWeighed: todayWeighed,
   };
 }
@@ -2483,19 +2495,19 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
 // Four common ones on the first screen, the rest behind "Something else". Seven cards at once was
 // a wall; the answer for most weeks is "nothing", so that gets asked first, on its own.
 const WEEK_PRESETS = [
-  { id: 'travel',   label: 'Away or travelling', top: true, intent: 'ease', eating: 'more',   moving: 'more',   data: 'sparse',
+  { id: 'travel',   label: 'Away or travelling', top: true, hold: false, eating: 'more',   moving: 'more',   data: 'sparse',
     say: "Travelling trips people up most, so let's set it up properly." },
-  { id: 'event',    label: 'A big day out',      top: true, intent: 'push', eating: 'more',   moving: 'normal', data: 'full',
+  { id: 'event',    label: 'A big day out',      top: true, hold: false, eating: 'more',   moving: 'normal', data: 'full',
     say: "A wedding or a night out is one big day, not a lost week." },
-  { id: 'ill',      label: 'Under the weather',  top: true, intent: 'hold', eating: 'normal', moving: 'less',   data: 'sparse',
+  { id: 'ill',      label: 'Under the weather',  top: true, hold: true,  eating: 'normal', moving: 'less',   data: 'sparse',
     say: "Sorry to hear it. I won't cut your calories while you're run down." },
-  { id: 'busy',     label: 'Flat out at work',   top: true, intent: 'push', eating: 'normal', moving: 'less',   data: 'rough',
+  { id: 'busy',     label: 'Flat out at work',   top: true, hold: false, eating: 'normal', moving: 'less',   data: 'rough',
     say: "Busy weeks are when logging slips first. I'll go easy on you for it." },
-  { id: 'training', label: 'Training block',     intent: 'hold', eating: 'more',   moving: 'more',   data: 'full',
+  { id: 'training', label: 'Training block',     hold: true,  eating: 'more',   moving: 'more',   data: 'full',
     say: 'Hard training needs fuel. Let\'s make sure you\'ve got it.' },
-  { id: 'festive',  label: 'Festive period',     intent: 'hold', eating: 'more',   moving: 'normal', data: 'sparse',
+  { id: 'festive',  label: 'Festive period',     hold: true,  eating: 'more',   moving: 'normal', data: 'sparse',
     say: "Let's be honest about it rather than pretend." },
-  { id: 'other',    label: 'Something else',     intent: 'ease', eating: 'normal', moving: 'normal', data: 'rough',
+  { id: 'other',    label: 'Something else',     hold: false, eating: 'normal', moving: 'normal', data: 'rough',
     say: 'Right. Tell me when, and what you want out of it.' },
 ];
 const PRESET_BY_ID = (id) => WEEK_PRESETS.find(x => x.id === id) || WEEK_PRESETS[0];
@@ -2544,34 +2556,116 @@ function datesBetween(startISO, endISO) {
   while (d <= endISO && out.length < 31) { out.push(d); d = shiftISO(d, 1); }
   return out;
 }
-function acceptOptions(p) {
+function acceptOptions(p, suggested) {
   const normal = Math.abs(p.rateKgPerWeek || 0.5);
   const half = Math.round(normal * 50) / 100;
   const opts = [{ v: 0, l: 'Just hold steady' }];
   if (half > 0.05 && half < normal) opts.push({ v: half, l: 'Half pace, ' + half + ' kg' });
   opts.push({ v: normal, l: 'Full ' + normal + ' kg, no change' });
+  // Their own history goes first and says so, rather than being buried in the middle of the list.
+  if (suggested != null) {
+    const i = opts.findIndex(o => o.v === suggested);
+    if (i > 0) { const [s] = opts.splice(i, 1); opts.unshift(Object.assign({}, s, { l: s.l + '  (like last time)' })); }
+    else if (i === 0) opts[0] = Object.assign({}, opts[0], { l: opts[0].l + '  (like last time)' });
+  }
   return opts;
 }
 
+// ---- phase 6: describe your week in your own words -------------------------------------------
+// "I'm in Ireland Mon to Fri, walking loads, eating out every night" -> proposed dials the user then
+// confirms. The model PROPOSES, the user COMMITS: nothing is written from free text without a tap.
+// Premium-gated on the client for a clean paywall hand-off, and again in ai-proxy (feature
+// 'weekplan') so the gate is real rather than cosmetic.
+async function aiParseWeekPlan(text, todayISO) {
+  const system = "You turn a sentence about someone's week into JSON for a nutrition app. "
+    + 'Today is ' + todayISO + ' (ISO, local). Return ONLY a JSON object, no prose, no markdown, with these keys:\n'
+    + '  kind: one of travel, event, ill, busy, training, festive, other\n'
+    + '  label: 2 to 4 words in UK English naming the occasion, e.g. "Away in Ireland"\n'
+    + '  start, end: ISO dates (YYYY-MM-DD). Resolve weekday names to the NEXT occurrence after today. If no dates are implied, use tomorrow to tomorrow+6.\n'
+    + '  highDays: array of ISO dates inside the range they specifically want to eat more on (a wedding, a night out). Empty if none named.\n'
+    + '  data: one of full, rough, sparse, none. "sparse" if they say they cannot weigh in; "rough" if they say logging will slip; "none" if both.\n'
+    + '  hold: true only if they say they want to pause or maintain rather than keep losing.\n'
+    + 'Never invent a date they did not imply. Keep the range within 60 days of today.';
+  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 400, system,
+    messages: [{ role: 'user', content: String(text || '').slice(0, 400) }] });
+  const raw = ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error("I could not make sense of that, try naming the days.");
+  let o; try { o = JSON.parse(m[0]); } catch (_) { throw new Error("I could not make sense of that, try naming the days."); }
+  // Everything below is a guard, not a formality: this is model output steering someone's calories.
+  const iso = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+  const start = iso(o.start), end = iso(o.end);
+  if (!start || !end || end < start) throw new Error("I could not work out which days you meant.");
+  if (daysBetween(todayISO, start) < -1 || daysBetween(todayISO, end) > 60) throw new Error("That looks too far off for me to plan around yet.");
+  const kinds = ['travel', 'event', 'ill', 'busy', 'training', 'festive', 'other'];
+  const datas = ['full', 'rough', 'sparse', 'none'];
+  return {
+    kind: kinds.indexOf(o.kind) >= 0 ? o.kind : 'other',
+    label: (typeof o.label === 'string' && o.label.trim()) ? o.label.trim().slice(0, 32) : null,
+    start: start, end: end,
+    highDays: Array.isArray(o.highDays) ? o.highDays.filter(d => iso(d) && d >= start && d <= end).slice(0, 7) : [],
+    data: datas.indexOf(o.data) >= 0 ? o.data : 'full',
+    hold: !!o.hold,
+  };
+}
 // The forward half. Used at check-in and from Settings, so a plan can be made or changed any time.
 // One question per screen, four options at most, and the common answer ("nothing") is a single tap.
-function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
+function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium }) {
   const p = db.profile;
   const [step, setStep] = useState('any');
+  const [free, setFree] = useState('');            // phase 6: their own words
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState('');
+  // phase 7: only speaks up when the rhythm is real (three or more, gaps that agree, due soon).
+  const hint = E.recurringPlanHint(db.week_plans, Store.todayISO());
   const [kind, setKind] = useState(null);
   const [showRest, setShowRest] = useState(false);
   const [range, setRange] = useState(planDateRange());
   const [high, setHigh] = useState([]);
   const [accept, setAccept] = useState(null);
-  const preset = kind ? PRESET_BY_ID(kind) : null;
+  const [aiLabel, setAiLabel] = useState(null);
+  const [aiData, setAiData] = useState(null);
+  const [aiHold, setAiHold] = useState(null);
+  const preset0 = kind ? PRESET_BY_ID(kind) : null;
+  // What the model read out of their sentence beats the preset's defaults, since they actually said it.
+  const preset = preset0 && (aiLabel || aiData || aiHold != null)
+    ? Object.assign({}, preset0, aiLabel ? { label: aiLabel } : {}, aiData ? { data: aiData } : {}, aiHold != null ? { hold: aiHold } : {})
+    : preset0;
   const base = currentTargets(db);
-  const draft = preset ? { start: range.start, end: range.end, intent: preset.intent, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25 } : null;
+  // A window that overlaps one you already have would silently win or lose depending on array order,
+  // and quietly break the promise made for the other one. Say so instead.
+  const clash = (db.week_plans || []).find(w => w && w.start && w.end && range.start <= w.end && range.end >= w.start) || null;
+  // What this user's own history says about a window of this kind. Asking "how was it?" only earns
+  // its keep if the answer changes something, and this is the change: their last honest answer
+  // seeds the suggestion rather than our default.
+  const lastOfKind = (db.week_plans || []).filter(w => w && w.kind === kind && w.outcome).slice(-1)[0] || null;
+  const suggested = lastOfKind
+    ? (lastOfKind.outcome === 'off_plan' ? 0
+      : lastOfKind.outcome === 'roughly' ? Math.round(Math.abs(p.rateKgPerWeek || 0.5) * 50) / 100
+      : lastOfKind.acceptRateKgPerWeek)
+    : null;
+  const draft = preset ? { start: range.start, end: range.end, hold: preset.hold, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25 } : null;
   const spanDays = datesBetween(range.start, range.end);
 
+  async function parseFree() {
+    const t = free.trim();
+    if (!t || aiBusy) return;
+    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'weekplan' }); } catch (_) {} return; }
+    setAiBusy(true); setAiErr('');
+    try {
+      const r = await aiParseWeekPlan(t, Store.todayISO());
+      setKind(r.kind); setRange({ start: r.start, end: r.end }); setHigh(r.highDays);
+      setAiLabel(r.label); setAiData(r.data); setAiHold(r.hold);
+      setStep('rate');                              // the rate stays a human decision, always
+    } catch (e) {
+      if (!(e && e.aiError)) setAiErr(e.message || 'I could not make sense of that.');
+    }
+    setAiBusy(false);
+  }
   function save() {
     const plan = {
       id: Store.uid(), start: range.start, end: range.end, kind: kind,
-      label: preset.label, intent: preset.intent, eating: preset.eating, moving: preset.moving,
+      label: preset.label, hold: preset.hold, eating: preset.eating, moving: preset.moving,
       data: preset.data, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25,
       createdAt: Date.now(), outcome: null,
     };
@@ -2582,9 +2676,33 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
 
   // 1. The question most weeks answer with one tap.
   if (step === 'any') return (<div className={compact ? '' : 'fade-in'}>
+    {hint && <Bubble>You've had {(hint.label || hint.kind).toLowerCase()} {hint.count} times now, about every {hint.everyDays} days, and you're due around {fmtRange(hint.dueISO, hint.dueISO)}.</Bubble>}
     <Bubble>Anything coming up {compact ? '' : 'next week '}I should know about?</Bubble>
-    <Choices options={[{ v: 'no', l: 'Nothing special' }, { v: 'yes', l: "Yes, something's on" }]}
-      onPick={(v) => { if (v === 'no') { onDone && onDone(null); } else { setStep('what'); } }} />
+    <Choices options={[]
+      .concat(hint ? [{ v: 'again', l: 'Same again, ' + (hint.label || hint.kind).toLowerCase() }] : [])
+      .concat([{ v: 'no', l: 'Nothing special' }, { v: 'yes', l: "Yes, something's on" }])}
+      onPick={(v) => {
+        if (v === 'no') { onDone && onDone(null); return; }
+        if (v === 'again') {
+          // Pre-filled from their own history, then confirmed like anything else.
+          setKind(hint.kind); setAiLabel(hint.label || null); setAiData(hint.data || null);
+          setRange({ start: hint.dueISO, end: shiftISO(hint.dueISO, hint.spanDays - 1) });
+          setStep('when'); return;
+        }
+        setStep('what');
+      }} />
+    {/* Phase 6. Premium, and gated again server-side, so this is a hand-off not a hard stop. */}
+    <Collapsible variant="inline" label="Or just tell me in your own words" sub={isPremium ? 'Open' : 'Premium'} className="mt-1">
+      <TextInput value={free} onChange={e => { setFree(e.target.value); setAiErr(''); }}
+        placeholder="I'm in Ireland Mon to Fri, walking loads, eating out most nights"
+        onKeyDown={e => { if (e.key === 'Enter') parseFree(); }} />
+      {aiErr && <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--fat)' }}>{aiErr}</div>}
+      <Btn kind="accent" className="w-full text-sm mt-2" disabled={!free.trim() || aiBusy}
+        style={{ opacity: (free.trim() && !aiBusy) ? 1 : 0.5 }} onClick={parseFree}>
+        {aiBusy ? 'Reading that…' : 'Sort it for me'}
+      </Btn>
+      {!isPremium && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">Premium reads a sentence like that and fills the whole thing in. You can always tap it out yourself above.</div>}
+    </Collapsible>
   </div>);
 
   // 2. Four common ones, the rest one tap further in.
@@ -2607,7 +2725,10 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
       <Field label="From"><input type="date" className={inputCls} value={range.start} onChange={e => { const v = e.target.value; setRange(r => ({ start: v, end: r.end < v ? v : r.end })); setHigh([]); }} /></Field>
       <Field label="To"><input type="date" className={inputCls} value={range.end} min={range.start} onChange={e => { const v = e.target.value; setRange(r => ({ start: r.start, end: v })); setHigh([]); }} /></Field>
     </div>
-    <Btn kind="accent" className="w-full" onClick={() => setStep(spanDays.length > 1 ? 'big' : 'rate')}>That's the one</Btn>
+    {clash && <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--fat)' }}>
+      You've already got {clash.label.toLowerCase()} down for {fmtRange(clash.start, clash.end)}. Pick days that don't overlap, or cancel that one first in Settings.
+    </div>}
+    <Btn kind="accent" className="w-full" disabled={!!clash} style={{ opacity: clash ? 0.5 : 1 }} onClick={() => setStep(spanDays.length > 1 ? 'big' : 'rate')}>That's the one</Btn>
   </div>);
 
   // 4. The big days inside it. This is the bit that makes a wedding one day up rather than a week
@@ -2632,7 +2753,8 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
   if (step === 'rate') return (<div className="fade-in">
     {high.length > 0 && <Bubble from="you">{high.length} big day{high.length === 1 ? '' : 's'}</Bubble>}
     <Bubble>I'd normally aim for {Math.abs(p.rateKgPerWeek || 0.5)} kg a week. On a week like this, what would you be happy with?</Bubble>
-    <Choices options={acceptOptions(p)} onPick={(v) => { setAccept(v); setStep('done'); }} />
+    {suggested != null && <Bubble>Last time you {lastOfKind.outcome === 'went_well' ? 'stuck to it' : lastOfKind.outcome === 'roughly' ? 'were roughly on it' : 'went off plan'}, so {suggested === 0 ? 'holding steady' : suggested + ' kg'} is probably the honest one.</Bubble>}
+    <Choices options={acceptOptions(p, suggested)} onPick={(v) => { setAccept(v); setStep('done'); }} />
   </div>);
 
   // 6. What it comes to, before committing.
@@ -2668,13 +2790,14 @@ function WeekPlanBanner({ db, onOpen }) {
   return (<button onClick={onOpen} className="w-full pixel-box p-3.5 mb-4 text-left" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
     <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{ctx.active ? 'On now' : 'Easing back'}</div>
     <div className="text-[13px] font-semibold">{pl.label}{ctx.active ? ' · ' + fmtRange(pl.start, pl.end) : ''}</div>
+    {dietBreakActive(db, Store.todayISO()) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
     <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
       ? (pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.')
       : 'Your scale is still settling, so I\'m not reading much into it yet.'}</div>
   </button>);
 }
 
-function CheckInModal({ db, update, onClose, resume }) {
+function CheckInModal({ db, update, onClose, resume, isPremium }) {
   useBackClose(onClose);
   const p = db.profile; const unit = p.weight_unit; const today = Store.todayISO();
   const base = currentTargets(db);
@@ -2685,10 +2808,10 @@ function CheckInModal({ db, update, onClose, resume }) {
   const logWindow = cov.logWindow, weighWindow = cov.weighWindow;
   // Thresholds scale to the days we actually expected of them, not the raw calendar window.
   const plannedDays = cov.planned || 0;
-  const needLogs = Math.max(plannedDays ? 2 : 4, Math.ceil(cov.expectedLogWindow * 0.7));
+  const needLogs = Math.max(cov.logExcused ? 2 : 4, Math.ceil(cov.expectedLogWindow * 0.7));
   // Single weigh-in cadence only needs today's reading; daily-averaged wants a fuller spread.
   const singleWeigh = p.weighCadence === 'single';
-  const needWeigh = singleWeigh ? 1 : Math.max(plannedDays ? 1 : 3, Math.ceil(cov.expectedWeighWindow * 0.5));
+  const needWeigh = singleWeigh ? 1 : Math.max(cov.weighExcused ? 1 : 3, Math.ceil(cov.expectedWeighWindow * 0.5));
   const onTrack = loggedDays >= needLogs && weighDays >= needWeigh;
   const wkAvg = avgWeight(db.weight_entries, cs, today);
   const last = db.weight_entries[db.weight_entries.length - 1];
@@ -2715,7 +2838,10 @@ function CheckInModal({ db, update, onClose, resume }) {
   // you fill in the same numbers as before, and afterwards it asks what's coming. A window whose
   // days have passed without being reviewed gets asked about first, which is what makes it feel
   // like a relationship rather than a form. The forward half can never block the retune.
-  const pendingLoop = (db.week_plans || []).filter(w => w && w.end < today && !w.outcome).slice(-1)[0] || null;
+  // Oldest first: taking the newest meant an older window could sit unreviewed forever, and the
+  // loop-back is the part that makes this feel like being known rather than filling in a form.
+  const pendingLoop = (db.week_plans || []).filter(w => w && w.end < today && !w.outcome)
+    .sort((a, b) => (a.end < b.end ? -1 : 1))[0] || null;
   const [phase, setPhase] = useState(resume ? 'verdict' : (pendingLoop ? 'loop' : 'hello'));
   function answerLoop(v) {
     update(d => { const w = (d.week_plans || []).find(x => x.id === pendingLoop.id); if (w) w.outcome = v; });
@@ -3178,7 +3304,7 @@ function CheckInModal({ db, update, onClose, resume }) {
 
         {/* 7. The forward half. Strictly last, strictly optional: the retune is already committed. */}
         {phase === 'ahead' && <div className="fade-in">
-          <WeekAheadFlow db={db} update={update} showToast={null} onDone={() => onClose()} />
+          <WeekAheadFlow db={db} update={update} showToast={null} isPremium={isPremium} onDone={() => onClose()} />
           <button onClick={onClose} className="w-full text-[12px] text-[#8A8A90] mt-1 py-2">Skip for now</button>
         </div>}
       </div>
@@ -6637,8 +6763,8 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   // streak: consecutive ACTIVE days (food logged OR weighed in) ending today, with a
   // monthly freeze forgiving one miss.
   const frozenSet = new Set((db.freezes && db.freezes.frozen) || []);
-  const activeSet = new Set([...logSet, ...weighSet, ...plannedActiveDates(db)]);
-  const streakInfo = computeStreak(activeSet, frozenSet, today);
+  const activeSet = new Set([...logSet, ...weighSet]);
+  const streakInfo = computeStreak(activeSet, frozenSet, today, new Set(plannedActiveDates(db)));
   const streak = streakInfo.streak;
   // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
   // pays out (not only fights). Idempotent by ledger id (amber:log:<date>), so it can never double-pay.
@@ -9192,7 +9318,7 @@ function GhDebug({ db, update }) {
 
 // Plans change, and a plan you can't edit is a plan you'll ignore. Reachable any time, not only
 // in the moment the check-in asks.
-function WeekPlansScreen({ db, update, onBack, showToast }) {
+function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
   const [adding, setAdding] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
   const today = Store.todayISO();
@@ -9203,7 +9329,7 @@ function WeekPlansScreen({ db, update, onBack, showToast }) {
   const OUTCOME = { went_well: 'Went well', roughly: 'Roughly stuck to it', off_plan: 'Went off plan', didnt_happen: "Didn't happen" };
   return (<SubScreen title="What's coming up" onBack={onBack} intro="Tell me about a holiday, an event or a rough week and I'll bend your plan around it instead of marking you down for it.">
     {adding
-      ? <WeekAheadFlow db={db} update={update} showToast={showToast} compact onDone={() => setAdding(false)} />
+      ? <WeekAheadFlow db={db} update={update} showToast={showToast} compact isPremium={isPremium} onDone={() => setAdding(false)} />
       : <>
         {upcoming.length ? <div className="space-y-2.5 mb-4">{upcoming.map(w => (
           <div key={w.id} className="pixel-box p-3.5" style={{ background: 'var(--card)' }}>
@@ -9917,7 +10043,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
   // header stay out of the way while you're inside a single setting.
   const back = () => setScreen(null);
   const SCREENS = {
-    weekplans: () => <WeekPlansScreen db={db} update={update} onBack={back} showToast={showToast} />,
+    weekplans: () => <WeekPlansScreen db={db} update={update} onBack={back} showToast={showToast} isPremium={isPremium} />,
     goal: () => <GoalScreen db={db} update={update} onBack={back} showToast={showToast} />,
     coaching: () => <CoachingScreen db={db} update={update} onBack={back} />,
     weekly: () => <WeeklyShapeScreen db={db} update={update} onBack={back} />,
@@ -10817,6 +10943,17 @@ function demoState() {
     const gap = new Set([shiftISO(today, -6), shiftISO(today, -5), shiftISO(today, -4), shiftISO(today, -3)]);
     s.log_entries = (s.log_entries || []).filter(e => !gap.has(e.date));
     s.weight_entries = (s.weight_entries || []).filter(w => !gap.has(w.date));
+  }
+  // ?demo&recur  three trips at a steady rhythm with the next one due, so the phase-7 shortcut
+  //              ("same again?") has something honest to spot.
+  if (demoQ.has('recur')) {
+    const trip = (startOffset, id) => ({
+      id: id, start: shiftISO(today, startOffset), end: shiftISO(today, startOffset + 4),
+      kind: 'travel', label: 'Away in Dublin', hold: false, eating: 'more', moving: 'more',
+      data: 'sparse', acceptRateKgPerWeek: 0.25, highDays: [], deltaPct: 0.25,
+      createdAt: Date.now(), outcome: 'roughly',
+    });
+    s.week_plans = [trip(-84, 'r1'), trip(-56, 'r2'), trip(-28, 'r3')];
   }
   if (demoQ.has('weeknow')) {
     s.week_plans = (s.week_plans || []).concat([{
@@ -12834,7 +12971,7 @@ function App() {
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
-  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date), ...plannedActiveDates(db)]), new Set((db.freezes && db.freezes.frozen) || []), _today).streak;
+  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date)]), new Set((db.freezes && db.freezes.frozen) || []), _today, new Set(plannedActiveDates(db))).streak;
   const appBuddy = Game.buddyView((db.buddy && db.buddy.stage) || 0, appStreak);
   return (
     <div className="lg:pl-56">
@@ -12855,7 +12992,7 @@ function App() {
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
-      {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} />}
+      {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} isPremium={isPremium} />}
       {/* One quick weigh sheet for the whole app: the buddy's ask, the Progress button and the
           ?action=weigh shortcut all land here rather than each growing their own entry point. */}
       {weighing && <WeighSheet db={db} update={update} resume={weighing === 'resume'} showToast={showToast} onClose={() => setWeighing(false)} />}
