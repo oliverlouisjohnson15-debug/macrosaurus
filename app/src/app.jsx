@@ -2502,8 +2502,15 @@ const PRESET_BY_ID = (id) => WEEK_PRESETS.find(x => x.id === id) || WEEK_PRESETS
 const DATA_SAY = {
   full:   "and you'll weigh in and log as normal",
   rough:  "and you'll log roughly",
-  sparse: "and you won't be weighing in every day",
+  sparse: "and the scale isn't coming with you",
   none:   "and you're off the scale and the log entirely",
+};
+// What the buddy promises to do about the scale, which is the bit people actually worry about.
+const SCALE_SAY = {
+  full:   '',
+  rough:  " I'll keep asking for the odd weigh-in, whenever suits.",
+  sparse: " I won't ask for a weigh-in while you're away. Just hop back on when you're home, and I won't read anything into that first number: after travel a good chunk of it is water.",
+  none:   " I won't ask for anything while you're away. Pick it back up when you're home.",
 };
 // A speech bubble from the buddy, or your tapped reply coming back.
 function Bubble({ from = 'buddy', children }) {
@@ -2633,8 +2640,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
   return (<div className="fade-in">
     <Bubble from="you">{accept === 0 ? 'Just hold steady' : accept + ' kg'}</Bubble>
     <Bubble>
-      Sorted. {fmtRange(range.start, range.end)}, {DATA_SAY[preset.data]}.
-      {preset.data !== 'full' ? " I won't nag you for the scale, and I won't read anything into your first weigh-in after." : ''}
+      Sorted. {fmtRange(range.start, range.end)}, {DATA_SAY[preset.data]}.{SCALE_SAY[preset.data] || ''}
     </Bubble>
     {base && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       {spanDays.length <= 8
@@ -3037,7 +3043,9 @@ function CheckInModal({ db, update, onClose, resume }) {
 
         {/* 2. What the week looked like, in one line. */}
         {phase === 'hello' && <div className="fade-in">
-          <Say sub={cov.planned > 0 ? cov.planned + ' of those days you told me about, so they are not counted against you.' : null}>
+          <Say sub={cov.planned > 0
+            ? cov.planned + ' of those days you were away, so I only counted the days you were back.'
+            : null}>
             Since {fmtShortDay(cs)} you logged {loggedDays} day{loggedDays === 1 ? '' : 's'} and weighed in {weighDays} time{weighDays === 1 ? '' : 's'}.
           </Say>
           <Btn kind="accent" className="w-full" onClick={() => go('weight')}>{readyToAdjust ? 'Right, let’s see' : 'Carry on anyway'}</Btn>
@@ -3998,8 +4006,20 @@ function weighAsk(db, today) {
   if (p.weighCadence === 'single' && p.weighDay == null) return { kind: 'ask',
     text: 'Which morning suits you? I’ll only ask on that day, so pick the one you’re most likely to be home and unhurried.',
     choices: DOW.map((d, i) => ({ label: d, act: 'weighday_' + i })) };
+  // A declared window where the scale isn't coming with them: stay quiet rather than ask every
+  // morning for something they told us in advance they can't do. The first morning back is the one
+  // that matters, and it gets asked for kindly, because travel water is not a gain.
+  const wpCtx = E.weekPlanContext(db.week_plans, today);
+  const scaleOff = (pl) => !!pl && (pl.data === 'sparse' || pl.data === 'none');
+  if (scaleOff(wpCtx.active)) return null;
   const entries = db.weight_entries || [];
   const lastISO = entries.reduce((a, w) => (w.date > a ? w.date : a), '');
+  if (scaleOff(wpCtx.recovering) && !entries.some(w => w.date === today && w.scale_weight != null)
+      && Game.daysBetween(wpCtx.recovering.end, today) <= 2) {
+    return { kind: 'weigh', text: 'Welcome back. Hop on the scales when you\'re settled, and don\'t panic at the number: after travel a chunk of it is water and it settles in a few days.',
+      weigh: { reason: 'return' },
+      secondary: { label: 'Not today', act: 'snooze', snoozeKey: 'weigh_prompt' } };
+  }
   const due = Game.weighDue({
     cadence: p.weighCadence, weighDay: p.weighDay, today: today, hour: new Date().getHours(),
     weighedToday: entries.some(w => w.date === today && w.scale_weight != null),
@@ -5597,7 +5617,9 @@ function readinessRecap(db, today) {
   }
   const rc = recoveryCoachLine(db, today);
   items.push({ key: 'ready', tone: Game.readinessBand(readinessFor(db, today)) === 'drowsy' ? 'warn' : 'good', text: rc.text });
-  const weighNeeded = !(db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
+  // Same again: no "not weighed this week?" nag while they're away and told us so.
+  const awayNow = (() => { const a = E.weekPlanContext(db.week_plans, today).active; return !!a && (a.data === 'sparse' || a.data === 'none'); })();
+  const weighNeeded = !awayNow && !(db.weight_entries || []).some(w => Game.daysBetween(w.date, today) <= 6);
   if (weighNeeded) items.push({ key: 'weigh', tone: 'accent', text: "Not weighed this week? Same time each morning, after the loo and before food or drink, gives me the truest trend, just the once." });
   return { items: items, weighNeeded: weighNeeded };
 }
