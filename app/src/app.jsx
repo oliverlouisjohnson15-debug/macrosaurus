@@ -9265,9 +9265,10 @@ function RemindersScreen({ db, update, onBack }) {
 // haven't thought of comes in as a free-text request. One line each on what it brings, because a
 // connector that doesn't exist yet has not earned a paragraph.
 const INTEGRATIONS = [
+  // No note on Apple. How Apple stores health data is our problem to solve, not something a user
+  // should have to read about; the status chip and their vote are all this row owes them.
   { id: 'apple', name: 'Apple Health', top: true, status: 'planned',
-    brings: 'Steps, sleep, workouts and weight from iPhone and Apple Watch',
-    note: 'Apple keeps health data on your phone, not on their servers, so this one needs an iPhone app first.' },
+    brings: 'Steps, sleep, workouts and weight from iPhone and Apple Watch' },
   { id: 'garmin', name: 'Garmin', top: true, status: 'planned',
     brings: 'Steps, sleep, HRV and training load' },
   { id: 'withings', name: 'Withings scales', top: true, status: 'next',
@@ -9327,7 +9328,7 @@ function IntegrationsScreen({ db, update, onBack, showToast }) {
 
     <div className="mt-5">
       <Field label="Want something else?" hint="Tell us what you use and we'll look at it.">
-        <TextInput value={other} onChange={e => { setOther(e.target.value); setSent(false); }} placeholder="Polar, Samsung Health, MyFitnessPal…" onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+        <TextInput value={other} onChange={e => { setOther(e.target.value); setSent(false); }} placeholder="Polar, Coros, Samsung Health…" onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
       </Field>
       <Btn kind="ghost" className="w-full text-sm" disabled={!other.trim() || busy === 'other' || sent} style={{ opacity: (other.trim() && !sent) ? 1 : 0.5 }}
         onClick={async () => { const v = other.trim(); if (!v) return; await ask(null, v); setOther(''); setSent(true); }}>
@@ -9423,7 +9424,7 @@ function SettingsOverview({ db, update, onOpen, onFreshStart }) {
       { key: 'integrations', label: 'More integrations', status: (() => {
         const w = (p.integrationInterest || []).length;
         return 'Apple Health, Garmin, Withings and more' + (w ? ' · ' + w + ' on your list' : '');
-      })(), kw: 'apple health healthkit iphone watch withings scales oura whoop garmin strava samsung polar renpho eufy myfitnesspal integrations connect coming soon roadmap request' },
+      })(), kw: 'apple health healthkit iphone watch withings scales oura whoop garmin strava samsung polar coros renpho eufy integrations connect coming soon roadmap request' },
       { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
     ] },
   ];
