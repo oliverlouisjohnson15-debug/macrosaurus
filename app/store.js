@@ -168,6 +168,10 @@
       checkins: [],       // history: [{ date, weightKg, onTrack, changed, weeklyChangeKg?, deltaKcal?, tdee? }]
       pending_adjustment: null, // an un-actioned check-in proposal: { date, result } (survives reloads until approved/rejected)
       expenditure: null,  // smoothed adaptive TDEE: { kcal, n, updated } (null until the first check-in learns it)
+      // What the user told the buddy is coming up: declared windows with four dials
+      // ({ id, start, end, kind, label, intent, eating, moving, data, acceptRateKgPerWeek,
+      // createdAt, outcome }). Append-only and unioned by id, like meal_templates and targets.
+      week_plans: [],
       paused: false,      // goal paused (holiday mode)
       diet_break: null,       // temporary maintenance phase: { start, end, returnGoal }
       last_break_end: null,   // ISO date the last diet break ended (resets the dieting clock)
@@ -270,6 +274,9 @@
     // the union resurrect it. Re-sorted by sort_order after the union so the merged order stays sane.
     out.meal_templates = unionBy(newer.meal_templates, older.meal_templates, byId);
     out.targets        = unionBy(newer.targets,        older.targets,        byId);
+    // Declared windows: unioned by id so a plan made on the phone survives a merge from the laptop.
+    // Cancelling one tombstones it, exactly as removing a default meal does.
+    out.week_plans     = unionBy(newer.week_plans,     older.week_plans,     byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
     // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
     // offline can never have its Amber lost or double-counted. Balance is recomputed from this.
@@ -309,6 +316,7 @@
     out.recipes        = alive(out.recipes);
     out.shopping_list  = alive(out.shopping_list);
     out.meal_plan      = alive(out.meal_plan);
+    out.week_plans     = alive(out.week_plans);
     out.meal_templates = alive(out.meal_templates)
       .slice().sort(function (x, y) { return ((x && x.sort_order) || 0) - ((y && y.sort_order) || 0); });
     // Cap tombstones to the 1000 most recent so the map can't grow without bound.

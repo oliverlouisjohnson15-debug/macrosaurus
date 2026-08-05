@@ -1515,7 +1515,9 @@
       for (var i = cis.length - 1; i >= 0; i--) if (cis[i] && cis[i].underReport != null) return !!cis[i].underReport;
       return false;
     })();
-    if (result.underReportFlagged && priorFlagged && !wOnly && curAvg != null && prevAvg != null) {
+    // A declared window is the most likely thing in the world to make the food log and the scale
+    // disagree, so it must never be the thing that permanently switches someone off their food log.
+    if (result.underReportFlagged && priorFlagged && !wOnly && !opts.plannedDays && curAvg != null && prevAvg != null) {
       var curKcalS = opts.currentTargets.kcal;
       var wChgS = ((curAvg - prevAvg) / spanDaysForRate) * 7;
       var estS = { tdee: round(curKcalS - (wChgS * KCAL_PER_KG) / 7), avgKcal: round(curKcalS), weeklyChangeKg: round(wChgS, 3), days: cycleDays, weightOnly: true };
@@ -1583,8 +1585,71 @@
     };
   }
 
+  // ---- week plans: what the user told us is coming ---------------------------------------------
+  // A declared window (a holiday, an illness, a big event) with four dials. Only ONE of them moves
+  // calories: the rate they said they'd be happy with. The eating/moving/data dials set expectations,
+  // seed the suggested rate, and protect the check-in maths, but they never independently shift the
+  // target, because stacking them would count the same week three times over.
+  function planCovers(plan, iso) { return !!plan && !!plan.start && !!plan.end && iso >= plan.start && iso <= plan.end; }
+  function weekPlanOn(plans, iso) {
+    var list = plans || [];
+    for (var i = list.length - 1; i >= 0; i--) if (planCovers(list[i], iso)) return list[i];
+    return null;
+  }
+  function plannedDaysBetween(plans, startISO, endISO) {
+    if (!plans || !plans.length || !startISO || !endISO) return 0;
+    var n = 0, d = startISO;
+    while (d <= endISO) { if (weekPlanOn(plans, d)) n++; d = shiftISOdays(d, 1); }
+    return n;
+  }
+  // The rate this window is steering to. 'hold' is an explicit maintenance break (MATADOR-style),
+  // which is a legitimate plan rather than a failed week.
+  function planRate(plan, profile) {
+    if (!plan) return null;
+    if (plan.intent === 'hold') return 0;
+    if (plan.acceptRateKgPerWeek != null) return Math.abs(plan.acceptRateKgPerWeek);
+    return Math.abs((profile && profile.rateKgPerWeek) || 0);
+  }
+  // Daily calorie shift for a day inside a window. Positive means eat more. Never makes a window
+  // harder than the normal plan: a declared week is for bending, not for tightening.
+  function planKcalDelta(plan, profile) {
+    if (!plan || !profile || profile.goalType === 'maintain') return 0;
+    var normal = Math.abs(profile.rateKgPerWeek || 0);
+    var accepted = planRate(plan, profile);
+    var given = normal - accepted;
+    if (!(given > 0)) return 0;
+    var sign = profile.goalType === 'cut' ? 1 : -1;
+    return sign * round((given * KCAL_PER_KG) / 7);
+  }
+  // After a window closes, the scale is still carrying travel water and salt. Ease back over a
+  // stretch as long as the window was, capped at a week (the Oura Rest Mode model).
+  function planRecoveryOn(plans, iso) {
+    var list = plans || [];
+    for (var i = list.length - 1; i >= 0; i--) {
+      var pl = list[i];
+      if (!pl || !pl.start || !pl.end || iso <= pl.end) continue;
+      var span = Math.max(1, daysBetweenISO(pl.start, pl.end) + 1);
+      var ease = Math.min(7, span);
+      if (daysBetweenISO(pl.end, iso) <= ease) return pl;
+    }
+    return null;
+  }
+  // One call for everything the app needs to know about declared windows around a date.
+  function weekPlanContext(plans, iso) {
+    var active = weekPlanOn(plans, iso);
+    var recovering = active ? null : planRecoveryOn(plans, iso);
+    return {
+      active: active, recovering: recovering,
+      // Both states mean the scale is untrustworthy in the same direction, so both reuse the
+      // hold-rather-than-cut path the menstrual water-weight logic already drives.
+      waterHigh: !!(active || recovering),
+    };
+  }
+
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
+    weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
+    planKcalDelta: planKcalDelta, planRecoveryOn: planRecoveryOn, weekPlanContext: weekPlanContext,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
     goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,
