@@ -9261,6 +9261,79 @@ function RemindersScreen({ db, update, onBack }) {
   </SubScreen>);
 }
 
+// What we can connect to, and what each one would actually bring. Ordered by what it does for YOUR
+// plan rather than by brand: a scale that fills in your weigh-ins beats a watch that counts steps we
+// can already get. "note" is the honest caveat, shown so a roadmap row never over-promises.
+const INTEGRATIONS = [
+  { id: 'withings', name: 'Withings scales', status: 'next',
+    brings: 'Weigh-ins and body fat, straight off the scale',
+    detail: 'Step on in the morning and your check-in fills itself in, body composition included. The one that removes the most daily faff.' },
+  { id: 'apple', name: 'Apple Health', status: 'planned',
+    brings: 'Steps, sleep, workouts and weight from iPhone and Apple Watch',
+    detail: 'The most asked for, and the most involved. Apple keeps health data on your phone rather than on their servers, so this one needs a proper iPhone app rather than the web app you are using now.',
+    note: 'Needs an iPhone app first' },
+  { id: 'oura', name: 'Oura', status: 'planned',
+    brings: 'Sleep stages and readiness',
+    detail: 'Feeds the same morning catch and readiness score your sleep already drives, with a cleaner signal than a wrist tracker.' },
+  { id: 'whoop', name: 'Whoop', status: 'planned',
+    brings: 'Recovery, strain and sleep',
+    detail: 'Recovery and strain would let your plan ease off on the days your body is asking for it.' },
+  { id: 'garmin', name: 'Garmin', status: 'planned',
+    brings: 'Steps, sleep, HRV and training load',
+    detail: 'For anyone whose running or cycling already lives in Garmin. Training load would feed the same expenditure your steps do.' },
+  { id: 'strava', name: 'Strava', status: 'exploring',
+    brings: 'Runs, rides and sessions',
+    detail: 'Your training would land in your expenditure without logging it twice.' },
+  { id: 'scales', name: 'Other smart scales', status: 'exploring',
+    brings: 'Weigh-ins from cheaper scales',
+    detail: 'Renpho, Eufy and the like, for the budget end of the scale shelf.' },
+];
+const INT_STATUS = {
+  next: { label: 'Up next', color: 'var(--good)' },
+  planned: { label: 'Planned', color: 'var(--accent)' },
+  exploring: { label: 'Exploring', color: 'var(--muted)' },
+};
+// Registering interest doubles as the roadmap vote: it records locally (so it works offline and
+// shows instantly) and best-effort files a feature ticket, which lands in the same admin queue the
+// feedback sheet already feeds. No new table, and it turns a dead "coming soon" row into a signal
+// about what to build first.
+function IntegrationsScreen({ db, update, onBack, showToast }) {
+  const want = (db.profile && db.profile.integrationInterest) || [];
+  const [busy, setBusy] = useState(null);
+  async function notifyMe(it) {
+    if (busy || want.indexOf(it.id) >= 0) return;
+    setBusy(it.id);
+    update(d => {
+      d.profile = d.profile || {};
+      const cur = d.profile.integrationInterest || [];
+      if (cur.indexOf(it.id) < 0) d.profile.integrationInterest = cur.concat([it.id]);
+    });
+    try { await submitTicket({ kind: 'feature', body: 'Integration request: ' + it.name }); } catch (_) { /* the vote is recorded locally either way */ }
+    setBusy(null);
+    showToast && showToast("Noted. We'll let you know when " + it.name + ' lands.');
+  }
+  return (<SubScreen title="More integrations" onBack={onBack} intro="What we're building next, and what each one would bring to your plan. Tell us which you want and it moves up the list.">
+    <div className="space-y-2.5">
+      {INTEGRATIONS.map(it => {
+        const st = INT_STATUS[it.status];
+        const on = want.indexOf(it.id) >= 0;
+        return (<div key={it.id} className="pixel-box p-4" style={{ background: 'var(--card)' }}>
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <div className="text-sm font-semibold">{it.name}</div>
+            <span className="pf text-[8px] uppercase px-1.5 py-0.5 shrink-0" style={{ color: st.color, border: '2px solid ' + st.color }}>{st.label}</span>
+          </div>
+          <div className="text-[12px] mb-1.5" style={{ color: 'var(--text2)' }}>{it.brings}</div>
+          <div className="text-[11.5px] text-[#8A8A90] leading-snug mb-3">{it.detail}</div>
+          {it.note && <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--warn)' }}>{it.note}</div>}
+          <Btn kind={on ? 'ghost' : 'accent'} className="w-full text-sm" disabled={on || busy === it.id} style={{ opacity: on ? 0.7 : 1 }} onClick={() => notifyMe(it)}>
+            {on ? <><Tick size={10} /> On your list</> : busy === it.id ? 'Adding…' : 'I want this'}
+          </Btn>
+        </div>);
+      })}
+    </div>
+    <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">Every one of these is read-only when it arrives: we take the numbers, we never write back to your other apps.</div>
+  </SubScreen>);
+}
 // The step goal lives here rather than in a section of its own: it is meaningless without the
 // connection that supplies the steps.
 function HealthScreen({ db, update, onBack }) {
@@ -9344,6 +9417,10 @@ function SettingsOverview({ db, update, onOpen, onFreshStart }) {
       { key: 'reminders', label: 'Reminders', status: (remindersOn ? 'In-app banner on' : 'In-app banner off') + ' · from ' + hourLabel, kw: 'reminders push notifications nudge banner alerts hour' },
     ] },
     { title: 'Apps & data', rows: [
+      { key: 'integrations', label: 'More integrations', status: (() => {
+        const w = (p.integrationInterest || []).length;
+        return INTEGRATIONS.map(x => x.name.replace(' scales', '')).slice(0, 3).join(', ') + ' and ' + (INTEGRATIONS.length - 3) + ' more on the way' + (w ? ' · ' + w + ' on your list' : '');
+      })(), kw: 'apple health healthkit iphone watch withings scales oura whoop garmin strava samsung renpho eufy integrations connect coming soon roadmap' },
       { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
     ] },
   ];
@@ -9552,6 +9629,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
     cycle: () => <CycleScreen db={db} update={update} onBack={back} />,
     meals: () => <MealsScreen db={db} update={update} onBack={back} />,
     reminders: () => <RemindersScreen db={db} update={update} onBack={back} />,
+    integrations: () => <IntegrationsScreen db={db} update={update} onBack={back} showToast={showToast} />,
     health: () => <HealthScreen db={db} update={update} onBack={back} />,
   };
   if (screen && SCREENS[screen]) return (
