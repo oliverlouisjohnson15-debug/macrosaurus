@@ -1943,7 +1943,7 @@ function HabitGrid({ days, color }) {
 // movement shows. MANY points (long range) → the smoothed TREND becomes the bold line (a moving
 // average across the range) and raw weight fades to a faint background, so a year of daily weigh-ins
 // stays readable. Points are spaced by real date, and tapping selects the nearest weigh-in.
-function LineChart({ points, trend, color, decimals, unitLabel }) {
+function LineChart({ points, trend, color, decimals, unitLabel, goal }) {
   const [sel, setSel] = useState(null);
   const H = 150, W = 320, padL = 30, padR = 8, padT = 14, padB = 18, plotW = W - padL - padR;
   const pts = (points || []).filter(p => p.value != null);
@@ -1951,6 +1951,10 @@ function LineChart({ points, trend, color, decimals, unitLabel }) {
   const trendPts = (trend || []).filter(p => p.value != null);
   const allVals = pts.map(p => p.value).concat(trendPts.map(p => p.value));
   let min = Math.min(...allVals), max = Math.max(...allVals);
+  // Pull the goal into the scale, but only if it is close enough that doing so does not squash the
+  // line into a flat smear. A goal 20 kg away would cost every bit of resolution the trend has.
+  const goalInView = goal != null && goal > min - (max - min) * 4 && goal < max + (max - min) * 4;
+  if (goalInView) { min = Math.min(min, goal); max = Math.max(max, goal); }
   if (min === max) { min -= 1; max += 1; } const pad = (max - min) * 0.18; min -= pad; max += pad;
   const ms = d => new Date(d + 'T00:00:00').getTime();
   const t0 = ms(pts[0].date), t1 = ms(pts[pts.length - 1].date), tspan = (t1 - t0) || 1;
@@ -1986,6 +1990,12 @@ function LineChart({ points, trend, color, decimals, unitLabel }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H, cursor: 'pointer' }} onClick={pick}>
       <defs><linearGradient id={gid} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.22" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
       {ticks.map((t, i) => { const y = Y(t); return <g key={i}><line x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--border)" strokeWidth="1" /><text x={2} y={y + 3} fill="var(--muted)" fontSize="8">{t.toFixed(dec)}</text></g>; })}
+      {/* The goal, as a line. The meter on the card above says 1.6 of 6.6 kg; this says the same
+          thing in the one place where you can see the distance rather than read it. */}
+      {goalInView && (() => { const gy = Y(goal); return <g>
+        <line x1={padL} y1={gy} x2={W - padR} y2={gy} stroke="var(--good-ink)" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.9" />
+        <text x={W - padR} y={gy - 4} fill="var(--good-ink)" fontSize="8" textAnchor="end">goal {goal.toFixed(dec)}</text>
+      </g>; })()}
       <polygon points={area} fill={`url(#${gid})`} />
       {selPt && <line x1={selX} y1={padT} x2={selX} y2={H - padB} stroke={color} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />}
       <polyline points={rawStr} fill="none" stroke={color} strokeWidth={useTrend ? 1 : 2} opacity={useTrend ? 0.3 : 1} strokeLinejoin="round" strokeLinecap="round" />
@@ -2091,7 +2101,8 @@ function TrendCard({ db, tab = 'weight', range = 90, bare, header }) {
         {/* The range belongs on the footer next to the control that changes it, not in both places. */}
         {delta != null && <span className="text-[13px] font-semibold tnum shrink-0" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{deltaStr}</span>}
       </div>
-      <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
+      <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl}
+        goal={tab === 'weight' && db.profile.goalWeightKg > 0 ? toDisp(db.profile.goalWeightKg) : null} />
       <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
       </>}
   </>);
@@ -3517,7 +3528,7 @@ function fmtShortDay(dateISO) { return new Date(dateISO + 'T00:00:00').toLocaleD
 // The week's Density Scores. The average is the number that matters: quality of eating is a pattern,
 // and one heavy Saturday inside a good week is not a bad week. Days with nothing to score are shown
 // as gaps rather than as zeroes, so an unlogged day never reads as a bad one.
-function DensityWeekCard({ db }) {
+function DensityWeekCard({ db, inline }) {
   const [help, setHelp] = useState(false);
   if (window.MISPREMIUM !== true) return null;
   const today = Store.todayISO();
@@ -3528,15 +3539,14 @@ function DensityWeekCard({ db }) {
   })));
   if (!trend.daysScored) return null;
   const dayLetter = (iso) => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(iso + 'T00:00:00').getDay()];
-  return (
-    <Card className="p-5 mb-4">
+  const body = (<>
       {help && <DensityExplainer onClose={() => setHelp(false)} />}
       <div className="flex items-center justify-between mb-1">
-        <div className="text-lg font-bold">Food quality</div>
-        <button onClick={() => setHelp(true)} className="text-[10px] text-[#8A8A90] active:opacity-70">Density Score ⓘ</button>
+        <div className={inline ? 'pf text-[8px] uppercase text-[#8A8A90]' : 'text-lg font-bold'}>Food quality</div>
+        <button onClick={() => setHelp(true)} className="hit text-[10px] text-[#8A8A90] active:opacity-70">Density Score ⓘ</button>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-4xl tnum font-bold" style={{ color: densityColor(trend.average) }}>{trend.average}</span>
+        <span className={(inline ? 'text-[19px]' : 'text-4xl') + ' tnum font-bold'} style={{ color: densityColor(trend.average) }}>{trend.average}</span>
         <span className="text-[12px] text-[#8A8A90]">average this week · aim for {trend.target}</span>
       </div>
       {/* The week is the same meter stood on its end: ten blocks per day, so a day here and the day
@@ -3569,8 +3579,9 @@ function DensityWeekCard({ db }) {
             ? `No days over ${trend.target} this week. More veg, pulses, fruit and wholegrains is the quickest way to move it.`
             : `${trend.daysHit} of ${trend.daysScored} logged days cleared ${trend.target}.`}
       </div>
-    </Card>
-  );
+  </>);
+  if (inline) return body;
+  return <Card className="p-5 mb-4">{body}</Card>;
 }
 /* ---------- the verdict ----------------------------------------------------------------------
    The Progress tab exists to answer one question, "am I on track", and until now it answered it at
@@ -3687,7 +3698,7 @@ function BehaviourCard({ db }) {
   return (<Card className="p-4 mb-4">
     <div className="flex items-center justify-between gap-3 mb-3">
       <span className="pf text-[9px] uppercase text-[#8A8A90] shrink-0">Lately</span>
-      <Pill value={range} onChange={setRange} options={[{ v: 7, l: '7d' }, { v: 14, l: '14d' }, { v: 30, l: '30d' }]} />
+      <Pill value={range} onChange={setRange} options={[{ v: 7, l: '1W' }, { v: 14, l: '2W' }, { v: 30, l: '1M' }]} />
     </div>
     <div className="grid grid-cols-2 gap-x-4 gap-y-4">
       <StatTile label="Protein" value={now.proteinHit} unit={'of ' + now.loggedDays + ' logged'} sub="hit your target"
@@ -3700,6 +3711,9 @@ function BehaviourCard({ db }) {
       {now.steps > 0 && <StatTile label="Steps" value={now.steps.toLocaleString()} unit="a day" sub={stepGoal ? 'target ' + stepGoal.toLocaleString() : 'average'}
         trend={stepArrow} tone={stepGoal && now.steps >= stepGoal ? 'good' : null} />}
     </div>
+    {/* The week's eating, in the card about what you have been doing. The strip stays a WEEK whatever
+        the tiles are set to, because it is seven labelled days and not a rolling average. */}
+    {(() => { const q = <DensityWeekCard db={db} inline />; return q ? <div className="mt-4 pt-4" style={{ borderTop: '2px solid var(--surface2)' }}>{q}</div> : null; })()}
   </Card>);
 }
 /* ---------- what the coach changed, and why -----------------------------------------------------
@@ -3760,6 +3774,19 @@ function VerdictCard({ db, onWeigh }) {
           : <>{v.rate < 0 ? 'Losing' : v.rate > 0 ? 'Gaining' : 'Holding at'} <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{rateStr}</span> a week against a target of <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{tgtStr}</span>.</>}
         {v.weeksToGoal != null && <> At this rate you reach <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{fmtWeight(v.goalWeightKg, unit)}</span> in about <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{v.weeksToGoal}</span> week{v.weeksToGoal === 1 ? '' : 's'}.</>}
       </div>
+      {/* Only when the news is bad, and only the most likely cause. A coach that says "behind plan"
+          and nothing else has diagnosed nothing; the numbers that explain it are already computed
+          two cards down, and joining them was being left to the reader. */}
+      {(v.tone === 'warn' || v.tone === 'bad') && (() => {
+        const cov = cycleCoverage(db, today);
+        const b = behaviourStats(db, 14);
+        const gaps = [];
+        if (cov.logWindow >= 4 && cov.logged < Math.ceil(cov.logWindow * 0.7)) gaps.push('you logged ' + cov.logged + ' of ' + cov.logWindow + ' days, so the intake side is part-guessed');
+        else if (b.loggedDays >= 4 && b.proteinHit < b.loggedDays * 0.5) gaps.push('protein came in under target on most days');
+        if (cov.weighWindow >= 4 && cov.weighed < 3) gaps.push('only ' + cov.weighed + ' weigh-in' + (cov.weighed === 1 ? '' : 's') + ' this cycle, which the trend needs more of');
+        if (!gaps.length) return null;
+        return <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>Most likely why: {gaps[0]}.</div>;
+      })()}
     </> : <div className="text-[12px] text-[#8A8A90] leading-relaxed">Weigh in for a week or so and this will tell you whether your plan is working, and how far off you are if it is not.</div>}
     {/* How far through the goal you are. The sentence above says the rate and the date; this says
         the distance, which is the bit that gets more motivating the closer it gets. */}
@@ -3784,7 +3811,7 @@ function VerdictCard({ db, onWeigh }) {
       const young = cov.logWindow < 4;
       const thin = !young && (cov.logged < Math.ceil(cov.logWindow * 0.6) || cov.weighed < 2);
       return <div className="text-[10px] mt-2 leading-snug" style={{ color: thin ? 'var(--fat-ink)' : 'var(--muted)' }}>
-        {young ? 'New cycle, ' : thin ? 'Thin data so far: ' : 'Based on '}{cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}{thin ? ', so treat this as a rough read.' : '.'}
+        {young ? 'New cycle, ' : thin ? 'Thin data so far: ' : 'This cycle, '}{cov.logged} of {cov.logWindow} day{cov.logWindow === 1 ? '' : 's'} logged and {cov.weighed} of {cov.weighWindow} weigh-in{cov.weighWindow === 1 ? '' : 's'}{thin ? ', so treat this as a rough read.' : '.'}
       </div>;
     })()}
     {/* The weight, once. It used to be stated three times inside 130px: a button caption, a headline
@@ -3897,7 +3924,7 @@ function ExpenditureCard({ db, plan }) {
         const adj = Math.abs(Math.round((est.weeklyChangeKg * E.KCAL_PER_KG) / 7)); // kcal/day the weight trend is worth
         const sign = est.direction === 'up' ? '−' : '+'; // gaining => burn is below intake; losing => above
         return <>
-          <button onClick={() => setShowMath(v => !v)} className="text-[10px] text-[#8A8A90] mt-2 inline-flex items-center gap-1" aria-expanded={showMath}>
+          <button onClick={() => setShowMath(v => !v)} className="hit text-[10px] text-[#8A8A90] mt-2 inline-flex items-center gap-1" aria-expanded={showMath}>
             <span style={{ color: 'var(--good-ink)' }}>how this was worked out</span>
             <span className="tnum" style={{ display: 'inline-block', transform: showMath ? 'rotate(180deg)' : 'none' }}>⌄</span>
           </button>
@@ -9452,7 +9479,6 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan }) {
 
       {/* THE EVIDENCE: what your body did. */}
       <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
-      <DensityWeekCard db={db} />
 
       {/* THE ENGINE: what you ate plus how your weight moved gives your real burn, and your burn
           gives your target. That chain is the entire product, and it was split across two cards at
@@ -9470,8 +9496,9 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan }) {
             <span className="tnum text-[12px] shrink-0"><span style={{ color: PRO_T }}>P{base.protein_g}</span> <span style={{ color: CARB_T }}>C{base.carbs_g}</span> <span style={{ color: FAT_T }}>F{base.fat_g}</span></span>
           </div>
           <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">
-            {gap ? <>{gap < 0 ? 'A ' + Math.abs(gap) + ' kcal deficit' : 'A ' + gap + ' kcal surplus'}, which is {p.goalType === 'maintain' ? 'roughly maintenance' : 'about ' + p.rateKgPerWeek + ' kg a week'}. </> : null}
-            {p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalWeightKg ? ' towards ' + fmtWeight(p.goalWeightKg, unit) : ''}.{db.paused ? ' Currently paused.' : ''}
+            {/* The rate and the goal weight are the verdict's story, told at the top of the page.
+                This line only has to explain where the target came from. */}
+            {gap ? <>{gap < 0 ? Math.abs(gap) + ' below your burn' : gap > 0 ? gap + ' above your burn' : 'level with your burn'}, {p.goalType === 'maintain' ? 'which is roughly maintenance' : 'which is what ' + p.rateKgPerWeek + ' kg a week costs'}.</> : null}{db.paused ? ' Currently paused.' : ''}
           </div>
           {base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
           <div className="mt-2"><TextBtn onClick={onEditPlan}>Change your goal in Settings</TextBtn></div>
