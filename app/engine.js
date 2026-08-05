@@ -1621,6 +1621,23 @@
     var sign = profile.goalType === 'cut' ? 1 : -1;
     return sign * round((given * KCAL_PER_KG) / 7);
   }
+  // A big day inside a window (the wedding, the Saturday out) is not a week-long shift: it is one
+  // day up, paid for by the others. This redistribution nets to zero across the window, so the rate
+  // the user agreed to still lands; only the shape inside it changes.
+  function planDayDelta(plan, profile, iso, baseKcal) {
+    var flat = planKcalDelta(plan, profile);
+    if (!plan) return flat;
+    var hi = plan.highDays || [];
+    if (!hi.length || !plan.start || !plan.end) return flat;
+    var span = Math.max(1, daysBetweenISO(plan.start, plan.end) + 1);
+    var others = span - hi.length;
+    // Nothing left to pay for the boost (every day is a big day), so drop it rather than hand out
+    // free calories the agreed rate never accounted for.
+    if (others <= 0) return flat;
+    var boost = Math.round((baseKcal || 0) * (plan.deltaPct == null ? 0.25 : plan.deltaPct));
+    if (hi.indexOf(iso) >= 0) return flat + boost;
+    return flat - Math.round((boost * hi.length) / others);
+  }
   // After a window closes, the scale is still carrying travel water and salt. Ease back over a
   // stretch as long as the window was, capped at a week (the Oura Rest Mode model).
   function planRecoveryOn(plans, iso) {
@@ -1649,7 +1666,7 @@
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
-    planKcalDelta: planKcalDelta, planRecoveryOn: planRecoveryOn, weekPlanContext: weekPlanContext,
+    planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planRecoveryOn: planRecoveryOn, weekPlanContext: weekPlanContext,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
     goalDailyDelta: goalDailyDelta, rateGuidance: rateGuidance, fatFreeMassKg: fatFreeMassKg, proteinReferenceKg: proteinReferenceKg, proteinGrams: proteinGrams,

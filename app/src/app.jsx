@@ -1465,7 +1465,7 @@ function effectiveTarget(db, date) {
   // A declared window (see WeekAheadFlow) rides the same per-day shift channel as a manual override,
   // so the whole of the cycling, carryover and floor maths applies to it unchanged. The plan only
   // ever shifts a day it actually covers, so days outside the window are untouched.
-  const planKcal = E.planKcalDelta(E.weekPlanOn(db.week_plans, date), p);
+  const planKcal = E.planDayDelta(E.weekPlanOn(db.week_plans, date), p, date, base.kcal);
   if (planKcal) base = E.applyKcalDelta(base, planKcal);
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
@@ -2480,30 +2480,30 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
    tappable structure is what actually drives commitment, so the buddy talks and you tap.
    ===================================================================== */
 
-// Each preset is a bundle of dial positions. Users pick the thing that's happening; the dials are
-// an implementation detail they never have to see.
+// Four common ones on the first screen, the rest behind "Something else". Seven cards at once was
+// a wall; the answer for most weeks is "nothing", so that gets asked first, on its own.
 const WEEK_PRESETS = [
-  { id: 'none',     label: 'Nothing special', glyph: 'check', intent: 'push', eating: 'normal', moving: 'normal', data: 'full',
-    say: 'Normal week then. I\'ll keep everything where it is.' },
-  { id: 'travel',   label: 'Travelling',      glyph: 'up',    intent: 'ease', eating: 'more',   moving: 'more',   data: 'sparse',
-    say: 'Travelling is the one that trips people up most, so let\'s set it up properly.' },
-  { id: 'event',    label: 'Big event',       glyph: 'star',  intent: 'push', eating: 'more',   moving: 'normal', data: 'full',
-    say: 'A wedding or a party is one big day, not a lost week.' },
-  { id: 'ill',      label: 'Under the weather', glyph: 'down', intent: 'hold', eating: 'normal', moving: 'less',  data: 'sparse',
-    say: 'Sorry to hear it. I won\'t cut your calories while you\'re run down.' },
-  { id: 'busy',     label: 'Busy at work',    glyph: 'clock', intent: 'push', eating: 'normal', moving: 'less',   data: 'rough',
-    say: 'Busy weeks are when logging slips first. I\'ll go easy on you for it.' },
-  { id: 'training', label: 'Training block',  glyph: 'flame', intent: 'hold', eating: 'more',   moving: 'more',   data: 'full',
+  { id: 'travel',   label: 'Away or travelling', top: true, intent: 'ease', eating: 'more',   moving: 'more',   data: 'sparse',
+    say: "Travelling trips people up most, so let's set it up properly." },
+  { id: 'event',    label: 'A big day out',      top: true, intent: 'push', eating: 'more',   moving: 'normal', data: 'full',
+    say: "A wedding or a night out is one big day, not a lost week." },
+  { id: 'ill',      label: 'Under the weather',  top: true, intent: 'hold', eating: 'normal', moving: 'less',   data: 'sparse',
+    say: "Sorry to hear it. I won't cut your calories while you're run down." },
+  { id: 'busy',     label: 'Flat out at work',   top: true, intent: 'push', eating: 'normal', moving: 'less',   data: 'rough',
+    say: "Busy weeks are when logging slips first. I'll go easy on you for it." },
+  { id: 'training', label: 'Training block',     intent: 'hold', eating: 'more',   moving: 'more',   data: 'full',
     say: 'Hard training needs fuel. Let\'s make sure you\'ve got it.' },
-  { id: 'festive',  label: 'Festive period',  glyph: 'star',  intent: 'hold', eating: 'more',   moving: 'normal', data: 'sparse',
-    say: 'Christmas comes for us all. Let\'s be honest about it rather than pretend.' },
+  { id: 'festive',  label: 'Festive period',     intent: 'hold', eating: 'more',   moving: 'normal', data: 'sparse',
+    say: "Let's be honest about it rather than pretend." },
+  { id: 'other',    label: 'Something else',     intent: 'ease', eating: 'normal', moving: 'normal', data: 'rough',
+    say: 'Right. Tell me when, and what you want out of it.' },
 ];
 const PRESET_BY_ID = (id) => WEEK_PRESETS.find(x => x.id === id) || WEEK_PRESETS[0];
 const DATA_SAY = {
-  full:   'and you\'ll weigh in and log as normal',
-  rough:  'and you\'ll log roughly',
-  sparse: 'and you won\'t be weighing in every day',
-  none:   'and you\'re off the scale and the log entirely',
+  full:   "and you'll weigh in and log as normal",
+  rough:  "and you'll log roughly",
+  sparse: "and you won't be weighing in every day",
+  none:   "and you're off the scale and the log entirely",
 };
 // A speech bubble from the buddy, or your tapped reply coming back.
 function Bubble({ from = 'buddy', children }) {
@@ -2515,26 +2515,29 @@ function Bubble({ from = 'buddy', children }) {
     </div>
   </div>);
 }
-// The tappable answers. Never a text box on the main path.
-function Choices({ options, onPick, cols = 2 }) {
-  return (<div className={'grid gap-2 mb-3 ' + (cols === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+// Tappable answers, stacked one per row so nothing reads as a grid of options to scan.
+function Choices({ options, onPick }) {
+  return (<div className="grid gap-2 mb-3">
     {options.map(o => (
-      <button key={o.v} onClick={() => onPick(o.v)} className="pixel-box py-2.5 px-3 text-[13px] text-left"
+      <button key={o.v} onClick={() => onPick(o.v)} className="pixel-box py-3 px-3.5 text-[13px] text-left"
         style={{ background: 'var(--card)' }}>{o.l}</button>
     ))}
   </div>);
 }
-function planDateRange(kind) {
-  const t = Store.todayISO();
-  const start = shiftISO(t, 1);
+function planDateRange() {
+  const start = shiftISO(Store.todayISO(), 1);
   return { start: start, end: shiftISO(start, 6) };
 }
 function fmtRange(startISO, endISO) {
   const f = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   return startISO === endISO ? f(startISO) : f(startISO) + ' to ' + f(endISO);
 }
-// The rates on offer for a declared window, worded as outcomes rather than numbers alone.
-function acceptOptions(p, unit) {
+function datesBetween(startISO, endISO) {
+  const out = []; let d = startISO;
+  while (d <= endISO && out.length < 31) { out.push(d); d = shiftISO(d, 1); }
+  return out;
+}
+function acceptOptions(p) {
   const normal = Math.abs(p.rateKgPerWeek || 0.5);
   const half = Math.round(normal * 50) / 100;
   const opts = [{ v: 0, l: 'Just hold steady' }];
@@ -2544,70 +2547,112 @@ function acceptOptions(p, unit) {
 }
 
 // The forward half. Used at check-in and from Settings, so a plan can be made or changed any time.
+// One question per screen, four options at most, and the common answer ("nothing") is a single tap.
 function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
   const p = db.profile;
-  const [step, setStep] = useState('what');
+  const [step, setStep] = useState('any');
   const [kind, setKind] = useState(null);
+  const [showRest, setShowRest] = useState(false);
   const [range, setRange] = useState(planDateRange());
+  const [high, setHigh] = useState([]);
   const [accept, setAccept] = useState(null);
   const preset = kind ? PRESET_BY_ID(kind) : null;
-  const kcalDelta = preset ? E.planKcalDelta({ intent: preset.intent, acceptRateKgPerWeek: accept }, p) : 0;
   const base = currentTargets(db);
+  const draft = preset ? { start: range.start, end: range.end, intent: preset.intent, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25 } : null;
+  const spanDays = datesBetween(range.start, range.end);
 
   function save() {
     const plan = {
       id: Store.uid(), start: range.start, end: range.end, kind: kind,
       label: preset.label, intent: preset.intent, eating: preset.eating, moving: preset.moving,
-      data: preset.data, acceptRateKgPerWeek: accept, createdAt: Date.now(), outcome: null,
+      data: preset.data, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25,
+      createdAt: Date.now(), outcome: null,
     };
     update(d => { d.week_plans = (d.week_plans || []).concat([plan]); });
-    showToast && showToast('Noted. I\'ll work around it.');
+    showToast && showToast("Noted. I'll work around it.");
     onDone && onDone(plan);
   }
 
-  return (<div className={compact ? '' : 'fade-in'}>
+  // 1. The question most weeks answer with one tap.
+  if (step === 'any') return (<div className={compact ? '' : 'fade-in'}>
     <Bubble>Anything coming up {compact ? '' : 'next week '}I should know about?</Bubble>
-    {step === 'what' && <Choices options={WEEK_PRESETS.map(x => ({ v: x.id, l: x.label }))}
-      onPick={(v) => { setKind(v); if (v === 'none') { onDone && onDone(null); } else { setStep('when'); } }} />}
+    <Choices options={[{ v: 'no', l: 'Nothing special' }, { v: 'yes', l: "Yes, something's on" }]}
+      onPick={(v) => { if (v === 'no') { onDone && onDone(null); } else { setStep('what'); } }} />
+  </div>);
 
-    {kind && <>
-      <Bubble from="you">{preset.label}</Bubble>
-      <Bubble>{preset.say}</Bubble>
-    </>}
+  // 2. Four common ones, the rest one tap further in.
+  if (step === 'what') return (<div className="fade-in">
+    <Bubble>What is it?</Bubble>
+    <Choices options={WEEK_PRESETS.filter(x => x.top).map(x => ({ v: x.id, l: x.label }))}
+      onPick={(v) => { setKind(v); setStep('when'); }} />
+    {!showRest
+      ? <button onClick={() => setShowRest(true)} className="w-full text-[12px] text-[#8A8A90] py-2">Something else</button>
+      : <div className="fade-in"><Choices options={WEEK_PRESETS.filter(x => !x.top).map(x => ({ v: x.id, l: x.label }))}
+          onPick={(v) => { setKind(v); setStep('when'); }} /></div>}
+  </div>);
 
-    {kind && step === 'when' && <>
-      <Bubble>Which days?</Bubble>
-      <div className="pixel-box p-3.5 mb-3" style={{ background: 'var(--card)' }}>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          <Field label="From"><input type="date" className={inputCls} value={range.start} onChange={e => setRange(r => ({ start: e.target.value, end: r.end < e.target.value ? e.target.value : r.end }))} /></Field>
-          <Field label="To"><input type="date" className={inputCls} value={range.end} min={range.start} onChange={e => setRange(r => ({ start: r.start, end: e.target.value }))} /></Field>
-        </div>
-        <Btn kind="accent" className="w-full text-sm" onClick={() => setStep('rate')}>That's the one</Btn>
-      </div>
-    </>}
+  // 3. When.
+  if (step === 'when') return (<div className="fade-in">
+    <Bubble from="you">{preset.label}</Bubble>
+    <Bubble>{preset.say}</Bubble>
+    <Bubble>Which days?</Bubble>
+    <div className="grid grid-cols-2 gap-2 mb-3">
+      <Field label="From"><input type="date" className={inputCls} value={range.start} onChange={e => { const v = e.target.value; setRange(r => ({ start: v, end: r.end < v ? v : r.end })); setHigh([]); }} /></Field>
+      <Field label="To"><input type="date" className={inputCls} value={range.end} min={range.start} onChange={e => { const v = e.target.value; setRange(r => ({ start: r.start, end: v })); setHigh([]); }} /></Field>
+    </div>
+    <Btn kind="accent" className="w-full" onClick={() => setStep(spanDays.length > 1 ? 'big' : 'rate')}>That's the one</Btn>
+  </div>);
 
-    {kind && step === 'rate' && <>
-      <Bubble from="you">{fmtRange(range.start, range.end)}</Bubble>
-      <Bubble>I'd normally aim for {Math.abs(p.rateKgPerWeek || 0.5)} kg a week. On a week like this, what would you be happy with?</Bubble>
-      <Choices cols={1} options={acceptOptions(p, p.weight_unit)} onPick={(v) => { setAccept(v); setStep('done'); }} />
-    </>}
+  // 4. The big days inside it. This is the bit that makes a wedding one day up rather than a week
+  //    written off: the other days pay for it, so the week still lands where it was meant to.
+  if (step === 'big') return (<div className="fade-in">
+    <Bubble from="you">{fmtRange(range.start, range.end)}</Bubble>
+    <Bubble>Any days in there you want to eat more on? The others cover it, so the week still adds up.</Bubble>
+    <div className="grid grid-cols-2 gap-2 mb-3">
+      {spanDays.map(d => {
+        const on = high.includes(d);
+        return <button key={d} onClick={() => setHigh(h => on ? h.filter(x => x !== d) : h.concat([d]))}
+          className="pixel-box py-2.5 px-2 text-[12px]"
+          style={{ background: on ? 'var(--accent)' : 'var(--card)', color: on ? 'var(--on-accent)' : 'var(--text)' }}>
+          {new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}
+        </button>;
+      })}
+    </div>
+    <Btn kind="accent" className="w-full" onClick={() => setStep('rate')}>{high.length ? 'That\'s them' : 'None of them'}</Btn>
+  </div>);
 
-    {kind && step === 'done' && <>
-      <Bubble from="you">{accept === 0 ? 'Just hold steady' : accept + ' kg'}</Bubble>
-      <Bubble>
-        Sorted. {fmtRange(range.start, range.end)} you're on <b>{base ? Math.round(base.kcal + kcalDelta) : '–'} kcal</b>
-        {kcalDelta ? <>, about {Math.abs(kcalDelta)} {kcalDelta > 0 ? 'more' : 'less'} than usual</> : null}, {DATA_SAY[preset.data]}.
-        {preset.data !== 'full' ? ' I won\'t nag you for the scale, and I won\'t read anything into your first weigh-in after.' : ''}
-      </Bubble>
-      <div className="flex gap-2">
-        <Btn kind="ghost" onClick={() => { setStep('what'); setKind(null); setAccept(null); }}>Start again</Btn>
-        <Btn kind="accent" className="flex-1" onClick={save}>Sounds good</Btn>
-      </div>
-    </>}
+  // 5. What they'd be happy with. The one dial that actually moves calories.
+  if (step === 'rate') return (<div className="fade-in">
+    {high.length > 0 && <Bubble from="you">{high.length} big day{high.length === 1 ? '' : 's'}</Bubble>}
+    <Bubble>I'd normally aim for {Math.abs(p.rateKgPerWeek || 0.5)} kg a week. On a week like this, what would you be happy with?</Bubble>
+    <Choices options={acceptOptions(p)} onPick={(v) => { setAccept(v); setStep('done'); }} />
+  </div>);
+
+  // 6. What it comes to, before committing.
+  const dayKcal = (iso) => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal)) : null;
+  return (<div className="fade-in">
+    <Bubble from="you">{accept === 0 ? 'Just hold steady' : accept + ' kg'}</Bubble>
+    <Bubble>
+      Sorted. {fmtRange(range.start, range.end)}, {DATA_SAY[preset.data]}.
+      {preset.data !== 'full' ? " I won't nag you for the scale, and I won't read anything into your first weigh-in after." : ''}
+    </Bubble>
+    {base && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+      {spanDays.length <= 8
+        ? <div className="grid grid-cols-4 gap-1.5">{spanDays.map(d => {
+            const hi = high.includes(d);
+            return <div key={d} className="text-center">
+              <div className="text-[9px] text-[#8A8A90]">{new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}</div>
+              <div className="text-[12px] tnum font-semibold" style={{ color: hi ? 'var(--accent)' : 'var(--text)' }}>{dayKcal(d)}</div>
+            </div>;
+          })}</div>
+        : <div className="text-[13px] tnum">About {dayKcal(range.start)} kcal a day</div>}
+    </div>}
+    <div className="flex gap-2">
+      <Btn kind="ghost" onClick={() => { setStep('any'); setKind(null); setAccept(null); setHigh([]); setShowRest(false); }}>Start again</Btn>
+      <Btn kind="accent" className="flex-1" onClick={save}>Sounds good</Btn>
+    </div>
   </div>);
 }
-
-
 
 // The dashboard strip while a declared window is running or easing back.
 function WeekPlanBanner({ db, onOpen }) {
@@ -2916,7 +2961,10 @@ function CheckInModal({ db, update, onClose, resume }) {
   // old sheet stacked inline (the trend panel, the chart, lean mass, burn, coverage) now lives behind
   // a single "Show me the numbers" on the beat it belongs to, so the detail is one tap away for the
   // people who want it and invisible for the people who don't.
-  const beats = ['hello', 'weight', 'adherence', 'reading', 'verdict', 'ahead'];
+  // 'verdict' is only a beat when there is actually a decision to make. When nothing changes it
+  // said the same thing the reading beat had just said, so the read now carries the outcome itself.
+  const needsVerdict = !!(result && result.status === 'proposed' && result.changed && !result.accepted);
+  const beats = ['hello', 'weight', 'adherence', 'reading'].concat(needsVerdict ? ['verdict'] : [], ['ahead']);
   if (pendingLoop) beats.unshift('loop');
   const beatIdx = beats.indexOf(phase);
   const go = (b) => setPhase(b);
@@ -3074,7 +3122,22 @@ function CheckInModal({ db, update, onClose, resume }) {
           {result.laneSwitched === 'weightOnly' && <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none', borderLeft: '4px solid var(--fat)' }}>
             <div className="text-[12.5px] leading-snug">Your log and your scale have disagreed twice running, so from here I steer by the scale. Nothing you did wrong, it is the most common thing in tracking.</div>
           </div>}
-          <Btn kind="accent" className="w-full" onClick={() => go('verdict')}>Continue</Btn>
+          {needsVerdict
+            ? <Btn kind="accent" className="w-full" onClick={() => go('verdict')}>What that means for my macros</Btn>
+            : (<>
+              <div className="pixel-box p-3 mb-4 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-1">Staying on</div>
+                <div className="text-xl font-bold tnum">{(result.accepted && result.newTargets ? result.newTargets.kcal : baseMac.kcal)} kcal</div>
+              </div>
+              {result.plateau && result.plateau.plateau && (() => {
+                const dbStat = dietBreakStatus(db, today);
+                return <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                  <div className="text-[12.5px] leading-snug mb-2">Your cut looks stalled: {result.plateau.cycles} cycles of little movement. A week at maintenance usually gets it going again.</div>
+                  {dbStat.eligible && <Btn kind="ghost" className="w-full text-sm" onClick={() => { update(d => { d.diet_break = { start: today, end: shiftISO(today, 6), returnGoal: d.profile.goalType }; d.diet_break_snooze = null; }); onClose(); }}>Start a 7-day diet break</Btn>}
+                </div>;
+              })()}
+              <Btn kind="accent" className="w-full" onClick={() => go('ahead')}>Continue</Btn>
+            </>)}
         </div>}
 
         {/* 6. The decision, and the only place numbers get stacked, because that IS the answer. */}

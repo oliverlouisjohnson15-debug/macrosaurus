@@ -62,6 +62,38 @@ test('no plan means no shift at all', () => {
   assert.equal(E.planKcalDelta(null, cutter), 0);
 });
 
+// ---- big days inside a window ----------------------------------------------------------------
+test('a big day is paid for by the other days in the window', () => {
+  // 5-day window, one high day, 25% boost on a 2000 kcal base = +500 on the day.
+  const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.5 });
+  const hi = E.planDayDelta(pl, cutter, '2026-08-12', 2000);
+  const lo = E.planDayDelta(pl, cutter, '2026-08-11', 2000);
+  assert.equal(hi, 500, 'the big day gets the boost');
+  assert.equal(lo, -125, 'the other four days each give up a quarter of it');
+  // And it nets to zero across the window, so the agreed rate still lands.
+  const total = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14']
+    .reduce((s, d) => s + E.planDayDelta(pl, cutter, d, 2000), 0);
+  assert.equal(total, 0);
+});
+
+test('a big day stacks on top of an eased rate without cancelling it', () => {
+  const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.25 });
+  // Flat shift is +275 for the whole window; the big day adds its boost on top.
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-12', 2000), 275 + 500);
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-11', 2000), 275 - 125);
+});
+
+test('no big days means the flat window shift, unchanged', () => {
+  const pl = plan({ acceptRateKgPerWeek: 0.25 });
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-12', 2000), E.planKcalDelta(pl, cutter));
+});
+
+test('a single-day window that IS the big day just gets the flat shift', () => {
+  // Nothing left to pay for it, so the boost is dropped rather than inventing calories.
+  const pl = plan({ start: '2026-08-12', end: '2026-08-12', highDays: ['2026-08-12'], acceptRateKgPerWeek: 0.25 });
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-12', 2000), 275);
+});
+
 test('recovery runs for as long as the window did, capped at a week', () => {
   const ps = [plan()]; // 5 days, so a 5-day ease-back
   assert.ok(E.planRecoveryOn(ps, '2026-08-15'), 'day after the window');
