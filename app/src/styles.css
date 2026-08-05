@@ -55,6 +55,10 @@
      are the same colour; the light theme is where they part company. */
   --accent-ink: #39FF14;
   --on-header-accent: #39FF14;  /* header is pure black in this theme, so the neon is already 15:1 */
+  /* On black the neon set is already far apart and far from the ground, so the marks keep it. */
+  --tone-good: #39FF14;
+  --tone-warn: #FFB020;
+  --tone-bad: #FF5555;
   --good-ink: #39FF14;
   --danger-ink: #FF5555;
   --pro-ink: #39FF14;
@@ -111,6 +115,14 @@
      bright originals keep their real job: filling meters, tiles and buttons, where they are seen
      and not read. */
   --accent-ink: #9A5B00;     /* gold as type: 5.4:1 on white, 4.6:1 on the greys */
+  /* The good / middling / poor trio, as MARKS. The old set (#17A398, #9A5B00, #C4271E) put the
+     middling and poor colours 1.0 apart in OKLab under deuteranopia, which is one man in twelve
+     seeing one colour where the chart shows two, and only 12.0 apart for normal vision, under the
+     15 floor. Re-stepped, the same three hues clear every check: CVD separation 9.0 deutan and
+     12.7 tritan, normal vision 16.0, all three over 3:1 against the surface. */
+  --tone-good: #0B8C7E;
+  --tone-warn: #A87200;
+  --tone-bad: #B3261E;
   --on-header-accent: #FFD84D;  /* the SAME gold going the other way, for type on the purple bar:
                                    darkening it there would hide it, so it lightens to 4.9:1 */
   --good-ink: #0D6B64;       /* teal as type: 6.4:1 */

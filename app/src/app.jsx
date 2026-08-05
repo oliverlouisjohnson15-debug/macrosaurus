@@ -1934,7 +1934,11 @@ function HabitGrid({ days, color }) {
 // Each active day is a fossil you uncovered (a Macrodex catch), so the grid doubles as a picture of
 // how much of your collection you have earned. Tile = neither / logged or weighed / both.
 function ConsistencyHeatmap({ db, today }) {
-  const WEEKS = 12, N = WEEKS * 7;
+  // Twelve weeks is 84 cells and 340px of card, and on a young account eleven of them have anything
+  // in them. Four weeks tells the same story in a third of the height; the full twelve is one tap
+  // away for anyone who wants the long view.
+  const [full, setFull] = useState(false);
+  const WEEKS = full ? 12 : 4, N = WEEKS * 7;
   const logSet = new Set(db.log_entries.map(e => e.date));
   const weighSet = new Set(db.weight_entries.map(w => w.date));
   const start = shiftISO(today, -(N - 1));
@@ -1952,20 +1956,30 @@ function ConsistencyHeatmap({ db, today }) {
     <Card className="p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <span className="pf text-[9px] uppercase text-[#8A8A90] inline-flex items-center gap-1.5"><PixelEgg size={13} color="var(--good)" /> Consistency</span>
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">Last {WEEKS} wks</span>
+        <span className="pf text-[8px] uppercase text-[#8A8A90]">Last {WEEKS} weeks</span>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
         <span className="text-2xl font-bold tnum" style={{ color: 'var(--good-ink)' }}>{activeDays}</span>
-        <span className="text-[10px] text-[#8A8A90] leading-tight">active days,<br />each one hatched a catch</span>
+        <span className="text-[10px] text-[#8A8A90] leading-tight">active days</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateRows: 'repeat(7, 1fr)', gridAutoFlow: 'column', gap: '3px' }}>
-        {cells.map((d, i) => <div key={i} title={d || ''} style={{ aspectRatio: '1 / 1', background: d ? colorFor(level(d)) : 'transparent', boxShadow: d && level(d) > 0 ? 'inset -1px -1px 0 rgba(0,0,0,0.22)' : 'none' }} />)}
-      </div>
-      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-3 text-[10px] text-[#8A8A90]">
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--track)' }} /> none</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--carb)' }} /> one</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 inline-block" style={{ background: 'var(--good)' }} /> logged and weighed</span>
-        <span className="ml-auto tnum">This cycle: {cov.logged}/{cov.logWindow} logged · {cov.weighed}/{cov.weighWindow} weighed</span>
+      {/* The cell is sized, not the column. On 1fr columns a square cell grows as the grid narrows,
+          so asking for four weeks instead of twelve made the card TALLER, 592px against 340. Capped
+          at 22px it stays a small block of days at any range. */}
+      {(() => {
+        const cols = Math.ceil(cells.length / 7);
+        const cell = Math.max(9, Math.min(14, Math.floor((295 - (cols - 1) * 3) / cols)));
+        return <div style={{ display: 'grid', gridTemplateRows: `repeat(7, ${cell}px)`, gridTemplateColumns: `repeat(${cols}, ${cell}px)`, gridAutoFlow: 'column', gap: '3px' }}>
+          {cells.map((d, i) => <div key={i} title={d || ''} style={{ background: d ? colorFor(level(d)) : 'transparent', boxShadow: d && level(d) > 0 ? 'inset -1px -1px 0 rgba(0,0,0,0.22)' : 'none' }} />)}
+        </div>;
+      })()}
+      {/* The legend was a row of its own explaining three colours that the line below it describes in
+          words anyway. Both jobs fit on one line. */}
+      <div className="flex items-center justify-between gap-3 mt-2.5">
+        <span className="text-[10px] text-[#8A8A90] tnum">
+          <span className="w-2 h-2 inline-block mr-1" style={{ background: 'var(--carb)' }} />{cov.logged}/{cov.logWindow} logged
+          <span className="w-2 h-2 inline-block mr-1 ml-2.5" style={{ background: 'var(--good)' }} />{cov.weighed}/{cov.weighWindow} weighed
+        </span>
+        <TextBtn onClick={() => setFull(v => !v)} className="shrink-0">{full ? '4 weeks' : '12 weeks'}</TextBtn>
       </div>
     </Card>
   );
@@ -2054,6 +2068,10 @@ function fmtWeightDelta(kg, unit, suffix) {
 function TrendCard({ db }) {
   const [tab, setTab] = useState('weight');
   const [range, setRange] = useState(90);
+  // Twelve permanently-visible controls sat above a 150px plot: a metric row and a range row, both
+  // pinned open whether or not you wanted anything other than the default. They fold into one
+  // "Change" link on the chart's own footer, which is where a chart's settings belong.
+  const [settings, setSettings] = useState(false);
   const unit = db.profile.weight_unit;
   const today = Store.todayISO();
   const cut = range === 'all' ? '0000-00-00' : shiftISO(today, -range);
@@ -2098,9 +2116,6 @@ function TrendCard({ db }) {
   const deltaGood = (delta == null || delta === 0) ? null : (tab === 'bodyfat' ? delta < 0 : tab === 'lean' ? delta > 0 : db.profile.goalType === 'gain' ? delta > 0 : db.profile.goalType === 'cut' ? delta < 0 : true);
   return (
     <Card className="p-4 mb-6">
-      <div className="flex gap-1 mb-3 bg-[#1E1E22] p-1 rounded-2xl text-[12px]">
-        {[['weight', 'Weight'], ['bodyfat', 'Body Fat'], ['lean', 'Lean Mass']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}
-      </div>
       {tab === 'bodyfat' && window.MISPREMIUM === false && (
         <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
           <div className="min-w-0 flex-1">
@@ -2117,20 +2132,31 @@ function TrendCard({ db }) {
           <div className="text-[11px] text-[#8A8A90] leading-relaxed max-w-[16rem] mx-auto">{tab === 'weight' ? 'Log today’s weight with the button above, or when your buddy asks on Today, and your trend line starts building right here.' : tab === 'bodyfat' ? 'Add a body-fat % with any weigh-in and it’ll chart here over time.' : 'Log a weight and a body-fat % on the same day to see your lean mass tracked here.'}</div>
         </div>
       ) : <>
-      <div className="flex items-end justify-between mb-1 px-0.5">
-        <div>
-          <span className="text-2xl font-bold tnum">{headLast ? headLast.value : '–'}</span><span className="text-[11px] text-[#8A8A90] ml-1">{tab === 'bodyfat' ? '%' : yl}</span>
-          <div className="text-[10px] text-[#8A8A90] tnum">{tab === 'weight' ? 'trend weight today' : tab === 'bodyfat' ? 'body-fat trend' : 'lean mass'}{last ? ` · last reading ${last.value}${tab === 'bodyfat' ? '%' : ' ' + yl}` : ''}</div>
-        </div>
-        {delta != null && <div className="text-right"><div className="text-[13px] font-semibold tnum" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{deltaStr}</div><div className="text-[10px] text-[#8A8A90]">{rangeLabel}</div></div>}
+      {/* The headline figure lived here AND on the button above AND as a "last reading" suffix, three
+          statements of the same weight inside 130px. It is stated once now, on the verdict card, so
+          this line only has to carry what the chart adds: how much it moved over the range shown. */}
+      <div className="flex items-baseline justify-between gap-3 mb-1 px-0.5">
+        <span className="pf text-[9px] uppercase text-[#8A8A90]">{tab === 'weight' ? 'Trend weight' : tab === 'bodyfat' ? 'Body fat' : 'Lean mass'}</span>
+        {/* The range belongs on the footer next to the control that changes it, not in both places. */}
+        {delta != null && <span className="text-[13px] font-semibold tnum shrink-0" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{deltaStr}</span>}
       </div>
       <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
       <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
-      <div className="flex items-center justify-between mt-2">
-        <div className="flex gap-1">{[['W', 7], ['M', 30], ['3M', 90], ['6M', 180], ['Y', 365], ['All', 'all']].map(([l, v]) => <button key={l} onClick={() => setRange(v)} className={`px-2 py-1 rounded-lg text-[11px] ${range === v ? 'bg-white text-black font-semibold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}>{l}</button>)}</div>
-        <div className="text-[10px] text-[#8A8A90]">{tab === 'bodyfat' ? '%' : yl}</div>
-      </div>
       </>}
+      {/* Outside the has-data branch on purpose: a metric with no readings still needs the control
+          that gets you back to one that has some. Inside it, picking Body fat on an account without
+          any was a dead end with no way out of the card. */}
+      <div className="flex items-center justify-between gap-3 mt-2">
+        <span className="text-[10px] text-[#8A8A90]">{rangeLabel}{tab === 'weight' ? '' : tab === 'bodyfat' ? ' · body fat' : ' · lean mass'}</span>
+        <TextBtn onClick={() => setSettings(v => !v)} aria-expanded={settings} className="shrink-0">{settings ? 'Done' : 'Change'}</TextBtn>
+      </div>
+      {settings && <div className="fade-in mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Show</div>
+        <Seg value={tab} onChange={setTab} options={[{ v: 'weight', l: 'Weight' }, { v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }]} />
+        <div className="pf text-[9px] uppercase text-[#8A8A90] mt-3 mb-1.5">Over</div>
+        <div className="flex gap-1.5 flex-wrap">{[['Week', 7], ['Month', 30], ['3 months', 90], ['6 months', 180], ['Year', 365], ['All', 'all']].map(([l, v]) =>
+          <button key={l} onClick={() => setRange(v)} className="pixel-box px-2.5 py-1.5 text-[11px]" style={{ boxShadow: 'none', background: range === v ? 'var(--accent)' : 'var(--surface2)', color: range === v ? 'var(--on-accent)' : 'var(--text)', fontWeight: range === v ? 700 : 400 }}>{l}</button>)}</div>
+      </div>}
     </Card>
   );
 }
@@ -3656,26 +3682,121 @@ function DensityWeekCard({ db }) {
     </Card>
   );
 }
-function ProgressPanel({ db, update, onWeigh }) {
-  const [view, setView] = useState('graph');
-  const tabs = [['graph', 'Graph'], ['daily', 'Weigh-ins'], ['checkins', 'Check-ins']];
+/* ---------- the verdict ----------------------------------------------------------------------
+   The Progress tab exists to answer one question, "am I on track", and until now it answered it at
+   pixel 1,399: a 10px grey figure sharing a card with Daily Burn, under a divider, on the second
+   screenful. Everything needed for the answer was already on the screen, just scattered across
+   three cards and never actually compared to the plan. This does the comparison. */
+// Weekly rate from the TREND line, not the scale, over the last three weeks. The trend is what the
+// app already acts on everywhere else, and three weeks is long enough that one salty Sunday cannot
+// swing the verdict.
+function trendRateKgPerWeek(db, days) {
+  const val = e => (e.trend_weight != null ? e.trend_weight : e.scale_weight);
+  const ents = (db.weight_entries || []).filter(e => val(e) != null).sort((a, b) => a.date.localeCompare(b.date));
+  if (ents.length < 2) return null;
+  const end = ents[ents.length - 1];
+  const cut = shiftISO(end.date, -(days || 21));
+  const within = ents.filter(e => e.date >= cut);
+  const start = within.length >= 2 ? within[0] : ents[0];
+  const span = daysBetween(start.date, end.date);
+  if (span < 7) return null; // a week is the shortest span worth calling a rate
+  return ((val(end) - val(start)) / span) * 7;
+}
+function progressVerdict(db) {
+  const p = db.profile || {};
+  const rate = trendRateKgPerWeek(db, 21);
+  if (rate == null) return null;
+  const goal = p.goalType;
+  const target = goal === 'cut' ? -Math.abs(p.rateKgPerWeek || 0) : goal === 'gain' ? Math.abs(p.rateKgPerWeek || 0) : 0;
+  const val = e => (e.trend_weight != null ? e.trend_weight : e.scale_weight);
+  const ents = (db.weight_entries || []).filter(e => val(e) != null).sort((a, b) => a.date.localeCompare(b.date));
+  const nowKg = val(ents[ents.length - 1]);
+  // "Near enough" is 0.15 kg/wk, the same order as the deadband the check-in engine uses before it
+  // will move your calories. Below that we are reading noise, and the honest answer is "on plan".
+  const NEAR = 0.15;
+  let tone = 'good', headline;
+  if (goal === 'maintain') {
+    if (Math.abs(rate) <= NEAR) headline = 'Holding steady';
+    else { tone = 'warn'; headline = rate > 0 ? 'Drifting up' : 'Drifting down'; }
+  } else {
+    const wanted = Math.abs(target), got = (goal === 'cut' ? -rate : rate); // progress in the goal's direction
+    if (Math.abs(got - wanted) <= NEAR) headline = 'On plan';
+    else if (got < wanted - NEAR) { tone = got <= 0 ? 'bad' : 'warn'; headline = got <= 0 ? 'Going the wrong way' : 'Behind plan'; }
+    else { tone = got > wanted * 2 ? 'warn' : 'good'; headline = got > wanted * 2 ? 'Faster than planned' : 'Ahead of plan'; }
+  }
+  // Weeks to the goal weight, only when the trend is actually pointed at it.
+  let weeksToGoal = null;
+  if (p.goalWeightKg > 0 && Math.abs(rate) > 0.05) {
+    const need = p.goalWeightKg - nowKg;
+    if ((need < 0) === (rate < 0)) weeksToGoal = Math.max(1, Math.round(need / rate));
+  }
+  return { rate, target, goal, nowKg, headline, tone, weeksToGoal, goalWeightKg: p.goalWeightKg };
+}
+function VerdictCard({ db, onWeigh }) {
+  const v = progressVerdict(db);
+  const unit = (db.profile || {}).weight_unit;
   const today = Store.todayISO();
   const todays = (db.weight_entries || []).find(w => w.date === today && w.scale_weight != null);
+  const color = !v ? 'var(--text)' : v.tone === 'good' ? 'var(--good-ink)' : v.tone === 'warn' ? 'var(--fat-ink)' : 'var(--danger-ink)';
+  // Magnitude only. The sentence already says "Losing" or "Gaining", and fmtWeightDelta would put a
+  // "+" in front of it.
+  const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
+  const rateStr = v ? mag(v.rate) : '';
+  const tgtStr = v ? mag(v.target) : '';
+  return (<Card className="p-4 mb-3">
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">This cycle</div>
+    {v ? <>
+      <div className="text-[19px] font-bold leading-tight" style={{ color }}>{v.headline}</div>
+      <div className="text-[12px] text-[#8A8A90] leading-relaxed mt-1.5">
+        {v.goal === 'maintain'
+          ? <>Your trend is moving {rateStr} a week. You are aiming to hold steady.</>
+          : <>{v.rate < 0 ? 'Losing' : v.rate > 0 ? 'Gaining' : 'Holding at'} <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{rateStr}</span> a week against a target of <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{tgtStr}</span>.</>}
+        {v.weeksToGoal != null && <> At this rate you reach <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{fmtWeight(v.goalWeightKg, unit)}</span> in about <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{v.weeksToGoal}</span> week{v.weeksToGoal === 1 ? '' : 's'}.</>}
+      </div>
+    </> : <div className="text-[12px] text-[#8A8A90] leading-relaxed">Weigh in for a week or so and this will tell you whether your plan is working, and how far off you are if it is not.</div>}
+    {/* The weight, once. It used to be stated three times inside 130px: a button caption, a headline
+        figure and a "last reading" suffix, all 83 kg. */}
+    <div className="flex items-end justify-between gap-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
+      <div>
+        <span className="text-2xl font-bold tnum">{v ? fmtWeight(v.nowKg, unit) : '–'}</span>
+        <div className="text-[10px] text-[#8A8A90] mt-0.5">trend weight{todays ? ' · weighed today' : ''}</div>
+      </div>
+      {onWeigh && !todays && <button onClick={onWeigh} className="pixel-btn px-3 py-2 text-[10px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN</button>}
+    </div>
+  </Card>);
+}
+function ProgressPanel({ db, update, onWeigh }) {
+  // Weigh-ins and Check-ins were tabs in this strip, which is what forced the strip to exist. They
+  // are LOGS, lists of past records, not views of a chart, and sitting in the chart's own tab bar
+  // they made you step past two rows of switches on every visit to look at a graph. They live behind
+  // one link now, and the strip is gone.
+  const [history, setHistory] = useState(null);
   return (
     <div className="mb-2">
-      {onWeigh && (
-        <button onClick={onWeigh} className="pixel-btn w-full py-2.5 mb-3" style={{ background: todays ? 'var(--surface2)' : 'var(--accent)', color: todays ? 'var(--text)' : 'var(--on-accent)' }}>
-          <span className="pf text-[9px]">{todays ? 'WEIGHED TODAY · ' + fmtWeight(todays.scale_weight, db.profile.weight_unit).toUpperCase() : "LOG TODAY'S WEIGHT"}</span>
-        </button>
-      )}
-      <div className="flex gap-1 mb-3 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-        {tabs.map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 py-2 ${view === k ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>{l}</button>)}
+      <TrendCard db={db} />
+      <DensityWeekCard db={db} />
+      <div className="flex items-center gap-4 mb-5">
+        <TextBtn onClick={() => setHistory('daily')}>Weigh-in history</TextBtn>
+        <TextBtn onClick={() => setHistory('checkins')}>Past check-ins</TextBtn>
       </div>
-      {view === 'graph' && <><TrendCard db={db} /><DensityWeekCard db={db} /></>}
-      {view === 'daily' && <WeighInLog db={db} update={update} />}
-      {view === 'checkins' && <CheckInHistory db={db} />}
+      {history && <FullSheet title={history === 'daily' ? 'Weigh-ins' : 'Check-ins'} onClose={() => setHistory(null)}>
+        {history === 'daily' ? <WeighInLog db={db} update={update} /> : <CheckInHistory db={db} />}
+      </FullSheet>}
     </div>
   );
+}
+// A plain full-screen layer with a header and a back button, for content that is a list rather than
+// a decision. Matches the Edit plan sheet so the two read as the same kind of place.
+function FullSheet({ title, onClose, children }) {
+  useBackClose(onClose);
+  return (<div className="fixed inset-0 z-[85] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+      <button onClick={onClose} className="pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}>‹ Back</button>
+      <div className="pf text-[10px] uppercase" style={{ color: 'var(--header-text)' }}>{title}</div>
+      <span className="w-10" />
+    </div>
+    <div className="flex-1 overflow-y-auto px-5 pt-5 max-w-md lg:max-w-2xl mx-auto w-full" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>{children}</div>
+  </div>);
 }
 
 function ExpenditureCard({ db }) {
@@ -3727,9 +3848,9 @@ function ExpenditureCard({ db }) {
         <div className="pf text-[8px] text-[#8A8A90]">DAILY BURN</div>
         <span className="pf text-[7px] px-2 py-1 shrink-0" style={{ color: confColor, border: '2px solid ' + confColor }}>{confLabel}</span>
       </div>
-      {/* Plain-English explanation of the number. */}
-      <div className="text-[11px] text-[#8A8A90] leading-relaxed mb-3">The calories your body actually burns a day, learned from your intake and how your weight moves, not a formula guess.</div>
-      {/* Hero figure with a single honest range (replaces the old duplicated "± band" and "Range" lines). */}
+      {/* The number leads. Five lines of explanation used to run before it, every time, on a card
+          whose whole job is to show one figure, and the disclosure that explains it is two lines
+          below anyway. The one-line gloss stays because "burn" alone is ambiguous. */}
       <div className="flex items-baseline gap-2">
         <span className="text-4xl tnum" style={{ color: 'var(--hero)' }}>{est.tdee.toLocaleString()}</span>
         <span className="text-[11px] text-[#8A8A90]">kcal / day</span>
@@ -3753,11 +3874,6 @@ function ExpenditureCard({ db }) {
           </div>}
         </>;
       })()}
-      {/* Weight trend on its own labelled row so it isn't mistaken for the burn figure. */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262629]">
-        <span className="pf text-[8px] text-[#8A8A90]">WEIGHT TREND</span>
-        <span className="text-[12px] tnum font-semibold" style={{ color: est.direction === 'flat' ? 'var(--good-ink)' : 'var(--text)' }}>{est.direction === 'flat' ? 'holding steady' : fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>
-      </div>
       {(() => {
         // Burn history: TDEE learned at each past check-in (persisted as ci.tdee going forward;
         // older check-ins fall back to the adaptive targets history), ending on today's live figure.
@@ -8247,7 +8363,9 @@ function FractionChips({ value, onPick }) {
 // Quality is a STATE, so it wears the status ramp (good / warn / danger) and never a macro's
 // identity colour. Using --fat for "middling" put food quality in the same magenta the fat meter
 // owns two rows above it, which reads as a relationship that does not exist.
-const TONE_VAR = { good: 'var(--good)', warn: 'var(--warn)', danger: 'var(--danger)', muted: 'var(--muted)' };
+// Marks, not type: the colour a density bar, tile or meter block is painted. Validated as a trio
+// for colour-vision separation, which the previous set failed on the middling/poor pair.
+const TONE_VAR = { good: 'var(--tone-good)', warn: 'var(--tone-warn)', danger: 'var(--tone-bad)', muted: 'var(--muted)' };
 function densityColor(score) { return TONE_VAR[E.densityTone(score)]; }
 // The compact form of a food's Density Score, for lists: the diary, saved foods, anywhere a food is
 // named in a row. Deliberately just the number, since a row is not the place to explain it, and it
@@ -9274,30 +9392,35 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <PageHeader kicker="What you're working towards" title="Progress" />
 
+      {/* The answer, first. It used to be at pixel 1,399. */}
+      <VerdictCard db={db} onWeigh={onWeigh} />
+
+      {/* Progress: the full weight trend, weigh-in log, check-in history and live burn estimate.
+          Moved here from the dashboard so Home stays a quick daily glance. The second "Progress"
+          heading that used to sit here was the page title again, 200px below the page title. */}
+      <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
+
+      {/* A check-in is an ACTION, not a reading, so it gets a line rather than a card. The three
+          sentences explaining what a check-in does ran every time you opened the tab, which is a
+          tutorial that never finishes. They live in the check-in itself, where they are the answer
+          to a question you have just asked. */}
       {!db.paused && (() => {
-        const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
         // A full week, not five days. Offering the button at five is what produced cycles too short
         // to read: people check in when invited, and the shorter the window the more one salty day
         // dominates it.
-        const ready = daysSince >= 7, due = daysSince >= 7;
-        return <Card className="p-4 mb-5">
+        const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
+        const ready = daysSince >= 7;
+        return <Card className="p-3.5 mb-5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Weekly check-in</div>
-              <div className="text-[13px] font-bold">{due ? 'Due now' : ready ? 'Ready when you are' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
-              <div className="text-[10px] text-[#8A8A90]">{(db.profile || {}).weighCadence === 'single'
-                ? 'Your weigh-in and your weekly read in one go. Nothing changes until you approve it.'
-                : 'Reads the week you’ve already weighed and suggests a small tweak. Nothing changes until you approve it.'}</div>
+              <div className="pf text-[9px] uppercase text-[#8A8A90]">Weekly check-in</div>
+              <div className="text-[12.5px] font-bold mt-0.5">{ready ? 'Due now' : `Next in ${7 - daysSince} day${7 - daysSince === 1 ? '' : 's'}`}</div>
             </div>
             <Btn kind={ready ? 'accent' : 'ghost'} disabled={!ready} style={{ opacity: ready ? 1 : .5 }} onClick={onCheckIn}>Check in</Btn>
           </div>
         </Card>;
       })()}
 
-      {/* Progress: the full weight trend, weigh-in log, check-in history and live burn estimate.
-          Moved here from the dashboard so Home stays a quick daily glance. */}
-      <div className="text-lg font-bold mb-3">Progress</div>
-      <ProgressPanel db={db} update={update} onWeigh={onWeigh} />
       <ExpenditureCard db={db} />
       <div className="mb-6"><ConsistencyHeatmap db={db} today={today} /></div>
 
