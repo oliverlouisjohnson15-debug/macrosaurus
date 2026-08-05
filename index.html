@@ -1555,10 +1555,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var minDays = opts.minDays || 5;
     var periodDays = opts.periodDays || (opts.estimate && opts.estimate.days) || 7;
     if (!wOnly && opts.adherenceDays < minDays) {
-      return { changed: false, reason: 'Only ' + opts.adherenceDays + '/' + periodDays + ' days logged this cycle. I\'ll hold your targets. Log a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
+      return { changed: false, reason: 'You logged ' + opts.adherenceDays + ' days out of ' + periodDays + ', which isn\'t quite enough for me to read properly, so I\'m holding your targets rather than guessing. Give me a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
     }
     if (!wOnly && opts.estimate.tdee < bmr * 1.05) {
-      return { changed: false, underReportFlagged: true, reason: 'Your numbers imply an expenditure (' + opts.estimate.tdee + ' kcal) near or below your BMR (' + round(bmr) + '), which usually means food was under-logged. Trusting your weight trend and holding targets this cycle.', estimate: opts.estimate };
+      return { changed: false, underReportFlagged: true, reason: 'Going by your log you\'d be burning less than your body needs just to keep the lights on, which almost always means a few things went under-logged rather than anything being wrong with you. It happens to everyone. I\'ll go by your weigh-ins this cycle and hold your targets.', estimate: opts.estimate };
     }
     // Cap each check-in's move PROPORTIONAL to estimated burn (bigger person / bigger adaptation ->
     // bigger allowed step; ~10% of TDEE, 150-350 kcal), THEN scale that by how confident this cycle's
@@ -1591,7 +1591,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       return { changed: false, direction: 'unchanged', holdWithinNoise: true, deltaKcal: 0, confidence: confidence,
         expectedKgPerWeek: round(profile.goalType === 'cut' ? -Math.abs(profile.rateKgPerWeek || 0) : profile.goalType === 'gain' ? Math.abs(profile.rateKgPerWeek || 0) : 0, 2),
         actualKgPerWeek: round(actual0, 3), expenditure: smoothed,
-        reason: 'Holding steady, your current ' + currentKcal + ' kcal target is within measurement noise of the ideal (' + round(desiredKcal) + ' kcal). No change worth making.', estimate: opts.estimate };
+        reason: 'That\'s near enough spot on. Nudging your ' + currentKcal + ' either way would be chasing noise rather than fat, so I\'m leaving it exactly where it is.', estimate: opts.estimate };
     }
     var fullCap = clamp(round(0.10 * (burnRef || currentKcal)), 150, 350);
     var adjCap = clamp(round(fullCap * (0.5 + 0.5 * conf)), 100, 350);
@@ -1638,7 +1638,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       } else {
         why = actual < 0 ? 'You\'re meant to hold steady but you\'re drifting down, so to stop the slide I\'m adding ' : 'You\'re meant to hold steady but you\'re drifting up, so to bring it back I\'m trimming ';
       }
-      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, to ' + newKcalR + ' kcal. (' + (wOnly ? 'Your weigh-ins point' : 'Your food and weight point') + ' to burning ~' + round(burnRef) + ' kcal a day.) Protein stays ' + newTargets.protein_g + ' g.';
+      reason = 'You\'re ' + actualStr + '. ' + why + deltaR + ' kcal, so ' + newKcalR + ' a day from here. ' + (wOnly ? 'Your weigh-ins put' : 'Your food and your weight together put') + ' your burn at around ' + round(burnRef) + ' a day, and protein stays at ' + newTargets.protein_g + ' g.';
     }
     return { changed: dir !== 'unchanged', direction: dir, deltaKcal: round(cappedDelta), adjCap: round(adjCap), confidence: confidence, expectedKgPerWeek: round(expected, 2), actualKgPerWeek: round(actual, 3), newTargets: newTargets, reason: reason, estimate: opts.estimate, expenditure: smoothed };
   }
@@ -1661,7 +1661,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     function rt(kg) { return unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(2) + ' kg'; }
     var actualStr = actual < -0.02 ? 'losing ' + rt(actual) + '/wk' : actual > 0.02 ? 'gaining ' + rt(actual) + '/wk' : 'holding steady';
     if (opts.adherenceDays < minDays) {
-      return { changed: false, earlyPhase: true, reason: 'Only ' + opts.adherenceDays + '/' + periodDays + ' days logged this cycle, so I\'m holding your targets. Log a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
+      return { changed: false, earlyPhase: true, reason: 'You logged ' + opts.adherenceDays + ' days out of ' + periodDays + ', which isn\'t quite enough to read properly, so I\'m holding your targets. Give me a fuller cycle and I\'ll dial them in.', estimate: opts.estimate };
     }
     // Only act on a CLEAR deviation past target (>0.25 kg/wk), and only in the "eat more" direction this
     // early, so noisy first-week data can never over-cut you.
