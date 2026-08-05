@@ -6532,10 +6532,16 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         : a === 'resume' ? () => onWeigh('resume')
         : a === 'weigh' ? () => onWeigh(true)
         : a === 'checkin' ? onCheckIn
-        : (a === 'cadence_daily' || a === 'cadence_single') ? () => update(d => { d.profile = d.profile || {}; d.profile.weighCadence = a === 'cadence_daily' ? 'daily' : 'single'; })
+        // These nudges write the SAME fields Settings owns, so they announce themselves and say
+        // where the setting lives. A silent write from a nudge is a second, hidden settings screen.
+        : (a === 'cadence_daily' || a === 'cadence_single') ? () => {
+            const daily = a === 'cadence_daily';
+            update(d => { d.profile = d.profile || {}; d.profile.weighCadence = daily ? 'daily' : 'single'; });
+            showToast && showToast((daily ? 'Weighing most mornings now.' : 'Weighing once a week now.') + ' Change it any time in Settings, Check-ins & weigh-ins.');
+          }
         // The weekly weigh day, picked from the buddy's day row. Storing it is what lets the ask
         // arrive on the right morning instead of every morning.
-        : a.indexOf('weighday_') === 0 ? () => { const dayIdx = +a.slice(9); update(d => { d.profile = d.profile || {}; d.profile.weighDay = dayIdx; }); showToast && showToast('Weigh-in day set to ' + DOW_FULL[dayIdx] + '. I’ll ask that morning.'); }
+        : a.indexOf('weighday_') === 0 ? () => { const dayIdx = +a.slice(9); update(d => { d.profile = d.profile || {}; d.profile.weighDay = dayIdx; }); showToast && showToast('Weigh-in day set to ' + DOW_FULL[dayIdx] + '. I’ll ask that morning, and you can change it in Settings, Check-ins & weigh-ins.'); }
         : a === 'log' ? () => onQuickAdd(false)
         : a === 'cook' ? () => { snoozeKey(btn.key); setView('recipes'); }
         : a === 'cook_fridge' ? () => { snoozeKey(btn.key); onOpenFridge(); }
@@ -6917,6 +6923,9 @@ function FoodLog({ db, update, openLog, showToast }) {
           {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
             <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
             {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
+            {/* The reciprocal pointer. Settings explains that per-day edits don't touch the default;
+                until now the Food log never said the default existed. */}
+            <div className="text-[11px] text-[#8A8A90] px-4 py-2 leading-snug" style={{ borderTop: '1px solid #262629' }}>Meal changes here apply to this day only. Settings, Default meals sets the layout for every new day.</div>
           </div>}
         </div>
       </div>
@@ -8677,8 +8686,67 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
 /* =====================================================================
    MORE (personal details + settings)
    ===================================================================== */
-function SaveBar({ dirty, saved, onSave, label }) {
-  return <div className="mt-1 mb-2"><Btn kind="accent" className="w-full" disabled={!dirty && !saved} style={{ opacity: (dirty || saved) ? 1 : .5 }} onClick={onSave}>{saved ? <><Tick size={11} /> Saved</> : (label || 'Save changes')}</Btn></div>;
+/* =====================================================================
+   SETTINGS SHELL
+   One overview of grouped rows, each opening ONE focused screen. Two levels, never three.
+
+   Save model: every low-risk control applies the moment it changes and flashes "Saved". The two
+   exceptions both write a DATED TARGET ROW rather than a preference (body details, custom calories
+   and macros), so they keep an explicit commit. The rule a user learns in one encounter is
+   "if it changes my numbers, it asks".
+   ===================================================================== */
+
+// The confirmation for instant-apply controls. A save you cannot see is a save the user does not
+// trust, so every commit flashes. Reserves its own height so nothing jumps when it appears.
+function SavedFlash({ tick }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (!tick) return undefined;
+    setShow(true);
+    const t = setTimeout(() => setShow(false), 1500);
+    return () => clearTimeout(t);
+  }, [tick]);
+  return (<div className="h-4 mb-2 text-[11px] flex items-center gap-1.5" aria-live="polite" style={{ color: 'var(--good)', opacity: show ? 1 : 0, transition: 'opacity .25s' }}>{show ? <><Tick size={9} /> Saved</> : null}</div>);
+}
+// Instant apply: write through, then flash. Typed inputs commit on blur rather than per keystroke,
+// so a half-typed number never reaches the store or the sync queue.
+function useCommit(update) {
+  const [tick, setTick] = useState(0);
+  return [(fn) => { update(fn); setTick(t => t + 1); }, tick];
+}
+// A row on the overview: what it is, and what it is currently set to. The status line is the whole
+// point of the overview - it answers most settings questions without a tap.
+function SettingsRow({ label, status, onClick, last }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left active:scale-[.99] transition" style={{ borderBottom: last ? 'none' : '2px solid var(--border)' }}>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold">{label}</span>
+        {status && <span className="block text-[11.5px] text-[#8A8A90] mt-0.5 leading-snug">{status}</span>}
+      </span>
+      <span className="text-[#8A8A90] shrink-0 text-lg leading-none">&rsaquo;</span>
+    </button>
+  );
+}
+function SettingsGroup({ title, children }) {
+  return (<div className="mb-5">
+    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 px-1">{title}</div>
+    <div className="pixel-box" style={{ background: 'var(--card)' }}>{children}</div>
+  </div>);
+}
+// One level down from the overview, and never a level below that.
+function SubScreen({ title, intro, onBack, children }) {
+  useBackClose(onBack);
+  return (<div className="fade-in">
+    <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent)' }}>&lsaquo; Settings</button>
+    <h1 className="pf text-lg mb-2">{title}</h1>
+    {intro && <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">{intro}</div>}
+    {children}
+  </div>);
+}
+// A heading inside a subscreen. Two features can share a screen when they answer the same question,
+// but they get a real heading between them rather than a hairline rule.
+function SubHead({ children, className = '' }) {
+  return <div className={'pf text-[9px] uppercase text-[#8A8A90] mb-2 ' + className}>{children}</div>;
 }
 
 const COACH_MODES = [
@@ -8686,6 +8754,43 @@ const COACH_MODES = [
   { v: 'collaborative', l: 'Approve', d: 'We suggest a change at each check-in and you approve it or stick with your current macros. A middle ground with you in the loop.' },
   { v: 'manual', l: 'Manual', d: 'We never change your macros for you. You read the trends and adjust your goal yourself whenever you want.' },
 ];
+const PLAN_PRESETS = [
+  { id: 'even', label: 'Even', highDays: [] },
+  { id: 'weekend', label: 'Weekend', highDays: [0, 6] },
+  { id: 'training', label: 'Training', highDays: [1, 3, 5] },
+  { id: 'custom', label: 'Custom', highDays: null },
+];
+// The check-in window the cycling spread settles over: the current cycle, capped at 7 days so an
+// overdue check-in cannot stretch it.
+function cycWindowStart(d) {
+  const today = Store.todayISO();
+  const floor = shiftISO(today, -6);
+  const cs = d.last_checkin || floor;
+  return cs < floor ? floor : cs;
+}
+// Editing the high/low pattern is a DATED change: the new plan starts today and the outgoing one
+// stays on the days it actually ran, so days already eaten keep the targets they were logged
+// against. Instant apply runs this on every change, exactly as the old Save button did once.
+function applyCycling(d, next) {
+  const pend = pendingCyclingChange(d, next, Store.todayISO(), cycWindowStart(d));
+  if (pend) { d.profile.cyclingChangedAt = Store.todayISO(); d.profile.cyclingHistory = pend.history; }
+  d.profile.cycling = next;
+}
+// Meals are unioned by id across devices, so a removal needs a tombstone or the union resurrects it.
+function writeMeals(d, list) {
+  const keepIds = list.map(m => m.id);
+  const removedIds = (d.meal_templates || []).map(m => m.id).filter(id => keepIds.indexOf(id) === -1);
+  if (removedIds.length) tombstone(d, removedIds);
+  d.meal_templates = list.map((m, i) => {
+    const ex = (d.meal_templates || []).find(x => x.id === m.id);
+    return Object.assign({}, ex || { id: m.id, user_id: Store.USER }, { name: (m.name || '').trim() || 'Meal', sort_order: i });
+  });
+}
+function activePresetOf(cyc) {
+  const hi = (cyc && cyc.enabled) ? (cyc.highDays || []).slice().sort((a, b) => a - b) : [];
+  const key = JSON.stringify(hi);
+  return hi.length === 0 ? 'even' : key === '[0,6]' ? 'weekend' : key === '[1,3,5]' ? 'training' : 'custom';
+}
 
 // A one-tap "pull fresh data now" button. Google Health already auto-syncs on app open and on a slow
 // interval, but this bypasses the throttle for an on-demand refresh. Shares the exact merge path the
@@ -8754,296 +8859,170 @@ function GhDebug({ db, update }) {
     </details>
   );
 }
-function SettingsTab({ db, update }) {
-  const p = db.profile;
-  const init = () => ({ checkinDay: p.checkinDay == null ? 1 : p.checkinDay, weight_unit: p.weight_unit, height_unit: p.height_unit, aiKey: p.aiKey || '', reminders: p.reminders !== false, nudgeHour: p.nudgeHour == null ? 14 : p.nudgeHour, theme: p.theme || 'light', stepGoal: p.stepGoal || '' });
-  const [s, setS] = useState(init);
-  const sset = (k, v) => setS(x => Object.assign({}, x, { [k]: v }));
-  const [saved, setSaved] = useState(false);
-  const [confirmDel, setConfirmDel] = useState(null);
-  // Web Push opt-in for this device (separate from the in-app banner below).
-  const [pushOn, setPushOn] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
-  const [pushMsg, setPushMsg] = useState('');
-  useEffect(() => { let ok = true; pushStatus().then(v => { if (ok) setPushOn(v); }); return () => { ok = false; }; }, []);
-  async function togglePush() {
-    setPushMsg('');
-    if (pushOn) { setPushBusy(true); await pushDisable(); setPushOn(false); setPushBusy(false); return; }
-    setPushBusy(true);
-    try { await pushEnable(s.nudgeHour); setPushOn(true); }
-    catch (e) {
-      const m = e && e.message;
-      setPushMsg(m === 'denied' ? 'Notifications are blocked. Allow them for this site in your browser settings, then try again.'
-        : m === 'signedout' ? 'Sign in first to turn on push reminders.'
-        : m === 'unsupported' ? 'This browser does not support push notifications.'
-        : 'Could not turn on push reminders. Please try again.');
-    }
-    setPushBusy(false);
-  }
-  // Default meals are staged locally and committed on Save, so editing a meal name
-  // flips the Save button just like every other setting on this tab.
-  const initMeals = () => db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order).map(m => ({ id: m.id, name: m.name }));
-  const [dm, setDm] = useState(initMeals);
-  const mealsChanged = JSON.stringify(dm) !== JSON.stringify(initMeals());
-  const dirty = mealsChanged || JSON.stringify(s) !== JSON.stringify(init());
-  function save() {
-    update(d => {
-      Object.assign(d.profile, s);
-      // Normalise the two Google Health targets: blank means "use the automatic default".
-      const sg = Math.round(+s.stepGoal) || 0; if (sg > 0) d.profile.stepGoal = sg; else delete d.profile.stepGoal;
-      delete d.profile.sleepTargetMin; // sleep is scored against the science (7-9h), not an editable target
-      // Tombstone any meal removed in the editor so the deletion survives a cross-device merge
-      // (meal_templates is unioned by id now, so without a tombstone the union would resurrect it).
-      const keepIds = dm.map(m => m.id);
-      const removedIds = (d.meal_templates || []).map(m => m.id).filter(id => keepIds.indexOf(id) === -1);
-      if (removedIds.length) tombstone(d, removedIds);
-      d.meal_templates = dm.map((m, i) => { const ex = d.meal_templates.find(x => x.id === m.id); return Object.assign({}, ex || { id: m.id, user_id: Store.USER }, { name: (m.name || '').trim() || 'Meal', sort_order: i }); });
-    });
-    if (pushOn) pushSyncHour(s.nudgeHour);
-    setSaved(true); setTimeout(() => setSaved(false), 1800);
-  }
-  const renameDef = (id, name) => setDm(a => a.map(x => x.id === id ? Object.assign({}, x, { name }) : x));
-  const addDef = () => setDm(a => a.concat([{ id: Store.uid(), name: 'Meal ' + (a.length + 1) }]));
-  const removeDef = (id) => setDm(a => a.filter(x => x.id !== id));
-  const moveDef = (id, dir) => setDm(a => { const i = a.findIndex(x => x.id === id); const j = dir < 0 ? i - 1 : i + 1; if (j < 0 || j >= a.length) return a; const b = a.slice(); const t = b[i]; b[i] = b[j]; b[j] = t; return b; });
-  return (<>
-    <Section title="Appearance">
-      <Field label="Theme" hint="Dark is neon-on-black; Light is Game Boy Color.">
-        <Seg value={s.theme} onChange={v => sset('theme', v)} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> GB Color</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark GB</span> }]} />
-      </Field>
-      <Field label="Weight units"><Seg value={s.weight_unit} onChange={v => sset('weight_unit', v)} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
-      <Field label="Height units"><Seg value={s.height_unit} onChange={v => sset('height_unit', v)} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
-    </Section>
-    <Section title="Connected apps">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Auto-sync your daily steps and sleep from Google Health. Read-only. Steps feed your dashboard, coaching and egg; a good night's sleep draws a creature into your dex each morning.</div>
-      {(() => {
-        const gh = db.googleHealth;
-        if (!ghConfigured()) return <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>;
-        if (gh && gh.connected) return (
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Google Health connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
-              <div className="flex items-center gap-2">
-                <GhResyncButton db={db} update={update} />
-                <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false, disconnectedAt: new Date().toISOString() }; }); }}>Disconnect</Btn>
-              </div>
-            </div>
-            <GhDebug db={db} update={update} />
-          </div>
-        );
-        return <Btn kind="accent" className="w-full" onClick={ghConnectGated}>Connect Google Health</Btn>;
-      })()}
-    </Section>
-    <Section title="Daily targets">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Set your own daily step goal. Leave blank to use the automatic default from your activity level. Your sleep score isn't set here, it's scored against the science (adults need 7-9 hours a night).</div>
-      <Field label="Step goal" hint={'Blank uses your activity level (' + (withActivity(p).avgSteps || 0).toLocaleString('en-GB') + '/day).'}>
-        <NumInput value={s.stepGoal} onChange={e => sset('stepGoal', e.target.value)} placeholder={String(withActivity(p).avgSteps || 8000)} />
-      </Field>
-    </Section>
-    <Section title="Meals">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Your default meals for each new day. Set the standard layout here, you can still add, remove or reorder meals on any individual day in the Food log without changing this default.</div>
-      {dm.map((m, i) => (
-        <div key={m.id} className="flex items-center gap-2 mb-2">
-          <div className="flex flex-col -my-1 shrink-0">
-            <button onClick={() => moveDef(m.id, -1)} disabled={i === 0} style={{ opacity: i === 0 ? 0.25 : 1 }} className="hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5" title="Move up">▲</button>
-            <button onClick={() => moveDef(m.id, 1)} disabled={i === dm.length - 1} style={{ opacity: i === dm.length - 1 ? 0.25 : 1 }} className="hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5" title="Move down">▼</button>
-          </div>
-          <TextInput value={m.name} onChange={e => renameDef(m.id, e.target.value)} />
-          <button onClick={() => setConfirmDel(m)} disabled={dm.length <= 1} style={{ opacity: dm.length <= 1 ? 0.3 : 1 }} className="hit px-2 text-[#8A8A90] text-lg leading-none shrink-0" title="Remove">×</button>
-        </div>
-      ))}
-      <button onClick={addDef} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1">+ Add default meal</button>
-    </Section>
-    <Section title="Notifications">
-      <Field label="Check-in day" hint="Your preferred weekly check-in day. Once a check-in unlocks (day 5 of the cycle), the dashboard nudges you on and after this day. The day-5 gate stays the source of truth.">
-        <div className="flex gap-1.5">{DOW.map((d, i) => <button key={i} onClick={() => sset('checkinDay', i)} className={`flex-1 pixel-box py-2 text-[11px] ${s.checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>)}</div>
-      </Field>
-      {pushSupported()
-        ? <>
-            <RowToggle label="Push reminders (your buddy nudges you to log)" on={pushOn} onClick={togglePush} />
-            {pushBusy && <div className="text-[12px] text-[#8A8A90] mb-1">Working...</div>}
-            {pushMsg && <div className="text-[12px] mb-1" style={{ color: 'var(--fat)' }}>{pushMsg}</div>}
-            {!pushOn && !pushBusy && pushNeedsInstall() && <div className="text-[12px] text-[#8A8A90] mb-1">On iPhone or iPad, add Macrosaurus to your Home Screen first (Share, then Add to Home Screen) to receive push reminders.</div>}
-          </>
-        : <div className="text-[12px] text-[#8A8A90] mb-2">This browser does not support push notifications. The in-app banner below still works.</div>}
-      <RowToggle label="Also show an in-app nudge banner when I open the app" on={s.reminders} onClick={() => sset('reminders', !s.reminders)} />
-      {(pushOn || s.reminders) && <Field label="Nudge after" hint="On a day you have not logged food or weighed in, before a miss would spend your monthly streak freeze. Sets both the push reminder (fires around this hour) and the in-app banner (shows when you next open the app).">
-        <Dropdown value={s.nudgeHour} onChange={v => sset('nudgeHour', +v)} options={[12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({ v: h, l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am') }))} />
-      </Field>}
-    </Section>
-    {p.sex === 'female' && (() => {
-      const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
-      const setM = (patch) => update(d => { d.menstrual = Object.assign({ enabled: false, lastStart: null, cycleLen: 28 }, d.menstrual, patch); });
-      const ph = m.enabled ? E.menstrualPhase(m, Store.todayISO()) : null;
-      return <Collapsible label="Menstrual cycle">
-        <div className="text-[12px] text-[#8A8A90] mb-3">Optional. If you track this, Macrosaurus expects the water-weight rise in the week before your period and will not cut your calories on it, so a normal premenstrual bump on the scale does not throw off your plan.</div>
-        <RowToggle label="Track my cycle" on={!!m.enabled} onClick={() => setM({ enabled: !m.enabled })} />
-        {m.enabled && <>
-          <Field label="Last period start">
-            <input type="date" className={inputCls} value={m.lastStart || ''} max={Store.todayISO()} onChange={e => setM({ lastStart: e.target.value || null })} />
-            <button onClick={() => setM({ lastStart: Store.todayISO() })} className="text-[12px] text-[#4A9EEB] mt-1.5">My period started today</button>
-          </Field>
-          <Field label={`Average cycle length: ${m.cycleLen || 28} days`}>
-            <input type="range" min="21" max="40" step="1" value={m.cycleLen || 28} onChange={e => setM({ cycleLen: +e.target.value })} className="w-full accent-[#4A9EEB]" />
-          </Field>
-          {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : ph.lowWater ? 'var(--good)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase.{ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.'}</div>}
-        </>}
-      </Collapsible>;
-    })()}
-    <Section title="AI food logging">
-      <div className="text-[13px] text-[var(--text)] mb-1">AI is built in. No setup needed.</div>
-      <div className="text-[12px] text-[#8A8A90]">Label scanning, photo meal estimates and the Describe tab all just work. Each account gets a monthly AI allowance; if you ever hit it, it resets on the 1st of the month.</div>
-    </Section>
-    <SaveBar dirty={dirty} saved={saved} onSave={save} label="Save settings" />
-    {confirmDel && <ConfirmDialog title={'Remove ' + confirmDel.name + '?'} body="This removes it from your default meals for new days once you Save. Days you've already set up won't change." confirmLabel="Remove" onConfirm={() => removeDef(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
-  </>);
+
+/* ---------- subscreens ---------- */
+
+// Promoted to the first row in the app: it decides whether the plan adapts at all, and a setting
+// that consequential must not sit behind a label that discourages opening it.
+function CoachingScreen({ db, update, onBack }) {
+  const [commit, tick] = useCommit(update);
+  const mode = db.profile.program_mode;
+  return (<SubScreen title="Coaching" onBack={onBack} intro="Whether Macrosaurus adjusts your numbers at each check-in, or leaves them exactly where you set them.">
+    <SavedFlash tick={tick} />
+    <Seg value={mode} onChange={v => commit(d => { d.profile.program_mode = v; })} options={COACH_MODES.map(m => ({ v: m.v, l: m.l }))} />
+    <div className="mt-3 space-y-2">{COACH_MODES.map(m => (
+      <div key={m.v} className={`pixel-box px-3 py-2.5 text-[12px] transition ${mode === m.v ? 'bg-[#1E1E22]' : 'opacity-45'}`} style={{ boxShadow: 'none' }}>
+        <span className="font-semibold">{m.l}.</span> <span className="text-[#8A8A90]">{m.d}</span>
+      </div>))}</div>
+  </SubScreen>);
 }
 
-function AdvancedTab({ db, update }) {
-  const p = db.profile; const base = currentTargets(db);
-  // Any day can be retuned at any time, including one whose weekday has already run this week. The
-  // days already eaten keep the plan they ran under, and the days LEFT in this check-in period take
-  // up the difference (E.cyclingSpread), so three low days followed by an all-high rest-of-week
-  // still lands the window where it was meant to. The window is the current cycle (last check-in),
-  // capped at 7 days so an overdue check-in can't stretch it.
-  const cycToday = Store.todayISO();
-  const cycStart = (() => { const floor = shiftISO(cycToday, -6); const cs = db.last_checkin || floor; return cs < floor ? floor : cs; })();
-  const initCarry = () => ({ enabled: !!(p.carryover && p.carryover.enabled), mode: (p.carryover && p.carryover.mode) || 'aggressive', capKcal: (p.carryover && p.carryover.capKcal) || 400 });
-  const initCyc = () => ({ enabled: !!(p.cycling && p.cycling.enabled), highDays: (p.cycling && p.cycling.highDays) || [], deltaPct: (p.cycling && p.cycling.deltaPct) || 0.15 });
-  const [carry, setCarry] = useState(initCarry);
-  const [cyc, setCyc] = useState(initCyc);
-  const [manual, setManual] = useState({ enabled: false, kcal: base ? base.kcal : '', protein_g: base ? base.protein_g : '', carbs_g: base ? base.carbs_g : '', fat_g: base ? base.fat_g : '' });
-  const mset = (k, v) => setManual(m => Object.assign({}, m, { [k]: v }));
-  const [coach, setCoach] = useState(p.program_mode);
-  const [weigh, setWeigh] = useState(p.weighCadence || 'daily');
-  // Which morning a once-a-week weigher wants to be asked. Seeded from their check-in day (a weekly
-  // weigh-in belongs on the day their plan is read), so the picker always shows a real choice rather
-  // than an empty row. The buddy reads this to know which morning to ask on.
-  const [weighDay, setWeighDay] = useState(p.weighDay != null ? p.weighDay : (p.checkinDay != null ? p.checkinDay : weekdayIdx(Store.todayISO())));
-  const [saved, setSaved] = useState(false);
-  const dirty = manual.enabled || coach !== p.program_mode || weigh !== (p.weighCadence || 'daily')
-    || (weigh === 'single' && weighDay !== p.weighDay) || JSON.stringify({ carry, cyc }) !== JSON.stringify({ carry: initCarry(), cyc: initCyc() });
-  function save() {
-    update(d => {
-      // Editing the high/low pattern is a DATED change: the new plan starts today and the outgoing
-      // one stays on the days it actually ran, so days already eaten keep the targets they were
-      // logged against instead of being restated by a plan set after the fact. The change also
-      // records what it owes the rest of this window, so the week still adds up.
-      const pend = pendingCyclingChange(d, cyc, Store.todayISO(), cycStart);
-      if (pend) {
-        d.profile.cyclingChangedAt = Store.todayISO();
-        d.profile.cyclingHistory = pend.history;
-      }
-      d.profile.carryover = carry; d.profile.cycling = cyc; d.profile.program_mode = coach;
-      // Only write cadence once it's been set or actively changed, so an untouched existing user stays
-      // "unset" and still gets the one-time onboarding prompt rather than a silent default.
-      if (p.weighCadence != null || weigh !== 'daily') d.profile.weighCadence = weigh;
-      if (weigh === 'single') d.profile.weighDay = weighDay;
-      if (manual.enabled) {
-        const kcal = Math.round(+manual.kcal || 0);
-        if (kcal > 0) { const cur = currentTargets(d) || {}; d.targets.push({ id: Store.uid(), effective_date: Store.todayISO(), source: 'manual', kcal, protein_g: Math.round(+manual.protein_g || 0), carbs_g: Math.round(+manual.carbs_g || 0), fat_g: Math.round(+manual.fat_g || 0), estimatedTDEE: cur.estimatedTDEE }); }
-      }
-    });
-    setManual(m => Object.assign({}, m, { enabled: false }));
-    setSaved(true); setTimeout(() => setSaved(false), 1800);
-  }
-  // Quick shapes for the week. "Even" turns cycling off; the rest set canned high days. The weekday
-  // grid stays editable underneath, so hand-tuning just lands you on "Custom".
-  const PLAN_PRESETS = [
-    { id: 'even', label: 'Even', highDays: [] },
-    { id: 'weekend', label: 'Weekend', highDays: [0, 6] },
-    { id: 'training', label: 'Training', highDays: [1, 3, 5] },
-    { id: 'custom', label: 'Custom', highDays: null },
-  ];
-  // What the pending edit would owe the rest of this week, computed the same way the save writes it,
-  // so the note under the grid is the number that actually lands.
-  const pendingSpread = (() => { const pd = pendingCyclingChange(db, cyc, cycToday, cycStart); return pd ? pd.spreadKcal : 0; })();
-  const sortedHi = cyc.enabled ? cyc.highDays.slice().sort((a, b) => a - b) : [];
-  const hiKey = JSON.stringify(sortedHi);
-  const activePreset = sortedHi.length === 0 ? 'even' : hiKey === '[0,6]' ? 'weekend' : hiKey === '[1,3,5]' ? 'training' : 'custom';
+// Two features, one screen: they answer the same question ("how do my calories sit across the
+// week?"), so they share a screen with a real heading between them.
+function WeeklyShapeScreen({ db, update, onBack }) {
+  const [commit, tick] = useCommit(update);
+  const p = db.profile, base = currentTargets(db);
+  const cyc = Object.assign({ enabled: false, highDays: [], deltaPct: 0.15 }, p.cycling);
+  const carry = Object.assign({ enabled: false, mode: 'aggressive', capKcal: 400 }, p.carryover);
+  const setCyc = (patch) => commit(d => applyCycling(d, Object.assign({}, cyc, patch)));
+  const setCarry = (patch) => commit(d => { d.profile.carryover = Object.assign({}, carry, patch); });
+  const activePreset = activePresetOf(cyc);
   const pickPreset = (id) => {
-    if (id === 'even') setCyc(c => Object.assign({}, c, { enabled: false, highDays: [] }));
-    else if (id === 'custom') setCyc(c => Object.assign({}, c, { enabled: true, highDays: c.highDays && c.highDays.length ? c.highDays : [6] }));
-    else { const pr = PLAN_PRESETS.find(x => x.id === id); setCyc(c => Object.assign({}, c, { enabled: true, highDays: pr.highDays.slice() })); }
+    if (id === 'even') setCyc({ enabled: false, highDays: [] });
+    else if (id === 'custom') setCyc({ enabled: true, highDays: (cyc.highDays && cyc.highDays.length) ? cyc.highDays : [6] });
+    else setCyc({ enabled: true, highDays: PLAN_PRESETS.find(x => x.id === id).highDays.slice() });
   };
-  return (<>
-    <div className="text-[12px] text-[#8A8A90] mb-4">How your targets are set and adjusted. The defaults work great, so tune these only if you want to.</div>
-    <Section title="Coaching mode">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Whether Macrosaurus adjusts your numbers at each check-in, or leaves them exactly where you set them.</div>
-      <Seg value={coach} onChange={setCoach} options={COACH_MODES.map(m => ({ v: m.v, l: m.l }))} />
-      <div className="mt-3 space-y-2">{COACH_MODES.map(m => (<div key={m.v} className={`pixel-box px-3 py-2.5 text-[12px] transition ${coach === m.v ? 'bg-[#1E1E22]' : 'opacity-45'}`} style={{ boxShadow: 'none' }}><span className="font-semibold">{m.l}.</span> <span className="text-[#8A8A90]">{m.d}</span></div>))}</div>
-    </Section>
-    <Collapsible label="Weekly plan">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.</div>
-      <div className="text-[11px] text-[#8A8A90] mb-2">Shape your week</div>
-      <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>)}</div>
-      {!cyc.enabled && pendingSpread !== 0 && <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">Days you've already eaten this week keep the plan they ran under, so the days you have left take {pendingSpread > 0 ? '+' : ''}{pendingSpread} kcal each to settle the week.</div>}
-      {cyc.enabled && <div className="mt-3">
-        <div className="text-[11px] text-[#8A8A90] mb-2">Your high days. The rest come down to keep the weekly total the same.</div>
-        <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => { const on = cyc.highDays.includes(i); return <button key={i} onClick={() => setCyc(c => Object.assign({}, c, { highDays: on ? c.highDays.filter(x => x !== i) : c.highDays.concat([i]) }))} className={`flex-1 pixel-box py-2 text-[11px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>; })}</div>
-        <Field label={`High-day boost: +${Math.round(cyc.deltaPct * 100)}%`}><input type="range" min="5" max="35" value={Math.round(cyc.deltaPct * 100)} onChange={e => setCyc(c => Object.assign({}, c, { deltaPct: +e.target.value / 100 }))} className="w-full accent-[#4A9EEB]" /></Field>
-        {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => { const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal); const hi = cyc.highDays.includes(i); return <div key={i} className="text-center"><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>; })}</div>}
-        <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.{pendingSpread ? ` To land this week where it was meant to, the days you have left take ${pendingSpread > 0 ? '+' : ''}${pendingSpread} kcal each on top.` : ''}</div>
-      </div>}
-      <div className="h-px bg-[#262629] my-4" />
-      <RowToggle label="Even out over the week" on={carry.enabled} onClick={() => setCarry(c => Object.assign({}, c, { enabled: !c.enabled }))} />
-      {carry.enabled && <>
-        <div className="text-[11px] text-[#8A8A90] mt-2 mb-2">Go over or under, and the difference gets made up. Choose when.</div>
-        <Field label="How to make it up"><Seg value={carry.mode} onChange={v => setCarry(c => Object.assign({}, c, { mode: v }))} options={[{ v: 'dispersed', l: 'Across the week' }, { v: 'aggressive', l: 'Onto the next day' }]} /></Field>
-        <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mb-3.5">
-          {carry.mode === 'dispersed'
-            ? <><span className="font-semibold">Across the week</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your running surplus or deficit spreads evenly over the days you have left. Gentle: one big day barely nudges any single day.</span></>
-            : <><span className="font-semibold">Onto the next day.</span> <span className="text-[#8A8A90]">Your whole running surplus or deficit lands on the next day, capped below. Quicker to clear, bigger day-to-day swings.</span></>}
-        </div>
-        <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever you pick."><input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry(c => Object.assign({}, c, { capKcal: +e.target.value }))} className="w-full accent-[#4A9EEB]" /></Field>
-      </>}
-      <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
-    </Collapsible>
-    <Section title="Weigh-ins">
-      <div className="text-[12px] text-[#8A8A90] mb-3">How often you step on the scale. Your check-in reads the trend either way.</div>
-      <Seg value={weigh} onChange={setWeigh} options={[{ v: 'daily', l: 'Most mornings' }, { v: 'single', l: 'Once a week' }]} />
-      <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mt-3">
-        {weigh === 'daily'
-          ? <><span className="font-semibold">Most mornings</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your buddy asks first thing each morning and averages out the daily wobble for the most accurate read.</span></>
-          : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Your buddy only asks on the day you pick below. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
+  const spread = (() => { const pd = pendingCyclingChange(db, cyc, Store.todayISO(), cycWindowStart(db)); return pd ? pd.spreadKcal : 0; })();
+  return (<SubScreen title="Weekly shape" onBack={onBack} intro="Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.">
+    <SavedFlash tick={tick} />
+    <SubHead>Shape your week</SubHead>
+    <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => (
+      <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>))}</div>
+    {!cyc.enabled && spread !== 0 && <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">Days you've already eaten this week keep the plan they ran under, so the days you have left take {spread > 0 ? '+' : ''}{spread} kcal each to settle the week.</div>}
+    {cyc.enabled && <div className="mt-3">
+      <div className="text-[11px] text-[#8A8A90] mb-2">Your high days. The rest come down to keep the weekly total the same.</div>
+      <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => {
+        const on = cyc.highDays.includes(i);
+        return <button key={i} onClick={() => setCyc({ highDays: on ? cyc.highDays.filter(x => x !== i) : cyc.highDays.concat([i]) })} className={`flex-1 pixel-box py-2 text-[11px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>;
+      })}</div>
+      <Field label={`High-day boost: +${Math.round(cyc.deltaPct * 100)}%`}>
+        <input type="range" min="5" max="35" value={Math.round(cyc.deltaPct * 100)} onChange={e => setCyc({ deltaPct: +e.target.value / 100 })} className="w-full accent-[#4A9EEB]" />
+      </Field>
+      {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => {
+        const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal);
+        const hi = cyc.highDays.includes(i);
+        return <div key={i} className="text-center"><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>;
+      })}</div>}
+      <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}</div>
+    </div>}
+
+    <div className="h-px bg-[#262629] my-5" />
+    <SubHead>Evening out an off day</SubHead>
+    <RowToggle label="Even out over the week" on={carry.enabled} onClick={() => setCarry({ enabled: !carry.enabled })} />
+    {carry.enabled && <>
+      <div className="text-[11px] text-[#8A8A90] mt-2 mb-2">Go over or under, and the difference gets made up. Choose when.</div>
+      <Field label="How to make it up">
+        <Seg value={carry.mode} onChange={v => setCarry({ mode: v })} options={[{ v: 'dispersed', l: 'Across the week' }, { v: 'aggressive', l: 'Onto the next day' }]} />
+      </Field>
+      <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mb-3.5">
+        {carry.mode === 'dispersed'
+          ? <><span className="font-semibold">Across the week</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your running surplus or deficit spreads evenly over the days you have left. Gentle: one big day barely nudges any single day.</span></>
+          : <><span className="font-semibold">Onto the next day.</span> <span className="text-[#8A8A90]">Your whole running surplus or deficit lands on the next day, capped below. Quicker to clear, bigger day-to-day swings.</span></>}
       </div>
-      {/* The day the weekly ask lands on. Without it the buddy would either nag daily or never ask. */}
-      {weigh === 'single' && (
-        <div className="mt-3">
-          <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Weigh-in day</div>
-          <div className="flex gap-1.5">
-            {DOW.map((d, i) => (
-              <button key={d} onClick={() => setWeighDay(i)} className={`flex-1 pixel-box py-2 text-[11px] ${weighDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>
-            ))}
-          </div>
-          <div className="text-[11px] text-[#8A8A90] mt-2">I'll ask for your weight on {DOW_FULL[weighDay]} morning, and stay quiet the rest of the week.</div>
-        </div>
-      )}
-    </Section>
-    <Collapsible label="Custom calories & macros">
-      <div className="text-[12px] text-[#8A8A90] mb-3">Ignore the engine and set your own numbers. Heads up: in Coached mode a check-in can still change these, so set Coaching mode to Manual above to lock them.</div>
-      <RowToggle label="Set my own targets" on={manual.enabled} onClick={() => mset('enabled', !manual.enabled)} />
-      {manual.enabled && <div className="grid grid-cols-2 gap-3">
-        <Field label="Calories"><NumInput value={manual.kcal} onChange={e => mset('kcal', e.target.value)} /></Field>
-        <Field label="Protein (g)"><NumInput value={manual.protein_g} onChange={e => mset('protein_g', e.target.value)} /></Field>
-        <Field label="Carbs (g)"><NumInput value={manual.carbs_g} onChange={e => mset('carbs_g', e.target.value)} /></Field>
-        <Field label="Fat (g)"><NumInput value={manual.fat_g} onChange={e => mset('fat_g', e.target.value)} /></Field>
-      </div>}
-    </Collapsible>
-    <SaveBar dirty={dirty} saved={saved} onSave={save} label="Save advanced settings" />
-  </>);
+      <Field label={`Daily cap: ±${carry.capKcal} kcal`} hint="The most any single day can shift, whichever you pick.">
+        <input type="range" min="100" max="800" step="50" value={carry.capKcal} onChange={e => setCarry({ capKcal: +e.target.value })} className="w-full accent-[#4A9EEB]" />
+      </Field>
+    </>}
+    <div className="text-[11px] text-[#8A8A90] mt-4 leading-snug">You don't have to be perfect day to day. Your check-in retunes from what you actually ate.</div>
+  </SubScreen>);
 }
 
-function ProfileTab({ db, update, onFreshStart }) {
+// Check-in day finally sits next to the two settings it seeds, instead of under Notifications.
+function CheckinsScreen({ db, update, onBack }) {
+  const [commit, tick] = useCommit(update);
+  const p = db.profile;
+  const checkinDay = p.checkinDay == null ? 1 : p.checkinDay;
+  const weigh = p.weighCadence || 'daily';
+  const weighDay = p.weighDay != null ? p.weighDay : checkinDay;
+  return (<SubScreen title="Check-ins & weigh-ins" onBack={onBack} intro="When your plan gets read, and how often you step on the scale. Your check-in reads the trend either way.">
+    <SavedFlash tick={tick} />
+    <Field label="Check-in day" hint="Once a check-in unlocks (day 5 of the cycle), the dashboard nudges you on and after this day. The day-5 gate stays the source of truth.">
+      <div className="flex gap-1.5">{DOW.map((d, i) => (
+        <button key={i} onClick={() => commit(x => { x.profile.checkinDay = i; })} className={`flex-1 pixel-box py-2 text-[11px] ${checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
+    </Field>
+    <div className="h-px bg-[#262629] my-5" />
+    <SubHead>Weigh-ins</SubHead>
+    <Seg value={weigh} onChange={v => commit(x => { x.profile.weighCadence = v; if (v === 'single' && x.profile.weighDay == null) x.profile.weighDay = weighDay; })} options={[{ v: 'daily', l: 'Most mornings' }, { v: 'single', l: 'Once a week' }]} />
+    <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629] mt-3">
+      {weigh === 'daily'
+        ? <><span className="font-semibold">Most mornings</span> <span className="text-[var(--good)]">· recommended.</span> <span className="text-[#8A8A90]">Your buddy asks first thing each morning and averages out the daily wobble for the most accurate read.</span></>
+        : <><span className="font-semibold">Once a week.</span> <span className="text-[#8A8A90]">Your buddy only asks on the day you pick below. Less faff, though one reading is noisier, so we steer a little more cautiously.</span></>}
+    </div>
+    {weigh === 'single' && (<div className="mt-3">
+      <SubHead>Weigh-in day</SubHead>
+      <div className="flex gap-1.5">{DOW.map((d, i) => (
+        <button key={d} onClick={() => commit(x => { x.profile.weighDay = i; })} className={`flex-1 pixel-box py-2 text-[11px] ${weighDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
+      <div className="text-[11px] text-[#8A8A90] mt-2">I'll ask for your weight on {DOW_FULL[weighDay]} morning, and stay quiet the rest of the week.</div>
+    </div>)}
+  </SubScreen>);
+}
+
+// One of the two explicit-commit screens: it writes a dated target row, which is a record rather
+// than a preference. The coached-mode conflict is resolved inline instead of narrated.
+function MacrosScreen({ db, update, onBack }) {
+  const base = currentTargets(db) || {};
+  const p = db.profile;
+  const [own, setOwn] = useState(false);
+  const [m, setM] = useState({ kcal: base.kcal || '', protein_g: base.protein_g || '', carbs_g: base.carbs_g || '', fat_g: base.fat_g || '' });
+  const [alsoManual, setAlsoManual] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const mset = (k, v) => setM(x => Object.assign({}, x, { [k]: v }));
+  const coached = p.program_mode !== 'manual';
+  function apply() {
+    const kcal = Math.round(+m.kcal || 0);
+    if (kcal <= 0) return;
+    update(d => {
+      const cur = currentTargets(d) || {};
+      d.targets.push({ id: Store.uid(), effective_date: Store.todayISO(), source: 'manual', kcal, protein_g: Math.round(+m.protein_g || 0), carbs_g: Math.round(+m.carbs_g || 0), fat_g: Math.round(+m.fat_g || 0), estimatedTDEE: cur.estimatedTDEE });
+      if (coached && alsoManual) d.profile.program_mode = 'manual';
+    });
+    setOwn(false); setSaved(true); setTimeout(() => setSaved(false), 2200);
+  }
+  return (<SubScreen title="Calories & macros" onBack={onBack} intro="Today's numbers, and the option to set your own instead.">
+    <Card className="p-5 mb-4">
+      <Row2 k="Calories" v={base.kcal != null ? Math.round(base.kcal) + ' kcal' : '–'} />
+      <Row2 k="Protein" v={base.protein_g != null ? Math.round(base.protein_g) + ' g' : '–'} />
+      <Row2 k="Carbs" v={base.carbs_g != null ? Math.round(base.carbs_g) + ' g' : '–'} />
+      <Row2 k="Fat" v={base.fat_g != null ? Math.round(base.fat_g) + ' g' : '–'} last />
+    </Card>
+    {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good)' }}>Saved. Your own numbers are live from today.</div>}
+    <RowToggle label="Set my own targets" on={own} onClick={() => setOwn(o => !o)} />
+    {own && <>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Calories"><NumInput value={m.kcal} onChange={e => mset('kcal', e.target.value)} /></Field>
+        <Field label="Protein (g)"><NumInput value={m.protein_g} onChange={e => mset('protein_g', e.target.value)} /></Field>
+        <Field label="Carbs (g)"><NumInput value={m.carbs_g} onChange={e => mset('carbs_g', e.target.value)} /></Field>
+        <Field label="Fat (g)"><NumInput value={m.fat_g} onChange={e => mset('fat_g', e.target.value)} /></Field>
+      </div>
+      {coached && <div className="pixel-box p-3 mb-3.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="text-[12px] text-[#8A8A90] leading-snug mb-2">You're in {p.program_mode === 'coached' ? 'Coached' : 'Approve'} mode, so a check-in can change these again.</div>
+        <RowToggle label="Also switch me to Manual, so they stick" on={alsoManual} onClick={() => setAlsoManual(v => !v)} />
+      </div>}
+      <Btn kind="accent" className="w-full" disabled={!(Math.round(+m.kcal || 0) > 0)} style={{ opacity: (Math.round(+m.kcal || 0) > 0) ? 1 : 0.5 }} onClick={apply}>Apply these numbers</Btn>
+    </>}
+  </SubScreen>);
+}
+
+// The other explicit-commit screen: saving rebuilds today's targets from these details.
+function BodyDetailsScreen({ db, update, onBack, onFreshStart }) {
   const p = db.profile;
   const act = ACTIVITY.find(a => a.v === p.activityLevel) || ACTIVITY[2];
-  const [edit, setEdit] = useState(false);
-  const [saved, setSaved] = useState(false);
   const init = () => { const h = cmToFtIn(p.heightCm); return { sex: p.sex, age: p.age, heightCm: p.heightCm, ft: h.ft, inch: h.inch, activityLevel: p.activityLevel }; };
   const [f, setF] = useState(init);
+  const [saved, setSaved] = useState(false);
   const fset = (k, v) => setF(x => Object.assign({}, x, { [k]: v }));
   const ftIn = p.height_unit === 'ft_in';
-  function cancel() { setF(init()); setEdit(false); }
+  const dirty = JSON.stringify(f) !== JSON.stringify(init());
   function save() {
     update(d => {
       const np = Object.assign({}, d.profile, {
@@ -9055,40 +9034,274 @@ function ProfileTab({ db, update, onFreshStart }) {
       d.profile = np;
       // Keep the learned expenditure when it's recent; only fall back to the formula otherwise.
       const prior = learnedTdee(d, Store.todayISO());
-      const nt = E.computeInitialTargets(withActivity(np), prior ? { priorTdee: prior } : undefined); nt.id = Store.uid(); nt.effective_date = Store.todayISO(); nt.source = 'profile-edit'; d.targets.push(nt);
+      const nt = E.computeInitialTargets(withActivity(np), prior ? { priorTdee: prior } : undefined);
+      nt.id = Store.uid(); nt.effective_date = Store.todayISO(); nt.source = 'profile-edit'; d.targets.push(nt);
     });
-    setEdit(false); setSaved(true); setTimeout(() => setSaved(false), 2200);
+    setSaved(true); setTimeout(() => setSaved(false), 2200);
   }
-  if (edit) return (
-    <Section title="Edit profile">
-      <Field label="Sex"><Seg value={f.sex} onChange={v => fset('sex', v)} options={[{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }]} /></Field>
-      <Field label="Age"><NumInput value={f.age} onChange={e => fset('age', e.target.value)} /></Field>
-      <Field label="Height">{ftIn
-        ? <div className="flex gap-2 items-center"><NumInput value={f.ft} onChange={e => fset('ft', e.target.value)} /><span className="text-[#8A8A90]">ft</span><NumInput value={f.inch} onChange={e => fset('inch', e.target.value)} /><span className="text-[#8A8A90]">in</span></div>
-        : <div className="flex gap-2 items-center"><NumInput value={f.heightCm} onChange={e => fset('heightCm', e.target.value)} /><span className="text-[#8A8A90]">cm</span></div>}
-      </Field>
-      <Field label="Activity"><Dropdown value={f.activityLevel} onChange={v => fset('activityLevel', v)} options={ACTIVITY.map(a => ({ v: a.v, l: a.l }))} />
-        <div className="text-[12px] text-[#8A8A90] mt-1.5 leading-snug">{(ACTIVITY.find(a => a.v === f.activityLevel) || act).d}</div>
-      </Field>
-      <div className="pixel-box p-3 text-[12px] text-[#8A8A90] leading-snug mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Saving rebuilds today's calorie &amp; macro targets from these details. Your food log and weigh-in history stay put, weight and body fat only change at a check-in.</div>
-      <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={save}>Save &amp; recalculate</Btn><Btn kind="ghost" onClick={cancel}>Cancel</Btn></div>
-    </Section>
-  );
-  return (<>
-    <Card className="p-5 mb-4">
-      <Row2 k="Sex" v={p.sex === 'male' ? 'Male' : 'Female'} />
-      <Row2 k="Age" v={p.age + ' years'} />
-      <Row2 k="Height" v={fmtHeight(p.heightCm, p.height_unit)} />
-      <Row2 k="Activity" v={act.l} />
+  return (<SubScreen title="Body details" onBack={onBack} intro="The measurements your plan is built from. Saving rebuilds today's calorie and macro targets.">
+    <Field label="Sex"><Seg value={f.sex} onChange={v => fset('sex', v)} options={[{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }]} /></Field>
+    <Field label="Age"><NumInput value={f.age} onChange={e => fset('age', e.target.value)} /></Field>
+    <Field label="Height">{ftIn
+      ? <div className="flex gap-2 items-center"><NumInput value={f.ft} onChange={e => fset('ft', e.target.value)} /><span className="text-[#8A8A90]">ft</span><NumInput value={f.inch} onChange={e => fset('inch', e.target.value)} /><span className="text-[#8A8A90]">in</span></div>
+      : <div className="flex gap-2 items-center"><NumInput value={f.heightCm} onChange={e => fset('heightCm', e.target.value)} /><span className="text-[#8A8A90]">cm</span></div>}
+    </Field>
+    <Field label="Activity">
+      <Dropdown value={f.activityLevel} onChange={v => fset('activityLevel', v)} options={ACTIVITY.map(a => ({ v: a.v, l: a.l }))} />
+      <div className="text-[12px] text-[#8A8A90] mt-1.5 leading-snug">{(ACTIVITY.find(a => a.v === f.activityLevel) || act).d}</div>
+    </Field>
+    {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good)' }}>Saved. Targets recalculated.</div>}
+    <Btn kind="accent" className="w-full mb-5" disabled={!dirty} style={{ opacity: dirty ? 1 : 0.5 }} onClick={save}>Save &amp; recalculate</Btn>
+
+    <SubHead>From your check-ins</SubHead>
+    <Card className="p-5 mb-3">
       <Row2 k="Current weight" v={fmtWeight(p.weightKg, p.weight_unit)} />
       <Row2 k="Body fat" v={p.bodyFatPct != null ? p.bodyFatPct + '%' : '–'} />
       <Row2 k="Lean mass" v={fmtWeight(leanKg(p), p.weight_unit)} last />
     </Card>
-    {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good)' }}>Saved. Targets recalculated.</div>}
-    <Btn kind="accent" className="w-full mb-3" onClick={() => { setF(init()); setEdit(true); }}>Edit details</Btn>
-    <div className="text-[12px] text-[#8A8A90] mb-2 leading-snug">Editing these recalculates your targets and keeps your history. To change your weight or rebuild, use full setup.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">These aren't settings: they only move when you weigh in or check in. Progress has the full history.</div>
     <Btn kind="ghost" className="w-full" onClick={onFreshStart}>Full setup &amp; recalculate</Btn>
-  </>);
+  </SubScreen>);
+}
+
+function CycleScreen({ db, update, onBack }) {
+  const [commit, tick] = useCommit(update);
+  const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
+  const setM = (patch) => commit(d => { d.menstrual = Object.assign({ enabled: false, lastStart: null, cycleLen: 28 }, d.menstrual, patch); });
+  const ph = m.enabled ? E.menstrualPhase(m, Store.todayISO()) : null;
+  return (<SubScreen title="Cycle tracking" onBack={onBack} intro="Optional. If you track this, Macrosaurus expects the water-weight rise in the week before your period and will not cut your calories on it, so a normal premenstrual bump on the scale does not throw off your plan.">
+    <SavedFlash tick={tick} />
+    <RowToggle label="Track my cycle" on={!!m.enabled} onClick={() => setM({ enabled: !m.enabled })} />
+    {m.enabled && <>
+      <Field label="Last period start">
+        <input type="date" className={inputCls} value={m.lastStart || ''} max={Store.todayISO()} onChange={e => setM({ lastStart: e.target.value || null })} />
+        <button onClick={() => setM({ lastStart: Store.todayISO() })} className="text-[12px] text-[#4A9EEB] mt-1.5">My period started today</button>
+      </Field>
+      <Field label={`Average cycle length: ${m.cycleLen || 28} days`}>
+        <input type="range" min="21" max="40" step="1" value={m.cycleLen || 28} onChange={e => setM({ cycleLen: +e.target.value })} className="w-full accent-[#4A9EEB]" />
+      </Field>
+      {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : ph.lowWater ? 'var(--good)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase.{ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.'}</div>}
+    </>}
+  </SubScreen>);
+}
+
+// Names commit on blur rather than per keystroke, so a half-typed name never reaches the sync queue.
+function MealsScreen({ db, update, onBack }) {
+  const [commit, tick] = useCommit(update);
+  const list = db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order).map(m => ({ id: m.id, name: m.name }));
+  const [draft, setDraft] = useState(null); // { id, name } while a name is being typed
+  const [confirmDel, setConfirmDel] = useState(null);
+  const write = (next) => { setDraft(null); commit(d => writeMeals(d, next)); };
+  // Every write folds in a name that is still being typed. Tapping reorder or remove does not
+  // reliably blur the field first on touch, and without this the half-typed rename would be
+  // silently thrown away by the very next write.
+  const staged = () => draft ? list.map(x => x.id === draft.id ? { id: x.id, name: draft.name } : x) : list;
+  const addDef = () => write(staged().concat([{ id: Store.uid(), name: 'Meal ' + (list.length + 1) }]));
+  const removeDef = (id) => write(staged().filter(x => x.id !== id));
+  const moveDef = (id, dir) => {
+    const cur = staged();
+    const i = cur.findIndex(x => x.id === id), j = dir < 0 ? i - 1 : i + 1;
+    if (j < 0 || j >= cur.length) return;
+    const b = cur.slice(); const t = b[i]; b[i] = b[j]; b[j] = t; write(b);
+  };
+  const commitName = () => {
+    if (!draft) return;
+    const next = staged();
+    setDraft(null);
+    if (JSON.stringify(next) !== JSON.stringify(list)) write(next);
+  };
+  return (<SubScreen title="Default meals" onBack={onBack} intro="Your default meals for each new day. You can still add, remove or reorder meals on any individual day in the Food log without changing this default.">
+    <SavedFlash tick={tick} />
+    {list.map((m, i) => (
+      <div key={m.id} className="flex items-center gap-2 mb-2">
+        <div className="flex flex-col -my-1 shrink-0">
+          <button onClick={() => moveDef(m.id, -1)} disabled={i === 0} style={{ opacity: i === 0 ? 0.25 : 1 }} className="hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5" title="Move up">▲</button>
+          <button onClick={() => moveDef(m.id, 1)} disabled={i === list.length - 1} style={{ opacity: i === list.length - 1 ? 0.25 : 1 }} className="hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5" title="Move down">▼</button>
+        </div>
+        <TextInput value={draft && draft.id === m.id ? draft.name : m.name}
+          onChange={e => setDraft({ id: m.id, name: e.target.value })}
+          onBlur={commitName}
+          onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} />
+        <button onClick={() => setConfirmDel(m)} disabled={list.length <= 1} style={{ opacity: list.length <= 1 ? 0.3 : 1 }} className="hit px-2 text-[#8A8A90] text-lg leading-none shrink-0" title="Remove">×</button>
+      </div>
+    ))}
+    <button onClick={addDef} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1">+ Add default meal</button>
+    {confirmDel && <ConfirmDialog title={'Remove ' + confirmDel.name + '?'} body="This removes it from your default meals for new days. Days you've already set up won't change." confirmLabel="Remove" onConfirm={() => removeDef(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
+  </SubScreen>);
+}
+
+// Push, banner and the hour they share now sit on one screen under one save model, so the hour can
+// no longer be left uncommitted while the toggle above it has already applied.
+function RemindersScreen({ db, update, onBack }) {
+  const [commit, tick] = useCommit(update);
+  const p = db.profile;
+  const reminders = p.reminders !== false;
+  const nudgeHour = p.nudgeHour == null ? 14 : p.nudgeHour;
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState('');
+  useEffect(() => { let ok = true; pushStatus().then(v => { if (ok) setPushOn(v); }); return () => { ok = false; }; }, []);
+  async function togglePush() {
+    setPushMsg('');
+    if (pushOn) { setPushBusy(true); await pushDisable(); setPushOn(false); setPushBusy(false); return; }
+    setPushBusy(true);
+    try { await pushEnable(nudgeHour); setPushOn(true); }
+    catch (e) {
+      const m = e && e.message;
+      setPushMsg(m === 'denied' ? 'Notifications are blocked. Allow them for this site in your browser settings, then try again.'
+        : m === 'signedout' ? 'Sign in first to turn on push reminders.'
+        : m === 'unsupported' ? 'This browser does not support push notifications.'
+        : 'Could not turn on push reminders. Please try again.');
+    }
+    setPushBusy(false);
+  }
+  return (<SubScreen title="Reminders" onBack={onBack} intro="How your buddy nudges you on a day you have not logged food or weighed in, before a miss would spend your monthly streak freeze.">
+    <SavedFlash tick={tick} />
+    {pushSupported()
+      ? <>
+          <RowToggle label="Push reminders (your buddy nudges you to log)" on={pushOn} onClick={togglePush} />
+          {pushBusy && <div className="text-[12px] text-[#8A8A90] mb-1">Working...</div>}
+          {pushMsg && <div className="text-[12px] mb-1" style={{ color: 'var(--fat)' }}>{pushMsg}</div>}
+          {!pushOn && !pushBusy && pushNeedsInstall() && <div className="text-[12px] text-[#8A8A90] mb-1">On iPhone or iPad, add Macrosaurus to your Home Screen first (Share, then Add to Home Screen) to receive push reminders.</div>}
+        </>
+      : <div className="text-[12px] text-[#8A8A90] mb-2">This browser does not support push notifications. The in-app banner below still works.</div>}
+    <RowToggle label="Also show an in-app nudge banner when I open the app" on={reminders} onClick={() => commit(d => { d.profile.reminders = !reminders; })} />
+    {(pushOn || reminders) && <Field label="Nudge after" hint="Sets both the push reminder (fires around this hour) and the in-app banner (shows when you next open the app).">
+      <Dropdown value={nudgeHour} onChange={v => { commit(d => { d.profile.nudgeHour = +v; }); if (pushOn) pushSyncHour(+v); }} options={[12, 13, 14, 15, 16, 17, 18, 19, 20, 21].map(h => ({ v: h, l: (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am') }))} />
+    </Field>}
+  </SubScreen>);
+}
+
+// The step goal lives here rather than in a section of its own: it is meaningless without the
+// connection that supplies the steps.
+function HealthScreen({ db, update, onBack }) {
+  const [commit, tick] = useCommit(update);
+  const p = db.profile;
+  const gh = db.googleHealth;
+  const [goal, setGoal] = useState(p.stepGoal || '');
+  const autoSteps = (withActivity(p).avgSteps || 0);
+  function commitGoal() {
+    const sg = Math.round(+goal) || 0;
+    if (sg === (p.stepGoal || 0)) return;
+    commit(d => { if (sg > 0) d.profile.stepGoal = sg; else delete d.profile.stepGoal; });
+  }
+  return (<SubScreen title="Google Health" onBack={onBack} intro="Auto-sync your daily steps and sleep. Read-only. Steps feed your dashboard, coaching and egg; a good night's sleep draws a creature into your dex each morning.">
+    <SavedFlash tick={tick} />
+    {!ghConfigured()
+      ? <div className="text-[12px] text-[#8A8A90]">Auto-sync is coming soon.</div>
+      : (gh && gh.connected)
+        ? <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
+              <div className="flex items-center gap-2">
+                <GhResyncButton db={db} update={update} />
+                <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false, disconnectedAt: new Date().toISOString() }; }); }}>Disconnect</Btn>
+              </div>
+            </div>
+            <GhDebug db={db} update={update} />
+          </div>
+        : <Btn kind="accent" className="w-full" onClick={ghConnectGated}>Connect Google Health</Btn>}
+
+    <div className="h-px bg-[#262629] my-5" />
+    <SubHead>Daily step goal</SubHead>
+    <Field label="Step goal" hint={'Leave blank to use your activity level (' + autoSteps.toLocaleString('en-GB') + '/day). Sleep isn\'t set here: it\'s scored against the science, and adults need 7-9 hours a night.'}>
+      <NumInput value={goal} onChange={e => setGoal(e.target.value)} onBlur={commitGoal} placeholder={String(autoSteps || 8000)} />
+    </Field>
+  </SubScreen>);
+}
+
+/* ---------- the overview ---------- */
+
+function SettingsOverview({ db, update, onOpen, onFreshStart }) {
+  const [commit, tick] = useCommit(update);
+  const p = db.profile;
+  const [q, setQ] = useState('');
+  const unit = p.weight_unit;
+  const base = currentTargets(db) || {};
+  const gh = db.googleHealth;
+  const cyc = Object.assign({ enabled: false, highDays: [], deltaPct: 0.15 }, p.cycling);
+  const carry = Object.assign({ enabled: false }, p.carryover);
+  const men = db.menstrual || {};
+  const mode = COACH_MODES.find(m => m.v === p.program_mode) || COACH_MODES[0];
+  const preset = PLAN_PRESETS.find(x => x.id === activePresetOf(cyc));
+  const weigh = p.weighCadence || 'daily';
+  const checkinDay = p.checkinDay == null ? 1 : p.checkinDay;
+  const meals = db.meal_templates.slice().sort((a, b) => a.sort_order - b.sort_order).map(m => m.name);
+  const shareOn = !(p.shareRecipes === false);
+  const remindersOn = p.reminders !== false;
+  const nudgeHour = p.nudgeHour == null ? 14 : p.nudgeHour;
+  const hourLabel = (nudgeHour > 12 ? nudgeHour - 12 : nudgeHour) + (nudgeHour >= 12 ? 'pm' : 'am');
+  const lastTarget = (db.targets || []).slice().sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1)).pop();
+  const setBy = lastTarget && lastTarget.source === 'manual' ? 'set by you' : 'set by Macrosaurus';
+
+  // Each row carries the words a person might search for, not just its label.
+  const groups = [
+    { title: 'Your plan', rows: [
+      { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
+      { key: 'weekly', label: 'Weekly shape', status: preset.label + (cyc.enabled ? ' · +' + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off'), kw: 'weekly shape cycling high days refeed carryover even out banking calories' },
+      { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
+      { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
+    ] },
+    { title: 'Your body', rows: [
+      { key: 'body', label: 'Body details', status: (p.sex === 'male' ? 'Male' : 'Female') + ' · ' + p.age + ' · ' + fmtHeight(p.heightCm, p.height_unit) + ' · ' + ((ACTIVITY.find(a => a.v === p.activityLevel) || ACTIVITY[2]).l), kw: 'body details sex age height activity level weight body fat lean mass' },
+      p.sex === 'female' ? { key: 'cycle', label: 'Cycle tracking', status: men.enabled ? 'On · ' + (men.cycleLen || 28) + '-day average' : 'Off', kw: 'cycle period menstrual water weight' } : null,
+    ].filter(Boolean) },
+    { title: 'Food', rows: [
+      { key: 'meals', label: 'Default meals', status: meals.length ? meals.join(', ') : 'None set', kw: 'meals default breakfast lunch dinner snack food log' },
+      { key: 'share', label: 'Share my recipes', status: shareOn ? 'On · your imports help the community library' : 'Off · your recipes stay private', kw: 'share recipes community privacy public discover', toggle: true, on: shareOn },
+    ] },
+    { title: 'Reminders', rows: [
+      { key: 'reminders', label: 'Reminders', status: (remindersOn ? 'In-app banner on' : 'In-app banner off') + ' · from ' + hourLabel, kw: 'reminders push notifications nudge banner alerts hour' },
+    ] },
+    { title: 'Apps & data', rows: [
+      { key: 'health', label: 'Google Health', status: !ghConfigured() ? 'Coming soon' : (gh && gh.connected) ? 'Connected' + (gh.lastSync ? ' · synced ' + new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') + ' · goal ' + (p.stepGoal ? p.stepGoal.toLocaleString('en-GB') : (withActivity(p).avgSteps || 0).toLocaleString('en-GB')) + ' steps' : 'Not connected', kw: 'google health steps sleep sync connect fit step goal hrv' },
+    ] },
+  ];
+
+  const needle = q.trim().toLowerCase();
+  const match = (r) => !needle || (r.label + ' ' + r.status + ' ' + r.kw).toLowerCase().includes(needle);
+  const shown = groups.map(g => Object.assign({}, g, { rows: g.rows.filter(match) })).filter(g => g.rows.length);
+  const appearanceMatches = !needle || 'appearance theme dark light units kg stone pounds st lb cm feet inches metric imperial'.includes(needle);
+
+  return (<div className="fade-in">
+    <div className="mb-4">
+      <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search settings" className={inputCls} aria-label="Search settings" />
+    </div>
+    <SavedFlash tick={tick} />
+
+    {shown.map(g => (
+      <SettingsGroup key={g.title} title={g.title}>
+        {g.rows.map((r, i) => r.toggle
+          ? <button key={r.key} onClick={() => {
+              const next = !r.on;
+              commit(d => { d.profile = d.profile || {}; d.profile.shareRecipes = next; });
+              // Turning it on backfills the pool with what you've already priced, same as the
+              // one-time prompt in Discover does.
+              if (next) (db.recipes || []).forEach(rec => { if (!rec.private) submitPublicRecipe(rec); });
+            }} className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left" style={{ borderBottom: i === g.rows.length - 1 ? 'none' : '2px solid var(--border)' }}>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{r.label}</span>
+                <span className="block text-[11.5px] text-[#8A8A90] mt-0.5 leading-snug">{r.status}</span>
+              </span>
+              <span className="pf text-[9px] px-2.5 py-1.5 shrink-0" style={{ background: r.on ? 'var(--accent)' : 'var(--surface3)', color: r.on ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>{r.on ? 'ON' : 'OFF'}</span>
+            </button>
+          : <SettingsRow key={r.key} label={r.label} status={r.status} last={i === g.rows.length - 1} onClick={() => onOpen(r.key)} />)}
+      </SettingsGroup>
+    ))}
+
+    {appearanceMatches && <div className="mb-5">
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 px-1">Appearance</div>
+      <div className="pixel-box p-4" style={{ background: 'var(--card)' }}>
+        <Field label="Theme" hint="Dark is neon-on-black; Light is Game Boy Color.">
+          <Seg value={p.theme || 'light'} onChange={v => commit(d => { d.profile.theme = v; })} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> GB Color</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark GB</span> }]} />
+        </Field>
+        <Field label="Weight units"><Seg value={unit} onChange={v => commit(d => { d.profile.weight_unit = v; })} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
+        <Field label="Height units"><Seg value={p.height_unit} onChange={v => commit(d => { d.profile.height_unit = v; })} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
+      </div>
+    </div>}
+
+    {!shown.length && !appearanceMatches && <div className="text-[12px] text-[#8A8A90] px-1 py-6 text-center">Nothing matches "{q}". Account, subscription and your data are on the Account tab.</div>}
+  </div>);
 }
 // Change password while signed in. We re-verify the current password first (signInWithPassword)
 // so a merely-unlocked session can't silently change someone's credentials.
@@ -9216,7 +9429,8 @@ function FeedbackSheet({ email, onClose }) {
   );
 }
 function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast }) {
-  const [tab, setTab] = useState('details');
+  const [tab, setTab] = useState('settings');
+  const [screen, setScreen] = useState(null); // the open settings subscreen, or null for the overview
   const [invite, setInvite] = useState(false);
   const daysLeft = (iso) => { if (!iso) return ''; const d = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000); return d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'ends soon'; };
   const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return ''; } };
@@ -9235,15 +9449,29 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { alert('Could not export: ' + (e.message || e)); }
   }
+  // One level of subscreen, never two. Rendered in place of the overview so the tab strip and page
+  // header stay out of the way while you're inside a single setting.
+  const back = () => setScreen(null);
+  const SCREENS = {
+    coaching: () => <CoachingScreen db={db} update={update} onBack={back} />,
+    weekly: () => <WeeklyShapeScreen db={db} update={update} onBack={back} />,
+    checkins: () => <CheckinsScreen db={db} update={update} onBack={back} />,
+    macros: () => <MacrosScreen db={db} update={update} onBack={back} />,
+    body: () => <BodyDetailsScreen db={db} update={update} onBack={back} onFreshStart={onFreshStart} />,
+    cycle: () => <CycleScreen db={db} update={update} onBack={back} />,
+    meals: () => <MealsScreen db={db} update={update} onBack={back} />,
+    reminders: () => <RemindersScreen db={db} update={update} onBack={back} />,
+    health: () => <HealthScreen db={db} update={update} onBack={back} />,
+  };
+  if (screen && SCREENS[screen]) return (
+    <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
+  );
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <PageHeader kicker="Your profile & settings" title="You" />
-      <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl">{[['details', 'Profile'], ['settings', 'Settings'], ['advanced', 'Advanced'], ['account', 'Account']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+      <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl">{[['settings', 'Settings'], ['account', 'Account']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
-      {tab === 'details' && <ProfileTab db={db} update={update} onFreshStart={onFreshStart} />}
-
-      {tab === 'settings' && <SettingsTab db={db} update={update} />}
-      {tab === 'advanced' && <AdvancedTab db={db} update={update} />}
+      {tab === 'settings' && <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} />}
 
       {tab === 'account' && <div className="space-y-2.5">
         <div className="pixel-box p-4" style={{ background: 'var(--card)' }}>
@@ -9265,7 +9493,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
             <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent)' }}>Free plan</div>
             <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
-            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
+            <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}, resetting on the 1st. Label scanning, photo estimates and Describe all use it, with no setup needed. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
             <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
           </div>
         )}
