@@ -7,6 +7,10 @@ const LB_PER_KG = 2.2046226218;
 const BRAND = 'Macrosaurus';
 // palette
 const CAL = 'var(--accent)', PRO = 'var(--pro)', FAT = 'var(--fat)', CARB = 'var(--carb)';
+// The same four as TYPE. A meter block only has to be seen; a 10px "F8.6" has to be read, and the
+// gold that works for the first job scored 1.63:1 against white for the second. Use these anywhere
+// a macro is a number rather than a bar.
+const PRO_T = 'var(--pro-ink)', FAT_T = 'var(--fat-ink)', CARB_T = 'var(--carb-ink)', CAL_T = 'var(--accent-ink)';
 const MUTED = 'var(--muted)', BORDER = 'var(--border)', CARDBG = 'var(--card)';
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -1389,7 +1393,7 @@ function expenditurePrior(db, prof) {
   if (ex && ex.kcal > 0) return { kcal: ex.kcal, n: +ex.n || 0 };
   return { kcal: E.tdeeFromProfile(prof), n: 0 };
 }
-function MiniStat({ label, value, ok }) { return (<div className="bg-[#1E1E22] rounded-xl px-3 py-3 text-center"><div className="text-xl font-bold tnum" style={{ color: ok ? 'var(--carb)' : 'var(--muted)' }}>{value}</div><div className="text-[11px] text-[#8A8A90] mt-0.5">{label}</div></div>); }
+function MiniStat({ label, value, ok }) { return (<div className="bg-[#1E1E22] rounded-xl px-3 py-3 text-center"><div className="text-xl font-bold tnum" style={{ color: ok ? 'var(--carb-ink)' : 'var(--muted)' }}>{value}</div><div className="text-[11px] text-[#8A8A90] mt-0.5">{label}</div></div>); }
 function Mini({ n, l, c }) { return (<div className="bg-[#1E1E22] rounded-xl px-2 py-2.5 text-center"><div className="text-base font-bold tnum" style={{ color: c }}>{n}</div><div className="text-[10px] text-[#8A8A90] mt-0.5">{l}</div></div>); }
 function maintenanceKcal(db) {
   const base = currentTargets(db); const prof = withActivity(db.profile);
@@ -1515,7 +1519,7 @@ function PhotoButton({ label = 'Add photo', multiple = false, onFiles, tone = 'r
   const bg = tone === 'inset' ? 'bg-[#0F0F12]' : 'bg-[#1E1E22]';
   return (
     <label className={`flex items-center justify-center gap-2 ${bg} rounded-2xl py-3 text-[13px] border border-[#262629] cursor-pointer active:scale-[.99] transition ${className}`}>
-      <Icon.cam width="16" height="16" style={{ color: CAL }} /> {label}
+      <Icon.cam width="16" height="16" style={{ color: CAL_T }} /> {label}
       <input type="file" accept="image/*" multiple={multiple} className="hidden" onChange={e => { onFiles(e.target.files); e.target.value = ''; }} />
     </label>
   );
@@ -1542,12 +1546,24 @@ function Pill({ value, options, onChange }) { return (<div className="inline-fle
 function Dropdown({ value, options, onChange, compact }) {
   const [open, setOpen] = useState(false); const cur = options.find(o => o.v === value);
   if (compact) return (<div className="relative">
-    <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-[13px] text-left max-w-full" style={{ color: 'var(--accent)', minHeight: 32 }}>
+    <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-[13px] text-left max-w-full" style={{ color: 'var(--accent-ink)', minHeight: 32 }}>
       <span className="truncate">{cur ? cur.l : 'Select'}</span><span className="shrink-0">▾</span></button>
     {open && <div className="absolute z-40 mt-1 min-w-[10rem] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}
   </div>);
   return (<div className="relative"><button onClick={() => setOpen(o => !o)} className={inputCls + ' flex justify-between items-center text-left'}><span className="truncate">{cur ? cur.l : 'Select'}</span><span className="text-[#8A8A90] ml-2">▾</span></button>
     {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
+}
+// Every text-only control in the app looks like this, and nothing that is not a control looks like
+// it. Flat design took away the 3D cue people used to read as "you can press this", and the fix is
+// to put a signifier back: a colour that differs from body text, plus an underline. Without one,
+// "Numbers off? Edit them" was 11px grey text with no box, which is precisely how this app styles
+// captions, so the one interactive thing on the panel read as a footnote.
+// `tone` covers the three jobs: accent for ordinary actions, danger for destructive ones, and quiet
+// for a control that must not compete with the primary button beside it.
+function TextBtn({ children, onClick, tone = 'accent', className = '', ...rest }) {
+  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'quiet' ? 'var(--text2)' : 'var(--accent-ink)';
+  return (<button type="button" onClick={onClick} className={'inline-flex items-center gap-1.5 text-[12px] ' + className}
+    style={{ color, textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 3, minHeight: 32 }} {...rest}>{children}</button>);
 }
 function RowToggle({ label, on, onClick }) { return (<button onClick={onClick} className="w-full flex items-center justify-between gap-3 bg-[#1E1E22] pixel-box px-4 py-3 mb-3"><span className="text-sm text-left">{label}</span><span className="pf text-[9px] px-2.5 py-1.5 shrink-0" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>{on ? 'ON' : 'OFF'}</span></button>); }
 // One shared disclosure used app-wide so every "advanced / more / details" block is the SAME single
@@ -1560,7 +1576,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
     return (<div className={className}>
       <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between text-[11px] text-[#8A8A90]">
         <span>{label}</span>
-        <span className="pf text-[8px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent)' }}>{open ? 'Hide' : (sub || 'Show')}</span>
+        <span className="pf text-[8px] uppercase shrink-0 ml-2" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : (sub || 'Show')}</span>
       </button>
       {open && <div className="fade-in mt-3">{children}</div>}
     </div>);
@@ -1571,7 +1587,7 @@ function Collapsible({ label, sub, defaultOpen = false, variant = 'box', childre
         <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>{label}</span>
         {sub && <span className="block text-[11px] text-[#8A8A90] mt-1 truncate">{sub}</span>}
       </span>
-      <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>{open ? 'Hide' : 'Show'}</span>
+      <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 3 }}>{open ? 'Hide' : 'Show'}</span>
     </button>
     {open && <div className="mt-3 fade-in">{children}</div>}
   </div>);
@@ -1752,7 +1768,7 @@ function DayImpact({ rest, target, add, label = 'Your day if you save this' }) {
       return (<div key={cap} className="grid items-center gap-2 mb-1.5" style={{ gridTemplateColumns: '2.6rem 1fr auto' }}>
         <span className="pf text-[8px]" style={{ color: 'var(--muted)' }}>{cap}</span>
         <PipMeter value={base} target={tgt} addValue={plus} color={color} small />
-        <span className="tnum text-[10px]" style={{ color: over ? 'var(--danger)' : 'var(--muted)' }}>{end}{unit} / {Math.round(tgt)}{unit}</span>
+        <span className="tnum text-[10px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--muted)' }}>{end}{unit} / {Math.round(tgt)}{unit}</span>
       </div>);
     })}
   </div>);
@@ -1792,7 +1808,7 @@ function MeterRow({ label, value, target, color, mode, unit = 'g', small, overIs
     <div className="mb-2.5">
       <div className="flex justify-between items-baseline mb-1">
         <span className="pf text-[9px]" style={{ color: 'var(--muted)' }}>{label}</span>
-        <span className="tnum text-[12px]" style={{ color: over ? 'var(--danger)' : 'var(--text2)' }}>
+        <span className="tnum text-[12px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--text2)' }}>
           {over ? Math.round(value - target) + unit + ' over'
             : isRem ? left + unit + ' left'
               : Math.round(value) + unit}
@@ -1817,7 +1833,7 @@ function QualityBar({ nd, onExplain }) {
         className="w-full text-left mb-2.5 active:scale-[.99] transition">
         <div className="flex justify-between items-baseline mb-1">
           <span className="pf text-[9px]" style={{ color: 'var(--muted)' }}>DENSITY</span>
-          <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Premium ›</span>
+          <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Premium ›</span>
         </div>
         <PipMeter value={0} target={E.ND_TARGET} cells={10} scale={100 / E.ND_TARGET} color={'var(--good)'} dim overIsFine />
       </button>
@@ -1832,7 +1848,7 @@ function QualityBar({ nd, onExplain }) {
     <div className="mb-2.5">
       <div className="flex justify-between items-baseline mb-1">
         <button onClick={onExplain} className="pf text-[9px] active:opacity-70" style={{ color: 'var(--muted)' }}>DENSITY <span style={{ opacity: 0.7 }}>ⓘ</span></button>
-        <span className="tnum text-[12px]" style={{ color: has ? (nd.hit ? 'var(--good)' : 'var(--text2)') : 'var(--muted)' }}>
+        <span className="tnum text-[12px]" style={{ color: has ? (nd.hit ? 'var(--good-ink)' : 'var(--text2)') : 'var(--muted)' }}>
           {has ? band.label : 'not scored yet'}
         </span>
       </div>
@@ -1939,7 +1955,7 @@ function ConsistencyHeatmap({ db, today }) {
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Last {WEEKS} wks</span>
       </div>
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-2xl font-bold tnum" style={{ color: 'var(--good)' }}>{activeDays}</span>
+        <span className="text-2xl font-bold tnum" style={{ color: 'var(--good-ink)' }}>{activeDays}</span>
         <span className="text-[10px] text-[#8A8A90] leading-tight">active days,<br />each one hatched a catch</span>
       </div>
       <div style={{ display: 'grid', gridTemplateRows: 'repeat(7, 1fr)', gridAutoFlow: 'column', gap: '3px' }}>
@@ -2091,7 +2107,7 @@ function TrendCard({ db }) {
             <div className="text-[12px] font-bold">Body-fat from a photo</div>
             <div className="text-[10px] text-[#8A8A90] leading-snug mt-0.5">Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.</div>
           </div>
-          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Try free ›</span>
+          <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Try free ›</span>
         </button>
       )}
       {valid.length === 0 ? (
@@ -2106,7 +2122,7 @@ function TrendCard({ db }) {
           <span className="text-2xl font-bold tnum">{headLast ? headLast.value : '–'}</span><span className="text-[11px] text-[#8A8A90] ml-1">{tab === 'bodyfat' ? '%' : yl}</span>
           <div className="text-[10px] text-[#8A8A90] tnum">{tab === 'weight' ? 'trend weight today' : tab === 'bodyfat' ? 'body-fat trend' : 'lean mass'}{last ? ` · last reading ${last.value}${tab === 'bodyfat' ? '%' : ' ' + yl}` : ''}</div>
         </div>
-        {delta != null && <div className="text-right"><div className="text-[13px] font-semibold tnum" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good)' : 'var(--fat)' }}>{deltaStr}</div><div className="text-[10px] text-[#8A8A90]">{rangeLabel}</div></div>}
+        {delta != null && <div className="text-right"><div className="text-[13px] font-semibold tnum" style={{ color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{deltaStr}</div><div className="text-[10px] text-[#8A8A90]">{rangeLabel}</div></div>}
       </div>
       <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
       <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
@@ -2155,7 +2171,7 @@ function ResetPassword({ onDone }) {
                 <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} placeholder="at least 6 characters" /></Field>
                 <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} placeholder="type it again" /></Field>
                 <button onClick={save} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'SAVING…' : 'SAVE PASSWORD'}</button>
-                {msg && <div className="text-[11px] mt-3 text-center" style={{ color: 'var(--danger)' }}>{msg}</div>}
+                {msg && <div className="text-[11px] mt-3 text-center" style={{ color: 'var(--danger-ink)' }}>{msg}</div>}
               </div>}
         </div>
       </div>
@@ -2227,7 +2243,7 @@ function LegalDoc({ doc, onClose }) {
           <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none shrink-0 ml-3">×</button>
         </div>
         <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 space-y-3.5" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
-          {d.sections.map((s, i) => (<div key={i}><div className="text-sm mb-1" style={{ color: 'var(--accent)', fontSynthesis: 'none' }}>{s.h}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed whitespace-pre-line">{s.p}</div></div>))}
+          {d.sections.map((s, i) => (<div key={i}><div className="text-sm mb-1" style={{ color: 'var(--accent-ink)', fontSynthesis: 'none' }}>{s.h}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed whitespace-pre-line">{s.p}</div></div>))}
         </div>
       </div>
     </div>
@@ -2309,7 +2325,7 @@ function Auth() {
           {mode === 'forgot' && <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
           <button onClick={submit} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'PLEASE WAIT…' : (mode === 'signup' ? 'CREATE ACCOUNT' : (mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'))}</button>
           {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[11px] mt-3 text-center' + (loginFailed ? ' underline font-semibold' : '')} style={{ color: 'var(--header)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
-          {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger)' }}>{msg}</div>}
+          {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
           {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
         </div>
         {mode === 'forgot'
@@ -2381,7 +2397,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
           <div className="text-[12px] text-[#8A8A90] mb-4">Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and <span className="text-white">never stored</span>.</div>
           <div className="grid grid-cols-3 gap-2 mb-4">{SLOTS.map(([s, l]) => (
             <label key={s} className="aspect-square rounded-2xl bg-[#1E1E22] border border-[#262629] flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
-              {imgs[s] ? <img src={imgs[s].url} className="absolute inset-0 w-full h-full object-cover" /> : <><Icon.cam width="18" height="18" style={{ color: CAL }} /><div className="text-[11px] text-[#8A8A90] mt-1">{l}</div></>}
+              {imgs[s] ? <img src={imgs[s].url} className="absolute inset-0 w-full h-full object-cover" /> : <><Icon.cam width="18" height="18" style={{ color: CAL_T }} /><div className="text-[11px] text-[#8A8A90] mt-1">{l}</div></>}
               <input type="file" accept="image/*" className="hidden" onChange={e => { setSlot(s, e.target.files[0]); e.target.value = ''; }} />
             </label>))}</div>
           <Btn kind="accent" className="w-full" onClick={estimate}>{busy ? 'Reading your photos…' : 'Estimate with AI'}</Btn>
@@ -2463,11 +2479,11 @@ function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mb-3">Daily targets</div>
         <div className="flex items-end gap-1 mb-4"><div className="text-5xl font-bold tnum">{preview.kcal}</div><div className="text-[#8A8A90] mb-1.5">kcal</div></div>
         <div className="grid grid-cols-3 gap-3 text-center">
-          <div><div className="text-xl font-semibold tnum" style={{ color: PRO }}>{preview.protein_g}g</div><div className="text-[11px] text-[#8A8A90]">Protein</div></div>
-          <div><div className="text-xl font-semibold tnum" style={{ color: FAT }}>{preview.fat_g}g</div><div className="text-[11px] text-[#8A8A90]">Fat</div></div>
-          <div><div className="text-xl font-semibold tnum" style={{ color: CARB }}>{preview.carbs_g}g</div><div className="text-[11px] text-[#8A8A90]">Carbs</div></div>
+          <div><div className="text-xl font-semibold tnum" style={{ color: PRO_T }}>{preview.protein_g}g</div><div className="text-[11px] text-[#8A8A90]">Protein</div></div>
+          <div><div className="text-xl font-semibold tnum" style={{ color: FAT_T }}>{preview.fat_g}g</div><div className="text-[11px] text-[#8A8A90]">Fat</div></div>
+          <div><div className="text-xl font-semibold tnum" style={{ color: CARB_T }}>{preview.carbs_g}g</div><div className="text-[11px] text-[#8A8A90]">Carbs</div></div>
         </div>
-        <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[#262629] w-full text-left" style={{ color: 'var(--accent)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
+        <button onClick={() => setShowMaths(m => !m)} className="text-[11px] mt-4 pt-3 border-t border-[#262629] w-full text-left" style={{ color: 'var(--accent-ink)' }}>{showMaths ? 'Hide the maths' : 'Show me the maths ›'}</button>
         {showMaths && <div className="text-[12px] text-[#8A8A90] mt-2 space-y-1.5">
           <div><b className="text-[var(--text2)]">Calories:</b> maintenance ≈ {preview.estimatedTDEE} kcal (Mifflin-St Jeor BMR plus your steps and training), {f.goalType === 'maintain' ? 'held at maintenance' : `then ${f.goalType === 'cut' ? '−' : '+'}${Math.round(Math.abs(f.rateKgPerWeek) * 7700 / 7)} kcal a day`}.</div>
           <div><b className="text-[var(--text2)]">Protein:</b> {preview.protein_g} g, sized to hold onto muscle (Helms 2014). I can sharpen this once you tell me your body fat.</div>
@@ -2798,7 +2814,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       <TextInput value={free} onChange={e => { setFree(e.target.value); setAiErr(''); }}
         placeholder="I'm in Ireland Mon to Fri, walking loads, eating out most nights"
         onKeyDown={e => { if (e.key === 'Enter') parseFree(); }} />
-      {aiErr && <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--fat)' }}>{aiErr}</div>}
+      {aiErr && <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--fat-ink)' }}>{aiErr}</div>}
       <Btn kind="accent" className="w-full text-sm mt-2" disabled={!free.trim() || aiBusy}
         style={{ opacity: (free.trim() && !aiBusy) ? 1 : 0.5 }} onClick={parseFree}>
         {aiBusy ? 'Reading that…' : 'Sort it for me'}
@@ -2828,7 +2844,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       <Field label="From"><input type="date" className={inputCls} value={range.start} onChange={e => { const v = e.target.value; setRange(r => ({ start: v, end: r.end < v ? v : r.end })); setHigh([]); }} /></Field>
       <Field label="To"><input type="date" className={inputCls} value={range.end} min={range.start} onChange={e => { const v = e.target.value; setRange(r => ({ start: r.start, end: v })); setHigh([]); }} /></Field>
     </div>
-    {clash && <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--fat)' }}>
+    {clash && <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--fat-ink)' }}>
       You've already got {clash.label.toLowerCase()} down for {fmtRange(clash.start, clash.end)}. Pick days that don't overlap, or cancel that one first in Settings.
     </div>}
     <Btn kind="accent" className="w-full" disabled={!!clash} style={{ opacity: clash ? 0.5 : 1 }} onClick={() => setStep(spanDays.length > 1 ? 'big' : 'rate')}>That's the one</Btn>
@@ -2876,7 +2892,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
             const hi = high.includes(d);
             return <div key={d} className="text-center">
               <div className="text-[9px] text-[#8A8A90]">{new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' })}</div>
-              <div className="text-[12px] tnum font-semibold" style={{ color: hi ? 'var(--accent)' : 'var(--text)' }}>{dayKcal(d)}</div>
+              <div className="text-[12px] tnum font-semibold" style={{ color: hi ? 'var(--accent-ink)' : 'var(--text)' }}>{dayKcal(d)}</div>
             </div>;
           })}</div>
         : <div className="text-[13px] tnum">About {dayKcal(range.start)} kcal a day</div>}
@@ -2894,7 +2910,7 @@ function WeekPlanBanner({ db, onOpen }) {
   const pl = ctx.active || ctx.recovering;
   if (!pl) return null;
   return (<button onClick={onOpen} className="w-full pixel-box p-3.5 mb-4 text-left" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
-    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{ctx.active ? 'On now' : 'Easing back'}</div>
+    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : 'Easing back'}</div>
     <div className="text-[13px] font-semibold">{pl.label}{ctx.active ? ' · ' + fmtRange(pl.start, pl.end) : ''}</div>
     {dietBreakActive(db, Store.todayISO()) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
     <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
@@ -3234,7 +3250,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
         <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
         <div className="flex items-baseline gap-2 flex-wrap">
           <div className="text-xl font-bold tnum leading-none">{liveAvg != null ? fmtWeight(liveAvg, unit) : '–'}</div>
-          {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
+          {avgDelta != null && <div className="text-[12px] tnum font-semibold" style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{fmtWeightDelta(avgDelta, unit)} vs {singleWeigh ? 'last time' : 'last cycle'}</div>}
         </div>
         <div className="text-[11px] text-[#8A8A90] mt-1.5 leading-snug">{singleWeigh
           ? 'Read straight against your last weekly reading.'
@@ -3262,7 +3278,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
           {/* A mistap on "did you stick to it" was unrecoverable without closing the whole sheet.
               Back only exists before the retune is committed; afterwards the result owns the choice. */}
           {beatIdx > 0 && beats.indexOf(phase) < beats.indexOf('reading')
-            ? <button onClick={() => go(beats[beatIdx - 1])} className="pf text-[9px] uppercase hit" style={{ color: 'var(--accent)' }}>&lsaquo; Back</button>
+            ? <button onClick={() => go(beats[beatIdx - 1])} className="pf text-[9px] uppercase hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Back</button>
             : <span className="pf text-[9px] uppercase text-[#8A8A90]">Check-in</span>}
           <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">&times;</button>
         </div>
@@ -3298,10 +3314,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
             {unit === 'st_lb'
               ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(e.target.value)} placeholder="st" /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(e.target.value)} placeholder="lb" /><span className="text-[#8A8A90]">lb</span></div>
               : <div className="flex gap-2 items-center"><NumInput value={kg} onChange={e => setKg(e.target.value)} placeholder={last ? last.scale_weight.toFixed(1) : ''} /><span className="text-[#8A8A90]">kg</span></div>}
-            {wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}
+            {wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>{wErr}</div>}
           </div>
           {liveAvg != null && <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug tnum">
-            {singleWeigh ? 'Reading' : 'Trend weight'}: <b style={{ color: 'var(--text)' }}>{fmtWeight(liveAvg, unit)}</b>{avgDelta != null ? <span style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)' }}> {fmtWeightDelta(avgDelta, unit)}</span> : null}
+            {singleWeigh ? 'Reading' : 'Trend weight'}: <b style={{ color: 'var(--text)' }}>{fmtWeight(liveAvg, unit)}</b>{avgDelta != null ? <span style={{ color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good-ink)' : 'var(--fat-ink)' }}> {fmtWeightDelta(avgDelta, unit)}</span> : null}
           </div>}
           {/* Body fat is genuinely optional, so it stays folded away rather than sitting open and
               inviting an invented reading every single week. */}
@@ -3354,8 +3370,8 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
                 const held = Math.abs(dLean) < 0.25;
                 return <div className="text-[12px] mt-2 pt-2 border-t border-[#262629] flex items-baseline gap-2 flex-wrap">
                   <span className="text-[#8A8A90]">Lean</span><span className="tnum font-semibold">{fmtWeight(result.leanNow, unit)}</span>
-                  <span className="tnum" style={{ color: held || dLean > 0 ? 'var(--good)' : 'var(--fat)' }}>{held ? 'held' : fmtWeightDelta(dLean, unit)}</span>
-                  <span className="text-[#8A8A90]">fat</span><span className="tnum" style={{ color: dFat < 0 ? 'var(--good)' : 'var(--muted)' }}>{fmtWeightDelta(dFat, unit)}</span>
+                  <span className="tnum" style={{ color: held || dLean > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{held ? 'held' : fmtWeightDelta(dLean, unit)}</span>
+                  <span className="text-[#8A8A90]">fat</span><span className="tnum" style={{ color: dFat < 0 ? 'var(--good-ink)' : 'var(--muted)' }}>{fmtWeightDelta(dFat, unit)}</span>
                 </div>;
               })()}
             </div>}
@@ -3397,7 +3413,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
               <div className="text-[9px] uppercase tracking-widest text-[#8A8A90]">{r.l}</div>
               <div className="text-[15px] font-bold tnum leading-tight" style={{ color: r.c }}>{r.next}g</div>
             </div>)}</div>
-            {result.newTargets.squeezed && <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--fat)' }}>This one sits at the safety floor, so fat had to be trimmed to fit.</div>}
+            {result.newTargets.squeezed && <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--fat-ink)' }}>This one sits at the safety floor, so fat had to be trimmed to fit.</div>}
             <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { approve(); go('ahead'); }}>Do it</Btn><Btn kind="ghost" onClick={reject}>Keep current</Btn></div>
           </>) : (<>
             <Say>{result.accepted ? 'Applied. Your new numbers are live from today.' : 'No change needed. Your macros stay where they are.'}</Say>
@@ -3468,9 +3484,9 @@ function WeighInEditModal({ db, update, entry, onClose }) {
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{isNew ? 'Add weigh-in' : 'Edit weigh-in'}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
         {isNew
-          ? <Field label="Date"><input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className={inputCls} />{dupe && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat)' }}>You already weighed in on this day, saving overwrites it.</div>}</Field>
+          ? <Field label="Date"><input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className={inputCls} />{dupe && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>You already weighed in on this day, saving overwrites it.</div>}</Field>
           : <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">{fmtWeighDay(date)}</div>}
-        <Field label="Weight">{weighInputs}{wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{wErr}</div>}</Field>
+        <Field label="Weight">{weighInputs}{wErr && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>{wErr}</div>}</Field>
         <Field label="Body fat %" hint="Optional. Sets your protein target and lean-mass trend.">
           <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
           {bf !== '' && <div className="mt-2"><Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} /></div>}
@@ -3555,18 +3571,18 @@ function CheckInHistory({ db }) {
             <div key={i} className="pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="text-[12px] text-[#C9C9CF]">{periodDays ? `${fmtShortDay(startISO)} – ${fmtShortDay(c.date)}` : fmtShortDay(c.date)}{periodDays ? <span className="text-[#8A8A90]"> · {periodDays} days</span> : ''}</div>
-                <span className="pf text-[8px] px-2 py-1" style={{ background: c.onTrack ? 'var(--accent-dim)' : 'transparent', color: c.onTrack ? 'var(--good)' : 'var(--fat)', border: '2px solid var(--border)' }}>{c.onTrack ? (c.changed ? 'ADJUSTED' : 'ON TRACK') : 'HELD'}</span>
+                <span className="pf text-[8px] px-2 py-1" style={{ background: c.onTrack ? 'var(--accent-dim)' : 'transparent', color: c.onTrack ? 'var(--good-ink)' : 'var(--fat-ink)', border: '2px solid var(--border)' }}>{c.onTrack ? (c.changed ? 'ADJUSTED' : 'ON TRACK') : 'HELD'}</span>
               </div>
               <div className="flex items-baseline justify-between">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-bold tnum" style={{ color: good == null ? 'var(--text)' : good ? 'var(--good)' : 'var(--fat)' }}>{changeKg == null ? fmtWeight(c.weightKg, unit) : fmtWeightDelta(changeKg, unit)}</span>
+                  <span className="text-lg font-bold tnum" style={{ color: good == null ? 'var(--text)' : good ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{changeKg == null ? fmtWeight(c.weightKg, unit) : fmtWeightDelta(changeKg, unit)}</span>
                   {changeKg == null ? <span className="text-[11px] text-[#8A8A90]">baseline</span> : (rate != null && <span className="text-[11px] text-[#8A8A90] tnum">{fmtWeightDelta(rate, unit, '/wk')}</span>)}
                 </div>
                 <span className="text-[11px] tnum text-[#8A8A90]">{changeKg == null ? 'first check-in' : 'avg ' + fmtWeight(c.weightKg, unit)}</span>
               </div>
               <div className="text-[11px] mt-1.5 pt-1.5 border-t border-[#262629] flex items-center justify-between">
                 <span className="text-[#8A8A90]">{hasCounts ? `Logged ${c.logged}/${c.logWindow != null ? c.logWindow : c.days} · Weighed ${c.weighed}/${c.weighWindow != null ? c.weighWindow : c.days}` : 'Compliance'}</span>
-                <span style={{ color: c.onTrack ? 'var(--good)' : 'var(--fat)' }}>{c.onTrack ? 'Compliant' : 'Short'}</span>
+                <span style={{ color: c.onTrack ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{c.onTrack ? 'Compliant' : 'Short'}</span>
               </div>
               {avgIn != null && wkRate != null && <div className="text-[10px] text-[#8A8A90] tnum mt-1">Ate ~{avgIn.toLocaleString()} kcal/day → trended {fmtWeightDelta(wkRate, unit, '/wk')}</div>}
             </div>
@@ -3625,7 +3641,7 @@ function DensityWeekCard({ db }) {
                   }} />
                 ))}
               </div>
-              <div className="text-[9px] mt-1.5" style={{ color: has && d.hit ? 'var(--good)' : 'var(--muted)' }}>{dayLetter(d.date)}</div>
+              <div className="text-[9px] mt-1.5" style={{ color: has && d.hit ? 'var(--good-ink)' : 'var(--muted)' }}>{dayLetter(d.date)}</div>
             </div>
           );
         })}
@@ -3725,7 +3741,7 @@ function ExpenditureCard({ db }) {
         const sign = est.direction === 'up' ? '−' : '+'; // gaining => burn is below intake; losing => above
         return <>
           <button onClick={() => setShowMath(v => !v)} className="text-[10px] text-[#8A8A90] mt-2 inline-flex items-center gap-1" aria-expanded={showMath}>
-            <span style={{ color: 'var(--hero)' }}>how this was worked out</span>
+            <span style={{ color: 'var(--good-ink)' }}>how this was worked out</span>
             <span className="tnum" style={{ display: 'inline-block', transform: showMath ? 'rotate(180deg)' : 'none' }}>⌄</span>
           </button>
           {showMath && <div className="fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5">
@@ -3740,7 +3756,7 @@ function ExpenditureCard({ db }) {
       {/* Weight trend on its own labelled row so it isn't mistaken for the burn figure. */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262629]">
         <span className="pf text-[8px] text-[#8A8A90]">WEIGHT TREND</span>
-        <span className="text-[12px] tnum font-semibold" style={{ color: est.direction === 'flat' ? 'var(--good)' : 'var(--text)' }}>{est.direction === 'flat' ? 'holding steady' : fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>
+        <span className="text-[12px] tnum font-semibold" style={{ color: est.direction === 'flat' ? 'var(--good-ink)' : 'var(--text)' }}>{est.direction === 'flat' ? 'holding steady' : fmtWeightDelta(est.weeklyChangeKg, unit, '/wk')}</span>
       </div>
       {(() => {
         // Burn history: TDEE learned at each past check-in (persisted as ci.tdee going forward;
@@ -4371,7 +4387,7 @@ function WeighInline({ unit, seedKg, onSave }) {
             </div>}
         <button onClick={save} className="pixel-btn py-2.5 px-3 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[8px]">SAVE</span></button>
       </div>
-      {err && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>{err}</div>}
+      {err && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     </div>
   );
 }
@@ -4410,7 +4426,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
           <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
           {incubating
-            ? <><div className="text-[11px] leading-snug mb-1.5 truncate" style={{ color: 'var(--carb)' }}>Incubating{tasks ? ' · ' + tDone + '/' + tasks.length : '…'}</div>
+            ? <><div className="text-[11px] leading-snug mb-1.5 truncate" style={{ color: 'var(--carb-ink)' }}>Incubating{tasks ? ' · ' + tDone + '/' + tasks.length : '…'}</div>
                 {tasks && <PipLine pct={(tDone / tasks.length) * 100} />}</>
             : <><div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
                 {next
@@ -4418,7 +4434,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
                       <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
                   : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
          </div>
-         <span className="pf shrink-0 self-center" style={{ color: 'var(--accent)', fontSize: 15 }}>›</span>
+         <span className="pf shrink-0 self-center" style={{ color: 'var(--accent-ink)', fontSize: 15 }}>›</span>
         </button>
       </div>
       {/* Discoverability: name what's behind the tap so people know the buddy opens Buddy, Battle & Shop
@@ -4427,7 +4443,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Buddy</span><span className="text-[#8A8A90] opacity-40">·</span>
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Battle</span><span className="text-[#8A8A90] opacity-40">·</span>
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Shop</span>
-        <span className="pf" style={{ color: 'var(--accent)', fontSize: 12 }}>›</span>
+        <span className="pf" style={{ color: 'var(--accent-ink)', fontSize: 12 }}>›</span>
       </button>}
       {incubating && tasks && (
         <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: '2px solid var(--border)' }}>
@@ -4436,7 +4452,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
             <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1.5 active:opacity-60 transition-opacity">
               <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{t.done ? <Tick size={10} /> : null}</span>
               <span className="text-[11px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
-              {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent)' }}>DO IT ›</span>}
+              {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
             </button>
           ))}
         </div>
@@ -4451,7 +4467,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
         return (
           <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
             <div className="flex items-start justify-between gap-2 mb-1">
-              <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>{head}</div>
+              <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>{head}</div>
               {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
             </div>
             <div className="text-[11.5px] leading-snug">{msg.text}</div>
@@ -4793,9 +4809,9 @@ function personalityFor(seed) { return PERSONALITIES[crHash(String(seed || 'egg'
 // Mood is how the buddy reads right now; the line is a stable-per-day flavour string. Warm,
 // never scolding, so a lapse is an invitation to feed it rather than a telling-off.
 const MOOD_META = {
-  thriving: { label: 'Thriving', color: 'var(--good)', lines: ['Firing on all cylinders.', 'Best it has felt in ages.', 'Practically glowing after that.'] },
-  content: { label: 'Content', color: 'var(--carb)', lines: ['Fed and happy.', 'A good, steady day.', 'Quietly pleased with you.'] },
-  peckish: { label: 'Peckish', color: 'var(--fat)', lines: ['Could do with more protein.', 'Still a little hungry.', 'Decent start, feed it up.'] },
+  thriving: { label: 'Thriving', color: 'var(--good-ink)', lines: ['Firing on all cylinders.', 'Best it has felt in ages.', 'Practically glowing after that.'] },
+  content: { label: 'Content', color: 'var(--carb-ink)', lines: ['Fed and happy.', 'A good, steady day.', 'Quietly pleased with you.'] },
+  peckish: { label: 'Peckish', color: 'var(--fat-ink)', lines: ['Could do with more protein.', 'Still a little hungry.', 'Decent start, feed it up.'] },
   stuffed: { label: 'Stuffed', color: 'var(--warn)', lines: ['Ate a bit much, feeling lazy now.', 'Belly full, going nowhere fast.', 'Might just nap this one off.', 'Over the line today, no drama, back at it tomorrow.'] },
   sluggish: { label: 'Sluggish', color: 'var(--weight)', lines: ['Waiting on today’s first meal.', 'A bit low, nothing logged yet.', 'Perks right up when you log.'] },
   asleep: { label: 'Napping', color: 'var(--muted)', lines: ['Fast asleep. Log to wake it.', 'Curled up, dreaming of snacks.'] },
@@ -4918,7 +4934,7 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW,
             loop={!flourishing} onEnd={fl.onEnd} />
         </div>
       </div>
-      {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb)' }}>Zz</span>}
+      {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb-ink)' }}>Zz</span>}
       {stuffed && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--warn)' }}>z</span>}
     </div>
   );
@@ -4942,7 +4958,7 @@ function BuddyAvatar({ buddy, px = 4, asleep }) {
 // Bond hearts: the friendship meter, filled ♥ / empty ♡ (Pokemon-style affection).
 function BondHearts({ n, max, size = 12 }) {
   return <span className="tnum" style={{ letterSpacing: 1 }}>{Array.from({ length: max || 0 }, (_, i) =>
-    <span key={i} style={{ color: i < n ? 'var(--danger)' : 'var(--border)', fontSize: size }}>{i < n ? '♥' : '♡'}</span>)}</span>;
+    <span key={i} style={{ color: i < n ? 'var(--danger-ink)' : 'var(--border)', fontSize: size }}>{i < n ? '♥' : '♡'}</span>)}</span>;
 }
 // The buddy detail in the Play hub's Buddy tab: the animated dino at its growth stage, its name, a
 // light mood + bond layer, and its streak-driven growth toward the next stage. (The old needs meters,
@@ -4969,7 +4985,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
         </div>
         <div className="text-lg font-bold">{who}</div>
         {incubating
-          ? <div className="text-[10px] mt-1 leading-snug max-w-[16rem]" style={{ color: 'var(--carb)' }}>Incubating. Do the getting-started tasks on Today to hatch it.</div>
+          ? <div className="text-[10px] mt-1 leading-snug max-w-[16rem]" style={{ color: 'var(--carb-ink)' }}>Incubating. Do the getting-started tasks on Today to hatch it.</div>
           : <>
               <div className="text-[10px] mt-1 leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
               <div className="flex items-center gap-2 mt-2">
@@ -4993,7 +5009,7 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
       {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
       {!incubating && <div className="pixel-box p-2.5 mt-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--fat)' }}>Dino lore</div>
+        <div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--fat-ink)' }}>Dino lore</div>
         <div className="text-[10px] leading-snug" style={{ color: 'var(--muted)' }}>{BUDDY_LORE[crHash((db.game_salt || '') + Store.todayISO()) % BUDDY_LORE.length]}</div>
       </div>}
     </div>
@@ -5063,7 +5079,7 @@ function BuddyChatModal({ db, onClose, isPremium }) {
             </div>
           ))}
           {busy && <div className="mb-2 flex justify-start"><div className="pixel-box p-2.5 text-[11.5px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div></div>}
-          {err && <div className="text-[10px] leading-snug mb-2 px-1" style={{ color: 'var(--danger)' }}>{err}</div>}
+          {err && <div className="text-[10px] leading-snug mb-2 px-1" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
           <div ref={endRef} />
         </div>
         <div className="shrink-0 pt-3 flex gap-2 items-end" style={{ borderTop: '2px solid var(--border)' }}>
@@ -5165,7 +5181,7 @@ function TrophyCabinet({ db, streak, onBack }) {
   const Track = ({ label, count, hint }) => {
     const t = Game.badgeTier(count);
     return <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="flex justify-between items-center"><div className="text-[11px] font-bold">{label}</div><div className="pf text-[8px]" style={{ color: t.level > 0 ? 'var(--good)' : 'var(--muted)' }}>TIER {t.level}/{t.max}</div></div>
+      <div className="flex justify-between items-center"><div className="text-[11px] font-bold">{label}</div><div className="pf text-[8px]" style={{ color: t.level > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>TIER {t.level}/{t.max}</div></div>
       <PipLine className="my-1.5" pct={t.progress * 100} height={8} />
       <div className="text-[9px] text-[#8A8A90] tnum">{count} so far{t.next != null ? ` · next tier at ${t.next}` : ' · maxed out'} · {hint}</div>
     </div>;
@@ -5175,8 +5191,8 @@ function TrophyCabinet({ db, streak, onBack }) {
     <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={16} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
-      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat)' }}>{streak || 0}</div><div className="text-[9px] text-[#8A8A90]">current streak</div></div>
-      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat)' }}>{longest}</div><div className="text-[9px] text-[#8A8A90]">longest ever</div></div>
+      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[9px] text-[#8A8A90]">current streak</div></div>
+      <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{longest}</div><div className="text-[9px] text-[#8A8A90]">longest ever</div></div>
     </div>
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Badges</div>
     <Track label="Check-ins completed" count={badges.checkins || 0} hint="show up for the weekly read" />
@@ -5240,9 +5256,9 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
         {isOwned
           ? (isWorn
             ? <button onClick={() => equip(kind, null)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
-            : <button onClick={() => equip(kind, id)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>WEAR</button>)
+            : <button onClick={() => equip(kind, id)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
           : ownedLabel
-            ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good)' }}>{ownedLabel}</span>
+            ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
             : <button onClick={onBuy || (() => buy(id))} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}><Spark size={9} /> {price}</button>}
       </div>
     );
@@ -5254,7 +5270,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
         {onBack ? <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button> : <span />}
-        <div className="pf text-[10px]" style={{ color: 'var(--fat)' }}><Spark size={9} /> {amber} Amber</div>
+        <div className="pf text-[10px]" style={{ color: 'var(--fat-ink)' }}><Spark size={9} /> {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
       <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from your buddy's fights, then treat it to something nice.</div>
@@ -5263,7 +5279,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
         <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your buddy</div>
         <div className="space-y-2 mb-5">
           {onRename && <Row name="Rename" desc="Give your buddy a new name." price={RENAME_COST} onBuy={onRename}
-            preview={<span className="pf text-[13px] font-bold" style={{ color: 'var(--accent)' }}>Aa</span>} />}
+            preview={<span className="pf text-[13px] font-bold" style={{ color: 'var(--accent-ink)' }}>Aa</span>} />}
           {canRecolour && <Row name="Change colour" desc="Switch your buddy's colourway." price={COLOUR_COST} onBuy={() => setColourOpen(true)}
             preview={<div className="pixel-box p-0.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={1.2} /></div>} />}
         </div>
@@ -5274,7 +5290,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
       <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Auras</div>
       <div className="space-y-2 mb-5">
         {Game.cosmeticsOfKind('aura').map(c => <Row key={c.id} id={c.id} kind="aura" name={c.name} desc={c.desc} price={c.price}
-          preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat)' }}><Spark size={18} /></span>} />)}
+          preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat-ink)' }}><Spark size={18} /></span>} />)}
       </div>
 
       <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Terrarium scenes</div>
@@ -5538,11 +5554,11 @@ function FightModal({ db, update, streak, onClose, embedded }) {
       {/* player (near, lower left): the buddy's real animated sprite, a touch larger */}
       <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 4, left: 14 }}><Stage px={6} shadowW={74}><FighterSprite buddy={db.buddy} anim={buddyAnim} px={6} /></Stage></div>
       {/* VS flash on entry */}
-      {intro && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="pf fvs" style={{ fontSize: 26, color: 'var(--fat)', WebkitTextStroke: '1px var(--border)' }}>VS</div></div>}
+      {intro && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="pf fvs" style={{ fontSize: 26, color: 'var(--fat-ink)', WebkitTextStroke: '1px var(--border)' }}>VS</div></div>}
       {/* damage / hit pops */}
       {pop && <div key={pop.id} className="absolute text-center" style={{ top: 40, [pop.side === 'r' ? 'right' : 'left']: 34 }}>
-        <div className="pf fpop" style={{ fontSize: pop.big ? 15 : 12, color: 'var(--fat)' }}>{pop.text}</div>
-        {pop.num != null && <div className="pf fdmg tnum" style={{ fontSize: pop.big ? 16 : 12, color: 'var(--danger)' }}>-{pop.num}</div>}
+        <div className="pf fpop" style={{ fontSize: pop.big ? 15 : 12, color: 'var(--fat-ink)' }}>{pop.text}</div>
+        {pop.num != null && <div className="pf fdmg tnum" style={{ fontSize: pop.big ? 16 : 12, color: 'var(--danger-ink)' }}>-{pop.num}</div>}
       </div>}
     </div>
   );
@@ -5562,7 +5578,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-bold truncate">{enemy.name}</div>
           <StatLine s={enemy.stats} />
-          {enemy.ability && enemy.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat)' }}>{ABIL_LABEL[enemy.ability]}</div>}
+          {enemy.ability && enemy.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
           <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{reward}</div>
         </div>
       </div>
@@ -5581,7 +5597,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
         {phase === 'select' && <div className="fade-in">
           {/* progress eyebrow */}
           <div className="text-center pf text-[8px] uppercase text-[#8A8A90] mb-3 inline-flex items-center justify-center gap-1.5 w-full flex-wrap">
-            {(fight.prestige || 0) > 0 && <span style={{ color: 'var(--fat)' }}>Prestige {fight.prestige} ·</span>}
+            {(fight.prestige || 0) > 0 && <span style={{ color: 'var(--fat-ink)' }}>Prestige {fight.prestige} ·</span>}
             <span>{ladderCleared ? 'All bosses cleared' : `Boss ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0}</span>
             <PixelGlyph kind="trophy" color="var(--fat)" size={11} />
           </div>
@@ -5592,7 +5608,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-bold truncate">{fighter.name}</div>
               <StatLine s={fighter.stats} />
-              <div className="text-[9px] mt-1 leading-snug" style={{ color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)' }}>
+              <div className="text-[9px] mt-1 leading-snug" style={{ color: readyBuff.band === 'apex' ? 'var(--good-ink)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)' }}>
                 {readyBuff.band
                   ? (readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today'
                     : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today'
@@ -5607,12 +5623,12 @@ function FightModal({ db, update, streak, onClose, embedded }) {
           {/* Daily Hunt: the quick everyday fight for Amber. */}
           <FightCard tag="Daily Hunt" tagColor="var(--accent)" border={dailyReady ? 'var(--accent)' : 'var(--border)'} enemy={daily}
             attemptTag={dailyReady ? (loggedToday ? 'ready' : 'log to arm') : 'cleared today'}
-            reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat)' }}>▲ {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
+            reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat-ink)' }}>▲ {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat-ink)' }}><Spark size={9} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
             action={dailyReady
               ? (loggedToday
                   ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={14} /> Hunt</Btn>
                   : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Log a meal today to arm the hunt.</div>)
-              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good)' }}>Hunt cleared today <Tick size={9} /> A fresh one lands tomorrow.</div>} />
+              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good-ink)' }}>Hunt cleared today <Tick size={9} /> A fresh one lands tomorrow.</div>} />
 
           {/* Boss Climb: the ladder folded into the boss. Beat progressively tougher bosses, one attempt
               a day, to climb ranks and earn the Champion Belt, then prestige for a harder run. */}
@@ -5634,10 +5650,10 @@ function FightModal({ db, update, streak, onClose, embedded }) {
           <Ring />
           <div className="pixel-box p-2 mb-3 text-[10px] text-[#8A8A90] leading-relaxed" style={{ background: 'var(--surface3)', minHeight: 56 }}>{log.map((l, i) => <div key={i} style={{ opacity: 1 - i * 0.16 }}>› {l}</div>)}</div>
           {phase === 'done' && <div className="text-center fade-in">
-            <div className="pf text-2xl mb-1" style={{ color: winner === 'you' ? 'var(--good)' : 'var(--danger)' }}>{winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'}</div>
+            <div className="pf text-2xl mb-1" style={{ color: winner === 'you' ? 'var(--good-ink)' : 'var(--danger-ink)' }}>{winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'}</div>
             <div className="text-[11px] text-[#8A8A90] mb-2">{winner === 'you' ? (isDaily ? 'Daily Hunt cleared!' : isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!') : 'Your buddy needs a good feed, come back tomorrow and go again.'}</div>
-            {winner === 'you' && amberEarned > 0 && <div className="text-[14px] mb-2 font-bold" style={{ color: 'var(--fat)' }}><Spark size={11} /> +{amberEarned} Amber</div>}
-            {winner === 'you' && drops.length > 0 && <div className="text-[11px] mb-3" style={{ color: 'var(--good)' }}>Loot: {drops.map(id => ITEMS[id].name).join(', ')}</div>}
+            {winner === 'you' && amberEarned > 0 && <div className="text-[14px] mb-2 font-bold" style={{ color: 'var(--fat-ink)' }}><Spark size={11} /> +{amberEarned} Amber</div>}
+            {winner === 'you' && drops.length > 0 && <div className="text-[11px] mb-3" style={{ color: 'var(--good-ink)' }}>Loot: {drops.map(id => ITEMS[id].name).join(', ')}</div>}
             <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setPhase('select')}>Back</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Done</Btn></div>
           </div>}
         </div>}
@@ -5662,7 +5678,7 @@ function HomeWeightSpark({ db, onOpen }) {
   if (!last) return null;
   return (
     <button onClick={onOpen} className="w-full text-left bg-[#161618] pixel-box p-4 mb-4">
-      <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[8px]" style={{ color: 'var(--accent)' }}>Progress ›</span></div>
+      <div className="flex justify-between items-center mb-2"><span className="pf text-[9px] uppercase text-[#8A8A90]">Weight trend</span><span className="pf text-[8px]" style={{ color: 'var(--accent-ink)' }}>Progress ›</span></div>
       <div className="flex items-end gap-3">
         <div className="shrink-0 leading-none"><span className="text-2xl font-bold tnum">{fmtWeight(last.scale_weight, unit)}</span></div>
         <div className="flex-1 min-w-0"><MiniSpark points={pts} color="var(--weight)" /></div>
@@ -5800,7 +5816,7 @@ function recoveryCoachLine(db, today) {
   // Lead every line with the actual number out of 100 and a plain word, so the score reads clearly
   // rather than a game-y band name on its own.
   if (band === 'apex') return {
-    color: 'var(--good)',
+    color: 'var(--good-ink)',
     text: restedWell
       ? "Readiness " + score + " out of 100, high. Last night's sleep is paying off, so let's push hard today. I'm right behind you."
       : "Readiness " + score + " out of 100, high. Recovery is on your side, so today's a good one to train hard. Go get it.",
@@ -5812,7 +5828,7 @@ function recoveryCoachLine(db, today) {
       : "Readiness " + score + " out of 100, low. Your body's asking for a lighter day, so we'll keep it easy and protect your sleep tonight. Rest is training too.",
   };
   if (band === 'prowling') return {
-    color: 'var(--accent)',
+    color: 'var(--accent-ink)',
     text: goalHit
       ? "Readiness " + score + " out of 100, steady. Steps are already on target, so train as planned and let's protect tonight's 7 to 9 hours."
       : "Readiness " + score + " out of 100, steady. Keep us moving, and aim for a full 7 to 9 hours tonight.",
@@ -5894,7 +5910,7 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
         {/* Premium AI deeper dive: ties the day's numbers into one personalised focus. Free users get a
             gentle upsell; premium runs the AI, degrading gracefully if the proxy is unreachable. */}
         {dive
-          ? <div className="pixel-box p-3 mb-2 text-[11.5px] leading-snug" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}><div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--accent)' }}>{who}'s deeper dive</div>{dive}</div>
+          ? <div className="pixel-box p-3 mb-2 text-[11.5px] leading-snug" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}><div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{who}'s deeper dive</div>{dive}</div>
           : <button onClick={runDive} disabled={diving} className="pixel-btn w-full py-2.5 text-[9px] pf mb-2 inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--surface2)', opacity: diving ? 0.6 : 1 }}>{diving ? 'THINKING…' : isPremium ? 'ASK ' + who.toUpperCase() + ' FOR A DEEPER DIVE' : 'DEEPER DIVE · PREMIUM'}</button>}
         {diveErr && <div className="text-[10px] mb-2 leading-snug" style={{ color: 'var(--warn)' }}>{diveErr}</div>}
         <div className="text-center text-[9px] text-[#8A8A90] leading-snug">It's all guidance, not gospel, so do what suits your day.</div>
@@ -5943,7 +5959,7 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
             </div>
           ))}
         </div>
-        <div className="pixel-box p-3 mb-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{line}<span style={{ color: 'var(--accent)' }}>”</span></div>
+        <div className="pixel-box p-3 mb-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
         {onOpenProgress && <button onClick={onOpenProgress} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SEE FULL PROGRESS</button>}
       </div>
     </div>
@@ -6049,7 +6065,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
           <span className="pf uppercase" style={{ fontSize: 8, color: 'var(--sleep)' }}>Recovery</span>
         </span>
         <span className="flex-1 grid grid-cols-3 gap-1.5">
-          {Chip('Move', moveBig, 'var(--good)')}
+          {Chip('Move', moveBig, 'var(--good-ink)')}
           {Chip('Sleep', sleepBig, 'var(--sleep)')}
           {Chip('Ready', readyBig, rColor)}
         </span>
@@ -6060,9 +6076,9 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       <div className="flex items-center justify-between mb-1 px-1">
         <div className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted2)' }}>Train hard, rest harder</div>
         {synced
-          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good)' }}><Tick size={8} /> Synced</span>
+          ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={8} /> Synced</span>
           : ghConfigured()
-            ? <button onClick={ghConnectGated} className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Connect Health ›</button>
+            ? <button onClick={ghConnectGated} className="pf text-[7px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
             : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
       </div>
 
@@ -6101,7 +6117,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
       {/* The buddy's morning read now lives in its habitat up top (one buddy voice, one place), so this
           recovery card stays purely the dials + sleep architecture. */}
       {streak >= 3 && (
-        <div className="text-center mt-2 pf uppercase" style={{ fontSize: 7, color: 'var(--good)' }}>Step-goal streak · {streak} days</div>
+        <div className="text-center mt-2 pf uppercase" style={{ fontSize: 7, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>
       )}
       </div>}
 
@@ -6163,11 +6179,11 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
         {synced ? (
           <div>
             <div className="flex items-end gap-2 mb-3">
-              <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--good)' }}>{k(todaySteps)}</div>
+              <div className="tnum text-4xl font-bold leading-none" style={{ color: 'var(--good-ink)' }}>{k(todaySteps)}</div>
               <div className="text-[13px] pb-1" style={{ color: 'var(--muted)' }}>steps today{stepGoal > 0 ? ' · ' + pct + '% of goal' : ''}</div>
             </div>
             {stepGoal > 0 && <PipLine className="mb-2" pct={pct} height={9} />}
-            {streak >= 2 && <div className="pf uppercase mb-1" style={{ fontSize: 8, color: 'var(--good)' }}>Step-goal streak · {streak} days</div>}
+            {streak >= 2 && <div className="pf uppercase mb-1" style={{ fontSize: 8, color: 'var(--good-ink)' }}>Step-goal streak · {streak} days</div>}
             <div className="pf text-[8px] uppercase mb-2 mt-5" style={{ color: 'var(--muted)' }}>Last 7 days{stepGoal > 0 ? ' · dashed line is your goal' : ''}</div>
             <DayBars items={trend} color="var(--good)" goalFill={stepGoal > 0 ? Math.min(1, stepGoal / scale) : null} />
             <div className="mt-5">
@@ -6338,7 +6354,7 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
   useBackClose(onClose);
   const Row = ({ label, detail }) => (
     <div className="flex gap-3 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
-      <div className="shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}><Tick size={12} /></div>
+      <div className="shrink-0 mt-0.5" style={{ color: 'var(--accent-ink)' }}><Tick size={12} /></div>
       <div className="min-w-0">
         <div className="text-[13px] font-semibold">{label}</div>
         <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{detail}</div>
@@ -6362,7 +6378,7 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
           Access is <b>read-only</b>, and we never change your Google Health data. It's used <b>only</b> for the features above. We never sell it, use it for advertising, or use it to train AI models.
         </p>
         <p className="text-[12px] leading-snug mt-3" style={{ color: 'var(--muted)' }}>
-          If you use the AI coaching chat, three derived figures (readiness, hours asleep, today's steps) are sent to Anthropic, our AI provider, to write that reply. It never sees your raw Google Health records or your Google account, and it does not train on what we send. You can disconnect any time in Settings. See our <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent)' }}>Privacy Policy</a>.
+          If you use the AI coaching chat, three derived figures (readiness, hours asleep, today's steps) are sent to Anthropic, our AI provider, to write that reply. It never sees your raw Google Health records or your Google account, and it does not train on what we send. You can disconnect any time in Settings. See our <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent-ink)' }}>Privacy Policy</a>.
         </p>
         <p className="text-[12px] leading-snug mt-3" style={{ color: 'var(--muted)' }}>
           Tap Connect and Google will ask you to choose your account and approve this access.
@@ -6472,7 +6488,7 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center text-center">
         {step === 'intro' ? (
           <>
-            <div className="pf text-[9px] uppercase mb-3 mt-2 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />Founding member<Spark size={10} /></div>
+            <div className="pf text-[9px] uppercase mb-3 mt-2 inline-flex items-center gap-1.5" style={{ color: 'var(--accent-ink)' }}><Spark size={10} />Founding member<Spark size={10} /></div>
             <div className="pixel-box p-5 mb-4 flex items-center justify-center celebrate-bounce buddy-scene" style={{ minWidth: 140, minHeight: 140 }}>
               <SpriteSheet palette="female" species={species} group="egg" anim="move" px={5} fps={4} />
             </div>
@@ -6534,13 +6550,13 @@ function MilestoneCelebration({ db, milestone, etaText, showToast, onClose, onMa
     <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative">
-        <div className="pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />{reached ? 'Goal reached' : 'Milestone'}<Spark size={10} /></div>
+        <div className="pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent-ink)' }}><Spark size={10} />{reached ? 'Goal reached' : 'Milestone'}<Spark size={10} /></div>
         <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 180, minHeight: 180 }}>
           <div className="celebrate-bounce inline-block"><SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={7} fps={s.fps} /></div>
         </div>
-        <div className="text-3xl font-bold mb-3" style={{ color: reached ? 'var(--fat)' : 'var(--accent)' }}>{milestone.headline}</div>
-        <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{milestone.text}<span style={{ color: 'var(--accent)' }}>”</span></div>
-        {etaText && <div className="text-[12px] mb-5 max-w-xs leading-snug" style={{ color: 'var(--good)' }}>{etaText}</div>}
+        <div className="text-3xl font-bold mb-3" style={{ color: reached ? 'var(--fat-ink)' : 'var(--accent-ink)' }}>{milestone.headline}</div>
+        <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{milestone.text}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
+        {etaText && <div className="text-[12px] mb-5 max-w-xs leading-snug" style={{ color: 'var(--good-ink)' }}>{etaText}</div>}
         <div className="flex gap-2 w-full max-w-xs">
           <button onClick={doShare} disabled={busy} className="pixel-btn flex-1 py-3 text-[10px] pf inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--surface2)', opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'SHARE'}</button>
           {onMaintain
@@ -6577,13 +6593,13 @@ function StageUpCelebration({ db, stage, onClose }) {
     <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
       <div className="min-h-full max-w-md mx-auto px-6 py-10 flex flex-col items-center justify-center text-center relative">
-        <div className="pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Spark size={10} />{who} grew<Spark size={10} /></div>
+        <div className="pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--accent-ink)' }}><Spark size={10} />{who} grew<Spark size={10} /></div>
         <div className="pixel-box p-6 mb-6 flex items-center justify-center buddy-scene" style={{ minWidth: 200, minHeight: 190 }}>
           <div className="celebrate-bounce inline-block" style={{ filter: auraFilter(eq) || undefined }}>
             <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim={s.anim} px={toPx} fps={s.fps} />
           </div>
         </div>
-        <div className="text-3xl font-bold mb-3" style={{ color: 'var(--accent)' }}>{st.name}</div>
+        <div className="text-3xl font-bold mb-3" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
         {/* The size jump, shown rather than claimed: the stage it left beside the stage it reached. */}
         {stage > 1 && (
           <div className="flex items-end justify-center gap-4 mb-4">
@@ -6591,14 +6607,14 @@ function StageUpCelebration({ db, stage, onClose }) {
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={fromPx * 0.5} fps={s.fps} />
               <div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
             </div>
-            <span className="pf text-[10px] pb-4" style={{ color: 'var(--accent)' }}>›</span>
+            <span className="pf text-[10px] pb-4" style={{ color: 'var(--accent-ink)' }}>›</span>
             <div className="text-center">
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={toPx * 0.5} fps={s.fps} />
-              <div className="pf text-[7px] uppercase mt-1" style={{ color: 'var(--accent)' }}>{st.name}</div>
+              <div className="pf text-[7px] uppercase mt-1" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
             </div>
           </div>
         )}
-        <div className="pixel-box p-3 mb-6 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{line}<span style={{ color: 'var(--accent)' }}>”</span></div>
+        <div className="pixel-box p-3 mb-6 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
         <button onClick={onClose} className="pixel-btn w-full max-w-xs py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NICE ONE</button>
       </div>
     </div>
@@ -6635,7 +6651,7 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
         {step === 'reveal' ? (
           <>
             <div className="text-lg font-bold mb-1">It hatched!</div>
-            {firstWords && <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent)' }}>“</span>{firstWords}<span style={{ color: 'var(--accent)' }}>”</span></div>}
+            {firstWords && <div className="pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{firstWords}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>}
             <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs">Give it a name, or keep the one we picked.</div>
             <input value={name} onChange={e => setName(e.target.value)} maxLength={16} className={inputCls + ' text-center mb-3'} />
             <Btn onClick={() => onDone(name.trim() || suggestedName || 'Buddy')} className="w-full max-w-xs">{name.trim() ? 'Hello ' + name.trim() : 'Say hello'}</Btn>
@@ -6693,7 +6709,7 @@ function RecipeMini({ r, onOpen, tag }) {
       </div>
       <div className="p-2">
         <div className="text-[12px] font-bold leading-tight" style={clamp2}>{r.title}</div>
-        <div className="text-[10px] text-[#8A8A90] mt-1 tnum"><span className="font-bold" style={{ color: CAL }}>{Math.round(r.macros_per_serving.kcal)}</span> kcal · <span className="font-bold" style={{ color: PRO }}>{Math.round(r.macros_per_serving.protein)}g</span> P</div>
+        <div className="text-[10px] text-[#8A8A90] mt-1 tnum"><span className="font-bold" style={{ color: CAL_T }}>{Math.round(r.macros_per_serving.kcal)}</span> kcal · <span className="font-bold" style={{ color: PRO_T }}>{Math.round(r.macros_per_serving.protein)}g</span> P</div>
       </div>
     </div>
   </button>);
@@ -6786,10 +6802,10 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
   };
   return (
     <div onClick={open} className={'pixel-box p-3.5 relative cursor-pointer active:opacity-90 ' + className} style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-      <div className="pf text-[8px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent)' }}>Macrosaurus Premium</div>
+      <div className="pf text-[8px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
       <div className="text-sm font-bold mb-1 pr-6">{headline}</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{blurb}</div>
-      <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Try Premium free ›</div>
+      <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Try Premium free ›</div>
       <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5" aria-label="Not now">×</button>
     </div>
   );
@@ -7079,9 +7095,9 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
             <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
             <div className="flex justify-between items-center mt-3">
-              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
-              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
-              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
+              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
+              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
+              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
             </div>
           </Collapsible>
         </div>
@@ -7093,8 +7109,8 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
           const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
           return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
-            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good)' : 'var(--fat)' }}>{sgn(adj)}</span> kcal {label}</span>
-            {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent)' }}>Details ›</button>}
+            <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
+            {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
           </div>;
         })()}
       </Card>
@@ -7162,7 +7178,7 @@ function CarryoverSheet({ et, onClose }) {
               const h = Math.round(5 + (Math.abs(d.delta) / maxAbs) * 40);
               const under = d.delta > 0, over = d.delta < 0;
               return <div key={i} className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
-                <span className="tnum text-[7px] mb-1" style={{ color: under ? 'var(--good)' : over ? 'var(--fat)' : 'var(--muted)' }}>{sgn(d.delta)}</span>
+                <span className="tnum text-[7px] mb-1" style={{ color: under ? 'var(--good-ink)' : over ? 'var(--fat-ink)' : 'var(--muted)' }}>{sgn(d.delta)}</span>
                 <div style={{ width: '100%', height: h + 'px', background: under ? 'var(--good)' : over ? 'var(--fat)' : 'var(--border)' }}></div>
               </div>;
             })}
@@ -7171,13 +7187,13 @@ function CarryoverSheet({ et, onClose }) {
             {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[7px] text-[#8A8A90]">{dShort(d.date)}</div>)}
           </div>
           <div className="flex justify-between text-[9px] text-[#8A8A90] mb-4">
-            <span><span style={{ color: 'var(--good)' }}>■</span> under target</span>
-            <span><span style={{ color: 'var(--fat)' }}>■</span> over target</span>
+            <span><span style={{ color: 'var(--good-ink)' }}>■</span> under target</span>
+            <span><span style={{ color: 'var(--fat-ink)' }}>■</span> over target</span>
           </div>
 
           <div className="pixel-box p-3 mb-3 flex justify-between items-center tnum text-[11px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
             <span className="font-bold">Running balance</span>
-            <span className="font-bold" style={{ color: cd.balance > 0 ? 'var(--good)' : cd.balance < 0 ? 'var(--fat)' : 'var(--text)' }}>{sgn(cd.balance)} kcal</span>
+            <span className="font-bold" style={{ color: cd.balance > 0 ? 'var(--good-ink)' : cd.balance < 0 ? 'var(--fat-ink)' : 'var(--text)' }}>{sgn(cd.balance)} kcal</span>
           </div>
 
           <div className="text-[10px] text-[#8A8A90] leading-relaxed">{cd.mode === 'dispersed'
@@ -7389,9 +7405,9 @@ function FoodLog({ db, update, openLog, showToast }) {
         <div className="flex items-center gap-1.5 mt-1 min-w-0">
           <span className="text-[11px] tnum truncate min-w-0">
             <span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(e.computed_macros.kcal)} kcal</span>{'  '}
-            <span style={{ color: PRO }}>P{Math.round(e.computed_macros.protein || 0)}</span>{' '}
-            <span style={{ color: CARB }}>C{Math.round(e.computed_macros.carbs || 0)}</span>{' '}
-            <span style={{ color: FAT }}>F{Math.round(e.computed_macros.fat || 0)}</span>
+            <span style={{ color: PRO_T }}>P{Math.round(e.computed_macros.protein || 0)}</span>{' '}
+            <span style={{ color: CARB_T }}>C{Math.round(e.computed_macros.carbs || 0)}</span>{' '}
+            <span style={{ color: FAT_T }}>F{Math.round(e.computed_macros.fat || 0)}</span>
           </span>
           {/* Just the score. The blocks moved into the tile's colour, so repeating them here would
               say the same thing twice in one row. The number stays because colour alone is not a
@@ -7466,7 +7482,7 @@ function FoodLog({ db, update, openLog, showToast }) {
           <div className="flex items-baseline justify-between mb-3">
             <div className="flex items-baseline gap-1.5">
               <span className="pf text-[8px] uppercase text-[#8A8A90]">{over ? 'Over by' : 'Kcal left'}</span>
-              <span className="text-2xl font-bold tnum" style={{ color: over ? 'var(--danger)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
+              <span className="text-2xl font-bold tnum" style={{ color: over ? 'var(--danger-ink)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
             </div>
             <span className="text-[10px] text-[#8A8A90] tnum">of {et.eff.kcal}</span>
           </div>
@@ -7477,7 +7493,7 @@ function FoodLog({ db, update, openLog, showToast }) {
               <div key={l} className="flex items-center gap-2.5">
                 <span className="pf text-[8px] w-8 shrink-0" style={{ color: 'var(--muted)' }}>{l}</span>
                 <div className="flex-1 min-w-0"><PipMeter value={e} target={t} color={c} small /></div>
-                <span className="tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap" style={{ color: e > t ? 'var(--danger)' : 'var(--text2)' }}>
+                <span className="tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap" style={{ color: e > t ? 'var(--danger-ink)' : 'var(--text2)' }}>
                   {e > t ? Math.round(e - t) + 'g over' : Math.max(0, Math.round(t - e)) + 'g left'}
                 </span>
               </div>
@@ -7500,7 +7516,7 @@ function FoodLog({ db, update, openLog, showToast }) {
                       scale={100 / dnd.target} color={densityColor(dnd.score)} small overIsFine />
                   </div>
                   <span className="tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap"
-                    style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good)' : 'var(--text2)') }}>
+                    style={{ color: dnd.score == null ? 'var(--muted)' : (dnd.hit ? 'var(--good-ink)' : 'var(--text2)') }}>
                     {dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target}
                   </span>
                 </button>
@@ -7568,7 +7584,7 @@ function FoodLog({ db, update, openLog, showToast }) {
               </div>
             </div>
             {me.map(e => renderEntry(e, m, mc))}
-            {drag && me.length === 0 && <div className="mt-2 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent)', border: '2px dashed var(--accent)' }}>Drop here</div>}
+            {drag && me.length === 0 && <div className="mt-2 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
             {/* An empty meal is an invitation, not a report, so it gets the one thing you would want
                 to do with it and no divider above it. A full meal keeps the rule, because there the
                 button is separating the add action from a list of food. */}
@@ -7578,7 +7594,7 @@ function FoodLog({ db, update, openLog, showToast }) {
                 states now, and only the divider still tells the two apart. */}
             <button onClick={() => openLog({ date, mealId: m.id })}
               className={'text-[13px] font-medium w-full text-left flex items-center ' + (me.length ? 'mt-2 pt-2 border-t border-[#262629]' : 'mt-1')}
-              style={{ color: 'var(--accent)', minHeight: 44 }}>+ Add food</button>
+              style={{ color: 'var(--accent-ink)', minHeight: 44 }}>+ Add food</button>
           </Card>);
       })}
       {(() => {
@@ -7616,7 +7632,7 @@ function FoodLog({ db, update, openLog, showToast }) {
             <div className="min-w-0 flex-1">
               <div className="text-sm truncate">{drag.name}</div>
               <div className="flex items-center gap-1 text-[11px] tnum mt-0.5" style={{ color: 'var(--text2)' }}><PixelGlyph kind="scale" color="var(--muted)" size={11} />{drag.qty || '1 portion'}</div>
-              <div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: drag.mc }}>{drag.kcal}</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO }}>{drag.p}P</span> <span style={{ color: CARB }}>{drag.c}C</span> <span style={{ color: FAT }}>{drag.f}F</span></div>
+              <div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: drag.mc }}>{drag.kcal}</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO_T }}>{drag.p}P</span> <span style={{ color: CARB_T }}>{drag.c}C</span> <span style={{ color: FAT_T }}>{drag.f}F</span></div>
             </div>
             <span className="shrink-0 pr-1" style={{ color: drag.mc }}><PixelGrip /></span>
           </div>
@@ -7729,8 +7745,12 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, title, saveVerb, con
             ? <TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onBlur={() => setRenaming(false)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setRenaming(false); } }} aria-label="Name" />
             : <button onClick={() => setRenaming(true)} className="text-left w-full">
-                <h2 className="text-lg font-semibold leading-tight">{name || title || 'Edit food'}</h2>
-                <div className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>{contextLine ? contextLine + ' · ' : ''}tap to rename</div>
+                {/* A dotted underline is the long-standing "you can change this in place" mark, so
+                    the heading carries its own affordance and the line beneath it can go back to
+                    saying something useful. It used to read "Breakfast · tap to rename", which is an
+                    instruction manual printed on the furniture. */}
+                <h2 className="text-lg font-semibold leading-tight" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'var(--muted)', textUnderlineOffset: 4 }}>{name || title || 'Edit food'}</h2>
+                {contextLine && <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{contextLine}</div>}
               </button>}
         </div>
         <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
@@ -7738,15 +7758,14 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, title, saveVerb, con
       {canSwitch && <div className="mb-3"><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
         options={[{ v: 'g', l: 'Grams' }, { v: 'serv', l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '') }]} /></div>}
       <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun} step={step} onStep={bump} />
-      {/* Fractions only where a unit is a discrete thing you can have half of. Grams get no preset
-          buttons: typing a weight is one tap and a couple of digits, and a rack of round numbers
-          would be guessing at an amount the person already knows. */}
-      {unit !== 'g' && unit !== 'oz' && <div className="mt-2.5"><FractionChips value={a} onPick={v => setAmount(String(v))} /></div>}
-      {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">grams · ±{step} g per tap</div>}
+      {/* No preset buttons, for servings any more than for grams. Typing the number is one tap and
+          a digit or two, and a rack of guesses at the amount only crowds the control that already
+          answers the question exactly. */}
+      {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">±{step} g per tap</div>}
       <div className="pixel-box p-3 mt-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
         <div className="flex justify-between items-baseline">
           <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{total.kcal}</span> <span className="text-[10px] text-[#8A8A90]">kcal</span></div>
-          <div className="text-[12px] tnum"><span style={{ color: PRO }}>P{total.protein}</span> <span style={{ color: CARB }}>C{total.carbs}</span> <span style={{ color: FAT }}>F{total.fat}</span></div>
+          <div className="text-[12px] tnum"><span style={{ color: PRO_T }}>P{total.protein}</span> <span style={{ color: CARB_T }}>C{total.carbs}</span> <span style={{ color: FAT_T }}>F{total.fat}</span></div>
         </div>
         {/* The Density Score is invariant to how much you had (it is scored per 100 kcal), so the
             food's own score can be shown here without recomputing anything as the amount moves. */}
@@ -7760,19 +7779,24 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, title, saveVerb, con
           <div className="text-sm text-[#8A8A90] mt-2 tnum">= {total.carbs}g carbs · {total.fat}g fat</div>
         </Field>
       </div>}
-      <button onClick={() => setEdit(e => !e)} className="text-[11px] text-[#8A8A90] mb-2">{edit ? '▲ Hide exact macros' : '▾ Numbers off? Edit exact macros'}</button>
-      {edit && <div className="fade-in mb-2">
+      <Collapsible variant="inline" label="Numbers look off?" sub="Edit" className="mb-3">
+      <div className="mb-2">
         <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={total.protein} onChange={e => setTotalField('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={total.carbs} onChange={e => setTotalField('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={total.fat} onChange={e => setTotalField('fat', e.target.value)} /></Field></div>
         <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={total.fiber} onChange={e => setTotalField('fiber', e.target.value)} /></Field><Field label="Calories"><NumInput value={total.kcal} onChange={e => setTotalField('kcal', e.target.value)} /></Field></div>
-      </div>}
-      {/* The button says the number it is about to commit, so a mistyped amount gets one more
-          chance to be caught on the control that commits it. Delete sits with the entry it deletes,
-          instead of behind the ... menu on the row you have already left. */}
-      <div className="flex gap-2">
-        <Btn kind="accent" className="flex-1" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={save}>{(saveVerb || 'Save') + ' ' + total.kcal + ' kcal'}</Btn>
-        {onDelete
-          ? <Btn kind="danger" onClick={onDelete}>Delete</Btn>
-          : <Btn kind="ghost" onClick={onClose}>Cancel</Btn>}
+      </div>
+      </Collapsible>
+      {/* The button says the number it is about to commit, so a mistyped amount gets one more chance
+          to be caught on the control that commits it. Delete sits with the entry it deletes, instead
+          of behind the ... menu on the row you have already left.
+          It is NOT a red slab beside the yellow one. Two filled buttons of equal weight, one of them
+          the loudest colour on the screen, is how a destructive action gets mistaken for the main
+          one, and it sat a thumb's width from Save. The standard answer is a red LABEL rather than a
+          red fill, set apart from the primary action instead of paired with it, which is also how
+          the platform's own alerts do it. The undo toast is still the real safety net. */}
+      <Btn kind="accent" className="w-full" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={save}>{(saveVerb || 'Save') + ' ' + total.kcal + ' kcal'}</Btn>
+      <div className="flex justify-between items-center mt-3">
+        <TextBtn onClick={onClose} tone="quiet">Cancel</TextBtn>
+        {onDelete && <TextBtn onClick={onDelete} tone="danger">Delete this entry</TextBtn>}
       </div>
     </div>
   </div>);
@@ -7798,7 +7822,7 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
   return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
       <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
-      {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent)' }}>{kcal}</span> kcal</div>}
+      {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
       {meals && <div className="mb-3">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Into which meal</div>
         <div className="flex gap-1.5 flex-wrap">{meals.map(m => <button key={m.id} onClick={() => setSelMeal(m.id)} className={`pixel-box px-2.5 py-1.5 text-[11px] ${selMeal === m.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{m.name}</button>)}</div>
@@ -7974,12 +7998,12 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
       {generic.length > 0 && <>{Head('UK food tables')}<div className="space-y-2">{generic.map((g, idx) => (
         <button key={'gen' + idx} onClick={() => setSel({ generic: g })} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left">
           <div className="min-w-0"><div className="text-sm truncate">{g.name}</div>
-            <div className="text-[11px] text-[#8A8A90] tnum">{Math.round(g.per100.kcal)} kcal · <span style={{ color: PRO }}>P {Math.round(g.per100.protein)}g</span> / 100 g</div></div>
+            <div className="text-[11px] text-[#8A8A90] tnum">{Math.round(g.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(g.per100.protein)}g</span> / 100 g</div></div>
           <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
         </button>))}</div></>}
       {Head('Food database')}
       {dbLoading && <div className="text-[12px] text-[#4A9EEB] py-2">Searching…</div>}
-      {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span></button>))}</div>}
+      {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span></button>))}</div>}
       {!dbLoading && !dbResults.length && !dbErr && <div className="text-[12px] text-[#8A8A90] py-1">No database matches.</div>}
       {dbErr && <div className="text-[12px] text-[#F5C542] py-1">{dbErr}</div>}
       {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">The UK food tables aren't loaded, so only packaged products are shown.</div>}
@@ -8095,7 +8119,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
               {/* Alcohol as the labelled detour the comment below always described: entered from
                   the bottom of the Food tab, left by this link. The meal picker stays put either
                   way, so a drink still lands where you want it. */}
-              {isAlc && <button onClick={() => setIsAlc(false)} className="block text-[11px] mb-0.5" style={{ color: 'var(--accent)' }}>‹ Back to food</button>}
+              {isAlc && <button onClick={() => setIsAlc(false)} className="block text-[11px] mb-0.5" style={{ color: 'var(--accent-ink)' }}>‹ Back to food</button>}
               <h2 className="text-lg font-semibold leading-tight">Log {isAlc ? 'alcohol' : 'food'}</h2>
               <Dropdown compact value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />
             </div>
@@ -8108,7 +8132,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
             const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
             return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: left > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-2 px-3 py-2 pixel-box flex items-center justify-between gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
               <span className="text-[11px]" style={{ color: 'var(--text)' }}>{left > 0 ? (left + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
-              <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent)' }}>Go unlimited ›</span>
+              <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
             </button>;
           })()}
           {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
@@ -8313,15 +8337,21 @@ function DensityBadge({ nq, estimating, onExplain }) {
     <button onClick={onExplain} className="w-full text-left mt-2.5 pt-2.5 border-t border-[#262629] active:opacity-80">
       <div className="flex justify-between items-baseline mb-1">
         <span className="pf text-[9px]" style={{ color: 'var(--muted)' }}>DENSITY <span style={{ opacity: 0.7 }}>ⓘ</span></span>
-        <span className="tnum text-[12px]" style={{ color: ns.score >= E.ND_TARGET ? 'var(--good)' : 'var(--text2)' }}>
+        <span className="tnum text-[12px]" style={{ color: ns.score >= E.ND_TARGET ? 'var(--good-ink)' : 'var(--text2)' }}>
           {ns.band.label}{nq.est ? ' · estimated' : ''}
         </span>
       </div>
       {/* Same meter as the day's, on the same 0-100 scale with the notch on the same target, so a
           food and a day are read with one instrument rather than two. */}
       <PipMeter value={ns.score} target={E.ND_TARGET} cells={10} scale={100 / E.ND_TARGET} color={color} small overIsFine />
-      {!!reasons.length && <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
-        {reasons.map(r => (r.good ? '+ ' : '- ') + r.text).join(' · ')}
+      {/* "+ a good bit of protein" and "- calorie dense · - high in sugar" spent two symbols saying
+          what the words say on their own. The wording carries the meaning and the colour repeats it,
+          so the plus and minus signs were only ever texture. */}
+      {!!reasons.length && <div className="text-[10px] mt-1">
+        {reasons.map((r, i) => <React.Fragment key={i}>
+          {i > 0 && <span style={{ color: 'var(--muted)' }}>{' · '}</span>}
+          <span style={{ color: r.good ? 'var(--good-ink)' : 'var(--muted)' }}>{r.text}</span>
+        </React.Fragment>)}
       </div>}
     </button>
   );
@@ -8342,7 +8372,7 @@ function DensityExplainer({ onClose }) {
       <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
-            <div className="pf text-[10px] uppercase tracking-widest" style={{ color: 'var(--accent)' }}>Density Score</div>
+            <div className="pf text-[10px] uppercase tracking-widest" style={{ color: 'var(--accent-ink)' }}>Density Score</div>
             <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
           </div>
           <h2 className="text-xl font-bold mb-1">How well you ate, not just how much</h2>
@@ -8350,7 +8380,7 @@ function DensityExplainer({ onClose }) {
             Calories and macros tell you the quantity of your food. The Density Score tells you the quality of it, out of 100, where higher is better.
           </div>
           <Row h="What a good number looks like">
-            <b style={{ color: 'var(--good)' }}>{E.ND_TARGET} or above</b> is a genuinely good day. That is not an arbitrary bar: it is the cut-off the US government's Healthy Eating Index uses for a high quality diet. A typical Western diet scores about <b>{E.ND_POPULATION_AVERAGE}</b>, which is the fainter mark on your bar, so landing in the fifties is ordinary rather than a failure.
+            <b style={{ color: 'var(--good-ink)' }}>{E.ND_TARGET} or above</b> is a genuinely good day. That is not an arbitrary bar: it is the cut-off the US government's Healthy Eating Index uses for a high quality diet. A typical Western diet scores about <b>{E.ND_POPULATION_AVERAGE}</b>, which is the fainter mark on your bar, so landing in the fifties is ordinary rather than a failure.
           </Row>
           <Row h="How a single food is scored">
             Per 100 g, so a food is judged on what it is rather than on how much of it you had. Protein, fibre, and the share that is fruit, veg, pulses or nuts push the score up. Saturated fat, sugar, salt and sheer calorie density push it down. This follows Nutri-Score, the front-of-pack system used across Europe, converted onto our 0 to 100 scale so it reads the same way as your daily number.
@@ -8530,44 +8560,47 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   return (<div className="fade-in" ref={topRef}>
     {explain && <DensityExplainer onClose={() => setExplain(false)} />}
-    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-2">‹ Back</button>
+    <TextBtn onClick={onCancel} tone="quiet" className="mb-2">‹ Back</TextBtn>
     {estimated
-      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[8px] mr-1.5" style={{ color: 'var(--fat)' }}>ESTIMATE</span>{note}</div>
+      ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[8px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>ESTIMATE</span>{note}</div>
       : saved
-        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[8px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[#8A8A90]">{note}</span></div>
+        ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--good)' }}><span className="pf text-[8px] px-1.5 py-0.5 shrink-0" style={{ color: 'var(--good-ink)', border: '1px solid var(--good)' }}>{badgeLabel || 'SAVED'}</span><span className="text-[#8A8A90]">{note}</span></div>
         : <div className="text-[12px] text-[#8A8A90] mb-3">{note}</div>}
     {dodgy && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1">{_missing ? 'Some numbers are missing' : 'These numbers look off'}</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{_missing ? "This came from the food database and doesn't have all the values." : "This came from the food database and the calories don't add up from the macros."} Get the real numbers a better way:</div>
       {onRescan && <Btn kind="accent" className="w-full" onClick={onRescan}>Scan the nutrition label</Btn>}
-      {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center rounded-xl border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--accent)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
+      {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center rounded-xl border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
     </div>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} /></Field>
     {units.length > 1 && <div className="mb-2.5"><Seg value={unit} onChange={chooseUnit} options={units.map(u => ({ v: u, l: u === 'g' ? 'Grams' : cap(servNoun) }))} /></div>}
     <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : shortNoun} step={step} onStep={stepBy} label="How much did you have?" />
-    {/* Fractions only where the unit is a discrete thing you can have half of. Grams get no preset
-        buttons: typing a weight is one tap and two digits, and offering round numbers would be
-        guessing at an amount the person already knows. */}
-    {unit !== 'g' && <div className="mt-2.5"><FractionChips value={a} onPick={v => setAmount(String(v))} /></div>}
-    {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">grams · ±{step} g per tap</div>}
+    {/* No preset buttons, for servings any more than for grams. Typing the number is one tap and a
+        digit or two, and a rack of guesses at the amount only crowds the control that already
+        answers the question exactly. */}
+    {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">±{step} g per tap</div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {qtyLabel}</div>
-      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO }}>{final.protein}g P</span> · <span style={{ color: CARB }}>{final.carbs}g C</span> · <span style={{ color: FAT }}>{final.fat}g F</span></div>
+      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span></div>
       <DensityBadge nq={nq} estimating={estimating} onExplain={() => setExplain(true)} />
-      {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat)' }}>That is a very large amount, double-check the quantity.</div>}
+      {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the quantity.</div>}
     </div>
     <DayImpact rest={dayRest} target={dayTarget} add={final} label="Your day if you add this" />
-    <button onClick={() => setEdit(e => !e)} className="text-[11px] text-[#8A8A90] mb-2">{edit ? '▲ Hide the numbers' : '▾ Numbers look off? Edit them'}</button>
-    {edit && <div className="fade-in mb-2">
+    {/* The app already had ONE disclosure component, used everywhere else; this panel was rolling
+        its own out of grey caption text. Using the shared one puts the accent Show/Hide where the
+        eye already looks for it on every other screen. */}
+    <Collapsible variant="inline" label="Numbers look off?" sub="Edit" defaultOpen={!!estimated} className="mb-2">
+    <div className="mb-2">
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">{basisIsServing ? ('Per ' + servNoun) : (per100 ? 'Per 100 g' : 'Per serving')}</div>
       <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={v.protein} onChange={e => setMacro('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={v.carbs} onChange={e => setMacro('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={v.fat} onChange={e => setMacro('fat', e.target.value)} /></Field></div>
       <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={v.fiber} onChange={e => setMacro('fiber', e.target.value)} /></Field><Field label="Calories" hint={kcalTouched ? 'Your own figure' : 'Auto from macros'}><NumInput value={v.kcal} onChange={e => setKcal(e.target.value)} /></Field></div>
-      {_dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && <button type="button" onClick={applyAtwater} className="text-[11px] mt-1.5" style={{ color: 'var(--accent)' }}>↺ Calculate calories from the macros ({atwaterK} kcal)</button>}
-    </div>}
+      {_dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && <TextBtn onClick={applyAtwater} className="mt-1.5">Calculate calories from the macros ({atwaterK} kcal)</TextBtn>}
+    </div>
+    </Collapsible>
     {(onRescan || onAskAI) && !dodgy && <div className="mt-4 mb-1">
       <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">Not the right food?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
       {onRescan && <button onClick={onRescan} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mb-2">
-        <div className="w-9 h-9 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="18" height="18" style={{ color: CAL }} /></div>
+        <div className="w-9 h-9 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="18" height="18" style={{ color: CAL_T }} /></div>
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Scan the label instead</div><div className="text-[11px] text-[#8A8A90]">Wrong product, or the numbers look off</div></div>
         <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
       </button>}
@@ -8578,7 +8611,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       </button>}
     </div>}
     {kcalHigh && <div className="pixel-box p-3 mt-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
-      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat)' }}>Calories look high for these macros</div>
+      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs and fat only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
       <Btn kind="accent" className="w-full" onClick={applyAtwater}>Use {atwaterK} kcal (from the macros)</Btn>
     </div>}
@@ -8665,9 +8698,9 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
     </div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {portionLabel}</div>
-      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO }}>{final.protein}g P</span> · <span style={{ color: CARB }}>{final.carbs}g C</span> · <span style={{ color: FAT }}>{final.fat}g F</span></div>
-      {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat)' }}>That is a very large amount, double-check the portion.</div>}
-      {final.kcal <= 0 && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger)' }}>The AI couldn't read the calories. Tell it what to fix below, or start over.</div>}
+      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span></div>
+      {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the portion.</div>}
+      {final.kcal <= 0 && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>The AI couldn't read the calories. Tell it what to fix below, or start over.</div>}
     </div>
     {high > low && low > 0 && <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>Honest range: {low}–{high} kcal. Logging your total, no sugar-coating.</div>}
     {src.assumptions && <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Assumed: {src.assumptions}</div>}
@@ -8677,7 +8710,7 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
       {items.map((it, i) => (
         <div key={i} className="bg-[#1E1E22] rounded-2xl p-3 border border-[#262629]">
           <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[8px] px-1 py-0.5 rounded" style={{ color: 'var(--accent)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
+            <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[8px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
             <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 bg-[#0F0F12] rounded-lg border border-[#262629] px-2 py-1.5 text-[12px] text-[var(--text)] text-right" /><span className="text-[10px] text-[#8A8A90]">g</span>
             <button onClick={() => removeItem(i)} className="text-[#8A8A90] pl-1 text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}>×</button>
           </div>
@@ -8691,7 +8724,7 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
       <Btn kind="ghost" className="w-full mt-2" disabled={busy || !fix.trim()} style={{ opacity: (busy || !fix.trim()) ? 0.5 : 1 }} onClick={() => onRefine(fix.trim())}>{busy ? 'Re-estimating…' : 'Re-estimate with this'}</Btn>
     </div>}
     {kcalHigh && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
-      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat)' }}>Calories look high for these macros</div>
+      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug">This totals {final.kcal} kcal, but the protein, carbs and fat only add up to about {atwT} kcal. If that is not right, tweak an item above or use "Tell the AI what to fix".</div>
     </div>}
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
@@ -8753,10 +8786,10 @@ function DescribeTab({ db, onPick, onScan }) {
     <div className="text-[12px] text-[#8A8A90] mb-3">Type, say or snap what you had. A photo plus a few words is most accurate: it catches portions, oils and extras. You confirm before anything's logged.</div>
     {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
       <div className="text-[11px] text-[#8A8A90] leading-snug">Packaged, with a barcode or label? Scanning it is more accurate.</div>
-      <button onClick={onScan} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}>Scan instead</button>
+      <button onClick={onScan} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
     </div>}
     <textarea ref={taRef} value={text} onChange={e => { setText(e.target.value); if (e.target.value.trim()) setPushText(false); }} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
-    {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
+    {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT_T }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mt-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && !text.trim() && <div className="rounded-2xl p-3 mt-3" style={{ background: pushText ? 'var(--accent-dim)' : 'var(--surface3)', border: '1px solid ' + (pushText ? 'var(--fat)' : 'var(--border)') }}>
@@ -9121,7 +9154,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan, day }) {
       <div className="min-w-0"><div className="text-sm font-bold">Scan a barcode</div><div className="text-[11px]" style={{ opacity: 0.85 }}>The quickest, most accurate way to log packaged food.</div></div>
     </button>
     <button onClick={() => setMode('label')} className="w-full flex items-center gap-3 bg-[#1E1E22] rounded-2xl p-4 text-left border border-[#262629] active:scale-[.99] transition mt-2.5">
-      <div className="w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="22" height="22" style={{ color: CAL }} /></div>
+      <div className="w-11 h-11 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="22" height="22" style={{ color: CAL_T }} /></div>
       <div className="min-w-0"><div className="text-sm font-medium">No barcode? Scan the label</div><div className="text-[11px] text-[#8A8A90]">Point your camera at the nutrition label and it reads the exact numbers.</div></div>
     </button>
     {onAskAI && <div className="flex items-center gap-3 my-3"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">or</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>}
@@ -9272,10 +9305,10 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
       <Card className="p-4 mb-5">
         <div className="flex items-center justify-between">
           <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div>{base ? <div className="text-xl font-bold tnum">{base.kcal} kcal</div> : <div className="text-[15px] font-bold mt-0.5">Not set yet</div>}</div>
-          {base && <div className="text-right text-[13px] tnum"><span style={{ color: PRO }}>P{base.protein_g}</span> <span style={{ color: CARB }}>C{base.carbs_g}</span> <span style={{ color: FAT }}>F{base.fat_g}</span></div>}
+          {base && <div className="text-right text-[13px] tnum"><span style={{ color: PRO_T }}>P{base.protein_g}</span> <span style={{ color: CARB_T }}>C{base.carbs_g}</span> <span style={{ color: FAT_T }}>F{base.fat_g}</span></div>}
         </div>
         {base && <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>}
-        {base && base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
+        {base && base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
         <button onClick={() => setEditPlan(true)} className="w-full mt-3 pixel-btn py-2.5 text-[10px]" style={{ background: 'var(--surface2)' }}>{base ? 'EDIT PLAN ›' : 'SET YOUR GOAL ›'}</button>
       </Card>
 
@@ -9387,10 +9420,10 @@ function GoalEditor({ db, update, showToast, onDone }) {
             const rl = rateLabel(g.rateKgPerWeek, g.goalType);
             const mk = rg.maxKg ? (unit === 'st_lb' ? (rg.maxKg * 2.20462).toFixed(1) + ' lb' : rg.maxKg + ' kg') : null;
             return (<div className="mt-2 leading-snug">
-              <div className="text-[12px]" style={{ color: rg.tooFast ? 'var(--fat)' : 'var(--good)' }}>
+              <div className="text-[12px]" style={{ color: rg.tooFast ? 'var(--fat-ink)' : 'var(--good-ink)' }}>
                 {rl.t} · ~{rg.pctOfBW}% of your bodyweight a week
               </div>
-              {mk && <div className="text-[11px] mt-1" style={{ color: rg.tooFast ? 'var(--fat)' : 'var(--muted)' }}>
+              {mk && <div className="text-[11px] mt-1" style={{ color: rg.tooFast ? 'var(--fat-ink)' : 'var(--muted)' }}>
                 {rg.tooFast ? 'Above the ' : 'Within the '}evidence-backed range of up to ~{mk} a week ({Math.round(rg.pctCap * 1000) / 10}% of bodyweight){rg.tooFast ? (g.goalType === 'gain' ? ', which is where the gain starts carrying more fat.' : ', which is where muscle loss and hunger start to bite.') : '.'}
               </div>}
             </div>);
@@ -9408,7 +9441,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-lg font-bold tnum">{Math.round(preview.kcal)}</span>
           <span className="text-[12px] text-[#8A8A90]">kcal a day</span>
-          {kcalDelta != null && kcalDelta !== 0 && <span className="text-[11px] tnum ml-auto" style={{ color: kcalDelta > 0 ? 'var(--good)' : 'var(--fat)' }}>{kcalDelta > 0 ? '+' : ''}{kcalDelta} vs now</span>}
+          {kcalDelta != null && kcalDelta !== 0 && <span className="text-[11px] tnum ml-auto" style={{ color: kcalDelta > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{kcalDelta > 0 ? '+' : ''}{kcalDelta} vs now</span>}
         </div>
         <div className="text-[11px] tnum text-[#8A8A90]">{Math.round(preview.protein_g)}g protein · {Math.round(preview.carbs_g)}g carbs · {Math.round(preview.fat_g)}g fat</div>
         <div className="text-[11.5px] mt-2.5 leading-snug" style={{ color: 'var(--text2)' }}>
@@ -9439,7 +9472,7 @@ function GoalEditor({ db, update, showToast, onDone }) {
           <Field label="Current weight">{unit === 'st_lb'
             ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
             : <NumInput value={kg} onChange={e => setKg(e.target.value)} />}</Field>
-          {wErr && <div className="text-[11px] mb-2" style={{ color: 'var(--danger)' }}>{wErr}</div>}
+          {wErr && <div className="text-[11px] mb-2" style={{ color: 'var(--danger-ink)' }}>{wErr}</div>}
           <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={apply}>Confirm & update</Btn><Btn kind="ghost" onClick={() => { setConfirming(false); setWErr(''); }}>Cancel</Btn></div>
         </div>}
     </Card>
@@ -9479,7 +9512,7 @@ function SavedFlash({ tick }) {
     const t = setTimeout(() => setShow(false), 1500);
     return () => clearTimeout(t);
   }, [tick]);
-  return (<div className="h-4 mb-2 text-[11px] flex items-center gap-1.5" aria-live="polite" style={{ color: 'var(--good)', opacity: show ? 1 : 0, transition: 'opacity .25s' }}>{show ? <><Tick size={9} /> Saved</> : null}</div>);
+  return (<div className="h-4 mb-2 text-[11px] flex items-center gap-1.5" aria-live="polite" style={{ color: 'var(--good-ink)', opacity: show ? 1 : 0, transition: 'opacity .25s' }}>{show ? <><Tick size={9} /> Saved</> : null}</div>);
 }
 // Instant apply: write through, then flash. Typed inputs commit on blur rather than per keystroke,
 // so a half-typed number never reaches the store or the sync queue.
@@ -9510,7 +9543,7 @@ function SettingsGroup({ title, children }) {
 function SubScreen({ title, intro, onBack, children }) {
   useBackClose(onBack);
   return (<div className="fade-in">
-    <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent)' }}>&lsaquo; Settings</button>
+    <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Settings</button>
     <h1 className="pf text-lg mb-2">{title}</h1>
     {intro && <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">{intro}</div>}
     {children}
@@ -9617,7 +9650,7 @@ function GhDebug({ db, update }) {
           const r = sleep[dt];
           return <div key={dt} className="tnum leading-snug" style={row}>
             <b style={{ color: 'var(--text)' }}>{dt}</b> · {hm(r.min)} · {hasStages(r)
-              ? <span>deep {r.deep || 0} / rem {r.rem || 0} / light {r.light || 0} / awake {r.awake || 0} to score <b style={{ color: 'var(--accent)' }}>{isFinite(r.score) ? r.score : '-'}</b></span>
+              ? <span>deep {r.deep || 0} / rem {r.rem || 0} / light {r.light || 0} / awake {r.awake || 0} to score <b style={{ color: 'var(--accent-ink)' }}>{isFinite(r.score) ? r.score : '-'}</b></span>
               : <span style={{ color: 'var(--warn)' }}>no stage data (hours only)</span>}
           </div>;
         }) : <div style={row}>No sleep synced yet.</div>}
@@ -9656,7 +9689,7 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
               <div className="min-w-0">
                 <div className="text-sm font-semibold">{w.label}</div>
                 <div className="text-[11.5px] text-[#8A8A90] mt-0.5">{fmtRange(w.start, w.end)}</div>
-                <div className="text-[11.5px] mt-1" style={{ color: 'var(--accent)' }}>{w.acceptRateKgPerWeek === 0 ? 'Holding steady' : 'Aiming at ' + w.acceptRateKgPerWeek + ' kg a week'}</div>
+                <div className="text-[11.5px] mt-1" style={{ color: 'var(--accent-ink)' }}>{w.acceptRateKgPerWeek === 0 ? 'Holding steady' : 'Aiming at ' + w.acceptRateKgPerWeek + ' kg a week'}</div>
               </div>
               <button onClick={() => setConfirmDel(w)} className="hit px-2 text-[#8A8A90] text-lg leading-none shrink-0" title="Cancel">&times;</button>
             </div>
@@ -9815,7 +9848,7 @@ function MacrosScreen({ db, update, onBack }) {
       <Row2 k="Carbs" v={base.carbs_g != null ? Math.round(base.carbs_g) + ' g' : '–'} />
       <Row2 k="Fat" v={base.fat_g != null ? Math.round(base.fat_g) + ' g' : '–'} last />
     </Card>
-    {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good)' }}>Saved. Your own numbers are live from today.</div>}
+    {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good-ink)' }}>Saved. Your own numbers are live from today.</div>}
     <RowToggle label="Set my own targets" on={own} onClick={() => setOwn(o => !o)} />
     {own && <>
       <div className="grid grid-cols-2 gap-3">
@@ -9870,7 +9903,7 @@ function BodyDetailsScreen({ db, update, onBack, onFreshStart }) {
       <Dropdown value={f.activityLevel} onChange={v => fset('activityLevel', v)} options={ACTIVITY.map(a => ({ v: a.v, l: a.l }))} />
       <div className="text-[12px] text-[#8A8A90] mt-1.5 leading-snug">{(ACTIVITY.find(a => a.v === f.activityLevel) || act).d}</div>
     </Field>
-    {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good)' }}>Saved. Targets recalculated.</div>}
+    {saved && <div className="text-[12px] mb-3 fade-in" style={{ color: 'var(--good-ink)' }}>Saved. Targets recalculated.</div>}
     <Btn kind="accent" className="w-full mb-5" disabled={!dirty} style={{ opacity: dirty ? 1 : 0.5 }} onClick={save}>Save &amp; recalculate</Btn>
 
     <SubHead>From your check-ins</SubHead>
@@ -9900,7 +9933,7 @@ function CycleScreen({ db, update, onBack }) {
       <Field label={`Average cycle length: ${m.cycleLen || 28} days`}>
         <input type="range" min="21" max="40" step="1" value={m.cycleLen || 28} onChange={e => setM({ cycleLen: +e.target.value })} className="w-full accent-[#4A9EEB]" />
       </Field>
-      {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat)' : ph.lowWater ? 'var(--good)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase.{ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.'}</div>}
+      {ph && <div className="text-[12px] mt-1 leading-snug" style={{ color: ph.waterHigh ? 'var(--fat-ink)' : ph.lowWater ? 'var(--good-ink)' : 'var(--muted)' }}>Today: cycle day {ph.cycleDay + 1}, {ph.phase} phase.{ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.'}</div>}
     </>}
   </SubScreen>);
 }
@@ -9981,7 +10014,7 @@ function RemindersScreen({ db, update, onBack }) {
       ? <>
           <RowToggle label="Push reminders (your buddy nudges you to log)" on={pushOn} onClick={togglePush} />
           {pushBusy && <div className="text-[12px] text-[#8A8A90] mb-1">Working...</div>}
-          {pushMsg && <div className="text-[12px] mb-1" style={{ color: 'var(--fat)' }}>{pushMsg}</div>}
+          {pushMsg && <div className="text-[12px] mb-1" style={{ color: 'var(--fat-ink)' }}>{pushMsg}</div>}
           {!pushOn && !pushBusy && pushNeedsInstall() && <div className="text-[12px] text-[#8A8A90] mb-1">On iPhone or iPad, add Macrosaurus to your Home Screen first (Share, then Add to Home Screen) to receive push reminders.</div>}
         </>
       : <div className="text-[12px] text-[#8A8A90] mb-2">This browser does not support push notifications. The in-app banner below still works.</div>}
@@ -10010,8 +10043,8 @@ const INTEGRATIONS = [
   { id: 'scales', name: 'Other smart scales', status: 'exploring', brings: 'Weigh-ins from Renpho, Eufy and the like' },
 ];
 const INT_STATUS = {
-  next: { label: 'Up next', color: 'var(--good)' },
-  planned: { label: 'Planned', color: 'var(--accent)' },
+  next: { label: 'Up next', color: 'var(--good-ink)' },
+  planned: { label: 'Planned', color: 'var(--accent-ink)' },
   exploring: { label: 'Exploring', color: 'var(--muted)' },
 };
 // Asking for one records it locally (so it works offline and shows straight away) and best-effort
@@ -10089,7 +10122,7 @@ function HealthScreen({ db, update, onBack }) {
       : (gh && gh.connected)
         ? <div>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[13px]"><span style={{ color: 'var(--good)' }}>Connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
+              <div className="text-[13px]"><span style={{ color: 'var(--good-ink)' }}>Connected</span>{gh.lastSync ? <span className="text-[#8A8A90]"> · synced {new Date(gh.lastSync).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span> : ''}</div>
               <div className="flex items-center gap-2">
                 <GhResyncButton db={db} update={update} />
                 <Btn kind="ghost" className="text-sm" onClick={async () => { try { await ghPost('disconnect', {}); } catch (_) {} update(d => { d.googleHealth = { connected: false, disconnectedAt: new Date().toISOString() }; }); }}>Disconnect</Btn>
@@ -10240,7 +10273,7 @@ function ChangePassword({ email }) {
       <Field label="Current password"><input type="password" autoComplete="current-password" className={inputCls} value={cur} onChange={e => setCur(e.target.value)} placeholder="current password" /></Field>
       <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} placeholder="at least 6 characters" /></Field>
       <Field label="Confirm new password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} placeholder="type it again" /></Field>
-      {msg && <div className="text-[12px] mt-1 mb-1" style={{ color: ok ? 'var(--good)' : 'var(--danger)' }}>{msg}</div>}
+      {msg && <div className="text-[12px] mt-1 mb-1" style={{ color: ok ? 'var(--good-ink)' : 'var(--danger-ink)' }}>{msg}</div>}
       <div className="flex gap-2 mt-2">
         <Btn kind="accent" className="flex-1" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Update password'}</Btn>
         <Btn kind="ghost" onClick={() => { setOpen(false); reset(); }}>{ok ? 'Done' : 'Cancel'}</Btn>
@@ -10277,8 +10310,8 @@ const TICKET_PLACEHOLDER = {
 };
 function ticketKindLabel(k) { return k === 'bug' ? 'Bug' : k === 'feature' ? 'Feature request' : 'Question'; }
 function ticketStatusMeta(s) {
-  if (s === 'resolved') return { label: 'Resolved', color: 'var(--good)' };
-  if (s === 'in_review') return { label: 'In review', color: 'var(--accent)' };
+  if (s === 'resolved') return { label: 'Resolved', color: 'var(--good-ink)' };
+  if (s === 'in_review') return { label: 'In review', color: 'var(--accent-ink)' };
   return { label: 'Received', color: 'var(--muted)' };
 }
 // The user-facing feedback sheet: one message with a type picker, plus the user's own ticket
@@ -10311,8 +10344,8 @@ function FeedbackSheet({ email, onClose }) {
         <Field label="Message">
           <textarea value={text} onChange={e => setText(e.target.value)} rows={5} maxLength={4000} className={inputCls + ' resize-y leading-relaxed'} placeholder={TICKET_PLACEHOLDER[kind]} />
         </Field>
-        {err && <div className="text-[12px] mb-2" style={{ color: 'var(--danger)' }}>{err}</div>}
-        {msg && <div className="text-[12px] mb-2" style={{ color: 'var(--good)' }}>{msg}</div>}
+        {err && <div className="text-[12px] mb-2" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
+        {msg && <div className="text-[12px] mb-2" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
         <Btn kind="accent" className="w-full" disabled={!text.trim() || busy} style={{ opacity: (!text.trim() || busy) ? 0.5 : 1 }} onClick={submit}>{busy ? 'Sending…' : 'Send'}</Btn>
         <div className="mt-6">
           <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pb-2 px-0.5">Your requests</div>
@@ -10327,7 +10360,7 @@ function FeedbackSheet({ email, onClose }) {
                   </div>
                   <div className="text-[12px] whitespace-pre-wrap break-words">{t.body}</div>
                   {t.admin_reply && <div className="mt-2 pixel-box p-2.5 bg-[#0F0F12]" style={{ borderColor: 'var(--accent)' }}>
-                    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent)' }}>Reply from Macrosaurus</div>
+                    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>Reply from Macrosaurus</div>
                     <div className="text-[12px] whitespace-pre-wrap break-words">{t.admin_reply}</div>
                   </div>}
                 </div>);
@@ -10394,7 +10427,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
         {isPremium ? (
           <div className="pixel-box p-4" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
             <div className="flex items-center justify-between mb-1">
-              <div className="text-[11px] uppercase tracking-widest pf" style={{ color: 'var(--accent)' }}>Premium</div>
+              <div className="text-[11px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Premium</div>
               {sub && sub.status === 'trialing' && sub.trial_end && <div className="text-[10px] text-[#8A8A90]">Trial: {daysLeft(sub.trial_end)}</div>}
             </div>
             <div className="text-sm font-semibold mb-1">{sub && sub.status === 'trialing' ? 'Free trial active' : 'Premium active'}{sub && sub.plan ? ' · ' + (sub.plan === 'annual' ? 'Annual' : 'Monthly') : ''}</div>
@@ -10403,7 +10436,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
           </div>
         ) : (
           <div className="pixel-box p-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
-            <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent)' }}>Free plan</div>
+            <div className="text-[11px] uppercase tracking-widest pf mb-1" style={{ color: 'var(--accent-ink)' }}>Free plan</div>
             <div className="text-sm font-semibold mb-1">Try Premium free for 7 days</div>
             <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">{freeLeft} of {FREE_AI_MONTHLY} free AI logs left this month{rewards && rewards.bonus_ai_remaining > 0 ? ', plus ' + rewards.bonus_ai_remaining + ' bonus from referrals' : ''}, resetting on the 1st. Label scanning, photo estimates and Describe all use it, with no setup needed. Premium unlocks unlimited AI logging and body-fat scans. 7 days free, then cancel anytime.</div>
             <button onClick={onUpgrade} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>START FREE TRIAL</button>
@@ -10436,10 +10469,10 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
       {legal && <LegalDoc doc={legal} onClose={() => setLegal(null)} />}
       {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
         <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger)' }}>Delete your account?</h2>
+          <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger-ink)' }}>Delete your account?</h2>
           <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">This permanently erases your account and all of your data, and cannot be undone. You would need to sign up again to come back. Type <span className="font-bold text-white">DELETE</span> to confirm.</div>
           <TextInput value={delText} onChange={e => setDelText(e.target.value)} placeholder="DELETE" />
-          {delErr && <div className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>{delErr}</div>}
+          {delErr && <div className="text-[11px] mt-2" style={{ color: 'var(--danger-ink)' }}>{delErr}</div>}
           <div className="flex gap-2 mt-4">
             <Btn kind="ghost" className="flex-1" onClick={() => { setDelOpen(false); setDelErr(''); }}>Cancel</Btn>
             <Btn kind="danger" className="flex-1" disabled={delText.trim().toUpperCase() !== 'DELETE' || delBusy} style={{ opacity: (delText.trim().toUpperCase() !== 'DELETE' || delBusy) ? 0.5 : 1 }} onClick={doDelete}>{delBusy ? 'Deleting…' : 'Delete forever'}</Btn>
@@ -10498,11 +10531,11 @@ function modelLabel(m) { return !m ? 'Other' : (m.indexOf('haiku') !== -1 ? 'Hai
 // grant (plan='comp'); trial = Stripe trial; a canceled row that once paid reads as "churned".
 function userPlanMeta(u) {
   if (u.premium) {
-    if (u.sub_comp) return { premium: true, key: 'comp', label: 'Comp', color: 'var(--accent)' };
-    if (u.sub_status === 'trialing') return { premium: true, key: 'trial', label: 'Trial', color: 'var(--carb)' };
-    return { premium: true, key: 'paid', label: 'Premium', color: 'var(--good)' };
+    if (u.sub_comp) return { premium: true, key: 'comp', label: 'Comp', color: 'var(--accent-ink)' };
+    if (u.sub_status === 'trialing') return { premium: true, key: 'trial', label: 'Trial', color: 'var(--carb-ink)' };
+    return { premium: true, key: 'paid', label: 'Premium', color: 'var(--good-ink)' };
   }
-  if (u.sub_status === 'canceled') return { premium: false, key: 'churned', label: 'Churned', color: 'var(--fat)' };
+  if (u.sub_status === 'canceled') return { premium: false, key: 'churned', label: 'Churned', color: 'var(--fat-ink)' };
   return { premium: false, key: 'free', label: 'Free', color: 'var(--muted)' };
 }
 function adminFmtDate(s) { try { return s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'unknown'; } catch (e) { return 'unknown'; } }
@@ -10552,7 +10585,7 @@ function AdminSupport() {
   return (<div className="fade-in">
     <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Bug reports, feature requests and questions from users. Set a status or write a reply, and the user sees both in the app. You're also emailed at olly@macrosaurus.com when a new one lands.</div>
     <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${filter === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
-    {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
+    {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!tickets ? <div className="mt-6"><DinoLoader label="Loading tickets" /></div>
       : !tickets.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No tickets here{filter !== 'all' ? ' for this filter' : ''}.</div>
         : <div className="space-y-2">{tickets.map(t => <AdminTicketCard key={t.id} ticket={t} onPatch={patch} />)}</div>}
@@ -10575,7 +10608,7 @@ function AdminTicketCard({ ticket, onPatch }) {
     <div className="flex gap-1 mb-2">{[['received', 'New'], ['in_review', 'In review'], ['resolved', 'Resolved']].map(([k, l]) => <button key={k} onClick={() => setStatus(k)} disabled={busy === 'status'} className={`pf text-[8px] uppercase px-2 py-1 shrink-0 ${t.status === k ? 'bg-white text-black' : 'bg-[#0F0F12] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
     <textarea value={reply} onChange={e => setReply(e.target.value)} rows={2} maxLength={4000} className={inputCls + ' resize-y leading-relaxed text-[12px]'} placeholder="Write a reply (the user sees this; sending resolves the ticket)…" />
     <div className="flex justify-between items-center mt-2 gap-2">
-      {err ? <span className="text-[11px]" style={{ color: 'var(--danger)' }}>{err}</span> : <span />}
+      {err ? <span className="text-[11px]" style={{ color: 'var(--danger-ink)' }}>{err}</span> : <span />}
       <Btn kind="accent" disabled={busy === 'reply' || !reply.trim()} onClick={sendReply}>{busy === 'reply' ? 'Sending…' : (t.admin_reply ? 'Update reply' : 'Reply & resolve')}</Btn>
     </div>
   </div>);
@@ -10609,8 +10642,8 @@ function AdminTiers() {
         <div><div className="text-[11px] text-[#8A8A90] mb-1">Premium ceiling ($/mo)</div><TextInput value={pcap} onChange={e => setPcap(e.target.value)} placeholder="3.00" /></div>
       </div>
       <Btn kind="accent" disabled={busy} onClick={saveNums}>{busy ? 'Saving…' : 'Save tier limits'}</Btn>
-      {msg && <div className="text-[11px] mt-2" style={{ color: 'var(--good)' }}>{msg}</div>}
-      {err && <div className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>{err}</div>}
+      {msg && <div className="text-[11px] mt-2" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
+      {err && <div className="text-[11px] mt-2" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     </Section>
   );
 }
@@ -10628,10 +10661,10 @@ function AdminUserPremium({ userId }) {
       <Row2 k="Plan" v={label} last />
       <div className="text-[12px] text-[#8A8A90] mt-3 mb-2">Grant complimentary Premium (no charge, no Stripe) or revoke it. A paid Stripe subscription is managed by the customer and re-syncs automatically.</div>
       {premium
-        ? <Btn kind="ghost" className="w-full" style={{ color: 'var(--danger)' }} disabled={busy} onClick={() => toggle(false)}>{busy ? 'Working…' : 'Revoke Premium'}</Btn>
+        ? <Btn kind="ghost" className="w-full" style={{ color: 'var(--danger-ink)' }} disabled={busy} onClick={() => toggle(false)}>{busy ? 'Working…' : 'Revoke Premium'}</Btn>
         : <Btn kind="ghost" className="w-full" style={{ background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--border)' }} disabled={busy} onClick={() => toggle(true)}>{busy ? 'Working…' : 'Grant Premium (free)'}</Btn>}
-      {msg && <div className="text-[11px] mt-2" style={{ color: 'var(--good)' }}>{msg}</div>}
-      {err && <div className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>{err}</div>}
+      {msg && <div className="text-[11px] mt-2" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
+      {err && <div className="text-[11px] mt-2" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     </Section>
   );
 }
@@ -10641,7 +10674,7 @@ function AdminStat({ label, value, sub }) {
 function AdminAudit() {
   const [rows, setRows] = useState(null); const [err, setErr] = useState('');
   useEffect(() => { adminCall('list_audit').then(j => setRows(j.audit || []), e => setErr(e.message)); }, []);
-  if (err) return <div className="text-[12px] mt-4" style={{ color: 'var(--danger)' }}>{err}</div>;
+  if (err) return <div className="text-[12px] mt-4" style={{ color: 'var(--danger-ink)' }}>{err}</div>;
   if (!rows) return <div className="mt-6"><DinoLoader label="Loading log" /></div>;
   if (!rows.length) return <div className="text-[12px] text-[#8A8A90] mt-4">No admin actions logged yet.</div>;
   const L = { view_user: 'viewed', set_cap: 'set cap for', set_config: 'set default cap', grant_admin: 'made admin', revoke_admin: 'revoked admin from', suspend_user: 'suspended', unsuspend_user: 'reinstated', add_note: 'noted', delete_note: 'deleted note for', update_state: 'edited data of', reset_user: 'reset data of', reset_usage: 'reset usage of', delete_user: 'deleted', resend_confirmation: 'resent confirm to', set_password: 'set password for', view_ai_logs: 'browsed AI logs', view_ai_log: 'opened an AI log for', clear_ai_logs: 'cleared AI logs' };
@@ -10670,7 +10703,7 @@ function AdminAiLogs() {
   return (<div className="fade-in">
     <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Every AI request, its prompt, input images and result, from the label scanner, meal estimator and coach. Use it to vet quality and tune the prompts. Body-fat photo reads are never logged, and everything auto-clears after 30 days.</div>
     <div className="flex gap-1 mb-3 overflow-x-auto">{FILTERS.map(([k, l]) => <button key={k} onClick={() => setFeature(k)} className={`pf text-[8px] uppercase px-2.5 py-1.5 shrink-0 ${feature === k ? 'bg-white text-black' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ border: '2px solid var(--border)' }}>{l}</button>)}</div>
-    {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
+    {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
     {!logs ? <div className="mt-6"><DinoLoader label="Loading logs" /></div>
       : !logs.length ? <div className="text-[12px] text-[#8A8A90] mt-4">No AI calls logged yet{feature !== 'all' ? ' for this filter' : ''}. They show up here as people use the AI features.</div>
         : <div className="space-y-2">
@@ -10680,7 +10713,7 @@ function AdminAiLogs() {
                 <span className="pf text-[8px] uppercase px-1.5 py-0.5" style={{ color: aiFeatureColor(r.feature), border: '2px solid ' + aiFeatureColor(r.feature) }}>{aiFeatureLabel(r.feature)}</span>
                 <span className="text-[10px] text-[#8A8A90]">{adminFmtWhen(r.created_at)}</span>
               </div>
-              <div className="text-[12px] truncate">{(r.email || 'unknown').split('@')[0]}{r.status === 'error' && <span className="text-[10px] ml-1.5" style={{ color: 'var(--danger)' }}>error</span>}</div>
+              <div className="text-[12px] truncate">{(r.email || 'unknown').split('@')[0]}{r.status === 'error' && <span className="text-[10px] ml-1.5" style={{ color: 'var(--danger-ink)' }}>error</span>}</div>
               <div className="text-[10px] text-[#8A8A90] tnum mt-0.5">{r.image_count > 0 ? r.image_count + ' img · ' : ''}{modelLabel(r.model)}{r.cost_usd ? ' · $' + (+r.cost_usd).toFixed(4) : ''}</div>
             </button>
           ))}
@@ -10764,7 +10797,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
       <button onClick={onBack} className="text-[12px] text-[#8A8A90] mb-2">← Back to menu</button>
       <PageHeader kicker="Admin" title="Control room" />
       <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[10px] px-1 rounded" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
-      {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
+      {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
       {loading ? <div className="mt-6"><DinoLoader label="Loading" /></div> : <>
         {tab === 'overview' && <div className="fade-in">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -10799,7 +10832,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
           <Section title="Dev tools" className="mt-6">
             <div className="text-[12px] text-[#8A8A90] mb-2">Reset the Dino Fight day-gate on your own account so you can test again. This clears today's ladder attempt and re-arms this week's boss, nothing else changes.</div>
             <Btn kind="accent" onClick={resetBattle}>Reset today's battle</Btn>
-            {devMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--good)' }}>{devMsg}</div>}
+            {devMsg && <div className="text-[11px] mt-2" style={{ color: 'var(--good-ink)' }}>{devMsg}</div>}
           </Section>
         </div>}
         {tab === 'users' && <div className="fade-in">
@@ -10814,7 +10847,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
                     <div className="text-[11px] text-[#8A8A90] mt-0.5 flex items-center gap-1.5"><span className="pf text-[7px] uppercase px-1 py-0.5" style={{ color: pm.color, border: '1.5px solid ' + pm.color }}>{pm.label}</span><span>{u.hasProfile ? (u.goal || 'profile set') : 'no profile'} · joined {adminFmtDate(u.created_at)}</span></div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-[12px] tnum" style={{ color: u.spend_usd >= u.cap_usd ? 'var(--danger)' : 'var(--muted)' }}>${u.spend_usd.toFixed(2)}/${u.cap_usd.toFixed(2)}</div>
+                    <div className="text-[12px] tnum" style={{ color: u.spend_usd >= u.cap_usd ? 'var(--danger-ink)' : 'var(--muted)' }}>${u.spend_usd.toFixed(2)}/${u.cap_usd.toFixed(2)}</div>
                     <div className="text-[10px] text-[#8A8A90]">{u.calls} call{u.calls === 1 ? '' : 's'} this mo.</div>
                   </div>
                 </div>
@@ -10866,8 +10899,8 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <button onClick={onBack} className="text-[12px] text-[#8A8A90] mb-2">← All users</button>
       <PageHeader kicker="Admin · user" title={u.email} />
-      {msg && <div className="text-[12px] mb-3" style={{ color: 'var(--good)' }}>{msg}</div>}
-      {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger)' }}>{err}</div>}
+      {msg && <div className="text-[12px] mb-3" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
+      {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
 
       <Section title="Account">
         <Row2 k="Email" v={u.email} />
@@ -10877,7 +10910,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
         <Row2 k="Last sign-in" v={adminFmtWhen(u.last_sign_in_at)} last />
         <div className="flex gap-2 mt-3">
           {!u.confirmed && <Btn kind="ghost" className="flex-1" disabled={busy === 'resend'} onClick={doResend}>{busy === 'resend' ? 'Working…' : 'Resend confirmation'}</Btn>}
-          <Btn kind="ghost" className="flex-1" disabled={isSelf || busy === 'ban'} style={{ opacity: isSelf ? 0.5 : 1, color: banned ? 'var(--good)' : 'var(--danger)' }} onClick={() => banned ? toggleBan() : setConfirmKind('ban')}>{busy === 'ban' ? 'Working…' : (banned ? 'Reinstate account' : 'Suspend account')}</Btn>
+          <Btn kind="ghost" className="flex-1" disabled={isSelf || busy === 'ban'} style={{ opacity: isSelf ? 0.5 : 1, color: banned ? 'var(--good-ink)' : 'var(--danger-ink)' }} onClick={() => banned ? toggleBan() : setConfirmKind('ban')}>{busy === 'ban' ? 'Working…' : (banned ? 'Reinstate account' : 'Suspend account')}</Btn>
         </div>
         <Btn kind="ghost" className="w-full mt-2" disabled={busy === 'recovery'} onClick={doRecovery}>{busy === 'recovery' ? 'Generating…' : 'Send password-reset link'}</Btn>
         <div className="text-[12px] text-[#8A8A90] mt-4 mb-1.5">Set a new password directly</div>
@@ -10947,7 +10980,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
         <div className="text-[12px] text-[#8A8A90] mb-3">Reset wipes their data but keeps the login. Delete removes the account and all data permanently (for GDPR/erasure requests).</div>
         <Btn kind="ghost" className="w-full mb-2" style={{ background: 'var(--fat)', color: '#fff', borderColor: 'var(--border)' }} disabled={busy === 'reset'} onClick={() => setConfirmKind('reset')}>Reset this user's data</Btn>
         <Btn kind="danger" className="w-full" onClick={() => { setConfirmKind('delete'); setDelText(''); }}>Delete this account</Btn>
-        {isSelf && <div className="text-[11px] mt-2" style={{ color: 'var(--danger)' }}>Heads up: this is your own account.</div>}
+        {isSelf && <div className="text-[11px] mt-2" style={{ color: 'var(--danger-ink)' }}>Heads up: this is your own account.</div>}
       </Section>
 
       {confirmKind === 'pw' && <ConfirmDialog title={'Set a new password for ' + u.email + '?'} body="Their current password stops working right away and they'll need the new one to log in. Share it with them securely, and suggest they change it once they're back in." confirmLabel={busy === 'pw' ? 'Setting…' : 'Set password'} confirmKind="accent" onConfirm={doSetPassword} onClose={() => setConfirmKind(null)} />}
@@ -10958,7 +10991,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
       {confirmKind === 'reset' && <ConfirmDialog title="Reset this user's data?" body={'This wipes ' + u.email + "'s profile, food log and history back to a fresh account. Their login stays. This cannot be undone."} confirmLabel={busy === 'reset' ? 'Resetting…' : 'Reset user'} onConfirm={doReset} onClose={() => setConfirmKind(null)} />}
       {confirmKind === 'delete' && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setConfirmKind(null)}>
         <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger)' }}>Delete this account?</h2>
+          <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--danger-ink)' }}>Delete this account?</h2>
           <div className="text-[12px] text-[#8A8A90] mb-3 leading-relaxed">Permanently removes <span className="text-white break-all">{u.email}</span> and every trace of their data. This cannot be undone. Type <span className="font-bold text-white">DELETE</span> to confirm.</div>
           <TextInput value={delText} onChange={e => setDelText(e.target.value)} placeholder="DELETE" />
           <div className="flex gap-2 mt-4">
@@ -11088,7 +11121,7 @@ function InviteSheet({ rewards, onClose, toast }) {
       <button onClick={doShare} className="w-full pixel-btn py-3 text-[11px] pf inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><ShareIOSIcon size={14} /> SHARE INVITE</button>
       <div className="flex gap-2 mt-4 text-center">
         <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum">{count}</div><div className="text-[10px] text-[#8A8A90]">friends joined</div></div>
-        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum" style={{ color: 'var(--accent)' }}>{bonus}</div><div className="text-[10px] text-[#8A8A90]">bonus AI logs left</div></div>
+        <div className="flex-1 pixel-box p-3" style={{ background: 'var(--card)' }}><div className="text-lg font-bold tnum" style={{ color: 'var(--accent-ink)' }}>{bonus}</div><div className="text-[10px] text-[#8A8A90]">bonus AI logs left</div></div>
       </div>
     </div>
   </div>);
@@ -11318,7 +11351,7 @@ function BottomNav({ view, setView, onAdd }) {
     </div>
   );
 }
-function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: view === k ? 'var(--accent)' : 'rgba(255,255,255,0.6)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
+function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: view === k ? 'var(--on-header-accent)' : 'rgba(255,255,255,0.72)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
 function Sidebar({ view, setView, onAdd, onOpenPlay }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
@@ -11343,8 +11376,8 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
         <div className="leading-tight">
           <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
           <div className="text-[9px] flex items-center gap-1.5">
-            {streak > 0 && <span style={{ color: 'var(--fat)' }}>▲ {streak}d</span>}
-            <span className="pf text-[7px] uppercase" style={{ color: 'var(--accent)' }}>Play ›</span>
+            {streak > 0 && <span style={{ color: 'var(--on-header-accent)' }}>▲ {streak}d</span>}
+            <span className="pf text-[7px] uppercase" style={{ color: 'var(--on-header-accent)' }}>Play ›</span>
           </div>
         </div>
       </button>
@@ -11415,7 +11448,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
           <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.done ? <Tick size={12} /> : null}</span>
           <span className="text-[13px] flex-1 min-w-0" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
-          {!it.done && <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent)' }}>DO IT ›</span>}
+          {!it.done && <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
         </button>
       ))}
     </div>
@@ -11492,7 +11525,7 @@ function RecipeCard({ recipe, onOpen, onFav }) {
       </div>}
       <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[#8A8A90]">
         <span>{Rcp.platformLabel(recipe.source_platform)}</span><span>·</span><span>serves {recipe.servings}</span>
-        {m.protein > 0 && <><span>·</span><span className="tnum font-semibold" style={{ color: PRO }}>{Math.round(m.protein)}g protein</span></>}
+        {m.protein > 0 && <><span>·</span><span className="tnum font-semibold" style={{ color: PRO_T }}>{Math.round(m.protein)}g protein</span></>}
       </div>
     </div>
   </div>);
@@ -11501,7 +11534,7 @@ function RecipeCard({ recipe, onOpen, onFav }) {
 // so we show this prominently on the empty state and the importer.
 function ShareTip({ className = '' }) {
   return (<Card className={'p-3.5 ' + className} style={{ background: 'var(--surface3)' }}>
-    <div className="flex items-center gap-2 mb-1.5"><Icon.share width="16" height="16" style={{ color: 'var(--accent)' }} /><div className="text-[13px] font-bold">Best way: share it straight to Macrosaurus</div></div>
+    <div className="flex items-center gap-2 mb-1.5"><Icon.share width="16" height="16" style={{ color: 'var(--accent-ink)' }} /><div className="text-[13px] font-bold">Best way: share it straight to Macrosaurus</div></div>
     <div className="text-[12px] text-[#8A8A90] leading-snug">In Instagram, TikTok or YouTube, tap <span className="font-semibold" style={{ color: 'var(--text)' }}>Share</span> on the Reel, video or Short, then pick <span className="font-semibold" style={{ color: 'var(--text)' }}>Macrosaurus</span>. It opens here and becomes a recipe automatically, nothing to copy or paste.</div>
   </Card>);
 }
@@ -11611,7 +11644,7 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
         </div>
       ))}
     </div>
-    <button onClick={addIng} className="text-[12px] mb-4" style={{ color: 'var(--accent)' }}>+ Add ingredient</button>
+    <button onClick={addIng} className="text-[12px] mb-4" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
     <Field label="Method (one step per line)">
       <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
     </Field>
@@ -11699,11 +11732,11 @@ function CookMode({ recipe, onClose, onLogDone }) {
     <div className="h-1 mx-5 mb-2 rounded-full" style={{ background: 'var(--surface3)' }}><div className="h-1 rounded-full" style={{ width: ((i + 1) / steps.length * 100) + '%', background: 'var(--accent)' }} /></div>
     <div className="flex-1 overflow-y-auto px-6 flex flex-col justify-center">
       <div className="max-w-lg mx-auto w-full">
-        <div className="pf text-[11px] mb-4" style={{ color: 'var(--accent)' }}>STEP {i + 1}</div>
+        <div className="pf text-[11px] mb-4" style={{ color: 'var(--accent-ink)' }}>STEP {i + 1}</div>
         <div className="font-bold leading-snug" style={{ fontSize: 'clamp(1.4rem, 5vw, 2rem)' }}>{steps[i]}</div>
         {durMin > 0 && <div className="mt-6">
           {(!timer) ? <button onClick={startTimer} className="pixel-btn px-4 py-3 text-[14px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Start {durMin} min timer</button>
-            : <div className="flex items-center gap-3"><div className="tnum text-3xl font-bold" style={{ color: timer.left <= 0 ? 'var(--good)' : 'var(--text)' }}>{timer.left <= 0 ? 'Done!' : mmss(timer.left)}</div>
+            : <div className="flex items-center gap-3"><div className="tnum text-3xl font-bold" style={{ color: timer.left <= 0 ? 'var(--good-ink)' : 'var(--text)' }}>{timer.left <= 0 ? 'Done!' : mmss(timer.left)}</div>
               <button onClick={() => setTimer(x => x && Object.assign({}, x, { on: !x.on }))} className="pixel-box px-3 py-2 text-[13px]" style={{ background: 'var(--surface3)' }}>{timer.on && timer.left > 0 ? 'Pause' : 'Resume'}</button>
               <button onClick={() => setTimer(null)} className="text-[13px] text-[#8A8A90] underline">Clear</button></div>}
         </div>}
@@ -11816,7 +11849,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   return (<div className="fade-in">
     <div className="flex items-center justify-between mb-3">
       <button onClick={onBack} className="text-[13px] text-[#8A8A90]">‹ Recipes</button>
-      <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="text-[12px]" style={{ color: 'var(--accent)' }}>Save as meal</button><button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
+      <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>Save as meal</button><button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
     </div>
     <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
       <RecipeImg src={recipe.photo || recipe.thumbnail} iconSize={40} />
@@ -11833,7 +11866,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     <div className="text-[12px] text-[#8A8A90] mb-2">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>} · tap anything to make it yours</div>
     <div className="flex flex-wrap items-center gap-2 mb-1">
       {(recipe.collections || []).map(c => <span key={c} className="pixel-box px-2 py-1 text-[11px]" style={{ background: 'var(--surface3)' }}>{c}</span>)}
-      <button onClick={() => setShowColl(true)} className="text-[11px]" style={{ color: 'var(--accent)' }}>{(recipe.collections || []).length ? '+ collection' : '+ Add to a collection'}</button>
+      <button onClick={() => setShowColl(true)} className="text-[11px]" style={{ color: 'var(--accent-ink)' }}>{(recipe.collections || []).length ? '+ collection' : '+ Add to a collection'}</button>
     </div>
     <Card className="p-3 mb-3 mt-2">
       <div className="flex items-center justify-between mb-2">
@@ -11844,14 +11877,14 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       {fit && rem && hasMacros && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal; you have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today.</div>}
     </Card>
     {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
-    {busy ? <div className="text-[12px] mb-4 flex items-center gap-2" style={{ color: 'var(--accent)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
+    {busy ? <div className="text-[12px] mb-4 flex items-center gap-2" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
       : <div className="flex gap-2 mb-3">
         <Btn kind={hasMacros ? 'ghost' : 'accent'} className="flex-1" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</Btn>
       </div>}
-    {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="text-[12px] mb-4 underline" style={{ color: 'var(--accent)' }}>Use the recipe's stated macros instead</button>}
+    {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="text-[12px] mb-4 underline" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
     {(recipe.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-4 flex items-center justify-center gap-2" onClick={() => setCooking(true)}><Icon.recipe width="18" height="18" /> Start cooking</Btn>}
     <div className="flex items-center justify-between mb-2 mt-2">
-      <div className="flex items-center gap-3"><div className="text-lg font-bold">Ingredients</div><button onClick={() => setEditIng(v => !v)} className="pf text-[9px] uppercase px-2 py-1 rounded" style={{ color: editIng ? '#111' : 'var(--accent)', background: editIng ? 'var(--accent)' : 'transparent', border: '1px solid var(--accent)' }}>{editIng ? 'Done' : 'Edit'}</button></div>
+      <div className="flex items-center gap-3"><div className="text-lg font-bold">Ingredients</div><button onClick={() => setEditIng(v => !v)} className="pf text-[9px] uppercase px-2 py-1 rounded" style={{ color: editIng ? '#111' : 'var(--accent-ink)', background: editIng ? 'var(--accent)' : 'transparent', border: '1px solid var(--accent)' }}>{editIng ? 'Done' : 'Edit'}</button></div>
       <div className="flex items-center gap-2 text-[12px]">
         <span className="text-[#8A8A90]">Serves</span>
         <button onClick={() => setServings(recipe.servings - 1)} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>-</button>
@@ -11869,18 +11902,18 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
           </div>
         ))}
       </div>
-      <button onClick={addIng} className="text-[12px] mb-2" style={{ color: 'var(--accent)' }}>+ Add ingredient</button>
+      <button onClick={addIng} className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
       <Btn kind="ghost" className="w-full mb-4" onClick={() => analyze(false)} disabled={!!busy}>Re-work out the macros</Btn>
     </> : <>
       <div className="text-[11px] text-[#8A8A90] mb-2">Tick what you have. Tap a macro line to fix its numbers, or Edit to change the ingredients.</div>
-      {resolved > 0 && <div className="text-[10px] text-[#8A8A90] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1"><span><span style={{ color: 'var(--good)' }}>●</span> database</span><span><span style={{ color: '#F5C542' }}>●</span> AI estimate</span><span><span style={{ color: 'var(--accent)' }}>●</span> your number</span></div>}
+      {resolved > 0 && <div className="text-[10px] text-[#8A8A90] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1"><span><span style={{ color: 'var(--good-ink)' }}>●</span> database</span><span><span style={{ color: '#F5C542' }}>●</span> AI estimate</span><span><span style={{ color: 'var(--accent-ink)' }}>●</span> your number</span></div>}
       <div className="space-y-2.5 mb-4">
         {recipe.ingredients.map((ing) => (
           <div key={ing.id} className="flex items-start gap-2.5">
             <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 mt-0.5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? <Tick size={12} /> : null}</button>
             <div className="flex-1 min-w-0">
               <button onClick={() => toggleHave(ing.id)} className="block w-full text-left text-[14px]" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
-              <button onClick={() => setMacrosIng(ing)} className="text-[11px] flex items-center gap-1.5 mt-0.5" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent)' }}>
+              <button onClick={() => setMacrosIng(ing)} className="text-[11px] flex items-center gap-1.5 mt-0.5" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent-ink)' }}>
                 {ing.resolved && <span style={{ color: srcDot[ing.resolved.source] || MUTED }}>●</span>}
                 {ing.macros ? <span className="tnum">{Math.round(ing.macros.kcal)} kcal · P{Math.round(ing.macros.protein)} C{Math.round(ing.macros.carbs)} F{Math.round(ing.macros.fat)} · edit</span> : <span>Set macros ›</span>}
               </button>
@@ -11890,9 +11923,9 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
     </>}
     <Btn kind="ghost" className="w-full mb-5" onClick={addMissingToShopping} disabled={!missing.length}>{missing.length ? ('Add ' + missing.length + ' missing to shopping list') : 'You have everything'}</Btn>
-    <div className="flex items-center justify-between mb-2"><div className="text-lg font-bold">Method</div><button onClick={() => setEditSteps(v => !v)} className="text-[12px]" style={{ color: 'var(--accent)' }}>{editSteps ? 'Done' : 'Edit'}</button></div>
+    <div className="flex items-center justify-between mb-2"><div className="text-lg font-bold">Method</div><button onClick={() => setEditSteps(v => !v)} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>{editSteps ? 'Done' : 'Edit'}</button></div>
     {editSteps ? <textarea defaultValue={(recipe.steps || []).join('\n')} onBlur={e => setSteps(e.target.value)} rows={Math.max(4, (recipe.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed mb-6'} placeholder="One instruction per line" />
-      : (recipe.steps || []).length > 0 ? <ol className="space-y-2 mb-6">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}</ol>
+      : (recipe.steps || []).length > 0 ? <ol className="space-y-2 mb-6">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}</ol>
       : <div className="text-[12px] text-[#8A8A90] mb-6">No method yet. Tap Edit to add the steps.</div>}
     {Rcp.batchLeft(recipe) > 0 && <div className="pixel-box p-3 mb-3 flex items-center gap-3" style={{ background: 'var(--surface3)', borderColor: 'var(--good)' }}>
       <div className="flex-1 min-w-0"><div className="text-[13px] font-bold">{Rcp.batchLeft(recipe)} serving{Rcp.batchLeft(recipe) === 1 ? '' : 's'} of leftovers</div><div className="text-[11px] text-[#8A8A90]">Batch cooked. Log one when you eat it.</div></div>
@@ -12010,7 +12043,7 @@ function ShoppingListView({ db, update, showToast, onBack }) {
     <div className="flex items-center justify-between mb-3 gap-3">
       <h1 className="text-xl font-bold">Shopping list</h1>
       <div className="flex items-center gap-3 shrink-0">
-        {unchecked.length > 0 && <button onClick={shareList} className="text-[12px] flex items-center gap-1" style={{ color: 'var(--accent)' }}><Icon.share width="14" height="14" /> Share</button>}
+        {unchecked.length > 0 && <button onClick={shareList} className="text-[12px] flex items-center gap-1" style={{ color: 'var(--accent-ink)' }}><Icon.share width="14" height="14" /> Share</button>}
         {checked.length > 0 && <button onClick={clearChecked} className="text-[12px] text-[#8A8A90] underline">Clear ticked</button>}
       </div>
     </div>
@@ -12069,7 +12102,7 @@ function ChefCard({ db }) {
           <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90]">Community cookbook · Lvl {bt.level}</div>
           <div className="text-sm font-bold truncate">{name}</div>
         </div>
-        <div className="text-right shrink-0 pl-3"><div className="text-lg font-bold tnum leading-none" style={{ color: 'var(--accent)' }}>{shared}</div><div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">shared{cooked ? ' · ' + cooked + ' cooked' : ''}</div></div>
+        <div className="text-right shrink-0 pl-3"><div className="text-lg font-bold tnum leading-none" style={{ color: 'var(--accent-ink)' }}>{shared}</div><div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">shared{cooked ? ' · ' + cooked + ' cooked' : ''}</div></div>
       </div>
       {bt.next != null ? <>
         <PipLine className="mb-1.5" pct={(bt.progress || 0) * 100} color="var(--accent)" height={7} />
@@ -12143,7 +12176,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
     return (<div className="fade-in">
       <div className="pixel-box overflow-hidden mb-4" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
         <div className="p-4">
-          <div className="pf text-[8px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent)' }}>Macrosaurus Premium</div>
+          <div className="pf text-[8px] uppercase tracking-widest mb-2" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
           <div className="text-lg font-bold mb-1.5 leading-tight">Every recipe, from everyone</div>
           <div className="text-[12px] text-[#8A8A90] leading-snug mb-3">Unlock the full community library: Instagram &amp; YouTube recipes other members have imported, priced for macros and credited to the original creator. Filter by meal, cuisine or creator and find tonight's cook in seconds.</div>
           <button onClick={openPaywall} className="w-full pixel-btn py-2.5 text-[11px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>TRY PREMIUM FREE</button>
@@ -12154,7 +12187,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
         <div className="grid grid-cols-2 gap-3" style={{ filter: 'blur(3px)', opacity: 0.85, pointerEvents: 'none' }}>{teaser.slice(0, 4).map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => {}} />)}</div>
         <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}>🔒 Unlock the library</span></div>
       </div>}
-      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--accent)' }}>Your cookbook ›</span></button>
+      <button onClick={onGoMine} className="w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--accent-ink)' }}>Your cookbook ›</span></button>
     </div>);
   }
 
@@ -12177,17 +12210,17 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
     {busy ? <DinoLoader label="Finding recipes" />
       : err ? <div className="text-center text-[13px] text-[#F5C542] py-8">{err}</div>
       : items && items.length ? <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-1">{items.map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => setPreview(p)} />)}</div>
-      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--accent)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
+      : <Card className="p-6 text-center"><div className="text-[14px] font-semibold mb-1">{filtered ? 'No recipes match' : 'The library is just getting started'}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed max-w-[18rem] mx-auto">{filtered ? 'Try a different search or category.' : 'Be one of the first: '}{!filtered && <button onClick={onImport} style={{ color: 'var(--accent-ink)' }}>import a recipe</button>}{!filtered ? ' and it joins the hub for everyone.' : ''}</div></Card>}
     {preview && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPreview(null)}>
       <BackClose onClose={() => setPreview(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={preview.thumbnail} iconSize={40} /></div>
         <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
-        {preview.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent)' }}>via {creditName(preview)}</div> : null}
+        {preview.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(preview)}</div> : null}
         <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
         <div className="text-[13px] font-bold mb-1">Ingredients</div>
         <ul className="space-y-1 mb-3 text-[13px]">{(preview.ingredients || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
-        {(preview.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{preview.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[9px] mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
+        {(preview.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{preview.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[9px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
         {(preview.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => { onCook(preview); setPreview(null); }}><Icon.recipe width="17" height="17" /> Start cooking</Btn>}
         <Btn kind={(preview.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to cookbook</Btn>
         <div className="text-[11px] text-center text-[#8A8A90] mt-2 leading-snug">Cook it now, no need to save. Save only the ones you want to keep.</div>
@@ -12255,11 +12288,11 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
                   <span className="text-[13px] truncate" style={{ textDecoration: p.cooked ? 'line-through' : 'none', color: p.cooked ? 'var(--muted)' : 'var(--text)' }}>{r.title}</span>
                   <span className="text-[10px] text-[#8A8A90] tnum shrink-0">{mk} kcal</span>
                 </button>
-                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[8px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent)', border: '1px solid var(--accent)' }}>Log</button>}
+                {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[8px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
                 <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove">×</button>
               </div>); })}
           </div>}
-          <button onClick={() => setPick(d)} className="text-[12px]" style={{ color: 'var(--accent)' }}>+ Add a recipe</button>
+          <button onClick={() => setPick(d)} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>+ Add a recipe</button>
         </Card>);
       })}
     </div>
@@ -12327,20 +12360,20 @@ function FridgeMatchCard({ m, onOpen, onAddMissing }) {
       <div className="flex-1 min-w-0 p-3">
         <div className="flex items-start gap-2 mb-1">
           <div className="font-bold text-[14px] leading-tight flex-1" style={clamp2}>{r.title}</div>
-          {m.source === 'discover' && <span className="pf text-[7px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>Discover</span>}
+          {m.source === 'discover' && <span className="pf text-[7px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5" style={{ background: 'var(--surface3)', color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Discover</span>}
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#8A8A90]">
           {kcal > 0 && <span className="tnum">{Math.round(kcal)} kcal</span>}
           {kcal > 0 && <span>·</span>}
           {m.makeable
-            ? <span style={{ color: 'var(--good)' }}>You have everything</span>
+            ? <span style={{ color: 'var(--good-ink)' }}>You have everything</span>
             : <span style={{ color: '#F5C542' }}>{m.missingCount} to grab</span>}
           <span>·</span><span>uses {m.haveCount} you have</span>
         </div>
         {!m.makeable && <div className="text-[11px] mt-1.5 leading-snug"><span className="text-[#8A8A90]">Missing: </span><span className="text-[var(--text)]">{m.missing.map(x => x.name).join(', ')}</span></div>}
       </div>
     </button>
-    {!m.makeable && <button onClick={onAddMissing} className="w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}><Icon.cart width="13" height="13" /> Add {m.missingCount === 1 ? 'it' : 'them'} to shopping list</button>}
+    {!m.makeable && <button onClick={onAddMissing} className="w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}><Icon.cart width="13" height="13" /> Add {m.missingCount === 1 ? 'it' : 'them'} to shopping list</button>}
   </div>);
 }
 // Log a serving of a recipe you cooked without saving it (e.g. straight from Discover). Same portion +
@@ -12455,13 +12488,13 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
           <div className="space-y-2.5">{almost.map(m => <FridgeMatchCard key={m.id} m={m} onOpen={() => openMatch(m)} onAddMissing={() => addMissing(m)} />)}</div>
         </div>}
       </>}
-      {commLoading && <div className="flex items-center gap-2 text-[12px] mb-3" style={{ color: 'var(--accent)' }}><PixelEgg size={16} color="var(--accent)" /> Checking the Discover library…</div>}
+      {commLoading && <div className="flex items-center gap-2 text-[12px] mb-3" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> Checking the Discover library…</div>}
       {!results.length && !commLoading && <Card className="p-5 text-center">
         {!recipes.length && !isPremium
           ? <><div className="text-[13px] font-semibold mb-1">No recipes to match yet</div><div className="text-[12px] text-[#8A8A90] leading-relaxed">Import or add a few recipes and we'll tell you which ones you can cook from what's in your fridge.</div></>
           : <><div className="text-[13px] font-semibold mb-1">Nothing's a close match</div><div className="text-[12px] text-[#8A8A90] leading-relaxed">Nothing's within reach of these ingredients. Add a few more of what you have{isPremium ? '' : ', or import more recipes'}.</div></>}
       </Card>}
-      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[#8A8A90] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--accent)' }}>Discover library</span> to what's in your fridge ›</button>}
+      {!isPremium && items !== null && <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-center text-[11px] text-[#8A8A90] mt-1 leading-snug py-2">Premium also matches the whole <span style={{ color: 'var(--accent-ink)' }}>Discover library</span> to what's in your fridge ›</button>}
     </div>}
     {pubSheet && <FridgePublicSheet m={pubSheet} onClose={() => setPubSheet(null)}
       onCook={(pub) => { setPubSheet(null); onCookPublic(pub); }}
@@ -12480,13 +12513,13 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={40} /><span className="absolute top-2 left-2 pf text-[8px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
       <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
-      {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent)' }}>via {creditName(pub)}</div> : null}
-      <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
+      {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(pub)}</div> : null}
+      <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good-ink)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
       {mm.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {r.servings}</div><RecipeMacroStrip macros={mm} per /></Card>}
       {!m.makeable && <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)' }}><span className="text-[#8A8A90]">Missing: </span>{m.missing.map(x => x.name).join(', ')}</div>}
       <div className="text-[13px] font-bold mb-1">Ingredients</div>
       <ul className="space-y-1 mb-3 text-[13px]">{(r.ingredients || []).map((ing, i) => <li key={i}>{Rcp.lineOf(ing)}</li>)}</ul>
-      {(r.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{r.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[9px] mt-0.5" style={{ color: 'var(--accent)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
+      {(r.steps || []).length > 0 && <><div className="text-[13px] font-bold mb-1">Method</div><ol className="space-y-1.5 mb-4 text-[13px]">{r.steps.map((s, i) => <li key={i} className="flex gap-2"><span className="pf text-[9px] mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span>{s}</span></li>)}</ol></>}
       {!m.makeable && <Btn kind="ghost" className="w-full mb-2" onClick={() => onAddMissing(m)}>Add {m.missingCount} missing to shopping list</Btn>}
       {(r.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => onCook(pub)}><Icon.recipe width="17" height="17" /> Start cooking</Btn>}
       <Btn kind={(r.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => onSave(pub)}>Save to cookbook</Btn>
@@ -12673,7 +12706,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           <span className="block text-[14px] font-bold leading-tight">Cook from your fridge</span>
           <span className="block text-[11px] text-[#8A8A90] leading-snug mt-0.5">Snap what you've got and I'll find recipes you can make right now.</span>
         </span>
-        <span className="pf shrink-0" style={{ color: 'var(--accent)', fontSize: 14 }}>›</span>
+        <span className="pf shrink-0" style={{ color: 'var(--accent-ink)', fontSize: 14 }}>›</span>
       </button>
       <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
@@ -12704,7 +12737,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
             {(facetCount || sort !== 'recent') && <div className="text-[11px] text-[#8A8A90] mb-2 tnum">{recipes.length} recipe{recipes.length === 1 ? '' : 's'}{sort !== 'recent' ? ' · ' + ({ protein: 'most protein', kcal: 'fewest calories', quick: 'quickest' })[sort] : ''}</div>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{recipes.map(r => <RecipeCard key={r.id} recipe={r} onOpen={() => { setActiveId(r.id); setScreen('detail'); }} onFav={() => toggleFav(r.id)} />)}</div>
           </>
-          : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent)' }}>Clear filters</button></div>}
+          : <div className="text-center text-[13px] text-[#8A8A90] py-10">No recipes match. <button onClick={() => { setFacets({}); setQ(''); setFilter('all'); }} style={{ color: 'var(--accent-ink)' }}>Clear filters</button></div>}
       </>}
       {showFilters && <RecipeFilterSheet db={db} facets={facets} setFacet={setFacet} sort={sort} setSort={setSort} filter={filter} setFilter={setFilter} collections={collections} onClear={() => { setFacets({}); setSort('recent'); setFilter('all'); }} onClose={() => setShowFilters(false)} />}
     </>}
@@ -12748,7 +12781,7 @@ function Paywall({ reason, onCheckout, onClose }) {
       <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] uppercase tracking-widest pf" style={{ color: 'var(--accent)' }}>Macrosaurus Premium</div>
+            <div className="text-[10px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
             <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
           </div>
           <h2 className="text-xl font-bold mb-1">{headline}</h2>
@@ -12756,7 +12789,7 @@ function Paywall({ reason, onCheckout, onClose }) {
           <div className="space-y-2.5 mb-4">
             {benefits.map(([t, d], i) => (
               <div key={i} className="flex gap-2.5 items-start">
-                <div className="mt-0.5 shrink-0 font-bold" style={{ color: 'var(--good)' }}><Tick size={12} /></div>
+                <div className="mt-0.5 shrink-0 font-bold" style={{ color: 'var(--good-ink)' }}><Tick size={12} /></div>
                 <div><div className="text-[13px] font-semibold">{t}</div><div className="text-[11px] text-[#8A8A90] leading-snug">{d}</div></div>
               </div>
             ))}
@@ -12766,7 +12799,7 @@ function Paywall({ reason, onCheckout, onClose }) {
               <button key={k} onClick={() => setPlan(k)} className="flex-1 pixel-box p-3 text-left transition active:scale-[.99]"
                 style={{ background: plan === k ? 'var(--accent-dim)' : 'var(--card)', borderColor: plan === k ? 'var(--accent)' : 'var(--surface2)' }}>
                 <div className="flex items-baseline gap-1"><span className="text-lg font-bold">{price}</span><span className="text-[10px] text-[#8A8A90]">{per}</span></div>
-                {tag ? <div className="text-[9px] pf mt-1" style={{ color: 'var(--accent)' }}>{tag}</div> : <div className="text-[9px] mt-1 text-[#8A8A90]">Billed monthly</div>}
+                {tag ? <div className="text-[9px] pf mt-1" style={{ color: 'var(--accent-ink)' }}>{tag}</div> : <div className="text-[9px] mt-1 text-[#8A8A90]">Billed monthly</div>}
               </button>
             ))}
           </div>

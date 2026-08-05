@@ -58,7 +58,7 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --text: #ffffff;
   --text2: #cfcfcf;
   --muted: #9b9ba3;          /* lifted for contrast (~6:1 on card surfaces) */
-  --muted2: #7c7c84;
+  --muted2: #85858d;         /* 4.9:1 on the darkest card, where #7c7c84 sat at 4.32 */
   --accent: #39FF14;         /* neon green, primary action */
   --on-accent: #05140a;
   --accent-dim: #0f2a12;
@@ -92,6 +92,17 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --scene-top: #121218;      /* a hair of night sky lifted off pure black */
   --scene-bottom: #050507;
   --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
+  /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
+     as a 12px block on a meter can be unreadable as 10px type, because a bar only has to be seen
+     and type has to be read. On black the neon set already runs 6:1 to 15:1, so here ink and fill
+     are the same colour; the light theme is where they part company. */
+  --accent-ink: #39FF14;
+  --on-header-accent: #39FF14;  /* header is pure black in this theme, so the neon is already 15:1 */
+  --good-ink: #39FF14;
+  --danger-ink: #FF5555;
+  --pro-ink: #39FF14;
+  --carb-ink: #00F3FF;
+  --fat-ink: #FF2FD0;
 }
 .theme-light {
   --bg: #F0F0F0;
@@ -106,7 +117,7 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --text: #1a1a1a;
   --text2: #333333;
   --muted: #666666;
-  --muted2: #757575;         /* lifted from #8a8a8a: 4.5:1 on white, so small hints stay readable in sunlight */
+  --muted2: #6b6b6b;         /* 4.5:1 on white AND on the #ececec cards; #757575 only cleared it on white */
   --accent: #F5C518;         /* gold, primary / selected / LVL / nav-active */
   --on-accent: #1a1a1a;
   --accent-dim: #fff3c9;
@@ -126,7 +137,7 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --food-other: #7c3aed;
   --danger: #E5342A;
   --good: #17A398;
-  --warn: #B26A00;           /* darker amber: readable on white (4.5:1) */
+  --warn: #9A5B00;           /* #B26A00 measured 4.24 on white and 3.59 on the cards, so it never actually cleared 4.5 */
   --sleep: #7c3aed;          /* sleep identity: violet */
   --sleep-deep: #5B3FCF;     /* deep / N3: indigo */
   --sleep-rem: #1C8FA8;      /* REM: teal-cyan (readable on white) */
@@ -136,6 +147,20 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --scene-top: #e6edf6;      /* soft daylight sky */
   --scene-bottom: #ffffff;
   --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
+  /* INK tokens: the brand colours when they are TEXT. Measured on white, the gold that carries the
+     whole light theme scored 1.63:1 as type, which is not dim, it is invisible; teal ran 3.12 and
+     the macro red 4.32, both under the 4.5 small text needs. These are the same hues taken down
+     until they clear 4.5:1 on white, on the #F0F0F0 page and on the #ececec inputs alike. The
+     bright originals keep their real job: filling meters, tiles and buttons, where they are seen
+     and not read. */
+  --accent-ink: #9A5B00;     /* gold as type: 5.4:1 on white, 4.6:1 on the greys */
+  --on-header-accent: #FFD84D;  /* the SAME gold going the other way, for type on the purple bar:
+                                   darkening it there would hide it, so it lightens to 4.9:1 */
+  --good-ink: #0D6B64;       /* teal as type: 6.4:1 */
+  --danger-ink: #C4271E;     /* red as type: 5.7:1 */
+  --pro-ink: #C4271E;
+  --carb-ink: #2A62BC;
+  --fat-ink: #9A5B00;
 }
 
 html, body { background: var(--bg); overflow-x: hidden; }
@@ -298,15 +323,15 @@ input, select { color-scheme: dark; }
 .text-\[\#C9C9CF\] { color: var(--text2) !important; }
 .text-\[\#5A5A62\] { color: var(--muted2) !important; }
 /* accent (was blue) */
-.text-\[\#4A9EEB\] { color: var(--accent) !important; }
+.text-\[\#4A9EEB\] { color: var(--accent-ink) !important; }
 .bg-\[\#4A9EEB\] { background-color: var(--accent) !important; }
 .accent-\[\#4A9EEB\] { accent-color: var(--accent) !important; }
 .bg-\[\#4A9EEB\]\/15, .bg-\[\#4A9EEB\]\/12, .bg-\[\#4A9EEB\]\/10 { background-color: var(--accent-dim) !important; }
 .bg-\[\#4A9EEB\]\/40, .border-\[\#4A9EEB\]\/40 { border-color: var(--accent) !important; }
 /* macro text classes (rare) */
-.text-\[\#34D399\] { color: var(--carb) !important; }
-.text-\[\#F5C542\] { color: var(--fat) !important; }
-.text-\[\#ff6b6b\], .text-\[\#FF5A4D\] { color: var(--danger) !important; }
+.text-\[\#34D399\] { color: var(--carb-ink) !important; }
+.text-\[\#F5C542\] { color: var(--fat-ink) !important; }
+.text-\[\#ff6b6b\], .text-\[\#FF5A4D\] { color: var(--danger-ink) !important; }
 /* "white" = the active / primary neon; "black" text on it = on-accent */
 .bg-white { background-color: var(--accent) !important; }
 .text-black { color: var(--on-accent) !important; }
@@ -4464,6 +4489,13 @@ const CAL = 'var(--accent)',
   PRO = 'var(--pro)',
   FAT = 'var(--fat)',
   CARB = 'var(--carb)';
+// The same four as TYPE. A meter block only has to be seen; a 10px "F8.6" has to be read, and the
+// gold that works for the first job scored 1.63:1 against white for the second. Use these anywhere
+// a macro is a number rather than a bar.
+const PRO_T = 'var(--pro-ink)',
+  FAT_T = 'var(--fat-ink)',
+  CARB_T = 'var(--carb-ink)',
+  CAL_T = 'var(--accent-ink)';
 const MUTED = 'var(--muted)',
   BORDER = 'var(--border)',
   CARDBG = 'var(--card)';
@@ -6802,7 +6834,7 @@ function MiniStat({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-xl font-bold tnum",
     style: {
-      color: ok ? 'var(--carb)' : 'var(--muted)'
+      color: ok ? 'var(--carb-ink)' : 'var(--muted)'
     }
   }, value), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5"
@@ -7055,7 +7087,7 @@ function PhotoButton({
     width: "16",
     height: "16",
     style: {
-      color: CAL
+      color: CAL_T
     }
   }), " ", label, /*#__PURE__*/React.createElement("input", {
     type: "file",
@@ -7165,7 +7197,7 @@ function Dropdown({
     onClick: () => setOpen(o => !o),
     className: "flex items-center gap-1 text-[13px] text-left max-w-full",
     style: {
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       minHeight: 32
     }
   }, /*#__PURE__*/React.createElement("span", {
@@ -7201,6 +7233,35 @@ function Dropdown({
     },
     className: `block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`
   }, o.l))));
+}
+// Every text-only control in the app looks like this, and nothing that is not a control looks like
+// it. Flat design took away the 3D cue people used to read as "you can press this", and the fix is
+// to put a signifier back: a colour that differs from body text, plus an underline. Without one,
+// "Numbers off? Edit them" was 11px grey text with no box, which is precisely how this app styles
+// captions, so the one interactive thing on the panel read as a footnote.
+// `tone` covers the three jobs: accent for ordinary actions, danger for destructive ones, and quiet
+// for a control that must not compete with the primary button beside it.
+function TextBtn({
+  children,
+  onClick,
+  tone = 'accent',
+  className = '',
+  ...rest
+}) {
+  const color = tone === 'danger' ? 'var(--danger-ink)' : tone === 'quiet' ? 'var(--text2)' : 'var(--accent-ink)';
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClick,
+    className: 'inline-flex items-center gap-1.5 text-[12px] ' + className,
+    style: {
+      color,
+      textDecoration: 'underline',
+      textDecorationThickness: 2,
+      textUnderlineOffset: 3,
+      minHeight: 32
+    },
+    ...rest
+  }, children);
 }
 function RowToggle({
   label,
@@ -7244,7 +7305,9 @@ function Collapsible({
     }, /*#__PURE__*/React.createElement("span", null, label), /*#__PURE__*/React.createElement("span", {
       className: "pf text-[8px] uppercase shrink-0 ml-2",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)',
+        textDecoration: 'underline',
+        textUnderlineOffset: 3
       }
     }, open ? 'Hide' : sub || 'Show')), open && /*#__PURE__*/React.createElement("div", {
       className: "fade-in mt-3"
@@ -7268,7 +7331,9 @@ function Collapsible({
   }, sub)), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px] uppercase shrink-0",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)',
+      textDecoration: 'underline',
+      textUnderlineOffset: 3
     }
   }, open ? 'Hide' : 'Show')), open && /*#__PURE__*/React.createElement("div", {
     className: "mt-3 fade-in"
@@ -7869,7 +7934,7 @@ function DayImpact({
     }), /*#__PURE__*/React.createElement("span", {
       className: "tnum text-[10px]",
       style: {
-        color: over ? 'var(--danger)' : 'var(--muted)'
+        color: over ? 'var(--danger-ink)' : 'var(--muted)'
       }
     }, end, unit, " / ", Math.round(tgt), unit));
   }));
@@ -7969,7 +8034,7 @@ function MeterRow({
   }, label), /*#__PURE__*/React.createElement("span", {
     className: "tnum text-[12px]",
     style: {
-      color: over ? 'var(--danger)' : 'var(--text2)'
+      color: over ? 'var(--danger-ink)' : 'var(--text2)'
     }
   }, over ? Math.round(value - target) + unit + ' over' : isRem ? left + unit + ' left' : Math.round(value) + unit)), /*#__PURE__*/React.createElement(PipMeter, {
     value: value,
@@ -8011,7 +8076,7 @@ function QualityBar({
     }, "DENSITY"), /*#__PURE__*/React.createElement("span", {
       className: "pf text-[8px] uppercase",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "Premium ›")), /*#__PURE__*/React.createElement(PipMeter, {
       value: 0,
@@ -8045,7 +8110,7 @@ function QualityBar({
   }, "ⓘ")), /*#__PURE__*/React.createElement("span", {
     className: "tnum text-[12px]",
     style: {
-      color: has ? nd.hit ? 'var(--good)' : 'var(--text2)' : 'var(--muted)'
+      color: has ? nd.hit ? 'var(--good-ink)' : 'var(--text2)' : 'var(--muted)'
     }
   }, has ? band.label : 'not scored yet')), /*#__PURE__*/React.createElement(PipMeter, {
     value: has ? nd.score : 0,
@@ -8225,7 +8290,7 @@ function ConsistencyHeatmap({
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-2xl font-bold tnum",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, activeDays), /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] text-[#8A8A90] leading-tight"
@@ -8587,7 +8652,7 @@ function TrendCard({
   }, "Skip the calipers. Premium estimates your body fat from a progress photo, then charts it here over time.")), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px] uppercase shrink-0",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Try free ›")), valid.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "text-center py-8 px-4"
@@ -8613,7 +8678,7 @@ function TrendCard({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold tnum",
     style: {
-      color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good)' : 'var(--fat)'
+      color: deltaGood == null ? 'var(--muted)' : deltaGood ? 'var(--good-ink)' : 'var(--fat-ink)'
     }
   }, deltaStr), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
@@ -8783,7 +8848,7 @@ function ResetPassword({
   }, busy ? 'SAVING…' : 'SAVE PASSWORD'), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-3 text-center",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, msg)))));
 }
@@ -8944,7 +9009,7 @@ function LegalDoc({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-sm mb-1",
     style: {
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       fontSynthesis: 'none'
     }
   }, s.h), /*#__PURE__*/React.createElement("div", {
@@ -9196,7 +9261,7 @@ function Auth() {
   }, loginFailed ? 'Reset your password' : 'Forgot your password?'), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-3 text-center leading-relaxed",
     style: {
-      color: existing || needsConfirm || loginFailed || mode === 'forgot' ? 'var(--header)' : 'var(--danger)'
+      color: existing || needsConfirm || loginFailed || mode === 'forgot' ? 'var(--header)' : 'var(--danger-ink)'
     }
   }, msg), needsConfirm && /*#__PURE__*/React.createElement("button", {
     onClick: resendConfirm,
@@ -9449,7 +9514,7 @@ function BodyFatPicker({
     width: "18",
     height: "18",
     style: {
-      color: CAL
+      color: CAL_T
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-1"
@@ -9705,21 +9770,21 @@ function Wizard({
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "text-xl font-semibold tnum",
       style: {
-        color: PRO
+        color: PRO_T
       }
     }, preview.protein_g, "g"), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90]"
     }, "Protein")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "text-xl font-semibold tnum",
       style: {
-        color: FAT
+        color: FAT_T
       }
     }, preview.fat_g, "g"), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90]"
     }, "Fat")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "text-xl font-semibold tnum",
       style: {
-        color: CARB
+        color: CARB_T
       }
     }, preview.carbs_g, "g"), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90]"
@@ -9727,7 +9792,7 @@ function Wizard({
       onClick: () => setShowMaths(m => !m),
       className: "text-[11px] mt-4 pt-3 border-t border-[#262629] w-full text-left",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, showMaths ? 'Hide the maths' : 'Show me the maths ›'), showMaths && /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] text-[#8A8A90] mt-2 space-y-1.5"
@@ -10405,7 +10470,7 @@ function WeekAheadFlow({
   }), aiErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] mt-1.5 leading-snug",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, aiErr), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -10486,7 +10551,7 @@ function WeekAheadFlow({
   }))), clash && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3 leading-snug",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "You've already got ", clash.label.toLowerCase(), " down for ", fmtRange(clash.start, clash.end), ". Pick days that don't overlap, or cancel that one first in Settings."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -10565,7 +10630,7 @@ function WeekAheadFlow({
     })), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] tnum font-semibold",
       style: {
-        color: hi ? 'var(--accent)' : 'var(--text)'
+        color: hi ? 'var(--accent-ink)' : 'var(--text)'
       }
     }, dayKcal(d)));
   })) : /*#__PURE__*/React.createElement("div", {
@@ -10606,7 +10671,7 @@ function WeekPlanBanner({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase mb-1",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, ctx.active ? 'On now' : 'Easing back'), /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold"
@@ -11179,7 +11244,7 @@ function CheckInModal({
   }, liveAvg != null ? fmtWeight(liveAvg, unit) : '–'), avgDelta != null && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] tnum font-semibold",
     style: {
-      color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)'
+      color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good-ink)' : 'var(--fat-ink)'
     }
   }, fmtWeightDelta(avgDelta, unit), " vs ", singleWeigh ? 'last time' : 'last cycle')), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-1.5 leading-snug"
@@ -11241,7 +11306,7 @@ function CheckInModal({
     onClick: () => go(beats[beatIdx - 1]),
     className: "pf text-[9px] uppercase hit",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "‹ Back") : /*#__PURE__*/React.createElement("span", {
     className: "pf text-[9px] uppercase text-[#8A8A90]"
@@ -11301,7 +11366,7 @@ function CheckInModal({
   }, "kg")), wErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, wErr)), liveAvg != null && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-snug tnum"
@@ -11311,7 +11376,7 @@ function CheckInModal({
     }
   }, fmtWeight(liveAvg, unit)), avgDelta != null ? /*#__PURE__*/React.createElement("span", {
     style: {
-      color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good)' : 'var(--fat)'
+      color: avgDelta === 0 ? 'var(--muted)' : (p.goalType === 'gain' ? avgDelta > 0 : p.goalType === 'cut' ? avgDelta < 0 : Math.abs(avgDelta) < 0.3) ? 'var(--good-ink)' : 'var(--fat-ink)'
     }
   }, " ", fmtWeightDelta(avgDelta, unit)) : null), /*#__PURE__*/React.createElement(Collapsible, {
     variant: "inline",
@@ -11420,14 +11485,14 @@ function CheckInModal({
     }, fmtWeight(result.leanNow, unit)), /*#__PURE__*/React.createElement("span", {
       className: "tnum",
       style: {
-        color: held || dLean > 0 ? 'var(--good)' : 'var(--fat)'
+        color: held || dLean > 0 ? 'var(--good-ink)' : 'var(--fat-ink)'
       }
     }, held ? 'held' : fmtWeightDelta(dLean, unit)), /*#__PURE__*/React.createElement("span", {
       className: "text-[#8A8A90]"
     }, "fat"), /*#__PURE__*/React.createElement("span", {
       className: "tnum",
       style: {
-        color: dFat < 0 ? 'var(--good)' : 'var(--muted)'
+        color: dFat < 0 ? 'var(--good-ink)' : 'var(--muted)'
       }
     }, fmtWeightDelta(dFat, unit)));
   })()), !result.earlyPhase && result.burnNow ? /*#__PURE__*/React.createElement("div", {
@@ -11533,7 +11598,7 @@ function CheckInModal({
   }, r.next, "g")))), result.newTargets.squeezed && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-3 leading-snug",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "This one sits at the safety floor, so fat had to be trimmed to fit."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
@@ -11722,7 +11787,7 @@ function WeighInEditModal({
   }), dupe && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "You already weighed in on this day, saving overwrites it.")) : /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-3"
@@ -11731,7 +11796,7 @@ function WeighInEditModal({
   }, weighInputs, wErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, wErr)), /*#__PURE__*/React.createElement(Field, {
     label: "Body fat %",
@@ -11939,7 +12004,7 @@ function CheckInHistory({
       className: "pf text-[8px] px-2 py-1",
       style: {
         background: c.onTrack ? 'var(--accent-dim)' : 'transparent',
-        color: c.onTrack ? 'var(--good)' : 'var(--fat)',
+        color: c.onTrack ? 'var(--good-ink)' : 'var(--fat-ink)',
         border: '2px solid var(--border)'
       }
     }, c.onTrack ? c.changed ? 'ADJUSTED' : 'ON TRACK' : 'HELD')), /*#__PURE__*/React.createElement("div", {
@@ -11949,7 +12014,7 @@ function CheckInHistory({
     }, /*#__PURE__*/React.createElement("span", {
       className: "text-lg font-bold tnum",
       style: {
-        color: good == null ? 'var(--text)' : good ? 'var(--good)' : 'var(--fat)'
+        color: good == null ? 'var(--text)' : good ? 'var(--good-ink)' : 'var(--fat-ink)'
       }
     }, changeKg == null ? fmtWeight(c.weightKg, unit) : fmtWeightDelta(changeKg, unit)), changeKg == null ? /*#__PURE__*/React.createElement("span", {
       className: "text-[11px] text-[#8A8A90]"
@@ -11963,7 +12028,7 @@ function CheckInHistory({
       className: "text-[#8A8A90]"
     }, hasCounts ? `Logged ${c.logged}/${c.logWindow != null ? c.logWindow : c.days} · Weighed ${c.weighed}/${c.weighWindow != null ? c.weighWindow : c.days}` : 'Compliance'), /*#__PURE__*/React.createElement("span", {
       style: {
-        color: c.onTrack ? 'var(--good)' : 'var(--fat)'
+        color: c.onTrack ? 'var(--good-ink)' : 'var(--fat-ink)'
       }
     }, c.onTrack ? 'Compliant' : 'Short')), avgIn != null && wkRate != null && /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] tnum mt-1"
@@ -12048,7 +12113,7 @@ function DensityWeekCard({
     }))), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] mt-1.5",
       style: {
-        color: has && d.hit ? 'var(--good)' : 'var(--muted)'
+        color: has && d.hit ? 'var(--good-ink)' : 'var(--muted)'
       }
     }, dayLetter(d.date)));
   })), /*#__PURE__*/React.createElement("div", {
@@ -12199,7 +12264,7 @@ function ExpenditureCard({
       "aria-expanded": showMath
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        color: 'var(--hero)'
+        color: 'var(--good-ink)'
       }
     }, "how this was worked out"), /*#__PURE__*/React.createElement("span", {
       className: "tnum",
@@ -12230,7 +12295,7 @@ function ExpenditureCard({
   }, "WEIGHT TREND"), /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] tnum font-semibold",
     style: {
-      color: est.direction === 'flat' ? 'var(--good)' : 'var(--text)'
+      color: est.direction === 'flat' ? 'var(--good-ink)' : 'var(--text)'
     }
   }, est.direction === 'flat' ? 'holding steady' : fmtWeightDelta(est.weeklyChangeKg, unit, '/wk'))), (() => {
     // Burn history: TDEE learned at each past check-in (persisted as ci.tdee going forward;
@@ -13404,7 +13469,7 @@ function WeighInline({
   }, "SAVE"))), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err));
 }
@@ -13473,7 +13538,7 @@ function BuddyHabitat({
   }, who), incubating ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] leading-snug mb-1.5 truncate",
     style: {
-      color: 'var(--carb)'
+      color: 'var(--carb-ink)'
     }
   }, "Incubating", tasks ? ' · ' + tDone + '/' + tasks.length : '…'), tasks && /*#__PURE__*/React.createElement(PipLine, {
     pct: tDone / tasks.length * 100
@@ -13491,7 +13556,7 @@ function BuddyHabitat({
   }, "Fully grown · streak ", streak))), /*#__PURE__*/React.createElement("span", {
     className: "pf shrink-0 self-center",
     style: {
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       fontSize: 15
     }
   }, "›"))), !incubating && /*#__PURE__*/React.createElement("button", {
@@ -13513,7 +13578,7 @@ function BuddyHabitat({
   }, "Shop"), /*#__PURE__*/React.createElement("span", {
     className: "pf",
     style: {
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       fontSize: 12
     }
   }, "›")), incubating && tasks && /*#__PURE__*/React.createElement("div", {
@@ -13545,7 +13610,7 @@ function BuddyHabitat({
   }, t.label), !t.done && /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] shrink-0",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "DO IT ›")))), msg && (() => {
     const speaker = msg.kind === 'lesson' ? bp.name || 'Your buddy' : who;
@@ -13560,7 +13625,7 @@ function BuddyHabitat({
     }, /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, head), msg.dismiss && /*#__PURE__*/React.createElement("button", {
       onClick: msg.dismiss,
@@ -14472,17 +14537,17 @@ function personalityFor(seed) {
 const MOOD_META = {
   thriving: {
     label: 'Thriving',
-    color: 'var(--good)',
+    color: 'var(--good-ink)',
     lines: ['Firing on all cylinders.', 'Best it has felt in ages.', 'Practically glowing after that.']
   },
   content: {
     label: 'Content',
-    color: 'var(--carb)',
+    color: 'var(--carb-ink)',
     lines: ['Fed and happy.', 'A good, steady day.', 'Quietly pleased with you.']
   },
   peckish: {
     label: 'Peckish',
-    color: 'var(--fat)',
+    color: 'var(--fat-ink)',
     lines: ['Could do with more protein.', 'Still a little hungry.', 'Decent start, feed it up.']
   },
   stuffed: {
@@ -14768,7 +14833,7 @@ function BuddyScene({
       top: 5,
       right: 6,
       fontSize: 9,
-      color: 'var(--carb)'
+      color: 'var(--carb-ink)'
     }
   }, "Zz"), stuffed && /*#__PURE__*/React.createElement("span", {
     className: "pf absolute",
@@ -14825,7 +14890,7 @@ function BondHearts({
   }, (_, i) => /*#__PURE__*/React.createElement("span", {
     key: i,
     style: {
-      color: i < n ? 'var(--danger)' : 'var(--border)',
+      color: i < n ? 'var(--danger-ink)' : 'var(--border)',
       fontSize: size
     }
   }, i < n ? '♥' : '♡')));
@@ -14881,7 +14946,7 @@ function PlayBuddyView({
   }, who), incubating ? /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] mt-1 leading-snug max-w-[16rem]",
     style: {
-      color: 'var(--carb)'
+      color: 'var(--carb-ink)'
     }
   }, "Incubating. Do the getting-started tasks on Today to hatch it.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] mt-1 leading-snug"
@@ -14954,7 +15019,7 @@ function PlayBuddyView({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase mb-1",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "Dino lore"), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] leading-snug",
@@ -15108,7 +15173,7 @@ function BuddyChatModal({
   }, "."))), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] leading-snug mb-2 px-1",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err), /*#__PURE__*/React.createElement("div", {
     ref: endRef
@@ -15352,7 +15417,7 @@ function TrophyCabinet({
     }, label), /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px]",
       style: {
-        color: t.level > 0 ? 'var(--good)' : 'var(--muted)'
+        color: t.level > 0 ? 'var(--good-ink)' : 'var(--muted)'
       }
     }, "TIER ", t.level, "/", t.max)), /*#__PURE__*/React.createElement(PipLine, {
       className: "my-1.5",
@@ -15388,7 +15453,7 @@ function TrophyCabinet({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-xl font-bold tnum",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, streak || 0), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90]"
@@ -15401,7 +15466,7 @@ function TrophyCabinet({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-xl font-bold tnum",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, longest), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90]"
@@ -15586,13 +15651,13 @@ function ShopView({
       className: "pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0",
       style: {
         background: 'var(--surface2)',
-        color: 'var(--good)'
+        color: 'var(--good-ink)'
       }
     }, "WEAR") : ownedLabel ? /*#__PURE__*/React.createElement("span", {
       className: "pf text-[8px] px-2 py-1.5 shrink-0",
       style: {
         background: 'var(--surface2)',
-        color: 'var(--good)'
+        color: 'var(--good-ink)'
       }
     }, ownedLabel) : /*#__PURE__*/React.createElement("button", {
       onClick: onBuy || (() => buy(id)),
@@ -15620,7 +15685,7 @@ function ShopView({
   }, "‹ Back") : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px]",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
     size: 9
@@ -15640,7 +15705,7 @@ function ShopView({
     preview: /*#__PURE__*/React.createElement("span", {
       className: "pf text-[13px] font-bold",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "Aa")
   }), canRecolour && /*#__PURE__*/React.createElement(Row, {
@@ -15672,7 +15737,7 @@ function ShopView({
     preview: /*#__PURE__*/React.createElement("span", {
       style: {
         filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')',
-        color: AURA_GLOW[c.id] || 'var(--fat)'
+        color: AURA_GLOW[c.id] || 'var(--fat-ink)'
       }
     }, /*#__PURE__*/React.createElement(Spark, {
       size: 18
@@ -16362,7 +16427,7 @@ function FightModal({
     className: "pf fvs",
     style: {
       fontSize: 26,
-      color: 'var(--fat)',
+      color: 'var(--fat-ink)',
       WebkitTextStroke: '1px var(--border)'
     }
   }, "VS")), pop && /*#__PURE__*/React.createElement("div", {
@@ -16376,13 +16441,13 @@ function FightModal({
     className: "pf fpop",
     style: {
       fontSize: pop.big ? 15 : 12,
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, pop.text), pop.num != null && /*#__PURE__*/React.createElement("div", {
     className: "pf fdmg tnum",
     style: {
       fontSize: pop.big ? 16 : 12,
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, "-", pop.num)));
   const StatLine = ({
@@ -16447,7 +16512,7 @@ function FightModal({
   }), enemy.ability && enemy.ability !== 'none' && /*#__PURE__*/React.createElement("div", {
     className: "text-[8px] mt-0.5",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, ABIL_LABEL[enemy.ability]), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mt-1 leading-snug"
@@ -16474,7 +16539,7 @@ function FightModal({
     className: "text-center pf text-[8px] uppercase text-[#8A8A90] mb-3 inline-flex items-center justify-center gap-1.5 w-full flex-wrap"
   }, (fight.prestige || 0) > 0 && /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "Prestige ", fight.prestige, " ·"), /*#__PURE__*/React.createElement("span", null, ladderCleared ? 'All bosses cleared' : `Boss ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0), /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
@@ -16506,7 +16571,7 @@ function FightModal({
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] mt-1 leading-snug",
     style: {
-      color: readyBuff.band === 'apex' ? 'var(--good)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)'
+      color: readyBuff.band === 'apex' ? 'var(--good-ink)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)'
     }
   }, readyBuff.band ? readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today' : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today' : 'Steady readiness today' : 'Built from your week’s protein, fibre and perfect days'))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
@@ -16518,12 +16583,12 @@ function FightModal({
     attemptTag: dailyReady ? loggedToday ? 'ready' : 'log to arm' : 'cleared today',
     reward: /*#__PURE__*/React.createElement(React.Fragment, null, (fight.dailyStreak || 0) > 0 && /*#__PURE__*/React.createElement("span", {
       style: {
-        color: 'var(--fat)'
+        color: 'var(--fat-ink)'
       }
     }, "▲ ", fight.dailyStreak, "-day streak · "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
       className: "font-bold",
       style: {
-        color: 'var(--fat)'
+        color: 'var(--fat-ink)'
       }
     }, /*#__PURE__*/React.createElement(Spark, {
       size: 9
@@ -16547,7 +16612,7 @@ function FightModal({
       style: {
         background: 'var(--surface3)',
         boxShadow: 'none',
-        color: 'var(--good)'
+        color: 'var(--good-ink)'
       }
     }, "Hunt cleared today ", /*#__PURE__*/React.createElement(Tick, {
       size: 9
@@ -16623,21 +16688,21 @@ function FightModal({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-2xl mb-1",
     style: {
-      color: winner === 'you' ? 'var(--good)' : 'var(--danger)'
+      color: winner === 'you' ? 'var(--good-ink)' : 'var(--danger-ink)'
     }
   }, winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2"
   }, winner === 'you' ? isDaily ? 'Daily Hunt cleared!' : isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!' : 'Your buddy needs a good feed, come back tomorrow and go again.'), winner === 'you' && amberEarned > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[14px] mb-2 font-bold",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
     size: 11
   }), " +", amberEarned, " Amber"), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-3",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "Loot: ", drops.map(id => ITEMS[id].name).join(', ')), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
@@ -16692,7 +16757,7 @@ function HomeWeightSpark({
   }, "Weight trend"), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px]",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Progress ›")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-end gap-3"
@@ -16912,7 +16977,7 @@ function recoveryCoachLine(db, today) {
   // Lead every line with the actual number out of 100 and a plain word, so the score reads clearly
   // rather than a game-y band name on its own.
   if (band === 'apex') return {
-    color: 'var(--good)',
+    color: 'var(--good-ink)',
     text: restedWell ? "Readiness " + score + " out of 100, high. Last night's sleep is paying off, so let's push hard today. I'm right behind you." : "Readiness " + score + " out of 100, high. Recovery is on your side, so today's a good one to train hard. Go get it."
   };
   if (band === 'drowsy') return {
@@ -16920,7 +16985,7 @@ function recoveryCoachLine(db, today) {
     text: roughNight ? "Readiness " + score + " out of 100, low. A short night's catching up with you, so let's go gentle today and get an early one tonight. Rest is training too." : "Readiness " + score + " out of 100, low. Your body's asking for a lighter day, so we'll keep it easy and protect your sleep tonight. Rest is training too."
   };
   if (band === 'prowling') return {
-    color: 'var(--accent)',
+    color: 'var(--accent-ink)',
     text: goalHit ? "Readiness " + score + " out of 100, steady. Steps are already on target, so train as planned and let's protect tonight's 7 to 9 hours." : "Readiness " + score + " out of 100, steady. Keep us moving, and aim for a full 7 to 9 hours tonight."
   };
   // No readiness score yet.
@@ -17098,7 +17163,7 @@ function BuddyReadinessSheet({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase mb-1",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, who, "'s deeper dive"), dive) : /*#__PURE__*/React.createElement("button", {
     onClick: runDive,
@@ -17224,11 +17289,11 @@ function WeeklyRecapSheet({
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "“"), line, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "”")), onOpenProgress && /*#__PURE__*/React.createElement("button", {
     onClick: onOpenProgress,
@@ -17445,7 +17510,7 @@ function StepsSleepCard({
     }
   }, "Recovery")), /*#__PURE__*/React.createElement("span", {
     className: "flex-1 grid grid-cols-3 gap-1.5"
-  }, Chip('Move', moveBig, 'var(--good)'), Chip('Sleep', sleepBig, 'var(--sleep)'), Chip('Ready', readyBig, rColor)), /*#__PURE__*/React.createElement("span", {
+  }, Chip('Move', moveBig, 'var(--good-ink)'), Chip('Sleep', sleepBig, 'var(--sleep)'), Chip('Ready', readyBig, rColor)), /*#__PURE__*/React.createElement("span", {
     className: "pf shrink-0",
     style: {
       fontSize: 10,
@@ -17467,7 +17532,7 @@ function StepsSleepCard({
   }, "Train hard, rest harder"), synced ? /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
     size: 8
@@ -17475,7 +17540,7 @@ function StepsSleepCard({
     onClick: ghConnectGated,
     className: "pf text-[7px] uppercase",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Connect Health ›") : /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
@@ -17550,7 +17615,7 @@ function StepsSleepCard({
     className: "text-center mt-2 pf uppercase",
     style: {
       fontSize: 7,
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "Step-goal streak · ", streak, " days")), sheet && /*#__PURE__*/React.createElement(MetricBreakdownSheet, {
     metric: sheet,
@@ -17671,7 +17736,7 @@ function MetricBreakdownSheet({
     }, /*#__PURE__*/React.createElement("div", {
       className: "tnum text-4xl font-bold leading-none",
       style: {
-        color: 'var(--good)'
+        color: 'var(--good-ink)'
       }
     }, k(todaySteps)), /*#__PURE__*/React.createElement("div", {
       className: "text-[13px] pb-1",
@@ -17686,7 +17751,7 @@ function MetricBreakdownSheet({
       className: "pf uppercase mb-1",
       style: {
         fontSize: 8,
-        color: 'var(--good)'
+        color: 'var(--good-ink)'
       }
     }, "Step-goal streak · ", streak, " days"), /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase mb-2 mt-5",
@@ -18022,7 +18087,7 @@ function GoogleHealthDisclosure({
   }, /*#__PURE__*/React.createElement("div", {
     className: "shrink-0 mt-0.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
     size: 12
@@ -18082,7 +18147,7 @@ function GoogleHealthDisclosure({
     target: "_blank",
     rel: "noopener",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Privacy Policy"), "."), /*#__PURE__*/React.createElement("p", {
     className: "text-[12px] leading-snug mt-3",
@@ -18274,7 +18339,7 @@ function BuddyUpgradeOnboarding({
   }, step === 'intro' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-3 mt-2 inline-flex items-center gap-1.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
     size: 10
@@ -18425,7 +18490,7 @@ function MilestoneCelebration({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
     size: 10
@@ -18449,7 +18514,7 @@ function MilestoneCelebration({
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-3xl font-bold mb-3",
     style: {
-      color: reached ? 'var(--fat)' : 'var(--accent)'
+      color: reached ? 'var(--fat-ink)' : 'var(--accent-ink)'
     }
   }, milestone.headline), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-4 max-w-xs text-[12px] leading-relaxed",
@@ -18459,16 +18524,16 @@ function MilestoneCelebration({
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "“"), milestone.text, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "”")), etaText && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-5 max-w-xs leading-snug",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, etaText), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 w-full max-w-xs"
@@ -18542,7 +18607,7 @@ function StageUpCelebration({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-6 inline-flex items-center gap-1.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
     size: 10
@@ -18569,7 +18634,7 @@ function StageUpCelebration({
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-3xl font-bold mb-3",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, st.name), stage > 1 && /*#__PURE__*/React.createElement("div", {
     className: "flex items-end justify-center gap-4 mb-4"
@@ -18590,7 +18655,7 @@ function StageUpCelebration({
   }, prev.name)), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[10px] pb-4",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "›"), /*#__PURE__*/React.createElement("div", {
     className: "text-center"
@@ -18604,7 +18669,7 @@ function StageUpCelebration({
   }), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase mt-1",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, st.name))), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-6 max-w-xs text-[12px] leading-relaxed",
@@ -18614,11 +18679,11 @@ function StageUpCelebration({
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "“"), line, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "”")), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
@@ -18718,11 +18783,11 @@ function HatchCelebration({
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "“"), firstWords, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "”")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] leading-relaxed mb-4 max-w-xs"
@@ -18863,12 +18928,12 @@ function RecipeMini({
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-bold",
     style: {
-      color: CAL
+      color: CAL_T
     }
   }, Math.round(r.macros_per_serving.kcal)), " kcal · ", /*#__PURE__*/React.createElement("span", {
     className: "font-bold",
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, Math.round(r.macros_per_serving.protein), "g"), " P"))));
 }
@@ -19106,7 +19171,7 @@ function PremiumNudge({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase tracking-widest mb-1.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Macrosaurus Premium"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-bold mb-1 pr-6"
@@ -19115,7 +19180,7 @@ function PremiumNudge({
   }, blurb), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Try Premium free ›"), /*#__PURE__*/React.createElement("button", {
     onClick: dismiss,
@@ -19647,7 +19712,7 @@ function Dashboard({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[16px] font-bold tnum",
     style: {
-      color: CARB
+      color: CARB_T
     }
   }, remCarbs, "g"), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase text-[#8A8A90]"
@@ -19655,7 +19720,7 @@ function Dashboard({
     onClick: () => setShift(0),
     className: "pf text-[8px] uppercase",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Reset") : /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px] uppercase text-[#8A8A90]"
@@ -19664,7 +19729,7 @@ function Dashboard({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[16px] font-bold tnum",
     style: {
-      color: FAT
+      color: FAT_T
     }
   }, remFat, "g"), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase text-[#8A8A90]"
@@ -19680,13 +19745,13 @@ function Dashboard({
       className: "tnum"
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        color: adj > 0 ? 'var(--good)' : 'var(--fat)'
+        color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)'
       }
     }, sgn(adj)), " kcal ", label), canOpen && /*#__PURE__*/React.createElement("button", {
       onClick: () => setShowCarry(true),
       className: "pf text-[8px] uppercase",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "Details ›"));
   })()), /*#__PURE__*/React.createElement(BuddyHabitat, {
@@ -19831,7 +19896,7 @@ function CarryoverSheet({
     }, /*#__PURE__*/React.createElement("span", {
       className: "tnum text-[7px] mb-1",
       style: {
-        color: under ? 'var(--good)' : over ? 'var(--fat)' : 'var(--muted)'
+        color: under ? 'var(--good-ink)' : over ? 'var(--fat-ink)' : 'var(--muted)'
       }
     }, sgn(d.delta)), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -19849,11 +19914,11 @@ function CarryoverSheet({
     className: "flex justify-between text-[9px] text-[#8A8A90] mb-4"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "■"), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "■"), " over target")), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3 flex justify-between items-center tnum text-[11px]",
@@ -19866,7 +19931,7 @@ function CarryoverSheet({
   }, "Running balance"), /*#__PURE__*/React.createElement("span", {
     className: "font-bold",
     style: {
-      color: cd.balance > 0 ? 'var(--good)' : cd.balance < 0 ? 'var(--fat)' : 'var(--text)'
+      color: cd.balance > 0 ? 'var(--good-ink)' : cd.balance < 0 ? 'var(--fat-ink)' : 'var(--text)'
     }
   }, sgn(cd.balance), " kcal")), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] leading-relaxed"
@@ -20311,15 +20376,15 @@ function FoodLog({
       }
     }, Math.round(e.computed_macros.kcal), " kcal"), '  ', /*#__PURE__*/React.createElement("span", {
       style: {
-        color: PRO
+        color: PRO_T
       }
     }, "P", Math.round(e.computed_macros.protein || 0)), ' ', /*#__PURE__*/React.createElement("span", {
       style: {
-        color: CARB
+        color: CARB_T
       }
     }, "C", Math.round(e.computed_macros.carbs || 0)), ' ', /*#__PURE__*/React.createElement("span", {
       style: {
-        color: FAT
+        color: FAT_T
       }
     }, "F", Math.round(e.computed_macros.fat || 0))), /*#__PURE__*/React.createElement(DensityScoreText, {
       nq: e.nq,
@@ -20534,7 +20599,7 @@ function FoodLog({
     }, over ? 'Over by' : 'Kcal left'), /*#__PURE__*/React.createElement("span", {
       className: "text-2xl font-bold tnum",
       style: {
-        color: over ? 'var(--danger)' : 'var(--hero)'
+        color: over ? 'var(--danger-ink)' : 'var(--hero)'
       }
     }, Math.abs(Math.round(rem)))), /*#__PURE__*/React.createElement("span", {
       className: "text-[10px] text-[#8A8A90] tnum"
@@ -20558,7 +20623,7 @@ function FoodLog({
     })), /*#__PURE__*/React.createElement("span", {
       className: "tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap",
       style: {
-        color: e > t ? 'var(--danger)' : 'var(--text2)'
+        color: e > t ? 'var(--danger-ink)' : 'var(--text2)'
       }
     }, e > t ? Math.round(e - t) + 'g over' : Math.max(0, Math.round(t - e)) + 'g left'))), (() => {
       if (window.MISPREMIUM !== true) return null;
@@ -20591,7 +20656,7 @@ function FoodLog({
       })), /*#__PURE__*/React.createElement("span", {
         className: "tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap",
         style: {
-          color: dnd.score == null ? 'var(--muted)' : dnd.hit ? 'var(--good)' : 'var(--text2)'
+          color: dnd.score == null ? 'var(--muted)' : dnd.hit ? 'var(--good-ink)' : 'var(--text2)'
         }
       }, dnd.score == null ? 'no score' : dnd.score + ' / ' + dnd.target));
     })()));
@@ -20726,7 +20791,7 @@ function FoodLog({
     }, "Delete meal"))))), me.map(e => renderEntry(e, m, mc)), drag && me.length === 0 && /*#__PURE__*/React.createElement("div", {
       className: "mt-2 py-4 text-center text-[11px] pf uppercase",
       style: {
-        color: 'var(--accent)',
+        color: 'var(--accent-ink)',
         border: '2px dashed var(--accent)'
       }
     }, "Drop here"), /*#__PURE__*/React.createElement("button", {
@@ -20736,7 +20801,7 @@ function FoodLog({
       }),
       className: 'text-[13px] font-medium w-full text-left flex items-center ' + (me.length ? 'mt-2 pt-2 border-t border-[#262629]' : 'mt-1'),
       style: {
-        color: 'var(--accent)',
+        color: 'var(--accent-ink)',
         minHeight: 44
       }
     }, "+ Add food"));
@@ -20873,15 +20938,15 @@ function FoodLog({
       className: "text-[#8A8A90]"
     }, " kc"), " ", /*#__PURE__*/React.createElement("span", {
       style: {
-        color: PRO
+        color: PRO_T
       }
     }, drag.p, "P"), " ", /*#__PURE__*/React.createElement("span", {
       style: {
-        color: CARB
+        color: CARB_T
       }
     }, drag.c, "C"), " ", /*#__PURE__*/React.createElement("span", {
       style: {
-        color: FAT
+        color: FAT_T
       }
     }, drag.f, "F"))), /*#__PURE__*/React.createElement("span", {
       className: "shrink-0 pr-1",
@@ -21143,13 +21208,19 @@ function EditEntryModal({
     onClick: () => setRenaming(true),
     className: "text-left w-full"
   }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-lg font-semibold leading-tight"
-  }, name || title || 'Edit food'), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] mt-0.5",
+    className: "text-lg font-semibold leading-tight",
+    style: {
+      textDecoration: 'underline',
+      textDecorationStyle: 'dotted',
+      textDecorationColor: 'var(--muted)',
+      textUnderlineOffset: 4
+    }
+  }, name || title || 'Edit food'), contextLine && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] mt-1",
     style: {
       color: 'var(--muted)'
     }
-  }, contextLine ? contextLine + ' · ' : '', "tap to rename"))), /*#__PURE__*/React.createElement("button", {
+  }, contextLine))), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     className: "hit text-[#8A8A90] text-2xl leading-none shrink-0",
     "aria-label": "Close"
@@ -21171,14 +21242,9 @@ function EditEntryModal({
     unitLabel: unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun,
     step: step,
     onStep: bump
-  }), unit !== 'g' && unit !== 'oz' && /*#__PURE__*/React.createElement("div", {
-    className: "mt-2.5"
-  }, /*#__PURE__*/React.createElement(FractionChips, {
-    value: a,
-    onPick: v => setAmount(String(v))
-  })), unit === 'g' && /*#__PURE__*/React.createElement("div", {
+  }), unit === 'g' && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-1.5"
-  }, "grams · ±", step, " g per tap"), /*#__PURE__*/React.createElement("div", {
+  }, "±", step, " g per tap"), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mt-3 mb-3",
     style: {
       background: 'var(--surface3)',
@@ -21199,15 +21265,15 @@ function EditEntryModal({
     className: "text-[12px] tnum"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, "P", total.protein), " ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: CARB
+      color: CARB_T
     }
   }, "C", total.carbs), " ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: FAT
+      color: FAT_T
     }
   }, "F", total.fat))), entry.nq && /*#__PURE__*/React.createElement("div", {
     className: "mt-2 pt-2",
@@ -21237,11 +21303,13 @@ function EditEntryModal({
     className: "w-full accent-[#4A9EEB]"
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-sm text-[#8A8A90] mt-2 tnum"
-  }, "= ", total.carbs, "g carbs · ", total.fat, "g fat"))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setEdit(e => !e),
-    className: "text-[11px] text-[#8A8A90] mb-2"
-  }, edit ? '▲ Hide exact macros' : '▾ Numbers off? Edit exact macros'), edit && /*#__PURE__*/React.createElement("div", {
-    className: "fade-in mb-2"
+  }, "= ", total.carbs, "g carbs · ", total.fat, "g fat"))), /*#__PURE__*/React.createElement(Collapsible, {
+    variant: "inline",
+    label: "Numbers look off?",
+    sub: "Edit",
+    className: "mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-2.5"
   }, /*#__PURE__*/React.createElement(Field, {
@@ -21271,23 +21339,23 @@ function EditEntryModal({
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: total.kcal,
     onChange: e => setTotalField('kcal', e.target.value)
-  })))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }))))), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
-    className: "flex-1",
+    className: "w-full",
     disabled: a <= 0,
     style: {
       opacity: a <= 0 ? 0.5 : 1
     },
     onClick: save
-  }, (saveVerb || 'Save') + ' ' + total.kcal + ' kcal'), onDelete ? /*#__PURE__*/React.createElement(Btn, {
-    kind: "danger",
-    onClick: onDelete
-  }, "Delete") : /*#__PURE__*/React.createElement(Btn, {
-    kind: "ghost",
-    onClick: onClose
-  }, "Cancel"))));
+  }, (saveVerb || 'Save') + ' ' + total.kcal + ' kcal'), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-center mt-3"
+  }, /*#__PURE__*/React.createElement(TextBtn, {
+    onClick: onClose,
+    tone: "quiet"
+  }, "Cancel"), onDelete && /*#__PURE__*/React.createElement(TextBtn, {
+    onClick: onDelete,
+    tone: "danger"
+  }, "Delete this entry"))));
 }
 function CopyToModal({
   title,
@@ -21361,7 +21429,7 @@ function CopyToModal({
   }, "·"), " ", /*#__PURE__*/React.createElement("span", {
     className: "font-semibold",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, kcal), " kcal"), meals && /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
@@ -21856,7 +21924,7 @@ function FoodTab({
     className: "text-[11px] text-[#8A8A90] tnum"
   }, Math.round(g.per100.kcal), " kcal · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, "P ", Math.round(g.per100.protein), "g"), " / 100 g")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
@@ -21878,7 +21946,7 @@ function FoodTab({
     className: "text-[11px] text-[#8A8A90] tnum"
   }, Math.round(r.per100.kcal), " kcal · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, "P ", Math.round(r.per100.protein), "g"), " / 100 g")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0 text-lg leading-none"
@@ -22113,7 +22181,7 @@ function LogSheet({
     onClick: () => setIsAlc(false),
     className: "block text-[11px] mb-0.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "‹ Back to food"), /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold leading-tight"
@@ -22163,7 +22231,7 @@ function LogSheet({
     }, left > 0 ? left + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month' : 'No free AI logs left this month'), /*#__PURE__*/React.createElement("span", {
       className: "pf text-[8px] uppercase shrink-0",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "Go unlimited ›"));
   })(), tab === 'food' && /*#__PURE__*/React.createElement(FoodTab, {
@@ -22696,7 +22764,7 @@ function DensityBadge({
   }, "ⓘ")), /*#__PURE__*/React.createElement("span", {
     className: "tnum text-[12px]",
     style: {
-      color: ns.score >= E.ND_TARGET ? 'var(--good)' : 'var(--text2)'
+      color: ns.score >= E.ND_TARGET ? 'var(--good-ink)' : 'var(--text2)'
     }
   }, ns.band.label, nq.est ? ' · estimated' : '')), /*#__PURE__*/React.createElement(PipMeter, {
     value: ns.score,
@@ -22707,11 +22775,18 @@ function DensityBadge({
     small: true,
     overIsFine: true
   }), !!reasons.length && /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] mt-1",
+    className: "text-[10px] mt-1"
+  }, reasons.map((r, i) => /*#__PURE__*/React.createElement(React.Fragment, {
+    key: i
+  }, i > 0 && /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--muted)'
     }
-  }, reasons.map(r => (r.good ? '+ ' : '- ') + r.text).join(' · ')));
+  }, ' · '), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: r.good ? 'var(--good-ink)' : 'var(--muted)'
+    }
+  }, r.text)))));
 }
 // The full explanation, for anyone who wants to know what the number actually means. Written to be
 // read once and trusted afterwards: what it measures, how a food differs from a day, and where it
@@ -22749,7 +22824,7 @@ function DensityExplainer({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px] uppercase tracking-widest",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Density Score"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
@@ -22763,7 +22838,7 @@ function DensityExplainer({
     h: "What a good number looks like"
   }, /*#__PURE__*/React.createElement("b", {
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, E.ND_TARGET, " or above"), " is a genuinely good day. That is not an arbitrary bar: it is the cut-off the US government's Healthy Eating Index uses for a high quality diet. A typical Western diet scores about ", /*#__PURE__*/React.createElement("b", null, E.ND_POPULATION_AVERAGE), ", which is the fainter mark on your bar, so landing in the fifties is ordinary rather than a failure."), /*#__PURE__*/React.createElement(Row, {
     h: "How a single food is scored"
@@ -23047,9 +23122,10 @@ function ConfirmFood({
     ref: topRef
   }, explain && /*#__PURE__*/React.createElement(DensityExplainer, {
     onClose: () => setExplain(false)
-  }), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement(TextBtn, {
     onClick: onCancel,
-    className: "text-[13px] text-[#8A8A90] mb-2"
+    tone: "quiet",
+    className: "mb-2"
   }, "‹ Back"), estimated ? /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
     style: {
@@ -23060,7 +23136,7 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px] mr-1.5",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "ESTIMATE"), note) : saved ? /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug flex items-center gap-2",
@@ -23072,7 +23148,7 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px] px-1.5 py-0.5 shrink-0",
     style: {
-      color: 'var(--good)',
+      color: 'var(--good-ink)',
       border: '1px solid var(--good)'
     }
   }, badgeLabel || 'SAVED'), /*#__PURE__*/React.createElement("span", {
@@ -23099,7 +23175,7 @@ function ConfirmFood({
     className: "w-full text-[12px] mt-2 py-2 text-center rounded-xl border font-semibold",
     style: {
       borderColor: 'var(--border)',
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       background: 'var(--bg)'
     }
   }, "Or describe it and let the AI work it out")), /*#__PURE__*/React.createElement(Field, {
@@ -23123,14 +23199,9 @@ function ConfirmFood({
     step: step,
     onStep: stepBy,
     label: "How much did you have?"
-  }), unit !== 'g' && /*#__PURE__*/React.createElement("div", {
-    className: "mt-2.5"
-  }, /*#__PURE__*/React.createElement(FractionChips, {
-    value: a,
-    onPick: v => setAmount(String(v))
-  })), unit === 'g' && /*#__PURE__*/React.createElement("div", {
+  }), unit === 'g' && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-1.5"
-  }, "grams · ±", step, " g per tap"), /*#__PURE__*/React.createElement("div", {
+  }, "±", step, " g per tap"), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 my-3",
     style: {
       background: 'var(--surface3)',
@@ -23149,15 +23220,15 @@ function ConfirmFood({
     className: "text-[12px] text-[#8A8A90]"
   }, "kcal"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, final.protein, "g P"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: CARB
+      color: CARB_T
     }
   }, final.carbs, "g C"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: FAT
+      color: FAT_T
     }
   }, final.fat, "g F")), /*#__PURE__*/React.createElement(DensityBadge, {
     nq: nq,
@@ -23166,18 +23237,21 @@ function ConfirmFood({
   }), implausible && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "That is a very large amount, double-check the quantity.")), /*#__PURE__*/React.createElement(DayImpact, {
     rest: dayRest,
     target: dayTarget,
     add: final,
     label: "Your day if you add this"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setEdit(e => !e),
-    className: "text-[11px] text-[#8A8A90] mb-2"
-  }, edit ? '▲ Hide the numbers' : '▾ Numbers look off? Edit them'), edit && /*#__PURE__*/React.createElement("div", {
-    className: "fade-in mb-2"
+  }), /*#__PURE__*/React.createElement(Collapsible, {
+    variant: "inline",
+    label: "Numbers look off?",
+    sub: "Edit",
+    defaultOpen: !!estimated,
+    className: "mb-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mb-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase text-[#8A8A90] mb-1.5"
   }, basisIsServing ? 'Per ' + servNoun : per100 ? 'Per 100 g' : 'Per serving'), /*#__PURE__*/React.createElement("div", {
@@ -23210,14 +23284,10 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(NumInput, {
     value: v.kcal,
     onChange: e => setKcal(e.target.value)
-  }))), _dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && /*#__PURE__*/React.createElement("button", {
-    type: "button",
+  }))), _dk > 0 && kcalTouched && Math.round(_kc) !== atwaterK && /*#__PURE__*/React.createElement(TextBtn, {
     onClick: applyAtwater,
-    className: "text-[11px] mt-1.5",
-    style: {
-      color: 'var(--accent)'
-    }
-  }, "↺ Calculate calories from the macros (", atwaterK, " kcal)")), (onRescan || onAskAI) && !dodgy && /*#__PURE__*/React.createElement("div", {
+    className: "mt-1.5"
+  }, "Calculate calories from the macros (", atwaterK, " kcal)"))), (onRescan || onAskAI) && !dodgy && /*#__PURE__*/React.createElement("div", {
     className: "mt-4 mb-1"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3 mb-2.5"
@@ -23242,7 +23312,7 @@ function ConfirmFood({
     width: "18",
     height: "18",
     style: {
-      color: CAL
+      color: CAL_T
     }
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0 flex-1"
@@ -23279,7 +23349,7 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] font-semibold mb-1",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "Calories look high for these macros"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-snug mb-2.5"
@@ -23544,25 +23614,25 @@ function AiConfirm({
     className: "text-[12px] text-[#8A8A90]"
   }, "kcal"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, final.protein, "g P"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: CARB
+      color: CARB_T
     }
   }, final.carbs, "g C"), " · ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: FAT
+      color: FAT_T
     }
   }, final.fat, "g F")), implausible && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "That is a very large amount, double-check the portion."), final.kcal <= 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, "The AI couldn't read the calories. Tell it what to fix below, or start over.")), high > low && low > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-2",
@@ -23590,7 +23660,7 @@ function AiConfirm({
   }, it.name, it.userSpecified && /*#__PURE__*/React.createElement("span", {
     className: "ml-1.5 text-[8px] px-1 py-0.5 rounded",
     style: {
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       border: '1px solid var(--accent)'
     }
   }, "YOU SAID")), /*#__PURE__*/React.createElement("div", {
@@ -23642,7 +23712,7 @@ function AiConfirm({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] font-semibold mb-1",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "Calories look high for these macros"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] leading-snug"
@@ -23854,7 +23924,7 @@ function DescribeTab({
     className: "text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border",
     style: {
       borderColor: 'var(--border)',
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Scan instead")), /*#__PURE__*/React.createElement("textarea", {
     ref: taRef,
@@ -23869,7 +23939,7 @@ function DescribeTab({
   }), listening && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-1.5 flex items-center gap-1.5",
     style: {
-      color: FAT
+      color: FAT_T
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "inline-block w-1.5 h-1.5 rounded-full animate-pulse",
@@ -24937,7 +25007,7 @@ function PhotoTab({
     width: "22",
     height: "22",
     style: {
-      color: CAL
+      color: CAL_T
     }
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
@@ -25357,22 +25427,22 @@ function Goals({
     className: "text-right text-[13px] tnum"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, "P", base.protein_g), " ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: CARB
+      color: CARB_T
     }
   }, "C", base.carbs_g), " ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: FAT
+      color: FAT_T
     }
   }, "F", base.fat_g))), base && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-2"
   }, p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining', p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : '', p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : '', ".", db.paused ? ' Currently paused.' : ''), base && base.squeezed && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2 leading-snug",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, "This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable."), /*#__PURE__*/React.createElement("button", {
     onClick: () => setEditPlan(true),
@@ -25605,12 +25675,12 @@ function GoalEditor({
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[12px]",
       style: {
-        color: rg.tooFast ? 'var(--fat)' : 'var(--good)'
+        color: rg.tooFast ? 'var(--fat-ink)' : 'var(--good-ink)'
       }
     }, rl.t, " · ~", rg.pctOfBW, "% of your bodyweight a week"), mk && /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] mt-1",
       style: {
-        color: rg.tooFast ? 'var(--fat)' : 'var(--muted)'
+        color: rg.tooFast ? 'var(--fat-ink)' : 'var(--muted)'
       }
     }, rg.tooFast ? 'Above the ' : 'Within the ', "evidence-backed range of up to ~", mk, " a week (", Math.round(rg.pctCap * 1000) / 10, "% of bodyweight)", rg.tooFast ? g.goalType === 'gain' ? ', which is where the gain starts carrying more fat.' : ', which is where muscle loss and hunger start to bite.' : '.'));
   })()), /*#__PURE__*/React.createElement(Field, {
@@ -25654,7 +25724,7 @@ function GoalEditor({
   }, "kcal a day"), kcalDelta != null && kcalDelta !== 0 && /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] tnum ml-auto",
     style: {
-      color: kcalDelta > 0 ? 'var(--good)' : 'var(--fat)'
+      color: kcalDelta > 0 ? 'var(--good-ink)' : 'var(--fat-ink)'
     }
   }, kcalDelta > 0 ? '+' : '', kcalDelta, " vs now")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] tnum text-[#8A8A90]"
@@ -25737,7 +25807,7 @@ function GoalEditor({
   })), wErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-2",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, wErr), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
@@ -25811,7 +25881,7 @@ function SavedFlash({
     className: "h-4 mb-2 text-[11px] flex items-center gap-1.5",
     "aria-live": "polite",
     style: {
-      color: 'var(--good)',
+      color: 'var(--good-ink)',
       opacity: show ? 1 : 0,
       transition: 'opacity .25s'
     }
@@ -25881,7 +25951,7 @@ function SubScreen({
     onClick: onBack,
     className: "pf text-[9px] uppercase mb-4 hit",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "‹ Settings"), /*#__PURE__*/React.createElement("h1", {
     className: "pf text-lg mb-2"
@@ -26092,7 +26162,7 @@ function GhDebug({
       }
     }, dt), " · ", hm(r.min), " · ", hasStages(r) ? /*#__PURE__*/React.createElement("span", null, "deep ", r.deep || 0, " / rem ", r.rem || 0, " / light ", r.light || 0, " / awake ", r.awake || 0, " to score ", /*#__PURE__*/React.createElement("b", {
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, isFinite(r.score) ? r.score : '-')) : /*#__PURE__*/React.createElement("span", {
       style: {
@@ -26182,7 +26252,7 @@ function WeekPlansScreen({
   }, fmtRange(w.start, w.end)), /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] mt-1",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, w.acceptRateKgPerWeek === 0 ? 'Holding steady' : 'Aiming at ' + w.acceptRateKgPerWeek + ' kg a week')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setConfirmDel(w),
@@ -26571,7 +26641,7 @@ function MacrosScreen({
   })), saved && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3 fade-in",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "Saved. Your own numbers are live from today."), /*#__PURE__*/React.createElement(RowToggle, {
     label: "Set my own targets",
@@ -26727,7 +26797,7 @@ function BodyDetailsScreen({
   }, (ACTIVITY.find(a => a.v === f.activityLevel) || act).d)), saved && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3 fade-in",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "Saved. Targets recalculated."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -26818,7 +26888,7 @@ function CycleScreen({
   })), ph && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mt-1 leading-snug",
     style: {
-      color: ph.waterHigh ? 'var(--fat)' : ph.lowWater ? 'var(--good)' : 'var(--muted)'
+      color: ph.waterHigh ? 'var(--fat-ink)' : ph.lowWater ? 'var(--good-ink)' : 'var(--muted)'
     }
   }, "Today: cycle day ", ph.cycleDay + 1, ", ", ph.phase, " phase.", ph.waterHigh ? ' Water weight often runs high now (it peaks on day one of your period), so the scale may read up. Your check-in will hold rather than cut on it.' : ph.lowWater ? ' Water weight is at its lowest, so this is the cleanest window for a weigh-in or check-in.' : ' Water weight runs highest around your period; it is settling now.')));
 }
@@ -26983,7 +27053,7 @@ function RemindersScreen({
   }, "Working..."), pushMsg && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-1",
     style: {
-      color: 'var(--fat)'
+      color: 'var(--fat-ink)'
     }
   }, pushMsg), !pushOn && !pushBusy && pushNeedsInstall() && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-1"
@@ -27061,11 +27131,11 @@ const INTEGRATIONS = [
 const INT_STATUS = {
   next: {
     label: 'Up next',
-    color: 'var(--good)'
+    color: 'var(--good-ink)'
   },
   planned: {
     label: 'Planned',
-    color: 'var(--accent)'
+    color: 'var(--accent-ink)'
   },
   exploring: {
     label: 'Exploring',
@@ -27222,7 +27292,7 @@ function HealthScreen({
     className: "text-[13px]"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "Connected"), gh.lastSync ? /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90]"
@@ -27629,7 +27699,7 @@ function ChangePassword({
   })), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mt-1 mb-1",
     style: {
-      color: ok ? 'var(--good)' : 'var(--danger)'
+      color: ok ? 'var(--good-ink)' : 'var(--danger-ink)'
     }
   }, msg), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mt-2"
@@ -27701,11 +27771,11 @@ function ticketKindLabel(k) {
 function ticketStatusMeta(s) {
   if (s === 'resolved') return {
     label: 'Resolved',
-    color: 'var(--good)'
+    color: 'var(--good-ink)'
   };
   if (s === 'in_review') return {
     label: 'In review',
-    color: 'var(--accent)'
+    color: 'var(--accent-ink)'
   };
   return {
     label: 'Received',
@@ -27785,12 +27855,12 @@ function FeedbackSheet({
   })), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, msg), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -27837,7 +27907,7 @@ function FeedbackSheet({
     }, /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase mb-1",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "Reply from Macrosaurus"), /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] whitespace-pre-wrap break-words"
@@ -28028,7 +28098,7 @@ function More({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest pf",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Premium"), sub && sub.status === 'trialing' && sub.trial_end && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
@@ -28052,7 +28122,7 @@ function More({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest pf mb-1",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Free plan"), /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold mb-1"
@@ -28153,7 +28223,7 @@ function More({
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-1",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, "Delete your account?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-relaxed"
@@ -28166,7 +28236,7 @@ function More({
   }), delErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, delErr), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mt-4"
@@ -28297,26 +28367,26 @@ function userPlanMeta(u) {
       premium: true,
       key: 'comp',
       label: 'Comp',
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     };
     if (u.sub_status === 'trialing') return {
       premium: true,
       key: 'trial',
       label: 'Trial',
-      color: 'var(--carb)'
+      color: 'var(--carb-ink)'
     };
     return {
       premium: true,
       key: 'paid',
       label: 'Premium',
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     };
   }
   if (u.sub_status === 'canceled') return {
     premium: false,
     key: 'churned',
     label: 'Churned',
-    color: 'var(--fat)'
+    color: 'var(--fat-ink)'
   };
   return {
     premium: false,
@@ -28430,7 +28500,7 @@ function AdminSupport() {
   }, l))), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err), !tickets ? /*#__PURE__*/React.createElement("div", {
     className: "mt-6"
@@ -28524,7 +28594,7 @@ function AdminTicketCard({
   }, err ? /*#__PURE__*/React.createElement("span", {
     className: "text-[11px]",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err) : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -28632,12 +28702,12 @@ function AdminTiers() {
   }, busy ? 'Saving…' : 'Save tier limits'), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, msg), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err));
 }
@@ -28690,7 +28760,7 @@ function AdminUserPremium({
     kind: "ghost",
     className: "w-full",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     },
     disabled: busy,
     onClick: () => toggle(false)
@@ -28707,12 +28777,12 @@ function AdminUserPremium({
   }, busy ? 'Working…' : 'Grant Premium (free)'), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, msg), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err));
 }
@@ -28740,7 +28810,7 @@ function AdminAudit() {
   if (err) return /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mt-4",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err);
   if (!rows) return /*#__PURE__*/React.createElement("div", {
@@ -28859,7 +28929,7 @@ function AdminAiLogs() {
   }, l))), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err), !logs ? /*#__PURE__*/React.createElement("div", {
     className: "mt-6"
@@ -28888,7 +28958,7 @@ function AdminAiLogs() {
   }, (r.email || 'unknown').split('@')[0], r.status === 'error' && /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] ml-1.5",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, "error")), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] tnum mt-0.5"
@@ -29121,7 +29191,7 @@ function AdminPanel({
   }, supportOpen)))), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err), loading ? /*#__PURE__*/React.createElement("div", {
     className: "mt-6"
@@ -29214,7 +29284,7 @@ function AdminPanel({
   }, "Reset today's battle"), devMsg && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, devMsg))), tab === 'users' && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -29276,7 +29346,7 @@ function AdminPanel({
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] tnum",
       style: {
-        color: u.spend_usd >= u.cap_usd ? 'var(--danger)' : 'var(--muted)'
+        color: u.spend_usd >= u.cap_usd ? 'var(--danger-ink)' : 'var(--muted)'
       }
     }, "$", u.spend_usd.toFixed(2), "/$", u.cap_usd.toFixed(2)), /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90]"
@@ -29573,12 +29643,12 @@ function AdminUserDetail({
   }), msg && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, msg), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-3",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, err), /*#__PURE__*/React.createElement(Section, {
     title: "Account"
@@ -29611,7 +29681,7 @@ function AdminUserDetail({
     disabled: isSelf || busy === 'ban',
     style: {
       opacity: isSelf ? 0.5 : 1,
-      color: banned ? 'var(--good)' : 'var(--danger)'
+      color: banned ? 'var(--good-ink)' : 'var(--danger-ink)'
     },
     onClick: () => banned ? toggleBan() : setConfirmKind('ban')
   }, busy === 'ban' ? 'Working…' : banned ? 'Reinstate account' : 'Suspend account')), /*#__PURE__*/React.createElement(Btn, {
@@ -29797,7 +29867,7 @@ function AdminUserDetail({
   }, "Delete this account"), isSelf && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, "Heads up: this is your own account.")), confirmKind === 'pw' && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Set a new password for ' + u.email + '?',
@@ -29853,7 +29923,7 @@ function AdminUserDetail({
   }, /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-1",
     style: {
-      color: 'var(--danger)'
+      color: 'var(--danger-ink)'
     }
   }, "Delete this account?"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-relaxed"
@@ -30153,7 +30223,7 @@ function InviteSheet({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold tnum",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, bonus), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90]"
@@ -30687,7 +30757,7 @@ function NavBtn({
     onClick: () => setView(k),
     className: "flex-1 self-stretch flex flex-col items-center justify-center gap-1.5",
     style: {
-      color: view === k ? 'var(--accent)' : 'rgba(255,255,255,0.6)'
+      color: view === k ? 'var(--on-header-accent)' : 'rgba(255,255,255,0.72)'
     }
   }, /*#__PURE__*/React.createElement(Ic, {
     width: "22",
@@ -30791,12 +30861,12 @@ function MobileHeader({
     className: "text-[9px] flex items-center gap-1.5"
   }, streak > 0 && /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--fat)'
+      color: 'var(--on-header-accent)'
     }
   }, "▲ ", streak, "d"), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--on-header-accent)'
     }
   }, "Play ›")))), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenYou,
@@ -30959,7 +31029,7 @@ function OnboardingChecklist({
   }, it.label), !it.done && /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px] shrink-0",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "DO IT ›")))));
 }
@@ -31132,7 +31202,7 @@ function RecipeCard({
   }, /*#__PURE__*/React.createElement("span", null, Rcp.platformLabel(recipe.source_platform)), /*#__PURE__*/React.createElement("span", null, "·"), /*#__PURE__*/React.createElement("span", null, "serves ", recipe.servings), m.protein > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, "·"), /*#__PURE__*/React.createElement("span", {
     className: "tnum font-semibold",
     style: {
-      color: PRO
+      color: PRO_T
     }
   }, Math.round(m.protein), "g protein")))));
 }
@@ -31152,7 +31222,7 @@ function ShareTip({
     width: "16",
     height: "16",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-bold"
@@ -31459,7 +31529,7 @@ function RecipeReview({
     onClick: addIng,
     className: "text-[12px] mb-4",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "+ Add ingredient"), /*#__PURE__*/React.createElement(Field, {
     label: "Method (one step per line)"
@@ -31774,7 +31844,7 @@ function CookMode({
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[11px] mb-4",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "STEP ", i + 1), /*#__PURE__*/React.createElement("div", {
     className: "font-bold leading-snug",
@@ -31795,7 +31865,7 @@ function CookMode({
   }, /*#__PURE__*/React.createElement("div", {
     className: "tnum text-3xl font-bold",
     style: {
-      color: timer.left <= 0 ? 'var(--good)' : 'var(--text)'
+      color: timer.left <= 0 ? 'var(--good-ink)' : 'var(--text)'
     }
   }, timer.left <= 0 ? 'Done!' : mmss(timer.left)), /*#__PURE__*/React.createElement("button", {
     onClick: () => setTimer(x => x && Object.assign({}, x, {
@@ -32130,7 +32200,7 @@ function RecipeDetail({
     onClick: () => onSaveMeal(recipe),
     className: "text-[12px]",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Save as meal"), /*#__PURE__*/React.createElement("button", {
     onClick: onDelete,
@@ -32214,7 +32284,7 @@ function RecipeDetail({
     onClick: () => setShowColl(true),
     className: "text-[11px]",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, (recipe.collections || []).length ? '+ collection' : '+ Add to a collection')), /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-3 mt-2"
@@ -32251,7 +32321,7 @@ function RecipeDetail({
   })(), busy ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-4 flex items-center gap-2",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(PixelEgg, {
     size: 16,
@@ -32266,7 +32336,7 @@ function RecipeDetail({
     onClick: useStated,
     className: "text-[12px] mb-4 underline",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Use the recipe's stated macros instead"), (recipe.steps || []).length > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -32285,7 +32355,7 @@ function RecipeDetail({
     onClick: () => setEditIng(v => !v),
     className: "pf text-[9px] uppercase px-2 py-1 rounded",
     style: {
-      color: editIng ? '#111' : 'var(--accent)',
+      color: editIng ? '#111' : 'var(--accent-ink)',
       background: editIng ? 'var(--accent)' : 'transparent',
       border: '1px solid var(--accent)'
     }
@@ -32328,7 +32398,7 @@ function RecipeDetail({
     onClick: addIng,
     className: "text-[12px] mb-2",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "+ Add ingredient"), /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
@@ -32341,7 +32411,7 @@ function RecipeDetail({
     className: "text-[10px] text-[#8A8A90] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "●"), " database"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
@@ -32349,7 +32419,7 @@ function RecipeDetail({
     }
   }, "●"), " AI estimate"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "●"), " your number")), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2.5 mb-4"
@@ -32379,7 +32449,7 @@ function RecipeDetail({
     onClick: () => setMacrosIng(ing),
     className: "text-[11px] flex items-center gap-1.5 mt-0.5",
     style: {
-      color: ing.macros ? 'var(--muted)' : 'var(--accent)'
+      color: ing.macros ? 'var(--muted)' : 'var(--accent-ink)'
     }
   }, ing.resolved && /*#__PURE__*/React.createElement("span", {
     style: {
@@ -32400,7 +32470,7 @@ function RecipeDetail({
     onClick: () => setEditSteps(v => !v),
     className: "text-[12px]",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, editSteps ? 'Done' : 'Edit')), editSteps ? /*#__PURE__*/React.createElement("textarea", {
     defaultValue: (recipe.steps || []).join('\n'),
@@ -32416,7 +32486,7 @@ function RecipeDetail({
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[10px] shrink-0 mt-0.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, i + 1), /*#__PURE__*/React.createElement("span", {
     className: "text-[14px] leading-relaxed"
@@ -32793,7 +32863,7 @@ function ShoppingListView({
     onClick: shareList,
     className: "text-[12px] flex items-center gap-1",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.share, {
     width: "14",
@@ -32904,7 +32974,7 @@ function ChefCard({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold tnum leading-none",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, shared), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[7px] uppercase text-[#8A8A90] mt-1"
@@ -33060,7 +33130,7 @@ function RecipeHub({
     }, /*#__PURE__*/React.createElement("div", {
       className: "pf text-[8px] uppercase tracking-widest mb-2",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "Macrosaurus Premium"), /*#__PURE__*/React.createElement("div", {
       className: "text-lg font-bold mb-1.5 leading-tight"
@@ -33102,7 +33172,7 @@ function RecipeHub({
       className: "w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug"
     }, "Free forever: import, upload and cook your own recipes. ", /*#__PURE__*/React.createElement("span", {
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "Your cookbook ›")));
   }
@@ -33180,7 +33250,7 @@ function RecipeHub({
   }, filtered ? 'Try a different search or category.' : 'Be one of the first: ', !filtered && /*#__PURE__*/React.createElement("button", {
     onClick: onImport,
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "import a recipe"), !filtered ? ' and it joins the hub for everyone.' : '')), preview && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center",
@@ -33212,7 +33282,7 @@ function RecipeHub({
   }, "×")), preview.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "via ", creditName(preview)) : null, /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-3"
@@ -33237,7 +33307,7 @@ function RecipeHub({
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[9px] mt-0.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, i + 1), /*#__PURE__*/React.createElement("span", null, s))))), (preview.steps || []).length > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
@@ -33440,7 +33510,7 @@ function PlannerView({
         onClick: () => logPlanned(p),
         className: "pf text-[8px] uppercase px-2 py-1 rounded shrink-0",
         style: {
-          color: 'var(--accent)',
+          color: 'var(--accent-ink)',
           border: '1px solid var(--accent)'
         }
       }, "Log"), /*#__PURE__*/React.createElement("button", {
@@ -33452,7 +33522,7 @@ function PlannerView({
       onClick: () => setPick(d),
       className: "text-[12px]",
       style: {
-        color: 'var(--accent)'
+        color: 'var(--accent-ink)'
       }
     }, "+ Add a recipe"));
   })), pick && /*#__PURE__*/React.createElement("div", {
@@ -33692,7 +33762,7 @@ function FridgeMatchCard({
     className: "pf text-[7px] uppercase px-1.5 py-1 leading-none shrink-0 mt-0.5",
     style: {
       background: 'var(--surface3)',
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       border: '1px solid var(--accent)'
     }
   }, "Discover")), /*#__PURE__*/React.createElement("div", {
@@ -33701,7 +33771,7 @@ function FridgeMatchCard({
     className: "tnum"
   }, Math.round(kcal), " kcal"), kcal > 0 && /*#__PURE__*/React.createElement("span", null, "·"), m.makeable ? /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, "You have everything") : /*#__PURE__*/React.createElement("span", {
     style: {
@@ -33718,7 +33788,7 @@ function FridgeMatchCard({
     className: "w-full text-[11px] py-2 border-t flex items-center justify-center gap-1.5",
     style: {
       borderColor: 'var(--border)',
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.cart, {
     width: "13",
@@ -34042,7 +34112,7 @@ function FridgeScan({
   }))))), commLoading && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 text-[12px] mb-3",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(PixelEgg, {
     size: 16,
@@ -34068,7 +34138,7 @@ function FridgeScan({
     className: "w-full text-center text-[11px] text-[#8A8A90] mt-1 leading-snug py-2"
   }, "Premium also matches the whole ", /*#__PURE__*/React.createElement("span", {
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Discover library"), " to what's in your fridge ›")), pubSheet && /*#__PURE__*/React.createElement(FridgePublicSheet, {
     m: pubSheet,
@@ -34137,12 +34207,12 @@ function FridgePublicSheet({
   }, "×")), pub && pub.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "via ", creditName(pub)) : null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
-      color: m.makeable ? 'var(--good)' : '#F5C542'
+      color: m.makeable ? 'var(--good-ink)' : '#F5C542'
     }
   }, m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'), mm.kcal > 0 && /*#__PURE__*/React.createElement(Card, {
     className: "p-3 mb-3"
@@ -34174,7 +34244,7 @@ function FridgePublicSheet({
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[9px] mt-0.5",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, i + 1), /*#__PURE__*/React.createElement("span", null, s))))), !m.makeable && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
@@ -34541,7 +34611,7 @@ function Recipes({
   }, "Snap what you've got and I'll find recipes you can make right now.")), /*#__PURE__*/React.createElement("span", {
     className: "pf shrink-0",
     style: {
-      color: 'var(--accent)',
+      color: 'var(--accent-ink)',
       fontSize: 14
     }
   }, "›")), /*#__PURE__*/React.createElement(ChefCard, {
@@ -34654,7 +34724,7 @@ function Recipes({
       setFilter('all');
     },
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Clear filters"))), showFilters && /*#__PURE__*/React.createElement(RecipeFilterSheet, {
     db: db,
@@ -34770,7 +34840,7 @@ function Paywall({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] uppercase tracking-widest pf",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, "Macrosaurus Premium"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
@@ -34788,7 +34858,7 @@ function Paywall({
   }, /*#__PURE__*/React.createElement("div", {
     className: "mt-0.5 shrink-0 font-bold",
     style: {
-      color: 'var(--good)'
+      color: 'var(--good-ink)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
     size: 12
@@ -34815,7 +34885,7 @@ function Paywall({
   }, per)), tag ? /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] pf mt-1",
     style: {
-      color: 'var(--accent)'
+      color: 'var(--accent-ink)'
     }
   }, tag) : /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] mt-1 text-[#8A8A90]"

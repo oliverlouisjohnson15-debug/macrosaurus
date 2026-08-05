@@ -15,7 +15,7 @@
   --text: #ffffff;
   --text2: #cfcfcf;
   --muted: #9b9ba3;          /* lifted for contrast (~6:1 on card surfaces) */
-  --muted2: #7c7c84;
+  --muted2: #85858d;         /* 4.9:1 on the darkest card, where #7c7c84 sat at 4.32 */
   --accent: #39FF14;         /* neon green, primary action */
   --on-accent: #05140a;
   --accent-dim: #0f2a12;
@@ -49,6 +49,17 @@
   --scene-top: #121218;      /* a hair of night sky lifted off pure black */
   --scene-bottom: #050507;
   --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
+  /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
+     as a 12px block on a meter can be unreadable as 10px type, because a bar only has to be seen
+     and type has to be read. On black the neon set already runs 6:1 to 15:1, so here ink and fill
+     are the same colour; the light theme is where they part company. */
+  --accent-ink: #39FF14;
+  --on-header-accent: #39FF14;  /* header is pure black in this theme, so the neon is already 15:1 */
+  --good-ink: #39FF14;
+  --danger-ink: #FF5555;
+  --pro-ink: #39FF14;
+  --carb-ink: #00F3FF;
+  --fat-ink: #FF2FD0;
 }
 .theme-light {
   --bg: #F0F0F0;
@@ -63,7 +74,7 @@
   --text: #1a1a1a;
   --text2: #333333;
   --muted: #666666;
-  --muted2: #757575;         /* lifted from #8a8a8a: 4.5:1 on white, so small hints stay readable in sunlight */
+  --muted2: #6b6b6b;         /* 4.5:1 on white AND on the #ececec cards; #757575 only cleared it on white */
   --accent: #F5C518;         /* gold, primary / selected / LVL / nav-active */
   --on-accent: #1a1a1a;
   --accent-dim: #fff3c9;
@@ -83,7 +94,7 @@
   --food-other: #7c3aed;
   --danger: #E5342A;
   --good: #17A398;
-  --warn: #B26A00;           /* darker amber: readable on white (4.5:1) */
+  --warn: #9A5B00;           /* #B26A00 measured 4.24 on white and 3.59 on the cards, so it never actually cleared 4.5 */
   --sleep: #7c3aed;          /* sleep identity: violet */
   --sleep-deep: #5B3FCF;     /* deep / N3: indigo */
   --sleep-rem: #1C8FA8;      /* REM: teal-cyan (readable on white) */
@@ -93,6 +104,20 @@
   --scene-top: #e6edf6;      /* soft daylight sky */
   --scene-bottom: #ffffff;
   --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
+  /* INK tokens: the brand colours when they are TEXT. Measured on white, the gold that carries the
+     whole light theme scored 1.63:1 as type, which is not dim, it is invisible; teal ran 3.12 and
+     the macro red 4.32, both under the 4.5 small text needs. These are the same hues taken down
+     until they clear 4.5:1 on white, on the #F0F0F0 page and on the #ececec inputs alike. The
+     bright originals keep their real job: filling meters, tiles and buttons, where they are seen
+     and not read. */
+  --accent-ink: #9A5B00;     /* gold as type: 5.4:1 on white, 4.6:1 on the greys */
+  --on-header-accent: #FFD84D;  /* the SAME gold going the other way, for type on the purple bar:
+                                   darkening it there would hide it, so it lightens to 4.9:1 */
+  --good-ink: #0D6B64;       /* teal as type: 6.4:1 */
+  --danger-ink: #C4271E;     /* red as type: 5.7:1 */
+  --pro-ink: #C4271E;
+  --carb-ink: #2A62BC;
+  --fat-ink: #9A5B00;
 }
 
 html, body { background: var(--bg); overflow-x: hidden; }
@@ -255,15 +280,15 @@ input, select { color-scheme: dark; }
 .text-\[\#C9C9CF\] { color: var(--text2) !important; }
 .text-\[\#5A5A62\] { color: var(--muted2) !important; }
 /* accent (was blue) */
-.text-\[\#4A9EEB\] { color: var(--accent) !important; }
+.text-\[\#4A9EEB\] { color: var(--accent-ink) !important; }
 .bg-\[\#4A9EEB\] { background-color: var(--accent) !important; }
 .accent-\[\#4A9EEB\] { accent-color: var(--accent) !important; }
 .bg-\[\#4A9EEB\]\/15, .bg-\[\#4A9EEB\]\/12, .bg-\[\#4A9EEB\]\/10 { background-color: var(--accent-dim) !important; }
 .bg-\[\#4A9EEB\]\/40, .border-\[\#4A9EEB\]\/40 { border-color: var(--accent) !important; }
 /* macro text classes (rare) */
-.text-\[\#34D399\] { color: var(--carb) !important; }
-.text-\[\#F5C542\] { color: var(--fat) !important; }
-.text-\[\#ff6b6b\], .text-\[\#FF5A4D\] { color: var(--danger) !important; }
+.text-\[\#34D399\] { color: var(--carb-ink) !important; }
+.text-\[\#F5C542\] { color: var(--fat-ink) !important; }
+.text-\[\#ff6b6b\], .text-\[\#FF5A4D\] { color: var(--danger-ink) !important; }
 /* "white" = the active / primary neon; "black" text on it = on-accent */
 .bg-white { background-color: var(--accent) !important; }
 .text-black { color: var(--on-accent) !important; }
