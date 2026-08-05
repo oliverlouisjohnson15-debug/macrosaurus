@@ -1933,11 +1933,11 @@ function HabitGrid({ days, color }) {
 // Consistency "dig site": one pixel tile per day over the last 12 weeks, week-aligned into columns.
 // Each active day is a fossil you uncovered (a Macrodex catch), so the grid doubles as a picture of
 // how much of your collection you have earned. Tile = neither / logged or weighed / both.
-function ConsistencyHeatmap({ db, today }) {
+function ConsistencyHeatmap({ db, today, defaultFull }) {
   // Twelve weeks is 84 cells and 340px of card, and on a young account eleven of them have anything
   // in them. Four weeks tells the same story in a third of the height; the full twelve is one tap
   // away for anyone who wants the long view.
-  const [full, setFull] = useState(false);
+  const [full, setFull] = useState(!!defaultFull);
   const WEEKS = full ? 12 : 4, N = WEEKS * 7;
   const logSet = new Set(db.log_entries.map(e => e.date));
   const weighSet = new Set(db.weight_entries.map(w => w.date));
@@ -2065,13 +2065,10 @@ function fmtWeightDelta(kg, unit, suffix) {
   const body = unit === 'st_lb' ? `${(a * 2.20462).toFixed(1)} lb` : `${a.toFixed(1)} kg`;
   return `${sign}${body}${suffix || ''}`;
 }
-function TrendCard({ db }) {
-  const [tab, setTab] = useState('weight');
-  const [range, setRange] = useState(90);
-  // Twelve permanently-visible controls sat above a 150px plot: a metric row and a range row, both
-  // pinned open whether or not you wanted anything other than the default. They fold into one
-  // "Change" link on the chart's own footer, which is where a chart's settings belong.
-  const [settings, setSettings] = useState(false);
+// The chart itself, with no controls of its own. On the Progress page it is a summary you tap; in
+// the History sheet the sheet supplies the switches. Trading twelve permanent controls for one was
+// still one more than a card needs: the way to configure a chart is to open the chart.
+function TrendCard({ db, tab = 'weight', range = 90, onOpen }) {
   const unit = db.profile.weight_unit;
   const today = Store.todayISO();
   const cut = range === 'all' ? '0000-00-00' : shiftISO(today, -range);
@@ -2114,8 +2111,7 @@ function TrendCard({ db }) {
   const rangeLabel = { 7: 'past week', 30: 'past month', 90: 'past 3 months', 180: 'past 6 months', 365: 'past year', all: 'all time' }[range];
   const deltaStr = delta == null ? '' : (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + (tab === 'bodyfat' ? '%' : ' ' + yl);
   const deltaGood = (delta == null || delta === 0) ? null : (tab === 'bodyfat' ? delta < 0 : tab === 'lean' ? delta > 0 : db.profile.goalType === 'gain' ? delta > 0 : db.profile.goalType === 'cut' ? delta < 0 : true);
-  return (
-    <Card className="p-4 mb-6">
+  const body = (<>
       {tab === 'bodyfat' && window.MISPREMIUM === false && (
         <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required' }); } catch (_) {} }} className="w-full text-left pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
           <div className="min-w-0 flex-1">
@@ -2143,22 +2139,39 @@ function TrendCard({ db }) {
       <LineChart points={dots} trend={series} color={color} decimals={1} unitLabel={tab === 'bodyfat' ? '%' : yl} />
       <div className="text-[10px] text-[#8A8A90] mt-1 flex items-center gap-3"><span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 2, background: color, opacity: (tab === 'weight' && valid.length > 45) ? 0.3 : 1, display: 'inline-block' }} /> {tab === 'weight' ? 'weight' : 'measured'}</span>{<span className="inline-flex items-center gap-1"><span style={{ width: 12, height: 0, borderTop: `2px ${valid.length > 45 ? 'solid' : 'dashed'} ${color}`, opacity: valid.length > 45 ? 1 : 0.6, display: 'inline-block' }} /> trend{valid.length > 45 ? ' (avg)' : ''}</span>}<span className="ml-auto text-[#8A8A90]">tap a point</span></div>
       </>}
-      {/* Outside the has-data branch on purpose: a metric with no readings still needs the control
-          that gets you back to one that has some. Inside it, picking Body fat on an account without
-          any was a dead end with no way out of the card. */}
-      <div className="flex items-center justify-between gap-3 mt-2">
-        <span className="text-[10px] text-[#8A8A90]">{rangeLabel}{tab === 'weight' ? '' : tab === 'bodyfat' ? ' · body fat' : ' · lean mass'}</span>
-        <TextBtn onClick={() => setSettings(v => !v)} aria-expanded={settings} className="shrink-0">{settings ? 'Done' : 'Change'}</TextBtn>
-      </div>
-      {settings && <div className="fade-in mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
-        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Show</div>
-        <Seg value={tab} onChange={setTab} options={[{ v: 'weight', l: 'Weight' }, { v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }]} />
-        <div className="pf text-[9px] uppercase text-[#8A8A90] mt-3 mb-1.5">Over</div>
-        <div className="flex gap-1.5 flex-wrap">{[['Week', 7], ['Month', 30], ['3 months', 90], ['6 months', 180], ['Year', 365], ['All', 'all']].map(([l, v]) =>
-          <button key={l} onClick={() => setRange(v)} className="pixel-box px-2.5 py-1.5 text-[11px]" style={{ boxShadow: 'none', background: range === v ? 'var(--accent)' : 'var(--surface2)', color: range === v ? 'var(--on-accent)' : 'var(--text)', fontWeight: range === v ? 700 : 400 }}>{l}</button>)}</div>
+      {onOpen && <div className="flex items-center justify-between gap-3 mt-2">
+        <span className="text-[10px] text-[#8A8A90]">{rangeLabel}</span>
+        <span className="text-[11px] shrink-0" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textDecorationThickness: 2, textUnderlineOffset: 3 }}>History ›</span>
       </div>}
-    </Card>
-  );
+  </>);
+  // Tapping the chart opens the chart. That is the whole control: KPI, then the plot that supports
+  // it, then the detail behind the plot, with nothing permanently parked on the summary to configure
+  // something you are usually happy with.
+  if (onOpen) return <Card className="p-4 mb-6"><button onClick={onOpen} className="w-full text-left" aria-label="Open weight history">{body}</button></Card>;
+  return <Card className="p-4 mb-6">{body}</Card>;
+}
+// Everything behind the chart, in one destination: the plot at full size with its switches, how
+// consistently you have been feeding it, and the two logs. These were three separate links on the
+// summary page, which is three doors to one room.
+function HistorySheet({ db, update, onClose }) {
+  const hasBf = (db.weight_entries || []).some(e => e.bodyfat != null);
+  const [tab, setTab] = useState('weight');
+  const [range, setRange] = useState(90);
+  // Only offer a metric there are readings for. Body fat and lean mass on an account with neither
+  // led to an empty card, which is not a view, it is a dead end.
+  const metrics = [{ v: 'weight', l: 'Weight' }].concat(hasBf ? [{ v: 'bodyfat', l: 'Body fat' }, { v: 'lean', l: 'Lean' }] : []);
+  return (<FullSheet title="History" onClose={onClose}>
+    {metrics.length > 1 && <div className="mb-3"><Seg value={tab} onChange={setTab} options={metrics} /></div>}
+    <div className="flex gap-1.5 flex-wrap mb-3">{[['Week', 7], ['Month', 30], ['3 months', 90], ['6 months', 180], ['Year', 365], ['All', 'all']].map(([l, v]) =>
+      <button key={l} onClick={() => setRange(v)} className="pixel-box px-2.5 py-1.5 text-[11px]" style={{ boxShadow: 'none', background: range === v ? 'var(--accent)' : 'var(--surface2)', color: range === v ? 'var(--on-accent)' : 'var(--text)', fontWeight: range === v ? 700 : 400 }}>{l}</button>)}</div>
+    <TrendCard db={db} tab={tab} range={range} />
+    {/* The grid belongs here, where twelve weeks fits and a pattern is actually visible. On the
+        summary page it was 31 cells with 11 in them, which is not a pattern, it is a texture. */}
+    <ConsistencyHeatmap db={db} today={Store.todayISO()} defaultFull />
+    {/* No `sub`: the box variant already carries its own Show/Hide, and passing one printed both. */}
+    <Collapsible label="Weigh-ins"><WeighInLog db={db} update={update} /></Collapsible>
+    <Collapsible label="Check-ins"><CheckInHistory db={db} /></Collapsible>
+  </FullSheet>);
 }
 
 /* =====================================================================
@@ -3754,6 +3767,16 @@ function VerdictCard({ db, onWeigh }) {
         {v.weeksToGoal != null && <> At this rate you reach <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{fmtWeight(v.goalWeightKg, unit)}</span> in about <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{v.weeksToGoal}</span> week{v.weeksToGoal === 1 ? '' : 's'}.</>}
       </div>
     </> : <div className="text-[12px] text-[#8A8A90] leading-relaxed">Weigh in for a week or so and this will tell you whether your plan is working, and how far off you are if it is not.</div>}
+    {/* Coverage, as a caveat rather than a card. The verdict above is only as good as the days it is
+        built from, and a 258px grid on the same page never actually said that: it sat below as a
+        separate score, 65% of it empty, while the headline claimed certainty it had not earned. */}
+    {v && (() => {
+      const cov = cycleCoverage(db, today);
+      const thin = cov.logged < Math.ceil(cov.logWindow * 0.6) || cov.weighed < 2;
+      return <div className="text-[10px] mt-2 leading-snug" style={{ color: thin ? 'var(--fat-ink)' : 'var(--muted)' }}>
+        {thin ? 'Thin data so far: ' : 'Based on '}{cov.logged} of {cov.logWindow} days logged and {cov.weighed} of {cov.weighWindow} weigh-ins{thin ? ', so treat this as a rough read.' : '.'}
+      </div>;
+    })()}
     {/* The weight, once. It used to be stated three times inside 130px: a button caption, a headline
         figure and a "last reading" suffix, all 83 kg. */}
     <div className="flex items-end justify-between gap-3 mt-3 pt-3" style={{ borderTop: '2px solid var(--surface2)' }}>
@@ -3766,22 +3789,12 @@ function VerdictCard({ db, onWeigh }) {
   </Card>);
 }
 function ProgressPanel({ db, update, onWeigh }) {
-  // Weigh-ins and Check-ins were tabs in this strip, which is what forced the strip to exist. They
-  // are LOGS, lists of past records, not views of a chart, and sitting in the chart's own tab bar
-  // they made you step past two rows of switches on every visit to look at a graph. They live behind
-  // one link now, and the strip is gone.
-  const [history, setHistory] = useState(null);
+  const [history, setHistory] = useState(false);
   return (
     <div className="mb-2">
-      <TrendCard db={db} />
+      <TrendCard db={db} onOpen={() => setHistory(true)} />
       <DensityWeekCard db={db} />
-      <div className="flex items-center gap-4 mb-5">
-        <TextBtn onClick={() => setHistory('daily')}>Weigh-in history</TextBtn>
-        <TextBtn onClick={() => setHistory('checkins')}>Past check-ins</TextBtn>
-      </div>
-      {history && <FullSheet title={history === 'daily' ? 'Weigh-ins' : 'Check-ins'} onClose={() => setHistory(null)}>
-        {history === 'daily' ? <WeighInLog db={db} update={update} /> : <CheckInHistory db={db} />}
-      </FullSheet>}
+      {history && <HistorySheet db={db} update={update} onClose={() => setHistory(false)} />}
     </div>
   );
 }
@@ -9383,11 +9396,10 @@ function GoalCard({ active, onClick, title, sub, glyph }) {
   );
 }
 
-function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
+function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan }) {
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
-  const [editPlan, setEditPlan] = useState(false); // the whole goal editor lives in a sheet now, off the main scroll
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
       <PageHeader kicker="What you're working towards" title="Progress" />
@@ -9422,9 +9434,10 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
       })()}
 
       <ExpenditureCard db={db} />
-      <div className="mb-6"><ConsistencyHeatmap db={db} today={today} /></div>
 
-      {/* Current plan is now the read-only summary; the whole editor opens in a sheet off this scroll. */}
+      {/* Read-only. The plan is the thing the verdict is judged against, so it belongs on the page,
+          but EDITING it lives in Settings, which already has a Your plan section with five entries
+          including this one. Two doors to one 700-line editor is one door too many. */}
       <Card className="p-4 mb-5">
         <div className="flex items-center justify-between">
           <div><div className="pf text-[9px] uppercase text-[#8A8A90] mb-1">Current plan</div>{base ? <div className="text-xl font-bold tnum">{base.kcal} kcal</div> : <div className="text-[15px] font-bold mt-0.5">Not set yet</div>}</div>
@@ -9432,19 +9445,9 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh }) {
         </div>
         {base && <div className="text-[11px] text-[#8A8A90] mt-2">{p.goalType === 'cut' ? 'Cutting' : p.goalType === 'gain' ? 'Lean gain' : 'Maintaining'}{p.goalType !== 'maintain' ? ` at ${p.rateKgPerWeek} kg/week` : ''}{p.goalWeightKg ? ` · target ${fmtWeight(p.goalWeightKg, unit)}` : ''}.{db.paused ? ' Currently paused.' : ''}</div>}
         {base && base.squeezed && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--fat-ink)' }}>This target sits at the safety floor, so fat (and possibly protein) had to be trimmed to fit. Your desired rate may not be achievable.</div>}
-        <button onClick={() => setEditPlan(true)} className="w-full mt-3 pixel-btn py-2.5 text-[10px]" style={{ background: 'var(--surface2)' }}>{base ? 'EDIT PLAN ›' : 'SET YOUR GOAL ›'}</button>
+        <div className="mt-3"><TextBtn onClick={onEditPlan}>{base ? 'Change your goal in Settings' : 'Set your goal'}</TextBtn></div>
       </Card>
 
-      {editPlan && <div className="fixed inset-0 z-[85] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-          <button onClick={() => setEditPlan(false)} className="pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}>‹ Back</button>
-          <div className="pf text-[10px]" style={{ color: 'var(--header-text)' }}>EDIT PLAN</div>
-          <span className="w-10" />
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 pt-5 max-w-md lg:max-w-2xl mx-auto w-full" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>
-      <GoalEditor db={db} update={update} showToast={showToast} onDone={() => setEditPlan(false)} />
-        </div>
-      </div>}
     </div>
   );
 }
@@ -10493,9 +10496,11 @@ function FeedbackSheet({ email, onClose }) {
     </div>
   );
 }
-function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast }) {
+function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial }) {
   const [tab, setTab] = useState('settings');
-  const [screen, setScreen] = useState(null); // the open settings subscreen, or null for the overview
+  const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
+  // Consumed once, so arriving here later by the normal route lands on the overview.
+  useEffect(() => { if (initialScreen && onConsumeInitial) onConsumeInitial(); }, []);
   const [invite, setInvite] = useState(false);
   const daysLeft = (iso) => { if (!iso) return ''; const d = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000); return d > 0 ? d + ' day' + (d === 1 ? '' : 's') + ' left' : 'ends soon'; };
   const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (_) { return ''; } };
@@ -12942,6 +12947,9 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
+  // A settings subscreen to open on arrival, so Progress can send you to the ONE goal editor in
+  // Settings rather than carrying a second copy of it.
+  const [settingScreen, setSettingScreen] = useState(null);
   const [nameOpen, setNameOpen] = useState(false);   // name-your-dino, launched from inside the Play hub
   const [isAdmin, setIsAdmin] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -13464,8 +13472,8 @@ function App() {
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
-      {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} />}
-      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} />}
+      {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
+      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
