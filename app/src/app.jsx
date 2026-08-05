@@ -2626,6 +2626,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
   const [aiLabel, setAiLabel] = useState(null);
   const [aiData, setAiData] = useState(null);
   const [aiHold, setAiHold] = useState(null);
+  const [source, setSource] = useState('taps');   // taps | ai | recurrence
   const preset0 = kind ? PRESET_BY_ID(kind) : null;
   // What the model read out of their sentence beats the preset's defaults, since they actually said it.
   const preset = preset0 && (aiLabel || aiData || aiHold != null)
@@ -2654,7 +2655,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
     setAiBusy(true); setAiErr('');
     try {
       const r = await aiParseWeekPlan(t, Store.todayISO());
-      setKind(r.kind); setRange({ start: r.start, end: r.end }); setHigh(r.highDays);
+      setSource('ai'); setKind(r.kind); setRange({ start: r.start, end: r.end }); setHigh(r.highDays);
       setAiLabel(r.label); setAiData(r.data); setAiHold(r.hold);
       setStep('rate');                              // the rate stays a human decision, always
     } catch (e) {
@@ -2670,6 +2671,12 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       createdAt: Date.now(), outcome: null,
     };
     update(d => { d.week_plans = (d.week_plans || []).concat([plan]); });
+    try {
+      window.MTRACK && MTRACK('weekplan_created', {
+        kind: kind, days: spanDays.length, rate: accept, high_days: high.length,
+        source: source, where: compact ? 'settings' : 'checkin',
+      });
+    } catch (_) {}
     showToast && showToast("Noted. I'll work around it.");
     onDone && onDone(plan);
   }
@@ -2680,6 +2687,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
     : null;
 
   // 1. The question most weeks answer with one tap.
+  useEffect(() => { try { window.MTRACK && MTRACK('weekplan_asked', { where: compact ? 'settings' : 'checkin', has_hint: !!hint }); } catch (_) {} }, []);
   if (step === 'any') return (<div className={compact ? '' : 'fade-in'}>
     {hint && <Bubble>You've had {(hint.label || hint.kind).toLowerCase()} {hint.count} times now, about every {hint.everyDays} days, and you're due around {fmtRange(hint.dueISO, hint.dueISO)}.</Bubble>}
     <Bubble>Anything coming up {compact ? '' : 'next week '}I should know about?</Bubble>
@@ -2687,10 +2695,10 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       .concat(hint ? [{ v: 'again', l: 'Same again, ' + (hint.label || hint.kind).toLowerCase() }] : [])
       .concat([{ v: 'no', l: 'Nothing special' }, { v: 'yes', l: "Yes, something's on" }])}
       onPick={(v) => {
-        if (v === 'no') { onDone && onDone(null); return; }
+        if (v === 'no') { try { window.MTRACK && MTRACK('weekplan_none', { where: compact ? 'settings' : 'checkin' }); } catch (_) {} onDone && onDone(null); return; }
         if (v === 'again') {
           // Pre-filled from their own history, then confirmed like anything else.
-          setKind(hint.kind); setAiLabel(hint.label || null); setAiData(hint.data || null);
+          setSource('recurrence'); setKind(hint.kind); setAiLabel(hint.label || null); setAiData(hint.data || null);
           setRange({ start: hint.dueISO, end: shiftISO(hint.dueISO, hint.spanDays - 1) });
           setStep('when'); return;
         }
@@ -2854,6 +2862,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   const [phase, setPhase] = useState(resume ? 'verdict' : (pendingLoop ? 'loop' : 'hello'));
   function answerLoop(v) {
     update(d => { const w = (d.week_plans || []).find(x => x.id === pendingLoop.id); if (w) w.outcome = v; });
+    try { window.MTRACK && MTRACK('weekplan_reviewed', { kind: pendingLoop.kind, outcome: v }); } catch (_) {}
     setPhase('hello');
   }
   const [bfPick, setBfPick] = useState(false);

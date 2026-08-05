@@ -10055,6 +10055,7 @@ function WeekAheadFlow({
   const [aiLabel, setAiLabel] = useState(null);
   const [aiData, setAiData] = useState(null);
   const [aiHold, setAiHold] = useState(null);
+  const [source, setSource] = useState('taps'); // taps | ai | recurrence
   const preset0 = kind ? PRESET_BY_ID(kind) : null;
   // What the model read out of their sentence beats the preset's defaults, since they actually said it.
   const preset = preset0 && (aiLabel || aiData || aiHold != null) ? Object.assign({}, preset0, aiLabel ? {
@@ -10098,6 +10099,7 @@ function WeekAheadFlow({
     setAiErr('');
     try {
       const r = await aiParseWeekPlan(t, Store.todayISO());
+      setSource('ai');
       setKind(r.kind);
       setRange({
         start: r.start,
@@ -10133,6 +10135,16 @@ function WeekAheadFlow({
     update(d => {
       d.week_plans = (d.week_plans || []).concat([plan]);
     });
+    try {
+      window.MTRACK && MTRACK('weekplan_created', {
+        kind: kind,
+        days: spanDays.length,
+        rate: accept,
+        high_days: high.length,
+        source: source,
+        where: compact ? 'settings' : 'checkin'
+      });
+    } catch (_) {}
     showToast && showToast("Noted. I'll work around it.");
     onDone && onDone(plan);
   }
@@ -10144,6 +10156,14 @@ function WeekAheadFlow({
   }, "Skip for now") : null;
 
   // 1. The question most weeks answer with one tap.
+  useEffect(() => {
+    try {
+      window.MTRACK && MTRACK('weekplan_asked', {
+        where: compact ? 'settings' : 'checkin',
+        has_hint: !!hint
+      });
+    } catch (_) {}
+  }, []);
   if (step === 'any') return /*#__PURE__*/React.createElement("div", {
     className: compact ? '' : 'fade-in'
   }, hint && /*#__PURE__*/React.createElement(Bubble, null, "You've had ", (hint.label || hint.kind).toLowerCase(), " ", hint.count, " times now, about every ", hint.everyDays, " days, and you're due around ", fmtRange(hint.dueISO, hint.dueISO), "."), /*#__PURE__*/React.createElement(Bubble, null, "Anything coming up ", compact ? '' : 'next week ', "I should know about?"), /*#__PURE__*/React.createElement(Choices, {
@@ -10159,11 +10179,17 @@ function WeekAheadFlow({
     }]),
     onPick: v => {
       if (v === 'no') {
+        try {
+          window.MTRACK && MTRACK('weekplan_none', {
+            where: compact ? 'settings' : 'checkin'
+          });
+        } catch (_) {}
         onDone && onDone(null);
         return;
       }
       if (v === 'again') {
         // Pre-filled from their own history, then confirmed like anything else.
+        setSource('recurrence');
         setKind(hint.kind);
         setAiLabel(hint.label || null);
         setAiData(hint.data || null);
@@ -10473,6 +10499,12 @@ function CheckInModal({
       const w = (d.week_plans || []).find(x => x.id === pendingLoop.id);
       if (w) w.outcome = v;
     });
+    try {
+      window.MTRACK && MTRACK('weekplan_reviewed', {
+        kind: pendingLoop.kind,
+        outcome: v
+      });
+    } catch (_) {}
     setPhase('hello');
   }
   const [bfPick, setBfPick] = useState(false);
