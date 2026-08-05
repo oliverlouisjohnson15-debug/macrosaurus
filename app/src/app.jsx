@@ -2610,7 +2610,7 @@ async function aiParseWeekPlan(text, todayISO) {
 }
 // The forward half. Used at check-in and from Settings, so a plan can be made or changed any time.
 // One question per screen, four options at most, and the common answer ("nothing") is a single tap.
-function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium }) {
+function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSkip }) {
   const p = db.profile;
   const [step, setStep] = useState('any');
   const [free, setFree] = useState('');            // phase 6: their own words
@@ -2674,6 +2674,11 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium }) {
     onDone && onDone(plan);
   }
 
+  // Offered from step two onwards: on step one "Nothing special" already is the way out.
+  const bail = onSkip && step !== 'any'
+    ? <button onClick={onSkip} className="w-full text-[12px] text-[#8A8A90] mt-1 py-2">Skip for now</button>
+    : null;
+
   // 1. The question most weeks answer with one tap.
   if (step === 'any') return (<div className={compact ? '' : 'fade-in'}>
     {hint && <Bubble>You've had {(hint.label || hint.kind).toLowerCase()} {hint.count} times now, about every {hint.everyDays} days, and you're due around {fmtRange(hint.dueISO, hint.dueISO)}.</Bubble>}
@@ -2714,6 +2719,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium }) {
       ? <button onClick={() => setShowRest(true)} className="w-full text-[12px] text-[#8A8A90] py-2">Something else</button>
       : <div className="fade-in"><Choices options={WEEK_PRESETS.filter(x => !x.top).map(x => ({ v: x.id, l: x.label }))}
           onPick={(v) => { setKind(v); setStep('when'); }} /></div>}
+    {bail}
   </div>);
 
   // 3. When.
@@ -2729,6 +2735,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium }) {
       You've already got {clash.label.toLowerCase()} down for {fmtRange(clash.start, clash.end)}. Pick days that don't overlap, or cancel that one first in Settings.
     </div>}
     <Btn kind="accent" className="w-full" disabled={!!clash} style={{ opacity: clash ? 0.5 : 1 }} onClick={() => setStep(spanDays.length > 1 ? 'big' : 'rate')}>That's the one</Btn>
+    {bail}
   </div>);
 
   // 4. The big days inside it. This is the bit that makes a wedding one day up rather than a week
@@ -2747,6 +2754,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium }) {
       })}
     </div>
     <Btn kind="accent" className="w-full" onClick={() => setStep('rate')}>{high.length ? 'That\'s them' : 'None of them'}</Btn>
+    {bail}
   </div>);
 
   // 5. What they'd be happy with. The one dial that actually moves calories.
@@ -2755,6 +2763,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium }) {
     <Bubble>I'd normally aim for {Math.abs(p.rateKgPerWeek || 0.5)} kg a week. On a week like this, what would you be happy with?</Bubble>
     {suggested != null && <Bubble>Last time you {lastOfKind.outcome === 'went_well' ? 'stuck to it' : lastOfKind.outcome === 'roughly' ? 'were roughly on it' : 'went off plan'}, so {suggested === 0 ? 'holding steady' : suggested + ' kg'} is probably the honest one.</Bubble>}
     <Choices options={acceptOptions(p, suggested)} onPick={(v) => { setAccept(v); setStep('done'); }} />
+    {bail}
   </div>);
 
   // 6. What it comes to, before committing.
@@ -3122,7 +3131,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     </div>
   );
   const numbersPanel = (
-    <Collapsible variant="inline" label="The numbers behind it" className="mb-4">
+    <Collapsible variant="inline" label="What I'm reading from" className="mb-4">
       <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
         <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">{singleWeigh ? 'This week’s weigh-in' : 'This cycle’s trend weight'}</div>
         <div className="flex items-baseline gap-2 flex-wrap">
@@ -3152,7 +3161,11 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={() => { if (!proposalShown) onClose(); }}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-3">
-          <span className="pf text-[9px] uppercase text-[#8A8A90]">Check-in</span>
+          {/* A mistap on "did you stick to it" was unrecoverable without closing the whole sheet.
+              Back only exists before the retune is committed; afterwards the result owns the choice. */}
+          {beatIdx > 0 && beats.indexOf(phase) < beats.indexOf('reading')
+            ? <button onClick={() => go(beats[beatIdx - 1])} className="pf text-[9px] uppercase hit" style={{ color: 'var(--accent)' }}>&lsaquo; Back</button>
+            : <span className="pf text-[9px] uppercase text-[#8A8A90]">Check-in</span>}
           <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">&times;</button>
         </div>
         {beatIdx >= 0 && dots}
@@ -3304,8 +3317,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
 
         {/* 7. The forward half. Strictly last, strictly optional: the retune is already committed. */}
         {phase === 'ahead' && <div className="fade-in">
-          <WeekAheadFlow db={db} update={update} showToast={null} isPremium={isPremium} onDone={() => onClose()} />
-          <button onClick={onClose} className="w-full text-[12px] text-[#8A8A90] mt-1 py-2">Skip for now</button>
+          <WeekAheadFlow db={db} update={update} showToast={null} isPremium={isPremium} onDone={() => onClose()} onSkip={() => onClose()} />
         </div>}
       </div>
       {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}

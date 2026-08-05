@@ -10037,7 +10037,8 @@ function WeekAheadFlow({
   onDone,
   showToast,
   compact,
-  isPremium
+  isPremium,
+  onSkip
 }) {
   const p = db.profile;
   const [step, setStep] = useState('any');
@@ -10136,6 +10137,12 @@ function WeekAheadFlow({
     onDone && onDone(plan);
   }
 
+  // Offered from step two onwards: on step one "Nothing special" already is the way out.
+  const bail = onSkip && step !== 'any' ? /*#__PURE__*/React.createElement("button", {
+    onClick: onSkip,
+    className: "w-full text-[12px] text-[#8A8A90] mt-1 py-2"
+  }, "Skip for now") : null;
+
   // 1. The question most weeks answer with one tap.
   if (step === 'any') return /*#__PURE__*/React.createElement("div", {
     className: compact ? '' : 'fade-in'
@@ -10227,7 +10234,7 @@ function WeekAheadFlow({
       setKind(v);
       setStep('when');
     }
-  })));
+  })), bail);
 
   // 3. When.
   if (step === 'when') return /*#__PURE__*/React.createElement("div", {
@@ -10278,7 +10285,7 @@ function WeekAheadFlow({
       opacity: clash ? 0.5 : 1
     },
     onClick: () => setStep(spanDays.length > 1 ? 'big' : 'rate')
-  }, "That's the one"));
+  }, "That's the one"), bail);
 
   // 4. The big days inside it. This is the bit that makes a wedding one day up rather than a week
   //    written off: the other days pay for it, so the week still lands where it was meant to.
@@ -10306,7 +10313,7 @@ function WeekAheadFlow({
     kind: "accent",
     className: "w-full",
     onClick: () => setStep('rate')
-  }, high.length ? 'That\'s them' : 'None of them'));
+  }, high.length ? 'That\'s them' : 'None of them'), bail);
 
   // 5. What they'd be happy with. The one dial that actually moves calories.
   if (step === 'rate') return /*#__PURE__*/React.createElement("div", {
@@ -10319,7 +10326,7 @@ function WeekAheadFlow({
       setAccept(v);
       setStep('done');
     }
-  }));
+  }), bail);
 
   // 6. What it comes to, before committing.
   const dayKcal = iso => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p))) : null;
@@ -10938,7 +10945,7 @@ function CheckInModal({
   }, note));
   const numbersPanel = /*#__PURE__*/React.createElement(Collapsible, {
     variant: "inline",
-    label: "The numbers behind it",
+    label: "What I'm reading from",
     className: "mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-2",
@@ -11013,7 +11020,13 @@ function CheckInModal({
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between items-center mb-3"
-  }, /*#__PURE__*/React.createElement("span", {
+  }, beatIdx > 0 && beats.indexOf(phase) < beats.indexOf('reading') ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => go(beats[beatIdx - 1]),
+    className: "pf text-[9px] uppercase hit",
+    style: {
+      color: 'var(--accent)'
+    }
+  }, "‹ Back") : /*#__PURE__*/React.createElement("span", {
     className: "pf text-[9px] uppercase text-[#8A8A90]"
   }, "Check-in"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
@@ -11356,11 +11369,9 @@ function CheckInModal({
     update: update,
     showToast: null,
     isPremium: isPremium,
-    onDone: () => onClose()
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: onClose,
-    className: "w-full text-[12px] text-[#8A8A90] mt-1 py-2"
-  }, "Skip for now"))), bfPick && /*#__PURE__*/React.createElement(BodyFatPicker, {
+    onDone: () => onClose(),
+    onSkip: () => onClose()
+  }))), bfPick && /*#__PURE__*/React.createElement(BodyFatPicker, {
     sex: p.sex,
     apiKey: p.aiKey,
     prevBf: lastBfPct,
