@@ -94,6 +94,30 @@ test('a single-day window that IS the big day just gets the flat shift', () => {
   assert.equal(E.planDayDelta(pl, cutter, '2026-08-12', 2000), 275);
 });
 
+test('the boost is capped by what the low days can actually give up', () => {
+  // A small person on 1400 kcal with a 1200 floor: five big days out of seven cannot be paid for by
+  // two low days at 35%. Left uncapped the low days demanded 175 kcal, composeDayTarget clamped them
+  // back to the floor, and the WEEK silently came out 2050 kcal above the rate the user agreed to,
+  // while the screen promised "the others cover it, so the week still adds up".
+  const p = { goalType: 'cut', rateKgPerWeek: 0.5 };
+  const pl = plan({
+    start: '2026-08-10', end: '2026-08-16', acceptRateKgPerWeek: 0.5, deltaPct: 0.35,
+    highDays: ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14'],
+  });
+  const days = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16'];
+  const deltas = days.map(d => E.planDayDelta(pl, p, d, 1400, 1200));
+  deltas.forEach((dl, i) => assert.ok(1400 + dl >= 1200, days[i] + ' fell below the floor at ' + (1400 + dl)));
+  assert.equal(deltas.reduce((a, b) => a + b, 0), 0, 'the window must still net to zero');
+});
+
+test('an uncapped boost still applies when the low days can afford it', () => {
+  // Plenty of headroom above the floor, so nothing is clamped and the full boost lands.
+  const p = { goalType: 'cut', rateKgPerWeek: 0.5 };
+  const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.5 });
+  assert.equal(E.planDayDelta(pl, p, '2026-08-12', 2800, 1200), 700);
+  assert.equal(E.planDayDelta(pl, p, '2026-08-11', 2800, 1200), -175);
+});
+
 test('recovery runs for as long as the window did, capped at a week', () => {
   const ps = [plan()]; // 5 days, so a 5-day ease-back
   assert.ok(E.planRecoveryOn(ps, '2026-08-15'), 'day after the window');

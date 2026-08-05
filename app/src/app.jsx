@@ -1465,7 +1465,7 @@ function effectiveTarget(db, date) {
   // A declared window (see WeekAheadFlow) rides the same per-day shift channel as a manual override,
   // so the whole of the cycling, carryover and floor maths applies to it unchanged. The plan only
   // ever shifts a day it actually covers, so days outside the window are untouched.
-  const planKcal = E.planDayDelta(E.weekPlanOn(db.week_plans, date), p, date, base.kcal);
+  const planKcal = E.planDayDelta(E.weekPlanOn(db.week_plans, date), p, date, base.kcal, E.kcalFloor(p));
   if (planKcal) base = E.applyKcalDelta(base, planKcal);
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
@@ -2636,7 +2636,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact }) {
   </div>);
 
   // 6. What it comes to, before committing.
-  const dayKcal = (iso) => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal)) : null;
+  const dayKcal = (iso) => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p))) : null;
   return (<div className="fade-in">
     <Bubble from="you">{accept === 0 ? 'Just hold steady' : accept + ' kg'}</Bubble>
     <Bubble>

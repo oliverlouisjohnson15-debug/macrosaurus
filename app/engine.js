@@ -1624,7 +1624,7 @@
   // A big day inside a window (the wedding, the Saturday out) is not a week-long shift: it is one
   // day up, paid for by the others. This redistribution nets to zero across the window, so the rate
   // the user agreed to still lands; only the shape inside it changes.
-  function planDayDelta(plan, profile, iso, baseKcal) {
+  function planDayDelta(plan, profile, iso, baseKcal, floorKcal) {
     var flat = planKcalDelta(plan, profile);
     if (!plan) return flat;
     var hi = plan.highDays || [];
@@ -1635,6 +1635,15 @@
     // free calories the agreed rate never accounted for.
     if (others <= 0) return flat;
     var boost = Math.round((baseKcal || 0) * (plan.deltaPct == null ? 0.25 : plan.deltaPct));
+    // The low days have to actually be able to pay. Without this the redistribution can demand days
+    // below the safety floor; composeDayTarget then clamps them back up, and the week quietly ends
+    // up ABOVE the rate the user agreed to, while the screen promised "the others cover it".
+    // Capping the boost to what the low days can genuinely give up keeps that promise true.
+    var floor = floorKcal == null ? KCAL_FLOOR : floorKcal;
+    var room = Math.max(0, (baseKcal || 0) + flat - floor);
+    var payable = Math.floor((room * others) / hi.length);
+    if (payable < boost) boost = payable;
+    if (boost <= 0) return flat;
     if (hi.indexOf(iso) >= 0) return flat + boost;
     return flat - Math.round((boost * hi.length) / others);
   }

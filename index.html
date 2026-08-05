@@ -2284,7 +2284,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // A big day inside a window (the wedding, the Saturday out) is not a week-long shift: it is one
   // day up, paid for by the others. This redistribution nets to zero across the window, so the rate
   // the user agreed to still lands; only the shape inside it changes.
-  function planDayDelta(plan, profile, iso, baseKcal) {
+  function planDayDelta(plan, profile, iso, baseKcal, floorKcal) {
     var flat = planKcalDelta(plan, profile);
     if (!plan) return flat;
     var hi = plan.highDays || [];
@@ -2295,6 +2295,15 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // free calories the agreed rate never accounted for.
     if (others <= 0) return flat;
     var boost = Math.round((baseKcal || 0) * (plan.deltaPct == null ? 0.25 : plan.deltaPct));
+    // The low days have to actually be able to pay. Without this the redistribution can demand days
+    // below the safety floor; composeDayTarget then clamps them back up, and the week quietly ends
+    // up ABOVE the rate the user agreed to, while the screen promised "the others cover it".
+    // Capping the boost to what the low days can genuinely give up keeps that promise true.
+    var floor = floorKcal == null ? KCAL_FLOOR : floorKcal;
+    var room = Math.max(0, (baseKcal || 0) + flat - floor);
+    var payable = Math.floor((room * others) / hi.length);
+    if (payable < boost) boost = payable;
+    if (boost <= 0) return flat;
     if (hi.indexOf(iso) >= 0) return flat + boost;
     return flat - Math.round((boost * hi.length) / others);
   }
@@ -6881,7 +6890,7 @@ function effectiveTarget(db, date) {
   // A declared window (see WeekAheadFlow) rides the same per-day shift channel as a manual override,
   // so the whole of the cycling, carryover and floor maths applies to it unchanged. The plan only
   // ever shifts a day it actually covers, so days outside the window are untouched.
-  const planKcal = E.planDayDelta(E.weekPlanOn(db.week_plans, date), p, date, base.kcal);
+  const planKcal = E.planDayDelta(E.weekPlanOn(db.week_plans, date), p, date, base.kcal, E.kcalFloor(p));
   if (planKcal) base = E.applyKcalDelta(base, planKcal);
   return E.composeDayTarget({
     base,
@@ -10087,7 +10096,7 @@ function WeekAheadFlow({
   }));
 
   // 6. What it comes to, before committing.
-  const dayKcal = iso => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal)) : null;
+  const dayKcal = iso => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p))) : null;
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement(Bubble, {
