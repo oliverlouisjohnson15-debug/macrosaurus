@@ -3758,6 +3758,34 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   }
   function atwater(m) { return Math.round(atwaterRaw(m)); }
 
+  // The same maths as a RANGE, for the checks that ask "do these numbers hang together?".
+  //
+  // A UK label's carbohydrate row excludes fibre, so its calories land at the TOP of this band
+  // (fibre counted). Some database entries follow the US convention, where fibre is already inside
+  // the carbohydrate figure - Open Food Facts carries products from both sides of the Atlantic -
+  // and those land at the BOTTOM. Without knowing which convention an entry used, the only honest
+  // statement is that its calories should fall somewhere between the two, so a fibre-rich food read
+  // correctly under EITHER convention must not be flagged as inconsistent.
+  //
+  // This is only for two-sided checks. A one-sided "these calories are too HIGH" guard correctly
+  // measures against the top of the band (that is what atwater() gives), and anything DERIVING a
+  // calorie figure uses atwater() too, because everything this app enters itself is UK convention.
+  function atwaterBand(m) {
+    m = m || {};
+    var lo = (+m.protein || 0) * KCAL_PER_G.protein + (+m.carbs || 0) * KCAL_PER_G.carbs + (+m.fat || 0) * KCAL_PER_G.fat;
+    return { lo: lo, hi: lo + (+m.fiber || 0) * KCAL_PER_G.fiber };
+  }
+  // How far a stated calorie figure sits OUTSIDE the band: positive above the top, negative below
+  // the bottom, and exactly 0 anywhere inside, which is the point - inside means "consistent with
+  // some convention", which is not evidence of a bad reading.
+  function atwaterMiss(kcal, m) {
+    var b = atwaterBand(m);
+    kcal = +kcal || 0;
+    if (kcal > b.hi) return kcal - b.hi;
+    if (kcal < b.lo) return kcal - b.lo;
+    return 0;
+  }
+
   // Canonical per-unit bases from the entered nutrition.
   //   per100: the numbers in `m` are per 100 g.
   //   basisIsServing: the numbers in `m` are for ONE serving/piece.
@@ -3777,7 +3805,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return macRound(macScale(base, +amount || 0) || { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
   }
 
-  var Quantity = { macNums: macNums, macScale: macScale, macRound: macRound, atwater: atwater, atwaterRaw: atwaterRaw, KCAL_PER_G: KCAL_PER_G, deriveBases: deriveBases, finalMacros: finalMacros };
+  var Quantity = { macNums: macNums, macScale: macScale, macRound: macRound, atwater: atwater, atwaterRaw: atwaterRaw, atwaterBand: atwaterBand, atwaterMiss: atwaterMiss, KCAL_PER_G: KCAL_PER_G, deriveBases: deriveBases, finalMacros: finalMacros };
   if (typeof module !== 'undefined' && module.exports) module.exports = Quantity;
   root.Quantity = Quantity;
 })(typeof window !== 'undefined' ? window : this);
@@ -23394,7 +23422,9 @@ function ConfirmFood({
   const _kc = m.kcal;
   const _dk = Q.atwaterRaw(m);
   const _missing = _kc <= 0 || m.protein <= 0 && m.carbs <= 0 && m.fat <= 0;
-  const _mismatch = _kc > 0 && _dk > 0 && Math.abs(_dk - _kc) / _kc > 0.3;
+  // Two-sided, so it measures against the plausible BAND rather than a single figure: a high-fibre
+  // entry whose carbs already include its fibre is consistent, not dodgy, and must not be flagged.
+  const _mismatch = _kc > 0 && _dk > 0 && Math.abs(Q.atwaterMiss(_kc, m)) / _kc > 0.3;
   const dodgy = (!!onRescan || !!onAskAI) && (_missing || _mismatch);
   // Calories run clearly higher than the macros can account for: the classic scan/entry-slip signature.
   // Skipped for alcohol (7 kcal/g) and when the dodgy card already covers it with scan/AI options.
@@ -25136,15 +25166,17 @@ function labelReadReliable(est) {
   return cols.every(c => {
     const kc = +c.kcal || 0;
     if (kc <= 0 || (+c.protein_g || 0) + (+c.carbs_g || 0) + (+c.fat_g || 0) <= 0) return false;
-    // Fibre at 2 kcal/g, or a correctly-read high-fibre label (carbohydrate excludes fibre on a UK
-    // label) reads as "doesn't add up" and gets escalated to the strong model for nothing.
-    const dk = Q.atwaterRaw({
+    // Judged against the plausible band, not one figure: a correctly-read high-fibre label reads as
+    // "doesn't add up" under a bare 4/4/9 sum and gets escalated to the strong model for nothing,
+    // and an imported product whose carbs already include its fibre would escalate under a strict
+    // fibre-counted sum for the same non-reason. Inside the band, the read is self-consistent.
+    const miss = Q.atwaterMiss(kc, {
       protein: c.protein_g,
       carbs: c.carbs_g,
       fat: c.fat_g,
       fiber: c.fiber_g
     });
-    return Math.abs(dk - kc) / kc <= 0.20;
+    return Math.abs(miss) / kc <= 0.20;
   });
 }
 function PhotoTab({

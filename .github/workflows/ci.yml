@@ -7,6 +7,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Lets a run be started by hand from the Actions tab. Worth having on its own, and specifically
+  # for the case where a run never gets a hosted runner and is auto-cancelled at the 15-minute mark:
+  # without this the only way to retry is an empty commit.
+  workflow_dispatch:
 
 jobs:
   test:

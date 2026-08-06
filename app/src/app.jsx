@@ -8671,7 +8671,9 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   // AI-backup nudge for database/barcode entries: missing numbers, or calories that don't match macros.
   const _kc = m.kcal; const _dk = Q.atwaterRaw(m);
   const _missing = _kc <= 0 || (m.protein <= 0 && m.carbs <= 0 && m.fat <= 0);
-  const _mismatch = _kc > 0 && _dk > 0 && Math.abs(_dk - _kc) / _kc > 0.3;
+  // Two-sided, so it measures against the plausible BAND rather than a single figure: a high-fibre
+  // entry whose carbs already include its fibre is consistent, not dodgy, and must not be flagged.
+  const _mismatch = _kc > 0 && _dk > 0 && Math.abs(Q.atwaterMiss(_kc, m)) / _kc > 0.3;
   const dodgy = (!!onRescan || !!onAskAI) && (_missing || _mismatch);
   // Calories run clearly higher than the macros can account for: the classic scan/entry-slip signature.
   // Skipped for alcohol (7 kcal/g) and when the dodgy card already covers it with scan/AI options.
@@ -9272,10 +9274,12 @@ function labelReadReliable(est) {
   return cols.every(c => {
     const kc = +c.kcal || 0;
     if (kc <= 0 || ((+c.protein_g || 0) + (+c.carbs_g || 0) + (+c.fat_g || 0)) <= 0) return false;
-    // Fibre at 2 kcal/g, or a correctly-read high-fibre label (carbohydrate excludes fibre on a UK
-    // label) reads as "doesn't add up" and gets escalated to the strong model for nothing.
-    const dk = Q.atwaterRaw({ protein: c.protein_g, carbs: c.carbs_g, fat: c.fat_g, fiber: c.fiber_g });
-    return Math.abs(dk - kc) / kc <= 0.20;
+    // Judged against the plausible band, not one figure: a correctly-read high-fibre label reads as
+    // "doesn't add up" under a bare 4/4/9 sum and gets escalated to the strong model for nothing,
+    // and an imported product whose carbs already include its fibre would escalate under a strict
+    // fibre-counted sum for the same non-reason. Inside the band, the read is self-consistent.
+    const miss = Q.atwaterMiss(kc, { protein: c.protein_g, carbs: c.carbs_g, fat: c.fat_g, fiber: c.fiber_g });
+    return Math.abs(miss) / kc <= 0.20;
   });
 }
 function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan, day }) {

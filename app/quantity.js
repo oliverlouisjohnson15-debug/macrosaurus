@@ -30,6 +30,34 @@
   }
   function atwater(m) { return Math.round(atwaterRaw(m)); }
 
+  // The same maths as a RANGE, for the checks that ask "do these numbers hang together?".
+  //
+  // A UK label's carbohydrate row excludes fibre, so its calories land at the TOP of this band
+  // (fibre counted). Some database entries follow the US convention, where fibre is already inside
+  // the carbohydrate figure - Open Food Facts carries products from both sides of the Atlantic -
+  // and those land at the BOTTOM. Without knowing which convention an entry used, the only honest
+  // statement is that its calories should fall somewhere between the two, so a fibre-rich food read
+  // correctly under EITHER convention must not be flagged as inconsistent.
+  //
+  // This is only for two-sided checks. A one-sided "these calories are too HIGH" guard correctly
+  // measures against the top of the band (that is what atwater() gives), and anything DERIVING a
+  // calorie figure uses atwater() too, because everything this app enters itself is UK convention.
+  function atwaterBand(m) {
+    m = m || {};
+    var lo = (+m.protein || 0) * KCAL_PER_G.protein + (+m.carbs || 0) * KCAL_PER_G.carbs + (+m.fat || 0) * KCAL_PER_G.fat;
+    return { lo: lo, hi: lo + (+m.fiber || 0) * KCAL_PER_G.fiber };
+  }
+  // How far a stated calorie figure sits OUTSIDE the band: positive above the top, negative below
+  // the bottom, and exactly 0 anywhere inside, which is the point - inside means "consistent with
+  // some convention", which is not evidence of a bad reading.
+  function atwaterMiss(kcal, m) {
+    var b = atwaterBand(m);
+    kcal = +kcal || 0;
+    if (kcal > b.hi) return kcal - b.hi;
+    if (kcal < b.lo) return kcal - b.lo;
+    return 0;
+  }
+
   // Canonical per-unit bases from the entered nutrition.
   //   per100: the numbers in `m` are per 100 g.
   //   basisIsServing: the numbers in `m` are for ONE serving/piece.
@@ -49,7 +77,7 @@
     return macRound(macScale(base, +amount || 0) || { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
   }
 
-  var Quantity = { macNums: macNums, macScale: macScale, macRound: macRound, atwater: atwater, atwaterRaw: atwaterRaw, KCAL_PER_G: KCAL_PER_G, deriveBases: deriveBases, finalMacros: finalMacros };
+  var Quantity = { macNums: macNums, macScale: macScale, macRound: macRound, atwater: atwater, atwaterRaw: atwaterRaw, atwaterBand: atwaterBand, atwaterMiss: atwaterMiss, KCAL_PER_G: KCAL_PER_G, deriveBases: deriveBases, finalMacros: finalMacros };
   if (typeof module !== 'undefined' && module.exports) module.exports = Quantity;
   root.Quantity = Quantity;
 })(typeof window !== 'undefined' ? window : this);

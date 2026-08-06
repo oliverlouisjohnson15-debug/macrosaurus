@@ -30,6 +30,30 @@ test('atwater reconciles real UK labels, where a plain 4/4/9 sum falls short', (
   }
 });
 
+// The band exists so a fibre-rich food read correctly under EITHER labelling convention is treated
+// as consistent. Open Food Facts carries products from both sides of the Atlantic, so the app cannot
+// know which convention a given entry used.
+test('atwaterMiss: consistent under either convention reads as no miss', () => {
+  const m = { protein: 14, carbs: 46, fat: 3.5, fiber: 27 };
+  const lo = 14 * 4 + 46 * 4 + 3.5 * 9;        // US style: fibre already inside the carb figure
+  const hi = lo + 27 * 2;                       // UK style: fibre separate, carrying 2 kcal/g
+  assert.strictEqual(Q.atwaterBand(m).lo, lo);
+  assert.strictEqual(Q.atwaterBand(m).hi, hi);
+  assert.strictEqual(Q.atwaterMiss(lo, m), 0, 'US-convention reading is inside the band');
+  assert.strictEqual(Q.atwaterMiss(hi, m), 0, 'UK-convention reading is inside the band');
+  assert.strictEqual(Q.atwaterMiss((lo + hi) / 2, m), 0, 'anywhere between is inside');
+  // Outside it still reports, and only by the distance past the nearest edge.
+  eq(Q.atwaterMiss(hi + 100, m), 100);
+  eq(Q.atwaterMiss(lo - 60, m), -60);
+});
+
+test('atwaterMiss: no fibre means the band collapses to the plain sum', () => {
+  const m = { protein: 31, carbs: 0, fat: 3.6, fiber: 0 };
+  const b = Q.atwaterBand(m);
+  assert.strictEqual(b.lo, b.hi);
+  eq(Q.atwaterMiss(200, m), 200 - b.hi);
+});
+
 // A whole day is where the shortfall becomes visible: it is the sum of every entry's fibre.
 test("a day's calories reconcile with its macros once fibre is counted", () => {
   const day = [
