@@ -60,8 +60,10 @@ test('macrosFromKcal: mild squeeze trims fat only, protein preserved', () => {
   assert.ok(!m.squeezed || m.protein_g === 200, 'protein only trimmed when fat alone cannot fit');
   const m2 = E.macrosFromKcal(1400, p); // 800 + 666 = 1466 > 1400 -> squeeze fat down
   assert.strictEqual(m2.squeezed, true);
-  assert.strictEqual(m2.protein_g, 200); // (1400-800)/9 = 66.7g fat, above the 46.25 hard min
-  near(m2.fat_g, (1400 - 800) / 9, 1);
+  // The fibre allowance is part of the budget being squeezed, so fat gives way to it as well as to
+  // protein: (1400 - 800 protein - the fibre reserve) / 9, still above the 46.25 g hard min.
+  assert.strictEqual(m2.protein_g, 200);
+  near(m2.fat_g, (1400 - 800 - E.fiberReserveKcal(1400)) / 9, 1);
 });
 
 // ---- item 1: preserve learned TDEE ----
@@ -429,10 +431,14 @@ test('composeDayTarget: cap uses nullish semantics, explicit 0 means no carryove
 });
 
 test('composeDayTarget: applies day override shift and reports floorLimited', () => {
-  const base = { kcal: 2000, protein_g: 160, fat_g: 74, carbs_g: 174 };
+  // Carbs are rebuilt from the day's calories with the fibre allowance reserved, then the shift moves
+  // 200 kcal from carbs to fat. Deriving the expectation the same way is what keeps this a test of the
+  // shift rather than a copy of one build's carb number.
+  const carbsFor = (kcal) => (kcal - 160 * 4 - 74 * 9 - E.fiberReserveKcal(kcal)) / 4;
+  const base = { kcal: 2000, protein_g: 160, fat_g: 74, carbs_g: Math.round(carbsFor(2000)) };
   const r = E.composeDayTarget({ base, date: '2026-07-01', floorKcal: 1200, cycling: null, carryover: null, cycleStart: '2026-07-01', eatenByDate: {}, overrideShiftKcal: 200 });
   assert.strictEqual(r.eff.kcal, 2000);
-  near(r.eff.carbs_g, 174 - 200 / 4, 1);
+  near(r.eff.carbs_g, carbsFor(2000) - 200 / 4, 1);
   near(r.eff.fat_g, 74 + 200 / 9, 1);
   assert.strictEqual(r.floorLimited, false);
 });

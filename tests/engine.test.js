@@ -33,10 +33,33 @@ test('goalDailyDelta: cut is a deficit, gain a surplus, maintain zero', () => {
 
 test('macrosFromKcal: Atwater sum matches kcal, fat floor and non-negative carbs hold', () => {
   const m = E.macrosFromKcal(2200, baseProfile);
+  // The split has to account for the day's fibre as well: fibre is logged separately from carbs and
+  // carries 2 kcal/g, so leaving it out of the carb target spends those calories twice and the macro
+  // meters outlast the calorie ring by 2 kcal per gram of fibre eaten.
   // Each macro is rounded independently (carbs derived from unrounded fat), so allow a few kcal of slack.
-  near(m.protein_g * 4 + m.fat_g * 9 + m.carbs_g * 4, 2200, 8);
+  near(m.protein_g * 4 + m.fat_g * 9 + m.carbs_g * 4 + E.fiberReserveKcal(2200), 2200, 8);
   assert.ok(m.fat_g >= 0.6 * baseProfile.weightKg - 1, 'fat below floor');
   assert.ok(m.carbs_g >= 0, 'carbs negative');
+});
+
+// The user-visible version of the same invariant: eat the target exactly, fibre included, and the
+// calorie ring and every macro meter must run out at the same moment.
+test('eating the target exactly, fibre included, lands on the calorie target', () => {
+  for (const kcal of [1400, 1800, 2200, 2800, 3400]) {
+    const m = E.macrosFromKcal(kcal, baseProfile);
+    const fib = E.fiberTarget(kcal).min;
+    const eaten = m.protein_g * 4 + m.carbs_g * 4 + m.fat_g * 9 + fib * 2;
+    near(eaten, kcal, 8);
+  }
+});
+
+test('a cycled/carryover day keeps the same invariant after applyKcalDelta', () => {
+  const base = E.macrosFromKcal(2200, baseProfile);
+  for (const delta of [-400, -150, 0, 150, 400]) {
+    const eff = E.applyKcalDelta(base, delta);
+    const fib = E.fiberTarget(eff.kcal).min;
+    near(eff.protein_g * 4 + eff.carbs_g * 4 + eff.fat_g * 9 + fib * 2, eff.kcal, 8);
+  }
 });
 
 test('proteinGrams: uses lean mass, manual override, and g/kg', () => {
@@ -49,7 +72,7 @@ test('proteinGrams: uses lean mass, manual override, and g/kg', () => {
 test('computeInitialTargets: applies goal delta and never drops below the floor', () => {
   const t = E.computeInitialTargets(baseProfile);
   assert.ok(t.kcal < t.estimatedTDEE, 'a cut should sit below TDEE');
-  near(t.protein_g * 4 + t.fat_g * 9 + t.carbs_g * 4, t.kcal, 8);
+  near(t.protein_g * 4 + t.fat_g * 9 + t.carbs_g * 4 + E.fiberReserveKcal(t.kcal), t.kcal, 8);
   const extreme = E.computeInitialTargets(Object.assign({}, baseProfile, { rateKgPerWeek: 5 }));
   assert.ok(extreme.kcal >= E.KCAL_FLOOR, 'must respect the 1200 kcal floor');
 });

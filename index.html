@@ -794,25 +794,38 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return Math.round(gPerKg * proteinReferenceKg(p));
   }
 
+  // The day's fibre allowance costs calories, and the carb target has to leave room for it.
+  //
+  // UK labels declare carbohydrate EXCLUDING fibre and count fibre at 2 kcal/g (Reg. 1169/2011
+  // Annex XIV), and the app logs food the same way: carbs and fibre are separate columns, and an
+  // entry's calories already include its fibre. So a carb target of (kcal - protein - fat) / 4
+  // hands the fibre calories out twice, once as carbs and once as the fibre they actually are.
+  // Eat to that split and the macro meters still show headroom after the calorie ring has emptied
+  // - by 2 kcal for every gram of fibre eaten, which is the whole day's fibre by bedtime.
+  // Reserving the fibre allowance up front is what makes the ring and the meters run out together.
+  function fiberReserveKcal(kcal) { return fiberTarget(kcal).min * 2; }
+
   // Macro split from a kcal budget. No ranges (removed by design).
-  // When protein + floor fat cannot fit inside the kcal budget, reconcile: trim fat down to the
-  // 0.5 g/kg hard minimum first, then trim protein, and flag the result as squeezed so the UI can
-  // warn that the target sits at the safety floor and the desired rate may be unachievable.
+  // When protein + floor fat (+ the fibre allowance) cannot fit inside the kcal budget, reconcile:
+  // trim fat down to the 0.5 g/kg hard minimum first, then trim protein, and flag the result as
+  // squeezed so the UI can warn that the target sits at the safety floor and the desired rate may
+  // be unachievable.
   function macrosFromKcal(kcal, profile) {
     var protein_g = proteinGrams(profile);
     var fatPct = DIET_STYLE_FAT_PCT[profile.dietStyle] || DIET_STYLE_FAT_PCT.balanced;
     var fatFloor = FAT_FLOOR_G_PER_KG * profile.weightKg;
     var fat_g = Math.max(fatFloor, (kcal * fatPct) / 9);
+    var fiberKcal = fiberReserveKcal(kcal);
     var squeezed = false;
-    if (protein_g * 4 + fat_g * 9 > kcal) {
+    if (protein_g * 4 + fat_g * 9 + fiberKcal > kcal) {
       squeezed = true;
       var fatMin = FAT_HARD_MIN_G_PER_KG * profile.weightKg;
-      fat_g = Math.max(fatMin, (kcal - protein_g * 4) / 9);
-      if (protein_g * 4 + fat_g * 9 > kcal) {
-        protein_g = Math.max(0, Math.floor((kcal - fat_g * 9) / 4));
+      fat_g = Math.max(fatMin, (kcal - protein_g * 4 - fiberKcal) / 9);
+      if (protein_g * 4 + fat_g * 9 + fiberKcal > kcal) {
+        protein_g = Math.max(0, Math.floor((kcal - fat_g * 9 - fiberKcal) / 4));
       }
     }
-    var carbs_g = Math.max(0, (kcal - protein_g * 4 - fat_g * 9) / 4);
+    var carbs_g = Math.max(0, (kcal - protein_g * 4 - fat_g * 9 - fiberKcal) / 4);
     var out = { kcal: round(kcal), protein_g: Math.round(protein_g), fat_g: round(fat_g), carbs_g: round(carbs_g) };
     if (squeezed) out.squeezed = true;
     return out;
@@ -1478,9 +1491,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   }
 
   // Apply a kcal delta to a base target, holding protein & fat, flexing carbs.
+  // Carbs are rebuilt from the day's own calorie figure rather than nudged, so the fibre allowance is
+  // reserved here on exactly the same terms as in macrosFromKcal (see fiberReserveKcal): a high day
+  // buys a little more fibre room, a low day a little less, and either way the calorie ring and the
+  // macro meters empty together. This is also what quietly repairs a target saved by an older build.
   function applyKcalDelta(base, deltaKcal) {
     var kcal = Math.max(0, base.kcal + deltaKcal);
-    var carbs_g = Math.max(0, (kcal - base.protein_g * 4 - base.fat_g * 9) / 4);
+    var carbs_g = Math.max(0, (kcal - base.protein_g * 4 - base.fat_g * 9 - fiberReserveKcal(kcal)) / 4);
     return { kcal: round(kcal), protein_g: base.protein_g, fat_g: base.fat_g, carbs_g: round(carbs_g), deltaKcal: round(deltaKcal) };
   }
 
@@ -2415,6 +2432,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     defaultProteinPerKgLBM: defaultProteinPerKgLBM, DEFAULT_PROTEIN_G_PER_KG_LBM: DEFAULT_PROTEIN_G_PER_KG_LBM,
     KCAL_FLOOR: KCAL_FLOOR, KCAL_FLOOR_MALE: KCAL_FLOOR_MALE, kcalFloor: kcalFloor,
     macrosFromKcal: macrosFromKcal, computeInitialTargets: computeInitialTargets, fiberTarget: fiberTarget,
+    fiberReserveKcal: fiberReserveKcal,
     cyclingDelta: cyclingDelta, cyclingOn: cyclingOn, targetOn: targetOn, cyclingDeltaOn: cyclingDeltaOn, cyclingSpread: cyclingSpread, carryover: carryover, carryoverDispersed: carryoverDispersed, applyKcalDelta: applyKcalDelta,
     composeDayTarget: composeDayTarget, checkInDecision: checkInDecision, cycleMeans: cycleMeans,
     isCompleteDay: isCompleteDay, updateExpenditure: updateExpenditure, detectPlateau: detectPlateau, menstrualPhase: menstrualPhase,
