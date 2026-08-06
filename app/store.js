@@ -21,6 +21,17 @@
     if (root.Engine) return root.Engine;
     try { return typeof require === 'function' ? require('./engine.js') : null; } catch (e) { return null; }
   }
+  // The quantity module, resolved the same lazy way: in the bundle its block comes AFTER this one,
+  // so a load-time reference would be undefined. It owns the one Atwater sum the whole app shares.
+  function quantity() {
+    if (root.Quantity) return root.Quantity;
+    try { return typeof require === 'function' ? require('./quantity.js') : null; } catch (e) { return null; }
+  }
+  function atwater(m) {
+    var Q = quantity();
+    if (Q) return Q.atwater(m);
+    return Math.round((+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9 + (+m.fiber || 0) * 2);
+  }
 
   // Profile-level defaults (profile is null in defaultState, so it needs its own
   // backfill map for deep-merge migration of nested settings).
@@ -57,12 +68,14 @@
   // Self-heal calories that were logged clearly higher than their macros can account for (the classic
   // scan/entry-slip signature, e.g. a whole-pot calorie figure paired with a single serving of macros).
   // We only touch gross mismatches (>25% AND >40 kcal over Atwater) and never alcohol, so accurate
-  // labels, fibre-rich foods and sugar-free items (where calories legitimately sit below the macro
-  // maths) are left alone. Snapping to protein*4 + carbs*4 + fat*9 restores a sane, consistent value.
+  // labels and sugar-free items (where calories legitimately sit below the macro maths) are left alone.
+  // Fibre is part of the maths at 2 kcal/g, because UK labels declare carbohydrate excluding fibre:
+  // without that term a high-fibre food reads as 2 kcal/g "unaccounted for" and could be healed DOWN
+  // to a figure lower than its own label. Snapping to the Atwater sum restores a consistent value.
   function healMacro(m, isAlcohol) {
     if (!m || isAlcohol) return;
     var kcal = +m.kcal || 0;
-    var atw = (+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9;
+    var atw = atwater(m);
     if (atw > 0 && kcal > atw * 1.25 + 40) m.kcal = Math.round(atw);
   }
   function healMacros(s) {

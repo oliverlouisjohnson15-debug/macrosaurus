@@ -1169,10 +1169,14 @@ function sumMacros(entries) {
   return entries.reduce((a, e) => ({ kcal: a.kcal + (e.computed_macros.kcal || 0), protein: a.protein + (e.computed_macros.protein || 0), carbs: a.carbs + (e.computed_macros.carbs || 0), fat: a.fat + (e.computed_macros.fat || 0), fiber: a.fiber + (e.computed_macros.fiber || 0) }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 }
 function entriesOn(db, date) { return db.log_entries.filter(e => e.date === date); }
-// Atwater factors: protein 4, carbs 4, fat 9 kcal/g (alcohol is 7, handled via its own kcal).
-function kcalFromMacros(m) { return Math.round((+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9); }
+// Atwater factors: protein 4, carbs 4, fat 9, FIBRE 2 kcal/g (alcohol is 7, handled via its own kcal).
+// Fibre is not a rounding detail: UK/EU labels declare carbohydrate excluding fibre and count fibre
+// at 2 kcal/g, so leaving it out makes the calories the app derives fall short of the label, and
+// makes a logged day's calories look like they disagree with its macros. Q owns the sum; every
+// macros-to-calories check in the app goes through it so they can't drift apart.
+function kcalFromMacros(m) { return Q.atwater(m); }
 // Never log a food with real macros but zero/missing calories, fill from the macros.
-function normalizeMacros(m, isAlcohol) { const mm = Object.assign({}, m); if (!isAlcohol && (!(+mm.kcal) || +mm.kcal <= 0) && ((+mm.protein) || (+mm.carbs) || (+mm.fat))) mm.kcal = kcalFromMacros(mm); return mm; }
+function normalizeMacros(m, isAlcohol) { const mm = Object.assign({}, m); if (!isAlcohol && (!(+mm.kcal) || +mm.kcal <= 0) && ((+mm.protein) || (+mm.carbs) || (+mm.fat) || (+mm.fiber))) mm.kcal = kcalFromMacros(mm); return mm; }
 // Smart foods: once you correct a food's numbers, remember them so the next scan or database pick of
 // the same food is pre-filled with YOUR values instead of the database's. Keyed by normalised name.
 function savedCorrection(db, name) {
@@ -8376,7 +8380,7 @@ function ManualTab({ onPick, onCancel, day }) {
   const [parsed, setParsed] = useState(null);
   const [v, setV] = useState({ name: '', protein: '', carbs: '', fat: '', fiber: '', kcal: '', basis: '100g', servG: '', servName: '' });
   const set = (k, x) => setV(p => Object.assign({}, p, { [k]: x }));
-  const autoKcal = (+v.protein || 0) * 4 + (+v.carbs || 0) * 4 + (+v.fat || 0) * 9;
+  const autoKcal = Q.atwaterRaw(v);
   function next() {
     if (!v.name.trim()) return;
     const macros = { kcal: Math.round(+v.kcal || autoKcal), protein: +v.protein || 0, carbs: +v.carbs || 0, fat: +v.fat || 0, fiber: +v.fiber || 0 };
@@ -8655,7 +8659,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   // inflate them, but stay editable: once you type your own calorie figure it sticks. Scanned/label
   // values come in pre-filled and are kept unless they run clearly higher than the macros justify.
   const [kcalTouched, setKcalTouched] = useState(false);
-  const _atw = (o) => Math.round((+o.protein || 0) * 4 + (+o.carbs || 0) * 4 + (+o.fat || 0) * 9);
+  const _atw = (o) => Q.atwater(o);
   const setMacro = (k, x) => setV(p => { const n = Object.assign({}, p, { [k]: x }); if (!kcalTouched) n.kcal = String(_atw(n)); return n; });
   const setKcal = (x) => { setKcalTouched(true); set('kcal', x); };
   const applyAtwater = () => { setKcalTouched(false); setV(p => Object.assign({}, p, { kcal: String(_atw(p)) })); };
@@ -8665,7 +8669,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   const _b0 = _macNums(base0);
   const editedNums = Math.round(m.kcal) !== Math.round(_b0.kcal) || m.protein !== _b0.protein || m.carbs !== _b0.carbs || m.fat !== _b0.fat || m.fiber !== _b0.fiber;
   // AI-backup nudge for database/barcode entries: missing numbers, or calories that don't match macros.
-  const _kc = m.kcal; const _dk = m.protein * 4 + m.carbs * 4 + m.fat * 9;
+  const _kc = m.kcal; const _dk = Q.atwaterRaw(m);
   const _missing = _kc <= 0 || (m.protein <= 0 && m.carbs <= 0 && m.fat <= 0);
   const _mismatch = _kc > 0 && _dk > 0 && Math.abs(_dk - _kc) / _kc > 0.3;
   const dodgy = (!!onRescan || !!onAskAI) && (_missing || _mismatch);
@@ -8802,7 +8806,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     </div>}
     {kcalHigh && <div className="pixel-box p-3 mt-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs and fat only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
+      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">This shows {Math.round(_kc)} kcal {basisIsServing ? ('per ' + servNoun) : (per100 ? 'per 100 g' : 'per serving')}, but the protein, carbs, fat and fibre only add up to about {atwaterK} kcal. That is usually a scan or entry slip, worth a quick check before you log it.</div>
       <Btn kind="accent" className="w-full" onClick={applyAtwater}>Use {atwaterK} kcal (from the macros)</Btn>
     </div>}
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
@@ -8862,7 +8866,7 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
   const implausible = final.kcal > 4000;
   // Same guard as the scan/database confirm screen: flag when the total calories run clearly higher
   // than the macros account for. The fix here is to tweak an item or ask the AI to redo it.
-  const atwT = Math.round(final.protein * 4 + final.carbs * 4 + final.fat * 9);
+  const atwT = Q.atwater(final);
   const kcalHigh = final.kcal > 0 && atwT > 0 && final.kcal > atwT * 1.15 + 25;
   const stepP = (d) => setPortion(String(Math.max(0, Math.round(((+portion || 0) + d) * 100) / 100)));
   const portionLabel = single ? (fmtCount(+(only && only.grams) || 0) + ' g') : (p === 1 ? 'the whole meal' : (fmtCount(p) + ' of the meal'));
@@ -9268,7 +9272,9 @@ function labelReadReliable(est) {
   return cols.every(c => {
     const kc = +c.kcal || 0;
     if (kc <= 0 || ((+c.protein_g || 0) + (+c.carbs_g || 0) + (+c.fat_g || 0)) <= 0) return false;
-    const dk = (+c.protein_g || 0) * 4 + (+c.carbs_g || 0) * 4 + (+c.fat_g || 0) * 9;
+    // Fibre at 2 kcal/g, or a correctly-read high-fibre label (carbohydrate excludes fibre on a UK
+    // label) reads as "doesn't add up" and gets escalated to the strong model for nothing.
+    const dk = Q.atwaterRaw({ protein: c.protein_g, carbs: c.carbs_g, fat: c.fat_g, fiber: c.fiber_g });
     return Math.abs(dk - kc) / kc <= 0.20;
   });
 }

@@ -10,8 +10,25 @@
   function macNums(v) { v = v || {}; return { kcal: +v.kcal || 0, protein: +v.protein || 0, carbs: +v.carbs || 0, fat: +v.fat || 0, fiber: +v.fiber || 0 }; }
   function macScale(m, f) { return m ? { kcal: m.kcal * f, protein: m.protein * f, carbs: m.carbs * f, fat: m.fat * f, fiber: m.fiber * f } : null; }
   function macRound(m) { return { kcal: Math.round(m.kcal), protein: +m.protein.toFixed(1), carbs: +m.carbs.toFixed(1), fat: +m.fat.toFixed(1), fiber: +m.fiber.toFixed(1) }; }
-  // Calories the macros imply (Atwater). Used to flag entries whose stated calories run too high.
-  function atwater(m) { return Math.round((+m.protein || 0) * 4 + (+m.carbs || 0) * 4 + (+m.fat || 0) * 9); }
+  // Calories the macros imply. Used to fill a missing calorie figure and to flag entries whose
+  // stated calories run too high.
+  //
+  // Fibre carries energy and MUST be counted, or the day never adds up. UK/EU labels (Reg.
+  // 1169/2011 Annex XIV) declare "carbohydrate" EXCLUDING fibre and list fibre separately at
+  // 2 kcal/g. So a UK label's calories are protein*4 + carbs*4 + fat*9 + fibre*2, and a plain
+  // 4/4/9 sum lands short by 2 kcal for every gram of fibre: ~26 kcal across a 13 g fibre day,
+  // and much more on a high-fibre one. That shortfall is what makes a logged day look like its
+  // calories and its macros disagree.
+  //
+  // Alcohol (7 kcal/g) is not a macro we store, so alcoholic entries keep their own calories and
+  // are excluded from every check built on this.
+  var KCAL_PER_G = { protein: 4, carbs: 4, fat: 9, fiber: 2 };
+  function atwaterRaw(m) {
+    m = m || {};
+    return (+m.protein || 0) * KCAL_PER_G.protein + (+m.carbs || 0) * KCAL_PER_G.carbs
+      + (+m.fat || 0) * KCAL_PER_G.fat + (+m.fiber || 0) * KCAL_PER_G.fiber;
+  }
+  function atwater(m) { return Math.round(atwaterRaw(m)); }
 
   // Canonical per-unit bases from the entered nutrition.
   //   per100: the numbers in `m` are per 100 g.
@@ -32,7 +49,7 @@
     return macRound(macScale(base, +amount || 0) || { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
   }
 
-  var Quantity = { macNums: macNums, macScale: macScale, macRound: macRound, atwater: atwater, deriveBases: deriveBases, finalMacros: finalMacros };
+  var Quantity = { macNums: macNums, macScale: macScale, macRound: macRound, atwater: atwater, atwaterRaw: atwaterRaw, KCAL_PER_G: KCAL_PER_G, deriveBases: deriveBases, finalMacros: finalMacros };
   if (typeof module !== 'undefined' && module.exports) module.exports = Quantity;
   root.Quantity = Quantity;
 })(typeof window !== 'undefined' ? window : this);

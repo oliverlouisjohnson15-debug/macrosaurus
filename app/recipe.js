@@ -15,6 +15,14 @@
   var norm = function (s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); };
   var round1 = function (n) { return Math.round(n * 10) / 10; };
   function emptyMacros() { return { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }; }
+  // The one shared Atwater sum (protein 4, carbs 4, fat 9, fibre 2 kcal/g), resolved lazily because in
+  // the bundle the quantity block loads after this one. Fibre carries 2 kcal/g on a UK label, so a
+  // recipe whose calories are derived here matches what the same food would log as on its own.
+  function atwater(m) {
+    var Q = root.Quantity || (typeof require === 'function' ? (function () { try { return require('./quantity.js'); } catch (e) { return null; } })() : null);
+    if (Q) return Q.atwater(m);
+    return Math.round(num(m.protein) * 4 + num(m.carbs) * 4 + num(m.fat) * 9 + num(m.fiber) * 2);
+  }
   function cleanMacros(m) { m = m || {}; return { kcal: Math.round(num(m.kcal)), protein: round1(num(m.protein)), carbs: round1(num(m.carbs)), fat: round1(num(m.fat)), fiber: round1(num(m.fiber)) }; }
   function trimNum(n) { return String(Math.round(n * 100) / 100); }
 
@@ -292,7 +300,7 @@
     var st = raw.stated_macros_per_serving || raw.macros_per_serving;
     var hasStated = st && typeof st === 'object';
     var macros = hasStated ? { kcal: Math.round(num(st.kcal)), protein: round1(num(st.protein_g != null ? st.protein_g : st.protein)), carbs: round1(num(st.carbs_g != null ? st.carbs_g : st.carbs)), fat: round1(num(st.fat_g != null ? st.fat_g : st.fat)), fiber: round1(num(st.fiber_g != null ? st.fiber_g : st.fiber)) } : emptyMacros();
-    if (hasStated && !macros.kcal && (macros.protein || macros.carbs || macros.fat)) macros.kcal = Math.round(macros.protein * 4 + macros.carbs * 4 + macros.fat * 9);
+    if (hasStated && !macros.kcal && (macros.protein || macros.carbs || macros.fat || macros.fiber)) macros.kcal = atwater(macros);
     return {
       title: String(raw.title || meta.title || 'Recipe').trim(),
       servings: servings,
@@ -527,7 +535,7 @@
     if (!kcal) return null;
     if (kcal < 80) return { msg: 'That is very low for a serving. Check the ingredient amounts.' };
     if (kcal > 1600) return { msg: 'That is very high for a serving. Check the servings count is right.' };
-    var atw = num(m.protein) * 4 + num(m.carbs) * 4 + num(m.fat) * 9;
+    var atw = atwater(m);
     if (atw > 0 && Math.abs(kcal - atw) > kcal * 0.3 + 50) return { msg: 'The calories and the macros do not add up. Re-check a value.' };
     return null;
   }

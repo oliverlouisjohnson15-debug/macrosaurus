@@ -137,6 +137,28 @@ test('self-heal leaves accurate and sugar-free entries alone', () => {
   assert.strictEqual(s.log_entries[1].computed_macros.kcal, 10);
 });
 
+test('self-heal counts fibre, so a high-fibre food is never healed below its own label', () => {
+  // All-Bran style: 100 g is 334 kcal with 27 g of fibre. On a plain 4/4/9 sum that reads as only
+  // 254 kcal "accounted for", far enough over to trip the heal and silently rewrite a correct label.
+  const s = Store.migrate({
+    log_entries: [
+      { id: 'e', date: '2026-07-07', is_alcohol: false, computed_macros: { kcal: 334, protein: 14, carbs: 46, fat: 3.5, fiber: 27 } },
+    ],
+  });
+  assert.strictEqual(s.log_entries[0].computed_macros.kcal, 334);
+});
+
+test('self-heal still fixes a gross slip on a high-fibre food', () => {
+  // Same food, but a whole-box calorie figure paired with a per-serving set of macros.
+  const s = Store.migrate({
+    log_entries: [
+      { id: 'f2', date: '2026-07-07', is_alcohol: false, computed_macros: { kcal: 1200, protein: 14, carbs: 46, fat: 3.5, fiber: 27 } },
+    ],
+  });
+  // 14*4 + 46*4 + 3.5*9 + 27*2 = 326, i.e. the label, not the 254 a fibre-blind sum would give.
+  assert.strictEqual(s.log_entries[0].computed_macros.kcal, 326);
+});
+
 test('self-heal never touches alcohol (7 kcal/g legitimately exceeds Atwater)', () => {
   const s = Store.migrate({
     log_entries: [
