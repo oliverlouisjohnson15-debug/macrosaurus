@@ -439,6 +439,15 @@ test('composeDayTarget: applies day override shift and reports floorLimited', ()
   const r = E.composeDayTarget({ base, date: '2026-07-01', floorKcal: 1200, cycling: null, carryover: null, cycleStart: '2026-07-01', eatenByDate: {}, overrideShiftKcal: 200 });
   assert.strictEqual(r.eff.kcal, 2000);
   near(r.eff.carbs_g, carbsFor(2000) - 200 / 4, 1);
+  // The rebalance must not create or destroy calories: whatever fat gains, carbs give back, so the
+  // shifted target still reconciles with its own calorie figure to within carb rounding.
+  const shifted = r.eff.protein_g * 4 + r.eff.carbs_g * 4 + r.eff.fat_g * 9 + E.fiberReserveKcal(r.eff.kcal);
+  near(shifted, r.eff.kcal, 2);
+  for (const s of [-300, -110, -10, 55, 200, 400]) {
+    const q = E.composeDayTarget({ base, date: '2026-07-01', floorKcal: 1200, cycling: null, carryover: null, cycleStart: '2026-07-01', eatenByDate: {}, overrideShiftKcal: s });
+    const sum = q.eff.protein_g * 4 + q.eff.carbs_g * 4 + q.eff.fat_g * 9 + E.fiberReserveKcal(q.eff.kcal);
+    near(sum, q.eff.kcal, 2);
+  }
   near(r.eff.fat_g, 74 + 200 / 9, 1);
   assert.strictEqual(r.floorLimited, false);
 });

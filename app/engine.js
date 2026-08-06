@@ -1255,8 +1255,18 @@
     var floorLimited = (cyc + carry) < (floor - base.kcal);
     var delta = Math.max(cyc + carry, floor - base.kcal);
     var eff = applyKcalDelta(base, delta);
+    // The day shift is a carb <-> fat rebalance at CONSTANT calories. Rounding each side from its own
+    // unrounded figure broke that: carbs 71 -> 74 buys 12 kcal while fat 73 -> 72 gives back only 9,
+    // so a shift meant to be energy-neutral moved the target's implied energy by up to ~6 kcal, and
+    // the calorie ring and the macro meters stopped agreeing again for a reason that had nothing to do
+    // with fibre. Fat takes the shift and carbs are derived from what is left, exactly as everywhere
+    // else, so the rebalance is neutral by construction and only carb rounding (<=2 kcal) survives.
     var shift = opts.overrideShiftKcal || 0;
-    if (shift) eff = Object.assign({}, eff, { carbs_g: Math.max(0, Math.round(eff.carbs_g - shift / 4)), fat_g: Math.max(0, Math.round(eff.fat_g + shift / 9)) });
+    if (shift) {
+      var shiftedFat = Math.max(0, Math.round(eff.fat_g + shift / 9));
+      var shiftedCarbs = Math.max(0, Math.round((eff.kcal - eff.protein_g * 4 - shiftedFat * 9 - fiberReserveKcal(eff.kcal)) / 4));
+      eff = Object.assign({}, eff, { carbs_g: shiftedCarbs, fat_g: shiftedFat });
+    }
     return { base: base, cyc: cyc, carry: carry, eff: eff, carryDetail: carryDetail, floorLimited: floorLimited };
   }
 
