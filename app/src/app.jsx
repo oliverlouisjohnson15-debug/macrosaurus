@@ -9713,6 +9713,14 @@ function goalStatusLine(p, paused) {
 
 // The confirmation for instant-apply controls. A save you cannot see is a save the user does not
 // trust, so every commit flashes. Reserves its own height so nothing jumps when it appears.
+/* These screens save the moment you touch a control, so this flash is the ONLY confirmation there
+   is: there is no save button to press and nothing else changes on screen. It used to sit inline at
+   the top of the subscreen, which worked only if you never scrolled. Toggling a high day, measured,
+   put the word "Saved" 73px above the top of the viewport while the control you had just tapped was
+   at y=109, so the feedback fired perfectly and nobody ever saw it. It reads as a setting that
+   would not stick.
+   Fixed to the viewport now, in the same place and the same clothes as every other toast in the
+   app, so the confirmation is wherever you happen to be looking. Live region either way. */
 function SavedFlash({ tick }) {
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -9721,7 +9729,10 @@ function SavedFlash({ tick }) {
     const t = setTimeout(() => setShow(false), 1500);
     return () => clearTimeout(t);
   }, [tick]);
-  return (<div className="h-4 mb-2 text-[11px] flex items-center gap-1.5" aria-live="polite" style={{ color: 'var(--good-ink)', opacity: show ? 1 : 0, transition: 'opacity .25s' }}>{show ? <><Tick size={9} /> Saved</> : null}</div>);
+  return (<div className="fixed left-0 right-0 z-[70] flex justify-center px-4 pointer-events-none"
+    aria-live="polite" style={{ bottom: 86, opacity: show ? 1 : 0, transition: 'opacity .25s' }}>
+    {show ? <span className="pixel-box px-3 py-2 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}><Tick size={10} /> Saved</span> : null}
+  </div>);
 }
 // Instant apply: write through, then flash. Typed inputs commit on blur rather than per keystroke,
 // so a half-typed number never reaches the store or the sync queue.
