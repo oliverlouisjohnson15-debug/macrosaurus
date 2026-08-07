@@ -4554,6 +4554,106 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   root.Recipe = Recipe;
 })(typeof window !== 'undefined' ? window : this);
 </script>
+<script>
+/*
+ * cofid.js - Grounding an AI meal estimate against the UK food tables. Framework-free, no DOM or
+ * network. Exposes window.Cofid + Node module.exports. Tested in tests/cofid.test.js.
+ *
+ * Why this exists: the meal estimator is a language model reasoning from a photo, and until this
+ * landed nothing downstream ever checked its arithmetic against a measured source. The app has
+ * shipped 2,854 CoFID foods since the food tables arrived and the estimator never looked at one.
+ *
+ * The split of responsibility is the whole idea. GRAMS are the model's job, because only it saw the
+ * photo and only it knows how big the plate was. KCAL PER 100 G is the tables' job, because that is
+ * a measured property of the food and not something worth guessing. So this compares energy density
+ * and leaves weight alone.
+ *
+ * Everything here is deliberately conservative, because a wrong match is worse than no match: it
+ * would talk someone out of a correct estimate and hand them a worse number. It only ever produces
+ * an OFFER, never a rewrite; the confirm screen decides whether to show it and the user decides
+ * whether to take it.
+ */
+(function (root) {
+  'use strict';
+
+  // Words that appear in the model's item names but never in a CoFID name, so they would block an
+  // otherwise good match. Kept tight on purpose: every word removed here makes matching more
+  // permissive, and permissive matching is what produces false corrections.
+  var SKIP = /^(a|an|the|of|with|and|plus|some|large|small|medium|big|regular|extra|homemade|home-made|approx|approximately|about|leftover|side|portion|serving|helping)$/;
+
+  function query(name) {
+    return String(name || '')
+      .toLowerCase()
+      .replace(/\([^)]*\)/g, ' ')   // "(fried)" style notes are the model's, not CoFID's
+      .replace(/[^a-z\s-]/g, ' ')    // apostrophes in brand names would never match anyway
+      .split(/\s+/)
+      .filter(function (w) { return w.length > 2 && !SKIP.test(w); })
+      .join(' ')
+      .trim();
+  }
+
+  /* Tolerances are asymmetric and loose on purpose, because the two failure modes are not equally
+     bad. A false flag talks someone out of a correct estimate and offers them a worse number, which
+     is worse than doing nothing at all; a missed flag just leaves the estimate where it already was.
+     So this stays silent unless the gap is severe. The upward tolerance is the wider of the two
+     because CoFID is largely retail and home cooking, and the restaurant or takeaway version of the
+     same dish is legitimately richer than any variant in the table. */
+  var TOL_UP = 0.35, TOL_DOWN = 0.30, VARIANTS = 8;
+
+  /* Compare against the SPREAD of matching foods rather than one top hit. The app's food search
+     ranks for "show me the plainest form", which is the wrong answer for a reference value:
+     "chips" ranks microwave chips (221 kcal) above fried ones (~290), so grounding on the top hit
+     alone would flag an honest chip-shop estimate. Taking the whole band means a food whose
+     variants legitimately run 214-364 is left alone, while cheddar at 1000 is caught whichever
+     cheddar you pick.
+     `search` is injected (the app passes its own searchGenericFoods) so this file stays pure. */
+  function check(search, list, items) {
+    var out = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var g = +it.grams || 0, kcal = +it.kcal || 0;
+      // A weight the user stated explicitly is not ours to question.
+      if (g <= 0 || kcal <= 0 || it.userSpecified) continue;
+      var q = query(it.name);
+      if (!q) continue;
+      var hits = search(list, q, VARIANTS).filter(function (f) { return f.per100 && f.per100.kcal > 0; });
+      if (!hits.length) continue;
+      var aiPer100 = (kcal / g) * 100;
+      var lo = Infinity, hi = 0;
+      for (var h = 0; h < hits.length; h++) {
+        var k = hits[h].per100.kcal;
+        if (k < lo) lo = k;
+        if (k > hi) hi = k;
+      }
+      if (aiPer100 <= hi * (1 + TOL_UP) && aiPer100 >= lo * (1 - TOL_DOWN)) continue;
+      // Nearest variant to the model's own figure: the least disruptive correction that is still
+      // measured, so "the fried one" is respected rather than overridden with the leanest entry.
+      var best = hits[0];
+      for (var b = 1; b < hits.length; b++) {
+        if (Math.abs(hits[b].per100.kcal - aiPer100) < Math.abs(best.per100.kcal - aiPer100)) best = hits[b];
+      }
+      out.push({ i: i, name: it.name, ref: best.name, refKcal100: best.per100.kcal,
+        aiKcal100: Math.round(aiPer100), high: aiPer100 > hi, profile: profile(best) });
+    }
+    return out;
+  }
+
+  // Per-100 g profile the confirm screen can apply at the model's grams. satfat/sugars/salt stay
+  // null unless CoFID measured all of them, so an unmeasured value is never applied as a virtuous
+  // zero: "nobody measured it" and "there is none in it" are not the same claim.
+  function profile(food) {
+    var p = food.per100;
+    return { kcal: p.kcal / 100, protein: p.protein / 100, carbs: p.carbs / 100, fat: p.fat / 100, fiber: p.fiber / 100,
+      satfat: food.extra ? food.extra.satfat / 100 : null,
+      sugars: food.extra ? food.extra.sugars / 100 : null,
+      salt: food.extra ? food.extra.salt / 100 : null };
+  }
+
+  var Cofid = { query: query, check: check, profile: profile, TOL_UP: TOL_UP, TOL_DOWN: TOL_DOWN, VARIANTS: VARIANTS };
+  if (typeof module !== 'undefined' && module.exports) module.exports = Cofid;
+  root.Cofid = Cofid;
+})(typeof window !== 'undefined' ? window : this);
+</script>
 <script>/* ---- app/src/prompts.jsx ---- */
 /* ============================================================================
  * prompts.jsx  ·  the AI contract
@@ -4574,7 +4674,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
 // the final word (packaged jars, things behind other things and quantities are unreliable).
 const FRIDGE_PROMPT = 'You are looking at photo(s) of the inside of a fridge, freezer, cupboard or kitchen worktop. List every distinct FOOD or DRINK ingredient you can identify. Rules: use the plain everyday food name only, no quantities, no brand names, no packaging words (e.g. "milk" not "1 pint of milk", "chicken" not "pack of chicken thighs"). One item per food. Ignore non-food objects, condiment sachets and anything you cannot identify with reasonable confidence. British English. Respond ONLY with compact JSON: {"items":["eggs","cheddar cheese","spinach", ...]}.';
 const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the numbers printed on it. UK labels usually have a PER 100 g / 100 ml column, and sometimes also a PER SERVING / PER PORTION / PER PACK column. Read each column EXACTLY as printed. Do NOT convert, scale, invent or mix columns. Return ONLY compact JSON: {"name": string, "serving_g": number, "serving_label": string, "per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number}, "per_100g": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number}, "macros_estimated": boolean}. per_100g = the per-100 g/ml column (all 0 if not printed). per_serving = the per-serving/portion/pack column (all 0 if not printed). If only one column exists, fill it and leave the other all 0; NEVER scale one column into the other. serving_g and serving_label describe ONE natural unit the person would count and log, chosen in this priority order: (1) if the pack states a piece/item COUNT and a total pack WEIGHT (for example "12 meatballs" with "340 g", or "6 fish fingers 200 g"), set serving_g to the weight of ONE piece = round(total weight divided by count) and serving_label to a singular piece name like "1 meatball" or "1 fish finger"; (2) else if a single serving or portion size is stated (for example "per 30 g", "1 pot 125 g"), use it with a label like "1 pot" or "1 serving"; (3) else if only a whole pack/can/bottle size is stated, use it with a label like "1 can"; (4) else serving_g 0 and serving_label "". Use the product photo and all pack text (piece count, total weight, "contains N portions") to work this out. ACCURACY IS CRITICAL: read the EXACT printed digits for every value that is visible on the label (for example if it prints "Fat 2.5g", return 2.5, not a rounded or guessed number). Look carefully at the small print. Read carbohydrate EXACTLY as the UK label prints it, which is carbohydrate EXCLUDING fibre; fibre is its own row and must go in fiber_g, never folded into carbs_g. Only when a macro is genuinely absent, blank or physically unreadable should you ESTIMATE it from the product name/type and the stated calories so that protein_g×4 + carbs_g×4 + fat_g×9 + fiber_g×2 approximately equals the stated kcal for that column (fibre carries about 2 kcal per gram, so on a high-fibre product a sum that ignores it will push your estimate too high), and set "macros_estimated": true; if every macro was read directly from the label, set it false. Never leave a macro at 0 when calories are printed unless the label genuinely states 0. satfat_g, sugars_g and salt_g are the "of which saturates", "of which sugars" and "salt" rows that UK labels print directly under fat and carbohydrate: read them EXACTLY as printed for whichever columns show them, and leave them 0 when they are genuinely not printed. Never estimate these three, and if only "sodium" is printed, convert it to salt by multiplying by 2.5. Write the product name in British English spelling, keeping the JSON keys exactly as specified.';
-const AI_PROMPT = 'You are a UK nutrition estimator helping someone log a meal. Your job is to be CALIBRATED: as close to what a dietitian would get weighing the same plate as you can manage, erring neither high nor low. Do not pad an estimate to be safe, and do not flatter one either. A confident wrong number in either direction is the failure mode.\n\nMETHOD, work through these in order rather than jumping to a calorie figure:\n1. IDENTIFY every distinct component and how it was cooked (grilled, boiled, roasted, fried, battered). Cooking method moves calories more than almost anything else you can see.\n2. SCALE the image before you guess any weight. Find a reference object and reason from its real size: a UK dinner plate is about 27 cm across, a side plate about 20 cm, a fork about 19 cm long, a teaspoon bowl about 3 cm, a mug about 8 cm across the rim, a 330 ml can about 6.6 cm wide and 11.5 cm tall, a skinless chicken breast about 12-15 cm long. Judge each component\'s footprint and depth against that reference, then turn volume into grams with a sensible density (most cooked foods 0.5-1.1 g per ml, leafy salad about 0.2, oils about 0.9). If nothing in the frame gives you scale, say so in "assumptions" and lower your confidence rather than guessing big.\n3. CHECK THE WEIGHT against a normal served portion before you use it. Typical UK servings: a chicken breast 150-180 g, a portion of cooked rice or pasta 180-250 g, chips 130-200 g, a jacket potato 200-250 g, a naan 90-130 g, a chapati or roti 45-70 g (a large or restaurant one 90-140 g), a slice of bread 36 g, a fillet of fish 120-160 g. A weight far outside these needs visible evidence in the photo.\n4. PRICE each component from a realistic per-100 g profile for that food AS SERVED, then multiply by its grams. Anchors per 100 g: grilled chicken breast 165 kcal, cooked lean mince 250, battered fish 230, boiled rice 130, boiled pasta 160, roast potatoes 150, chips 270-310, white bread 260, naan 310, chapati or roti 300, cooked lentils and beans 115-140, most cooked vegetables 25-60, salad leaves 20, cheddar 415, mayonnaise 680, double cream 450, butter 745, oil 900, pastry 400-500.\n5. CALIBRATE the total against the plate. A normal home dinner is usually 500-900 kcal, a light lunch 300-600, a large restaurant main 800-1400. If your total lands well outside the believable band for what you can actually see, find the component you mis-weighted and correct it rather than defending the number.\n\nCount what is genuinely there, and nothing more. Cooking oil, butter, dressings, mayo, breading, glazes and cheese are real calories people miss, so include them wherever the food shows evidence of them: a sheen, browning, a visible dressing, a fried texture, or a recipe that always contains them. But do NOT add oil, butter, sauce or a side you cannot see and that the dish would not normally contain, and do not count the same fat twice once as "cooked in oil" and again inside the per-100 g figure for a cooked food. Inventing hidden extras is the single most common reason an estimate comes out too high. Grilled, boiled, steamed, poached and air-fried food carries little or no added fat.\n\nCONTEXT:\n- RESTAURANT / CHAIN: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips), and name the item you anchored to in "assumption". If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): usually cooked with more oil, ghee or butter than the same dish at home, so carry that through into the fat, but keep the portion to what is actually in the photo.\n- HOME-COOKED: estimate from the visible ingredients and normal home portions, and include the cooking fat and sauces.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. carbs_g is carbohydrate EXCLUDING fibre, as UK labels declare it, so fibre is counted ONCE, in fiber_g, and never also inside carbs_g; fibre itself carries about 2 kcal per gram, so your kcal total should account for it alongside protein, carbs and fat. ALSO estimate satfat_g (saturated fat), sugars_g (total sugars, including those naturally in fruit, milk and juice) and salt_g for every item and the total, since these decide how nutritious the meal is rated: butter, cream, cheese, coconut, fatty meat and pastry drive saturated fat; puddings, fizzy drinks, juice, sauces, ketchup and sweetened yoghurt drive sugars; cured meat, cheese, bread, stock, soy sauce, crisps and anything from a takeaway or a chain kitchen drive salt. Use the same published or typical UK figures you anchored the calories to, and never leave all three at 0 for a meal that obviously contains them. kcal_low/kcal_high = an honest plausible range CENTRED on your estimate: your top-level kcal should sit near the middle of it, never at the top. Make the range wide when you had no scale reference or the dish is opaque (a stew, a curry, anything with hidden oil), and narrow when the food is packaged, weighed by the user, or a named chain item. grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence naming what you scaled from and the biggest uncertainty, e.g. "Scaled off a 27 cm plate; the oil in the sauce is the main unknown." When you are unsure, WIDEN THE RANGE rather than shifting your central estimate upward: an honest middle with a wide range is worth more than a high number. Give calories to the nearest 5 or 10 and macros to the nearest gram, rather than implying a precision you do not have. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
+const AI_PROMPT = 'You are a UK nutrition estimator helping someone log a meal. Your job is to be CALIBRATED: as close to what a dietitian would get weighing the same plate as you can manage, erring neither high nor low. Do not pad an estimate to be safe, and do not flatter one either. A confident wrong number in either direction is the failure mode.\n\nMETHOD, work through these in order rather than jumping to a calorie figure:\n1. IDENTIFY every distinct component and how it was cooked (grilled, boiled, roasted, fried, battered). Cooking method moves calories more than almost anything else you can see.\n2. SCALE the image before you guess any weight. Find a reference object and reason from its real size: a UK dinner plate is about 27 cm across, a side plate about 20 cm, a fork about 19 cm long, a teaspoon bowl about 3 cm, a mug about 8 cm across the rim, a 330 ml can about 6.6 cm wide and 11.5 cm tall, a skinless chicken breast about 12-15 cm long. Judge each component\'s footprint and depth against that reference, then turn volume into grams with a sensible density (most cooked foods 0.5-1.1 g per ml, leafy salad about 0.2, oils about 0.9). If nothing in the frame gives you scale, say so in "assumptions" and lower your confidence rather than guessing big.\n3. CHECK THE WEIGHT against a normal served portion before you use it. Typical UK servings: a chicken breast 150-180 g, a portion of cooked rice or pasta 180-250 g, chips 130-200 g, a jacket potato 200-250 g, a naan 90-130 g, a chapati or roti 45-70 g (a large or restaurant one 90-140 g), a slice of bread 36 g, a fillet of fish 120-160 g. A weight far outside these needs visible evidence in the photo.\n4. PRICE each component from a realistic per-100 g profile for that food AS SERVED, then multiply by its grams. Anchors per 100 g: grilled chicken breast 165 kcal, cooked lean mince 250, battered fish 230, boiled rice 130, boiled pasta 160, roast potatoes 150, chips 270-310, white bread 260, naan 310, chapati or roti 300, cooked lentils and beans 115-140, most cooked vegetables 25-60, salad leaves 20, cheddar 415, mayonnaise 680, double cream 450, butter 745, oil 900, pastry 400-500.\n5. CALIBRATE the total against the plate. A normal home dinner is usually 500-900 kcal, a light lunch 300-600, a large restaurant main 800-1400. If your total lands well outside the believable band for what you can actually see, find the component you mis-weighted and correct it rather than defending the number.\n\nCount the cooking fat properly: it is invisible in a photo and it is real. Restaurant, pub and takeaway kitchens cook with far more oil, butter and ghee than a home cook does, and they do it as standard: vegetables finished in butter, a curry base fried in oil, rice cooked in ghee, a pan or griddle oiled between every order. Where the food came out of a professional kitchen, include that fat even though you cannot see it, and say so in "assumption". The same goes for dressings, mayo, breading, glazes and cheese, which are exactly the calories people miss.\n\nWhat you must NOT do is add a component that is not there at all: a side, a sauce or a dip that is neither visible nor implied by the dish, or a second helping of fat you have already counted once inside the per-100 g figure for a food that was priced as cooked. Double-counting and invented extras are what push an estimate too high, not the oil itself. Grilled, boiled, steamed, poached and air-fried food carries little or no added fat, so do not add any there.\n\nCONTEXT:\n- RESTAURANT / CHAIN: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips), and name the item you anchored to in "assumption". If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): usually cooked with more oil, ghee or butter than the same dish at home, so carry that through into the fat, but keep the portion to what is actually in the photo.\n- HOME-COOKED: estimate from the visible ingredients and normal home portions, and include the cooking fat and sauces.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. carbs_g is carbohydrate EXCLUDING fibre, as UK labels declare it, so fibre is counted ONCE, in fiber_g, and never also inside carbs_g; fibre itself carries about 2 kcal per gram, so your kcal total should account for it alongside protein, carbs and fat. ALSO estimate satfat_g (saturated fat), sugars_g (total sugars, including those naturally in fruit, milk and juice) and salt_g for every item and the total, since these decide how nutritious the meal is rated: butter, cream, cheese, coconut, fatty meat and pastry drive saturated fat; puddings, fizzy drinks, juice, sauces, ketchup and sweetened yoghurt drive sugars; cured meat, cheese, bread, stock, soy sauce, crisps and anything from a takeaway or a chain kitchen drive salt. Use the same published or typical UK figures you anchored the calories to, and never leave all three at 0 for a meal that obviously contains them. kcal_low/kcal_high = an honest plausible range CENTRED on your estimate: your top-level kcal should sit near the middle of it, never at the top. Make the range wide when you had no scale reference or the dish is opaque (a stew, a curry, anything with hidden oil), and narrow when the food is packaged, weighed by the user, or a named chain item. grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short per-item note, e.g. "Pizza Express Margherita baseline, ~11in" or "fried in ~1 tbsp oil". "assumptions" = one short sentence naming what you scaled from and the biggest uncertainty, e.g. "Scaled off a 27 cm plate; the oil in the sauce is the main unknown." When you are unsure, WIDEN THE RANGE rather than shifting your central estimate upward: an honest middle with a wide range is worth more than a high number. Give calories to the nearest 5 or 10 and macros to the nearest gram, rather than implying a precision you do not have. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
 const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given whatever could be read from a shared cooking video: its title, description or caption, what the creator says out loud (subtitles or an audio transcript), and/or still frames from the video itself. Reconstruct the recipe as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Do NOT estimate nutrition (a nutrition database does that from the ingredient lines). Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [string], "steps": [string], "stated_macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number} | null, "macros_confidence": "low"|"medium"|"high", "tags": {"meal": string, "cuisine": string, "main": string, "effort": string, "diet": [string]}}. ingredients = an array of plain ingredient LINES, each written like a shopping/recipe list item: the AMOUNT then the FOOD, ready to look up in a nutrition database, for example "150 g cottage cheese", "1 tbsp olive oil", "2 cloves garlic", "1 wholemeal pitta", "200 g chicken breast". Prefer metric weights (g/ml) and give your best weight when the source is vague, but keep natural counts for whole items (eggs, cloves, slices, pittas). Every line MUST include both an amount and the food, and MUST NOT include brand names or nutrition. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). steps = the method as short ordered instructions. stated_macros_per_serving = ONLY the per-serving nutrition the source EXPLICITLY states (e.g. the caption says "480 kcal, 42g protein per serving"); if it does not clearly state per-serving macros, return null, do not estimate. macros_confidence reflects how complete the source text was. tags = classify the dish for browsing, using ONLY these values: meal is one of breakfast, lunch, dinner, snack, dessert, drink (or "" if genuinely unclear); cuisine is one of british, italian, indian, chinese, thai, mexican, japanese, mediterranean, middle-eastern, american, french, korean, vietnamese, greek, spanish, caribbean, or other; main is the primary protein or base ingredient, one of chicken, beef, pork, lamb, fish, seafood, eggs, tofu, beans, veg, cheese, or other; effort is quick (roughly 15 minutes or under, few steps), standard, or project (long or involved); diet is an array of any that clearly apply from high-protein, vegetarian, vegan, pescatarian, gluten-free, dairy-free (empty array if none clearly apply). Write all text in British English spelling (fibre, yoghurt, flavour), keeping the JSON keys exactly as specified.';
 
 /* ---- app/src/app.jsx ---- */
@@ -22034,95 +22134,11 @@ function searchGenericFoods(list, query, limit) {
   return hits.slice(0, limit || 12).map(x => x.f);
 }
 /* ---------- Grounding an AI estimate against CoFID -------------------------------------------
-   The estimator is a language model reasoning from a photo, so nothing downstream ever checked
-   its arithmetic against a measured source. This does: once an estimate comes back, every item
-   that can be confidently matched to a CoFID food is compared on ENERGY DENSITY (kcal per 100 g),
-   which is the number the model gets wrong when it inflates a plate. Grams are the model's job
-   (only it saw the photo); kcal per gram is the food tables' job.
-
-   Deliberately conservative, because a wrong match is worse than no match. searchGenericFoods only
-   returns foods whose name contains EVERY word of the query, so "grilled chicken breast" can reach
-   "Chicken, breast, grilled without skin" while "Nando's peri-peri chicken" matches nothing and is
-   left alone. Anything branded, composite or oddly named simply falls through unchecked, and even a
-   match is only ever surfaced as an offer: the numbers are not rewritten behind the user's back. */
-const COFID_SKIP = /^(a|an|the|of|with|and|plus|some|large|small|medium|big|regular|extra|homemade|home-made|approx|approximately|about|leftover|side|portion|serving|helping)$/;
-function cofidQuery(name) {
-  return String(name || '').toLowerCase().replace(/\([^)]*\)/g, ' ') // "(fried)" style notes are the model's, not CoFID's
-  .replace(/[^a-z\s-]/g, ' ') // apostrophes in brand names would never match anyway
-  .split(/\s+/).filter(w => w.length > 2 && !COFID_SKIP.test(w)).join(' ').trim();
-}
-// Per-100 g profile the app can apply at the model's grams. extra is null unless CoFID measured all
-// of satfat/sugars/salt, so an unmeasured value is never applied as a virtuous zero.
-function cofidProfile(food) {
-  const p = food.per100;
-  return {
-    kcal: p.kcal / 100,
-    protein: p.protein / 100,
-    carbs: p.carbs / 100,
-    fat: p.fat / 100,
-    fiber: p.fiber / 100,
-    satfat: food.extra ? food.extra.satfat / 100 : null,
-    sugars: food.extra ? food.extra.sugars / 100 : null,
-    salt: food.extra ? food.extra.salt / 100 : null
-  };
-}
-/* Compare against the SPREAD of matching CoFID foods, not one arbitrary top hit.
-   searchGenericFoods ranks for search ("show me the plainest form"), which is the wrong answer for a
-   reference value: "chips" ranks microwave chips (221 kcal) above fried ones (~290), so grounding on
-   the single top hit would have flagged an honest chip shop estimate and offered a worse number to
-   replace it with. The same trap caught chicken tikka masala, where the retail ready-meal is much
-   leaner than the takeaway the photo actually showed.
-
-   So: take every variant CoFID knows, and only object when the estimate falls outside ALL of them,
-   plus a tolerance. A food whose variants legitimately run 150-350 kcal per 100 g then gets a wide
-   band and is left alone, while cheddar at 1000 is caught whichever cheddar you pick. The value
-   offered back is the closest variant to what the model said, so choosing "the fried one" is still
-   respected, it is just pinned to a measured figure. */
-/* Tolerances are deliberately asymmetric and deliberately loose, because the two ways this can be
-   wrong are not equally bad. A false flag talks someone out of a correct estimate and hands them a
-   worse number, which is worse than today; a missed flag just leaves the estimate where it already
-   was. So this is tuned to stay silent unless the gap is severe: it catches cheddar priced at 1000
-   kcal per 100 g or a naan at 545, and says nothing about a takeaway curry at 200 or chip-shop chips
-   at 290. The upward tolerance is the wider of the two because CoFID is largely retail and home
-   cooking, and a restaurant or takeaway version of the same dish is legitimately richer than any
-   variant in the table. */
-const COFID_TOL_UP = 0.35,
-  COFID_TOL_DOWN = 0.30;
-const COFID_VARIANTS = 8;
+   The matching, tolerances and comparison live in app/cofid.js (pure, unit-tested in
+   tests/cofid.test.js). searchGenericFoods is injected rather than imported, because the ranking a
+   match depends on is the app's own food search. */
 function cofidCheck(list, items) {
-  const out = [];
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const g = +it.grams || 0,
-      kcal = +it.kcal || 0;
-    if (g <= 0 || kcal <= 0 || it.userSpecified) continue; // a weight the user gave us is not ours to question
-    const q = cofidQuery(it.name);
-    if (!q) continue;
-    const hits = searchGenericFoods(list, q, COFID_VARIANTS).filter(f => f.per100.kcal > 0);
-    if (!hits.length) continue;
-    const aiPer100 = kcal / g * 100;
-    let lo = Infinity,
-      hi = 0;
-    for (let h = 0; h < hits.length; h++) {
-      const k = hits[h].per100.kcal;
-      if (k < lo) lo = k;
-      if (k > hi) hi = k;
-    }
-    if (aiPer100 <= hi * (1 + COFID_TOL_UP) && aiPer100 >= lo * (1 - COFID_TOL_DOWN)) continue;
-    // Nearest variant to the model's own figure: the least disruptive correction that is still measured.
-    let best = hits[0];
-    for (let h = 1; h < hits.length; h++) if (Math.abs(hits[h].per100.kcal - aiPer100) < Math.abs(best.per100.kcal - aiPer100)) best = hits[h];
-    out.push({
-      i: i,
-      name: it.name,
-      ref: best.name,
-      refKcal100: best.per100.kcal,
-      aiKcal100: Math.round(aiPer100),
-      high: aiPer100 > hi,
-      profile: cofidProfile(best)
-    });
-  }
-  return out;
+  return Cofid.check(searchGenericFoods, list, items);
 }
 function FoodTab({
   db,
@@ -22651,6 +22667,7 @@ function LogSheet({
   target,
   onAdd,
   onAddMeal,
+  onAddItems,
   onClose,
   isPremium,
   aiCalls
@@ -22766,6 +22783,7 @@ function LogSheet({
     onPick: i => onAdd(mealId, isAlc ? Object.assign({}, i, {
       is_alcohol: true
     }) : i),
+    onAddItems: isAlc ? undefined : its => onAddItems(mealId, its),
     onScan: () => setTab('photo')
   }), tab === 'manual' && (isAlc ? /*#__PURE__*/React.createElement(AlcoholTab, {
     onPick: i => onAdd(mealId, i)
@@ -22777,6 +22795,7 @@ function LogSheet({
     asAlcohol: isAlc,
     autoScan: scanNow,
     onPick: i => onAdd(mealId, i),
+    onAddItems: isAlc ? undefined : its => onAddItems(mealId, its),
     onAskAI: () => setTab('describe'),
     day: day
   }))));
@@ -23907,6 +23926,7 @@ function ConfirmFood({
 function AiConfirm({
   est,
   onAdd,
+  onAddItems,
   onCancel,
   onRefine,
   busy
@@ -24088,6 +24108,33 @@ function AiConfirm({
   // than the macros account for. The fix here is to tweak an item or ask the AI to redo it.
   const atwT = Q.atwater(final);
   const kcalHigh = final.kcal > 0 && atwT > 0 && final.kcal > atwT * 1.15 + 25;
+  /* Log the components as separate diary entries rather than one "Meal (AI estimate)" line. This is
+     the default for a multi-item estimate: an estimate is already a breakdown, so collapsing it back
+     into a single line threw away the one thing that made it correctable afterwards. Logged as parts,
+     you can delete the chips you left at 9pm without re-running the estimate or editing a total by
+     hand. The portion multiplier still applies, it just scales every component instead of the sum. */
+  const [asOne, setAsOne] = useState(false);
+  const logItems = items.filter(it => +it.grams > 0 && +it.kcal > 0).map(it => ({
+    name: it.name,
+    grams: Math.round(+it.grams * p),
+    nq: gotExtras ? E.ndPer100kcal(it, {
+      satfat: it.satfat,
+      sugars: it.sugars,
+      salt: it.salt,
+      grams: it.grams
+    }) : null,
+    macros: {
+      kcal: Math.round(+it.kcal * p),
+      protein: +((+it.protein || 0) * p).toFixed(1),
+      carbs: +((+it.carbs || 0) * p).toFixed(1),
+      fat: +((+it.fat || 0) * p).toFixed(1),
+      fiber: +((+it.fiber || 0) * p).toFixed(1)
+    }
+  }));
+  // Only worth splitting when there is genuinely more than one thing: a single-food estimate already
+  // logs by grams, and a one-item "meal" would just be the same entry under a different code path.
+  const canItemise = !!onAddItems && !single && logItems.length > 1;
+  const itemised = canItemise && !asOne;
   const stepP = d => setPortion(String(Math.max(0, Math.round(((+portion || 0) + d) * 100) / 100)));
   const portionLabel = single ? fmtCount(+(only && only.grams) || 0) + ' g' : p === 1 ? 'the whole meal' : fmtCount(p) + ' of the meal';
   const qtyLabel = p === 1 ? '' : fmtCount(p) + ' portion';
@@ -24319,6 +24366,10 @@ function AiConfirm({
           grams: it.grams
         }) : null
       }));
+      if (itemised) {
+        onAddItems(logItems);
+        return;
+      }
       if (single) {
         const g = +only.grams || 0;
         onAdd({
@@ -24343,13 +24394,17 @@ function AiConfirm({
         });
       }
     }
-  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : 'Add ' + final.kcal + ' kcal'));
+  }, kcalHigh ? 'Log ' + final.kcal + ' kcal anyway' : itemised ? 'Log ' + logItems.length + ' items · ' + final.kcal + ' kcal' : 'Add ' + final.kcal + ' kcal'), canItemise && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAsOne(v => !v),
+    className: "w-full text-[11px] text-[#8A8A90] mt-2.5 underline"
+  }, asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'));
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
 function DescribeTab({
   db,
   onPick,
+  onAddItems,
   onScan
 }) {
   const key = db.profile.aiKey || 'builtin';
@@ -24475,6 +24530,7 @@ function DescribeTab({
     busy: busy,
     onRefine: refine,
     onAdd: onPick,
+    onAddItems: onAddItems,
     onCancel: () => setResult(null)
   }), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mt-3"
@@ -24611,6 +24667,7 @@ function MealEstimate({
   apiKey,
   db,
   onPick,
+  onAddItems,
   onBack,
   initialFiles
 }) {
@@ -24686,6 +24743,7 @@ function MealEstimate({
     busy: busy,
     onRefine: refine,
     onAdd: onPick,
+    onAddItems: onAddItems,
     onCancel: () => setResult(null)
   }), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mt-3"
@@ -25337,6 +25395,7 @@ function labelReadReliable(est) {
 function PhotoTab({
   db,
   onPick,
+  onAddItems,
   onAskAI,
   asAlcohol,
   autoScan,
@@ -25515,6 +25574,7 @@ function PhotoTab({
     apiKey: key,
     db: db,
     onPick: onPick,
+    onAddItems: onAddItems,
     onBack: () => setMode(null)
   });
   if (mode === 'scan') return /*#__PURE__*/React.createElement(LiveScanner, {
@@ -36288,6 +36348,85 @@ function App() {
       d.log_entries = d.log_entries.filter(x => x.id !== entryId);
     }), 'Adjust', () => setAdjusting(entryId));
   }
+  /* One diary entry PER item, with each item also becoming a reusable, gram-scalable smart food.
+     Shared by the recipe "log itemised" path and by AI meal estimates, because both turn one
+     composite thing you ate into its parts: the point is that afterwards you can delete the chips
+     you left, or fix the rice, without touching the rest of the meal or re-running the estimate.
+     Caller owns `ids` so it can offer a single Undo that removes the whole set. */
+  function pushItemEntries(d, date, mealId, items, source, ids) {
+    items.forEach((it, i) => {
+      const macros = normalizeMacros(it.macros, false);
+      const rk = (it.name || '').trim().toLowerCase();
+      const g = +it.grams || 0;
+      let rf = rk ? d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol) : null;
+      d.log_entries.push({
+        id: ids[i],
+        date,
+        meal_id: mealId,
+        ref_type: 'food',
+        name: it.name,
+        source: source,
+        is_alcohol: false,
+        qty_label: g > 0 ? g + ' g' : '',
+        computed_macros: macros,
+        nq: it.nq || rf && rf.nq || null,
+        sort_order: d.log_entries.length + i
+      });
+      if (!rk) return;
+      if (!rf) {
+        rf = {
+          id: Store.uid(),
+          name: it.name,
+          source: source,
+          is_alcohol: false,
+          is_favorite: false,
+          last_qty: g > 0 ? g + ' g' : '',
+          macros: macros,
+          updated_at: Date.now()
+        };
+        d.foods.push(rf);
+      } else {
+        rf.macros = macros;
+        rf.last_qty = g > 0 ? g + ' g' : rf.last_qty;
+        rf.updated_at = Date.now();
+      }
+      // Keep the nutrient record when this path carries one, matching what re-logging a remembered
+      // item already does. Without it an itemised log leaves the food unscored for the day's backfill.
+      if (it.nq) rf.nq = it.nq;
+      if (g > 0) {
+        rf.corrected = true;
+        rf.saved_base = {
+          kcal: Math.round(macros.kcal / g * 100),
+          protein: +(macros.protein / g * 100).toFixed(1),
+          carbs: +(macros.carbs / g * 100).toFixed(1),
+          fat: +(macros.fat / g * 100).toFixed(1),
+          fiber: +((macros.fiber || 0) / g * 100).toFixed(1)
+        };
+        rf.saved_kind = 'per100';
+        rf.saved_serving_g = g;
+        rf.saved_serving_label = '';
+      }
+    });
+  }
+  // An AI meal estimate logged as its components rather than as one "Meal (AI estimate)" line.
+  function addEstimateItems(date, mealId, items) {
+    const ids = items.map(() => Store.uid());
+    if (date === Store.todayISO()) LAST_MEAL = {
+      id: mealId,
+      t: Date.now()
+    };
+    update(d => pushItemEntries(d, date, mealId, items, 'ai_estimate', ids));
+    setAdding(null);
+    window.MTRACK && MTRACK('food_logged', {
+      count: items.length,
+      source: 'ai_estimate_items'
+    });
+    showToast('Logged ' + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => {
+      tombstone(d, ids);
+      const s = new Set(ids);
+      d.log_entries = d.log_entries.filter(x => !s.has(x.id));
+    }));
+  }
   function addMeal(date, mealId, items) {
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = {
@@ -36395,59 +36534,11 @@ function App() {
       id: mealId,
       t: Date.now()
     };
+    // The ingredient's own nutrient record first (the recipe analysis captures saturates, sugars and
+    // salt alongside the macros), then whatever you have logged that ingredient as before, and only
+    // failing both does it land as unscored calories for the day's backfill to pick up.
     update(d => {
-      items.forEach((it, i) => {
-        const macros = normalizeMacros(it.macros, false);
-        const rk = it.name.trim().toLowerCase();
-        const g = it.grams;
-        let rf = d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol);
-        // The ingredient's own record first (the recipe analysis now captures saturates, sugars and
-        // salt alongside the macros), then whatever you have logged that ingredient as before, and
-        // only failing both does it land as unscored calories for the day's backfill to pick up.
-        d.log_entries.push({
-          id: ids[i],
-          date,
-          meal_id: mealId,
-          ref_type: 'food',
-          name: it.name,
-          source: 'recipe',
-          is_alcohol: false,
-          qty_label: it.grams > 0 ? it.grams + ' g' : '',
-          computed_macros: macros,
-          nq: it.nq || rf && rf.nq || null,
-          sort_order: d.log_entries.length + i
-        });
-        if (!rf) {
-          rf = {
-            id: Store.uid(),
-            name: it.name,
-            source: 'recipe',
-            is_alcohol: false,
-            is_favorite: false,
-            last_qty: g > 0 ? g + ' g' : '',
-            macros: macros,
-            updated_at: Date.now()
-          };
-          d.foods.push(rf);
-        } else {
-          rf.macros = macros;
-          rf.last_qty = g > 0 ? g + ' g' : rf.last_qty;
-          rf.updated_at = Date.now();
-        }
-        if (g > 0) {
-          rf.corrected = true;
-          rf.saved_base = {
-            kcal: Math.round(macros.kcal / g * 100),
-            protein: +(macros.protein / g * 100).toFixed(1),
-            carbs: +(macros.carbs / g * 100).toFixed(1),
-            fat: +(macros.fat / g * 100).toFixed(1),
-            fiber: +((macros.fiber || 0) / g * 100).toFixed(1)
-          };
-          rf.saved_kind = 'per100';
-          rf.saved_serving_g = g;
-          rf.saved_serving_label = '';
-        }
-      });
+      pushItemEntries(d, date, mealId, items, 'recipe', ids);
       d.cook_stats = d.cook_stats || {};
       d.cook_stats.cooked = (d.cook_stats.cooked || 0) + 1;
       d.cook_stats.last = date;
@@ -36706,6 +36797,7 @@ function App() {
     target: adding,
     onAdd: (mealId, item) => addEntry(adding.date, mealId, item),
     onAddMeal: (mealId, items) => addMeal(adding.date, mealId, items),
+    onAddItems: (mealId, items) => addEstimateItems(adding.date, mealId, items),
     onClose: () => setAdding(null),
     isPremium: isPremium,
     aiCalls: aiCalls
@@ -36765,6 +36857,11 @@ function App() {
     onPick: item => {
       const meals = mealsForDay(db, Store.todayISO());
       if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item);
+      setShared(null);
+    },
+    onAddItems: its => {
+      const meals = mealsForDay(db, Store.todayISO());
+      if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its);
       setShared(null);
     }
   }))), paywall && /*#__PURE__*/React.createElement(Paywall, {

@@ -8109,78 +8109,10 @@ function searchGenericFoods(list, query, limit) {
   return hits.slice(0, limit || 12).map(x => x.f);
 }
 /* ---------- Grounding an AI estimate against CoFID -------------------------------------------
-   The estimator is a language model reasoning from a photo, so nothing downstream ever checked
-   its arithmetic against a measured source. This does: once an estimate comes back, every item
-   that can be confidently matched to a CoFID food is compared on ENERGY DENSITY (kcal per 100 g),
-   which is the number the model gets wrong when it inflates a plate. Grams are the model's job
-   (only it saw the photo); kcal per gram is the food tables' job.
-
-   Deliberately conservative, because a wrong match is worse than no match. searchGenericFoods only
-   returns foods whose name contains EVERY word of the query, so "grilled chicken breast" can reach
-   "Chicken, breast, grilled without skin" while "Nando's peri-peri chicken" matches nothing and is
-   left alone. Anything branded, composite or oddly named simply falls through unchecked, and even a
-   match is only ever surfaced as an offer: the numbers are not rewritten behind the user's back. */
-const COFID_SKIP = /^(a|an|the|of|with|and|plus|some|large|small|medium|big|regular|extra|homemade|home-made|approx|approximately|about|leftover|side|portion|serving|helping)$/;
-function cofidQuery(name) {
-  return String(name || '')
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, ' ')          // "(fried)" style notes are the model's, not CoFID's
-    .replace(/[^a-z\s-]/g, ' ')           // apostrophes in brand names would never match anyway
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !COFID_SKIP.test(w))
-    .join(' ')
-    .trim();
-}
-// Per-100 g profile the app can apply at the model's grams. extra is null unless CoFID measured all
-// of satfat/sugars/salt, so an unmeasured value is never applied as a virtuous zero.
-function cofidProfile(food) {
-  const p = food.per100;
-  return { kcal: p.kcal / 100, protein: p.protein / 100, carbs: p.carbs / 100, fat: p.fat / 100, fiber: p.fiber / 100,
-    satfat: food.extra ? food.extra.satfat / 100 : null, sugars: food.extra ? food.extra.sugars / 100 : null, salt: food.extra ? food.extra.salt / 100 : null };
-}
-/* Compare against the SPREAD of matching CoFID foods, not one arbitrary top hit.
-   searchGenericFoods ranks for search ("show me the plainest form"), which is the wrong answer for a
-   reference value: "chips" ranks microwave chips (221 kcal) above fried ones (~290), so grounding on
-   the single top hit would have flagged an honest chip shop estimate and offered a worse number to
-   replace it with. The same trap caught chicken tikka masala, where the retail ready-meal is much
-   leaner than the takeaway the photo actually showed.
-
-   So: take every variant CoFID knows, and only object when the estimate falls outside ALL of them,
-   plus a tolerance. A food whose variants legitimately run 150-350 kcal per 100 g then gets a wide
-   band and is left alone, while cheddar at 1000 is caught whichever cheddar you pick. The value
-   offered back is the closest variant to what the model said, so choosing "the fried one" is still
-   respected, it is just pinned to a measured figure. */
-/* Tolerances are deliberately asymmetric and deliberately loose, because the two ways this can be
-   wrong are not equally bad. A false flag talks someone out of a correct estimate and hands them a
-   worse number, which is worse than today; a missed flag just leaves the estimate where it already
-   was. So this is tuned to stay silent unless the gap is severe: it catches cheddar priced at 1000
-   kcal per 100 g or a naan at 545, and says nothing about a takeaway curry at 200 or chip-shop chips
-   at 290. The upward tolerance is the wider of the two because CoFID is largely retail and home
-   cooking, and a restaurant or takeaway version of the same dish is legitimately richer than any
-   variant in the table. */
-const COFID_TOL_UP = 0.35, COFID_TOL_DOWN = 0.30;
-const COFID_VARIANTS = 8;
-function cofidCheck(list, items) {
-  const out = [];
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const g = +it.grams || 0, kcal = +it.kcal || 0;
-    if (g <= 0 || kcal <= 0 || it.userSpecified) continue; // a weight the user gave us is not ours to question
-    const q = cofidQuery(it.name);
-    if (!q) continue;
-    const hits = searchGenericFoods(list, q, COFID_VARIANTS).filter(f => f.per100.kcal > 0);
-    if (!hits.length) continue;
-    const aiPer100 = (kcal / g) * 100;
-    let lo = Infinity, hi = 0;
-    for (let h = 0; h < hits.length; h++) { const k = hits[h].per100.kcal; if (k < lo) lo = k; if (k > hi) hi = k; }
-    if (aiPer100 <= hi * (1 + COFID_TOL_UP) && aiPer100 >= lo * (1 - COFID_TOL_DOWN)) continue;
-    // Nearest variant to the model's own figure: the least disruptive correction that is still measured.
-    let best = hits[0];
-    for (let h = 1; h < hits.length; h++) if (Math.abs(hits[h].per100.kcal - aiPer100) < Math.abs(best.per100.kcal - aiPer100)) best = hits[h];
-    out.push({ i: i, name: it.name, ref: best.name, refKcal100: best.per100.kcal, aiKcal100: Math.round(aiPer100), high: aiPer100 > hi, profile: cofidProfile(best) });
-  }
-  return out;
-}
+   The matching, tolerances and comparison live in app/cofid.js (pure, unit-tested in
+   tests/cofid.test.js). searchGenericFoods is injected rather than imported, because the ranking a
+   match depends on is the app's own food search. */
+function cofidCheck(list, items) { return Cofid.check(searchGenericFoods, list, items); }
 function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, day }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
@@ -8356,7 +8288,7 @@ function suggestMealId(db, meals, now) {
 // The tab you last logged from, remembered for the session so repeat logging (e.g. barcode after
 // barcode) doesn't reset to the Food tab every time.
 let LAST_LOG_TAB = null;
-function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPremium, aiCalls }) {
+function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onClose, isPremium, aiCalls }) {
   useBackClose(onClose);
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.alc ? 'recent' : (['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
@@ -8402,9 +8334,9 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onClose, isPrem
           })()}
           {tab === 'food' && <FoodTab db={db} update={update} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} onLogMeal={items => onAddMeal(mealId, items)} onAskAI={() => setTab('describe')} onAlcohol={() => setIsAlc(true)} day={day} />}
           {tab === 'recent' && <RecentTab db={db} update={update} isAlc={isAlc} mealName={(meals.find(m => m.id === mealId) || {}).name} onPick={i => onAdd(mealId, i)} day={day} />}
-          {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onScan={() => setTab('photo')} />}
+          {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onScan={() => setTab('photo')} />}
           {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} day={day} />)}
-          {tab === 'photo' && <PhotoTab db={db} asAlcohol={isAlc} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAskAI={() => setTab('describe')} day={day} />}
+          {tab === 'photo' && <PhotoTab db={db} asAlcohol={isAlc} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onAskAI={() => setTab('describe')} day={day} />}
         </div>
       </div>
     </div>
@@ -8887,7 +8819,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
 }
-function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
+function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -8962,6 +8894,20 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
   // than the macros account for. The fix here is to tweak an item or ask the AI to redo it.
   const atwT = Q.atwater(final);
   const kcalHigh = final.kcal > 0 && atwT > 0 && final.kcal > atwT * 1.15 + 25;
+  /* Log the components as separate diary entries rather than one "Meal (AI estimate)" line. This is
+     the default for a multi-item estimate: an estimate is already a breakdown, so collapsing it back
+     into a single line threw away the one thing that made it correctable afterwards. Logged as parts,
+     you can delete the chips you left at 9pm without re-running the estimate or editing a total by
+     hand. The portion multiplier still applies, it just scales every component instead of the sum. */
+  const [asOne, setAsOne] = useState(false);
+  const logItems = items
+    .filter(it => (+it.grams) > 0 && (+it.kcal) > 0)
+    .map(it => ({ name: it.name, grams: Math.round((+it.grams) * p), nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null,
+      macros: { kcal: Math.round((+it.kcal) * p), protein: +((+it.protein || 0) * p).toFixed(1), carbs: +((+it.carbs || 0) * p).toFixed(1), fat: +((+it.fat || 0) * p).toFixed(1), fiber: +((+it.fiber || 0) * p).toFixed(1) } }));
+  // Only worth splitting when there is genuinely more than one thing: a single-food estimate already
+  // logs by grams, and a one-item "meal" would just be the same entry under a different code path.
+  const canItemise = !!onAddItems && !single && logItems.length > 1;
+  const itemised = canItemise && !asOne;
   const stepP = (d) => setPortion(String(Math.max(0, Math.round(((+portion || 0) + d) * 100) / 100)));
   const portionLabel = single ? (fmtCount(+(only && only.grams) || 0) + ' g') : (p === 1 ? 'the whole meal' : (fmtCount(p) + ' of the meal'));
   const qtyLabel = p === 1 ? '' : (fmtCount(p) + ' portion');
@@ -9023,12 +8969,13 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ('Add ' + final.kcal + ' kcal'))}</Btn>
+    {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[11px] text-[#8A8A90] mt-2.5 underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
-function DescribeTab({ db, onPick, onScan }) {
+function DescribeTab({ db, onPick, onAddItems, onScan }) {
   const key = db.profile.aiKey || 'builtin';
   const [text, setText] = useState('');
   const [imgs, setImgs] = useState([]); const MAX_PHOTOS = 3;
@@ -9075,7 +9022,7 @@ function DescribeTab({ db, onPick, onScan }) {
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
   }
-  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} busy={busy} onRefine={refine} onAdd={onPick} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
+  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} busy={busy} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" />;
   return (<div>
@@ -9101,7 +9048,7 @@ function DescribeTab({ db, onPick, onScan }) {
   </div>);
 }
 const MEAL_SOURCES = [{ v: 'home', l: 'Home-cooked' }, { v: 'restaurant', l: 'Restaurant' }, { v: 'takeaway', l: 'Takeaway' }];
-function MealEstimate({ apiKey, db, onPick, onBack, initialFiles }) {
+function MealEstimate({ apiKey, db, onPick, onAddItems, onBack, initialFiles }) {
   const [imgs, setImgs] = useState(() => (initialFiles || []).slice(0, 3).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) }))); // { id, file, url }
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
@@ -9126,7 +9073,7 @@ function MealEstimate({ apiKey, db, onPick, onBack, initialFiles }) {
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
   }
-  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} busy={busy} onRefine={refine} onAdd={onPick} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
+  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} busy={busy} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (busy) return <DinoLoader label="Estimating your meal" />;
   return (<div className="fade-in">
     <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
@@ -9382,7 +9329,7 @@ function labelReadReliable(est) {
     return Math.abs(miss) / kc <= 0.20;
   });
 }
-function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan, day }) {
+function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day }) {
   const [busy, setBusy] = useState(''); const [err, setErr] = useState(''); const [parsed, setParsed] = useState(null); const [mode, setMode] = useState(autoScan ? 'scan' : null); const [notFound, setNotFound] = useState(false); const [rescan, setRescan] = useState(false);
   // The LogSheet barcode shortcut (and ?action=scan) jump straight into the live scanner.
   useEffect(() => { if (autoScan) { setNotFound(false); setMode('scan'); } }, [autoScan]);
@@ -9436,7 +9383,7 @@ function PhotoTab({ db, onPick, onAskAI, asAlcohol, autoScan, day }) {
     setBusy('');
   }
   if (parsed) return <ConfirmFood {...parsed} asAlcohol={asAlcohol} onAdd={onPick} onCancel={() => { setParsed(null); setMode(null); }} onRescan={(parsed.source === 'off' || parsed.source === 'community') ? () => { setRescan(true); setParsed(null); setMode('label'); } : undefined} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
-  if (mode === 'meal') return <MealEstimate apiKey={key} db={db} onPick={onPick} onBack={() => setMode(null)} />;
+  if (mode === 'meal') return <MealEstimate apiKey={key} db={db} onPick={onPick} onAddItems={onAddItems} onBack={() => setMode(null)} />;
   if (mode === 'scan') return <LiveScanner onFound={lookupBarcode} onClose={() => setMode(null)} />;
   if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => setMode(null)} />;
   if (busy) return <DinoLoader label={busy} />;
@@ -13547,6 +13494,35 @@ function App() {
     window.MTRACK && MTRACK('food_logged', { count: 1, source: item.source || 'manual' });
     showToast('Added ' + item.name, 'Undo', () => update(d => { tombstone(d, [entryId]); d.log_entries = d.log_entries.filter(x => x.id !== entryId); }), 'Adjust', () => setAdjusting(entryId));
   }
+  /* One diary entry PER item, with each item also becoming a reusable, gram-scalable smart food.
+     Shared by the recipe "log itemised" path and by AI meal estimates, because both turn one
+     composite thing you ate into its parts: the point is that afterwards you can delete the chips
+     you left, or fix the rice, without touching the rest of the meal or re-running the estimate.
+     Caller owns `ids` so it can offer a single Undo that removes the whole set. */
+  function pushItemEntries(d, date, mealId, items, source, ids) {
+    items.forEach((it, i) => {
+      const macros = normalizeMacros(it.macros, false);
+      const rk = (it.name || '').trim().toLowerCase(); const g = +it.grams || 0;
+      let rf = rk ? d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol) : null;
+      d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: 'food', name: it.name, source: source, is_alcohol: false, qty_label: g > 0 ? g + ' g' : '', computed_macros: macros, nq: it.nq || (rf && rf.nq) || null, sort_order: d.log_entries.length + i });
+      if (!rk) return;
+      if (!rf) { rf = { id: Store.uid(), name: it.name, source: source, is_alcohol: false, is_favorite: false, last_qty: g > 0 ? g + ' g' : '', macros: macros, updated_at: Date.now() }; d.foods.push(rf); }
+      else { rf.macros = macros; rf.last_qty = g > 0 ? g + ' g' : rf.last_qty; rf.updated_at = Date.now(); }
+      // Keep the nutrient record when this path carries one, matching what re-logging a remembered
+      // item already does. Without it an itemised log leaves the food unscored for the day's backfill.
+      if (it.nq) rf.nq = it.nq;
+      if (g > 0) { rf.corrected = true; rf.saved_base = { kcal: Math.round(macros.kcal / g * 100), protein: +(macros.protein / g * 100).toFixed(1), carbs: +(macros.carbs / g * 100).toFixed(1), fat: +(macros.fat / g * 100).toFixed(1), fiber: +((macros.fiber || 0) / g * 100).toFixed(1) }; rf.saved_kind = 'per100'; rf.saved_serving_g = g; rf.saved_serving_label = ''; }
+    });
+  }
+  // An AI meal estimate logged as its components rather than as one "Meal (AI estimate)" line.
+  function addEstimateItems(date, mealId, items) {
+    const ids = items.map(() => Store.uid());
+    if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
+    update(d => pushItemEntries(d, date, mealId, items, 'ai_estimate', ids));
+    setAdding(null);
+    window.MTRACK && MTRACK('food_logged', { count: items.length, source: 'ai_estimate_items' });
+    showToast('Logged ' + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
+  }
   function addMeal(date, mealId, items) {
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
@@ -13585,19 +13561,11 @@ function App() {
     }
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
+    // The ingredient's own nutrient record first (the recipe analysis captures saturates, sugars and
+    // salt alongside the macros), then whatever you have logged that ingredient as before, and only
+    // failing both does it land as unscored calories for the day's backfill to pick up.
     update(d => {
-      items.forEach((it, i) => {
-        const macros = normalizeMacros(it.macros, false);
-        const rk = it.name.trim().toLowerCase(); const g = it.grams;
-        let rf = d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol);
-        // The ingredient's own record first (the recipe analysis now captures saturates, sugars and
-        // salt alongside the macros), then whatever you have logged that ingredient as before, and
-        // only failing both does it land as unscored calories for the day's backfill to pick up.
-        d.log_entries.push({ id: ids[i], date, meal_id: mealId, ref_type: 'food', name: it.name, source: 'recipe', is_alcohol: false, qty_label: it.grams > 0 ? it.grams + ' g' : '', computed_macros: macros, nq: it.nq || (rf && rf.nq) || null, sort_order: d.log_entries.length + i });
-        if (!rf) { rf = { id: Store.uid(), name: it.name, source: 'recipe', is_alcohol: false, is_favorite: false, last_qty: g > 0 ? g + ' g' : '', macros: macros, updated_at: Date.now() }; d.foods.push(rf); }
-        else { rf.macros = macros; rf.last_qty = g > 0 ? g + ' g' : rf.last_qty; rf.updated_at = Date.now(); }
-        if (g > 0) { rf.corrected = true; rf.saved_base = { kcal: Math.round(macros.kcal / g * 100), protein: +(macros.protein / g * 100).toFixed(1), carbs: +(macros.carbs / g * 100).toFixed(1), fat: +(macros.fat / g * 100).toFixed(1), fiber: +((macros.fiber || 0) / g * 100).toFixed(1) }; rf.saved_kind = 'per100'; rf.saved_serving_g = g; rf.saved_serving_label = ''; }
-      });
+      pushItemEntries(d, date, mealId, items, 'recipe', ids);
       d.cook_stats = d.cook_stats || {}; d.cook_stats.cooked = (d.cook_stats.cooked || 0) + 1; d.cook_stats.last = date;
     });
     window.MTRACK && MTRACK('food_logged', { count: items.length, source: 'recipe' });
@@ -13670,7 +13638,7 @@ function App() {
       {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
-      {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onAddItems={(mealId, items) => addEstimateItems(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} isPremium={isPremium} />}
       {/* One quick weigh sheet for the whole app: the buddy's ask, the Progress button and the
           ?action=weigh shortcut all land here rather than each growing their own entry point. */}
@@ -13683,7 +13651,7 @@ function App() {
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="text-[#8A8A90] text-xl leading-none">×</button></div>
           <div className="text-[12px] text-[#8A8A90] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
-          <MealEstimate apiKey={db.profile.aiKey} db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} />
+          <MealEstimate apiKey={db.profile.aiKey} db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}

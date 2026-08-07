@@ -43,6 +43,7 @@ const storeJs = read('app/store.js').trim();
 const gameJs = read('app/game.js').trim();
 const quantityJs = read('app/quantity.js').trim();
 const recipeJs = read('app/recipe.js').trim();
+const cofidJs = read('app/cofid.js').trim();
 
 let html = read('index.html');
 
@@ -82,6 +83,16 @@ if (html.includes('<script>\n/*\n * recipe.js')) {
   const qEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * quantity.js')) + '</script>'.length;
   if (qEnd < '</script>'.length) throw new Error('quantity block end not found for recipe.js insertion');
   html = html.slice(0, qEnd) + '\n' + recipeBlock + html.slice(qEnd);
+}
+// cofid block (grounding an AI estimate against the UK food tables) - splice if present, else
+// first-time insert after recipe
+const cofidBlock = '<script>\n' + cofidJs + '\n</script>';
+if (html.includes('<script>\n/*\n * cofid.js')) {
+  spliceBlock('<script>\n/*\n * cofid.js', cofidBlock, '</script>');
+} else {
+  const rEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * recipe.js')) + '</script>'.length;
+  if (rEnd < '</script>'.length) throw new Error('recipe block end not found for cofid.js insertion');
+  html = html.slice(0, rEnd) + '\n' + cofidBlock + html.slice(rEnd);
 }
 // app block (transpiled): the script holding the React app. Babel's output start can vary between
 // versions (some hoist an `_extends` helper before `const { ... } = React`), so we don't match on the
