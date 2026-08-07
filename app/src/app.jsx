@@ -7467,6 +7467,7 @@ function FoodLog({ db, update, openLog, showToast }) {
   const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the day card
   const [showCal, setShowCal] = useState(false);
   const [copyTo, setCopyTo] = useState(null);
+  const [photoUp, setPhotoUp] = useState(null); // the entry being re-estimated from a photo taken later
   const [confirm, setConfirm] = useState(null);
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(today + 'T00:00:00'); return { y: d.getFullYear(), m: d.getMonth() }; });
   const meals = mealsForDay(db, date);
@@ -7513,6 +7514,22 @@ function FoodLog({ db, update, openLog, showToast }) {
   // Opens the in-app naming sheet (no more window.prompt); the save itself happens in its onSave.
   const saveMeal = (m, me) => { setMealMenu(null); setNameSheet({ meal: m, entries: me.slice() }); };
   const saveEdit = (patch) => { applyEntryPatch(update, editing.id, patch); setEditing(null); toast('Updated ' + patch.name); };
+  /* A photo update is destructive in a way an ordinary edit is not: it throws away numbers the user
+     may have hand-corrected, and it is the AI that decided to. So the Undo carries the WHOLE entry
+     as it was, restored by id, rather than trying to reverse a patch. The toast leads with both
+     figures, because "820 kcal" on its own does not tell you whether the photo changed anything. */
+  const savePhotoUpdate = (entry, item) => {
+    const prev = JSON.parse(JSON.stringify(entry));
+    const was = Math.round((entry.computed_macros || {}).kcal || 0);
+    const now = Math.round((item.macros || {}).kcal || 0);
+    applyPhotoEstimate(update, entry.id, item);
+    setPhotoUp(null);
+    try { window.MTRACK && MTRACK('photo_update', { outcome: 'saved', was: was, now: now }); } catch (_) {}
+    toast((item.name || entry.name) + ': ' + was + ' → ' + now + ' kcal', 'Undo', () => update(d => {
+      const i = d.log_entries.findIndex(x => x.id === prev.id);
+      if (i >= 0) d.log_entries[i] = prev;
+    }));
+  };
 
   // ---- drag & drop: move a logged entry to another meal / reorder within a meal ----
   const [drag, setDrag] = useState(null);   // { id, name, mc }
@@ -7657,6 +7674,7 @@ function FoodLog({ db, update, openLog, showToast }) {
       <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu === e.id ? null : e.id); }} className="hit px-2 text-[#8A8A90] shrink-0" aria-label="Entry options">⋯</button>
       {menu === e.id && (<div className="absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl" onClick={ev => ev.stopPropagation()}>
         <button onClick={() => { setEditing(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Edit</button>
+        {E.photoUpdatable(e) && <button onClick={() => { setPhotoUp(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Update with a photo</button>}
         <button onClick={() => dup(e)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Duplicate</button>
         <button onClick={() => { setCopyTo({ title: 'Copy ' + e.name, entries: [e], srcDate: date, pickMeal: true, meal: e.meal_id }); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>
         <button onClick={() => del(e)} className="block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]">Delete</button>
@@ -7854,7 +7872,9 @@ function FoodLog({ db, update, openLog, showToast }) {
       {editing && (() => { const dc = dayContextFor(db, date, editing.id); const mm = meals.find(x => x.id === editing.meal_id);
         return <EditEntryModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)}
           onDelete={() => { del(editing); setEditing(null); }} contextLine={mm ? mm.name : null}
+          onPhotoUpdate={E.photoUpdatable(editing) ? (() => { setPhotoUp(editing); setEditing(null); }) : null}
           dayRest={dc && dc.rest} dayTarget={dc && dc.target} />; })()}
+      {photoUp && <PhotoUpdateSheet db={db} entry={photoUp} onSave={(item) => savePhotoUpdate(photoUp, item)} onClose={() => setPhotoUp(null)} />}
       {nameSheet && <NameSheet title="Save as meal" hint="Save this meal for one-tap logging. Name it:" initial={nameSheet.meal.name} saveLabel="Save meal" onSave={(name) => {
         const items = nameSheet.entries.map(e => ({ name: e.name, source: e.source, is_alcohol: e.is_alcohol, alcohol_split: e.alcohol_split, qtyLabel: e.qty_label, macros: e.computed_macros }));
         update(d => { d.saved_meals = (d.saved_meals || []).concat([{ id: Store.uid(), name, items, created_at: Date.now() }]); });
@@ -7907,6 +7927,48 @@ function applyEntryPatch(update, id, patch) {
     if (food) { food.macros = patch.macros; food.last_qty = patch.qty || food.last_qty; food.updated_at = Date.now(); if (patch.alcohol_split !== undefined) food.alcohol_split = patch.alcohol_split; }
   });
 }
+// Remember each AI-estimated component as a reusable, gram-scalable food, so it can be searched
+// and re-logged at any weight later. Keyed by normalised name, so a single "225 g chicken"
+// estimate enriches its own meal food rather than creating a duplicate. Shared by the first log of
+// an estimate and by a later photo update of one, since both hand back the same breakdown.
+function rememberEstimateItems(d, items) {
+  (items || []).forEach(ri => {
+    const g = +ri.grams || 0; if (g <= 0) return;
+    const rk = (ri.name || '').trim().toLowerCase(); if (!rk) return;
+    const per100 = { kcal: Math.round((+ri.kcal || 0) / g * 100), protein: +((+ri.protein || 0) / g * 100).toFixed(1), carbs: +((+ri.carbs || 0) / g * 100).toFixed(1), fat: +((+ri.fat || 0) / g * 100).toFixed(1), fiber: +((+ri.fiber || 0) / g * 100).toFixed(1) };
+    let rf = d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol);
+    if (!rf) { rf = { id: Store.uid(), name: ri.name, source: 'ai_estimate', is_alcohol: false, is_favorite: false, last_qty: g + ' g', macros: { kcal: +ri.kcal || 0, protein: +ri.protein || 0, carbs: +ri.carbs || 0, fat: +ri.fat || 0, fiber: +ri.fiber || 0 }, updated_at: Date.now() }; d.foods.push(rf); }
+    rf.corrected = true; rf.saved_base = per100; rf.saved_kind = 'per100'; rf.saved_serving_g = g; rf.saved_serving_label = ''; if (ri.nq) rf.nq = ri.nq; rf.updated_at = Date.now();
+  });
+}
+/* Replace what a logged entry says with a fresh estimate made from a photo taken later.
+   Deliberately NOT applyEntryPatch: that one edits an amount and leaves everything it was not told
+   about alone, which is right for "make it 180 g" and wrong here. A meal re-estimated from a photo
+   may no longer be counted in the unit the original was (200 g of chicken becomes "the whole
+   meal"), so the unit fields are ASSIGNED rather than conditionally updated, including to
+   undefined. Leaving a stale amount behind would make the edit sheet divide the new macros by the
+   old weight and quietly show a tenth of the meal. */
+function applyPhotoEstimate(update, id, item) {
+  update(d => {
+    const x = d.log_entries.find(y => y.id === id); if (!x) return;
+    const macros = normalizeMacros(item.macros, x.is_alcohol);
+    x.name = item.name || x.name;
+    x.qty_label = item.qtyLabel || '';
+    x.computed_macros = macros;
+    x.amount = item.amount; x.unit = item.unit; x.unit_noun = item.unitNoun;
+    x.serving_g = undefined;
+    x.source = 'ai_estimate';
+    // The nutrient record is what the Density Score reads. A re-estimate that came back without the
+    // extra nutrients must not leave the OLD meal's score attached to the new numbers, so an
+    // unscored estimate clears it and the day's backfill picks it up like any other unscored entry.
+    x.nq = item.nq || null;
+    x.photo_updated_at = Date.now();
+    const key = (x.name || '').trim().toLowerCase();
+    const food = key ? d.foods.find(y => y.name.trim().toLowerCase() === key && !!y.is_alcohol === !!x.is_alcohol) : null;
+    if (food) { food.macros = macros; food.last_qty = x.qty_label || food.last_qty; if (item.nq) food.nq = item.nq; food.updated_at = Date.now(); }
+    rememberEstimateItems(d, item.rememberItems);
+  });
+}
 // Small in-app naming sheet (replaces window.prompt): prefilled text, Save/Cancel.
 function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
   useBackClose(onClose);
@@ -7928,7 +7990,7 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
    the thing you were looking at. That is backwards, because the diary entry is the record that has
    to be right. It now shares the quantity control, the fraction chips and the day meter with the
    confirm screen, so a portion bug has one place to be fixed rather than two. */
-function EditEntryModal({ entry, onSave, onClose, onDelete, title, saveVerb, contextLine, dayRest, dayTarget }) {
+function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget }) {
   useBackClose(onClose);
   const topRef = useScrolledToTop();
   const m = entry.computed_macros || {};
@@ -8017,6 +8079,20 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, title, saveVerb, con
           <div className="text-sm text-[#8A8A90] mt-2 tnum">= {total.carbs}g carbs · {total.fat}g fat</div>
         </Field>
       </div>}
+      {/* Sits with "Numbers look off?" because it answers the same question, and above it because a
+          photograph settles an amount better than typing a gram figure at it does. Only offered on
+          entries where it means something: see Engine.photoUpdatable. */}
+      {onPhotoUpdate && <button onClick={onPhotoUpdate} className="w-full flex items-center gap-2.5 mb-3 pixel-btn py-3 px-3 text-left" style={{ background: 'var(--surface3)', border: '1px solid var(--border)' }}>
+        <Icon.cam width="18" height="18" className="shrink-0" />
+        <span className="min-w-0">
+          <span className="block text-[13px] font-medium" style={{ color: 'var(--text)' }}>Update with a photo</span>
+          {/* Once these numbers have come from a photo of the real plate they are no longer a
+              forecast, and the pitch for re-doing it would be a lie. Say what happened instead. */}
+          <span className="block text-[10.5px] leading-snug" style={{ color: 'var(--muted)' }}>{entry.photo_updated_at
+            ? 'Already read from a photo of the real thing. Snap it again if this still looks wrong.'
+            : 'Logged it before you ate it? Snap the real thing and the AI redoes the estimate.'}</span>
+        </span>
+      </button>}
       <Collapsible variant="inline" label="Numbers look off?" sub="Edit" className="mb-3">
       <div className="mb-2">
         <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={total.protein} onChange={e => setTotalField('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={total.carbs} onChange={e => setTotalField('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={total.fat} onChange={e => setTotalField('fat', e.target.value)} /></Field></div>
@@ -8872,7 +8948,9 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
 }
-function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered }) {
+// `verb` retitles the commit button and the strapline for a caller that is not adding a new line to
+// the diary. Left unset it keeps the original wording exactly, so the add flows are untouched.
+function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -8989,7 +9067,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] min-h-[44px] -ml-1 px-1 flex items-center">‹ Start over</button>
     <div className="flex items-center justify-between gap-2 mb-3">
-      <div className="text-[12px] text-[#8A8A90] leading-snug">Check it over, then log it.</div>
+      <div className="text-[12px] text-[#8A8A90] leading-snug">Check it over, then {verb ? verb.toLowerCase() + ' it' : 'log it'}.</div>
       {conf !== 'high' && <span className="text-[11px] shrink-0" style={{ color: confColor }}>{conf === 'low' ? 'Rough guess' : 'Fair guess'}</span>}
     </div>
     {/* The plate you are being asked to judge. Without it this screen asks "is 350 g right?" about
@@ -9072,7 +9150,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ('Add ' + final.kcal + ' kcal'))}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal'))}</Btn>
     {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[#8A8A90] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
@@ -9160,6 +9238,121 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
       <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
     </div>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
+  </div>);
+}
+/* UPDATE WITH A PHOTO · a diary entry re-estimated from the food as it actually turned up.
+   ----------------------------------------------------------------------------
+   Logging ahead of eating is a real habit and the app already supports it: you can put tomorrow's
+   lunch in today, and the whole week-planning flow assumes you will. What it did not support was
+   the second half of that habit. The entry you wrote at four o'clock is a FORECAST, and when the
+   food arrives there is a photograph available that settles it, but the only way to use one was to
+   delete the line and estimate again from scratch, which loses the meal it was filed under, its
+   place in the day, and anything you had already corrected by hand.
+
+   So this is deliberately an EDIT rather than a new log. One entry goes in, the same entry comes
+   out, with new numbers. The estimate itself reuses the machinery the first one used: the same
+   AI_PROMPT (so it hits the same prompt cache), the same AiConfirm review screen with its CoFID
+   check, its follow-up question and its "tell the AI what's wrong" box, and the same item
+   remembering. The only thing added is the context that this is a second look at something the
+   user has already committed to, and what they committed to.
+
+   That context is worth being careful about, because it cuts both ways. Handing the model the old
+   figures risks anchoring it to them, which would make the whole exercise a no-op; withholding
+   them throws away real information, since the person who typed "chicken katsu curry" knows things
+   the photo does not show. The wording below resolves it explicitly: the photo settles the
+   quantity and the identity, the old figures survive only where a photo cannot see (the oil in the
+   sauce, the drink out of frame). Itemising is off here on purpose: one entry cannot become five
+   without becoming a different thing than the one you were updating. */
+function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
+  useBackClose(onClose);
+  const key = db.profile.aiKey || 'builtin';
+  const MAX_PHOTOS = 3;
+  const [imgs, setImgs] = useState([]);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [result, setResult] = useState(null); const [ver, setVer] = useState(0);
+  const [refineCount, setRefineCount] = useState(0); const [answered, setAnswered] = useState('');
+  const [cam, setCam] = useState(false);
+  function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, MAX_PHOTOS)); }
+  function remImg(id) { setImgs(x => x.filter(f => f.id !== id)); }
+  // Same as the Estimate tab: the UK food tables are wanted the moment someone taps the button, not
+  // fetched in a race with the request.
+  useEffect(() => { loadGenericFoods().catch(() => {}); }, []);
+  const before = entry.computed_macros || {};
+  const brief = E.priorEstimateBrief(entry);
+  const words = ((entry.name || '') + ' ' + note).trim();
+  const shot = imgs.length === 1 ? 'The attached photo shows the real food and settles this' : 'The attached photos show the real food and settle this';
+  const ctx = () => 'Context: food or drink consumed in England. This is a RE-ESTIMATE of something already in the user\'s food diary.'
+    + ' They logged it earlier, before eating, as a plan or a guess, and have now photographed what actually turned up.'
+    + (brief ? ' What their diary currently says: ' + brief : '')
+    + ' ' + shot + ': work out the portion and the components from the photo rather than from those figures.'
+    + ' Treat what they logged as what they EXPECTED rather than as a measurement, and correct it wherever the photo disagrees, downwards as readily as upwards.'
+    + ' Where the photo genuinely cannot show something they clearly had (oil or butter in a sauce, a drink out of frame, a side they have already finished), keep it.'
+    + ' Keep the name they gave it unless the photo shows a different dish.'
+    + (note.trim() ? ' They add: "' + note.trim() + '"' : '')
+    + ' If a UK chain is named (e.g. Nando\'s, Wagamama, Pret, Greggs, Wetherspoons), anchor to that chain\'s PUBLISHED nutrition for the named item(s), adjusting for size and add-ons.'
+    + personalFoodHint(db) + personalNumbersHint(db, words) + cofidRefHint(words);
+  async function run() {
+    if (!imgs.length) { setErr('Add a photo of what you actually had.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const est = await claudeVision(key, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
+      setResult(est); setVer(v => v + 1);
+      try { window.MTRACK && MTRACK('photo_update', { outcome: 'estimated', photos: imgs.length, noted: !!note.trim(), was: Math.round(+before.kcal || 0) }); } catch (_) {}
+    } catch (e) { setErr('Update failed: ' + e.message); }
+    setBusy(false);
+  }
+  async function refine(correction, via) {
+    setRefineCount(n => n + 1);
+    if (via === 'question') setAnswered('used');
+    setBusy(true); setErr('');
+    try {
+      const prompt = 'Revise this meal estimate (consumed in England, re-estimated from the attached photo of the real food). Previous estimate JSON: ' + JSON.stringify(result)
+        + (brief ? '\nWhat the user had originally logged, before the photo: ' + brief : '')
+        + (note.trim() ? '\nTheir note: "' + note.trim() + '"' : '')
+        + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
+      const est = await claudeVision(key, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
+      setResult(est); setVer(v => v + 1);
+    } catch (e) { setErr('Re-estimate failed: ' + e.message); }
+    setBusy(false);
+  }
+  if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)}
+    title="Photograph what you actually had" subtitle="It replaces the estimate already in your diary"
+    frameHint="Fit the whole plate in the frame, then tap to capture." />;
+  // The old numbers stay on screen through the whole flow, including over the confirm screen. The
+  // question this sheet asks is "is the new figure better than the one I have?", and that cannot be
+  // answered while the one you have is two taps away behind a dismissed sheet.
+  const wasLine = (<div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+    <div className="text-[11px] text-[#8A8A90] mb-0.5">Currently logged{entry.qty_label ? ' · ' + entry.qty_label : ''}</div>
+    <div className="tnum text-[13px]"><span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(+before.kcal || 0)} kcal</span> · <span style={{ color: PRO_T }}>{Math.round(+before.protein || 0)}g P</span> · <span style={{ color: CARB_T }}>{Math.round(+before.carbs || 0)}g C</span> · <span style={{ color: FAT_T }}>{Math.round(+before.fat || 0)}g F</span></div>
+  </div>);
+  return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+      <div className="flex justify-between items-start gap-3 mb-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold leading-tight">Update with a photo</h2>
+          <div className="text-[11px] mt-1 truncate" style={{ color: 'var(--muted)' }}>{entry.name}</div>
+        </div>
+        <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button>
+      </div>
+      {wasLine}
+      {busy && !result ? <DinoLoader label="Reading what you actually had" />
+        : result ? (<div className="fade-in">
+          <AiConfirm key={ver} est={result} photos={imgs} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine}
+            verb="Update" onAdd={(item) => onSave(item)} onCancel={() => setResult(null)} />
+        </div>)
+        : (<>
+          <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">You logged this before you ate it. Snap the real thing and the AI re-does the estimate, replacing this entry rather than adding another.</div>
+          {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
+          {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none" aria-label="Remove photo">×</button></div>))}</div>}
+          <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className={inputCls + ' resize-y leading-relaxed'} placeholder="Anything different from the plan? e.g. bigger than I expected, came with chips" />
+          {/* This is a full AI estimate and it is billed like one. Saying so before the tap, rather
+              than letting the paywall say it after, is the difference between a price and a shock. */}
+          {window.MISPREMIUM !== true && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">Re-estimating uses one of your free AI logs.</div>}
+          <Btn kind="accent" className="w-full mt-3" disabled={!imgs.length} style={{ opacity: imgs.length ? 1 : 0.5 }} onClick={run}>Re-estimate from the photo</Btn>
+        </>)}
+      {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
+    </div>
   </div>);
 }
 // Load an external UMD script once, resolving when its global is present. Used to lazy-load the barcode
@@ -13560,19 +13753,7 @@ function App() {
         food.saved_serving_label = item.savedServingLabel || '';
         if (item.barcode) food.barcode = item.barcode;
       }
-      // Remember each AI-estimated component as a reusable, gram-scalable food, so it can be searched
-      // and re-logged at any weight later. Keyed by normalised name, so a single "225 g chicken"
-      // estimate enriches its own meal food rather than creating a duplicate.
-      if (item.rememberItems && item.rememberItems.length) {
-        item.rememberItems.forEach(ri => {
-          const g = +ri.grams || 0; if (g <= 0) return;
-          const rk = (ri.name || '').trim().toLowerCase(); if (!rk) return;
-          const per100 = { kcal: Math.round((+ri.kcal || 0) / g * 100), protein: +((+ri.protein || 0) / g * 100).toFixed(1), carbs: +((+ri.carbs || 0) / g * 100).toFixed(1), fat: +((+ri.fat || 0) / g * 100).toFixed(1), fiber: +((+ri.fiber || 0) / g * 100).toFixed(1) };
-          let rf = d.foods.find(x => x.name.trim().toLowerCase() === rk && !x.is_alcohol);
-          if (!rf) { rf = { id: Store.uid(), name: ri.name, source: 'ai_estimate', is_alcohol: false, is_favorite: false, last_qty: g + ' g', macros: { kcal: +ri.kcal || 0, protein: +ri.protein || 0, carbs: +ri.carbs || 0, fat: +ri.fat || 0, fiber: +ri.fiber || 0 }, updated_at: Date.now() }; d.foods.push(rf); }
-          rf.corrected = true; rf.saved_base = per100; rf.saved_kind = 'per100'; rf.saved_serving_g = g; rf.saved_serving_label = ''; if (ri.nq) rf.nq = ri.nq; rf.updated_at = Date.now();
-        });
-      }
+      rememberEstimateItems(d, item.rememberItems);
     });
     // Community food DB: if this was a barcoded food whose numbers the user corrected, contribute the
     // correction to the shared consensus (fire-and-forget, aggregate-only, guarded server-side).

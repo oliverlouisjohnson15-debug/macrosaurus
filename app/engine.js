@@ -368,6 +368,46 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Re-estimating a logged entry from a photo taken later.
+  //
+  // People log a plan. "Chicken katsu curry, 780 kcal" goes in at half past four because that is
+  // what they intend to order, and the thing that actually turns up is bigger, or drier, or came
+  // with chips. The diary entry is a forecast until the food exists, and the moment it does exist
+  // there is a photograph available that settles it.
+  //
+  // These two are the pure half of that: which entries the offer is worth making on, and how the
+  // existing entry gets described back to the estimator. They live here rather than inside the
+  // React component because the phrasing IS the behaviour: this string is the only thing telling
+  // the model what the user already believed, and a silently empty or malformed one turns a
+  // re-estimate into a blind first guess with no way to notice.
+
+  // Alcohol is out: its calories are split across carbs and fat by a slider rather than estimated,
+  // so replacing them with a meal estimate would quietly undo that split. Everything else that was
+  // eaten is fair game, because planning ahead is not something only the AI estimator is used for.
+  function photoUpdatable(entry) {
+    return !!entry && !entry.is_alcohol && (entry.ref_type || 'food') === 'food';
+  }
+
+  // The entry as one plain sentence: what they called it, how much of it, and the numbers they are
+  // currently carrying. Zero and missing macros are dropped rather than sent as "0 g protein",
+  // which reads to a model as a measured zero instead of a blank.
+  function priorEstimateBrief(entry) {
+    if (!entry) return '';
+    var name = String(entry.name || '').trim();
+    if (!name) return '';
+    var m = entry.computed_macros || {};
+    var qty = String(entry.qty_label || '').trim();
+    var parts = [];
+    var kcal = Math.round(Math.max(0, +m.kcal || 0));
+    if (kcal > 0) parts.push(kcal + ' kcal');
+    [['protein', m.protein], ['carbs', m.carbs], ['fat', m.fat], ['fibre', m.fiber]].forEach(function (p) {
+      var v = +p[1] || 0;
+      if (v > 0) parts.push(round(v, 1) + ' g ' + p[0]);
+    });
+    return '"' + name + '"' + (qty ? ' (' + qty + ')' : '') + (parts.length ? ': ' + parts.join(', ') : '') + '.';
+  }
+
+  // ---------------------------------------------------------------------------
   // What kind of food is this?
   //
   // Drives the icon on every diary row, and on a free account the colour of its tile too. Lives here
@@ -1757,6 +1797,7 @@
     ND_POPULATION_AVERAGE: ND_POPULATION_AVERAGE,
     nutriScore: nutriScore, nsFromNq: nsFromNq, densityScore: densityScore, dsBand: dsBand, dsReasons: dsReasons,
     meterCells: meterCells, densityTone: densityTone, foodKind: foodKind, foodTileTone: foodTileTone, pendingNqIds: pendingNqIds,
+    photoUpdatable: photoUpdatable, priorEstimateBrief: priorEstimateBrief,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   root.Engine = Engine;
