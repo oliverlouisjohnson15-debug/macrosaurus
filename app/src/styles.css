@@ -335,7 +335,13 @@ input, select { color-scheme: dark; }
 p, .leading-snug, .leading-relaxed { line-height: 1.7 !important; }
 
 /* ---- minimum ~44px touch target: expands the tappable area without growing the visual ---- */
-.hit { position: relative; }
+/* Expand a small control's TAP area to the 44px minimum without changing what is drawn (Apple HIG
+   44, Material 48, WCAG 2.2 SC 2.5.8 asks 24). The ::after is part of the button for hit-testing but
+   takes no space in layout, so a 16px close glyph stays a 16px close glyph and still catches a thumb.
+   Only claim `position: relative` when the element is not positioning itself: this rule lives after
+   Tailwind in the cascade, so an unguarded `position: relative` silently overrode `absolute` on any
+   button carrying both, which is exactly what had happened to one dismiss button. */
+.hit:not(.absolute):not(.fixed):not(.sticky) { position: relative; }
 .hit::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max(100%, 44px); height: max(100%, 44px); }
 
 /* ---- dino loading animation (AI is thinking, not crashed) ---- */

@@ -186,7 +186,7 @@ function IOSInstallSheet({ onClose }) {
   ];
   return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
     <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Add to Home Screen</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none" aria-label="Close">×</button></div>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Add to Home Screen</div><button onClick={onClose} className="hit text-[#8A8A90] text-xl leading-none" aria-label="Close">×</button></div>
       <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon.</div>
       <div className="space-y-3">
         {steps.map(([n, body]) => (<div key={n} className="flex items-start gap-3">
@@ -215,7 +215,7 @@ function InstallCard() {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-bold">Add Macrosaurus to your home screen</div>
-          <button onClick={dismiss} aria-label="Dismiss" className="text-[#8A8A90] text-lg leading-none shrink-0">×</button>
+          <button onClick={dismiss} aria-label="Dismiss" className="hit text-[#8A8A90] text-lg leading-none shrink-0">×</button>
         </div>
         <div className="text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug">{isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'}</div>
         <button onClick={onInstall} className="pixel-btn px-4 py-2.5 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{isIOS ? 'SHOW ME HOW' : 'INSTALL APP'}</button>
@@ -1906,7 +1906,7 @@ function QualityBar({ nd, onExplain }) {
   return (
     <div className="mb-2.5">
       <div className="flex justify-between items-baseline mb-1">
-        <button onClick={onExplain} className="pf text-[9px] active:opacity-70" style={{ color: 'var(--muted)' }}>DENSITY <span style={{ opacity: 0.7 }}>ⓘ</span></button>
+        <button onClick={onExplain} className="hit pf text-[9px] active:opacity-70" style={{ color: 'var(--muted)' }}>DENSITY <span style={{ opacity: 0.7 }}>ⓘ</span></button>
         <span className="tnum text-[12px]" style={{ color: has ? (nd.hit ? 'var(--good-ink)' : 'var(--text2)') : 'var(--muted)' }}>
           {has ? band.label : 'not scored yet'}
         </span>
@@ -2270,7 +2270,7 @@ function LegalDoc({ doc, onClose }) {
       <div className="w-full max-w-md pixel-box flex flex-col max-h-[90vh] overflow-hidden sheet-up" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
         <div className="p-5 pb-3 flex-none flex items-start justify-between" style={{ borderBottom: '2px solid var(--border)' }}>
           <div><h2 className="text-lg font-semibold">{d.title}</h2><div className="text-[10px] text-[#8A8A90] mt-0.5">Last updated {LEGAL_UPDATED}</div></div>
-          <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none shrink-0 ml-3">×</button>
+          <button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none shrink-0 ml-3">×</button>
         </div>
         <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 space-y-3.5" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
           {d.sections.map((s, i) => (<div key={i}><div className="text-sm mb-1" style={{ color: 'var(--accent-ink)', fontSynthesis: 'none' }}>{s.h}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed whitespace-pre-line">{s.p}</div></div>))}
@@ -2356,7 +2356,7 @@ function Auth() {
           <button onClick={submit} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'PLEASE WAIT…' : (mode === 'signup' ? 'CREATE ACCOUNT' : (mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'))}</button>
           {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[11px] mt-3 text-center' + (loginFailed ? ' underline font-semibold' : '')} style={{ color: 'var(--header)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
           {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
-          {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
+          {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
         </div>
         {mode === 'forgot'
           ? <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">← Back to log in</button>
@@ -2403,7 +2403,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
     <div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Estimate body fat</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Estimate body fat</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         {mode === 'bands' ? (<>
           <div className="text-[12px] text-[#8A8A90] mb-4">Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos.</div>
           <button onClick={() => setMode('photos')} className="w-full flex items-center gap-3 bg-[#4A9EEB]/12 border border-[#4A9EEB]/40 rounded-2xl p-3.5 mb-4 active:scale-[.99] transition">
@@ -2423,7 +2423,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
             <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onPick(result.pct); onClose(); }}>Use {result.pct}%</Btn><Btn kind="ghost" onClick={() => { setResult(null); }}>Retake</Btn></div>
           </div>
         ) : busy ? (<DinoLoader label="Reading your photos" />) : (<>
-          <button onClick={() => setMode('bands')} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
+          <button onClick={() => setMode('bands')} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
           <div className="text-[12px] text-[#8A8A90] mb-4">Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and <span className="text-white">never stored</span>.</div>
           <div className="grid grid-cols-3 gap-2 mb-4">{SLOTS.map(([s, l]) => (
             <label key={s} className="aspect-square rounded-2xl bg-[#1E1E22] border border-[#262629] flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
@@ -2599,7 +2599,7 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
         <div className="flex items-center gap-3 mb-3">
           <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={2.2} /></div>
           <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who}</div><div className="text-[15px] font-bold leading-tight">{resume ? 'Weigh in to resume' : "Today's weight"}</div></div>
-          <button onClick={onClose} className="ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+          <button onClick={onClose} className="hit ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
         </div>
         <div className="text-[11.5px] text-[#8A8A90] mb-3 leading-snug">{resume ? "Pop today's weight in and I'll pick your plan back up from here." : "Same time each morning, after the loo and before food or drink, gives the truest trend."}</div>
         {weighInputs}
@@ -3512,7 +3512,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{isNew ? 'Add weigh-in' : 'Edit weigh-in'}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{isNew ? 'Add weigh-in' : 'Edit weigh-in'}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         {isNew
           ? <Field label="Date"><input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className={inputCls} />{dupe && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>You already weighed in on this day, saving overwrites it.</div>}</Field>
           : <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">{fmtWeighDay(date)}</div>}
@@ -3910,7 +3910,7 @@ function FullSheet({ title, onClose, children }) {
   useBackClose(onClose);
   return (<div className="fixed inset-0 z-[85] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-      <button onClick={onClose} className="pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}>‹ Back</button>
+      <button onClick={onClose} className="hit pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}>‹ Back</button>
       <div className="pf text-[10px] uppercase" style={{ color: 'var(--header-text)' }}>{title}</div>
       <span className="w-10" />
     </div>
@@ -4055,7 +4055,7 @@ function DietBreakCard({ db, update }) {
         : <div className="fade-in">
           <div className="text-[11px] text-[#8A8A90] mb-2">How long?</div>
           <div className="grid grid-cols-2 gap-2">{[7, 14].map(n => <Btn key={n} kind="accent" onClick={() => start(n)}>{n} days</Btn>)}</div>
-          <button className="text-[11px] text-[#8A8A90] w-full text-center mt-2" onClick={() => setAsk(false)}>Back</button>
+          <button className="hit text-[11px] text-[#8A8A90] w-full text-center mt-2" onClick={() => setAsk(false)}>Back</button>
         </div>}
     </Card>
   );
@@ -4706,7 +4706,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
           <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
             <div className="flex items-start justify-between gap-2 mb-1">
               <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>{head}</div>
-              {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
+              {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
             </div>
             <div className="text-[11.5px] leading-snug">{msg.text}</div>
             {/* The weigh-in answers itself: the scale number goes in on the spot. */}
@@ -5298,7 +5298,7 @@ function BuddyChatModal({ db, onClose, isPremium }) {
             <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}><BuddyAvatar buddy={db.buddy || {}} px={1.6} /></div>
             <div className="min-w-0"><div className="text-[14px] font-bold truncate">{who}</div><div className="pf text-[7px] uppercase text-[#8A8A90]">{busy ? 'Thinking…' : 'Ask me anything'}</div></div>
           </div>
-          <button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+          <button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
         </div>
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
           {!turns.length && (
@@ -5374,7 +5374,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, i
         <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
         {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
         : (<>
-          <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+          <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
           {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
           <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
@@ -5425,7 +5425,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     </div>;
   };
   return <div className="fade-in">
-    <button onClick={onBack} className="text-[11px] text-[#8A8A90] mb-3">‹ Back</button>
+    <button onClick={onBack} className="hit text-[11px] text-[#8A8A90] mb-3">‹ Back</button>
     <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={16} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
@@ -5507,7 +5507,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   return (
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
-        {onBack ? <button onClick={onBack} className="text-[11px] text-[#8A8A90]">‹ Back</button> : <span />}
+        {onBack ? <button onClick={onBack} className="hit text-[11px] text-[#8A8A90]">‹ Back</button> : <span />}
         <div className="pf text-[10px]" style={{ color: 'var(--fat-ink)' }}><Spark size={9} /> {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
@@ -5571,7 +5571,7 @@ function BuddyColourModal({ db, update, onClose }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-1"><div className="text-[15px] font-bold">Change colour</div><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
+        <div className="flex items-center justify-between mb-1"><div className="text-[15px] font-bold">Change colour</div><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
         <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Pick a new colourway for {b.name || 'your buddy'}. Costs {COLOUR_COST} Amber (you have {amber}).</div>
         <div className="flex gap-3 justify-center mb-4">
           {options.map(pal => (
@@ -5900,7 +5900,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         {body}
       </div>
     </div>
@@ -6137,7 +6137,7 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
         <div className="flex items-center gap-3 mb-3">
           <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2.4} /></div>
           <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who} · daily readiness</div><div className="text-[15px] font-bold leading-tight">Morning read</div></div>
-          <button onClick={onClose} className="ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+          <button onClick={onClose} className="hit ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
         </div>
         <div className="space-y-2 mb-3">
           {recap.items.map(it => (
@@ -6187,7 +6187,7 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
         <div className="flex items-center gap-3 mb-3">
           <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2.4} /></div>
           <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who} · weekly recap</div><div className="text-[15px] font-bold leading-tight">Your week</div></div>
-          <button onClick={onClose} className="ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+          <button onClick={onClose} className="hit ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
         </div>
         <div className="space-y-2 mb-3">
           {rows.map(row => (
@@ -6316,7 +6316,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
         {synced
           ? <span className="pf text-[7px] uppercase" style={{ color: 'var(--good-ink)' }}><Tick size={8} /> Synced</span>
           : ghConfigured()
-            ? <button onClick={ghConnectGated} className="pf text-[7px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
+            ? <button onClick={ghConnectGated} className="hit pf text-[7px] uppercase" style={{ color: 'var(--accent-ink)' }}>Connect Health ›</button>
             : <span className="pf text-[7px] uppercase" style={{ color: 'var(--muted)' }}>Health soon</span>}
       </div>
 
@@ -6576,7 +6576,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold" style={{ color: TINT[metric] }}>{TITLE[metric]}</h2>
-          <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
+          <button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button>
         </div>
         {body}
       </div>
@@ -6604,7 +6604,7 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-1">
           <h2 className="text-lg font-bold">Connect Google Health</h2>
-          <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
+          <button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button>
         </div>
         <p className="text-[13px] leading-snug mb-3" style={{ color: 'var(--text2)' }}>
           With your permission, Macrosaurus reads the following from Google Health (read-only) to power features in the app:
@@ -6741,7 +6741,7 @@ function BuddyUpgradeOnboarding({ db, update, onDone, onLater }) {
               ))}
             </div>
             <Btn onClick={() => setStep('egg')} className="w-full">Choose my egg</Btn>
-            {onLater && <button onClick={onLater} className="mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Maybe later</button>}
+            {onLater && <button onClick={onLater} className="hit mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Maybe later</button>}
           </>
         ) : (
           <>
@@ -6801,7 +6801,7 @@ function MilestoneCelebration({ db, milestone, etaText, showToast, onClose, onMa
             ? <button onClick={onMaintain} className="pixel-btn flex-1 py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>MAINTENANCE</button>
             : <button onClick={onClose} className="pixel-btn flex-1 py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{milestone.cta}</button>}
         </div>
-        {onMaintain && <button onClick={onClose} className="mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Keep my current goal</button>}
+        {onMaintain && <button onClick={onClose} className="hit mt-3 text-[11px] text-[#8A8A90] active:opacity-60">Keep my current goal</button>}
       </div>
     </div>
   );
@@ -7399,7 +7399,7 @@ function CarryoverSheet({ et, onClose }) {
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Today's target</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Today's target</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Where today's {et.eff.kcal} kcal comes from.</div>
 
         <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -8059,7 +8059,7 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
   const quick = [{ iso: shiftISO(today, -1), label: 'Yesterday' }, { iso: today, label: 'Today' }, { iso: shiftISO(today, 1), label: 'Tomorrow' }];
   return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
+      <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
       {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
       {meals && <div className="mb-3">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Into which meal</div>
@@ -8447,7 +8447,7 @@ function ManualTab({ onPick, onCancel, day }) {
   }
   if (parsed) return <ConfirmFood {...parsed} onAdd={onPick} onCancel={() => setParsed(null)} dayRest={day && day.rest} dayTarget={day && day.target} />;
   return (<div>
-    {onCancel && <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>}
+    {onCancel && <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Back</button>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Baked beans" /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">These numbers are per</div>
     <div className="mb-3"><Seg value={v.basis} onChange={x => set('basis', x)} options={[{ v: '100g', l: '100 g' }, { v: 'serving', l: 'A serving' }]} /></div>
@@ -8625,7 +8625,7 @@ function DensityExplainer({ onClose }) {
         <div className="p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <div className="pf text-[10px] uppercase tracking-widest" style={{ color: 'var(--accent-ink)' }}>Density Score</div>
-            <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
+            <button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button>
           </div>
           <h2 className="text-xl font-bold mb-1">How well you ate, not just how much</h2>
           <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4">
@@ -9151,7 +9151,7 @@ function MealEstimate({ apiKey, db, onPick, onAddItems, onBack, initialFiles }) 
   if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} busy={busy} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (busy) return <DinoLoader label="Estimating your meal" />;
   return (<div className="fade-in">
-    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
+    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
     <div className="text-[12px] text-[#8A8A90] mb-3">Add a photo of the food or menu, plus any notes. You confirm before it's logged.</div>
     <div className="mb-1"><PhotoButton label="Add photos" multiple onFiles={addImgs} className="w-full" /></div>
     <div className="text-[10px] text-[#8A8A90] mb-3">Up to 3 photos of the food and/or the menu.</div>
@@ -9314,7 +9314,7 @@ function BlurPrompt({ what, onRetake, onUse }) {
     <div className="text-white font-semibold text-[15px] mb-1">That photo looks blurry</div>
     <div className="text-white/70 text-[13px] leading-snug mb-5">A sharp, well-lit shot reads the {what} far more accurately. Hold steady (or turn on the flash) and try again.</div>
     <button onClick={onRetake} className="w-full max-w-xs pixel-btn py-3 text-[13px] font-bold mb-2" style={{ background: '#fff', color: '#111' }}>Retake</button>
-    <button onClick={onUse} className="text-white/80 text-[13px] underline">Use this photo anyway</button>
+    <button onClick={onUse} className="hit text-white/80 text-[13px] underline">Use this photo anyway</button>
   </div>);
 }
 // Live in-app camera capture for nutrition labels, mirrors the barcode scanner, but grabs a still
@@ -10680,7 +10680,7 @@ function FeedbackSheet({ email, onClose }) {
   return (
     <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Send feedback</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
+        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Send feedback</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
         <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Report a bug, request a feature, or ask a question. We read every message{email ? ' and may reply to ' + email : ''}.</div>
         <Field label="Type"><Seg value={kind} options={TICKET_KINDS} onChange={setKind} /></Field>
         <Field label="Message">
@@ -11076,7 +11076,7 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
   return (
     <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">{aiFeatureLabel(log.feature)}</h2><button onClick={onClose} className="text-[#8A8A90] text-2xl leading-none">×</button></div>
+        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">{aiFeatureLabel(log.feature)}</h2><button onClick={onClose} className="hit text-[#8A8A90] text-2xl leading-none">×</button></div>
         <div className="text-[11px] text-[#8A8A90] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
         {log.images && log.images.length > 0 && <div className="mb-4">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
@@ -11138,7 +11138,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
 
   return (
     <div className="max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <button onClick={onBack} className="text-[12px] text-[#8A8A90] mb-2">← Back to menu</button>
+      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2">← Back to menu</button>
       <PageHeader kicker="Admin" title="Control room" />
       <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[10px] px-1 rounded" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
@@ -11241,7 +11241,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
   async function doSetPassword() { const p = newPw; if (!p || p.length < 6) { setErr('Password must be at least 6 characters.'); return; } setBusy('pw'); setErr(''); setMsg(''); try { await adminCall('set_password', { userId: u.id, password: p }); setNewPw(''); setConfirmKind(null); flash('Password updated. Their old password no longer works - share the new one with them securely and suggest they change it after logging in.'); } catch (e) { setErr(e.message); setConfirmKind(null); } setBusy(''); }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <button onClick={onBack} className="text-[12px] text-[#8A8A90] mb-2">← All users</button>
+      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2">← All users</button>
       <PageHeader kicker="Admin · user" title={u.email} />
       {msg && <div className="text-[12px] mb-3" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
@@ -11456,7 +11456,7 @@ function InviteSheet({ rewards, onClose, toast }) {
   async function copy() { try { await navigator.clipboard.writeText(link); toast && toast('Invite link copied'); } catch (_) {} }
   return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
     <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none" aria-label="Close">×</button></div>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="hit text-[#8A8A90] text-xl leading-none" aria-label="Close">×</button></div>
       <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Share your link. When a friend joins with it, you <b style={{ color: 'var(--text)' }}>both</b> get <b style={{ color: 'var(--text)' }}>5 free AI logs</b> and a <b style={{ color: 'var(--text)' }}>rare dino</b>.</div>
       <div className="pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--surface3)' }}>
         <div className="min-w-0 flex-1 text-[12px] tnum truncate">{link}</div>
@@ -11749,7 +11749,7 @@ function WelcomeCarousel({ onDone, reviewing, theme, buddy }) {
   return (<div className={'fixed inset-0 z-[95] ' + (dark ? 'theme-dark' : 'theme-light') + ' flex flex-col'} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="flex justify-between items-center px-5 py-4">
       <span className="pf text-[11px]" style={{ color: brand }}>MACROSAURUS</span>
-      <button onClick={onDone} className="text-[12px] text-[#8A8A90]">{reviewing ? 'Close' : 'Skip'}</button>
+      <button onClick={onDone} className="hit text-[12px] text-[#8A8A90]">{reviewing ? 'Close' : 'Skip'}</button>
     </div>
     <div className="flex-1 flex flex-col justify-center items-center text-center px-8 max-w-sm mx-auto">
       <div className="pixel-box p-6 mb-6 inline-flex items-center justify-center" style={{ background: 'var(--surface3)', borderColor: 'var(--border)' }}><SpriteSheet palette={bs.palette} species={bs.species} group={bs.group} anim={bs.anim} px={4} fps={bs.fps} /></div>
@@ -11937,7 +11937,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   if (draft) return <RecipeReview recipe={draft} note={note} onSave={onSaved} onCancel={() => { setNote(''); setDraft(null); }} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
+    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
     <div className="text-lg font-bold mb-3">Import a recipe</div>
     <ShareTip className="mb-4" />
     <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Or paste a link</div>
@@ -11968,7 +11968,7 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
   const setSteps = (txt) => setD(x => ({ ...x, steps: txt.split('\n').map(s => s.trim()).filter(Boolean) }));
   const priced = d.macros_per_serving.kcal > 0;
   return (<div className="fade-in">
-    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
+    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
     <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your cookbook, you can work out the macros or cook it whenever.</div>
     {/* Say plainly which parts of the video we actually read. When the importer had to watch or listen
@@ -11988,7 +11988,7 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
         </div>
       ))}
     </div>
-    <button onClick={addIng} className="text-[12px] mb-4" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
+    <button onClick={addIng} className="hit text-[12px] mb-4" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
     <Field label="Method (one step per line)">
       <textarea value={(d.steps || []).join('\n')} onChange={e => setSteps(e.target.value)} rows={Math.max(4, (d.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
     </Field>
@@ -12019,7 +12019,7 @@ function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
   const tabs = [['ai', 'Estimate'], ['search', 'Search'], ['manual', 'Manual']];
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="text-[#8A8A90] text-xl leading-none shrink-0">×</button></div>
+      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="hit text-[#8A8A90] text-xl leading-none shrink-0">×</button></div>
       <div className="text-[11px] text-[#8A8A90] mb-3">Set exact numbers for this ingredient if the automatic ones look off.</div>
       <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-3">{tabs.map(([k, l]) => <button key={k} onClick={() => { setTab(k); setErr(''); }} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
       {tab === 'ai' && <div className="text-center py-1"><div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Estimate the macros for this exact line with AI.</div><Btn kind="accent" className="w-full" onClick={aiEstimate}>{busy === 'ai' ? 'Estimating...' : 'Estimate with AI'}</Btn></div>}
@@ -12071,7 +12071,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
     <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
       <button onClick={() => setShowIng(true)} className="pixel-box px-3 py-1.5 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}><Icon.recipe width="14" height="14" /> Ingredients</button>
       <div className="pf text-[10px] text-[#8A8A90]">STEP {i + 1} / {steps.length}</div>
-      <button onClick={onClose} className="text-2xl leading-none text-[#8A8A90]" aria-label="Close">×</button>
+      <button onClick={onClose} className="hit text-2xl leading-none text-[#8A8A90]" aria-label="Close">×</button>
     </div>
     <div className="h-1 mx-5 mb-2 rounded-full" style={{ background: 'var(--surface3)' }}><div className="h-1 rounded-full" style={{ width: ((i + 1) / steps.length * 100) + '%', background: 'var(--accent)' }} /></div>
     <div className="flex-1 overflow-y-auto px-6 flex flex-col justify-center">
@@ -12093,7 +12093,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
     </div>
     {showIng && <div className="absolute inset-0 z-10 bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowIng(false)}>
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="text-xl leading-none text-[#8A8A90]">×</button></div>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="hit text-xl leading-none text-[#8A8A90]">×</button></div>
         <div className="space-y-0.5">{recipe.ingredients.map(ing => (
           <button key={ing.id} onClick={() => setChecked(c => Object.assign({}, c, { [ing.id]: !c[ing.id] }))} className="w-full flex items-center gap-3 text-left py-2">
             <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: '#fff' }}>{checked[ing.id] ? <Tick size={12} /> : null}</span>
@@ -12192,8 +12192,8 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const srcDot = { edamam: 'var(--good)', analysed: 'var(--good)', table: 'var(--good)', off: 'var(--good)', ai: '#F5C542', manual: 'var(--accent)', legacy: MUTED };
   return (<div className="fade-in">
     <div className="flex items-center justify-between mb-3">
-      <button onClick={onBack} className="text-[13px] text-[#8A8A90]">‹ Recipes</button>
-      <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>Save as meal</button><button onClick={onDelete} className="text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
+      <button onClick={onBack} className="hit text-[13px] text-[#8A8A90]">‹ Recipes</button>
+      <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>Save as meal</button><button onClick={onDelete} className="hit text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
     </div>
     <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
       <RecipeImg src={recipe.photo || recipe.thumbnail} iconSize={40} />
@@ -12225,7 +12225,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       : <div className="flex gap-2 mb-3">
         <Btn kind={hasMacros ? 'ghost' : 'accent'} className="flex-1" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</Btn>
       </div>}
-    {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="text-[12px] mb-4 underline" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
+    {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] mb-4 underline" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
     {(recipe.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-4 flex items-center justify-center gap-2" onClick={() => setCooking(true)}><Icon.recipe width="18" height="18" /> Start cooking</Btn>}
     <div className="flex items-center justify-between mb-2 mt-2">
       <div className="flex items-center gap-3"><div className="text-lg font-bold">Ingredients</div><button onClick={() => setEditIng(v => !v)} className="pf text-[9px] uppercase px-2 py-1 rounded" style={{ color: editIng ? '#111' : 'var(--accent-ink)', background: editIng ? 'var(--accent)' : 'transparent', border: '1px solid var(--accent)' }}>{editIng ? 'Done' : 'Edit'}</button></div>
@@ -12246,7 +12246,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
           </div>
         ))}
       </div>
-      <button onClick={addIng} className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
+      <button onClick={addIng} className="hit text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
       <Btn kind="ghost" className="w-full mb-4" onClick={() => analyze(false)} disabled={!!busy}>Re-work out the macros</Btn>
     </> : <>
       <div className="text-[11px] text-[#8A8A90] mb-2">Tick what you have. Tap a macro line to fix its numbers, or Edit to change the ingredients.</div>
@@ -12267,7 +12267,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
     </>}
     <Btn kind="ghost" className="w-full mb-5" onClick={addMissingToShopping} disabled={!missing.length}>{missing.length ? ('Add ' + missing.length + ' missing to shopping list') : 'You have everything'}</Btn>
-    <div className="flex items-center justify-between mb-2"><div className="text-lg font-bold">Method</div><button onClick={() => setEditSteps(v => !v)} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>{editSteps ? 'Done' : 'Edit'}</button></div>
+    <div className="flex items-center justify-between mb-2"><div className="text-lg font-bold">Method</div><button onClick={() => setEditSteps(v => !v)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>{editSteps ? 'Done' : 'Edit'}</button></div>
     {editSteps ? <textarea defaultValue={(recipe.steps || []).join('\n')} onBlur={e => setSteps(e.target.value)} rows={Math.max(4, (recipe.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed mb-6'} placeholder="One instruction per line" />
       : (recipe.steps || []).length > 0 ? <ol className="space-y-2 mb-6">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}</ol>
       : <div className="text-[12px] text-[#8A8A90] mb-6">No method yet. Tap Edit to add the steps.</div>}
@@ -12278,7 +12278,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     <Btn kind="accent" className="w-full" onClick={() => doLog('single')} disabled={!hasMacros}>{hasMacros ? 'Log a serving to today' : 'Work out the macros to log this'}</Btn>
     {resolved > 0 && hasMacros && <button onClick={() => doLog('items')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log itemised (one diary entry per ingredient)</button>}
     {hasMacros && Rcp.batchLeft(recipe) === 0 && <button onClick={() => doLog('single', { batch: true })} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Batch cooking? Log a serving and keep the rest as leftovers</button>}
-    {shareOn && recipe.source_url && <button onClick={togglePrivate} className="w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4">
+    {shareOn && recipe.source_url && <button onClick={togglePrivate} className="hit w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4">
       <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: 'var(--on-accent)' }}>{recipe.private ? <Tick size={10} /> : null}</span>
       Keep this recipe private (off Discover)
     </button>}
@@ -12307,7 +12307,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     {showColl && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowColl(false)}>
       <BackClose onClose={() => setShowColl(false)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Collections</div><button onClick={() => setShowColl(false)} className="text-xl leading-none text-[#8A8A90]">×</button></div>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Collections</div><button onClick={() => setShowColl(false)} className="hit text-xl leading-none text-[#8A8A90]">×</button></div>
         <div className="text-[12px] text-[#8A8A90] mb-3">Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways).</div>
         <div className="space-y-1.5 mb-4">{allCollections.map(c => { const on = (recipe.collections || []).includes(c); return (
           <button key={c} onClick={() => toggleColl(c)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>
@@ -12383,12 +12383,12 @@ function ShoppingListView({ db, update, showToast, onBack }) {
   );
 
   return (<div className="fade-in">
-    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
+    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
     <div className="flex items-center justify-between mb-3 gap-3">
       <h1 className="text-xl font-bold">Shopping list</h1>
       <div className="flex items-center gap-3 shrink-0">
-        {unchecked.length > 0 && <button onClick={shareList} className="text-[12px] flex items-center gap-1" style={{ color: 'var(--accent-ink)' }}><Icon.share width="14" height="14" /> Share</button>}
-        {checked.length > 0 && <button onClick={clearChecked} className="text-[12px] text-[#8A8A90] underline">Clear ticked</button>}
+        {unchecked.length > 0 && <button onClick={shareList} className="hit text-[12px] flex items-center gap-1" style={{ color: 'var(--accent-ink)' }}><Icon.share width="14" height="14" /> Share</button>}
+        {checked.length > 0 && <button onClick={clearChecked} className="hit text-[12px] text-[#8A8A90] underline">Clear ticked</button>}
       </div>
     </div>
 
@@ -12413,7 +12413,7 @@ function ShoppingListView({ db, update, showToast, onBack }) {
       </>}
 
     {pantry.length > 0 && <div className="mt-2">
-      <button onClick={() => setShowPantry(v => !v)} className="text-[11px] text-[#8A8A90]">{showPantry ? 'Hide' : 'Show'} pantry ({pantry.length}) {showPantry ? '' : '›'}</button>
+      <button onClick={() => setShowPantry(v => !v)} className="hit text-[11px] text-[#8A8A90]">{showPantry ? 'Hide' : 'Show'} pantry ({pantry.length}) {showPantry ? '' : '›'}</button>
       {showPantry && <Card className="p-3 mt-2">
         <div className="text-[11px] text-[#8A8A90] mb-2">Things you always have. We won't add these from recipes. Remove one to start buying it again.</div>
         <div className="flex flex-wrap gap-1.5">{pantry.map(n => (
@@ -12559,7 +12559,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
       <BackClose onClose={() => setPreview(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={preview.thumbnail} iconSize={40} /></div>
-        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
+        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="hit text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
         {preview.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(preview)}</div> : null}
         <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
         <div className="text-[13px] font-bold mb-1">Ingredients</div>
@@ -12568,7 +12568,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
         {(preview.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => { onCook(preview); setPreview(null); }}><Icon.recipe width="17" height="17" /> Start cooking</Btn>}
         <Btn kind={(preview.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => { onSaveCopy(preview); setPreview(null); }}>Save to cookbook</Btn>
         <div className="text-[11px] text-center text-[#8A8A90] mt-2 leading-snug">Cook it now, no need to save. Save only the ones you want to keep.</div>
-        {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
+        {preview.source_url && <a href={preview.source_url} target="_blank" rel="noreferrer" className="hit block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
       </div>
     </div>}
   </div>);
@@ -12603,7 +12603,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
   const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
   const forecast = weekForecastTargets(db, days);
   return (<div className="fade-in">
-    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
+    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
     <div className="flex items-center justify-between mb-3">
       <PageHeader kicker="Cook" title="Meal plan" />
       <div className="flex items-center gap-1.5 shrink-0">
@@ -12636,14 +12636,14 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
                 <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove">×</button>
               </div>); })}
           </div>}
-          <button onClick={() => setPick(d)} className="text-[12px]" style={{ color: 'var(--accent-ink)' }}>+ Add a recipe</button>
+          <button onClick={() => setPick(d)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>+ Add a recipe</button>
         </Card>);
       })}
     </div>
     {pick && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPick(null)}>
       <BackClose onClose={() => setPick(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Add to {new Date(pick + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })}</div><button onClick={() => setPick(null)} className="text-xl leading-none text-[#8A8A90]">×</button></div>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Add to {new Date(pick + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })}</div><button onClick={() => setPick(null)} className="hit text-xl leading-none text-[#8A8A90]">×</button></div>
         {priced.length ? <div className="space-y-1.5">{priced.map(r => (
           <button key={r.id} onClick={() => addToPlan(pick, r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--surface3)' }}>
             <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
@@ -12669,7 +12669,7 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <BackClose onClose={onClose} />
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="text-xl leading-none text-[#8A8A90]" aria-label="Close">×</button></div>
+      <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="hit text-xl leading-none text-[#8A8A90]" aria-label="Close">×</button></div>
       <div className="mb-4">
         <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Show</div>
         <div className="flex flex-wrap gap-2">
@@ -12737,7 +12737,7 @@ function TransientCookLog({ recipe, meals, onLog, onClose }) {
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">To which meal</div>
         <div className="space-y-2">{meals.map(mm => <button key={mm.id} onClick={() => onLog(mm.id, portion)} className="w-full pixel-box px-4 py-3 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>{mm.name}</button>)}</div>
       </> : <div className="text-[12px] text-[#8A8A90] leading-snug">No macros on this one yet. Add it to your cookbook to work them out and log it.</div>}
-      <button onClick={onClose} className="w-full text-center text-[12px] text-[#8A8A90] mt-4">Not now</button>
+      <button onClick={onClose} className="hit w-full text-center text-[12px] text-[#8A8A90] mt-4">Not now</button>
     </div>
   </div>);
 }
@@ -12807,7 +12807,7 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} title="Photograph your fridge" subtitle="Snap a shelf or two of what you've got" frameHint="Fit a shelf in the frame, then tap to capture. Add more after." unavailable="Camera unavailable here, upload a photo of your fridge instead." fileName="fridge.jpg" />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
+    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
     <div className="text-lg font-bold mb-1">Cook from your fridge</div>
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
     {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
@@ -12856,7 +12856,7 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
     <BackClose onClose={onClose} />
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={40} /><span className="absolute top-2 left-2 pf text-[8px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
-      <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
+      <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="hit text-xl leading-none text-[#8A8A90] shrink-0">×</button></div>
       {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(pub)}</div> : null}
       <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good-ink)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
       {mm.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {r.servings}</div><RecipeMacroStrip macros={mm} per /></Card>}
@@ -12867,7 +12867,7 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
       {!m.makeable && <Btn kind="ghost" className="w-full mb-2" onClick={() => onAddMissing(m)}>Add {m.missingCount} missing to shopping list</Btn>}
       {(r.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-2 flex items-center justify-center gap-2" onClick={() => onCook(pub)}><Icon.recipe width="17" height="17" /> Start cooking</Btn>}
       <Btn kind={(r.steps || []).length > 0 ? 'ghost' : 'accent'} className="w-full" onClick={() => onSave(pub)}>Save to cookbook</Btn>
-      {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" className="block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
+      {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" className="hit block text-center text-[12px] mt-3 underline text-[#8A8A90]">Watch the original</a>}
     </div>
   </div>);
 }
@@ -13126,7 +13126,7 @@ function Paywall({ reason, onCheckout, onClose }) {
         <div className="p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
             <div className="text-[10px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
-            <button onClick={onClose} aria-label="Close" className="text-[#8A8A90] text-2xl leading-none">×</button>
+            <button onClick={onClose} aria-label="Close" className="hit text-[#8A8A90] text-2xl leading-none">×</button>
           </div>
           <h2 className="text-xl font-bold mb-1">{headline}</h2>
           <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4">{blurb}</div>
@@ -13724,7 +13724,7 @@ function App() {
       {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
         <BackClose onClose={() => setShared(null)} />
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="text-[#8A8A90] text-xl leading-none">×</button></div>
+          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="hit text-[#8A8A90] text-xl leading-none">×</button></div>
           <div className="text-[12px] text-[#8A8A90] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
           <MealEstimate apiKey={db.profile.aiKey} db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
