@@ -322,5 +322,20 @@
       "confidence": "published-secondary"
     }
   ],
+  "portion_example": {
+    "id": "roti-133g",
+    "text": "a tandoori roti",
+    "image": "tests/fixtures/photos/roti.jpg",
+    "grams": 133,
+    "expect": {
+      "kcal": 395,
+      "protein": 15,
+      "carbs": 55,
+      "fat": 10,
+      "fiber": 6
+    },
+    "truth": "Weighed on scales, macros from the pack",
+    "confidence": "weighed"
+  },
   "portion": []
 }

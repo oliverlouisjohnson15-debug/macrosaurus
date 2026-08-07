@@ -129,5 +129,7 @@ if (k) {
 if (!(fx.portion || []).length) {
   console.log('\n  \x1b[33mNo portion cases.\x1b[0m Only nutrition knowledge at a known weight is being measured.');
   console.log('  Portion estimation is the dominant error source in the literature and is currently unmeasured.');
-  console.log('  Add cases to "portion" in tests/fixtures/calibration.json: { id, text, image, expect } with a weighed truth.');
+  console.log('  Add cases to "portion" in tests/fixtures/calibration.json. The shape is in');
+  console.log('  "portion_example" in that same file: photograph the meal, weigh it, and leave the');
+  console.log('  weight OUT of `text` so the estimator has to work the portion out from the picture.');
 }

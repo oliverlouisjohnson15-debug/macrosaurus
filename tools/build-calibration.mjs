@@ -121,6 +121,18 @@ const out = {
   measures: 'Nutrition knowledge at a KNOWN weight. It does not measure portion estimation from a photograph, which the literature identifies as the dominant error source. Add photo cases to "portion" by hand.',
   targets: { kcal_mape: 0.2, note: 'Research models with depth data reach 13.5-15.3% MAPE on Nutrition5k. 20-25% is a realistic target for a single photo through a general vision model; these known-weight cases should beat it comfortably.' },
   knowledge, composite, chain,
+  // Portion cases cannot be generated: they need a photograph and a set of scales. Copy this shape
+  // into "portion" once you have one. Anything in "portion" is picked up and reported separately by
+  // tools/calibrate.mjs, and guarded by tests/calibration.test.js like every other case.
+  portion_example: {
+    id: 'roti-133g',
+    text: 'a tandoori roti',                       // what you would actually have typed
+    image: 'tests/fixtures/photos/roti.jpg',       // path from the repo root
+    grams: 133,                                    // weighed, NOT stated in `text`
+    expect: { kcal: 395, protein: 15, carbs: 55, fat: 10, fiber: 6 },
+    truth: 'Weighed on scales, macros from the pack',
+    confidence: 'weighed'
+  },
   portion: []
 };
 

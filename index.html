@@ -5251,7 +5251,7 @@ function IOSInstallSheet({
     className: "text-lg font-bold"
   }, "Add to Home Screen"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-xl leading-none",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
@@ -5328,7 +5328,7 @@ function InstallCard() {
   }, "Add Macrosaurus to your home screen"), /*#__PURE__*/React.createElement("button", {
     onClick: dismiss,
     "aria-label": "Dismiss",
-    className: "hit text-[#8A8A90] text-lg leading-none shrink-0"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug"
   }, isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'), /*#__PURE__*/React.createElement("button", {
@@ -9340,7 +9340,7 @@ function LegalDoc({
   }, "Last updated ", LEGAL_UPDATED)), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     "aria-label": "Close",
-    className: "hit text-[#8A8A90] text-2xl leading-none shrink-0 ml-3"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0 ml-3"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "px-5 py-4 overflow-y-auto flex-1 min-h-0 space-y-3.5",
     style: {
@@ -9782,7 +9782,7 @@ function BodyFatPicker({
     className: "text-lg font-semibold"
   }, "Estimate body fat"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), mode === 'bands' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos."), /*#__PURE__*/React.createElement("button", {
@@ -10357,7 +10357,7 @@ function WeighSheet({
     className: "text-[15px] font-bold leading-tight"
   }, resume ? 'Weigh in to resume' : "Today's weight")), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit ml-auto text-[#8A8A90] text-2xl leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 ml-auto text-[#8A8A90] text-2xl leading-none shrink-0",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] text-[#8A8A90] mb-3 leading-snug"
@@ -11654,7 +11654,7 @@ function CheckInModal({
     className: "pf text-[9px] uppercase text-[#8A8A90]"
   }, "Check-in"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none",
     "aria-label": "Close"
   }, "×")), beatIdx >= 0 && dots, phase === 'loop' && pendingLoop && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -12117,7 +12117,7 @@ function WeighInEditModal({
     className: "text-lg font-semibold"
   }, isNew ? 'Add weigh-in' : 'Edit weigh-in'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), isNew ? /*#__PURE__*/React.createElement(Field, {
     label: "Date"
   }, /*#__PURE__*/React.createElement("input", {
@@ -12252,7 +12252,7 @@ function WeighInLog({
       className: "text-[11px] text-[#8A8A90] tnum mt-0.5"
     }, e.bodyfat, "% bf · ", BF_SOURCE_LABEL[e.bf_source || 'manual'], " · lean ", fmtWeight(lean, unit))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(e),
-      className: "hit text-[#8A8A90] pl-3 pr-1 text-xl leading-none shrink-0",
+      className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0",
       "aria-label": "Delete"
     }, "×"));
   }), entries.length > CAP && /*#__PURE__*/React.createElement("button", {
@@ -14336,7 +14336,7 @@ function BuddyHabitat({
     }, head), msg.dismiss && /*#__PURE__*/React.createElement("button", {
       onClick: msg.dismiss,
       "aria-label": "Dismiss",
-      className: "hit shrink-0 -mt-1 -mr-1 px-1 text-[#8A8A90] text-base leading-none active:opacity-60"
+      className: "w-11 h-11 flex items-center justify-center shrink-0 shrink-0 -mt-1 -mr-1 text-[#8A8A90] text-base leading-none active:opacity-60"
     }, "×")), /*#__PURE__*/React.createElement("div", {
       className: "text-[11.5px] leading-snug"
     }, msg.text), msg.weigh && /*#__PURE__*/React.createElement(WeighInline, {
@@ -15831,7 +15831,7 @@ function BuddyChatModal({
     className: "pf text-[7px] uppercase text-[#8A8A90]"
   }, busy ? 'Thinking…' : 'Ask me anything'))), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto -mx-1 px-1"
@@ -15998,7 +15998,7 @@ function MacrodexModal({
     className: "text-lg font-semibold"
   }, "Play"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4"
   }, [['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
@@ -16532,7 +16532,7 @@ function BuddyColourModal({
     className: "text-[15px] font-bold"
   }, "Change colour"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 leading-snug"
@@ -17439,7 +17439,7 @@ function FightModal({
     className: "text-lg font-semibold"
   }, "Dino fight"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), body));
 }
 // Slim weight-trend teaser for the dashboard: latest weight + a sparkline, taps through to
@@ -17839,7 +17839,7 @@ function BuddyReadinessSheet({
     className: "text-[15px] font-bold leading-tight"
   }, "Morning read")), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit ml-auto text-[#8A8A90] text-2xl leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 ml-auto text-[#8A8A90] text-2xl leading-none shrink-0",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-3"
@@ -17972,7 +17972,7 @@ function WeeklyRecapSheet({
     className: "text-[15px] font-bold leading-tight"
   }, "Your week")), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit ml-auto text-[#8A8A90] text-2xl leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 ml-auto text-[#8A8A90] text-2xl leading-none shrink-0",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-3"
@@ -18769,7 +18769,7 @@ function MetricBreakdownSheet({
   }, TITLE[metric]), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     "aria-label": "Close",
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), body));
 }
 
@@ -18823,7 +18823,7 @@ function GoogleHealthDisclosure({
   }, "Connect Google Health"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     "aria-label": "Close",
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("p", {
     className: "text-[13px] leading-snug mb-3",
     style: {
@@ -20556,7 +20556,7 @@ function CarryoverSheet({
     className: "text-lg font-semibold"
   }, "Today's target"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 leading-snug"
   }, "Where today's ", et.eff.kcal, " kcal comes from."), /*#__PURE__*/React.createElement("div", {
@@ -21745,7 +21745,7 @@ function NameSheet({
     className: "text-lg font-semibold"
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), hint && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3 leading-snug"
   }, hint), /*#__PURE__*/React.createElement(TextInput, {
@@ -21928,7 +21928,7 @@ function EditEntryModal({
     }
   }, contextLine))), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0",
     "aria-label": "Close"
   }, "×")), canSwitch && /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
@@ -22124,7 +22124,7 @@ function CopyToModal({
     className: "text-lg font-semibold truncate pr-2"
   }, title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none shrink-0"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0"
   }, "×")), count > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] tnum mb-3",
     style: {
@@ -22622,7 +22622,7 @@ function FoodTab({
       className: "text-[11px] text-[#8A8A90] tnum"
     }, Math.round(t.kcal), " kcal · P", Math.round(t.protein), " C", Math.round(t.carbs), " F", Math.round(t.fat))), /*#__PURE__*/React.createElement("button", {
       onClick: () => setConfirmDel(sm),
-      className: "hit px-2 shrink-0 text-[#8A8A90] text-lg leading-none",
+      className: "w-11 h-11 flex items-center justify-center shrink-0 shrink-0 text-[#8A8A90] text-lg leading-none",
       "aria-label": "Delete saved meal"
     }, "×"));
   }))), !favs.length && !myShown.length && !savedMeals.length && /*#__PURE__*/React.createElement("div", {
@@ -22922,7 +22922,7 @@ function LogSheet({
     }))
   })), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 bg-[#1E1E22] p-1 rounded-2xl"
@@ -23560,7 +23560,7 @@ function DensityExplainer({
   }, "Density Score"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     "aria-label": "Close",
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("h2", {
     className: "text-xl font-bold mb-1"
   }, "How well you ate, not just how much"), /*#__PURE__*/React.createElement("div", {
@@ -27070,7 +27070,7 @@ function WeekPlansScreen({
     }
   }, w.acceptRateKgPerWeek === 0 ? 'Holding steady' : 'Aiming at ' + w.acceptRateKgPerWeek + ' kg a week')), /*#__PURE__*/React.createElement("button", {
     onClick: () => setConfirmDel(w),
-    className: "hit px-2 text-[#8A8A90] text-lg leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0",
     title: "Cancel"
   }, "×"))))) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
@@ -27796,7 +27796,7 @@ function MealsScreen({
     style: {
       opacity: list.length <= 1 ? 0.3 : 1
     },
-    className: "hit px-2 text-[#8A8A90] text-lg leading-none shrink-0",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0",
     title: "Remove"
   }, "×"))), /*#__PURE__*/React.createElement("button", {
     onClick: addDef,
@@ -28647,7 +28647,7 @@ function FeedbackSheet({
     className: "text-lg font-semibold"
   }, "Send feedback"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
@@ -29833,7 +29833,7 @@ function AdminAiLogDetail({
     className: "text-lg font-semibold"
   }, aiFeatureLabel(log.feature)), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-4 break-words"
   }, log.email || 'unknown', " · ", adminFmtWhen(log.created_at), " · ", modelLabel(log.model), log.status === 'error' ? ' · error' : ''), log.images && log.images.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -30985,7 +30985,7 @@ function InviteSheet({
     className: "text-lg font-bold"
   }, "Invite friends"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-xl leading-none",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
@@ -31537,7 +31537,7 @@ function Toast({
     className: "hit text-sm font-semibold text-[#4A9EEB] shrink-0"
   }, toast.actionLabel), onClose && /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-lg leading-none shrink-0 -mr-1",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1",
     "aria-label": "Dismiss"
   }, "×")));
 }
@@ -32493,7 +32493,7 @@ function IngredientMacroSheet({
     className: "text-base font-bold truncate pr-2"
   }, "Macros for “", line, "”"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-[#8A8A90] text-xl leading-none shrink-0"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3"
   }, "Set exact numbers for this ingredient if the automatic ones look off."), /*#__PURE__*/React.createElement("div", {
@@ -32664,7 +32664,7 @@ function CookMode({
     className: "pf text-[10px] text-[#8A8A90]"
   }, "STEP ", i + 1, " / ", steps.length), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-2xl leading-none text-[#8A8A90]",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-2xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "h-1 mx-5 mb-2 rounded-full",
@@ -32762,7 +32762,7 @@ function CookMode({
     className: "text-base font-bold"
   }, "Ingredients"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowIng(false),
-    className: "hit text-xl leading-none text-[#8A8A90]"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "space-y-0.5"
   }, recipe.ingredients.map(ing => /*#__PURE__*/React.createElement("button", {
@@ -33472,7 +33472,7 @@ function RecipeDetail({
     className: "text-base font-bold"
   }, "Collections"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowColl(false),
-    className: "hit text-xl leading-none text-[#8A8A90]"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways)."), /*#__PURE__*/React.createElement("div", {
@@ -34118,7 +34118,7 @@ function RecipeHub({
     className: "text-lg font-bold leading-tight"
   }, preview.title), /*#__PURE__*/React.createElement("button", {
     onClick: () => setPreview(null),
-    className: "hit text-xl leading-none text-[#8A8A90] shrink-0"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"
   }, "×")), preview.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
@@ -34384,7 +34384,7 @@ function PlannerView({
     weekday: 'long'
   })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setPick(null),
-    className: "hit text-xl leading-none text-[#8A8A90]"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, "×")), priced.length ? /*#__PURE__*/React.createElement("div", {
     className: "space-y-1.5"
   }, priced.map(r => /*#__PURE__*/React.createElement("button", {
@@ -34470,7 +34470,7 @@ function RecipeFilterSheet({
     className: "text-base font-bold"
   }, "Filter & sort"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-xl leading-none text-[#8A8A90]",
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
@@ -35043,7 +35043,7 @@ function FridgePublicSheet({
     className: "text-lg font-bold leading-tight"
   }, r.title), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "hit text-xl leading-none text-[#8A8A90] shrink-0"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"
   }, "×")), pub && pub.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
@@ -35685,7 +35685,7 @@ function Paywall({
   }, "Macrosaurus Premium"), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
     "aria-label": "Close",
-    className: "hit text-[#8A8A90] text-2xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("h2", {
     className: "text-xl font-bold mb-1"
   }, headline), /*#__PURE__*/React.createElement("div", {
@@ -37041,7 +37041,7 @@ function App() {
     className: "text-lg font-bold"
   }, "Log shared photo", shared.files.length === 1 ? '' : 's'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setShared(null),
-    className: "hit text-[#8A8A90] text-xl leading-none"
+    className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(DescribeTab, {
