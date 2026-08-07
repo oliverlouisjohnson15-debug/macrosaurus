@@ -24382,7 +24382,43 @@ function AiConfirm({
     }
   }, "Could be ", low, "–", high, " kcal"), src.assumptions && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2 leading-relaxed"
-  }, src.assumptions), checks.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, src.assumptions), onRefine && ask && askOpts.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-3 fade-in",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      borderColor: 'var(--accent)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] font-semibold mb-2",
+    style: {
+      color: 'var(--text)'
+    }
+  }, ask), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 flex-wrap"
+  }, askOpts.map(o => /*#__PURE__*/React.createElement("button", {
+    key: o,
+    type: "button",
+    disabled: busy,
+    onClick: () => {
+      setAsked(true);
+      onRefine(o);
+    },
+    className: "rounded-lg px-2.5 py-1.5 text-[11px]",
+    style: {
+      background: 'var(--bg)',
+      border: '1px solid var(--border)',
+      color: 'var(--text)',
+      opacity: busy ? 0.5 : 1
+    }
+  }, o)), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setAsked(true),
+    className: "rounded-lg px-2.5 py-1.5 text-[11px]",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Skip"))), checks.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-2",
     style: {
       background: 'var(--surface3)',
@@ -24448,43 +24484,7 @@ function AiConfirm({
     className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
   }, "↳ ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] py-1"
-  }, "All items removed. Tell the AI what to fix below, or start over.")), onRefine && ask && askOpts.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 mb-3 fade-in",
-    style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none',
-      borderColor: 'var(--accent)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] font-semibold mb-2",
-    style: {
-      color: 'var(--text)'
-    }
-  }, ask), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 flex-wrap"
-  }, askOpts.map(o => /*#__PURE__*/React.createElement("button", {
-    key: o,
-    type: "button",
-    disabled: busy,
-    onClick: () => {
-      setAsked(true);
-      onRefine(o);
-    },
-    className: "rounded-lg px-2.5 py-1.5 text-[11px]",
-    style: {
-      background: 'var(--bg)',
-      border: '1px solid var(--border)',
-      color: 'var(--text)',
-      opacity: busy ? 0.5 : 1
-    }
-  }, o)), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: () => setAsked(true),
-    className: "rounded-lg px-2.5 py-1.5 text-[11px]",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "Skip"))), onRefine && /*#__PURE__*/React.createElement("div", {
+  }, "All items removed. Tell the AI what to fix below, or start over.")), onRefine && /*#__PURE__*/React.createElement("div", {
     className: "rounded-2xl p-3 mb-3 border border-[#262629]",
     style: {
       background: 'var(--surface3)'

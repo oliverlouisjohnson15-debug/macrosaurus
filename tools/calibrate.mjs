@@ -1,8 +1,11 @@
 /*
  * calibrate.mjs - measure the meal estimator against known truth.
  *
- * Run:  ANTHROPIC_API_KEY=sk-... node tools/calibrate.mjs
- *       ANTHROPIC_API_KEY=sk-... node tools/calibrate.mjs --only=chain
+ * Run:  ANTHROPIC_API_KEY=sk-... npm run calibrate
+ *       ANTHROPIC_API_KEY=sk-... node tools/calibrate.mjs --only=composite
+ *
+ * Groups: knowledge (one food, known weight), composite (a plate of several, known weights),
+ * chain (a named menu item), portion (your photos, weighed - empty until you add them).
  *
  * NOT part of `npm test`: it costs money and needs network, so CI cannot run it. Run it by hand
  * before and after any change to AI_PROMPT, and keep the two reports side by side. A prompt change
@@ -20,7 +23,7 @@
  * that photo estimators run about a third low is an MPE finding, not a MAPE one.
  */
 import { readFileSync, existsSync } from 'fs';
-import { basename, extname } from 'path';
+import { extname } from 'path';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) { console.error('Set ANTHROPIC_API_KEY.'); process.exit(1); }
@@ -83,7 +86,7 @@ async function runGroup(name, cases) {
     const e = pct(gotK, wantK);
     errs.push({ id: c.id, e, conf: c.confidence });
     const mac = ['protein', 'carbs', 'fat']
-      .map(k => (c.expect[k] > 0 ? fmtPct(pct(+est[k + '_g'] || 0, c.expect[k])) : '—'))
+      .map(k => (c.expect[k] > 0 ? fmtPct(pct(+est[k + '_g'] || 0, c.expect[k])) : '-'))
       .join(' ');
     const colour = Math.abs(e) <= 0.2 ? '\x1b[32m' : Math.abs(e) <= 0.35 ? '\x1b[33m' : '\x1b[31m';
     console.log(pad(c.id, 26) + pad(wantK + ' kcal', 11) + pad(gotK + ' kcal', 11) + colour + pad(fmtPct(e), 10) + '\x1b[0m' + mac);
@@ -99,6 +102,7 @@ async function runGroup(name, cases) {
 
 const groups = [];
 if (!only || only === 'knowledge') groups.push(['knowledge', fx.knowledge]);
+if (!only || only === 'composite') groups.push(['composite', fx.composite || []]);
 if (!only || only === 'chain') groups.push(['chain', fx.chain]);
 if (!only || only === 'portion') groups.push(['portion', fx.portion || []]);
 

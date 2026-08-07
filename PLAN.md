@@ -253,7 +253,7 @@ Once other people use the app, it handles UK users' **health data** (weight, bod
 - **Label-OCR accuracy check** against a set of real UK labels before shipping §5.2.
 - Guardrails: targets never below safe floor; protein floor respected; weekly adjustment capped.
 - Manual QA on a real phone browser per screen.
-- **AI estimator calibration** — `node tools/calibrate.mjs` against `tests/fixtures/calibration.json`, run by hand before and after any change to `AI_PROMPT` (it needs an API key, so CI cannot). Reports MAPE *and* signed bias; the fixture's own ground truth is guarded in CI by `tests/calibration.test.js`.
+- **AI estimator calibration** — `npm run calibrate` (`tools/calibrate.mjs`) against `tests/fixtures/calibration.json`, run by hand before and after any change to `AI_PROMPT` (it needs an API key, so CI cannot). Reports MAPE *and* signed bias; the fixture's own ground truth is guarded in CI by `tests/calibration.test.js`.
 
 ---
 

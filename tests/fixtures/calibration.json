@@ -232,6 +232,68 @@
       "confidence": "measured"
     }
   ],
+  "composite": [
+    {
+      "id": "roast-dinner",
+      "text": "a plate with 180 g grilled chicken breast, 250 g boiled potatoes and 100 g steamed broccoli",
+      "grams": 530,
+      "expect": {
+        "kcal": 485,
+        "protein": 66.2,
+        "carbs": 47.3,
+        "fat": 4.7,
+        "fiber": 7.8
+      },
+      "truth": "CoFID sum: Chicken, breast, grilled without skin, meat only @ 180 g + Potatoes, old, boiled in unsalted water, flesh only @ 250 g + Broccoli, green, steamed @ 100 g",
+      "components": 3,
+      "confidence": "measured"
+    },
+    {
+      "id": "fish-and-veg",
+      "text": "140 g grilled cod, 200 g of cooked spaghetti and 100 g of steamed broccoli",
+      "grams": 440,
+      "expect": {
+        "kcal": 464,
+        "protein": 47.3,
+        "carbs": 66.5,
+        "fat": 2.8,
+        "fiber": 7.2
+      },
+      "truth": "CoFID sum: Cod, flesh only, grilled @ 140 g + Pasta, white, spaghetti, dried, boiled in unsalted water @ 200 g + Broccoli, green, steamed @ 100 g",
+      "components": 3,
+      "confidence": "measured"
+    },
+    {
+      "id": "breakfast",
+      "text": "2 boiled eggs (100 g), 2 slices of wholemeal bread (72 g) and 200 ml of whole milk",
+      "grams": 372,
+      "expect": {
+        "kcal": 425,
+        "protein": 27.7,
+        "carbs": 39.4,
+        "fat": 18.6,
+        "fiber": 5
+      },
+      "truth": "CoFID sum: Eggs, chicken, whole, boiled @ 100 g + Bread, wholemeal, average @ 72 g + Milk, whole, pasteurised, average @ 200 g",
+      "components": 3,
+      "confidence": "measured"
+    },
+    {
+      "id": "beans-on-toast",
+      "text": "200 g of baked beans on 72 g of wholemeal toast with 10 g of butter",
+      "grams": 282,
+      "expect": {
+        "kcal": 420,
+        "protein": 18.1,
+        "carbs": 65.5,
+        "fat": 11.3,
+        "fiber": 15.7
+      },
+      "truth": "CoFID sum: Baked beans, canned in tomato sauce @ 200 g + Bread, wholemeal, toasted @ 72 g + Butter, salted @ 10 g",
+      "components": 3,
+      "confidence": "measured"
+    }
+  ],
   "chain": [
     {
       "id": "bigmac",

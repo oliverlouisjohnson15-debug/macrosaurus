@@ -4,7 +4,9 @@
   "private": true,
   "description": "Adaptive UK macro and body-composition tracker (PWA).",
   "scripts": {
-    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/*.test.js"
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/*.test.js",
+    "calibrate": "node tools/calibrate.mjs",
+    "build:calibration": "node tools/build-calibration.mjs"
   },
   "dependencies": {
     "@babel/core": "^8.0.1",

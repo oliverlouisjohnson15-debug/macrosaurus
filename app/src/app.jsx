@@ -8990,6 +8990,16 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
     </div>
     {high > low && low > 0 && <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>Could be {low}–{high} kcal</div>}
     {src.assumptions && <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">{src.assumptions}</div>}
+    {/* One targeted question beats a generic "add more detail" nudge, and it lands AFTER a real
+        estimate rather than blocking one. Answering re-runs the refine call with the chosen wording,
+        so it costs the user a single tap and reuses the correction path that already exists. */}
+    {onRefine && ask && askOpts.length > 0 && <div className="pixel-box p-3 mb-3 fade-in" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--accent)' }}>
+      <div className="text-[12px] font-semibold mb-2" style={{ color: 'var(--text)' }}>{ask}</div>
+      <div className="flex gap-1.5 flex-wrap">{askOpts.map(o => (
+        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); onRefine(o); }} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
+        <button type="button" onClick={() => setAsked(true)} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>Skip</button>
+      </div>
+    </div>}
     {checks.length > 0 && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1.5" style={{ color: 'var(--fat-ink)' }}>{checks.length === 1 ? "One item doesn't match the food tables" : checks.length + " items don't match the food tables"}</div>
       <div className="space-y-1.5">{checks.map(c => (
@@ -9011,16 +9021,6 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
           {it.assumption && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">↳ {it.assumption}</div>}
         </div>))}
       {items.length === 0 && <div className="text-[11px] text-[#8A8A90] py-1">All items removed. Tell the AI what to fix below, or start over.</div>}
-    </div>}
-    {/* One targeted question beats a generic "add more detail" nudge, and it lands AFTER a real
-        estimate rather than blocking one. Answering re-runs the refine call with the chosen wording,
-        so it costs the user a single tap and reuses the correction path that already exists. */}
-    {onRefine && ask && askOpts.length > 0 && <div className="pixel-box p-3 mb-3 fade-in" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--accent)' }}>
-      <div className="text-[12px] font-semibold mb-2" style={{ color: 'var(--text)' }}>{ask}</div>
-      <div className="flex gap-1.5 flex-wrap">{askOpts.map(o => (
-        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); onRefine(o); }} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
-        <button type="button" onClick={() => setAsked(true)} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>Skip</button>
-      </div>
     </div>}
     {onRefine && <div className="rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Something off? Tell the AI</div>
