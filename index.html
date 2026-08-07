@@ -24124,6 +24124,7 @@ function ConfirmFood({
 }
 function AiConfirm({
   est,
+  photos,
   onAdd,
   onAddItems,
   onCancel,
@@ -24359,7 +24360,14 @@ function AiConfirm({
     style: {
       color: confColor
     }
-  }, conf === 'low' ? 'Rough guess' : 'Fair guess')), /*#__PURE__*/React.createElement(Field, {
+  }, conf === 'low' ? 'Rough guess' : 'Fair guess')), (photos || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 flex-wrap mb-3"
+  }, photos.map(p => /*#__PURE__*/React.createElement("img", {
+    key: p.id,
+    src: p.url,
+    alt: "",
+    className: "w-16 h-16 object-cover rounded-xl border border-[#262629]"
+  }))), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: name,
@@ -24651,11 +24659,19 @@ function DescribeTab({
   db,
   onPick,
   onAddItems,
-  onScan
+  onScan,
+  onBack,
+  initialFiles
 }) {
   const key = db.profile.aiKey || 'builtin';
   const [text, setText] = useState('');
-  const [imgs, setImgs] = useState([]);
+  // initialFiles arrives from the share sheet (a photo shared into the app) and from the Scan tab's
+  // "describe it instead" route, both of which used to land on a second, near-identical estimator.
+  const [imgs, setImgs] = useState(() => (initialFiles || []).slice(0, 3).map(f => ({
+    id: Store.uid(),
+    file: f,
+    url: URL.createObjectURL(f)
+  })));
   const MAX_PHOTOS = 3;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -24772,6 +24788,7 @@ function DescribeTab({
   }, /*#__PURE__*/React.createElement(AiConfirm, {
     key: ver,
     est: result,
+    photos: imgs,
     busy: busy,
     onRefine: refine,
     onAdd: onPick,
@@ -24790,7 +24807,10 @@ function DescribeTab({
   if (busy) return /*#__PURE__*/React.createElement(DinoLoader, {
     label: "Working out your meal"
   });
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", null, onBack && /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "hit text-[13px] text-[#8A8A90] mb-2 flex items-center"
+  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm."), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("button", {
     onClick: () => setCam(true),
@@ -24887,154 +24907,6 @@ function DescribeTab({
       color: 'var(--accent-ink)'
     }
   }, "Scan instead")), err && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#F5C542] mt-3 fade-in"
-  }, err));
-}
-const MEAL_SOURCES = [{
-  v: 'home',
-  l: 'Home-cooked'
-}, {
-  v: 'restaurant',
-  l: 'Restaurant'
-}, {
-  v: 'takeaway',
-  l: 'Takeaway'
-}];
-function MealEstimate({
-  apiKey,
-  db,
-  onPick,
-  onAddItems,
-  onBack,
-  initialFiles
-}) {
-  const [imgs, setImgs] = useState(() => (initialFiles || []).slice(0, 3).map(f => ({
-    id: Store.uid(),
-    file: f,
-    url: URL.createObjectURL(f)
-  }))); // { id, file, url }
-  const [notes, setNotes] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const [result, setResult] = useState(null);
-  const [ver, setVer] = useState(0);
-  const MAX_PHOTOS = 3;
-  function addImgs(list) {
-    const arr = Array.from(list || []).map(f => ({
-      id: Store.uid(),
-      file: f,
-      url: URL.createObjectURL(f)
-    }));
-    setImgs(x => x.concat(arr).slice(0, MAX_PHOTOS));
-  }
-  function remove(id) {
-    setImgs(x => x.filter(f => f.id !== id));
-  }
-  useEffect(() => {
-    loadGenericFoods().catch(() => {});
-  }, []);
-  function ctx() {
-    return 'Context: a meal eaten in England. If the notes name a UK restaurant or chain, anchor to that chain\'s published nutrition.' + (notes.trim() ? ' Notes: ' + notes.trim() : '') + personalFoodHint(db) + personalNumbersHint(db, notes) + cofidRefHint(notes);
-  }
-  async function run() {
-    if (!imgs.length && !notes.trim()) {
-      setErr('Add a food photo, a menu photo, or a description.');
-      return;
-    }
-    setBusy(true);
-    setErr('');
-    try {
-      const est = await claudeVision(apiKey, imgs.map(i => i.file), ctx(), {
-        model: AI_MODEL,
-        maxTokens: 3000,
-        maxImg: 768,
-        cacheText: AI_PROMPT
-      });
-      setResult(est);
-      setVer(v => v + 1);
-    } catch (e) {
-      setErr('Estimate failed: ' + e.message);
-    }
-    setBusy(false);
-  }
-  async function refine(correction) {
-    setBusy(true);
-    setErr('');
-    try {
-      // Slim refine: the previous JSON already carries the schema, so we skip resending the full estimator prompt.
-      const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
-      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, {
-        model: AI_MODEL,
-        maxTokens: 3000,
-        maxImg: 768
-      });
-      setResult(est);
-      setVer(v => v + 1);
-    } catch (e) {
-      setErr('Re-estimate failed: ' + e.message);
-    }
-    setBusy(false);
-  }
-  if (result) return /*#__PURE__*/React.createElement("div", {
-    className: "fade-in"
-  }, /*#__PURE__*/React.createElement(AiConfirm, {
-    key: ver,
-    est: result,
-    busy: busy,
-    onRefine: refine,
-    onAdd: onPick,
-    onAddItems: onAddItems,
-    onCancel: () => setResult(null)
-  }), err && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#F5C542] mt-3"
-  }, err));
-  if (busy) return /*#__PURE__*/React.createElement(DinoLoader, {
-    label: "Estimating your meal"
-  });
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fade-in"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
-    className: "hit text-[13px] text-[#8A8A90] mb-3"
-  }, "‹ Back"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "Add a photo of the food or menu, plus any notes. You confirm before it's logged."), /*#__PURE__*/React.createElement("div", {
-    className: "mb-1"
-  }, /*#__PURE__*/React.createElement(PhotoButton, {
-    label: "Add photos",
-    multiple: true,
-    onFiles: addImgs,
-    className: "w-full"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] text-[#8A8A90] mb-3"
-  }, "Up to 3 photos of the food and/or the menu."), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 flex-wrap mb-3"
-  }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
-    key: i.id,
-    className: "relative"
-  }, /*#__PURE__*/React.createElement("img", {
-    src: i.url,
-    className: "w-16 h-16 object-cover rounded-xl border border-[#262629]"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => remove(i.id),
-    className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
-  }, "×")))), /*#__PURE__*/React.createElement(Field, {
-    label: "Notes (optional)",
-    hint: "Name the place or dish, plus size, sides and sauces."
-  }, /*#__PURE__*/React.createElement("textarea", {
-    value: notes,
-    onChange: e => setNotes(e.target.value),
-    rows: 5,
-    className: inputCls + ' resize-y leading-relaxed',
-    style: {
-      minHeight: 120
-    },
-    placeholder: "e.g. Nando's, half chicken, medium, peri chips and coleslaw, ate it all"
-  })), /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "w-full",
-    onClick: run
-  }, busy ? 'Estimating…' : 'Estimate with AI'), err && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#F5C542] mt-3 fade-in"
   }, err));
 }
@@ -25810,8 +25682,7 @@ function PhotoTab({
     dayRest: day && day.rest,
     dayTarget: day && day.target
   });
-  if (mode === 'meal') return /*#__PURE__*/React.createElement(MealEstimate, {
-    apiKey: key,
+  if (mode === 'meal') return /*#__PURE__*/React.createElement(DescribeTab, {
     db: db,
     onPick: onPick,
     onAddItems: onAddItems,
@@ -37089,8 +36960,7 @@ function App() {
     className: "hit text-[#8A8A90] text-xl leading-none"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
-  }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(MealEstimate, {
-    apiKey: db.profile.aiKey,
+  }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(DescribeTab, {
     db: db,
     initialFiles: shared.files,
     onBack: () => setShared(null),

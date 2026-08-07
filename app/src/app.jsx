@@ -8872,7 +8872,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
 }
-function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
+function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -8978,6 +8978,10 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
       <div className="text-[12px] text-[#8A8A90] leading-snug">Check it over, then log it.</div>
       {conf !== 'high' && <span className="text-[11px] shrink-0" style={{ color: confColor }}>{conf === 'low' ? 'Rough guess' : 'Fair guess'}</span>}
     </div>
+    {/* The plate you are being asked to judge. Without it this screen asks "is 350 g right?" about
+        a meal you can no longer see, which is not a question anyone can answer. */}
+    {(photos || []).length > 0 && <div className="flex gap-2 flex-wrap mb-3">{photos.map(p => (
+      <img key={p.id} src={p.url} alt="" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" />))}</div>}
     <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much did you have?</div>
     {single ? <div className="flex items-center gap-2">
@@ -9052,10 +9056,13 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with
 // UK chain anchoring, ideal for a "grande oat caramel macchiato") → the shared AiConfirm sheet.
-function DescribeTab({ db, onPick, onAddItems, onScan }) {
+function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
   const key = db.profile.aiKey || 'builtin';
   const [text, setText] = useState('');
-  const [imgs, setImgs] = useState([]); const MAX_PHOTOS = 3;
+  // initialFiles arrives from the share sheet (a photo shared into the app) and from the Scan tab's
+  // "describe it instead" route, both of which used to land on a second, near-identical estimator.
+  const [imgs, setImgs] = useState(() => (initialFiles || []).slice(0, 3).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })));
+  const MAX_PHOTOS = 3;
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [result, setResult] = useState(null); const [ver, setVer] = useState(0);
   const [listening, setListening] = useState(false); const [cam, setCam] = useState(false);
@@ -9103,10 +9110,11 @@ function DescribeTab({ db, onPick, onAddItems, onScan }) {
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
   }
-  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} busy={busy} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
+  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} busy={busy} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" />;
   return (<div>
+    {onBack && <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-2 flex items-center">‹ Back</button>}
     <div className="text-[12px] text-[#8A8A90] mb-3">Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm.</div>
     {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
@@ -9124,48 +9132,6 @@ function DescribeTab({ db, onPick, onAddItems, onScan }) {
       <div className="text-[11px] text-[#8A8A90] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
       <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
     </div>}
-    {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
-  </div>);
-}
-const MEAL_SOURCES = [{ v: 'home', l: 'Home-cooked' }, { v: 'restaurant', l: 'Restaurant' }, { v: 'takeaway', l: 'Takeaway' }];
-function MealEstimate({ apiKey, db, onPick, onAddItems, onBack, initialFiles }) {
-  const [imgs, setImgs] = useState(() => (initialFiles || []).slice(0, 3).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) }))); // { id, file, url }
-  const [notes, setNotes] = useState('');
-  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  const [result, setResult] = useState(null); const [ver, setVer] = useState(0);
-  const MAX_PHOTOS = 3;
-  function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, MAX_PHOTOS)); }
-  function remove(id) { setImgs(x => x.filter(f => f.id !== id)); }
-  useEffect(() => { loadGenericFoods().catch(() => {}); }, []);
-  function ctx() { return 'Context: a meal eaten in England. If the notes name a UK restaurant or chain, anchor to that chain\'s published nutrition.' + (notes.trim() ? ' Notes: ' + notes.trim() : '') + personalFoodHint(db) + personalNumbersHint(db, notes) + cofidRefHint(notes); }
-  async function run() {
-    if (!imgs.length && !notes.trim()) { setErr('Add a food photo, a menu photo, or a description.'); return; }
-    setBusy(true); setErr('');
-    try { const est = await claudeVision(apiKey, imgs.map(i => i.file), ctx(), { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT }); setResult(est); setVer(v => v + 1); }
-    catch (e) { setErr('Estimate failed: ' + e.message); }
-    setBusy(false);
-  }
-  async function refine(correction) {
-    setBusy(true); setErr('');
-    try {
-      // Slim refine: the previous JSON already carries the schema, so we skip resending the full estimator prompt.
-      const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
-      const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 }); setResult(est); setVer(v => v + 1);
-    } catch (e) { setErr('Re-estimate failed: ' + e.message); }
-    setBusy(false);
-  }
-  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} busy={busy} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
-  if (busy) return <DinoLoader label="Estimating your meal" />;
-  return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Add a photo of the food or menu, plus any notes. You confirm before it's logged.</div>
-    <div className="mb-1"><PhotoButton label="Add photos" multiple onFiles={addImgs} className="w-full" /></div>
-    <div className="text-[10px] text-[#8A8A90] mb-3">Up to 3 photos of the food and/or the menu.</div>
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remove(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
-    <Field label="Notes (optional)" hint="Name the place or dish, plus size, sides and sauces.">
-      <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={5} className={inputCls + ' resize-y leading-relaxed'} style={{ minHeight: 120 }} placeholder="e.g. Nando's, half chicken, medium, peri chips and coleslaw, ate it all" />
-    </Field>
-    <Btn kind="accent" className="w-full" onClick={run}>{busy ? 'Estimating…' : 'Estimate with AI'}</Btn>
     {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
   </div>);
 }
@@ -9464,7 +9430,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
     setBusy('');
   }
   if (parsed) return <ConfirmFood {...parsed} asAlcohol={asAlcohol} onAdd={onPick} onCancel={() => { setParsed(null); setMode(null); }} onRescan={(parsed.source === 'off' || parsed.source === 'community') ? () => { setRescan(true); setParsed(null); setMode('label'); } : undefined} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
-  if (mode === 'meal') return <MealEstimate apiKey={key} db={db} onPick={onPick} onAddItems={onAddItems} onBack={() => setMode(null)} />;
+  if (mode === 'meal') return <DescribeTab db={db} onPick={onPick} onAddItems={onAddItems} onBack={() => setMode(null)} />;
   if (mode === 'scan') return <LiveScanner onFound={lookupBarcode} onClose={() => setMode(null)} />;
   if (mode === 'label') return <LabelScanner onCapture={f => { setMode(null); onLabel(f); }} onClose={() => setMode(null)} />;
   if (busy) return <DinoLoader label={busy} />;
@@ -13732,7 +13698,7 @@ function App() {
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="hit text-[#8A8A90] text-xl leading-none">×</button></div>
           <div className="text-[12px] text-[#8A8A90] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
-          <MealEstimate apiKey={db.profile.aiKey} db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
+          <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
