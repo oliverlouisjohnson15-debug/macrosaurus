@@ -8872,7 +8872,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
 }
-function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy }) {
+function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -8890,6 +8890,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
     return { name: it.name || 'Item', grams: grams, kcal: kcal, protein: protein, carbs: carbs, fat: fat, fiber: fiber, satfat: satfat, sugars: sugars, salt: salt, assumption: it.assumption || '', userSpecified: !!it.user_specified, per: grams > 0 ? { kcal: kcal / grams, protein: protein / grams, carbs: carbs / grams, fat: fat / grams, fiber: fiber / grams, satfat: satfat / grams, sugars: sugars / grams, salt: salt / grams } : null };
   }));
   function setGrams(i, val) {
+    setEdited(true);
     setItems(arr => arr.map((it, idx) => {
       if (idx !== i) return it;
       if (val === '') return Object.assign({}, it, { grams: '' });
@@ -8904,9 +8905,18 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
   const [foods, setFoods] = useState(null);
   useEffect(() => { let live = true; loadGenericFoods().then(f => { if (live) setFoods(f); }).catch(() => {}); return () => { live = false; }; }, []);
   const checks = useMemo(() => (foods ? cofidCheck(foods, items) : []), [foods, items]);
+  // Fired once per estimate when the offer first appears, so 'shown' can be compared against
+  // 'applied' later. Without the denominator an unused offer is indistinguishable from no offer.
+  const shownRef = useRef(false);
+  useEffect(() => {
+    if (shownRef.current || !checks.length) return;
+    shownRef.current = true;
+    try { window.MTRACK && MTRACK('ai_tables_offer', { outcome: 'shown', count: checks.length }); } catch (_) {}
+  }, [checks.length]);
   // Re-price one item from its matched CoFID food, keeping the grams the model estimated from the
   // photo. Once applied the energy density matches, so the item drops out of `checks` on its own.
   function applyCofid(c) {
+    try { window.MTRACK && MTRACK('ai_tables_offer', { outcome: 'applied', direction: c.high ? 'high' : 'low', ai: c.aiKcal100, ref: c.refKcal100 }); } catch (_) {}
     setItems(arr => arr.map((it, idx) => {
       if (idx !== c.i) return it;
       const g = +it.grams || 0, p = c.profile;
@@ -8959,6 +8969,10 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
   // skipped, and never re-shown for a refined estimate: being asked a second question after
   // correcting the first answer reads as an interrogation rather than help.
   const [asked, setAsked] = useState(false);
+  // `edited` is per-mount and that is correct: it asks whether THIS view of the numbers was
+  // hand-corrected. refineCount and answered come from the parent, because this component is
+  // remounted with a new key after every refine and anything counted here would reset to zero.
+  const [edited, setEdited] = useState(false);
   const ask = asked ? '' : String(src.question || '').trim();
   const askOpts = (Array.isArray(src.question_options) ? src.question_options : []).map(o => String(o || '').trim()).filter(Boolean).slice(0, 4);
   const logItems = items
@@ -9015,8 +9029,8 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
     {onRefine && ask && askOpts.length > 0 && <div className="pixel-box p-3 mb-3 fade-in" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--accent)' }}>
       <div className="text-[12px] font-semibold mb-2" style={{ color: 'var(--text)' }}>{ask}</div>
       <div className="flex gap-1.5 flex-wrap">{askOpts.map(o => (
-        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); onRefine(o); }} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
-        <button type="button" onClick={() => setAsked(true)} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ color: 'var(--muted)' }}>Skip</button>
+        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); try { window.MTRACK && MTRACK('ai_question', { outcome: 'answered', confidence: conf }); } catch (_) {} onRefine(o, 'question'); }} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
+        <button type="button" onClick={() => { setAsked(true); try { window.MTRACK && MTRACK('ai_question', { outcome: 'skipped', confidence: conf }); } catch (_) {} }} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ color: 'var(--muted)' }}>Skip</button>
       </div>
     </div>}
     {checks.length > 0 && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
@@ -9027,7 +9041,15 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
           <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Use {c.refKcal100}</button>
         </div>))}</div>
     </div>}
-    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[12px] text-[#8A8A90] min-h-[44px] flex items-center">{edit ? '▲ Hide items' : '▾ Edit items'}</button>}
+    {/* A collapsed section has to say enough for someone to decide whether to open it. "Edit items"
+        said nothing, so the one fact worth checking at a glance, WHAT the AI thinks you ate, was
+        only visible to people who opened the drawer. Naming the items in the closed state surfaces
+        a misidentification instantly; the grams, notes and remove buttons stay behind the tap,
+        because those are for correcting rather than checking. */}
+    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[12px] text-[#8A8A90] min-h-[44px] flex items-start text-left w-full leading-snug py-1.5">
+      <span className="shrink-0 mr-1">{edit ? '▲' : '▾'}</span>
+      <span className="min-w-0">{edit ? 'Hide items' : items.map(it => it.name).join(' · ')}</span>
+    </button>}
     {hadItems && !single && edit && <div className="fade-in space-y-2 mb-3">
       <div className="text-[10px] text-[#8A8A90] leading-snug">Amounts for the full meal.</div>
       {items.map((it, i) => (
@@ -9050,7 +9072,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ('Add ' + final.kcal + ' kcal'))}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ('Add ' + final.kcal + ' kcal'))}</Btn>
     {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[#8A8A90] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
@@ -9065,6 +9087,9 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
   const MAX_PHOTOS = 3;
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [result, setResult] = useState(null); const [ver, setVer] = useState(0);
+  // Survives the AiConfirm remount that every refine causes, so the logged event describes the whole
+  // estimate rather than whatever is left after the last re-render.
+  const [refineCount, setRefineCount] = useState(0); const [answered, setAnswered] = useState('');
   const [listening, setListening] = useState(false); const [cam, setCam] = useState(false);
   const recRef = useRef(null); const taRef = useRef(null);
   function addHint(w) { setText(t => (t.trim() ? t.trim() + ', ' + w : w)); if (taRef.current) taRef.current.focus(); }
@@ -9101,7 +9126,9 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
     } catch (e) { setErr('Estimate failed: ' + e.message); }
     setBusy(false);
   }
-  async function refine(correction) {
+  async function refine(correction, via) {
+    setRefineCount(n => n + 1);
+    if (via === 'question') setAnswered('used');
     setBusy(true); setErr('');
     try {
       const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
@@ -9110,7 +9137,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
   }
-  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} busy={busy} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
+  if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" />;
   return (<div>
