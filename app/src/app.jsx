@@ -8483,7 +8483,7 @@ function portionPhrase(count, servingLabel) {
 const PORTION_FRACTIONS = [['1/4', 0.25], ['1/3', 0.333], ['1/2', 0.5], ['2/3', 0.667], ['3/4', 0.75], ['1', 1], ['2', 2]];
 function FractionChips({ value, onPick }) {
   return (<div className="flex gap-1.5 mb-3 flex-wrap">{PORTION_FRACTIONS.map(([l, val]) =>
-    <button key={l} type="button" onClick={() => onPick(val)} className={`pixel-box px-2.5 py-1.5 text-[11px] ${Math.abs((+value || 0) - val) < 0.01 ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{l}</button>)}</div>);
+    <button key={l} type="button" onClick={() => onPick(val)} className={`pixel-box px-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-[12px] ${Math.abs((+value || 0) - val) < 0.01 ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{l}</button>)}</div>);
 }
 // The nutrients beyond the headline macros that the nutrient-density score needs. Open Food Facts
 // keys them per 100 g and often leaves them blank, so anything missing stays 0 and simply earns the
@@ -8985,11 +8985,17 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
       <div className="flex-1"><NumInput value={only.grams} onChange={e => setGrams(0, e.target.value)} className={inputCls + ' text-center'} /></div>
       <button onClick={() => setGrams(0, String((+only.grams || 0) + gStep(+only.grams || 0)))} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
       <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">grams</div>
-    </div> : <div className="flex items-center gap-2">
-      <button onClick={() => stepP(-0.25)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="Less">−</button>
-      <div className="flex-1"><NumInput value={portion} onChange={e => setPortion(e.target.value)} className={inputCls + ' text-center'} /></div>
-      <button onClick={() => stepP(0.25)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
-      <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">× meal</div>
+    </div> : <div>
+      {/* "0.75 x meal" is arithmetic, not an answer to "how much did you have". The fractions are
+          the way people actually describe it, and one tap beats three presses of a stepper. The
+          stepper stays underneath for anything the chips do not cover. */}
+      <FractionChips value={portion} onPick={v => setPortion(String(v))} />
+      <div className="flex items-center gap-2">
+        <button onClick={() => stepP(-0.25)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="Less">−</button>
+        <div className="flex-1"><NumInput value={portion} onChange={e => setPortion(e.target.value)} className={inputCls + ' text-center'} /></div>
+        <button onClick={() => stepP(0.25)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl bg-[#1E1E22] text-[var(--text)]" aria-label="More">+</button>
+        <div className="text-[12px] text-[#8A8A90] shrink-0 w-16 text-center">× meal</div>
+      </div>
     </div>}
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {portionLabel}</div>
@@ -9052,9 +9058,9 @@ function DescribeTab({ db, onPick, onAddItems, onScan }) {
   const [imgs, setImgs] = useState([]); const MAX_PHOTOS = 3;
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   const [result, setResult] = useState(null); const [ver, setVer] = useState(0);
-  const [listening, setListening] = useState(false); const [cam, setCam] = useState(false); const [pushText, setPushText] = useState(false);
+  const [listening, setListening] = useState(false); const [cam, setCam] = useState(false);
   const recRef = useRef(null); const taRef = useRef(null);
-  function addHint(w) { setText(t => (t.trim() ? t.trim() + ', ' + w : w)); setPushText(false); if (taRef.current) taRef.current.focus(); }
+  function addHint(w) { setText(t => (t.trim() ? t.trim() + ', ' + w : w)); if (taRef.current) taRef.current.focus(); }
   const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
   function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, MAX_PHOTOS)); }
   function remImg(id) { setImgs(x => x.filter(f => f.id !== id)); }
@@ -9076,9 +9082,10 @@ function DescribeTab({ db, onPick, onAddItems, onScan }) {
   const ctx = () => 'Context: food or drink consumed in England.' + (imgs.length ? ' Photos of the food and/or menu are attached.' : '') + ' If a UK chain is named (e.g. Starbucks, Costa, Caffè Nero, Pret, Greggs, McDonald\'s, Nando\'s, Wagamama, Wetherspoons), anchor to that chain\'s PUBLISHED nutrition for the named item(s), adjusting for size and add-ons (syrups, milk type, extra shots, sides).' + (text.trim() ? ' Description: "' + text.trim() + '"' : '') + personalFoodHint(db) + personalNumbersHint(db, text) + cofidRefHint(text);
   async function run() {
     if (!text.trim() && !imgs.length) { setErr('Describe what you had, or add a photo.'); return; }
-    // Soft gate: a photo with no words is much less accurate, so nudge for a description first.
-    // If they still want to go photo-only, a second tap ("Estimate from the photo anyway") proceeds.
-    if (imgs.length && !text.trim() && !pushText) { setPushText(true); setErr(''); if (taRef.current) taRef.current.focus(); return; }
+    // No soft gate any more. A photo with no words IS less accurate, but blocking the first tap to
+    // say so cost everyone a tap to buy a nudge, and the estimator now asks its own follow-up
+    // question on the confirm screen: specific, informed by the photo, and after a real answer
+    // rather than instead of one.
     if (listening) stopMic();
     setBusy(true); setErr('');
     try {
@@ -9100,24 +9107,23 @@ function DescribeTab({ db, onPick, onAddItems, onScan }) {
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" />;
   return (<div>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Type, say or snap what you had. A photo plus a few words works best.</div>
-    {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
-      <div className="text-[11px] text-[#8A8A90] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
-      <button onClick={onScan} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
-    </div>}
-    <textarea ref={taRef} value={text} onChange={e => { setText(e.target.value); if (e.target.value.trim()) setPushText(false); }} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
+    <div className="text-[12px] text-[#8A8A90] mb-3">Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm.</div>
+    {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
+    <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
     {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT_T }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
-    {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mt-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
-    {imgs.length > 0 && !text.trim() && <div className="rounded-2xl p-3 mt-3" style={{ background: pushText ? 'var(--accent-dim)' : 'var(--surface3)', border: '1px solid ' + (pushText ? 'var(--fat)' : 'var(--border)') }}>
-      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--text)' }}>{pushText ? 'Add a few words first' : 'A few words makes this much more accurate'}</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">A photo alone can't judge portion size or cooking oil.</div>
-      <div className="flex gap-1.5 flex-wrap">{['Dinner plate', 'Side plate', 'Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Grilled', 'With sauce'].map(w => <button key={w} type="button" onClick={() => addHint(w)} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}>+ {w}</button>)}</div>
+    {imgs.length > 0 && !text.trim() && <div className="rounded-2xl p-3 mt-3" style={{ background: 'var(--surface3)', border: '1px solid var(--border)' }}>
+      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">A photo can't judge portion size or cooking oil on its own. Add a word or two:</div>
+      <div className="flex gap-1.5 flex-wrap">{['Dinner plate', 'Side plate', 'Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Grilled', 'With sauce'].map(w => <button key={w} type="button" onClick={() => addHint(w)} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}>+ {w}</button>)}</div>
     </div>}
     <div className="flex items-stretch gap-2 mt-3">
       {SR && <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop dictation' : 'Dictate'} aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate'} className="pixel-btn shrink-0 w-14 flex items-center justify-center transition active:scale-95" style={{ background: listening ? FAT : 'var(--surface3)', color: listening ? '#fff' : 'var(--text)', border: '1px solid var(--border)' }}><Icon.mic width="20" height="20" /></button>}
-      <Btn kind="accent" className="flex-1" onClick={run}>{imgs.length && !text.trim() && pushText ? 'Estimate from the photo anyway' : 'Estimate with AI'}</Btn>
+      <Btn kind="accent" className="flex-1" onClick={run}>Estimate with AI</Btn>
     </div>
+    {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mt-4 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
+      <div className="text-[11px] text-[#8A8A90] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
+      <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
+    </div>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
   </div>);
 }
