@@ -55,7 +55,10 @@ function featureOf(prompt: string): string {
   const p = prompt || '';
   if (p.includes('body-fat estimate') || p.includes('You are a physique coach')) return 'bodyfat';
   if (p.includes('Read this nutrition label')) return 'label';
-  if (p.includes('BRUTALLY HONEST UK nutrition estimator')) return 'meal';
+  // Matches the substring shared by the current AI_PROMPT and the older "BRUTALLY HONEST UK nutrition
+  // estimator" wording, so clients still running a cached bundle keep billing as 'meal' rather than
+  // silently falling through to 'other'. Signature must stay in step with AI_PROMPT in app/src/prompts.jsx.
+  if (p.includes('UK nutrition estimator')) return 'meal';
   // The buddy chat is open-ended user text, so it is gated to Premium like bodyfat rather than being
   // spendable from the free monthly allowance. Signature must stay in step with buddyChatReply()'s
   // system prompt in app/src/app.jsx.

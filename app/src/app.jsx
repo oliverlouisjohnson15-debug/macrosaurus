@@ -8108,6 +8108,79 @@ function searchGenericFoods(list, query, limit) {
   hits.sort((a, b) => a.k - b.k);
   return hits.slice(0, limit || 12).map(x => x.f);
 }
+/* ---------- Grounding an AI estimate against CoFID -------------------------------------------
+   The estimator is a language model reasoning from a photo, so nothing downstream ever checked
+   its arithmetic against a measured source. This does: once an estimate comes back, every item
+   that can be confidently matched to a CoFID food is compared on ENERGY DENSITY (kcal per 100 g),
+   which is the number the model gets wrong when it inflates a plate. Grams are the model's job
+   (only it saw the photo); kcal per gram is the food tables' job.
+
+   Deliberately conservative, because a wrong match is worse than no match. searchGenericFoods only
+   returns foods whose name contains EVERY word of the query, so "grilled chicken breast" can reach
+   "Chicken, breast, grilled without skin" while "Nando's peri-peri chicken" matches nothing and is
+   left alone. Anything branded, composite or oddly named simply falls through unchecked, and even a
+   match is only ever surfaced as an offer: the numbers are not rewritten behind the user's back. */
+const COFID_SKIP = /^(a|an|the|of|with|and|plus|some|large|small|medium|big|regular|extra|homemade|home-made|approx|approximately|about|leftover|side|portion|serving|helping)$/;
+function cofidQuery(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')          // "(fried)" style notes are the model's, not CoFID's
+    .replace(/[^a-z\s-]/g, ' ')           // apostrophes in brand names would never match anyway
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !COFID_SKIP.test(w))
+    .join(' ')
+    .trim();
+}
+// Per-100 g profile the app can apply at the model's grams. extra is null unless CoFID measured all
+// of satfat/sugars/salt, so an unmeasured value is never applied as a virtuous zero.
+function cofidProfile(food) {
+  const p = food.per100;
+  return { kcal: p.kcal / 100, protein: p.protein / 100, carbs: p.carbs / 100, fat: p.fat / 100, fiber: p.fiber / 100,
+    satfat: food.extra ? food.extra.satfat / 100 : null, sugars: food.extra ? food.extra.sugars / 100 : null, salt: food.extra ? food.extra.salt / 100 : null };
+}
+/* Compare against the SPREAD of matching CoFID foods, not one arbitrary top hit.
+   searchGenericFoods ranks for search ("show me the plainest form"), which is the wrong answer for a
+   reference value: "chips" ranks microwave chips (221 kcal) above fried ones (~290), so grounding on
+   the single top hit would have flagged an honest chip shop estimate and offered a worse number to
+   replace it with. The same trap caught chicken tikka masala, where the retail ready-meal is much
+   leaner than the takeaway the photo actually showed.
+
+   So: take every variant CoFID knows, and only object when the estimate falls outside ALL of them,
+   plus a tolerance. A food whose variants legitimately run 150-350 kcal per 100 g then gets a wide
+   band and is left alone, while cheddar at 1000 is caught whichever cheddar you pick. The value
+   offered back is the closest variant to what the model said, so choosing "the fried one" is still
+   respected, it is just pinned to a measured figure. */
+/* Tolerances are deliberately asymmetric and deliberately loose, because the two ways this can be
+   wrong are not equally bad. A false flag talks someone out of a correct estimate and hands them a
+   worse number, which is worse than today; a missed flag just leaves the estimate where it already
+   was. So this is tuned to stay silent unless the gap is severe: it catches cheddar priced at 1000
+   kcal per 100 g or a naan at 545, and says nothing about a takeaway curry at 200 or chip-shop chips
+   at 290. The upward tolerance is the wider of the two because CoFID is largely retail and home
+   cooking, and a restaurant or takeaway version of the same dish is legitimately richer than any
+   variant in the table. */
+const COFID_TOL_UP = 0.35, COFID_TOL_DOWN = 0.30;
+const COFID_VARIANTS = 8;
+function cofidCheck(list, items) {
+  const out = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const g = +it.grams || 0, kcal = +it.kcal || 0;
+    if (g <= 0 || kcal <= 0 || it.userSpecified) continue; // a weight the user gave us is not ours to question
+    const q = cofidQuery(it.name);
+    if (!q) continue;
+    const hits = searchGenericFoods(list, q, COFID_VARIANTS).filter(f => f.per100.kcal > 0);
+    if (!hits.length) continue;
+    const aiPer100 = (kcal / g) * 100;
+    let lo = Infinity, hi = 0;
+    for (let h = 0; h < hits.length; h++) { const k = hits[h].per100.kcal; if (k < lo) lo = k; if (k > hi) hi = k; }
+    if (aiPer100 <= hi * (1 + COFID_TOL_UP) && aiPer100 >= lo * (1 - COFID_TOL_DOWN)) continue;
+    // Nearest variant to the model's own figure: the least disruptive correction that is still measured.
+    let best = hits[0];
+    for (let h = 1; h < hits.length; h++) if (Math.abs(hits[h].per100.kcal - aiPer100) < Math.abs(best.per100.kcal - aiPer100)) best = hits[h];
+    out.push({ i: i, name: it.name, ref: best.name, refKcal100: best.per100.kcal, aiKcal100: Math.round(aiPer100), high: aiPer100 > hi, profile: cofidProfile(best) });
+  }
+  return out;
+}
 function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, day }) {
   const [q, setQ] = useState('');
   const [dbResults, setDbResults] = useState([]); const [dbLoading, setDbLoading] = useState(false); const [dbErr, setDbErr] = useState('');
@@ -8841,6 +8914,25 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
     }));
   }
   function removeItem(i) { setItems(arr => arr.filter((_, idx) => idx !== i)); }
+  // Ground the estimate against the UK food tables. Loaded lazily and failing silently: if the tables
+  // are not there, the estimate stands exactly as it did before, it just goes unchecked.
+  const [foods, setFoods] = useState(null);
+  useEffect(() => { let live = true; loadGenericFoods().then(f => { if (live) setFoods(f); }).catch(() => {}); return () => { live = false; }; }, []);
+  const checks = useMemo(() => (foods ? cofidCheck(foods, items) : []), [foods, items]);
+  // Re-price one item from its matched CoFID food, keeping the grams the model estimated from the
+  // photo. Once applied the energy density matches, so the item drops out of `checks` on its own.
+  function applyCofid(c) {
+    setItems(arr => arr.map((it, idx) => {
+      if (idx !== c.i) return it;
+      const g = +it.grams || 0, p = c.profile;
+      const per = Object.assign({}, p, {
+        satfat: p.satfat == null ? (it.per ? it.per.satfat : 0) : p.satfat,
+        sugars: p.sugars == null ? (it.per ? it.per.sugars : 0) : p.sugars,
+        salt: p.salt == null ? (it.per ? it.per.salt : 0) : p.salt
+      });
+      return Object.assign({}, it, { per: per, kcal: Math.round(per.kcal * g), protein: +(per.protein * g).toFixed(1), carbs: +(per.carbs * g).toFixed(1), fat: +(per.fat * g).toFixed(1), fiber: +(per.fiber * g).toFixed(1), satfat: +(per.satfat * g).toFixed(1), sugars: +(per.sugars * g).toFixed(1), salt: +(per.salt * g).toFixed(2), assumption: 'Re-priced from the UK food tables: ' + c.ref });
+    }));
+  }
   // Base total = the full meal the AI estimated (summed live from the possibly-edited breakdown, so
   // removing a glass of wine you didn't drink updates it). The portion multiplier on top says how
   // much of that meal you actually ate, mirroring the scan screen's amount control.
@@ -8876,8 +8968,8 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
   return (<div className="fade-in">
     <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-2">‹ Start over</button>
     <div className="flex items-center justify-between gap-2 mb-3">
-      <div className="text-[12px] text-[#8A8A90] leading-snug">Here's what I think you ate. Set how much you had, then log it.</div>
-      <span className="text-[8px] px-2 py-1 rounded-md shrink-0" style={{ color: confColor, border: '1px solid ' + confColor }}>{conf.toUpperCase()}</span>
+      <div className="text-[12px] text-[#8A8A90] leading-snug">Check it over, then log it.</div>
+      {conf !== 'high' && <span className="text-[10px] shrink-0" style={{ color: confColor }}>{conf === 'low' ? 'Rough guess' : 'Fair guess'}</span>}
     </div>
     <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much did you have?</div>
@@ -8898,11 +8990,19 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
       {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the portion.</div>}
       {final.kcal <= 0 && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>The AI couldn't read the calories. Tell it what to fix below, or start over.</div>}
     </div>
-    {high > low && low > 0 && <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>Honest range: {low}–{high} kcal. Logging your total, no sugar-coating.</div>}
-    {src.assumptions && <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">Assumed: {src.assumptions}</div>}
-    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[11px] text-[#8A8A90] mb-2">{edit ? '▲ Hide the breakdown' : '▾ Adjust the breakdown, item by item'}</button>}
+    {high > low && low > 0 && <div className="text-[11px] mb-2" style={{ color: 'var(--muted)' }}>Could be {low}–{high} kcal</div>}
+    {src.assumptions && <div className="text-[11px] text-[#8A8A90] mb-2 leading-relaxed">{src.assumptions}</div>}
+    {checks.length > 0 && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
+      <div className="text-[12px] font-semibold mb-1.5" style={{ color: 'var(--fat-ink)' }}>{checks.length === 1 ? "One item doesn't match the food tables" : checks.length + " items don't match the food tables"}</div>
+      <div className="space-y-1.5">{checks.map(c => (
+        <div key={c.i} className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 text-[11px] text-[#8A8A90] leading-snug">{c.name} looks {c.high ? 'high' : 'low'} at {c.aiKcal100} kcal/100g · the tables say {c.refKcal100}</div>
+          <button onClick={() => applyCofid(c)} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Use {c.refKcal100}</button>
+        </div>))}</div>
+    </div>}
+    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[11px] text-[#8A8A90] mb-2">{edit ? '▲ Hide items' : '▾ Edit items'}</button>}
     {hadItems && !single && edit && <div className="fade-in space-y-2 mb-3">
-      <div className="text-[10px] text-[#8A8A90] leading-snug">These are the amounts for the full meal. Edit the grams, or remove anything you didn't have.</div>
+      <div className="text-[10px] text-[#8A8A90] leading-snug">Amounts for the full meal.</div>
       {items.map((it, i) => (
         <div key={i} className="bg-[#1E1E22] rounded-2xl p-3 border border-[#262629]">
           <div className="flex items-center gap-2">
@@ -8915,13 +9015,13 @@ function AiConfirm({ est, onAdd, onCancel, onRefine, busy }) {
       {items.length === 0 && <div className="text-[11px] text-[#8A8A90] py-1">All items removed. Tell the AI what to fix below, or start over.</div>}
     </div>}
     {onRefine && <div className="rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Not quite right? Tell the AI what to fix</div>
+      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Something off? Tell the AI</div>
       <textarea value={fix} onChange={e => setFix(e.target.value)} rows={2} className={inputCls + ' resize-y leading-relaxed'} placeholder="e.g. it was a large, extra cheese, no chips" />
       <Btn kind="ghost" className="w-full mt-2" disabled={busy || !fix.trim()} style={{ opacity: (busy || !fix.trim()) ? 0.5 : 1 }} onClick={() => onRefine(fix.trim())}>{busy ? 'Re-estimating…' : 'Re-estimate with this'}</Btn>
     </div>}
     {kcalHigh && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug">This totals {final.kcal} kcal, but the protein, carbs and fat only add up to about {atwT} kcal. If that is not right, tweak an item above or use "Tell the AI what to fix".</div>
+      <div className="text-[11px] text-[#8A8A90] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
@@ -8969,7 +9069,7 @@ function DescribeTab({ db, onPick, onScan }) {
   async function refine(correction) {
     setBusy(true); setErr('');
     try {
-      const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items, stay honest and do not round down. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
+      const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
       const est = await claudeVision(key, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
@@ -8979,9 +9079,9 @@ function DescribeTab({ db, onPick, onScan }) {
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" />;
   return (<div>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Type, say or snap what you had. A photo plus a few words is most accurate: it catches portions, oils and extras. You confirm before anything's logged.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-3">Type, say or snap what you had. A photo plus a few words works best.</div>
     {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
-      <div className="text-[11px] text-[#8A8A90] leading-snug">Packaged, with a barcode or label? Scanning it is more accurate.</div>
+      <div className="text-[11px] text-[#8A8A90] leading-snug">Got a barcode or label? Scanning is more accurate.</div>
       <button onClick={onScan} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
     </div>}
     <textarea ref={taRef} value={text} onChange={e => { setText(e.target.value); if (e.target.value.trim()) setPushText(false); }} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
@@ -8989,9 +9089,9 @@ function DescribeTab({ db, onPick, onScan }) {
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mt-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && !text.trim() && <div className="rounded-2xl p-3 mt-3" style={{ background: pushText ? 'var(--accent-dim)' : 'var(--surface3)', border: '1px solid ' + (pushText ? 'var(--fat)' : 'var(--border)') }}>
-      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--text)' }}>{pushText ? 'Add a few words first, it really helps' : 'A quick description makes this far more accurate'}</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">A photo alone can't see portion size, cooking oils or hidden extras. Tap to add detail, or type your own:</div>
-      <div className="flex gap-1.5 flex-wrap">{['Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Extra cheese', 'With sauce'].map(w => <button key={w} type="button" onClick={() => addHint(w)} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}>+ {w}</button>)}</div>
+      <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--text)' }}>{pushText ? 'Add a few words first' : 'A few words makes this much more accurate'}</div>
+      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">A photo alone can't judge portion size or cooking oil.</div>
+      <div className="flex gap-1.5 flex-wrap">{['Dinner plate', 'Side plate', 'Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Grilled', 'With sauce'].map(w => <button key={w} type="button" onClick={() => addHint(w)} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}>+ {w}</button>)}</div>
     </div>}
     <div className="flex items-stretch gap-2 mt-3">
       {SR && <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop dictation' : 'Dictate'} aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate'} className="pixel-btn shrink-0 w-14 flex items-center justify-center transition active:scale-95" style={{ background: listening ? FAT : 'var(--surface3)', color: listening ? '#fff' : 'var(--text)', border: '1px solid var(--border)' }}><Icon.mic width="20" height="20" /></button>}
@@ -9021,7 +9121,7 @@ function MealEstimate({ apiKey, db, onPick, onBack, initialFiles }) {
     setBusy(true); setErr('');
     try {
       // Slim refine: the previous JSON already carries the schema, so we skip resending the full estimator prompt.
-      const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items, stay honest and do not round down. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
+      const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
       const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 }); setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);
@@ -9030,11 +9130,11 @@ function MealEstimate({ apiKey, db, onPick, onBack, initialFiles }) {
   if (busy) return <DinoLoader label="Estimating your meal" />;
   return (<div className="fade-in">
     <button onClick={onBack} className="text-[13px] text-[#8A8A90] mb-3">‹ Back</button>
-    <div className="text-[12px] text-[#8A8A90] mb-3">Add a photo of the food or menu, plus any notes. The AI proposes what you ate, then you confirm or correct it. For a known chain it anchors to their published nutrition.</div>
+    <div className="text-[12px] text-[#8A8A90] mb-3">Add a photo of the food or menu, plus any notes. You confirm before it's logged.</div>
     <div className="mb-1"><PhotoButton label="Add photos" multiple onFiles={addImgs} className="w-full" /></div>
-    <div className="text-[10px] text-[#8A8A90] mb-3">Add your food and/or the menu (up to 3 photos), take a new photo or choose from your library.</div>
+    <div className="text-[10px] text-[#8A8A90] mb-3">Up to 3 photos of the food and/or the menu.</div>
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remove(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
-    <Field label="Notes (optional)" hint="Name the place or dish for the best guess, plus size, sides and sauces.">
+    <Field label="Notes (optional)" hint="Name the place or dish, plus size, sides and sauces.">
       <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={5} className={inputCls + ' resize-y leading-relaxed'} style={{ minHeight: 120 }} placeholder="e.g. Nando's, half chicken, medium, peri chips and coleslaw, ate it all" />
     </Field>
     <Btn kind="accent" className="w-full" onClick={run}>{busy ? 'Estimating…' : 'Estimate with AI'}</Btn>
