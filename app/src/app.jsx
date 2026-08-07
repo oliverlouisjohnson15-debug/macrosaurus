@@ -8208,7 +8208,7 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
         if (cancel) return;
         const items = (data.products || []).map(p => { const n = p.nutriments || {}; const k = n['energy-kcal_100g']; if (!p.product_name || k == null) return null; return { name: p.product_name, brand: p.brands || '', serving: p.serving_size || null, servingG: +p.serving_quantity || null, per100: { kcal: +k, protein: +n.proteins_100g || 0, carbs: +n.carbohydrates_100g || 0, fat: +n.fat_100g || 0, fiber: +n.fiber_100g || 0 }, extra: offWithKind(offExtras(n), p) }; }).filter(Boolean);
         setDbResults(items);
-      } catch (e) { if (!cancel) setDbErr('Couldn\'t reach the food database.'); }
+      } catch (e) { if (!cancel) setDbErr('Couldn\'t search just now. Try again.'); }
       if (!cancel) setDbLoading(false);
     }, 450);
     return () => { cancel = true; clearTimeout(t); };
@@ -8221,10 +8221,10 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
   // gram-scalable confirm so it can be re-logged at any weight; otherwise one-tap log the last amount.
   const pickMine = (f) => { if (!f.is_alcohol && f.corrected && f.saved_base) { setSel({ name: f.name }); return; } onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty }); };
   if (sel) { const sc = savedCorrection(db, sel.name); if (sc) return <ConfirmFood {...parsedFromSaved(sc, 'Using the values you saved for this food.')} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
-    if (sel.generic) return <ConfirmFood note="From the UK food tables. Figures are for the food exactly as described." per100 source="cofid" extra={sel.generic.extra}
+    if (sel.generic) return <ConfirmFood note="Standard figures for this food, unbranded." per100 source="cofid" extra={sel.generic.extra}
       initial={{ name: sel.generic.name, kcal: sel.generic.per100.kcal, protein: sel.generic.per100.protein, carbs: sel.generic.per100.carbs, fat: sel.generic.per100.fat, fiber: sel.generic.per100.fiber }}
       onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />;
-    return <ConfirmFood note="From the food database. Check it looks right before logging." per100 source="off" branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
+    return <ConfirmFood note="Check it looks right before logging." per100 source="off" branded={!!sel.brand} servingG={sel.servingG} servingLabel={sel.serving} extra={sel.extra} initial={{ name: sel.name, kcal: Math.round(sel.per100.kcal), protein: sel.per100.protein, carbs: sel.per100.carbs, fat: sel.per100.fat, fiber: sel.per100.fiber }} onAdd={onPick} onCancel={() => setSel(null)} onAskAI={onAskAI} dayRest={day && day.rest} dayTarget={day && day.target} />; }
   if (manual) return <ManualTab onPick={onPick} onCancel={() => setManual(false)} />;
   const MyRow = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
     <button onClick={() => pickMine(f)} className="text-left min-w-0 flex-1"><div className="flex items-center gap-1.5 min-w-0"><span className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</span><DensityChip nq={f.nq} /></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{f.macros.protein} C{f.macros.carbs} F{f.macros.fat}</div></button>
@@ -8245,18 +8245,18 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
       {/* Generic foods sit ABOVE the branded database. If you cooked it yourself, the plain entry
           is the answer you want, and putting the packaged results first meant scrolling past six
           supermarket versions of a thing to reach it. */}
-      {generic.length > 0 && <>{Head('UK food tables')}<div className="space-y-2">{generic.map((g, idx) => (
+      {generic.length > 0 && <>{Head('Basic foods')}<div className="space-y-2">{generic.map((g, idx) => (
         <button key={'gen' + idx} onClick={() => setSel({ generic: g })} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left">
           <div className="min-w-0"><div className="text-sm truncate">{g.name}</div>
             <div className="text-[11px] text-[#8A8A90] tnum">{Math.round(g.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(g.per100.protein)}g</span> / 100 g</div></div>
           <span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span>
         </button>))}</div></>}
-      {Head('Food database')}
+      {Head('Brands and packets')}
       {dbLoading && <div className="text-[12px] text-[#4A9EEB] py-2">Searching…</div>}
       {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0 text-lg leading-none">›</span></button>))}</div>}
       {!dbLoading && !dbResults.length && !dbErr && <div className="text-[12px] text-[#8A8A90] py-1">No database matches.</div>}
       {dbErr && <div className="text-[12px] text-[#F5C542] py-1">{dbErr}</div>}
-      {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">The UK food tables aren't loaded, so only packaged products are shown.</div>}
+      {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">Only branded products are showing just now.</div>}
     </>}
     <div className="mt-5">
       <div className="flex items-center gap-3 mb-2.5"><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /><span className="text-[10px] uppercase tracking-widest text-[#8A8A90]">Can't find it?</span><div className="flex-1 h-px" style={{ background: 'var(--border)' }} /></div>
@@ -8822,7 +8822,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
         : <div className="text-[12px] text-[#8A8A90] mb-3">{note}</div>}
     {dodgy && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
       <div className="text-[12px] font-semibold mb-1">{_missing ? 'Some numbers are missing' : 'These numbers look off'}</div>
-      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{_missing ? "This came from the food database and doesn't have all the values." : "This came from the food database and the calories don't add up from the macros."} Get the real numbers a better way:</div>
+      <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{_missing ? "Some values are missing for this one." : "The calories don't add up from the macros."} Get the real numbers a better way:</div>
       {onRescan && <Btn kind="accent" className="w-full" onClick={onRescan}>Scan the nutrition label</Btn>}
       {onAskAI && <button onClick={onAskAI} className="w-full text-[12px] mt-2 py-2 text-center rounded-xl border font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)', background: 'var(--bg)' }}>Or describe it and let the AI work it out</button>}
     </div>}
@@ -8915,7 +8915,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
         sugars: p.sugars == null ? (it.per ? it.per.sugars : 0) : p.sugars,
         salt: p.salt == null ? (it.per ? it.per.salt : 0) : p.salt
       });
-      return Object.assign({}, it, { per: per, kcal: Math.round(per.kcal * g), protein: +(per.protein * g).toFixed(1), carbs: +(per.carbs * g).toFixed(1), fat: +(per.fat * g).toFixed(1), fiber: +(per.fiber * g).toFixed(1), satfat: +(per.satfat * g).toFixed(1), sugars: +(per.sugars * g).toFixed(1), salt: +(per.salt * g).toFixed(2), assumption: 'Re-priced from the UK food tables: ' + c.ref });
+      return Object.assign({}, it, { per: per, kcal: Math.round(per.kcal * g), protein: +(per.protein * g).toFixed(1), carbs: +(per.carbs * g).toFixed(1), fat: +(per.fat * g).toFixed(1), fiber: +(per.fiber * g).toFixed(1), satfat: +(per.satfat * g).toFixed(1), sugars: +(per.sugars * g).toFixed(1), salt: +(per.salt * g).toFixed(2), assumption: 'Using ' + c.ref.split(',')[0].toLowerCase() });
     }));
   }
   // Base total = the full meal the AI estimated (summed live from the possibly-edited breakdown, so
@@ -9020,10 +9020,10 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy })
       </div>
     </div>}
     {checks.length > 0 && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
-      <div className="text-[12px] font-semibold mb-1.5" style={{ color: 'var(--fat-ink)' }}>{checks.length === 1 ? "One item doesn't match the food tables" : checks.length + " items don't match the food tables"}</div>
+      <div className="text-[12px] font-semibold mb-1.5" style={{ color: 'var(--fat-ink)' }}>{checks.length === 1 ? 'One item looks off' : checks.length + ' items look off'}</div>
       <div className="space-y-1.5">{checks.map(c => (
         <div key={c.i} className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 text-[11px] text-[#8A8A90] leading-snug">{c.name} looks {c.high ? 'high' : 'low'} at {c.aiKcal100} kcal/100g · the tables say {c.refKcal100}</div>
+          <div className="min-w-0 flex-1 text-[11px] text-[#8A8A90] leading-snug">{c.name} · {c.aiKcal100} kcal/100g looks {c.high ? 'high' : 'low'}</div>
           <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Use {c.refKcal100}</button>
         </div>))}</div>
     </div>}
@@ -9437,7 +9437,7 @@ function PhotoTab({ db, onPick, onAddItems, onAskAI, asAlcohol, autoScan, day })
   return (<div>
     <div className="text-[12px] text-[#8A8A90] mb-4">The quickest, most accurate way to log packaged food. No barcode, or not found? Scan the label instead.</div>
     {notFound && <div className="pixel-box p-3.5 mb-3 fade-in" style={{ background: 'var(--surface3)', borderColor: 'var(--fat)' }}>
-      <div className="text-[12px] mb-2.5" style={{ color: 'var(--text)' }}>That barcode isn't in the food database. Scan the nutrition label instead and it will read the numbers for you.</div>
+      <div className="text-[12px] mb-2.5" style={{ color: 'var(--text)' }}>That barcode isn't recognised. Scan the nutrition label instead and it will read the numbers for you.</div>
       <div className="flex gap-2">
         <Btn kind="accent" className="flex-1" onClick={() => { setNotFound(false); setMode('label'); }}>Scan the label</Btn>
         <Btn kind="ghost" onClick={() => { setNotFound(false); setMode('scan'); }}>Try again</Btn>
