@@ -164,3 +164,63 @@ test('profile() is per gram, so it scales to any weight', () => {
   assert.strictEqual(Math.round(p.kcal * 133), 399);
   assert.strictEqual(Math.round(p.carbs * 133), 53);
 });
+
+// ---- retrieval: the reference figures sent WITH the request ----------------------------------
+// Each of these pins a real mistake this matcher made before it was tightened. The failure that
+// matters is a confidently WRONG reference, so most of these assert what must NOT come back.
+const refs = (text) => Cofid.refs(search, FOODS, text).map(f => f.name);
+
+test('finds the right measured reference for a described meal', () => {
+  const r = refs('chicken tikka masala with pilau rice and a naan');
+  assert.ok(r.some(n => /tikka masala/i.test(n)), r.join(' | '));
+  assert.ok(r.some(n => /naan/i.test(n)), r.join(' | '));
+});
+
+test('a two-word phrase beats either word alone', () => {
+  const r = refs('grilled chicken breast');
+  assert.ok(/chicken/i.test(r[0]) && /breast/i.test(r[0]), r.join(' | '));
+  // "breast" alone reached "Lamb, breast, raw, lean" before phrase words were consumed.
+  assert.ok(!r.some(n => /lamb/i.test(n)), r.join(' | '));
+});
+
+test('a matched name consumes the words it already covers', () => {
+  // "chicken tikka" matches a row whose name also contains "masala", so the single-word pass must
+  // not then offer Garam masala as a reference for a curry.
+  assert.ok(!refs('chicken tikka masala').some(n => /garam/i.test(n)));
+});
+
+test('a near-miss substring is not a match', () => {
+  // "flat white" reached Whitecurrants; a berry is not a reference for a coffee.
+  assert.ok(!refs('a flat white').some(n => /whitecurrant/i.test(n)));
+  // "big mac" reached Macaroon at three letters.
+  assert.ok(!refs('a big mac').some(n => /macaroon/i.test(n)));
+});
+
+test('but a short inflection still matches', () => {
+  assert.ok(refs('wholemeal toast').some(n => /toasted/i.test(n)), 'toast should reach toasted');
+});
+
+test('words that name a serving rather than a food are ignored', () => {
+  // "slices" reached Turkey slices in "two slices of wholemeal toast".
+  assert.ok(!refs('two slices of wholemeal toast with peanut butter').some(n => /turkey/i.test(n)));
+  // "half" reached "Cream, half, fresh" in "half chicken".
+  assert.ok(!refs('half a chicken').some(n => /cream/i.test(n)));
+});
+
+test('returns nothing rather than guessing', () => {
+  assert.deepStrictEqual(Cofid.refs(search, FOODS, ''), []);
+  assert.deepStrictEqual(Cofid.refs(search, FOODS, 'zzzz qqqq'), []);
+  assert.deepStrictEqual(Cofid.refs(search, null, 'chicken'), []);
+});
+
+test('is capped, so the prompt cannot be flooded', () => {
+  const long = 'chicken rice pasta bread cheese butter potato broccoli banana yoghurt salmon beans oil milk';
+  assert.ok(Cofid.refs(search, FOODS, long).length <= 6);
+});
+
+test('every reference carries usable per-100g numbers', () => {
+  for (const f of Cofid.refs(search, FOODS, 'grilled chicken breast and boiled rice')) {
+    assert.ok(f.per100.kcal > 0, f.name);
+    assert.ok(typeof f.per100.protein === 'number' && typeof f.per100.fat === 'number', f.name);
+  }
+});

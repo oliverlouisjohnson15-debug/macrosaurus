@@ -1203,6 +1203,52 @@ function personalFoodHint(db) {
   if (!names.length) return '';
   return ' The user regularly logs these specific products; if the meal clearly contains one, anchor to it rather than a generic version (ignore any that are not present): ' + names.join(', ') + '.';
 }
+/* Every time someone edits an AI estimate they are labelling it, and until now that label was stored
+   and never read back: personalFoodHint told the model WHICH foods they log, but not what they had
+   settled on the numbers being. So the fourth roti got estimated exactly like the first, having been
+   corrected three times.
+
+   This hands back their own figures for the foods mentioned in what they just typed. saved_base is
+   per 100 g and saved_serving_g is the weight they last logged, both written by the confirm screen
+   whenever they change anything, so this is their correction rather than a guess of ours. Matched on
+   the description text only, which keeps it cheap and keeps it relevant: no lookup, no round trip. */
+function personalNumbersHint(db, text) {
+  const q = String(text || '').toLowerCase();
+  if (q.length < 3) return '';
+  const out = [];
+  for (const f of ((db && db.foods) || [])) {
+    if (!f || !f.corrected || !f.saved_base || f.is_alcohol || !f.name) continue;
+    const n = String(f.name).trim(); if (!n || n.length > 40) continue;
+    if (q.indexOf(n.toLowerCase()) < 0) continue;   // only foods they actually mentioned
+    const b = f.saved_base, kcal = Math.round(+b.kcal || 0); if (!(kcal > 0)) continue;
+    const g = Math.round(+f.saved_serving_g || 0);
+    out.push(n + ': ' + kcal + ' kcal, ' + Math.round(+b.protein || 0) + ' g protein, ' + Math.round(+b.carbs || 0) + ' g carbs, ' + Math.round(+b.fat || 0) + ' g fat per 100 g'
+      + (g > 0 ? ', usually ' + g + ' g' : ''));
+    if (out.length >= 4) break;
+  }
+  if (!out.length) return '';
+  return ' The user has previously corrected these foods to their own figures, so use these numbers rather than a generic profile, and start from the weight given where they have not said otherwise: ' + out.join('; ') + '.';
+}
+/* Retrieve BEFORE estimating, not after. The field's consensus is that the model should identify
+   and size the food while a measured database supplies the nutrition; our CoFID grounding ran the
+   other way round, checking numbers the model had already recalled from memory.
+
+   This closes most of that gap for free. When someone types what they ate, their own words are the
+   food names, so CoFID can be searched right then and the measured per-100 g figures handed to the
+   model as part of the request. No extra API call, no extra latency, no second round trip, which
+   matters more than completeness here: the research is blunt that friction, not accuracy, is what
+   makes people stop logging. A photo with no description still falls back to the post-hoc check.
+
+   Matching lives in app/cofid.js and is unit-tested; this only phrases the result. Deliberately
+   worded as reference rather than instruction, because these are lexical matches on free text and
+   the model has the photo and must stay free to overrule them. */
+function cofidRefHint(text) {
+  if (!GENERIC_FOODS || !text) return '';
+  const refs = Cofid.refs(searchGenericFoods, GENERIC_FOODS, text);
+  if (!refs.length) return '';
+  const lines = refs.map(f => f.name + ' = ' + f.per100.kcal + ' kcal, ' + f.per100.protein + ' g protein, ' + f.per100.carbs + ' g carbs, ' + f.per100.fat + ' g fat per 100 g');
+  return ' Measured figures from the UK food tables (CoFID) for foods that may match this meal. Where one genuinely matches what you can see, price that component from it instead of estimating a per-100 g profile; ignore any that are the wrong food or the wrong preparation: ' + lines.join('; ') + '.';
+}
 function savedByBarcode(db, code) { return code ? ((db.foods || []).find(x => x.corrected && x.saved_base && x.barcode === code) || null) : null; }
 // Build a confirm-screen payload from community-consensus data (2+ users agreeing on a barcode).
 function parsedFromCommunity(c, barcode) {
@@ -8900,6 +8946,12 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
      you can delete the chips you left at 9pm without re-running the estimate or editing a total by
      hand. The portion multiplier still applies, it just scales every component instead of the sum. */
   const [asOne, setAsOne] = useState(false);
+  // The estimator's own follow-up question, shown once. Dismissed as soon as it is answered or
+  // skipped, and never re-shown for a refined estimate: being asked a second question after
+  // correcting the first answer reads as an interrogation rather than help.
+  const [asked, setAsked] = useState(false);
+  const ask = asked ? '' : String(src.question || '').trim();
+  const askOpts = (Array.isArray(src.question_options) ? src.question_options : []).map(o => String(o || '').trim()).filter(Boolean).slice(0, 4);
   const logItems = items
     .filter(it => (+it.grams) > 0 && (+it.kcal) > 0)
     .map(it => ({ name: it.name, grams: Math.round((+it.grams) * p), nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null,
@@ -8960,6 +9012,16 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
         </div>))}
       {items.length === 0 && <div className="text-[11px] text-[#8A8A90] py-1">All items removed. Tell the AI what to fix below, or start over.</div>}
     </div>}
+    {/* One targeted question beats a generic "add more detail" nudge, and it lands AFTER a real
+        estimate rather than blocking one. Answering re-runs the refine call with the chosen wording,
+        so it costs the user a single tap and reuses the correction path that already exists. */}
+    {onRefine && ask && askOpts.length > 0 && <div className="pixel-box p-3 mb-3 fade-in" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--accent)' }}>
+      <div className="text-[12px] font-semibold mb-2" style={{ color: 'var(--text)' }}>{ask}</div>
+      <div className="flex gap-1.5 flex-wrap">{askOpts.map(o => (
+        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); onRefine(o); }} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
+        <button type="button" onClick={() => setAsked(true)} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>Skip</button>
+      </div>
+    </div>}
     {onRefine && <div className="rounded-2xl p-3 mb-3 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Something off? Tell the AI</div>
       <textarea value={fix} onChange={e => setFix(e.target.value)} rows={2} className={inputCls + ' resize-y leading-relaxed'} placeholder="e.g. it was a large, extra cheese, no chips" />
@@ -8999,7 +9061,10 @@ function DescribeTab({ db, onPick, onAddItems, onScan }) {
     r.onend = () => setListening(false);
     setListening(true); try { r.start(); } catch (e) { setListening(false); }
   }
-  const ctx = () => 'Context: food or drink consumed in England.' + (imgs.length ? ' Photos of the food and/or menu are attached.' : '') + ' If a UK chain is named (e.g. Starbucks, Costa, Caffè Nero, Pret, Greggs, McDonald\'s, Nando\'s, Wagamama, Wetherspoons), anchor to that chain\'s PUBLISHED nutrition for the named item(s), adjusting for size and add-ons (syrups, milk type, extra shots, sides).' + (text.trim() ? ' Description: "' + text.trim() + '"' : '') + personalFoodHint(db);
+  // The UK food tables are fetched on mount rather than on demand, so cofidRefHint can supply
+  // measured per-100 g figures the moment someone taps Estimate instead of racing the request.
+  useEffect(() => { loadGenericFoods().catch(() => {}); }, []);
+  const ctx = () => 'Context: food or drink consumed in England.' + (imgs.length ? ' Photos of the food and/or menu are attached.' : '') + ' If a UK chain is named (e.g. Starbucks, Costa, Caffè Nero, Pret, Greggs, McDonald\'s, Nando\'s, Wagamama, Wetherspoons), anchor to that chain\'s PUBLISHED nutrition for the named item(s), adjusting for size and add-ons (syrups, milk type, extra shots, sides).' + (text.trim() ? ' Description: "' + text.trim() + '"' : '') + personalFoodHint(db) + personalNumbersHint(db, text) + cofidRefHint(text);
   async function run() {
     if (!text.trim() && !imgs.length) { setErr('Describe what you had, or add a photo.'); return; }
     // Soft gate: a photo with no words is much less accurate, so nudge for a description first.
@@ -9016,7 +9081,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan }) {
   async function refine(correction) {
     setBusy(true); setErr('');
     try {
-      const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
+      const prompt = 'Revise this meal estimate (consumed in England).' + (imgs.length ? ' Photos are attached.' : '') + ' Previous estimate JSON: ' + JSON.stringify(result) + (text.trim() ? '\nOriginal description: "' + text.trim() + '"' : '') + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
       const est = await claudeVision(key, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 });
       setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
@@ -9056,7 +9121,8 @@ function MealEstimate({ apiKey, db, onPick, onAddItems, onBack, initialFiles }) 
   const MAX_PHOTOS = 3;
   function addImgs(list) { const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, url: URL.createObjectURL(f) })); setImgs(x => x.concat(arr).slice(0, MAX_PHOTOS)); }
   function remove(id) { setImgs(x => x.filter(f => f.id !== id)); }
-  function ctx() { return 'Context: a meal eaten in England. If the notes name a UK restaurant or chain, anchor to that chain\'s published nutrition.' + (notes.trim() ? ' Notes: ' + notes.trim() : '') + personalFoodHint(db); }
+  useEffect(() => { loadGenericFoods().catch(() => {}); }, []);
+  function ctx() { return 'Context: a meal eaten in England. If the notes name a UK restaurant or chain, anchor to that chain\'s published nutrition.' + (notes.trim() ? ' Notes: ' + notes.trim() : '') + personalFoodHint(db) + personalNumbersHint(db, notes) + cofidRefHint(notes); }
   async function run() {
     if (!imgs.length && !notes.trim()) { setErr('Add a food photo, a menu photo, or a description.'); return; }
     setBusy(true); setErr('');
@@ -9068,7 +9134,7 @@ function MealEstimate({ apiKey, db, onPick, onAddItems, onBack, initialFiles }) 
     setBusy(true); setErr('');
     try {
       // Slim refine: the previous JSON already carries the schema, so we skip resending the full estimator prompt.
-      const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Respond ONLY with the JSON.';
+      const prompt = 'Revise this meal estimate. ' + ctx() + '\nPrevious estimate JSON: ' + JSON.stringify(result) + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted to reflect their correction. Keep totals equal to the sum of items and stay calibrated: change only what their correction actually implies, and do not drift the other components up or down to compensate. Keep any weights the user explicitly stated fixed at their stated grams (user_specified true) unless they now change them. Set "question" to "" and "question_options" to [] in your reply: you get one question per estimate, and it has already been asked. Respond ONLY with the JSON.';
       const est = await claudeVision(apiKey, imgs.map(i => i.file), prompt, { model: AI_MODEL, maxTokens: 3000, maxImg: 768 }); setResult(est); setVer(v => v + 1);
     } catch (e) { setErr('Re-estimate failed: ' + e.message); }
     setBusy(false);

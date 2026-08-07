@@ -253,6 +253,31 @@ Once other people use the app, it handles UK users' **health data** (weight, bod
 - **Label-OCR accuracy check** against a set of real UK labels before shipping §5.2.
 - Guardrails: targets never below safe floor; protein floor respected; weekly adjustment capped.
 - Manual QA on a real phone browser per screen.
+- **AI estimator calibration** — `node tools/calibrate.mjs` against `tests/fixtures/calibration.json`, run by hand before and after any change to `AI_PROMPT` (it needs an API key, so CI cannot). Reports MAPE *and* signed bias; the fixture's own ground truth is guarded in CI by `tests/calibration.test.js`.
+
+---
+
+## 11a. Estimation accuracy: correct for under-logging exactly once
+
+Photo-based calorie estimates run **low**, not high. The NIH Clinical Center photographed 102 meals weighed to 0.1 g and found four consumer apps under by **250–345 kcal and ~30 g of fat per meal**; human self-report under-reports by 10–30% against doubly-labelled water. So the pull to make the estimator "err high" is a response to something real.
+
+**Do not give in to it.** The app corrects for this once already, in the right place:
+
+- **§3's engine learns expenditure from the weight trend**, not from the diary. A systematically low log is absorbed within a couple of check-in cycles whatever its cause. This is the same mechanism MacroFactor uses, and it is the correct one, because it measures the outcome rather than trusting the input.
+- **Biasing the estimator is a second, uncoordinated correction for the same error.** The two do not compose. The engine learns a higher expenditure, they partly cancel in the calorie target, and what survives is wrong macro splits — adaptive expenditure can only fix totals, never a protein/carb/fat split.
+
+The division of labour, and where to fix an accuracy problem:
+
+| Problem | Fix it here | Not here |
+|---|---|---|
+| Estimates feel systematically low | The FAT CHECK step in `AI_PROMPT` — the measured error is uncounted cooking fat, one cause, targeted and testable | A global upward lean |
+| A specific food is always wrong | CoFID grounding (`app/cofid.js`), or the user's own saved correction | The prompt |
+| Totals drift from reality over weeks | Nothing — §3's engine already absorbs it | The estimator |
+| Portion is wrong | Reference-object scaling in `AI_PROMPT`; a follow-up question | Padding the number |
+
+**Target:** 20–25% MAPE on calories, and **bias closer to zero than spread**. Research models with depth data reach 13.5–15.3% on the Nutrition5k benchmark, so anything tighter is self-deception for a single phone photo. A steady lean matters more than a wide spread: noise averages out and the engine absorbs it, but a consistent lean is precisely what the engine misreads as a change in metabolism.
+
+**Note on CoFID's energy convention.** `foods-uk.json` is not on the label basis the rest of the app uses. CoFID expresses carbohydrate as *monosaccharide equivalents* energised at 3.75 kcal/g and assigns fibre 0 kcal, so its energy is `protein×4 + carbs×3.75 + fat×9` — verified within 5% on 97% of the 1,378 rows carrying all four values, against 60% for the label formula (4/4/9 + fibre×2). Logging a CoFID food therefore records a slightly higher carb figure than its label would, and its calories are internally consistent on CoFID's basis rather than the app's. Left as-is for now, since the calorie figures themselves are correct and they are what drive the targets, but worth revisiting if carb accuracy ever matters more than it does today.
 
 ---
 

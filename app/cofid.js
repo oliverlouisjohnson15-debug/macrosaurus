@@ -92,7 +92,62 @@
       salt: food.extra ? food.extra.salt / 100 : null };
   }
 
-  var Cofid = { query: query, check: check, profile: profile, TOL_UP: TOL_UP, TOL_DOWN: TOL_DOWN, VARIANTS: VARIANTS };
+  /* ---- retrieval: measured figures to send WITH the request, not to check it afterwards ----
+     When someone types what they ate, their words are the food names, so the table can be searched
+     before the model is called and the real per-100 g values handed over as reference. Free: no
+     extra request, no added latency.
+
+     Everything below is precision work against one failure mode - handing the model a confidently
+     wrong reference, which is worse than handing it none. Words that name a serving rather than a
+     food ("two slices of"), a food already covered by a better match, and near-miss substrings are
+     each removed for that reason. */
+  var REF_STOP = /^(and|the|with|had|ate|some|for|from|was|were|then|plus|about|around|got|out|two|three|four|large|small|medium|homemade|leftover|slice|slices|piece|pieces|portion|serving|glass|bowl|plate|pack|packet|tbsp|tsp|grams|gram|half|full|side|extra|order)$/;
+  var REF_LIMIT = 6;
+
+  function refs(search, list, text, limit) {
+    if (!list || !text) return [];
+    var cap = limit || REF_LIMIT;
+    var words = String(text).toLowerCase().replace(/[^a-z\s-]/g, ' ').split(/\s+/)
+      .filter(function (w) { return w.length > 2 && !REF_STOP.test(w); });
+    var seen = {}, used = {}, out = [];
+
+    function take(probe) {
+      if (out.length >= cap) return null;
+      var hit = search(list, probe, 1)[0];
+      if (!hit || !hit.per100 || !(hit.per100.kcal > 0) || seen[hit.name]) return null;
+      // Every probe word must appear in the matched name as a word, allowing a SHORT inflection but
+      // not a different word: "toast" may reach "toasted" and "chip" may reach "chips", while
+      // "white" must not reach "whitecurrants". Food search matches loose substrings, which is right
+      // while someone is typing and wrong here: a berry offered as the reference for a flat white
+      // is worse than no reference at all.
+      var terms = probe.split(' ');
+      for (var t = 0; t < terms.length; t++) {
+        if (!new RegExp('(^|[^a-z])' + terms[t] + '[a-z]{0,3}([^a-z]|$)', 'i').test(hit.name)) return null;
+      }
+      seen[hit.name] = 1;
+      out.push(hit);
+      return hit;
+    }
+
+    // Two-word phrases first: far likelier to name the right food than either word alone
+    // ("chicken breast" beats "chicken").
+    for (var i = 0; i < words.length - 1; i++) {
+      if (used[i] || used[i + 1]) continue;
+      var hit = take(words[i] + ' ' + words[i + 1]);
+      if (!hit) continue;
+      // Consume every word the matched name already accounts for, not just the two that found it.
+      // "chicken tikka" reaching "Curry, chicken tikka masala" covers "masala" too; without this the
+      // single-word pass went on to offer Garam masala as the reference for a curry.
+      var lc = hit.name.toLowerCase();
+      for (var j = 0; j < words.length; j++) if (lc.indexOf(words[j]) >= 0) used[j] = 1;
+    }
+    // Then single words the phrases missed, and only ones long enough to mean something: at three
+    // letters "mac" in "big mac" reaches Macaroon.
+    for (var k = 0; k < words.length; k++) if (!used[k] && words[k].length >= 4) take(words[k]);
+    return out;
+  }
+
+  var Cofid = { query: query, check: check, profile: profile, refs: refs, TOL_UP: TOL_UP, TOL_DOWN: TOL_DOWN, VARIANTS: VARIANTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = Cofid;
   root.Cofid = Cofid;
 })(typeof window !== 'undefined' ? window : this);
