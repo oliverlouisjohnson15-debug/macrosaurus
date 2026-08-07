@@ -14,12 +14,17 @@ const path = require('path');
 const Cofid = require('../app/cofid.js');
 
 const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'foods-uk.json'), 'utf8'));
-const FOODS = raw.foods.map(f => ({
-  name: f[0],
-  per100: { kcal: f[1], protein: f[2] || 0, carbs: f[3] || 0, fat: f[4] || 0, fiber: f[5] || 0 },
-  extra: (f[5] != null && f[6] != null && f[7] != null && f[8] != null) ? { satfat: f[6], sugars: f[7], salt: f[8] } : null,
-  lc: f[0].toLowerCase()
-}));
+// Converted to the label basis, exactly as loadGenericFoods() does, so these tests exercise the
+// numbers the app actually uses rather than CoFID's raw research basis.
+const FOODS = raw.foods.map(f => {
+  const lab = Cofid.toLabelBasis({ protein: f[2], carbs: f[3], fat: f[4], fiber: f[5], sugars: f[7] });
+  return {
+    name: f[0],
+    per100: { kcal: lab.kcal, protein: lab.protein, carbs: lab.carbs, fat: lab.fat, fiber: lab.fiber },
+    extra: (f[5] != null && f[6] != null && f[7] != null && f[8] != null) ? { satfat: f[6], sugars: lab.sugars, salt: f[8] } : null,
+    lc: f[0].toLowerCase()
+  };
+});
 
 // The app's own ranking, mirrored here so the tests exercise the real matching behaviour rather
 // than an idealised one. Kept in step with searchGenericFoods() in app/src/app.jsx.
@@ -223,4 +228,59 @@ test('every reference carries usable per-100g numbers', () => {
     assert.ok(f.per100.kcal > 0, f.name);
     assert.ok(typeof f.per100.protein === 'number' && typeof f.per100.fat === 'number', f.name);
   }
+});
+
+// ---- CoFID basis -> UK label basis ------------------------------------------------------------
+// CoFID publishes carbohydrate as monosaccharide equivalents (100 g of starch yields 110 g of
+// glucose, 100 g of a disaccharide yields 105 g) and energises fibre at 0 kcal. A UK label declares
+// carbohydrate by weight and counts fibre at 2 kcal/g. Mixing the two in one diary meant a CoFID
+// food and a barcoded product were not comparable.
+test('removes the water of hydration from carbohydrate', () => {
+  // Pure starch: 110 g mono is 100 g by weight.
+  const starchy = Cofid.toLabelBasis({ protein: 0, carbs: 110, fat: 0, fiber: 0, sugars: 0 });
+  assert.strictEqual(starchy.carbs, 100);
+  // Pure disaccharide: 105 g mono is 100 g by weight.
+  const sugary = Cofid.toLabelBasis({ protein: 0, carbs: 105, fat: 0, fiber: 0, sugars: 105 });
+  assert.strictEqual(sugary.carbs, 100);
+  assert.strictEqual(sugary.sugars, 100);
+});
+
+test('energy comes out on the label formula, fibre included', () => {
+  const r = Cofid.toLabelBasis({ protein: 10, carbs: 110, fat: 5, fiber: 8, sugars: 0 });
+  // 10*4 + 100*4 + 5*9 + 8*2 = 501
+  assert.strictEqual(r.kcal, 501);
+});
+
+test('treats carbohydrate as starch when sugars were never measured', () => {
+  const r = Cofid.toLabelBasis({ protein: 0, carbs: 110, fat: 0, fiber: 0, sugars: null });
+  assert.strictEqual(r.carbs, 100);
+  assert.strictEqual(r.sugars, null, 'an unmeasured value must stay unmeasured');
+});
+
+test('never invents carbohydrate when sugars exceed the total', () => {
+  const r = Cofid.toLabelBasis({ protein: 0, carbs: 10, fat: 0, fiber: 0, sugars: 12 });
+  assert.ok(r.carbs >= 0 && isFinite(r.carbs), r.carbs);
+});
+
+test('leaves protein, fat and fibre exactly as published', () => {
+  const r = Cofid.toLabelBasis({ protein: 25.4, carbs: 0.1, fat: 34.9, fiber: 1.2, sugars: 0.1 });
+  assert.strictEqual(r.protein, 25.4);
+  assert.strictEqual(r.fat, 34.9);
+  assert.strictEqual(r.fiber, 1.2);
+});
+
+// The whole point of converting rather than leaving it: carbs move meaningfully, calories barely
+// move. If a future change to the factors flips that, the targets would shift under everyone.
+test('across the real table, carbs fall about 7% and calories hold within a few percent', () => {
+  const carbD = [], kcalD = [];
+  for (const f of raw.foods) {
+    if (f[1] == null || f[3] == null || f[7] == null || f[5] == null) continue;
+    const lab = Cofid.toLabelBasis({ protein: f[2], carbs: f[3], fat: f[4], fiber: f[5], sugars: f[7] });
+    if (f[3] > 0) carbD.push((lab.carbs - f[3]) / f[3]);
+    if (f[1] > 0) kcalD.push((lab.kcal - f[1]) / f[1]);
+  }
+  const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const mc = mean(carbD), mk = mean(kcalD);
+  assert.ok(mc < -0.05 && mc > -0.09, `carbs moved ${(mc * 100).toFixed(1)}%, expected about -7%`);
+  assert.ok(Math.abs(mk) < 0.03, `calories moved ${(mk * 100).toFixed(1)}%, expected to hold`);
 });

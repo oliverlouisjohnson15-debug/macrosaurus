@@ -8119,16 +8119,23 @@ function loadGenericFoods() {
     GENERIC_LOAD = fetch('/foods-uk.json')
       .then(r => r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)))
       .then(d => {
-        GENERIC_FOODS = (d.foods || []).map(f => ({
-          name: f[0],
-          per100: { kcal: f[1], protein: f[2] || 0, carbs: f[3] || 0, fat: f[4] || 0, fiber: f[5] || 0 },
-          // Only hand over the density inputs when the food carries ALL of them, fibre included.
-          // A null here means nobody measured it, which is not the same as none, and scoring an
-          // unmeasured value as a virtuous zero is exactly how a food gets rated better than it is.
-          extra: (f[5] != null && f[6] != null && f[7] != null && f[8] != null)
-            ? { satfat: f[6], sugars: f[7], salt: f[8] } : null,
-          lc: f[0].toLowerCase()
-        }));
+        GENERIC_FOODS = (d.foods || []).map(f => {
+          // CoFID is not on the UK label basis the rest of the app uses: its carbohydrate is
+          // expressed as monosaccharide equivalents (about 7% high) and its energy gives fibre
+          // 0 kcal. Convert at the boundary so a CoFID food and a barcoded product are directly
+          // comparable in the same diary. See Cofid.toLabelBasis for the full reasoning.
+          const lab = Cofid.toLabelBasis({ protein: f[2], carbs: f[3], fat: f[4], fiber: f[5], sugars: f[7] });
+          return {
+            name: f[0],
+            per100: { kcal: lab.kcal, protein: lab.protein, carbs: lab.carbs, fat: lab.fat, fiber: lab.fiber },
+            // Only hand over the density inputs when the food carries ALL of them, fibre included.
+            // A null here means nobody measured it, which is not the same as none, and scoring an
+            // unmeasured value as a virtuous zero is exactly how a food gets rated better than it is.
+            extra: (f[5] != null && f[6] != null && f[7] != null && f[8] != null)
+              ? { satfat: f[6], sugars: lab.sugars, salt: f[8] } : null,
+            lc: f[0].toLowerCase()
+          };
+        });
         return GENERIC_FOODS;
       })
       .catch(e => { GENERIC_LOAD = null; throw e; });
@@ -8933,7 +8940,9 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
     ? (src.items || []).some(it => it.satfat_g != null || it.sugars_g != null || it.salt_g != null)
     : (src.satfat_g != null || src.sugars_g != null || src.salt_g != null);
   const nq = gotExtras ? E.ndPer100kcal(base, { satfat: base.satfat, sugars: base.sugars, salt: base.salt, grams: base.grams }) : null;
-  const confColor = conf === 'high' ? 'var(--good)' : conf === 'medium' ? 'var(--fat)' : 'var(--danger)';
+  // -ink variants, not the raw accent hues: measured at 9px the accent shades came out 3.79:1,
+  // under the 4.5:1 WCAG AA floor for text this size.
+  const confColor = conf === 'high' ? 'var(--good-ink)' : conf === 'medium' ? 'var(--fat-ink)' : 'var(--danger-ink)';
   const low = Math.round((+src.kcal_low || 0) * p), high = Math.round((+src.kcal_high || 0) * p);
   const implausible = final.kcal > 4000;
   // Same guard as the scan/database confirm screen: flag when the total calories run clearly higher
@@ -8964,10 +8973,10 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
   const portionLabel = single ? (fmtCount(+(only && only.grams) || 0) + ' g') : (p === 1 ? 'the whole meal' : (fmtCount(p) + ' of the meal'));
   const qtyLabel = p === 1 ? '' : (fmtCount(p) + ' portion');
   return (<div className="fade-in">
-    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] mb-2">‹ Start over</button>
+    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] min-h-[44px] -ml-1 px-1 flex items-center">‹ Start over</button>
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="text-[12px] text-[#8A8A90] leading-snug">Check it over, then log it.</div>
-      {conf !== 'high' && <span className="text-[10px] shrink-0" style={{ color: confColor }}>{conf === 'low' ? 'Rough guess' : 'Fair guess'}</span>}
+      {conf !== 'high' && <span className="text-[11px] shrink-0" style={{ color: confColor }}>{conf === 'low' ? 'Rough guess' : 'Fair guess'}</span>}
     </div>
     <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">How much did you have?</div>
@@ -8996,8 +9005,8 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
     {onRefine && ask && askOpts.length > 0 && <div className="pixel-box p-3 mb-3 fade-in" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--accent)' }}>
       <div className="text-[12px] font-semibold mb-2" style={{ color: 'var(--text)' }}>{ask}</div>
       <div className="flex gap-1.5 flex-wrap">{askOpts.map(o => (
-        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); onRefine(o); }} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
-        <button type="button" onClick={() => setAsked(true)} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>Skip</button>
+        <button key={o} type="button" disabled={busy} onClick={() => { setAsked(true); onRefine(o); }} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', opacity: busy ? 0.5 : 1 }}>{o}</button>))}
+        <button type="button" onClick={() => setAsked(true)} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ color: 'var(--muted)' }}>Skip</button>
       </div>
     </div>}
     {checks.length > 0 && <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
@@ -9005,18 +9014,18 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
       <div className="space-y-1.5">{checks.map(c => (
         <div key={c.i} className="flex items-center gap-2">
           <div className="min-w-0 flex-1 text-[11px] text-[#8A8A90] leading-snug">{c.name} looks {c.high ? 'high' : 'low'} at {c.aiKcal100} kcal/100g · the tables say {c.refKcal100}</div>
-          <button onClick={() => applyCofid(c)} className="text-[11px] font-semibold shrink-0 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Use {c.refKcal100}</button>
+          <button onClick={() => applyCofid(c)} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Use {c.refKcal100}</button>
         </div>))}</div>
     </div>}
-    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[11px] text-[#8A8A90] mb-2">{edit ? '▲ Hide items' : '▾ Edit items'}</button>}
+    {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[12px] text-[#8A8A90] min-h-[44px] flex items-center">{edit ? '▲ Hide items' : '▾ Edit items'}</button>}
     {hadItems && !single && edit && <div className="fade-in space-y-2 mb-3">
       <div className="text-[10px] text-[#8A8A90] leading-snug">Amounts for the full meal.</div>
       {items.map((it, i) => (
         <div key={i} className="bg-[#1E1E22] rounded-2xl p-3 border border-[#262629]">
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[8px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
-            <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 bg-[#0F0F12] rounded-lg border border-[#262629] px-2 py-1.5 text-[12px] text-[var(--text)] text-right" /><span className="text-[10px] text-[#8A8A90]">g</span>
-            <button onClick={() => removeItem(i)} className="text-[#8A8A90] pl-1 text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}>×</button>
+            <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 h-11 bg-[#0F0F12] rounded-lg border border-[#262629] px-2 text-[13px] text-[var(--text)] text-right" /><span className="text-[10px] text-[#8A8A90]">g</span>
+            <button onClick={() => removeItem(i)} className="w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}>×</button>
           </div>
           {it.assumption && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug">↳ {it.assumption}</div>}
         </div>))}
@@ -9032,7 +9041,7 @@ function AiConfirm({ est, onAdd, onAddItems, onCancel, onRefine, busy }) {
       <div className="text-[11px] text-[#8A8A90] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ('Add ' + final.kcal + ' kcal'))}</Btn>
-    {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[11px] text-[#8A8A90] mt-2.5 underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
+    {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[#8A8A90] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
 // Text/voice logging: describe a meal or named order in words → Sonnet estimates the macros (with

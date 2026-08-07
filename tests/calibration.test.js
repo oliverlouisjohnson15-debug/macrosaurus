@@ -10,6 +10,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const Q = require('../app/quantity.js');
+const Cofid = require('../app/cofid.js');
 
 const root = path.join(__dirname, '..');
 const fx = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/calibration.json'), 'utf8'));
@@ -44,29 +45,24 @@ test('knowledge cases state their weight in the text the model sees', () => {
   }
 });
 
-/* The strongest check available offline: expected macros must reconcile with expected calories.
-   Each source has to be reconciled under ITS OWN energy convention, which is not the same one.
+/* The strongest check available offline: expected macros must reconcile with expected calories
+   under the UK label convention (protein 4, carbohydrate 4, fat 9, fibre 2; Reg. 1169/2011 Annex
+   XIV), which is now the ONE basis everything in this app speaks.
 
-   A UK label, and therefore the whole app, uses protein 4, carbohydrate 4, fat 9, fibre 2 (Reg.
-   1169/2011 Annex XIV), with carbohydrate declared excluding fibre.
-
-   CoFID does not. It expresses carbohydrate as MONOSACCHARIDE EQUIVALENTS, energised at 3.75 kcal/g,
-   and its energy values assign fibre 0 kcal, predating the 2011 rule. Fitted across the 1,378 CoFID
-   rows carrying all four values, `protein*4 + carbs*3.75 + fat*9` lands within 5% on 97% of them
-   (median error 0.14%); a flat 4/4/9 plus fibre*2 manages only 60%. So checking CoFID-derived truth
-   with the label formula would fail honest rows and pass typos, which is backwards. */
+   It did not used to be. CoFID publishes carbohydrate as monosaccharide equivalents and energises
+   fibre at 0 kcal, so its rows failed this check honestly until Cofid.toLabelBasis started
+   converting them at load. That mismatch was not only a test problem: the prompt tells the model to
+   answer on the label convention, so the old fixture marked correct answers wrong. */
 const labelKcal = (e) => Q.atwater({ protein: e.protein, carbs: e.carbs, fat: e.fat, fiber: e.fiber || 0 });
-const cofidKcal = (e) => e.protein * 4 + e.carbs * 3.75 + e.fat * 9;
 
-test('expected macros reconcile with expected calories, each under its own convention', () => {
+test('expected macros reconcile with expected calories on the label basis', () => {
   for (const c of all) {
-    const measured = c.confidence === 'measured';
-    const sum = measured ? cofidKcal(c.expect) : labelKcal(c.expect);
+    const sum = labelKcal(c.expect);
     const drift = Math.abs(sum - c.expect.kcal) / c.expect.kcal;
-    // Tight for CoFID, where the convention is known exactly and any real drift is a generator bug.
-    // Looser for published chain figures, which round hard and omit fibre.
-    const tol = measured ? 0.06 : 0.15;
-    assert.ok(drift <= tol, `${c.id}: ${c.expect.kcal} kcal but macros sum to ${sum.toFixed(0)} under the ${measured ? 'CoFID' : 'label'} convention (${(drift * 100).toFixed(1)}% off, tolerance ${tol * 100}%)`);
+    // Tight for converted CoFID, where the arithmetic is exact and any drift is a generator bug.
+    // Looser for published chain figures, which round hard and usually omit fibre.
+    const tol = c.confidence === 'measured' ? 0.03 : 0.15;
+    assert.ok(drift <= tol, `${c.id}: ${c.expect.kcal} kcal but macros sum to ${sum.toFixed(0)} (${(drift * 100).toFixed(1)}% off, tolerance ${tol * 100}%)`);
   }
 });
 
@@ -84,7 +80,7 @@ test('composite cases equal the sum of the CoFID rows they name', () => {
       assert.ok(m, `${c.id}: unparseable component "${part}"`);
       const row = FOODS.find(f => f[0] === m[1]);
       assert.ok(row, `${c.id}: CoFID row gone: "${m[1]}"`);
-      kcal += row[1] * (+m[2]) / 100;
+      kcal += Cofid.toLabelBasis({ protein: row[2], carbs: row[3], fat: row[4], fiber: row[5], sugars: row[7] }).kcal * (+m[2]) / 100;
       grams += +m[2];
     }
     assert.strictEqual(c.expect.kcal, Math.round(kcal), `${c.id}: expects ${c.expect.kcal} kcal, parts sum to ${Math.round(kcal)}`);
@@ -97,7 +93,7 @@ test('knowledge cases still match the CoFID rows they were generated from', () =
     const name = String(c.truth).replace(/^CoFID:\s*/, '');
     const row = FOODS.find(f => f[0] === name);
     assert.ok(row, `${c.id}: CoFID row gone: "${name}"`);
-    const expected = Math.round(row[1] * c.grams / 100);
+    const expected = Math.round(Cofid.toLabelBasis({ protein: row[2], carbs: row[3], fat: row[4], fiber: row[5], sugars: row[7] }).kcal * c.grams / 100);
     assert.strictEqual(c.expect.kcal, expected, `${c.id}: expects ${c.expect.kcal} kcal, CoFID gives ${expected} for ${c.grams} g`);
   }
 });

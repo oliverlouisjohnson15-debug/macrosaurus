@@ -147,7 +147,52 @@
     return out;
   }
 
-  var Cofid = { query: query, check: check, profile: profile, refs: refs, TOL_UP: TOL_UP, TOL_DOWN: TOL_DOWN, VARIANTS: VARIANTS };
+  /* ---- CoFID basis -> UK label basis --------------------------------------------------------
+     CoFID is a research table and does not use the convention the rest of this app does. Two
+     differences, both real and both systematic:
+
+     1. CARBOHYDRATE AS MONOSACCHARIDE EQUIVALENTS. CoFID reports available carbohydrate as the
+        weight of monosaccharide it would yield on hydrolysis, which includes the water of hydration
+        released in the process. 100 g of starch yields 110 g of glucose; 100 g of a disaccharide
+        such as sucrose or lactose yields 105 g. A UK label declares carbohydrate BY WEIGHT, so
+        every CoFID carb figure runs high, by about 7% across the table.
+     2. FIBRE AT ZERO ENERGY. CoFID's energy predates Reg. 1169/2011 and counts fibre as 0 kcal,
+        energising the mono-expressed carbohydrate at 3.75 kcal/g. A UK label counts fibre at
+        2 kcal/g and carbohydrate by weight at 4.
+
+     Left unconverted the app mixed two conventions in one diary: a CoFID food and a barcoded
+     product from Open Food Facts are not on the same basis, so their carbs were not comparable and
+     neither were their calories. Converting here, at the boundary, keeps foods-uk.json faithful to
+     what OHID published while everything downstream speaks one language.
+
+     The net effect is a carb figure about 7% lower and a calorie figure within about 1%, because
+     removing the hydration water and adding fibre's energy very nearly cancel.
+
+     Sugars carry the disaccharide factor. Free monosaccharides in fruit want 1.00 rather than 1.05,
+     so fruit is over-corrected by a couple of percent; that is a fraction of the ~7% error being
+     removed, and CoFID does not publish the mono/di split needed to do better. Where sugars were
+     never measured the whole carbohydrate is treated as starch, which is right for the savoury
+     foods that dominate the missing rows. */
+  var MONO_STARCH = 1.10, MONO_SUGAR = 1.05;
+  var KCAL = { protein: 4, carbs: 4, fat: 9, fiber: 2 };   // Reg. 1169/2011 Annex XIV, as app/quantity.js
+
+  function toLabelBasis(row) {
+    var carbs = +row.carbs || 0, sugars = row.sugars == null ? null : (+row.sugars || 0);
+    var starch = sugars == null ? carbs : Math.max(0, carbs - sugars);
+    var carbsOut = starch / MONO_STARCH + (sugars == null ? 0 : sugars / MONO_SUGAR);
+    var sugarsOut = sugars == null ? null : sugars / MONO_SUGAR;
+    var protein = +row.protein || 0, fat = +row.fat || 0, fiber = +row.fiber || 0;
+    var kcal = protein * KCAL.protein + carbsOut * KCAL.carbs + fat * KCAL.fat + fiber * KCAL.fiber;
+    return {
+      kcal: Math.round(kcal),
+      protein: protein, fat: fat, fiber: fiber,
+      carbs: Math.round(carbsOut * 10) / 10,
+      sugars: sugarsOut == null ? null : Math.round(sugarsOut * 10) / 10
+    };
+  }
+
+  var Cofid = { query: query, check: check, profile: profile, refs: refs, toLabelBasis: toLabelBasis,
+    MONO_STARCH: MONO_STARCH, MONO_SUGAR: MONO_SUGAR, TOL_UP: TOL_UP, TOL_DOWN: TOL_DOWN, VARIANTS: VARIANTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = Cofid;
   root.Cofid = Cofid;
 })(typeof window !== 'undefined' ? window : this);
