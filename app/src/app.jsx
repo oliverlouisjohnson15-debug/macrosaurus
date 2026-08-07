@@ -11446,6 +11446,17 @@ let _saveTimer = null;
 // Demo mode: ?demo seeds a local sample account and bypasses sign-in. It NEVER touches the cloud
 // (cloudSave is a hard no-op below), so real accounts are completely unaffected. For previews + tests.
 const DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
+// Stable stringify (keys sorted at every level) so a merged state can be compared against the copy
+// already in the cloud. Postgres returns jsonb in its own key order, so a plain JSON.stringify would
+// report "changed" on every save even when nothing did. Anything it can't represent canonicalises to
+// null, which at worst reports a change that isn't one (we write); it can never miss a real one.
+function canonJSON(v) {
+  if (v === undefined || typeof v === 'function') return 'null';
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(canonJSON).join(',') + ']';
+  var keys = Object.keys(v).filter(function (k) { return v[k] !== undefined; }).sort();
+  return '{' + keys.map(function (k) { return JSON.stringify(k) + ':' + canonJSON(v[k]); }).join(',') + '}';
+}
 function cloudSave(uid, data) {
   if (DEMO || !supa || !uid) return;
   clearTimeout(_saveTimer);
@@ -11455,6 +11466,11 @@ function cloudSave(uid, data) {
     // ones another device recorded. This makes stale-copy overwrites (silent data loss) impossible.
     cloudLoad(uid).then(function (remote) {
       var merged = Store.mergeStates(snapshot, remote);
+      // If the merge came out identical to what's already up there, don't write. The state blob is
+      // large (recipe art is inlined as base64), and Postgres can't update a TOASTed value in place:
+      // every UPDATE rewrites the whole chain and leaves the old one dead. A no-op save therefore
+      // costs its full size in dead rows, and that churn is what grew the database to 1.4 GB.
+      if (remote && canonJSON(merged) === canonJSON(remote)) return null;
       return supa.from('user_state').upsert({ user_id: uid, data: merged, updated_at: new Date().toISOString() });
     }).then(function (r) { if (r && r.error) console.warn('cloud save failed:', r.error.message); },
       function (e) { console.warn('cloud save skipped (offline?):', e && e.message); });
