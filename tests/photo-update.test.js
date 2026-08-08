@@ -11,6 +11,7 @@ const E = require('../app/engine.js');
 
 const entry = (over) => Object.assign({
   id: 'e1', ref_type: 'food', name: 'Chicken katsu curry', qty_label: '0.75 of the meal',
+  source: 'ai_estimate',
   computed_macros: { kcal: 780, protein: 52, carbs: 74, fat: 28, fiber: 6 },
 }, over || {});
 
@@ -52,13 +53,24 @@ test('an entry with a name but no numbers is still worth describing', () => {
   assert.equal(E.priorEstimateBrief({ name: 'Leftover chilli' }), '"Leftover chilli".');
 });
 
-test('food can be re-estimated from a photo; alcohol cannot', () => {
+test('an AI estimate can be re-estimated from a photo', () => {
   assert.equal(E.photoUpdatable(entry()), true);
-  assert.equal(E.photoUpdatable(entry({ is_alcohol: true, ref_type: 'alcohol' })), false,
-    'a drink\'s calories are split by slider, not estimated, and must not be overwritten');
+  assert.equal(E.photoUpdatable(entry({ ref_type: undefined })), true, 'entries logged before ref_type existed are still food');
+});
+
+/* The whole point of the restriction: a number that came off a packet must never be replaced by a
+   number guessed from a photograph. Every source below is a MEASURED figure, and the offer must not
+   appear on any of them. If a new logging path is added, it is opt-IN to this list, not opt-out. */
+test('a measured figure is never offered up for guessing', () => {
+  ['label', 'off', 'community', 'recipe', 'manual', 'custom', 'table', 'meal'].forEach(src =>
+    assert.equal(E.photoUpdatable(entry({ source: src })), false, `source "${src}" is measured, not estimated`));
+});
+
+test('an entry with no source recorded is left alone', () => {
+  assert.equal(E.photoUpdatable(entry({ source: undefined })), false);
   assert.equal(E.photoUpdatable(null), false);
 });
 
-test('an entry logged before ref_type existed is still food', () => {
-  assert.equal(E.photoUpdatable({ name: 'Porridge', computed_macros: { kcal: 300 } }), true);
+test('an AI-estimated drink is still out, because its split is a slider not an estimate', () => {
+  assert.equal(E.photoUpdatable(entry({ is_alcohol: true, ref_type: 'alcohol' })), false);
 });

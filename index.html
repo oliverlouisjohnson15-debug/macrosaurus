@@ -1084,11 +1084,21 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // the model what the user already believed, and a silently empty or malformed one turns a
   // re-estimate into a blind first guess with no way to notice.
 
-  // Alcohol is out: its calories are split across carbs and fat by a slider rather than estimated,
-  // so replacing them with a meal estimate would quietly undo that split. Everything else that was
-  // eaten is fair game, because planning ahead is not something only the AI estimator is used for.
+  /* Only an AI estimate. This started out offered on anything you had eaten, on the reasoning that
+     planning ahead is not something only the estimator gets used for, and that was the wrong trade.
+     A barcode, a scanned label and a database pick are MEASURED: the figures came off the packet.
+     Re-deriving those from a photograph of the plate replaces a known number with a guess, which is
+     the one direction this feature must never move a diary in. The offer belongs where the existing
+     number is itself an estimate, and a second look can only help.
+
+     Alcohol is out for a different reason: its calories are split across carbs and fat by a slider
+     rather than estimated, so overwriting them with a meal estimate would quietly undo that split.
+
+     An entry that has already been photo-updated keeps its `ai_estimate` source, so a plate that
+     came out wrong twice can be re-shot. */
   function photoUpdatable(entry) {
-    return !!entry && !entry.is_alcohol && (entry.ref_type || 'food') === 'food';
+    return !!entry && !entry.is_alcohol && (entry.ref_type || 'food') === 'food'
+      && entry.source === 'ai_estimate';
   }
 
   // The entry as one plain sentence: what they called it, how much of it, and the numbers they are
