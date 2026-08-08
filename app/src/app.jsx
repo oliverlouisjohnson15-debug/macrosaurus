@@ -8082,7 +8082,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
       {/* Sits with "Numbers look off?" because it answers the same question, and above it because a
           photograph settles an amount better than typing a gram figure at it does. Only offered on
           entries where it means something: see Engine.photoUpdatable. */}
-      {onPhotoUpdate && <button onClick={onPhotoUpdate} className="w-full flex items-center gap-2.5 mb-3 pixel-btn py-3 px-3 text-left" style={{ background: 'var(--surface3)', border: '1px solid var(--border)' }}>
+      {onPhotoUpdate && <button onClick={onPhotoUpdate} className="w-full flex items-center gap-2.5 mb-3 pixel-btn py-3 px-3 text-left" style={{ background: 'var(--surface3)' }}>
         <Icon.cam width="18" height="18" className="shrink-0" />
         <span className="min-w-0">
           <span className="block text-[13px] font-medium" style={{ color: 'var(--text)' }}>Update with a photo</span>
@@ -8948,9 +8948,13 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full mt-3" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={() => onAdd({ name: v.name || 'Food', source, qtyLabel, macros: final, unit, amount: a, unitNoun: unit === 'g' ? 'g' : servNoun, edited: editedNums || saved, baseMacros: { protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber, kcal: m.kcal }, baseKind: per100 ? 'per100' : 'serving', savedServingG: sg, savedServingLabel: servingLabel || '', barcode: barcode || null, is_alcohol: !!asAlcohol, nq: nq })}>{kcalHigh ? ('Log ' + final.kcal + ' kcal anyway') : ('Add ' + final.kcal + ' kcal')}</Btn>
   </div>);
 }
-// `verb` retitles the commit button and the strapline for a caller that is not adding a new line to
-// the diary. Left unset it keeps the original wording exactly, so the add flows are untouched.
-function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb }) {
+/* `verb` retitles the commit button and the strapline for a caller that is not adding a new line to
+   the diary. `compare` is the macros this estimate would REPLACE, and it turns this screen from a
+   proposal into an approval: measured at 390px, the figure being replaced sat 443px above the new
+   one and had scrolled off the top entirely by the time the commit button was reachable, so the
+   decision was being taken with only one of the two numbers on screen. Both left unset, an add
+   flow renders exactly as it did. */
+function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb, compare }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -9051,6 +9055,12 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   // hand-corrected. refineCount and answered come from the parent, because this component is
   // remounted with a new key after every refine and anything counted here would reset to zero.
   const [edited, setEdited] = useState(false);
+  /* The commit control names what it is about to REPLACE as well as what it is about to write.
+     This sheet already holds that rule for the amount ("the button says the number it is about to
+     commit, so a mistyped amount gets one more chance to be caught on the control that commits
+     it"); when the commit overwrites a figure rather than adding one, the figure being overwritten
+     is the part worth catching. */
+  const wasSuffix = compare ? (' · was ' + Math.round(+compare.kcal || 0)) : '';
   const ask = asked ? '' : String(src.question || '').trim();
   const askOpts = (Array.isArray(src.question_options) ? src.question_options : []).map(o => String(o || '').trim()).filter(Boolean).slice(0, 4);
   const logItems = items
@@ -9096,6 +9106,19 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
     <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
       <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {portionLabel}</div>
       <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span></div>
+      {/* What this replaces, in the SAME box as what replaces it, because two numbers 443px apart
+          are not a comparison. Divider borrowed from the edit sheet's density row, which splits a
+          surface3 block the same way. The delta is deliberately NOT coloured good/bad: more
+          calories than you planned is a fact about a plate, not a verdict on you, and the app does
+          not moralise food anywhere else either. */}
+      {compare && final.kcal > 0 && (() => {
+        const w = { kcal: Math.round(+compare.kcal || 0), protein: Math.round(+compare.protein || 0), carbs: Math.round(+compare.carbs || 0), fat: Math.round(+compare.fat || 0) };
+        const d = final.kcal - w.kcal;
+        return (<div className="mt-2 pt-2 flex items-baseline justify-between gap-2 tnum text-[11px]" style={{ borderTop: '2px solid var(--surface2)' }}>
+          <span style={{ color: 'var(--muted)' }}>Was {w.kcal} kcal · P{w.protein} C{w.carbs} F{w.fat}</span>
+          <span className="shrink-0 font-bold" style={{ color: 'var(--text2)' }}>{d === 0 ? 'no change' : (d > 0 ? '+' : '−') + Math.abs(d) + ' kcal'}</span>
+        </div>);
+      })()}
       {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the portion.</div>}
       {final.kcal <= 0 && <div className="text-[11px] mt-1.5" style={{ color: 'var(--danger-ink)' }}>The AI couldn't read the calories. Tell it what to fix below, or start over.</div>}
     </div>
@@ -9150,7 +9173,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
       <div className="text-[12px] font-semibold mb-1" style={{ color: 'var(--fat-ink)' }}>Calories look high for these macros</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug">The macros only add up to about {atwT} kcal. Tweak an item, or ask the AI to redo it.</div>
     </div>}
-    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal'))}</Btn>
+    <Btn kind={kcalHigh ? 'ghost' : 'accent'} className="w-full" disabled={final.kcal <= 0} style={{ opacity: final.kcal <= 0 ? 0.5 : 1 }} onClick={() => { if (final.kcal <= 0) return; try { window.MTRACK && MTRACK('ai_logged', { mode: itemised ? 'items' : (single ? 'single' : 'meal'), items: logItems.length, refined: refineCount || 0, question: answered || 'none', confidence: conf, edited: edited }); } catch (_) {} const remember = items.filter(it => (+it.grams) > 0 && (+it.kcal) > 0).map(it => ({ name: it.name, grams: +it.grams, kcal: +it.kcal, protein: +it.protein || 0, carbs: +it.carbs || 0, fat: +it.fat || 0, fiber: +it.fiber || 0, nq: gotExtras ? E.ndPer100kcal(it, { satfat: it.satfat, sugars: it.sugars, salt: it.salt, grams: it.grams }) : null })); if (itemised) { onAddItems(logItems); return; } if (single) { const g = +only.grams || 0; onAdd({ name: name || only.name || 'Food', source: 'ai_estimate', qtyLabel: g > 0 ? fmtCount(g) + ' g' : '', macros: final, unit: 'g', amount: g, unitNoun: 'g', rememberItems: remember, nq: nq }); } else { onAdd({ name: name || 'Meal', source: 'ai_estimate', qtyLabel: qtyLabel, macros: final, rememberItems: remember, nq: nq }); } }}>{kcalHigh ? ((verb || 'Log') + ' ' + final.kcal + ' kcal anyway') : (itemised ? ('Log ' + logItems.length + ' items · ' + final.kcal + ' kcal') : ((verb || 'Add') + ' ' + final.kcal + ' kcal' + wasSuffix))}</Btn>
     {canItemise && <button onClick={() => setAsOne(v => !v)} className="w-full text-[12px] text-[#8A8A90] mt-1 min-h-[44px] underline">{asOne ? 'Log each item separately instead' : 'Log as one meal entry instead'}</button>}
   </div>);
 }
@@ -9221,7 +9244,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
   return (<div>
     {onBack && <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-2 flex items-center">‹ Back</button>}
     <div className="text-[12px] text-[#8A8A90] mb-3">Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm.</div>
-    {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
+    {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
     {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT_T }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
@@ -9230,7 +9253,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
       <div className="flex gap-1.5 flex-wrap">{['Dinner plate', 'Side plate', 'Large portion', 'Small portion', 'Ate half', 'Homemade', 'Fried in oil', 'Grilled', 'With sauce'].map(w => <button key={w} type="button" onClick={() => addHint(w)} className="rounded-lg px-3 min-h-[44px] flex items-center text-[12px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)' }}>+ {w}</button>)}</div>
     </div>}
     <div className="flex items-stretch gap-2 mt-3">
-      {SR && <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop dictation' : 'Dictate'} aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate'} className="pixel-btn shrink-0 w-14 flex items-center justify-center transition active:scale-95" style={{ background: listening ? FAT : 'var(--surface3)', color: listening ? '#fff' : 'var(--text)', border: '1px solid var(--border)' }}><Icon.mic width="20" height="20" /></button>}
+      {SR && <button type="button" onClick={toggleMic} aria-label={listening ? 'Stop dictation' : 'Dictate'} aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate'} className="pixel-btn shrink-0 w-14 flex items-center justify-center transition active:scale-95" style={{ background: listening ? FAT : 'var(--surface3)', color: listening ? '#fff' : 'var(--text)' }}><Icon.mic width="20" height="20" /></button>}
       <Btn kind="accent" className="flex-1" onClick={run}>Estimate with AI</Btn>
     </div>
     {onScan && <div className="flex items-center justify-between gap-2 rounded-2xl p-3 mt-4 border border-[#262629]" style={{ background: 'var(--surface3)' }}>
@@ -9319,13 +9342,6 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)}
     title="Photograph what you actually had" subtitle="It replaces the estimate already in your diary"
     frameHint="Fit the whole plate in the frame, then tap to capture." />;
-  // The old numbers stay on screen through the whole flow, including over the confirm screen. The
-  // question this sheet asks is "is the new figure better than the one I have?", and that cannot be
-  // answered while the one you have is two taps away behind a dismissed sheet.
-  const wasLine = (<div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-    <div className="text-[11px] text-[#8A8A90] mb-0.5">Currently logged{entry.qty_label ? ' · ' + entry.qty_label : ''}</div>
-    <div className="tnum text-[13px]"><span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(+before.kcal || 0)} kcal</span> · <span style={{ color: PRO_T }}>{Math.round(+before.protein || 0)}g P</span> · <span style={{ color: CARB_T }}>{Math.round(+before.carbs || 0)}g C</span> · <span style={{ color: FAT_T }}>{Math.round(+before.fat || 0)}g F</span></div>
-  </div>);
   return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
       <div className="flex justify-between items-start gap-3 mb-3">
@@ -9335,21 +9351,32 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
         </div>
         <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button>
       </div>
-      {wasLine}
       {busy && !result ? <DinoLoader label="Reading what you actually had" />
         : result ? (<div className="fade-in">
+          {/* No "currently logged" block above this: the confirm screen now carries the old figure
+              beside the new one and on the commit button, and a third copy at the top of the sheet
+              would only be the one furthest from the decision. */}
           <AiConfirm key={ver} est={result} photos={imgs} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine}
-            verb="Update" onAdd={(item) => onSave(item)} onCancel={() => setResult(null)} />
+            verb="Update" compare={before} onAdd={(item) => onSave(item)} onCancel={() => setResult(null)} />
         </div>)
         : (<>
+          {/* Before there is an estimate, what you are about to change IS the content of the screen:
+              it is the only thing that says which numbers this sheet is aimed at. */}
+          <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+            <div className="text-[11px] text-[#8A8A90] mb-0.5">Currently logged{entry.qty_label ? ' · ' + entry.qty_label : ''}</div>
+            <div className="tnum text-[13px]"><span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(+before.kcal || 0)} kcal</span> · <span style={{ color: PRO_T }}>{Math.round(+before.protein || 0)}g P</span> · <span style={{ color: CARB_T }}>{Math.round(+before.carbs || 0)}g C</span> · <span style={{ color: FAT_T }}>{Math.round(+before.fat || 0)}g F</span></div>
+          </div>
           <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">You logged this before you ate it. Snap the real thing and the AI re-does the estimate, replacing this entry rather than adding another.</div>
-          {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
+          {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
           {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none" aria-label="Remove photo">×</button></div>))}</div>}
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className={inputCls + ' resize-y leading-relaxed'} placeholder="Anything different from the plan? e.g. bigger than I expected, came with chips" />
           {/* This is a full AI estimate and it is billed like one. Saying so before the tap, rather
               than letting the paywall say it after, is the difference between a price and a shock. */}
           {window.MISPREMIUM !== true && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">Re-estimating uses one of your free AI logs.</div>}
-          <Btn kind="accent" className="w-full mt-3" disabled={!imgs.length} style={{ opacity: imgs.length ? 1 : 0.5 }} onClick={run}>Re-estimate from the photo</Btn>
+          {/* Live rather than disabled, matching the Estimate tab it is a sibling of: that one takes
+              the tap and says what is missing. A greyed slab with no explanation beside it is the
+              one thing on this screen that cannot tell you why it will not work. */}
+          <Btn kind="accent" className="w-full mt-3" onClick={run}>Re-estimate from the photo</Btn>
         </>)}
       {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
     </div>
@@ -13018,7 +13045,7 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
     <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3">‹ Recipes</button>
     <div className="text-lg font-bold mb-1">Cook from your fridge</div>
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
-    {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)', border: '1px solid var(--border)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
+    {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="18" height="18" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
     {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none">×</button></div>))}</div>}
     {imgs.length > 0 && items === null && <Btn kind="accent" className="w-full" onClick={scan}>Spot my ingredients</Btn>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 leading-snug">{err}</div>}
