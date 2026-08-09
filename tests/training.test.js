@@ -394,6 +394,84 @@ test('a day where nothing resolved does not become an empty session', () => {
   assert.equal(template.length, 0);
 });
 
+// ---- the draft basket --------------------------------------------------------------------------
+// Collecting several screenshots into one block. The bug these pin down was real and quiet: five
+// screenshots went in and four days came out, because the basket was keyed on the day's NAME alone
+// and phone screenshots of a plan very often all call themselves "Day 1".
+
+const shot = (name, dayName) => ({ ref: { kind: 'file', name }, days: [{ name: dayName, kind: 'full', exercises: [] }] });
+
+test('five screenshots that all name their day the same still land as five days', () => {
+  const days = [];
+  ['a.png', 'b.png', 'c.png', 'd.png', 'e.png'].forEach(f => {
+    const s = shot(f, 'Day 1');
+    T.mergeDraftDays(days, s.days, s.ref);
+  });
+  assert.equal(days.length, 5, 'a day from a different screenshot must never overwrite another');
+  assert.equal(new Set(days.map(d => d.name)).size, 5, 'and the five must be tellable apart');
+  assert.deepEqual(days.map(d => d.dayOfWeek), [0, 1, 2, 3, 4]);
+});
+
+test('re-importing the same file replaces the day it gave last time rather than doubling it', () => {
+  const days = [];
+  T.mergeDraftDays(days, [{ name: 'Upper A', exercises: [{ id: 'x' }] }], { kind: 'file', name: 'upper.png' });
+  T.mergeDraftDays(days, [{ name: 'Upper A', exercises: [{ id: 'y' }, { id: 'z' }] }], { kind: 'file', name: 'upper.png' });
+  assert.equal(days.length, 1, 'the corrected read replaces the first one');
+  assert.equal(days[0].exercises.length, 2);
+});
+
+test('days from different sources keep their own provenance', () => {
+  const days = [];
+  T.mergeDraftDays(days, [{ name: 'Push', exercises: [] }], { kind: 'file', name: 'mon.png' });
+  T.mergeDraftDays(days, [{ name: 'Push', exercises: [] }], { kind: 'link', url: 'https://example.com/p/1' });
+  T.mergeDraftDays(days, [{ name: 'Push', exercises: [] }], { kind: 'paste' });
+  assert.equal(days.length, 3);
+  assert.deepEqual(days.map(d => d.sourceRef.kind), ['file', 'link', 'paste']);
+});
+
+test('a pasted plan re-pasted replaces itself, since there is only ever one paste', () => {
+  const days = [];
+  T.mergeDraftDays(days, [{ name: 'Legs', exercises: [] }], { kind: 'paste' });
+  T.mergeDraftDays(days, [{ name: 'Legs', exercises: [] }], { kind: 'paste' });
+  assert.equal(days.length, 1);
+});
+
+test('one screenshot holding a whole week keeps every day of it', () => {
+  const days = [];
+  const week = ['Mon', 'Tue', 'Wed', 'Thu'].map(n => ({ name: n, exercises: [] }));
+  T.mergeDraftDays(days, week, { kind: 'file', name: 'week.png' });
+  assert.equal(days.length, 4);
+  assert.deepEqual(days.map(d => d.name), ['Mon', 'Tue', 'Wed', 'Thu']);
+});
+
+test('disambiguated names do not collide with a day already called that', () => {
+  const days = [];
+  T.mergeDraftDays(days, [{ name: 'Push', exercises: [] }], { kind: 'file', name: 'a.png' });
+  T.mergeDraftDays(days, [{ name: 'Push (2)', exercises: [] }], { kind: 'file', name: 'b.png' });
+  T.mergeDraftDays(days, [{ name: 'Push', exercises: [] }], { kind: 'file', name: 'c.png' });
+  assert.equal(days.length, 3);
+  assert.equal(new Set(days.map(d => d.name.toLowerCase().replace(/[^a-z0-9]/g, ''))).size, 3);
+});
+
+test('one screenshot read as two same-named sessions keeps both', () => {
+  // Same source, same read. These are two days, not a day and a correction of it, so neither the
+  // count nor the second session may be swallowed.
+  const days = [];
+  T.mergeDraftDays(days, [{ name: 'Day 1', exercises: [] }, { name: 'Day 1', exercises: [] }], { kind: 'file', name: 'both.png' });
+  assert.equal(days.length, 2);
+});
+
+test('collected days become a block with every day intact', () => {
+  // The end of the journey the bug broke: five screenshots in, five sessions in week 1.
+  const days = [];
+  ['a', 'b', 'c'].forEach(f => {
+    const { template } = T.importTemplate({ days: [{ name: 'Day 1', exercises: [{ name: 'Bench Press', sets: 3 }] }] });
+    T.mergeDraftDays(days, template, { kind: 'file', name: f + '.png' });
+  });
+  const block = T.blockFromTemplate(days, { weeks: 4, targets: T.defaultTargets(), source: 'import' });
+  assert.equal(T.weekSessions(block, 1).length, 3);
+});
+
 test('an imported plan gets real periodisation, not four identical weeks', () => {
   const { template } = T.importTemplate({
     days: [

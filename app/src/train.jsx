@@ -244,7 +244,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'builder') {
     return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium}
-      blockId={screen.blockId} draft={screen.draft} clearDraft={screen.clearDraft} onBack={() => go('home')}
+      blockId={screen.blockId} draft={screen.draft} clearDraft={screen.clearDraft} onBack={() => go(screen.from || 'home')}
       onStart={screen.blockId ? startSession : null} />);
   }
   if (screen.name === 'wizard') {
@@ -270,6 +270,10 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
         });
         go('builder', { draft: block, clearDraft: true });
       }} />);
+  }
+  if (screen.name === 'blocks') {
+    return page(<BlockList db={db} update={update} showToast={showToast}
+      onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard')} />);
   }
   if (screen.name === 'library') {
     return page(<BlockLibrary db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
@@ -349,12 +353,17 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
       {/* ---- the block ---- */}
       {block && !blockDone && (
         <Card className="p-4 mb-4">
-          <div className="mb-4">
-            <div className="text-[15px] font-bold leading-tight">{block.name}</div>
-            <div className="text-[11px] tnum mt-1" style={{ color: doneThisWeek === thisWeek.length ? 'var(--good)' : 'var(--muted)' }}>
-              {doneThisWeek} of {thisWeek.length} done this week
-            </div>
-          </div>
+          {/* The name is the way into the block itself: editing it, and deleting it if it was built
+              by mistake. That used to be reachable from nowhere at all. */}
+          <button onClick={() => go('blocks')} className="w-full flex items-start justify-between gap-2 text-left mb-4">
+            <span className="min-w-0">
+              <span className="block text-[15px] font-bold leading-tight truncate">{block.name}</span>
+              <span className="block text-[11px] tnum mt-1" style={{ color: doneThisWeek === thisWeek.length ? 'var(--good)' : 'var(--muted)' }}>
+                {doneThisWeek} of {thisWeek.length} done this week
+              </span>
+            </span>
+            <Icon.chevron width="15" height="15" style={{ color: 'var(--muted2)', flexShrink: 0, marginTop: 2 }} />
+          </button>
 
           {isDeload && (
             <div className="text-[11px] mb-4 px-2.5 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
@@ -495,10 +504,16 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
               the way past. That is worth having and not worth advertising, so it lives with the
               block it is an exception to, and only shows once there is a block to be an exception
               to at all. ---- */}
-      <div className="flex items-center justify-center gap-4 py-1 text-[12px]">
+      <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 py-1 text-[12px]">
         <button onClick={() => go('history')} style={{ color: 'var(--accent-ink)' }}>History</button>
         <span style={{ color: 'var(--muted2)' }}>·</span>
         <button onClick={() => go('stats')} style={{ color: 'var(--accent-ink)' }}>Stats</button>
+        {/* The only route to a block that is not the one running: an archived one, a finished one, or
+            one built by mistake that you want gone. */}
+        {t.blocks.length > 0 && <span style={{ color: 'var(--muted2)' }}>·</span>}
+        {t.blocks.length > 0 && (
+          <button onClick={() => go('blocks')} style={{ color: 'var(--accent-ink)' }}>Your blocks</button>
+        )}
         {block && !blockDone && <span style={{ color: 'var(--muted2)' }}>·</span>}
         {block && !blockDone && (
           <button onClick={() => setWhyEmpty(true)} style={{ color: 'var(--accent-ink)' }}>Empty session</button>
@@ -1505,37 +1520,73 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const [shotBusy, setShotBusy] = useState('');
   const [shotNote, setShotNote] = useState(null);
   const [shotErr, setShotErr] = useState(false);
+  const [shotCtx, setShotCtx] = useState('');
+  const [shotFails, setShotFails] = useState([]);   // the files that did not read, kept so they can be retried
 
   // Read one or more screenshots of sessions into the draft basket. Each image is read on its own,
   // because a screenshot is one session: batching them into a single call would blur four days into
   // one soup and lose which movement belonged to which day.
+  //
+  // Three things this has to survive, all of which it did not before. A single hung request used to
+  // stall the whole run with no way out, so every read has a deadline and one retry. Five reads in a
+  // row is minutes of staring at a button, so they run a few at a time and the label counts what has
+  // FINISHED rather than what has started. And a file that fails is named and offered back, instead
+  // of disappearing into an anonymous tally.
   async function readShots(files) {
     const list = Array.from(files || []);
     if (!list.length) return;
     if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
-    setShotErr(false); setShotNote(null);
-    let added = 0, failed = 0;
-    for (let i = 0; i < list.length; i++) {
-      setShotBusy('Reading ' + (i + 1) + ' of ' + list.length + '...');
+    const ctx = shotCtx;
+    setShotErr(false); setShotNote(null); setShotFails([]);
+    let done = 0;
+    const label = () => setShotBusy('Read ' + done + ' of ' + list.length + '...');
+    label();
+
+    async function readOne(file) {
+      const content = withImportNote((await workoutContentFromFile(file)).blocks, ctx);
+      // One retry, because the failure this catches is a dropped request rather than an unreadable
+      // picture, and re-uploading five screenshots to fix one of them is a miserable ask.
+      let parsed;
       try {
-        const content = (await workoutContentFromFile(list[i])).blocks;
-        const parsed = await aiParseWorkout(content);
-        const res = Training.importTemplate(parsed, { custom: t.custom });
-        if (!res.template.length) { failed++; continue; }
-        trainUpdate(update, (tr) => {
-          const d = tr.draft || { name: (parsed && parsed.name) || 'My block', days: [] };
-          res.template.forEach(day => {
-            const j = d.days.findIndex(x => norm2(x.name) === norm2(day.name));
-            const row = Object.assign({}, day, { sourceRef: { kind: 'file', name: list[i].name || 'screenshot' } });
-            if (j >= 0) d.days[j] = row; else d.days.push(row);
-          });
-          d.days.forEach((x, k) => { x.dayOfWeek = k; });
-          tr.draft = d;
-        });
-        added += res.template.length;
-      } catch (e) { failed++; }
+        parsed = await aiParseWorkout(content, { timeoutMs: 90000 });
+      } catch (e) {
+        if (e && e.aiError) throw e;              // a paywall or a quota is not worth asking twice
+        parsed = await aiParseWorkout(content, { timeoutMs: 90000 });
+      }
+      const res = Training.importTemplate(parsed, { custom: t.custom });
+      if (!res.template.length) throw new Error('nothing readable in it');
+      return { parsed: parsed, template: res.template, file: file };
+    }
+
+    // Results are collected in upload order and written once at the end, so the days land in the
+    // order they were picked however the reads happen to finish, and the draft is saved once.
+    const results = new Array(list.length).fill(null);
+    const fails = [];
+    let cursor = 0;
+    async function worker() {
+      for (;;) {
+        const i = cursor++;
+        if (i >= list.length) return;
+        try { results[i] = await readOne(list[i]); }
+        catch (e) { fails.push({ file: list[i], why: (e && e.message) || 'could not be read' }); }
+        done++; label();
+      }
+    }
+    await Promise.all(new Array(Math.min(3, list.length)).fill(0).map(worker));
+
+    const got = results.filter(Boolean);
+    // Counted out here, not inside the updater: trainUpdate hands React a function it runs when it
+    // pleases, so anything tallied in there is still zero by the time the message below reads it.
+    const added = got.reduce((a, r) => a + r.template.length, 0);
+    if (got.length) {
+      trainUpdate(update, (tr) => {
+        const d = tr.draft || { name: (got[0].parsed && got[0].parsed.name) || 'My block', days: [] };
+        got.forEach(r => Training.mergeDraftDays(d.days, r.template, { kind: 'file', name: r.file.name || 'screenshot' }));
+        tr.draft = d;
+      });
     }
     setShotBusy('');
+    setShotFails(fails);
     if (!added) {
       setShotErr(true);
       setShotNote('I could not read a session out of ' + (list.length === 1 ? 'that' : 'those') + '. A screenshot showing the exercise names, sets and reps works best.');
@@ -1543,8 +1594,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     }
     setShotErr(false);
     setShotNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft block'
-      + (failed ? ', and ' + failed + ' I could not read.' : '.') + ' Add more, or open the draft to build it.');
-    onShots && onShots();
+      + (fails.length ? ', and ' + fails.length + ' I could not read: ' + fails.map(f => f.file.name || 'a screenshot').join(', ') + '.' : '.')
+      + (fails.length ? ' Try those again, or open the draft to build what did read.' : ' Add more, or open the draft to build it.'));
+    if (!fails.length) onShots && onShots();
   }
   const EQUIP = [['barbell', 'Barbell'], ['dumbbell', 'Dumbbells'], ['machine', 'Machines'], ['cable', 'Cables'], ['bodyweight', 'Bodyweight'], ['smith', 'Smith'], ['ez', 'EZ bar'], ['kettlebell', 'Kettlebell'], ['trapbar', 'Trap bar']];
 
@@ -1607,12 +1659,32 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
           Screenshots of sessions you already do, from any app or a coach's message. Add as many as you like and they build into one block.
         </div>
-        <label className="pixel-box flex items-center justify-center h-12 text-[12.5px] cursor-pointer" style={{ background: 'var(--surface2)' }}>
+        {/* The note sits ABOVE the picker, because on a phone the file chooser takes over the screen
+            the moment you tap it and whatever you meant to type never gets typed. */}
+        <Field label="Anything I should know" hint={IMPORT_NOTE_HINT}>
+          <textarea value={shotCtx} onChange={e => setShotCtx(e.target.value)} rows={2}
+            placeholder="These are Mon to Fri, in order. Ignore the cardio at the bottom."
+            className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+        </Field>
+        <label className={'pixel-box flex items-center justify-center h-12 text-[12.5px] ' + (shotBusy ? 'opacity-60' : 'cursor-pointer')} style={{ background: 'var(--surface2)' }}>
           {shotBusy || (isPremium ? 'Upload screenshots' : 'Upload screenshots · Premium')}
-          <input type="file" className="hidden" accept="image/*" multiple
+          <input type="file" className="hidden" accept="image/*" multiple disabled={!!shotBusy}
             onChange={e => { readShots(e.target.files); e.target.value = ''; }} />
         </label>
+        {shotBusy && (
+          <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>
+            Each screenshot is read on its own so the days stay separate, so a handful takes a moment.
+          </div>
+        )}
         {shotNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: shotErr ? 'var(--danger)' : 'var(--accent-ink)' }}>{shotNote}</div>}
+        {/* Whatever failed is still in memory, so retrying is a tap rather than another trip through
+            the photo picker hunting for which four of the five already worked. */}
+        {!shotBusy && shotFails.length > 0 && (
+          <button onClick={() => readShots(shotFails.map(f => f.file))}
+            className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>
+            Try {shotFails.length === 1 ? 'that one' : 'those ' + shotFails.length} again
+          </button>
+        )}
       </Card>
 
       <Card className="p-4 mb-6">
@@ -1924,6 +1996,93 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             onClose={() => setConfirmSwitch(null)} />
         );
       })()}
+    </div>
+  );
+}
+
+// ---- your blocks ------------------------------------------------------------------------------
+// Every block you have ever made. This screen was missing, and its absence was a one-way door:
+// the home tab only ever shows the block that is RUNNING, saving a new one archives the rest out of
+// sight, and nothing anywhere opened the editor on a saved block, so BlockBuilder's "Delete this
+// block" button could not be reached at all. A block built by mistake was permanent. Editing and
+// deleting are the same screen because they answer the same question: this one is wrong, now what.
+function BlockList({ db, update, showToast, onBack, onOpen, onNew }) {
+  useBackClose(onBack);
+  const t = tdb(db);
+  const today = Store.todayISO();
+  const [confirm, setConfirm] = useState(null);
+  const live = activeBlock(db);
+  const liveId = live ? live.id : null;
+  // What is running first, then most recently started. An undated block sorts last: it is one that
+  // was never actually begun, which is exactly the kind you came here to throw away.
+  const blocks = t.blocks.slice().sort((a, b) => {
+    if ((a.id === liveId) !== (b.id === liveId)) return a.id === liveId ? -1 : 1;
+    return String(b.startISO || '').localeCompare(String(a.startISO || ''));
+  });
+
+  function remove(block) {
+    // Same two steps as the editor's delete: pull the public copy first, so a block that was shared
+    // does not outlive the copy you can see.
+    if (block.shared) retractPublicBlock(block.id);
+    trainUpdate(update, (tr) => { tr.blocks = tr.blocks.filter(b => b.id !== block.id); });
+    showToast && showToast('Block deleted.');   // ConfirmDialog closes itself once onConfirm returns
+  }
+
+  function statusOf(block) {
+    const prog = Training.blockProgress(block, today);
+    if (block.id === liveId && !prog.done) return prog.notStarted ? 'Starts ' + weekRangeLabel(block.startISO, 1).split(' to ')[0] : 'Running · week ' + prog.week + ' of ' + block.weeks;
+    if (prog.done) return 'Finished';
+    return 'Not running';
+  }
+
+  return (
+    <div className="fade-in">
+      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <h1 className="pf text-lg mb-1">Your blocks</h1>
+      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+        Everything you have built or imported. Tap one to change it, or delete one you made by mistake. The sessions you logged against a block are kept either way.
+      </div>
+
+      {!blocks.length && (
+        <Card className="p-4">
+          <div className="text-[13px] mb-1">No blocks yet.</div>
+          <div className="text-[12px] leading-snug mb-4" style={{ color: 'var(--muted)' }}>
+            Build one from your kit and your days, or import a plan you already follow.
+          </div>
+          <button onClick={onNew} className="pixel-btn w-full h-12 font-bold" style={{ background: '#fff', color: '#111' }}>Build a block</button>
+        </Card>
+      )}
+
+      {blocks.map(block => {
+        const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id));
+        const running = block.id === liveId && !Training.blockProgress(block, today).done;
+        return (
+          <Card key={block.id} className="p-4 mb-3">
+            <div className="flex items-start justify-between gap-2">
+              <button onClick={() => onOpen(block.id)} className="min-w-0 flex-1 text-left">
+                <span className="block text-[13.5px] font-semibold truncate">{block.name}</span>
+                <span className="block text-[11px] mt-1" style={{ color: running ? 'var(--accent-ink)' : 'var(--muted)' }}>
+                  {statusOf(block)}
+                </span>
+                <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
+                  {comp.done} of {comp.total} sessions logged{block.shared ? ' · shared' : ''}
+                </span>
+              </button>
+              <button onClick={() => setConfirm(block)} aria-label={'Delete ' + block.name}
+                className="hit shrink-0 px-3 py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete</button>
+            </div>
+          </Card>
+        );
+      })}
+
+      {confirm && (
+        <ConfirmDialog title={'Delete "' + confirm.name + '"?'}
+          body={(Training.completion(confirm, t.logs.filter(l => l.blockId === confirm.id)).done
+            ? 'The sessions you already logged against it are kept, and still count towards your history. Only the plan goes. '
+            : 'Nothing has been logged against it, so nothing else goes with it. ')
+            + 'This cannot be undone.'}
+          onConfirm={() => remove(confirm)} onClose={() => setConfirm(null)} />
+      )}
     </div>
   );
 }
@@ -2511,11 +2670,11 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
 
 // Read a plan out of whatever we managed to get hold of. `content` is an array of Anthropic content
 // blocks, so the same function serves pasted text, a PDF, a screenshot and a scraped caption.
-async function aiParseWorkout(content) {
+async function aiParseWorkout(content, opts) {
   const j = await aiRequest({
     model: AI_MODEL, max_tokens: 3000,
     messages: [{ role: 'user', content: [{ type: 'text', text: WORKOUT_PROMPT, cache_control: { type: 'ephemeral' } }].concat(content) }],
-  });
+  }, opts);
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   if (!txt.trim()) throw new Error('Nothing came back. Try a clearer source.');
   return parseModelJSON(txt);
@@ -2686,6 +2845,17 @@ async function workoutContentFromFile(file) {
   throw new Error('That file type is not one I can read. PDF, spreadsheet, CSV, text or a photo all work.');
 }
 
+// A screenshot is missing everything that was not on screen: which day of the week it is, that the
+// numbers are in pounds, that the top half is last week. The person importing it knows all of that,
+// so this bolts their note onto whatever the source turned into. Appended AFTER the source so it
+// reads as a correction to it rather than a preamble, and clipped because it is a note, not a plan.
+function withImportNote(blocks, note) {
+  const v = String(note || '').trim();
+  if (!v) return blocks;
+  return blocks.concat([{ type: 'text', text: 'WHAT THE PERSON SAID ABOUT THIS:\n' + v.slice(0, 1200) }]);
+}
+const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say: which day of the week it is, that the weights are in pounds, which part to ignore.';
+
 // ---- the import screen -------------------------------------------------------------------------
 function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, onDraft, onCollected, initialUrl }) {
   useBackClose(onBack);
@@ -2693,6 +2863,7 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
   const [tab, setTab] = useState('link');
   const [url, setUrl] = useState(initialUrl || '');
   const [text, setText] = useState('');
+  const [ctx, setCtx] = useState('');
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState(null);
   const [result, setResult] = useState(null);   // { parsed, template, unresolved, source }
@@ -2709,9 +2880,9 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
     if (!gate()) return;
     setErr(null); setBusy(busyLabel || 'Reading it');
     try {
-      const content = await getContent();
+      const content = withImportNote(await getContent(), ctx);
       setBusy('Working out what it says');
-      const parsed = await aiParseWorkout(content);
+      const parsed = await aiParseWorkout(content, { timeoutMs: 120000 });
       const res = Training.importTemplate(parsed, { custom: t.custom });
       if (!res.template.length) {
         setErr('I could not find any exercises in that. If it is a video where the plan is only spoken over music, a screenshot of the plan usually works better.');
@@ -2757,17 +2928,13 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
     });
     onDraft(block);
   }
-  // Collect these days instead of building now. Days are keyed by name so re-importing a corrected
-  // "Upper A" replaces it rather than leaving you with two of them.
+  // Collect these days instead of building now. Re-importing a corrected "Upper A" from the same
+  // source replaces it rather than leaving you with two; a same-named day from a different source is
+  // a different day and is kept. See Training.mergeDraftDays.
   function collect() {
     trainUpdate(update, (tr) => {
       const d = tr.draft || { name: (result.parsed && result.parsed.name) || 'My block', days: [] };
-      result.template.forEach(day => {
-        const i = d.days.findIndex(x => norm2(x.name) === norm2(day.name));
-        const row = Object.assign({}, day, { sourceRef: result.sourceRef || null });
-        if (i >= 0) d.days[i] = row; else d.days.push(row);
-      });
-      d.days.forEach((x, i) => { x.dayOfWeek = i; });
+      Training.mergeDraftDays(d.days, result.template, result.sourceRef || null);
       tr.draft = d;
     });
     showToast && showToast('Added to your draft block.');
@@ -2852,6 +3019,16 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
       </div>
 
       <div className="mb-4"><Pill value={tab} onChange={setTab} options={[{ v: 'link', l: 'Link' }, { v: 'file', l: 'File' }, { v: 'paste', l: 'Paste' }]} /></div>
+
+      {/* One note, above the three routes in, because it is worth the same to all of them: a reel
+          rarely says which day is which either. It goes to the model with the source. */}
+      <Card className="p-4 mb-4">
+        <Field label="Anything I should know" hint={IMPORT_NOTE_HINT}>
+          <textarea value={ctx} onChange={e => setCtx(e.target.value)} rows={2}
+            placeholder="This is the Wednesday session. Weights are in pounds."
+            className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+        </Field>
+      </Card>
 
       {tab === 'link' && (
         <Card className="p-4 mb-4">

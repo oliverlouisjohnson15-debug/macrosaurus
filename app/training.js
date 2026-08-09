@@ -1451,6 +1451,52 @@
     return { template: template, unresolved: unresolved, days: template.length };
   }
 
+  // Two sources are "the same source" when re-reading one should REPLACE what it gave last time.
+  // Two different screenshots are never the same source, even when both name their day "Day 1".
+  function sameSource(a, b) {
+    if (!a || !b || a.kind !== b.kind) return false;
+    if (a.kind === 'file') return norm(a.name) === norm(b.name);
+    if (a.kind === 'link') return String(a.url || '') === String(b.url || '');
+    return true;
+  }
+  // Merge imported days into the draft basket, in place, and renumber.
+  //
+  // The rule that matters is the one about collisions. Keying purely on the day's NAME meant five
+  // screenshots that each called themselves "Day 1" landed as one day: four uploads silently ate
+  // each other and the basket showed four days for five files. So a name only replaces an existing
+  // day when it came from the SAME source (re-importing a corrected "Upper A" from the same file,
+  // which is the behaviour that keying by name was for). A same-named day from a different source is
+  // a different day: it is kept, and its name made unique so the two can be told apart.
+  //
+  // The asymmetry is deliberate. Deleting a duplicate day on the draft screen is one tap; a day that
+  // was silently overwritten is gone with nothing on screen to say so.
+  function mergeDraftDays(days, incoming, sourceRef) {
+    days = days || [];
+    // Days written by THIS call are off limits as replacement targets. One screenshot the model reads
+    // as two sessions both called "Day 1" is two days, not a day and a correction of it, so a single
+    // read can never overwrite itself either. Only a LATER re-read of the same source corrects.
+    var fresh = {};
+    (incoming || []).forEach(function (day) {
+      var row = Object.assign({}, day, { sourceRef: sourceRef || null });
+      var same = -1;
+      for (var i = 0; i < days.length; i++) {
+        if (fresh[i]) continue;
+        if (norm(days[i].name) === norm(row.name) && sameSource(days[i].sourceRef, sourceRef)) { same = i; break; }
+      }
+      if (same >= 0) { days[same] = row; fresh[same] = 1; return; }
+      var clash = days.some(function (x) { return norm(x.name) === norm(row.name); });
+      if (clash) {
+        var base = row.name, n = 2;
+        while (days.some(function (x) { return norm(x.name) === norm(base + ' (' + n + ')'); })) n++;
+        row.name = base + ' (' + n + ')';
+      }
+      fresh[days.length] = 1;
+      days.push(row);
+    });
+    days.forEach(function (x, i) { x.dayOfWeek = i; });
+    return days;
+  }
+
   // ---- sharing -------------------------------------------------------------------------------
   // Pull the week-1 template back out of a built block. This is what gets shared, NOT the expanded
   // four weeks: whoever runs it next re-periodises against their own landmarks, so an advanced
@@ -1828,7 +1874,7 @@
     byId: byId, all: all, isCardio: isCardio, search: search, resolve: resolve, cleanName: cleanName,
     setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
-    templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate,
+    templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,

@@ -313,7 +313,12 @@ const PRICE_ANNUAL_LABEL = '£39.99';
 // Send a message request to Claude via our server-side proxy. The proxy attaches the real API key,
 // verifies the signed-in user and enforces the free/premium AI tiers. Returns the raw
 // Anthropic message JSON (same shape as calling the API directly).
-async function aiRequest(body) {
+// opts.timeoutMs gives a call a deadline. Without one a fetch that never settles (a phone that
+// changes network mid-request is the usual way) leaves the caller awaiting forever, which is how a
+// batch of screenshots ends up stuck on "reading 4 of 5" with nothing to press. Opt-in rather than
+// global, because a caller that has no way to recover is better off waiting than failing.
+async function aiRequest(body, opts) {
+  opts = opts || {};
   const sess = supa ? (await supa.auth.getSession()).data.session : null;
   const token = sess && sess.access_token;
   if (!token) throw new Error('Please sign in to use AI features.');
@@ -321,11 +326,25 @@ async function aiRequest(body) {
   // eat a call's max_tokens budget again. An explicit body.thinking still wins.
   const think = body.thinking || thinkingFor(body.model);
   const payload = think ? { ...body, thinking: think } : body;
-  const res = await fetch(AI_PROXY, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
-    body: JSON.stringify(payload),
-  });
+  let ctrl = null, timer = null;
+  if (opts.timeoutMs && typeof AbortController === 'function') {
+    ctrl = new AbortController();
+    timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, opts.timeoutMs);
+  }
+  let res;
+  try {
+    res = await fetch(AI_PROXY, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+      body: JSON.stringify(payload),
+      signal: ctrl ? ctrl.signal : undefined,
+    });
+  } catch (e) {
+    if (timer) clearTimeout(timer);
+    if (ctrl && ctrl.signal.aborted) { const t = new Error('That took too long to come back.'); t.timedOut = true; throw t; }
+    throw e;
+  }
+  if (timer) clearTimeout(timer);
   const j = await res.json();
   if (j.type === 'error' || j.error) {
     const e = j.error || {};
