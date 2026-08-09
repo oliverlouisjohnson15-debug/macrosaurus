@@ -423,7 +423,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           </button>
 
           {isDeload && (
-            <div className="text-[11px] mb-4 px-2.5 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
+            <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
               Deload week. Lighter on purpose, so the next block starts on a fresh body.
             </div>
           )}
@@ -883,6 +883,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     }
     // Finishing an exercise moves you on, because otherwise you are looking at a card of ticks.
     const allDone = it.sets.every((s, i) => (i === si ? true : s.done));
+    if (allDone) {
+      // A distinct double-buzz for finishing a movement, against the single tap for a set. Two
+      // different events should never feel like the same event through a pocket, and this is the one
+      // that means "that is the last of those, the card is about to change under you".
+      try { if (navigator.vibrate) navigator.vibrate([14, 60, 22]); } catch (_) {}
+    }
     if (allDone && ii === focus && ii < items.length - 1) {
       setTimeout(() => setFocus(f => (f === ii ? ii + 1 : f)), 450);
     }
@@ -1025,9 +1031,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const codes = Training.sessionCodes(items);
 
   return (
-    <div className="fade-in" style={{ paddingBottom: '150px' }}>
+    // Clears the Finish bar AND the rest timer floating above it (96 + 56), plus a line of air, so
+    // the last movement can always be scrolled out from under both.
+    <div className="fade-in" style={{ paddingBottom: '176px' }}>
       {/* ---- session bar ---- */}
-      <div className="sticky top-0 z-20 -mx-5 px-5 pt-1 pb-2.5" style={{ background: 'var(--bg)' }}>
+      <div className="sticky top-0 z-20 -mx-5 px-5 pt-1 pb-3" style={{ background: 'var(--bg)' }}>
         <div className="flex items-center gap-2 mb-2">
           <button onClick={onExit} aria-label="Back to Train" className="pf text-[9px] uppercase hit shrink-0" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
           <div className="flex-1 min-w-0 text-center text-[13px] font-bold truncate">{session ? session.name : 'Empty session'}</div>
@@ -1101,7 +1109,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       )}
 
       {session && session.deload && (
-        <div className="text-[11px] mb-4 px-2.5 py-2" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
+        <div className="text-[11px] mb-4 px-3 py-2" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
           Deload week. Keep the weight honest, halve the work, leave plenty in the tank.
         </div>
       )}
@@ -1130,7 +1138,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           <div key={it.exerciseId + '_' + ii} className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
             {/* ---- header, always visible ---- */}
             <button onClick={() => { setFocus(open ? -1 : ii); setPlateFor(null); setMenuOpen(false); }}
-              className="w-full flex items-start gap-2.5 p-3 text-left">
+              className="w-full flex items-start gap-3 p-3 text-left">
               <span className="pf text-[10px] shrink-0 mt-0.5 w-6" style={{ color: done ? 'var(--good)' : 'var(--accent-ink)' }}>{codes[ii]}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-bold leading-tight" style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>
@@ -1176,7 +1184,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                     button and the options grid were all permanently on screen, so the card was
                     mostly chrome and the set table, which is the only thing you touch while
                     training, started two thirds of the way down. */}
-                <div className="flex gap-1.5 mb-4">
+                <div className="flex gap-2 mb-4">
                   <ToolBtn on={noteOpen === it.exerciseId || !!exNotes[it.exerciseId]}
                     onClick={() => setNoteOpen(noteOpen === it.exerciseId ? null : it.exerciseId)}>Note</ToolBtn>
                   <ToolBtn disabled={!hist.length} onClick={() => setPastFor(it.exerciseId)}>History</ToolBtn>
@@ -1186,12 +1194,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                 {(noteOpen === it.exerciseId || exNotes[it.exerciseId]) && (
                   <input value={exNotes[it.exerciseId] || ''} onChange={e => setExNote(it.exerciseId, e.target.value)}
                     placeholder="e.g. seat 3, pin 6" autoFocus={noteOpen === it.exerciseId}
-                    className="w-full pixel-box px-2.5 h-10 text-[12px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+                    className="w-full pixel-box px-3 h-10 text-[12px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
                 )}
 
 
                 {/* ---- set table ---- */}
-                <div className="flex items-center gap-1.5 pb-1.5">
+                <div className="flex items-center gap-2 pb-2">
                   <div className="w-8 pf text-[7px] uppercase" style={{ color: 'var(--muted2)' }}>Set</div>
                   <div className="flex-1 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>{unitLabel(units)}</div>
                   <div className="flex-1 pf text-[7px] uppercase text-center" style={{ color: 'var(--muted2)' }}>Reps</div>
@@ -1210,12 +1218,12 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   const cell = 'h-12 pixel-box text-[15px] text-center tnum min-w-0 px-0.5';
                   return (
                     <div key={si} className="mb-2 -mx-1 px-1 py-0.5" style={{ background: s.done ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent' }}>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         {/* Tap the number to change what kind of set it is. Warm-ups stay out of the
                             volume maths; a drop set suppresses the rest timer. */}
                         <button onClick={() => setSetMenu(setMenu === ii + ':' + si ? null : ii + ':' + si)}
                           aria-label={'Set ' + workIndex + ' options. Currently ' + (SET_TYPES.find(x => x.v === type) || {}).full}
-                          className="w-8 h-12 flex items-center justify-center">
+                          className="w-11 h-12 flex items-center justify-center shrink-0">
                           <span className="w-7 h-7 flex items-center justify-center text-[12px] font-bold"
                             style={{
                               background: s.done ? 'var(--accent)' : 'transparent',
@@ -1258,7 +1266,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                         <div className="flex gap-1 flex-wrap mt-1 mb-2 pl-1">
                           {SET_TYPES.map(st => (
                             <button key={st.v} onClick={() => { setField(ii, si, 'type', st.v); setSetMenu(null); }}
-                              className="pixel-box px-2 h-9 text-[11px]"
+                              className="pixel-box px-3 h-11 text-[11px]"
                               style={{
                                 background: type === st.v ? 'var(--accent)' : 'var(--surface2)',
                                 color: type === st.v ? 'var(--on-accent)' : 'var(--text2)',
@@ -1267,7 +1275,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                             </button>
                           ))}
                           <button onClick={() => { removeSet(ii, si); setSetMenu(null); }}
-                            className="pixel-box px-2 h-9 text-[11px]" style={{ background: 'var(--surface2)', color: 'var(--danger)' }}>
+                            className="pixel-box px-3 h-11 text-[11px]" style={{ background: 'var(--surface2)', color: 'var(--danger)' }}>
                             Remove set
                           </button>
                         </div>
@@ -1295,7 +1303,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   );
                 })()}
 
-                <button onClick={() => addSet(ii)} className="pixel-box w-full h-10 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add set</button>
+                <button onClick={() => addSet(ii)} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add set</button>
               </div>
             )}
           </div>
@@ -1310,20 +1318,32 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           className="w-full pixel-box px-3 py-3 text-[13px] mt-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
       </Collapsible>
 
-      {/* ---- rest timer, above the finish button, never shoving the list about ---- */}
+      {/* ---- rest timer, above the finish button, never shoving the list about ----
+           74px cleared the Finish button itself but not the 12px of padding above it, so the two
+           pixel-box shadows overlapped and the pair read as one cramped stack. Finish is 56 tall
+           inside 12 top and 12 bottom of padding, so 88 is the first value that clears it, plus 8
+           off the spacing scale to sit them apart. */}
       {rest && (
-        <div className="fixed inset-x-0 max-w-md mx-auto px-3 z-30" style={{ bottom: 'calc(74px + env(safe-area-inset-bottom))' }}>
-          <div className="pixel-box flex items-center gap-2.5 px-3 h-14" style={{ background: restLeft <= 0 ? 'color-mix(in srgb, var(--accent) 22%, var(--card))' : 'var(--card)' }}>
+        <div className="fixed inset-x-0 max-w-md mx-auto px-3 z-30" style={{ bottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
+          <div className="pixel-box flex items-center gap-3 px-3 h-14" style={{ background: restLeft <= 0 ? 'color-mix(in srgb, var(--accent) 22%, var(--card))' : 'var(--card)' }}>
             <RestRing left={restLeft} total={rest.seconds} db={db} />
             <div className="flex-1 min-w-0">
-              <div className="pf text-[15px] tnum" style={{ color: restLeft <= 10 ? 'var(--good)' : 'var(--accent-ink)' }}>
+              <div className="pf text-[15px] tnum" role="timer" style={{ color: restLeft <= 10 ? 'var(--good)' : 'var(--accent-ink)' }}>
                 {restLeft <= 0 ? 'Go' : fmtClock(restLeft)}
               </div>
               <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>rest</div>
             </div>
-            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt - 15000 }))} className="pixel-box w-11 h-10 text-[11px]" style={{ background: 'var(--surface2)' }}>-15</button>
-            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 15000, seconds: r.seconds + 15, alerted: false }))} className="pixel-box w-11 h-10 text-[11px]" style={{ background: 'var(--surface2)' }}>+15</button>
-            <button onClick={() => setRest(null)} aria-label="Skip rest" className="pf text-[8px] uppercase px-1 shrink-0" style={{ color: 'var(--muted)' }}>Skip</button>
+            {/* The timer finishing was announced by a beep and a colour, both of which are no use to
+                a screen reader. Only the transition is announced, never the count: a polite region
+                on a per-second value would read the whole two minutes out loud. */}
+            <span className="sr-only" aria-live="assertive">{restLeft <= 0 ? 'Rest over, next set' : ''}</span>
+            {/* Every control on this bar is now a full 44px box. These are pressed mid-set, one
+                handed, with the phone on a bench and chalk on your fingers, which is the worst
+                pointing conditions the app ever sees; Skip in particular was an 8px label with no
+                box around it at all. */}
+            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt - 15000 }))} className="pixel-box w-11 h-11 text-[11px] shrink-0" style={{ background: 'var(--surface2)' }}>-15</button>
+            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 15000, seconds: r.seconds + 15, alerted: false }))} className="pixel-box w-11 h-11 text-[11px] shrink-0" style={{ background: 'var(--surface2)' }}>+15</button>
+            <button onClick={() => setRest(null)} aria-label="Skip rest" className="pf text-[8px] uppercase h-11 px-2 shrink-0" style={{ color: 'var(--muted)' }}>Skip</button>
           </div>
         </div>
       )}
@@ -1445,18 +1465,26 @@ function LiftBuddy({ db, pattern, trigger }) {
   );
 }
 
+/* The prescription line carries up to three of these, and each used to end in a solid accent-filled
+   "?" chip: three neon squares in a row on the busiest card in the app, shouting louder than the
+   numbers they were explaining. Outlined now, with accent text, so the badge reads as a footnote
+   marker rather than as a third thing competing for the eye.
+
+   The chip was also 20 square, which is under the 24 CSS pixel floor in WCAG 2.2 (SC 2.5.8) and
+   well under the 44 that anything tapped mid-set should be. The visible mark stays small; `hit`
+   grows the real target to 44 behind it. */
 function MetaBit({ label, onHelp, muted, hideHelp }) {
   if (hideHelp) {
     return (
-      <button onClick={onHelp} className="text-[12px] tnum" style={{ color: muted ? 'var(--muted)' : 'var(--text2)' }}>{label}</button>
+      <button onClick={onHelp} className="hit text-[12px] tnum py-2" style={{ color: muted ? 'var(--muted)' : 'var(--text2)' }}>{label}</button>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-2">
       <span className="text-[12px] tnum" style={{ color: muted ? 'var(--muted)' : 'var(--text2)' }}>{label}</span>
       <button onClick={onHelp} aria-label={'What does ' + label + ' mean?'}
-        className="w-5 h-5 flex items-center justify-center text-[10px] font-bold shrink-0"
-        style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>?</button>
+        className="hit w-5 h-5 flex items-center justify-center text-[10px] font-bold shrink-0"
+        style={{ background: 'transparent', color: 'var(--accent-ink)', border: '2px solid var(--accent)' }}>?</button>
     </span>
   );
 }
@@ -1482,7 +1510,7 @@ function TrainHelp({ topic, db, onClose, onHideForGood }) {
     body = [Training.cueFor(ex), Training.whyFor(ex)].filter(Boolean).join('\n\n');
   }
   return (
-    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label="Explainer" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-5 fade-in max-h-[80vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         <h2 className="pf text-[12px] mb-4">{title}</h2>
         <div className="text-[13px] leading-relaxed mb-4 whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>{body}</div>
@@ -1520,7 +1548,7 @@ function PastSets({ db, exerciseId, onClose }) {
     return { dateISO: l.dateISO, sets, marks };
   }).filter(Boolean).slice(0, 12);
   return (
-    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label="Recent sets" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-5 fade-in max-h-[80vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         <h2 className="pf text-[11px] mb-4">{ex ? ex.name : 'History'}</h2>
         {rows.length === 0 && <div className="text-[13px]" style={{ color: 'var(--muted)' }}>You have not logged this one yet.</div>}
@@ -1529,10 +1557,10 @@ function PastSets({ db, exerciseId, onClose }) {
             <div className="flex items-center gap-2 mb-2">
               <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>{r.dateISO}</span>
               {r.marks.some(Boolean) && (
-                <span className="pf text-[7px] uppercase px-1.5 py-0.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>PR</span>
+                <span className="pf text-[7px] uppercase px-2 py-0.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>PR</span>
               )}
             </div>
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-2 flex-wrap">
               {r.sets.map((s, j) => {
                 const mark = r.marks[j];
                 return (
@@ -1615,14 +1643,15 @@ function PlateSheet({ weightKg, units, onClose }) {
   useBackClose(onClose);
   const r = Training.plateBreakdown(weightKg, { units });
   return (
-    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label="Loading the bar" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <h2 className="pf text-[12px] mb-1">Loading {toDisplayWeight(weightKg, units)}{unitLabel(units)}</h2>
+        <h2 className="pf text-[12px] mb-1">Loading the bar</h2>
+        <div className="text-[17px] font-bold tnum mb-1">{toDisplayWeight(weightKg, units)}{unitLabel(units)}</div>
         <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
           {toDisplayWeight(r.barKg, units)}{unitLabel(units)} bar, plus each side:
         </div>
         {r.ok && r.perSide.length > 0 ? (
-          <div className="flex gap-1.5 flex-wrap mb-4">
+          <div className="flex gap-2 flex-wrap mb-4">
             {r.perSide.map((p, i) => (
               <span key={i} className="pixel-box px-3 py-2 text-[14px] tnum" style={{ background: 'var(--surface2)' }}>
                 {p.count > 1 ? p.count + ' × ' : ''}{p.plate}
@@ -1690,7 +1719,7 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed }) {
   if (!q) list = list.concat(Training.CARDIO);
 
   return (
-    <div className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)' }}>
+    <div role="dialog" aria-modal="true" aria-label="Pick a movement" className="fixed inset-0 z-[80] flex flex-col" style={{ background: 'var(--bg)' }}>
       <div className="flex items-center gap-2 p-3 border-b-[3px]" style={{ borderColor: 'var(--border)' }}>
         <button onClick={onClose} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Close</button>
         <div className="pf text-[10px] flex-1 text-center">{title || 'Add exercise'}</div>
@@ -1699,10 +1728,10 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed }) {
       <div className="p-3">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search movements" autoFocus
           className="w-full pixel-box px-3 py-3 text-[14px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
-          <button onClick={() => setMuscle('')} className="pixel-box px-2.5 py-1.5 text-[11px] whitespace-nowrap" style={{ background: muscle ? 'var(--surface2)' : '#fff', color: muscle ? 'var(--text2)' : '#111' }}>All</button>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <button onClick={() => setMuscle('')} className="pixel-box px-3 py-2 text-[11px] whitespace-nowrap" style={{ background: muscle ? 'var(--surface2)' : '#fff', color: muscle ? 'var(--text2)' : '#111' }}>All</button>
           {Training.MUSCLES.map(m => (
-            <button key={m} onClick={() => setMuscle(muscle === m ? '' : m)} className="pixel-box px-2.5 py-1.5 text-[11px] whitespace-nowrap"
+            <button key={m} onClick={() => setMuscle(muscle === m ? '' : m)} className="pixel-box px-3 py-2 text-[11px] whitespace-nowrap"
               style={{ background: muscle === m ? '#fff' : 'var(--surface2)', color: muscle === m ? '#111' : 'var(--text2)' }}>
               {Training.MUSCLE_LABEL[m]}
             </button>
@@ -1776,7 +1805,7 @@ function CustomExercise({ db, update, initialName, basedOn, onDone, onClose }) {
     onDone(id);
   }
   return (
-    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label="New movement" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-4 fade-in max-h-[85vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         <h2 className="pf text-[11px] mb-1">{parent ? 'Variation' : 'New exercise'}</h2>
         {parent && (
@@ -1789,9 +1818,9 @@ function CustomExercise({ db, update, initialName, basedOn, onDone, onClose }) {
           <Seg value={equipment} onChange={setEquipment} options={[{ v: 'barbell', l: 'Barbell' }, { v: 'dumbbell', l: 'Dumbbell' }, { v: 'machine', l: 'Machine' }, { v: 'cable', l: 'Cable' }, { v: 'bodyweight', l: 'Body' }]} />
         </Field>
         <Field label="Muscles it mainly works" hint="Pick at least one, or it cannot count toward your weekly volume.">
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-2 flex-wrap">
             {Training.MUSCLES.map(m => (
-              <button key={m} onClick={() => toggle(primary, setPrimary, m)} className="pixel-box px-2 py-1.5 text-[11px]"
+              <button key={m} onClick={() => toggle(primary, setPrimary, m)} className="pixel-box px-2 py-2 text-[11px]"
                 style={{ background: primary.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)', color: primary.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)' }}>
                 {Training.MUSCLE_LABEL[m]}
               </button>
@@ -1799,9 +1828,9 @@ function CustomExercise({ db, update, initialName, basedOn, onDone, onClose }) {
           </div>
         </Field>
         <Field label="Muscles that assist" hint="These count as half a set each, the way a coach would count them.">
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-2 flex-wrap">
             {Training.MUSCLES.filter(m => primary.indexOf(m) === -1).map(m => (
-              <button key={m} onClick={() => toggle(secondary, setSecondary, m)} className="pixel-box px-2 py-1.5 text-[11px]"
+              <button key={m} onClick={() => toggle(secondary, setSecondary, m)} className="pixel-box px-2 py-2 text-[11px]"
                 style={{ background: secondary.indexOf(m) !== -1 ? 'var(--warn)' : 'var(--surface2)', color: secondary.indexOf(m) !== -1 ? '#1a1200' : 'var(--text2)' }}>
                 {Training.MUSCLE_LABEL[m]}
               </button>
@@ -2069,10 +2098,10 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
           Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it.
         </div>
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           {Training.MUSCLES.map(m => (
             <button key={m} onClick={() => setEmphasis(emphasis.indexOf(m) !== -1 ? emphasis.filter(x => x !== m) : emphasis.concat([m]))}
-              className="pixel-box px-2 py-1.5 text-[11px]"
+              className="pixel-box px-2 py-2 text-[11px]"
               style={{ background: emphasis.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)', color: emphasis.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)' }}>
               {Training.MUSCLE_LABEL[m]}
             </button>
@@ -2264,7 +2293,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
           <div key={s.id} className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
             <button onClick={() => setOpenDay(open ? null : s.id)} className="w-full flex items-center gap-2 p-4 text-left">
               <span className="min-w-0 flex-1">
-                <span className="pf text-[12px] block">{s.name.toUpperCase()}</span>
+                <span className="block text-[14px] font-bold leading-tight">{s.name}</span>
                 <span className="block text-[11px] mt-2" style={{ color: 'var(--muted)' }}>
                   {WEEKDAYS[s.dayOfWeek] || 'Day ' + (s.dayOfWeek + 1)} · {ordered.length} movements · {ordered.reduce((a, e) => a + e.target.sets, 0)} sets
                 </span>
@@ -2275,7 +2304,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             </button>
 
             {open && (
-              <div className="px-3.5 pb-3.5">
+              <div className="px-4 pb-4">
                 {ordered.map((it, ei) => (
                   <div key={it.id} className="py-3" style={{ borderTop: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}>
                     <div className="flex items-start gap-2">
@@ -2298,7 +2327,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                     </div>
                   </div>
                 ))}
-                <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-10 text-[11.5px] mt-2.5" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
+                <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[11.5px] mt-3" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
                 {onStart && !log && (
                   <button onClick={() => onStart(s, block)} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: '#fff', color: '#111' }}>
                     Start this session
@@ -2323,7 +2352,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             </button>
           </div>
         ) : (
-          <button onClick={() => save(false)} className="pixel-btn w-full py-3.5 font-bold" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={() => save(false)} className="pixel-btn w-full py-4 font-bold" style={{ background: '#fff', color: '#111' }}>
             Save changes
           </button>
         )}
@@ -2339,7 +2368,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             Puts the plan in the library for other members to run. Your sessions, weights and name stay private.
           </span>
         </span>
-        <span className="pf text-[9px] px-2.5 py-1.5 shrink-0" style={{ background: share ? 'var(--accent)' : 'var(--surface3)', color: share ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>
+        <span className="pf text-[9px] px-3 py-2 shrink-0" style={{ background: share ? 'var(--accent)' : 'var(--surface3)', color: share ? 'var(--on-accent)' : 'var(--muted)', border: '2px solid var(--border)' }}>
           {share ? 'ON' : 'OFF'}
         </span>
       </button>
@@ -2384,7 +2413,8 @@ function SessionPreview({ db, session, block, onBack, onStart }) {
   return (
     <div className="fade-in pb-28">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">{session.name}</h1>
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Tonight</div>
+      <h1 className="text-[19px] font-bold leading-tight mb-2">{session.name}</h1>
       <div className="text-[12px] mb-4 tnum" style={{ color: 'var(--muted)' }}>
         {items.length} movements &middot; {sets} sets &middot; about {mins} min
         {session.deload ? ' · deload week' : ''}
@@ -2403,7 +2433,7 @@ function SessionPreview({ db, session, block, onBack, onStart }) {
         const last = Training.bestBefore(t.logs, it.exerciseId, Store.todayISO());
         return (
           <Card key={it.id || i} className="p-4 mb-3">
-            <div className="flex items-baseline gap-2.5">
+            <div className="flex items-baseline gap-3">
               <span className="pf text-[10px] shrink-0 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[i]}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
@@ -2618,7 +2648,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
       </div>
 
       {lens === 'planned' && block && (
-        <div className="flex gap-1.5 mb-4">
+        <div className="flex gap-2 mb-4">
           {Array.from({ length: block.weeks }, (_, i) => i + 1).map(w => (
             <button key={w} onClick={() => setWeek(w)} className="pixel-box flex-1 py-2 pf text-[9px]"
               style={{ background: week === w ? '#fff' : 'var(--surface2)', color: week === w ? '#111' : 'var(--text2)' }}>W{w}</button>
@@ -2640,7 +2670,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
           {cov.gaps.slice(0, 5).map(g => (
             <div key={g.muscle} className="mb-4">
               <div className="text-[13px] mb-2">{gapSentence(g)}</div>
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex gap-2 flex-wrap">
                 {Training.suggestFor(g.muscle, {
                   equipment: t.prefs.equipment, dislikes: t.prefs.dislikes, custom: t.custom, limit: 3,
                   currentExerciseIds: block ? Training.weekSessions(block, week).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []) : [],
@@ -2770,7 +2800,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
         <Card className="p-4 mb-4">
           <div className="pf text-[9px] uppercase mb-4" style={{ color: 'var(--muted)' }}>Your lifts</div>
           {review.lifts.slice(0, 10).map(l => (
-            <div key={l.exerciseId} className="flex items-baseline justify-between gap-2 py-1.5 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div key={l.exerciseId} className="flex items-baseline justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
               <div className="min-w-0">
                 <div className="text-[13px] truncate">{l.name}</div>
                 <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>{l.sessions} sessions</div>
@@ -2885,7 +2915,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
           <Card key={i} className="p-4 mb-3" style={{ opacity: isOff ? 0.5 : 1 }}>
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="min-w-0">
-                <div className="pf text-[9px] uppercase mb-1.5" style={{ color: c.kind === 'add' ? 'var(--warn)' : 'var(--accent-ink)' }}>
+                <div className="pf text-[9px] uppercase mb-2" style={{ color: c.kind === 'add' ? 'var(--warn)' : 'var(--accent-ink)' }}>
                   {LABEL[c.kind]}{c.dayName ? ' · ' + c.dayName : ''}
                 </div>
                 <div className="text-[13.5px] font-semibold leading-tight">
@@ -2895,7 +2925,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
                 </div>
               </div>
               <button onClick={() => setOff(o => Object.assign({}, o, { [i]: !isOff }))}
-                className="pf text-[9px] px-2.5 py-1.5 shrink-0"
+                className="pf text-[9px] px-3 py-2 shrink-0"
                 style={{ background: isOff ? 'var(--surface3)' : 'var(--accent)', color: isOff ? 'var(--muted)' : 'var(--on-accent)', border: '2px solid var(--border)' }}>
                 {isOff ? 'OFF' : 'ON'}
               </button>
@@ -2904,12 +2934,12 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
             {/* The engine's first pick is a suggestion, not a verdict. The others it shortlisted are
                 right here, because "not that one, the cable version" is the commonest correction. */}
             {!isOff && (c.alts || []).length > 1 && (
-              <div className="flex gap-1.5 flex-wrap mt-2.5">
+              <div className="flex gap-2 flex-wrap mt-3">
                 {c.alts.map(a => {
                   const on = chosen && chosen.id === a.id;
                   return (
                     <button key={a.id} onClick={() => setPick(p => Object.assign({}, p, { [i]: a }))}
-                      className="pixel-box px-2 py-1.5 text-[11px]"
+                      className="pixel-box px-2 py-2 text-[11px]"
                       style={{ background: on ? 'var(--good)' : 'var(--surface2)', color: on ? '#05140a' : 'var(--text2)' }}>
                       {a.name}
                     </button>
@@ -2925,7 +2955,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
         <Card className="p-4 mb-3">
           <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--good)' }}>Left alone on purpose</div>
           {kept.map((c, i) => (
-            <div key={i} className="text-[12px] leading-snug mb-1.5" style={{ color: 'var(--text2)' }}>
+            <div key={i} className="text-[12px] leading-snug mb-2" style={{ color: 'var(--text2)' }}>
               <span className="font-semibold">{c.fromName}</span>
               <span style={{ color: 'var(--muted)' }}> &middot; {c.why}</span>
             </div>
@@ -3066,7 +3096,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
                   <div className="text-[13px] font-bold flex items-center gap-2 min-w-0">
                     <span className="truncate">{l.name || 'Session'}</span>
                     {sessionPRs.length > 0 && (
-                      <span className="pf text-[7px] uppercase px-1.5 py-0.5 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+                      <span className="pf text-[7px] uppercase px-2 py-0.5 shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
                         {sessionPRs.length > 1 ? sessionPRs.length + ' PBs' : 'PB'}
                       </span>
                     )}
@@ -3114,7 +3144,8 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
   return (
     <div className="fade-in">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; History</button>
-      <h1 className="pf text-base mb-1">{ex ? ex.name : exerciseId}</h1>
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Movement</div>
+      <h1 className="text-[19px] font-bold leading-tight mb-2">{ex ? ex.name : exerciseId}</h1>
       <div className="mb-6"><MuscleTags exerciseId={exerciseId} custom={t.custom} /></div>
 
       {hist.length > 1 && (
@@ -3140,7 +3171,7 @@ function ExerciseDetail({ db, exerciseId, onBack }) {
       <Card className="p-4">
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Every session</div>
         {hist.slice().reverse().map((h, i) => (
-          <div key={i} className="flex items-baseline justify-between gap-2 py-1.5 border-t" style={{ borderColor: 'var(--border)' }}>
+          <div key={i} className="flex items-baseline justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
             <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{h.dateISO}</span>
             <span className="text-[12px]">{h.sets} sets · top {toDisplayWeight(h.topWeight, units)}{unitLabel(units)} x {h.topReps}</span>
           </div>
@@ -3589,7 +3620,8 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
     return (
       <div className="fade-in pb-24">
         <button onClick={() => setResult(null)} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Try again</button>
-        <h1 className="pf text-base mb-1">{(result.parsed && result.parsed.name) || 'Imported plan'}</h1>
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What I read</div>
+        <h1 className="text-[19px] font-bold leading-tight mb-2">{(result.parsed && result.parsed.name) || 'Imported plan'}</h1>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
           Here is what I read. Nothing is saved yet, and you can change every line of it on the next screen.
         </div>
@@ -3820,13 +3852,13 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
         className="w-full pixel-box px-3 h-12 text-[14px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
 
       {/* One row of filters, the two that actually decide whether a block fits your life. */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-1">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-1">
         <FilterPill on={!days && !split} onClick={() => { setDays(null); setSplit(null); }}>All</FilterPill>
         {[2, 3, 4, 5, 6].map(n => (
           <FilterPill key={n} on={days === n} onClick={() => setDays(days === n ? null : n)}>{n} days</FilterPill>
         ))}
       </div>
-      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-4">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
         {['full', 'upper_lower', 'ppl'].map(s => (
           <FilterPill key={s} on={split === s} onClick={() => setSplit(split === s ? null : s)}>{SPLIT_LABEL[s]}</FilterPill>
         ))}
@@ -3858,7 +3890,7 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
           {/* The muscles it hits hardest, so you can tell at a glance whether it matches what you want. */}
           <div className="flex gap-1 flex-wrap">
             {topMuscles(pub.muscles, 4).map(m => (
-              <span key={m} className="text-[10px] px-1.5 py-0.5" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{Training.MUSCLE_LABEL[m]}</span>
+              <span key={m} className="text-[10px] px-2 py-0.5" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{Training.MUSCLE_LABEL[m]}</span>
             ))}
           </div>
         </button>
@@ -3869,7 +3901,7 @@ function BlockLibrary({ db, update, showToast, isPremium, onUpgrade, onBack, onA
 
 function FilterPill({ on, onClick, children }) {
   return (
-    <button onClick={onClick} className="pixel-box px-3 h-9 text-[12px] whitespace-nowrap shrink-0"
+    <button onClick={onClick} className="pixel-box px-3 h-11 text-[12px] whitespace-nowrap shrink-0"
       style={{ background: on ? '#fff' : 'var(--surface2)', color: on ? '#111' : 'var(--text2)', fontWeight: on ? 700 : 400 }}>
       {children}
     </button>
@@ -3899,7 +3931,8 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
   return (
     <div className="fade-in">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Library</button>
-      <h1 className="pf text-base mb-1">{pub.title}</h1>
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Shared block</div>
+      <h1 className="text-[19px] font-bold leading-tight mb-2">{pub.title}</h1>
       <div className="text-[12px] mb-4" style={{ color: 'var(--muted)' }}>
         {pub.days_per_week} days a week · {SPLIT_LABEL[pub.split] || 'Custom split'}
         {pub.author_name ? ' · by ' + pub.author_name : ''}
@@ -4073,7 +4106,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
       {/* Which week of somebody else's programme this is. One line, because it is one fact about the
           whole import, and it is the only warning left that is not about a specific movement. */}
       {draft.weekLabel && (
-        <div className="text-[12px] mb-4 leading-snug px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--danger) 10%, var(--surface2))', color: 'var(--text2)' }}>
+        <div className="text-[12px] mb-4 leading-snug px-3 py-3" style={{ background: 'color-mix(in srgb, var(--danger) 10%, var(--surface2))', color: 'var(--text2)' }}>
           These screenshots were showing <strong>{draft.weekLabel}</strong>. All four weeks get built from it.
         </div>
       )}
@@ -4100,7 +4133,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
             // Anything unmarked matched cleanly enough that saying so would be noise on every line.
             const differs = !!e.check && lib;
             return (
-              <div key={e.id || ei} className="flex items-start justify-between gap-2 py-1.5 border-t" style={{ borderColor: 'var(--border)' }}>
+              <div key={e.id || ei} className="flex items-start justify-between gap-2 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
                 <button onClick={() => setPicking({ day: di, index: ei })} className="min-w-0 flex-1 text-left">
                   <span className="block text-[12.5px] leading-snug">{shown}</span>
                   {/* Three words and the name. The row is tappable, so the note's whole job is to
@@ -4126,14 +4159,14 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
               next to the gap instead of a screen away. */}
           {(day.missing || []).map((m, mi) => (
             <button key={'m' + mi} onClick={() => setPicking({ day: di, index: null, replacing: mi })}
-              className="w-full flex items-start justify-between gap-2 py-1.5 border-t text-left" style={{ borderColor: 'var(--border)' }}>
+              className="w-full flex items-start justify-between gap-2 py-2 border-t text-left" style={{ borderColor: 'var(--border)' }}>
               <span className="min-w-0 flex-1">
                 <span className="block text-[12.5px] leading-snug" style={{ color: 'var(--muted2)' }}>{m.name}</span>
                 <span className="block text-[10.5px] mt-0.5" style={{ color: 'var(--warn)' }}>not recognised &middot; choose the movement</span>
               </span>
             </button>
           ))}
-          <button onClick={() => setPicking({ day: di, index: null })} className="pixel-box w-full h-9 text-[11px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
+          <button onClick={() => setPicking({ day: di, index: null })} className="pixel-box w-full h-11 text-[11px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
         </Card>
       ))}
 
@@ -4274,12 +4307,12 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
   const asksKit = type === 'home' || type === 'minimal';
 
   return (
-    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label="Edit gym" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-4 fade-in max-h-[88vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         <h2 className="pf text-[12px] mb-4">{gym ? 'Edit gym' : 'Add a gym'}</h2>
         <Field label="Call it"><TextInput value={name} onChange={e => setName(e.target.value)} placeholder="My gym" /></Field>
         <Field label="What kind of place">
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {Object.keys(Training.GYMS).map(k => {
               const g = Training.GYMS[k];
               return (
@@ -4310,10 +4343,10 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
 
         {type === 'custom' && (
           <Field label="Kit that is there">
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-2 flex-wrap">
               {EQUIP.map(([v, l]) => (
                 <button key={v} onClick={() => setEquipment(equipment.indexOf(v) !== -1 ? equipment.filter(x => x !== v) : equipment.concat([v]))}
-                  className="pixel-box px-2.5 py-2 text-[12px]"
+                  className="pixel-box px-3 py-2 text-[12px]"
                   style={{ background: equipment.indexOf(v) !== -1 ? 'var(--good)' : 'var(--surface2)', color: equipment.indexOf(v) !== -1 ? '#05140a' : 'var(--text2)' }}>
                   {l}
                 </button>
@@ -4358,7 +4391,7 @@ function GymPicker({ db, update, onClose, onPicked }) {
     onPicked && onPicked(g);
   }
   return (
-    <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label="Your gyms" className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-4 fade-in" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         <h2 className="pf text-[12px] mb-1">Where are you training?</h2>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
@@ -4442,7 +4475,7 @@ function HowItWorks({ onBack }) {
 function ToolBtn({ children, onClick, on, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className="pixel-box flex-1 h-9 text-[11px]"
+      className="pixel-box flex-1 h-11 text-[11px]"
       style={{
         background: on ? 'var(--accent)' : 'var(--surface2)',
         color: on ? 'var(--on-accent)' : (disabled ? 'var(--muted2)' : 'var(--text2)'),
@@ -4550,10 +4583,13 @@ function SessionSignOff({ db, facts, units, onDone }) {
         <div className="pf text-[11px] text-center mb-2" style={{ color: 'var(--accent-ink)' }}>{(line ? line.head : 'Logged').toUpperCase()}</div>
         <div className="text-[13px] leading-relaxed text-center mb-4">{line ? line.body : 'Session saved.'}</div>
 
+        {/* Tonnage only appears when there is tonnage. A bodyweight session, or one logged without
+            weights, would otherwise be handed a celebratory "0 kg moved", which is the app calling
+            the work they just did nothing. */}
         <div className="flex items-start gap-1 py-3 mb-4" style={{ borderTop: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
-          {stat('sets', facts.sets)}
-          {stat(unitLabel(units) + ' moved', Math.round(toDisplayWeight(facts.tonnageKg, units)).toLocaleString())}
-          {stat('minutes', facts.minutes)}
+          {stat(facts.sets === 1 ? 'set' : 'sets', facts.sets)}
+          {facts.tonnageKg > 0 && stat(unitLabel(units) + ' moved', Math.round(toDisplayWeight(facts.tonnageKg, units)).toLocaleString())}
+          {stat(facts.minutes === 1 ? 'minute' : 'minutes', facts.minutes)}
         </div>
 
         {/* The one place the streak is worth mentioning: a session is an active day now, and the
@@ -4685,13 +4721,13 @@ function StatSheet({ db, onBack }) {
 function ActionSheet({ title, actions, onClose }) {
   useBackClose(onClose);
   return (
-    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label="Options" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box fade-in max-h-[80vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
         {/* Everything in this app is set in a pixel face, which runs about a full em per character.
             A 13px label that would be one comfortable line in a normal typeface wraps to two here
             and turns a six-item menu into a full-screen scroll, so the sizes are a step down from
             what they would otherwise be. */}
-        <div className="px-4 pt-3.5 pb-2">
+        <div className="px-4 pt-4 pb-2">
           <div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>{title}</div>
         </div>
         {(actions || []).filter(Boolean).map((a, i) => (

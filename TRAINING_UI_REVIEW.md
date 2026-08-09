@@ -1,6 +1,10 @@
 # Training: UI review and where the Macrosaurus playfulness could go
 
-Written 2026-08-09, after building the Train tab out. Recommendations only, nothing here is built.
+Written 2026-08-09, after building the Train tab out.
+
+**Status, updated 2026-08-09 (sw 257-260): everything in this document is now built.** The Part 2
+list went in first, then the Part 1 sweep on top of it. See the bottom of the file for what shipped
+and the two places the recommendation was deliberately not followed.
 
 ---
 
@@ -143,3 +147,62 @@ something to still feel like something.
 5. The dino training alongside you. (§2.1)
 6. The character sheet from real lifts. (§2.2)
 7. PR moment, rest-timer character, block trophy. (§2.3, 2.4, 2.6)
+
+---
+
+## What shipped (sw 257-260)
+
+### Part 2, the buddy in Train
+
+| § | Recommendation | Where it landed |
+|---|---|---|
+| 2.1 | The dino trains with you | `LiftBuddy` in `train.jsx`. Squats on a squat, presses on a press, pulls on a row, driven off the set tick rather than a timer so it moves when you move. |
+| 2.2 | A character sheet from real lifts | `Training.statSheet` + `StatSheet`. Was already built; now renders the real buddy at its real stage with its cosmetics on. |
+| 2.3 | A PR is an event | `PRFlash`. Was already built; same sprite fix. |
+| 2.4 | The rest timer is a character | `RestRing`. The buddy sits inside the ring, breathes slowly while there is time, paces in the last ten seconds, springs up at zero. |
+| 2.5 | Sessions feed the streak | `trainedDates` in `app.jsx`, mirrored by `activeStreak` in `push-nudge/decide.ts`. One streak, three inputs. |
+| 2.6 | A finished block is a trophy | `block_done` in `TROPHIES`, judged on sessions logged rather than the calendar. |
+
+Three things went in that were not on the list, and all three were the same bug: Train did not know
+the buddy existed.
+
+- **`Training.trainingSummary`** is the one shape every buddy surface reads training from, wired into
+  the chat snapshot, the morning deeper dive and the Today coach line. The chat prompt had always
+  promised to answer training questions against a snapshot that carried none.
+- **`Game.trainingAsk`** decides whether the buddy has anything to say about lifting, and most days
+  it decides no.
+- **The block review and coverage advice speak as the buddy.** They used to print under a heading
+  reading "Your coach", which is a character this app has nowhere else.
+
+The two "deliberately not recommended" items were honoured: there is still exactly one streak, and
+lifting still mints no Amber.
+
+### Part 1, the interface sweep
+
+- **1.1 Spacing.** Every `.5` step in Train is off a 4px grid; all of them rounded to a neighbour.
+  Only optical `mt-0.5` nudges and bar heights survive.
+- **1.2 The pixel-font rule.** Press Start 2P now carries labels and fixed strings only. Six places
+  were setting a name somebody typed, a coach wrote, or the library holds in it (session names,
+  movement names, imported plan titles, shared block titles) plus the `Loading 62.5kg` heading that
+  was the original bug. Each became a fixed pixel label with the variable text under it in the body
+  face, which is the pattern the block review already used.
+- **1.3 Micro-interactions.** The single buzz on a set tick was already in. Added the distinct
+  double-buzz for finishing a movement, so two different events do not feel identical through a
+  pocket.
+- **1.4 Loading.** Skeletons were already in on the library; the rest are button-label states on
+  user-initiated actions, which is correct and was left alone.
+- **1.5 Toasts.** Already handled: a live session suppresses non-urgent toasts and lifts the rest.
+  What was still colliding was the rest timer against the Finish button, 74px clearing the button
+  but not its padding. Now 96px, and the session's scroll padding grew to clear both.
+- **1.6 Smaller things.** The `?` badges are outlined with accent text instead of three solid neon
+  fills in a row. Chevron transitions were already in place.
+
+### Added on top, from current mobile guidance rather than from this document
+
+- **Touch targets.** Everything pressed mid-set is a full 44px (WCAG 2.2 SC 2.5.8 sets the floor at
+  24; 44 is the usability figure and the right one for chalky hands on a bench). Skip on the rest bar
+  was an 8px label with no box at all; the set-type chip was 32 wide; the `?` badge was 20 square.
+- **Dialog semantics.** Nine overlays in Train had no `role="dialog"`, no `aria-modal` and no
+  accessible name. They do now.
+- **The rest timer announces itself.** Finishing was a beep and a colour change, neither of any use
+  to a screen reader. An assertive live region announces the transition only, never the count.
