@@ -138,6 +138,80 @@ test('the app still periodises its OWN blocks', () => {
   assert.ok(w3 > w1, `a generated block should still build: ${w1} -> ${w3}`);
 });
 
+// ---- naming a day --------------------------------------------------------------------------------
+// "DAY 1" is what a coaching app exports and it tells you nothing standing in the gym.
+
+test('a day with no name of its own is named for what it trains', () => {
+  const { template } = T.importTemplate({ days: [
+    { name: 'Day 1', exercises: [
+      { name: 'Smith Machine Incline Press', sets: 2 }, { name: 'Decline Chest Fly', sets: 2 },
+      { name: 'Machine Lat Pulldown', sets: 2 }, { name: 'T-Bar Row', sets: 3 },
+    ] },
+    { name: 'Day 2', exercises: [{ name: 'Pendulum Squat', sets: 2 }, { name: 'Leg Extension', sets: 2 }] },
+  ] });
+  assert.equal(template[0].name, 'Day 1 - Chest and back');
+  assert.equal(template[1].name, 'Day 2 - Legs');
+});
+
+test('the regions are named in the order a person says them', () => {
+  // Back carries more volume here than chest, but nobody says "back and chest".
+  const { template } = T.importTemplate({ days: [{ name: 'Day 1', exercises: [
+    { name: 'Bench Press', sets: 2 }, { name: 'Lat Pulldown', sets: 3 }, { name: 'T-Bar Row', sets: 3 },
+  ] }] });
+  assert.equal(template[0].name, 'Day 1 - Chest and back');
+});
+
+test('a name its author gave meaning to is never overwritten', () => {
+  ['Upper A', 'Push', 'Legs', 'Chest and tris', 'Heavy day'].forEach(n => {
+    const { template } = T.importTemplate({ days: [{ name: n, exercises: [{ name: 'Bench Press', sets: 3 }] }] });
+    assert.equal(template[0].name, n, `"${n}" was relabelled`);
+  });
+});
+
+test('assistance work does not get a day named after it', () => {
+  // Every row and pulldown feeds the biceps. That does not make a back day an arm day, which is why
+  // dayFocus counts primary movers only.
+  const day = { exercises: [
+    { exerciseId: 'lat_pulldown', target: { sets: 3 } },
+    { exerciseId: 'tbar_row', target: { sets: 3 } },
+    { exerciseId: 'seated_cable_row', target: { sets: 3 } },
+  ] };
+  assert.equal(T.dayFocus(day), 'Back');
+});
+
+// ---- did we match the right kit? -------------------------------------------------------------------
+
+test('a movement matched to equipment the plan did not ask for is reported', () => {
+  const { mismatches } = T.importTemplate({ days: [{ name: 'Day 2', exercises: [
+    { name: 'CAM - SPLIT SQUAT SMITH MACHINE', sets: 1 },
+    { name: 'CAM - PENDULUM SQUAT', sets: 2 },
+  ] }] });
+  assert.equal(mismatches.length, 1);
+  assert.ok(mismatches[0].said.includes('smith'));
+  assert.equal(mismatches[0].got, 'dumbbell');
+});
+
+test('a plate-loaded machine matching a cable stack is not worth flagging', () => {
+  // "Machine lat pulldown" against the cable pulldown is the same movement on the same line.
+  const { mismatches } = T.importTemplate({ days: [{ name: 'A', exercises: [{ name: 'Machine Lat Pulldown', sets: 2 }] }] });
+  assert.deepEqual(mismatches, []);
+});
+
+test('a shaky match is separated from a certain one', () => {
+  const { loose } = T.importTemplate({ days: [{ name: 'A', exercises: [
+    { name: 'Bench Press', sets: 3 },                 // exact
+    { name: 'CAM - FRENCH PRESS (OHTX)', sets: 2 },   // rescued by a leading-words alias
+  ] }] });
+  assert.equal(loose.length, 1);
+  assert.match(loose[0].name, /FRENCH PRESS/);
+});
+
+test('the week the source was showing is carried through', () => {
+  const r = T.importTemplate({ week_label: 'Week 4 (08/10/26 - 08/15/26)', days: [{ name: 'A', exercises: [{ name: 'Bench Press', sets: 3 }] }] });
+  assert.equal(r.weekLabel, 'Week 4 (08/10/26 - 08/15/26)');
+  assert.equal(T.importTemplate({ days: [{ name: 'A', exercises: [{ name: 'Bench Press', sets: 3 }] }] }).weekLabel, null);
+});
+
 test('refuses to guess when it genuinely does not know', () => {
   // The failure mode that matters: a nonsense line must come back null so the import can flag it,
   // rather than silently logging someone's warm-up note as an exercise.
@@ -570,6 +644,101 @@ test('collected days become a block with every day intact', () => {
   });
   const block = T.blockFromTemplate(days, { weeks: 4, targets: T.defaultTargets(), source: 'import' });
   assert.equal(T.weekSessions(block, 1).length, 3);
+});
+
+// ---- running the same block again ----------------------------------------------------------------
+// The alternative to generating a fresh block: keep the plan somebody chose and change what did not
+// work in it. What it proposes is what the evidence supports proposing, and nothing more.
+
+function ranBlock(opts) {
+  opts = opts || {};
+  const { template } = T.importTemplate({ days: [
+    { name: 'Day 1', exercises: [{ name: 'Bench Press', sets: 2, repLow: 6 }, { name: 'Lat Pulldown', sets: 2, repLow: 8 }] },
+    { name: 'Day 2', exercises: [{ name: 'Back Squat', sets: 2, repLow: 8 }] },
+  ] });
+  const targets = T.defaultTargets();
+  const block = T.blockFromTemplate(template, { weeks: 4, shape: 'as-written', targets, name: 'Coach block', startISO: '2026-07-06', source: 'import' });
+  const logs = [];
+  const weeks = opts.weeks == null ? 4 : opts.weeks;
+  for (let w = 1; w <= weeks; w++) {
+    T.weekSessions(block, w).forEach((s, si) => {
+      logs.push({
+        id: 'l' + w + si, dateISO: '2026-07-' + String(6 + (w - 1) * 7 + si).padStart(2, '0'),
+        blockId: block.id, sessionId: s.id, name: s.name,
+        sets: s.exercises.flatMap(e => Array.from({ length: e.target.sets }, (_, i) => ({
+          exerciseId: e.exerciseId, itemId: e.id, setIndex: i, done: true, reps: 8,
+          // Bench never moves; everything else climbs.
+          weightKg: e.exerciseId === 'bb_bench' ? 60 : 50 + w * 2.5,
+        }))),
+      });
+    });
+  }
+  return { block, logs, targets };
+}
+
+test('a lift that stopped moving is the one it proposes changing', () => {
+  const { block, logs, targets } = ranBlock();
+  const plan = T.rerunPlan(block, logs, targets, []);
+  const swaps = plan.changes.filter(c => c.kind === 'swap');
+  assert.equal(swaps.length, 1, 'only the stalled lift should be swapped');
+  assert.equal(swaps[0].from, 'bb_bench');
+  assert.notEqual(swaps[0].to, 'bb_bench');
+  assert.ok(swaps[0].why.length > 20, 'a proposal without a reason is not a proposal');
+});
+
+test('lifts that moved are named and left alone', () => {
+  const { block, logs, targets } = ranBlock();
+  const plan = T.rerunPlan(block, logs, targets, []);
+  const kept = plan.changes.filter(c => c.kind === 'keep').map(c => c.from);
+  assert.ok(kept.includes('lat_pulldown'), 'a lift that progressed should be kept, and said to be kept');
+  assert.ok(!plan.changes.some(c => c.kind === 'swap' && c.from === 'lat_pulldown'));
+});
+
+test('a block you barely ran is never given more work', () => {
+  // Under about 70 percent finished, the plan was too big for the life around it. Adding to it is
+  // the one change that cannot help.
+  const { block, logs, targets } = ranBlock({ weeks: 1 });
+  const plan = T.rerunPlan(block, logs, targets, []);
+  assert.equal(plan.canGrow, false);
+  assert.equal(plan.changes.filter(c => c.kind === 'sets').length, 0);
+  assert.match(plan.headline, /smaller/);
+});
+
+test('nothing proposed pushes a muscle past its ceiling', () => {
+  const { block, logs, targets } = ranBlock();
+  const plan = T.rerunPlan(block, logs, targets, []);
+  const next = T.applyRerun(block, plan.changes.filter(c => c.kind !== 'keep'), { targets, custom: [] });
+  for (let w = 1; w <= 4; w++) {
+    const over = T.coverage(T.blockWeekVolume(next, w), targets).rows.filter(r => r.band === 'over');
+    assert.deepEqual(over.map(r => r.label), [], `week ${w} of the rerun went over MRV`);
+  }
+});
+
+test('turning every proposal down gives back the plan you already had', () => {
+  const { block, logs, targets } = ranBlock();
+  const same = T.applyRerun(block, [], { targets, custom: [] });
+  assert.deepEqual(
+    T.weekSessions(same, 1).map(s => s.exercises.map(e => e.exerciseId + ':' + e.target.sets)),
+    T.weekSessions(block, 1).map(s => s.exercises.map(e => e.exerciseId + ':' + e.target.sets)),
+    'declining everything must not quietly change the block'
+  );
+});
+
+test('a rerun keeps the shape it was run under', () => {
+  // An imported plan stays as written on its second run too, rather than quietly acquiring the
+  // app's own periodisation on the way through.
+  const { block, logs, targets } = ranBlock();
+  const next = T.applyRerun(block, T.rerunPlan(block, logs, targets, []).changes.filter(c => c.kind !== 'keep'), { targets, custom: [] });
+  assert.equal(next.shape, 'as-written');
+  const setsPerWeek = [1, 2, 3, 4].map(w => T.weekSessions(next, w)[0].exercises.map(e => e.target.sets).join(','));
+  assert.equal(new Set(setsPerWeek).size, 1, `as-written was lost across the rerun: ${setsPerWeek}`);
+  assert.equal(next.previousBlockId, block.id);
+});
+
+test('each run of a block says which run it is', () => {
+  assert.equal(T.nextRunName("Cam Kissel's Program"), "Cam Kissel's Program, run 2");
+  assert.equal(T.nextRunName("Cam Kissel's Program, run 2"), "Cam Kissel's Program, run 3");
+  assert.equal(T.nextRunName("Cam Kissel's Program, run 9"), "Cam Kissel's Program, run 10");
 });
 
 test('an imported plan gets real periodisation, not four identical weeks', () => {

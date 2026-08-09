@@ -228,6 +228,10 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     }
     go('player', { sessionId: session ? session.id : null, blockId: blk ? blk.id : null });
   }
+  // Looking is not starting. A tap on a day opens the plan; the button on that screen begins it.
+  function previewSession(session, blk) {
+    go('preview', { sessionId: session ? session.id : null, blockId: blk ? blk.id : null });
+  }
 
   // Every Train screen sits in the app's standard page shell, the same one Today, Food and Progress
   // use: centred, 20px gutters, room at the bottom for the tab bar. Without it these screens ran
@@ -241,6 +245,14 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     return page(<SessionPlayer db={db} update={update} showToast={showToast} onFocusMode={onFocusMode}
       sessionId={screen.sessionId} blockId={screen.blockId} freeform={screen.freeform}
       gym={currentGym(db)} onExit={() => go('home')} />, true);
+  }
+  if (screen.name === 'preview') {
+    const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : null;
+    const sess = blk ? (blk.sessions || []).filter(s => s.id === screen.sessionId)[0] : null;
+    if (!sess) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
+      block={block} onOpen={previewSession} onStart={startSession} go={go} />);
+    return page(<SessionPreview db={db} session={sess} block={blk} onBack={() => go('home')}
+      onStart={() => startSession(sess, blk)} />);
   }
   if (screen.name === 'builder') {
     return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium}
@@ -275,9 +287,27 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
         go('builder', { draft: block, clearDraft: true });
       }} />);
   }
+  if (screen.name === 'rerun') {
+    return page(<RerunScreen db={db} update={update} showToast={showToast} blockId={screen.blockId}
+      onBack={() => go('review', { blockId: screen.blockId })}
+      onDraft={(draft) => go('builder', { draft })} />);
+  }
   if (screen.name === 'blocks') {
     return page(<BlockList db={db} update={update} showToast={showToast}
-      onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard')} />);
+      onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard')}
+      onCoverage={(blockId) => go('coverage', { blockId, from: 'blocks' })}
+      onReview={(blockId) => go('review', { blockId, from: 'blocks' })}
+      onStart={(blk) => {
+        // Begin a block that was saved and never started. Whatever else was running steps aside, the
+        // same way saving a brand-new one has always worked.
+        trainUpdate(update, (tr) => {
+          tr.blocks.forEach(b => { if (b.id !== blk.id && !b.archived) b.archived = true; });
+          const i = tr.blocks.findIndex(b => b.id === blk.id);
+          if (i >= 0) { tr.blocks[i] = Object.assign({}, tr.blocks[i], { archived: false, startISO: Store.todayISO() }); }
+        });
+        showToast && showToast('Started. First session is ready.');
+        go('home');
+      }} />);
   }
   if (screen.name === 'library') {
     return page(<BlockLibrary db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
@@ -285,11 +315,13 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'coverage') {
     return page(<CoverageScreen db={db} update={update} isPremium={isPremium} onUpgrade={onUpgrade}
-      blockId={screen.blockId} onBack={() => go('home')} />);
+      blockId={screen.blockId} onBack={() => go(screen.from || 'home')} />);
   }
   if (screen.name === 'review') {
     return page(<BlockReviewScreen db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      blockId={screen.blockId} onBack={() => go('home')} onNext={(draft) => go('builder', { draft })} />);
+      blockId={screen.blockId} onBack={() => go(screen.from || 'home')}
+      onRerun={(blockId) => go('rerun', { blockId })}
+      onNext={(draft) => go('builder', { draft })} />);
   }
   if (screen.name === 'history') {
     return page(<TrainHistory db={db} update={update} onBack={() => go('home')} onOpenExercise={(id) => go('exercise', { exerciseId: id })} />);
@@ -307,7 +339,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     return page(<StatSheet db={db} onBack={() => go('home')} />);
   }
   const homeScreen = page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-    block={block} onStart={startSession} go={go} />);
+    block={block} onOpen={previewSession} onStart={startSession} go={go} />);
   return (
     <div>
       {homeScreen}
@@ -320,7 +352,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
 }
 
 // ---- home -------------------------------------------------------------------------------------
-function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart, go }) {
+function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onStart, go }) {
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
@@ -332,7 +364,8 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
   // tappable too: real weeks do not run in order, and an app that only lets you do "the next one"
   // makes you fight it the first time you swap legs to Thursday.
   const next = thisWeek.filter(x => !x.log)[0];
-  const cov = block && prog ? Training.coverage(Training.blockWeekVolume(block, prog.week, t.custom), targets) : null;
+  // Coverage is deliberately NOT computed here any more. See the note further down: a volume gap is
+  // a question for the build screens, and this one is about the week you are actually running.
   const blockDone = prog && prog.done;
   const isDeload = block && prog && Training.weekSessions(block, prog.week).some(s => s.deload);
   const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
@@ -386,7 +419,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
               const sets = (session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0);
               const mins = Math.round((session.exercises || []).reduce((a, e) => a + (e.target.sets || 0) * (((e.target.restSec || 120) + 40) / 60), 0));
               return (
-                <button key={session.id} onClick={() => onStart(session, block)}
+                <button key={session.id} onClick={() => onOpen(session, block)}
                   className="w-full flex items-center gap-3 py-3 text-left"
                   style={{ borderTop: i ? '2px solid var(--border)' : 'none' }}>
                   <span className="w-7 h-7 shrink-0 flex items-center justify-center text-[13px] font-bold pixel-box"
@@ -406,8 +439,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
           </div>
 
           {next ? (
+            /* Still a direct start: pressing a button that says Start IS the confirmation. What
+               changed is that browsing the week no longer counts as one. */
             <button onClick={() => onStart(next.session, block)} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
-              Start {next.session.name}
+              Start {next.session.name.split(' - ')[0]}
             </button>
           ) : (
             <div className="text-[12.5px] text-center py-3" style={{ color: 'var(--good)' }}>
@@ -449,17 +484,13 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
         </Card>
       )}
 
-      {/* ---- the gap, only when there is one worth naming ---- */}
-      {cov && cov.gaps.length > 0 && (
-        <button onClick={() => go('coverage', { blockId: block.id })} className="w-full text-left pixel-box p-4 mb-4" style={{ background: 'var(--card)' }}>
-          <div className="flex items-baseline justify-between gap-2 mb-2">
-            <span className="pf text-[9px] uppercase" style={{ color: 'var(--warn)' }}>This week's gap</span>
-            <span className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>All muscles &rsaquo;</span>
-          </div>
-          <div className="text-[13px] mb-4 leading-snug">{gapSentence(cov.gaps[0])}</div>
-          <CoverageBars coverage={{ rows: cov.gaps.slice(0, 3) }} compact />
-        </button>
-      )}
+      {/* ---- the gap used to shout from here, and it has been moved to where it can be acted on ----
+              A volume gap is a question about what to BUILD. Once a block is running it is not a
+              question any more: you chose this plan, and being told every time you open the tab that
+              it is short on calves is nagging you about a decision already made. Worse since imports
+              run as written, where the gap is the coach's deliberate choice and not an oversight.
+              It lives on the draft screen while you are building, and behind Your blocks after, both
+              of which are places you went looking for it. ---- */}
 
       {/* ---- last session, so the tab is never empty and progress is always in view ---- */}
       {lastLog && (
@@ -1621,7 +1652,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       }
       const res = Training.importTemplate(parsed, { custom: t.custom });
       if (!res.template.length) throw new Error('nothing readable in it');
-      return { parsed: parsed, template: res.template, unresolved: res.unresolved, file: file };
+      return { parsed: parsed, res: res, template: res.template, file: file };
     }
 
     // Results are collected in upload order and written once at the end, so the days land in the
@@ -1648,10 +1679,15 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       trainUpdate(update, (tr) => {
         const d = tr.draft || { name: (got[0].parsed && got[0].parsed.name) || 'My block', days: [] };
         got.forEach(r => Training.mergeDraftDays(d.days, r.template, { kind: 'file', name: r.file.name || 'screenshot' }));
-        // A movement the library could not place used to be dropped here without a word, which is how
-        // three of Day 3's seven went missing in silence. It rides along with the draft now, so the
-        // review screen can show it and the person can say what it really was.
-        d.unresolved = (d.unresolved || []).concat(got.reduce((a, r) => a.concat(r.unresolved || []), []));
+        // Everything the read was unsure about rides along with the draft, so the review screen can
+        // show it. A movement the library could not place used to be dropped here without a word,
+        // which is how three of Day 3's seven went missing in silence; a movement matched to the
+        // wrong piece of kit is worse still, because the day looks right and you find out in the gym.
+        const gather = (k) => got.reduce((a, r) => a.concat((r.res && r.res[k]) || []), []);
+        d.unresolved = (d.unresolved || []).concat(gather('unresolved'));
+        d.mismatches = (d.mismatches || []).concat(gather('mismatches'));
+        d.loose = (d.loose || []).concat(gather('loose'));
+        d.weekLabel = d.weekLabel || got.map(r => r.res && r.res.weekLabel).filter(Boolean)[0] || null;
         d.source = 'import';
         tr.draft = d;
       });
@@ -1875,24 +1911,33 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
       });
     });
   }
-  function save() {
+  // `later` saves the block to your shelf without beginning it: no start date, nothing retired, and
+  // no question about switching, because nothing is being switched. Building a plan and running a
+  // plan are separate decisions, and an app that can only do both at once makes you keep a coach's
+  // programme in your camera roll until the week you are ready for it.
+  function save(later) {
     // Abandoning a block halfway is the most common way people make no progress: nothing runs long
     // enough to tell you whether it worked. So starting a second one while the first is still going
     // asks once. It is a question, not a block: their training, their call.
-    if (isNew && !skipSwitchCheck.current) {
+    if (isNew && !later && !skipSwitchCheck.current) {
       const live = activeBlock(db);
       if (live && !Training.blockProgress(live, Store.todayISO()).done) {
         setConfirmSwitch(live);
         return;
       }
     }
-    const out = Object.assign({}, block, { name: name.trim() || block.name, startISO: startISO, shared: share });
+    const out = Object.assign({}, block, {
+      name: name.trim() || block.name,
+      startISO: later ? null : startISO,
+      shared: share,
+    });
     trainUpdate(update, (tr) => {
       const i = tr.blocks.findIndex(b => b.id === out.id);
       if (i >= 0) tr.blocks[i] = out;
       else {
-        // Starting a new block retires whatever was running, so "the current block" is never ambiguous.
-        tr.blocks.forEach(b => { if (!b.archived) b.archived = true; });
+        // Starting a new block retires whatever was running, so "the current block" is never
+        // ambiguous. Saving one for later retires nothing: it is not competing with anything yet.
+        if (!later) tr.blocks.forEach(b => { if (!b.archived) b.archived = true; });
         tr.blocks.push(out);
       }
       // A block built out of the draft basket consumes it, so the same days cannot be built twice.
@@ -1901,7 +1946,8 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
     // Publishing is fire and forget: it must never be able to fail the save of your own block.
     if (share) submitPublicBlock(out, tdb(db).prefs, tdb(db).custom);
     else if (saved && saved.shared) retractPublicBlock(out.id);
-    showToast && showToast(isNew ? 'Block saved. First session is ready.' : 'Block updated.');
+    showToast && showToast(later ? 'Saved to your blocks. Start it whenever you like.'
+      : isNew ? 'Block saved. First session is ready.' : 'Block updated.');
     onBack();
   }
   function remove() {
@@ -2029,9 +2075,22 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
       })}
 
       <StickyAction>
-        <button onClick={save} className="pixel-btn w-full py-3.5 font-bold" style={{ background: '#fff', color: '#111' }}>
-          {isNew ? 'Start this block' : 'Save changes'}
-        </button>
+        {/* Two exits on a new block, because building one and beginning one are separate decisions.
+            Keeping it is the quieter of the two and sits on the left. */}
+        {isNew ? (
+          <div className="flex gap-2">
+            <button onClick={() => save(true)} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+              Save for later
+            </button>
+            <button onClick={() => save(false)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+              Start it now
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => save(false)} className="pixel-btn w-full py-3.5 font-bold" style={{ background: '#fff', color: '#111' }}>
+            Save changes
+          </button>
+        )}
       </StickyAction>
 
       {/* Sharing publishes ONE WEEK, not your logged sessions and nothing about you. Worth saying
@@ -2063,10 +2122,76 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             title={'You are on week ' + prog.week + ' of ' + confirmSwitch.weeks}
             body={'"' + confirmSwitch.name + '" has not finished yet. Four weeks is about the shortest run that tells you whether something is working, so it is usually worth seeing out. Start this one instead?'}
             confirmLabel="Start the new one" confirmKind="primary"
-            onConfirm={() => { skipSwitchCheck.current = true; setConfirmSwitch(null); setTimeout(save, 0); }}
+            onConfirm={() => { skipSwitchCheck.current = true; setConfirmSwitch(null); setTimeout(() => save(false), 0); }}
             onClose={() => setConfirmSwitch(null)} />
         );
       })()}
+    </div>
+  );
+}
+
+// ---- what is in today's session, before you commit to it --------------------------------------
+// Tapping a day used to drop you straight into the player, which starts a session: it stamps a
+// start time, and from the second visit onwards the app treats it as one you are part-way through.
+// Most taps are not that. They are "what am I doing tonight", asked on the bus, and the answer
+// should not begin a workout. So the tap opens the plan and Start begins it.
+function SessionPreview({ db, session, block, onBack, onStart }) {
+  useBackClose(onBack);
+  const t = tdb(db);
+  const units = t.prefs.units;
+  const items = (session.exercises || []).slice().sort((a, b) => a.order - b.order);
+  const codes = Training.sessionCodes(items);
+  const sets = items.reduce((a, e) => a + (e.target.sets || 0), 0);
+  const mins = Math.round(items.reduce((a, e) => a + (e.target.sets || 0) * (((e.target.restSec || 120) + 40) / 60), 0));
+  const log = t.logs.filter(l => l.sessionId === session.id)[0];
+
+  return (
+    <div className="fade-in pb-28">
+      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <h1 className="pf text-lg mb-1">{session.name}</h1>
+      <div className="text-[12px] mb-4 tnum" style={{ color: 'var(--muted)' }}>
+        {items.length} movements &middot; {sets} sets &middot; about {mins} min
+        {session.deload ? ' · deload week' : ''}
+      </div>
+
+      {log && (
+        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))' }}>
+          <div className="text-[12px] leading-snug">
+            You logged this one {relativeDay(log.dateISO, Store.todayISO()).toLowerCase()}, {(log.sets || []).filter(s => s.done).length} sets. Opening it again picks up where you left off.
+          </div>
+        </Card>
+      )}
+
+      {items.map((it, i) => {
+        const ex = Training.byId(it.exerciseId, t.custom);
+        const last = Training.bestBefore(t.logs, it.exerciseId, Store.todayISO());
+        return (
+          <Card key={it.id || i} className="p-4 mb-3">
+            <div className="flex items-baseline gap-2.5">
+              <span className="pf text-[10px] shrink-0 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[i]}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
+                <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
+                  {it.target.sets} x {it.target.repLow}-{it.target.repHigh} &middot; {it.target.rir} RIR
+                  {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
+                </span>
+                {/* What you did last time is the number you actually want before you set off. */}
+                {last && last.weightKg > 0 && (
+                  <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
+                    Last time {toDisplayWeight(last.weightKg, units)}{unitLabel(units)} x {last.repsAtBest}
+                  </span>
+                )}
+              </span>
+            </div>
+          </Card>
+        );
+      })}
+
+      <StickyAction>
+        <button onClick={onStart} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+          {log ? 'Carry on with it' : 'Start ' + session.name.split(' - ')[0]}
+        </button>
+      </StickyAction>
     </div>
   );
 }
@@ -2077,7 +2202,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
 // sight, and nothing anywhere opened the editor on a saved block, so BlockBuilder's "Delete this
 // block" button could not be reached at all. A block built by mistake was permanent. Editing and
 // deleting are the same screen because they answer the same question: this one is wrong, now what.
-function BlockList({ db, update, showToast, onBack, onOpen, onNew }) {
+function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, onReview, onStart }) {
   useBackClose(onBack);
   const t = tdb(db);
   const today = Store.todayISO();
@@ -2141,6 +2266,17 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew }) {
               </button>
               <button onClick={() => setConfirm(block)} aria-label={'Delete ' + block.name}
                 className="hit shrink-0 px-3 py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete</button>
+            </div>
+            <div className="flex items-center gap-4 mt-3 pt-3 text-[12px]" style={{ borderTop: '2px solid var(--border)' }}>
+              {/* A block that was saved but never begun. Starting it is the whole point of having
+                  saved it, so it is one tap from here rather than a trip through the editor. */}
+              {!block.startISO && (
+                <button onClick={() => onStart(block)} style={{ color: 'var(--accent-ink)' }}>Start this block</button>
+              )}
+              <button onClick={() => onCoverage(block.id)} style={{ color: 'var(--accent-ink)' }}>What it covers</button>
+              {comp.done > 0 && (
+                <button onClick={() => onReview(block.id)} style={{ color: 'var(--accent-ink)' }}>How it went</button>
+              )}
             </div>
           </Card>
         );
@@ -2274,7 +2410,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
 }
 
 // ---- block review -----------------------------------------------------------------------------
-function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockId, onBack, onNext }) {
+function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockId, onBack, onNext, onRerun }) {
   useBackClose(onBack);
   const t = tdb(db);
   const block = t.blocks.filter(b => b.id === blockId)[0];
@@ -2410,8 +2546,131 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
       )}
 
       <StickyAction>
-        <button onClick={buildNext} className="pixel-btn w-full py-3.5 font-bold" style={{ background: '#fff', color: '#111' }}>
-          Build the next block
+        {/* Two ways on, and running THIS block again is the one most people want. "Build the next
+            block" throws the plan away and generates a fresh one, which is the wrong answer for
+            somebody who imported a coach's programme, liked it, and wants another four weeks of it
+            with the things that stalled changed. */}
+        <div className="flex gap-2">
+          <button onClick={buildNext} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+            Build a new one
+          </button>
+          <button onClick={() => onRerun(block.id)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+            Run this again
+          </button>
+        </div>
+      </StickyAction>
+    </div>
+  );
+}
+
+// ---- running the same block again ---------------------------------------------------------------
+// Every proposal Training.rerunPlan made, each with the reason it was made and a switch. Nothing is
+// applied until you say so, and what you turn down survives exactly as your coach wrote it. The
+// engine decides WHAT to propose; this screen only decides what you accepted.
+function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
+  useBackClose(onBack);
+  const t = tdb(db);
+  const targets = trainTargets(db);
+  const block = t.blocks.filter(b => b.id === blockId)[0];
+  const plan = useMemo(() => (block ? Training.rerunPlan(block, t.logs, targets, t.custom) : null), [blockId]);
+  const [off, setOff] = useState({});          // proposals turned down, by index
+  const [pick, setPick] = useState({});         // a different alternative chosen, by index
+  if (!block || !plan) {
+    return (
+      <div className="fade-in">
+        <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+        <Card className="p-4"><div className="text-[13px]">That block is not here any more.</div></Card>
+      </div>
+    );
+  }
+  const actionable = plan.changes.filter(c => c.kind !== 'keep');
+  const kept = plan.changes.filter(c => c.kind === 'keep');
+  const accepted = actionable
+    .map((c, i) => ({ c, i }))
+    .filter(x => !off[x.i])
+    .map(x => (pick[x.i] ? Object.assign({}, x.c, { to: pick[x.i].id, toName: pick[x.i].name }) : x.c));
+
+  function build() {
+    const next = Training.applyRerun(block, accepted, {
+      targets: targets, custom: t.custom, startISO: Store.todayISO(),
+    });
+    onDraft(next);
+  }
+
+  const LABEL = { swap: 'Swap', sets: 'More work', add: 'Missing' };
+  return (
+    <div className="fade-in pb-28">
+      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; How it went</button>
+      <h1 className="pf text-lg mb-1">Run it again</h1>
+      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{plan.headline}</div>
+
+      {!actionable.length && (
+        <Card className="p-4 mb-4">
+          <div className="text-[13px] mb-1">Nothing to change.</div>
+          <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
+            Every lift moved and there is no room worth adding. Run it as it stands.
+          </div>
+        </Card>
+      )}
+
+      {actionable.map((c, i) => {
+        const isOff = !!off[i];
+        const chosen = pick[i] || (c.to ? { id: c.to, name: c.toName } : null);
+        return (
+          <Card key={i} className="p-4 mb-3" style={{ opacity: isOff ? 0.5 : 1 }}>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0">
+                <div className="pf text-[9px] uppercase mb-1.5" style={{ color: c.kind === 'add' ? 'var(--warn)' : 'var(--accent-ink)' }}>
+                  {LABEL[c.kind]}{c.dayName ? ' · ' + c.dayName : ''}
+                </div>
+                <div className="text-[13.5px] font-semibold leading-tight">
+                  {c.kind === 'swap' && <span>{c.fromName} &rarr; {chosen ? chosen.name : c.toName}</span>}
+                  {c.kind === 'sets' && <span>{c.fromName}, {c.from} to {c.to} sets</span>}
+                  {c.kind === 'add' && <span>Add {chosen ? chosen.name : c.toName}, {c.sets} sets</span>}
+                </div>
+              </div>
+              <button onClick={() => setOff(o => Object.assign({}, o, { [i]: !isOff }))}
+                className="pf text-[9px] px-2.5 py-1.5 shrink-0"
+                style={{ background: isOff ? 'var(--surface3)' : 'var(--accent)', color: isOff ? 'var(--muted)' : 'var(--on-accent)', border: '2px solid var(--border)' }}>
+                {isOff ? 'OFF' : 'ON'}
+              </button>
+            </div>
+            <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{c.why}</div>
+            {/* The engine's first pick is a suggestion, not a verdict. The others it shortlisted are
+                right here, because "not that one, the cable version" is the commonest correction. */}
+            {!isOff && (c.alts || []).length > 1 && (
+              <div className="flex gap-1.5 flex-wrap mt-2.5">
+                {c.alts.map(a => {
+                  const on = chosen && chosen.id === a.id;
+                  return (
+                    <button key={a.id} onClick={() => setPick(p => Object.assign({}, p, { [i]: a }))}
+                      className="pixel-box px-2 py-1.5 text-[11px]"
+                      style={{ background: on ? 'var(--good)' : 'var(--surface2)', color: on ? '#05140a' : 'var(--text2)' }}>
+                      {a.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+
+      {kept.length > 0 && (
+        <Card className="p-4 mb-3">
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--good)' }}>Left alone on purpose</div>
+          {kept.map((c, i) => (
+            <div key={i} className="text-[12px] leading-snug mb-1.5" style={{ color: 'var(--text2)' }}>
+              <span className="font-semibold">{c.fromName}</span>
+              <span style={{ color: 'var(--muted)' }}> &middot; {c.why}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <StickyAction>
+        <button onClick={build} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+          Build it{accepted.length ? ' with ' + accepted.length + ' change' + (accepted.length === 1 ? '' : 's') : ' unchanged'}
         </button>
       </StickyAction>
     </div>
@@ -3521,6 +3780,33 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
         {tweakNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: tweakErr ? 'var(--danger)' : 'var(--accent-ink)' }}>{tweakNote}</div>}
       </Card>
 
+      {/* Which week of somebody else's programme this actually is. A block builds four weeks out of
+          one, so importing the week that happened to be open is a decision worth making on purpose. */}
+      {draft.weekLabel && (
+        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--danger) 10%, var(--surface2))' }}>
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--danger)' }}>This is {draft.weekLabel}</div>
+          <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
+            That is the week your screenshots were showing, and all four weeks get built from it exactly as written. If you meant to start the programme from its beginning, switch the week in the other app and upload again.
+          </div>
+        </Card>
+      )}
+
+      {/* Right movement, wrong kit. Invisible in a list of names, because the day reads correctly and
+          you only find out standing in front of the wrong machine. */}
+      {(draft.mismatches || []).length > 0 && (
+        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Check the kit on these</div>
+          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
+            The movement is right, but your plan names equipment I do not have a version of. Say which it should be in the box above, or swap it on the day.
+          </div>
+          {(draft.mismatches || []).map((m, i) => (
+            <div key={i} className="text-[12px] leading-snug mb-1" style={{ color: 'var(--text2)' }}>
+              {m.name} <span style={{ color: 'var(--muted2)' }}>says {m.said.join(' and ')}, became</span> {m.matched} <span style={{ color: 'var(--muted2)' }}>({m.got})</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
       {/* What the library could not place. These used to be dropped without a word, which is the
           worst way to lose a movement: the day just looks shorter than the plan you uploaded. */}
       {(draft.unresolved || []).length > 0 && (
@@ -3535,6 +3821,22 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
         </Card>
       )}
 
+      {/* Matched, but only just. An exact name and a bare-minimum token overlap both arrive as a
+          movement on the card, and only one of them deserves a second look. */}
+      {(draft.loose || []).length > 0 && (
+        <Card className="p-4 mb-4">
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Worth a second look</div>
+          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
+            I am fairly sure about these but not certain, usually because the plan wrote them a way I have not seen before.
+          </div>
+          {(draft.loose || []).map((l, i) => (
+            <div key={i} className="text-[12px] leading-snug mb-1" style={{ color: 'var(--text2)' }}>
+              {l.name} <span style={{ color: 'var(--muted2)' }}>read as</span> {l.matched}
+            </div>
+          ))}
+        </Card>
+      )}
+
       {/* Coverage of the draft AS IT STANDS, so you can see which day is still missing before you
           build. This is the thing a pile of imported screenshots can never tell you. */}
       <Card className="p-4 mb-4">
@@ -3544,9 +3846,17 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
             {cov.gaps.length ? cov.gaps.length + ' short' : 'all covered'}
           </div>
         </div>
-        {cov.gaps.length > 0 && (
+        {/* This is now the ONE place a gap gets raised, so it has to be honest about the difference
+            between thin and absent. "Light on calves" reads as a nudge; nothing at all is a fact
+            about the plan, and it is the one worth knowing before you commit four weeks to it. */}
+        {cov.gaps.filter(g => !g.sets).length > 0 && (
+          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--warn)' }}>
+            Nothing at all for {cov.gaps.filter(g => !g.sets).map(g => g.label.toLowerCase()).join(', ')}. That may well be deliberate on your coach's part, but it is worth knowing now.
+          </div>
+        )}
+        {cov.gaps.filter(g => g.sets > 0).length > 0 && (
           <div className="text-[12px] mb-4 leading-snug">
-            Still light on {cov.gaps.slice(0, 3).map(g => g.label.toLowerCase()).join(', ')}. Import the rest of the week, or let the coach fill the gaps when you build.
+            Still light on {cov.gaps.filter(g => g.sets > 0).slice(0, 3).map(g => g.label.toLowerCase()).join(', ')}. Import the rest of the week, or add to it here.
           </div>
         )}
         <CoverageBars coverage={cov} limit={5} compact />

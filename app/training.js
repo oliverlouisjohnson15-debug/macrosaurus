@@ -583,14 +583,21 @@
   // score. Returns null rather than guessing wildly, so the import UI can flag it for the user
   // instead of quietly logging bench press as bicep curls.
   function resolve(name, custom) {
+    var d = resolveDetail(name, custom);
+    return d ? d.id : null;
+  }
+  // Same work, but it says HOW it got there. An exact name and a 0.35 token overlap both come back as
+  // an id, and the person reviewing an import has no way to tell which lines to look at twice. The
+  // import screen shows the shaky ones rather than making you re-read all twenty-nine.
+  function resolveDetail(name, custom) {
     var q = cleanName(name);
     if (!q) return null;
     var pool = all(custom);
     var i, e;
-    for (i = 0; i < pool.length; i++) if (norm(pool[i].name) === q) return pool[i].id;
-    var al = aliasFor(q); if (al) return al;
+    for (i = 0; i < pool.length; i++) if (norm(pool[i].name) === q) return { id: pool[i].id, how: 'exact', score: 1 };
+    var al = aliasFor(q); if (al) return { id: al, how: 'alias', score: 1 };
     var singular = q.replace(/s$/, '');
-    al = aliasFor(singular); if (al) return al;
+    al = aliasFor(singular); if (al) return { id: al, how: 'alias', score: 1 };
     var qt = q.split(' ').filter(Boolean);
     var best = null, bestScore = 0;
     for (i = 0; i < pool.length; i++) {
@@ -615,14 +622,16 @@
       var score = qw && ew ? (hit / qw) * (hit / ew) : 0;
       if (score > bestScore) { bestScore = score; best = e.id; }
     }
-    if (bestScore >= 0.34) return best;
+    // Comfortably clear of the threshold is a match nobody needs to check. Just over it is a guess
+    // that happened to win, and those are the ones worth a second look.
+    if (bestScore >= 0.34) return { id: best, how: bestScore >= 0.6 ? 'strong' : 'loose', score: bestScore };
     // Last resort, and only ever on a line that was otherwise going to be thrown away: coaches append
     // qualifiers the library has never heard of ("French press (OHTX)", "T-bar row (mega mass)"), so
     // try the alias table against the leading words alone. Running this AFTER scoring is what keeps it
     // safe: it can rescue a dropped movement but never outrank a good match.
     for (var n = qt.length - 1; n >= 2; n--) {
       var lead = aliasFor(qt.slice(0, n).join(' '));
-      if (lead) return lead;
+      if (lead) return { id: lead, how: 'loose', score: 0.34 };
     }
     return null;
   }
@@ -1521,11 +1530,22 @@
   function importTemplate(parsed, opts) {
     opts = opts || {};
     var unresolved = [];
+    var loose = [];        // matched, but on a weak score - worth a second look
+    var mismatches = [];   // right movement, kit the source did not ask for
     var template = ((parsed && parsed.days) || []).map(function (day, di) {
       var exercises = [];
+      var dayName = day.name || ('Day ' + (di + 1));
       (day.exercises || []).forEach(function (raw, ei) {
-        var id = raw.exerciseId && byId(raw.exerciseId, opts.custom) ? raw.exerciseId : resolve(raw.name, opts.custom);
-        if (!id) { unresolved.push({ day: di, dayName: day.name || ('Day ' + (di + 1)), name: raw.name, index: ei }); return; }
+        var id, how = 'exact';
+        if (raw.exerciseId && byId(raw.exerciseId, opts.custom)) { id = raw.exerciseId; }
+        else {
+          var d = resolveDetail(raw.name, opts.custom);
+          if (d) { id = d.id; how = d.how; }
+        }
+        if (!id) { unresolved.push({ day: di, dayName: dayName, name: raw.name, index: ei }); return; }
+        if (how === 'loose') loose.push({ day: di, dayName: dayName, name: raw.name, matched: (byId(id, opts.custom) || {}).name });
+        var kit = kitMismatch(raw.name, id, opts.custom);
+        if (kit) mismatches.push({ day: di, dayName: dayName, name: raw.name, said: kit.said, got: kit.got, matched: kit.name });
         var ex = byId(id, opts.custom);
         var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
         var lo = +raw.repLow || 0, hi = +raw.repHigh || 0;
@@ -1546,13 +1566,122 @@
           },
         });
       });
-      return {
-        kind: 'full', name: day.name || ('Day ' + (di + 1)),
+      var row = {
+        kind: 'full', name: dayName,
         dayOfWeek: day.dayOfWeek == null ? di : clamp(+day.dayOfWeek, 0, 6),
         exercises: exercises,
       };
+      // Name it for what it trains, once the movements are known. Only touches a name that says
+      // nothing on its own, so a coach's "Upper A" survives exactly as they wrote it.
+      row.name = nameDay(row.name, row, opts.custom);
+      return row;
     }).filter(function (d) { return d.exercises.length > 0; });
-    return { template: template, unresolved: unresolved, days: template.length };
+    return {
+      template: template, unresolved: unresolved, loose: loose, mismatches: mismatches,
+      days: template.length,
+      // Whatever the source said about which week this is. The app builds four weeks from one, so a
+      // screenshot taken on week four of somebody's programme is worth saying out loud.
+      weekLabel: (parsed && parsed.week_label) ? String(parsed.week_label).slice(0, 40) : null,
+    };
+  }
+
+  // ---- naming a day ---------------------------------------------------------------------------
+  // "Day 1" tells you nothing standing in the gym holding your phone. What a session IS is the thing
+  // you want on the card, and it is already knowable: the movements say which regions the day trains,
+  // so the name can say it too. Coaching apps export "DAY 1" through "DAY 5" and rely on you
+  // remembering which is which, which is exactly the memory nobody has on a Wednesday evening.
+  var REGION = {
+    ch: 'chest', fd: 'delts', sd: 'delts', rd: 'delts',
+    lt: 'back', ub: 'back', lb: 'back',
+    bi: 'arms', tr: 'arms', fa: 'arms',
+    ab: 'core', ob: 'core',
+    qu: 'legs', ha: 'legs', gl: 'legs', ad: 'legs', ca: 'legs',
+  };
+  var REGION_LABEL = { chest: 'chest', back: 'back', delts: 'shoulders', arms: 'arms', legs: 'legs', core: 'core' };
+  // A name that carries no information about the session. These are what apps and spreadsheets emit
+  // when nobody has named the day, and they are the only ones worth overwriting: a coach who wrote
+  // "Upper A" or "Push" has already said something, and it is not ours to relabel.
+  var GENERIC_DAY = /^(day|session|workout|training)\s*\d+\s*[a-d]?$|^[wd]\s*\d+\s*[a-d]?$|^w\s*\d+\s*d\s*\d+$|^\d+$|^[a-d]$/i;
+  // The order people say these in. Regions are CHOSEN by how much work they carry but NAMED in this
+  // order, because "chest and back" is what a person says and "back and chest" is what a sort
+  // function says.
+  var REGION_ORDER = ['chest', 'back', 'delts', 'arms', 'legs', 'core'];
+
+  // Which regions a day is actually ABOUT.
+  //
+  // Deliberately counts primary movers only, where the rest of the volume maths counts assistance at
+  // half a set. Those are different questions. For coverage, the triceps a bench press trains are
+  // real and must be counted. For a name, they are not what the day is: counting them turned a chest
+  // and back day into "back, arms and chest", because every row and pulldown fed the biceps enough to
+  // clear the bar. What a session is called should be what you would tell someone you were doing.
+  function dayRegions(day, custom) {
+    var byRegion = {}, total = 0;
+    (day.exercises || []).forEach(function (it) {
+      var ex = byId(it.exerciseId, custom);
+      if (!ex || isCardio(ex)) return;
+      var sets = (it.target && it.target.sets) || 0;
+      (ex.primary || []).forEach(function (m) {
+        var r = REGION[m]; if (!r) return;
+        byRegion[r] = (byRegion[r] || 0) + sets; total += sets;
+      });
+    });
+    if (!total) return [];
+    return REGION_ORDER.filter(function (r) {
+      // A region has to be a real part of the session to get named. Under a sixth of the work is a
+      // finisher or a bit of assistance, and naming it makes the label lie about what the day is.
+      return byRegion[r] && byRegion[r] / total >= 0.16;
+    });
+  }
+
+  // "Chest and back", "Legs", "Shoulders and arms". Written the way a person says it out loud.
+  function dayFocus(day, custom) {
+    var rs = dayRegions(day, custom);
+    if (!rs.length) return '';
+    if (rs.length >= 4) return 'Full body';
+    var names = rs.map(function (r) { return REGION_LABEL[r]; });
+    var out = names.length === 1 ? names[0]
+      : names.length === 2 ? names[0] + ' and ' + names[1]
+      : names[0] + ', ' + names[1] + ' and ' + names[2];
+    return out.charAt(0).toUpperCase() + out.slice(1);
+  }
+
+  // The day's name, with what it trains added when the name on its own says nothing. "Day 1" becomes
+  // "Day 1 - Chest and back"; "Upper A" and "Push" are left exactly as their author wrote them.
+  function nameDay(name, day, custom) {
+    var raw = String(name || '').trim();
+    var focus = dayFocus(day, custom);
+    if (!focus) return raw;
+    if (!raw) return focus;
+    if (!GENERIC_DAY.test(raw)) return raw;
+    return raw + ' - ' + focus;
+  }
+
+  // ---- did we match the right piece of kit? -----------------------------------------------------
+  // Resolving "SPLIT SQUAT SMITH MACHINE" to a dumbbell split squat is the right MOVEMENT on the
+  // wrong equipment, and that is invisible in a list of names: the day looks correct and you find out
+  // in the gym. The source usually names its kit outright, so when it does and the match disagrees,
+  // say so rather than quietly substituting.
+  var KIT_WORDS = {
+    smith: 'smith', machine: 'machine', cable: 'cable', dumbbell: 'dumbbell', dumbell: 'dumbbell',
+    db: 'dumbbell', barbell: 'barbell', bb: 'barbell', ez: 'ez', kettlebell: 'kettlebell',
+    kb: 'kettlebell', band: 'band', bodyweight: 'bodyweight', trapbar: 'trapbar',
+  };
+  function kitMismatch(sourceName, exerciseId, custom) {
+    var ex = byId(exerciseId, custom);
+    if (!ex || !ex.equipment) return null;
+    var toks = norm(String(sourceName || '').replace(COACH_PREFIX, '')).split(' ');
+    var said = [];
+    toks.forEach(function (t) {
+      var k = KIT_WORDS[t];
+      if (k && said.indexOf(k) === -1) said.push(k);
+    });
+    if (!said.length) return null;
+    if (said.indexOf(ex.equipment) !== -1) return null;
+    // "Machine" against a cable stack is a quibble, not a mismatch: a plate-loaded pulldown and a
+    // cable pulldown are the same movement on the same line of the plan. Kit that changes how the
+    // movement is actually performed is what deserves flagging.
+    if (said.length === 1 && said[0] === 'machine' && (ex.equipment === 'cable' || ex.equipment === 'smith')) return null;
+    return { said: said, got: ex.equipment, name: ex.name };
   }
 
   // Two sources are "the same source" when re-reading one should REPLACE what it gave last time.
@@ -1886,6 +2015,192 @@
     return next;
   }
 
+  // ---- running the same block again, changed ----------------------------------------------------
+  // nextBlock() throws the old block away and generates a fresh one. That is the wrong answer for
+  // somebody who imported a coach's plan, liked it, and wants another four weeks of it: what they
+  // want is THIS plan, with the handful of things that did not work changed.
+  //
+  // What the evidence actually supports changing between blocks, and what it does not:
+  //
+  // ROTATE WHAT STALLED, KEEP WHAT MOVED. The case for swapping exercises wholesale every block is
+  // weak, and it costs something real: a movement you keep is a movement whose load you can still
+  // read a trend from. The case for swapping a lift that has stopped moving at adequate volume is
+  // much stronger, and it is the same advice detectStall already gives per lift. So rotation here is
+  // targeted, not scheduled.
+  //
+  // ADD WHERE THERE IS ROOM, AND ONLY IF YOU TURNED UP. Volume added to a plan somebody only half
+  // ran is volume that will not happen either. Adherence under about 70 percent means the block was
+  // too big for the life around it, and the honest change is a smaller one, which is exactly what
+  // BLOCK_REVIEW_PROMPT already tells the coach to say. So a poor block never grows.
+  //
+  // NOTHING CROSSES MRV. Every proposal is checked against the ceiling before it is offered.
+  //
+  // Returns proposals, not a block. Each carries its own reason so the person can turn any of them
+  // down: it is their training and a machine that silently rewrites their coach's plan has overstepped
+  // exactly the way the as-written import was built to stop.
+  function rerunPlan(block, logs, targets, custom) {
+    var review = reviewBlock(block, logs, targets, custom);
+    var template = templateOf(block);
+    var adherence = review.adherence;
+    var canGrow = adherence >= 70;
+    var currentIds = template.reduce(function (a, d) {
+      return a.concat((d.exercises || []).map(function (e) { return e.exerciseId; }));
+    }, []);
+    var weekVol = plannedVolume(template, custom);
+    var cov = coverage(weekVol, targets);
+    var bandOf = {}; cov.rows.forEach(function (r) { bandOf[r.muscle] = r; });
+    var changes = [];
+
+    // 1. Lifts that stopped moving. A variation on the same muscle, at the same sets and reps, so the
+    //    only thing that changed is the one thing that was not working.
+    (review.stalled || []).forEach(function (l) {
+      var here = null;
+      template.forEach(function (d, di) {
+        (d.exercises || []).forEach(function (e, ei) {
+          if (!here && e.exerciseId === l.exerciseId) here = { day: di, index: ei, item: e };
+        });
+      });
+      if (!here) return;
+      var ex = byId(l.exerciseId, custom);
+      var muscle = ex && (ex.primary || [])[0];
+      if (!muscle) return;
+      var alts = suggestFor(muscle, { template: template, targets: targets, custom: custom, currentExerciseIds: currentIds, limit: 3 });
+      if (!alts.length) return;
+      changes.push({
+        kind: 'swap', day: here.day, dayName: template[here.day].name, index: here.index,
+        from: l.exerciseId, fromName: ex.name, to: alts[0].id, toName: alts[0].name,
+        alts: alts.map(function (a) { return { id: a.id, name: a.name }; }),
+        why: 'It has not moved in ' + (l.stall.sessions || 3) + ' sessions at this volume. A different movement on the same muscle gives it somewhere new to go.',
+      });
+      currentIds.push(alts[0].id);
+    });
+
+    // 2. Lifts that did move. Named explicitly and left alone, because "keep this" is a real decision
+    //    and seeing it made is what stops the list reading as a machine changing things for its own sake.
+    (review.improved || []).slice(0, 4).forEach(function (l) {
+      changes.push({
+        kind: 'keep', from: l.exerciseId, fromName: l.name,
+        why: 'Up ' + l.deltaPct + ' percent over the block. Keep it and keep the run going.',
+      });
+    });
+
+    // 3. Room to grow, on a block you actually ran. One set at a time, on the muscle furthest from
+    //    the middle of its productive band, and never past the ceiling.
+    if (canGrow) {
+      cov.rows.filter(function (r) { return r.sets > 0 && (r.band === 'under' || r.band === 'maintaining' || r.band === 'productive'); })
+        .filter(function (r) { return r.sets < targets[r.muscle].mav; })
+        .sort(function (a, b) { return (a.sets / targets[a.muscle].mav) - (b.sets / targets[b.muscle].mav); })
+        .slice(0, 3)
+        .forEach(function (r) {
+          var pick = null;
+          template.forEach(function (d, di) {
+            (d.exercises || []).forEach(function (e, ei) {
+              var ex = byId(e.exerciseId, custom);
+              if (!ex || (ex.primary || []).indexOf(r.muscle) === -1) return;
+              if (e.target.sets >= 6) return;
+              if (!pick || e.target.sets < pick.item.target.sets) pick = { day: di, index: ei, item: e, ex: ex };
+            });
+          });
+          if (!pick) return;
+          if (r.sets + 1 > targets[r.muscle].mrv) return;
+          changes.push({
+            kind: 'sets', day: pick.day, dayName: template[pick.day].name, index: pick.index,
+            from: pick.item.target.sets, to: pick.item.target.sets + 1,
+            exerciseId: pick.ex.id, fromName: pick.ex.name, muscle: r.muscle,
+            why: MUSCLE_LABEL[r.muscle] + ' sat at ' + r.sets + ' sets against a productive band of ' + targets[r.muscle].mev + ' to ' + targets[r.muscle].mav + '. One more set is the smallest step that changes anything.',
+          });
+        });
+    }
+
+    // 4. Muscles the plan never trains at all. Offered, never applied quietly: a plan with no calf
+    //    work may be a plan that does not want calf work.
+    cov.rows.filter(function (r) { return r.sets === 0; }).slice(0, 3).forEach(function (r) {
+      var alts = suggestFor(r.muscle, { template: template, targets: targets, custom: custom, currentExerciseIds: currentIds, limit: 3 });
+      if (!alts.length) return;
+      changes.push({
+        kind: 'add', muscle: r.muscle, to: alts[0].id, toName: alts[0].name,
+        alts: alts.map(function (a) { return { id: a.id, name: a.name }; }),
+        sets: 2, day: dayFor(r.muscle, template, custom), dayName: template[dayFor(r.muscle, template, custom)].name,
+        why: 'Nothing in the block trains ' + MUSCLE_LABEL[r.muscle].toLowerCase() + '. Two sets is a floor, not a project.',
+      });
+    });
+
+    return {
+      adherence: adherence, canGrow: canGrow, review: review, changes: changes,
+      headline: !canGrow
+        ? 'You finished ' + adherence + ' percent of it, so the useful change is a smaller block rather than a bigger one. Nothing below adds work.'
+        : (review.stalled || []).length
+          ? (review.stalled || []).length + ' ' + ((review.stalled || []).length === 1 ? 'lift stopped' : 'lifts stopped') + ' moving. Those are the ones worth changing; the rest earned their place.'
+          : 'Everything moved. This is a block worth running again, with a little more where you have room.',
+    };
+  }
+  function shortestDay(template) {
+    var best = 0, bestSets = Infinity;
+    (template || []).forEach(function (d, i) {
+      var s = (d.exercises || []).reduce(function (a, e) { return a + (e.target.sets || 0); }, 0);
+      if (s < bestSets) { bestSets = s; best = i; }
+    });
+    return best;
+  }
+  // Where a new movement belongs. The shortest day is the right answer only when no day is a better
+  // one: dropping a lateral raise onto leg day because leg day happens to be short is how a coherent
+  // split turns into a list. So put it with the region it belongs to, and among those days pick the
+  // one carrying least work.
+  function dayFor(muscle, template, custom) {
+    var want = REGION[muscle];
+    var best = -1, bestSets = Infinity;
+    (template || []).forEach(function (d, i) {
+      if (dayRegions(d, custom).indexOf(want) === -1) return;
+      var s = (d.exercises || []).reduce(function (a, e) { return a + (e.target.sets || 0); }, 0);
+      if (s < bestSets) { bestSets = s; best = i; }
+    });
+    return best >= 0 ? best : shortestDay(template);
+  }
+
+  // Turn accepted proposals into the next block. The template is the OLD one with the accepted
+  // changes written into it, so everything nobody chose to change survives exactly as it was.
+  function applyRerun(block, changes, opts) {
+    opts = opts || {};
+    var template = JSON.parse(JSON.stringify(templateOf(block)));
+    (changes || []).forEach(function (c) {
+      if (c.kind === 'swap') {
+        var it = template[c.day] && template[c.day].exercises[c.index];
+        if (it && it.exerciseId === c.from) { it.exerciseId = c.to; it.id = c.to + '_r' + c.day + '_' + c.index; }
+      } else if (c.kind === 'sets') {
+        var s = template[c.day] && template[c.day].exercises[c.index];
+        if (s) s.target = Object.assign({}, s.target, { sets: c.to });
+      } else if (c.kind === 'add') {
+        var d = template[c.day];
+        if (!d) return;
+        var ex = byId(c.to, opts.custom);
+        var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+        d.exercises.push({
+          id: c.to + '_add' + d.exercises.length, exerciseId: c.to, order: d.exercises.length,
+          target: { sets: c.sets || 2, repLow: compound ? 6 : 10, repHigh: compound ? 10 : 15, rir: 2, restSec: compound ? 150 : 90 },
+        });
+      }
+    });
+    var next = blockFromTemplate(template, {
+      weeks: block.weeks || 4,
+      // A rerun keeps the shape it was run under. An imported plan stays as written; the app's own
+      // block keeps periodising.
+      shape: block.shape, targets: opts.targets || defaultTargets(), custom: opts.custom,
+      name: opts.name || nextRunName(block.name),
+      goal: block.goal, source: block.source || 'generated',
+      sourceRef: block.sourceRef || null, startISO: opts.startISO || null,
+    });
+    next.previousBlockId = block.id;
+    return next;
+  }
+  // "Cam Kissel's Program" becomes "Cam Kissel's Program, run 2", then run 3. The name has to say
+  // which time round it is or the history reads as one block you kept editing.
+  function nextRunName(name) {
+    var n = String(name || 'Block');
+    var m = n.match(/^(.*), run (\d+)$/);
+    if (m) return m[1] + ', run ' + (parseInt(m[2], 10) + 1);
+    return n + ', run 2';
+  }
+
   // ---- training to the day you are actually having ---------------------------------------------
   // The deloading and autoregulation literature keeps landing on the same point: adjusting to the
   // athlete's current state beats running a fixed plan into the ground, and the adjustment that
@@ -1989,6 +2304,8 @@
     setContribution: setContribution, plannedVolume: plannedVolume, performedVolume: performedVolume,
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
     templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
+    resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
+    rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
