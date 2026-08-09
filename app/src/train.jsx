@@ -1525,10 +1525,12 @@ function restAlert(prefs) {
 }
 
 // ---- exercise picker --------------------------------------------------------------------------
-function ExercisePicker({ db, update, onPick, onClose, title, basedOn }) {
+function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed }) {
   useBackClose(onClose);
   const t = tdb(db);
-  const [q, setQ] = useState('');
+  // Opening on the plan's own wording for a movement means the search has already been run and the
+  // create form is already named. Nobody should retype a line the app just showed them.
+  const [q, setQ] = useState(seed || '');
   const [muscle, setMuscle] = useState('');
   const [creating, setCreating] = useState(false);   // true, or a parent id to vary
   const parent = basedOn ? Training.byId(basedOn, t.custom) : null;
@@ -4002,6 +4004,21 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
           prescribed those for the slot and only the movement was ever in question. */}
       {picking != null && (
         <ExercisePicker db={db} update={update} onClose={() => setPicking(null)}
+          title={picking.index != null ? 'Change movement' : 'Add movement'}
+          {...(() => {
+            const day = draft.days[picking.day] || {};
+            // Tapping a movement offers a variation OF that movement, which is the commonest reason a
+            // library match is wrong: a grip, a stance, an attachment. This is where an import is most
+            // likely to need it, and until now it was only offered mid-session.
+            if (picking.index != null) {
+              const row = (day.exercises || [])[picking.index];
+              return { basedOn: row && row.exerciseId };
+            }
+            // Nothing to vary from when the library never placed it, so the next best thing is to
+            // arrive with the plan's own words already in the box.
+            const miss = picking.replacing != null ? (day.missing || [])[picking.replacing] : null;
+            return miss ? { seed: miss.name } : {};
+          })()}
           onPick={(id) => {
             const ex = Training.byId(id, t.custom);
             const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
