@@ -1755,6 +1755,7 @@ const Icon = {
   compass: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></svg>,
   sliders: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h11M18 6h2M4 12h2M9 12h11M4 18h7M14 18h6" /><circle cx="16" cy="6" r="1.8" /><circle cx="7" cy="12" r="1.8" /><circle cx="12" cy="18" r="1.8" /></svg>,
   calendar: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17M8 3v4M16 3v4" /></svg>,
+  dumbbell: (a) => <svg {...a} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10" /></svg>,
 };
 
 /* ---------- charts ---------- */
@@ -9806,12 +9807,16 @@ function GoalCard({ active, onClick, title, sub, glyph }) {
   );
 }
 
-function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan }) {
+function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack }) {
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
+  // Progress is reached from You rather than from the tab bar, so it owns a back affordance. On
+  // desktop it is still a sidebar destination, hence onBack being optional.
+  useBackClose(onBack || null);
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
+      {onBack && <button onClick={onBack} className="lg:hidden pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; You</button>}
       <PageHeader kicker="What you're working towards" title="Progress" />
 
       {/* THE ANSWER. */}
@@ -10703,7 +10708,23 @@ function HealthScreen({ db, update, onBack }) {
 
 /* ---------- the overview ---------- */
 
-function SettingsOverview({ db, update, onOpen, onFreshStart }) {
+// One line that makes the Progress entry worth tapping: the trend, in words, or the check-in that is
+// waiting. A row that just said "Progress" would read as another setting.
+function progressTeaser(db) {
+  const t = Store.todayISO();
+  const daysSince = db.last_checkin ? daysBetween(db.last_checkin, t) : 999;
+  if (db.pending_adjustment) return 'A change is waiting for your say-so';
+  if (daysSince >= 7) return 'Your weekly check-in is due';
+  const series = E.trendSeries((db.weight_entries || []).filter(w => w.scale_weight != null));
+  if (series.length >= 8) {
+    const wk = series[series.length - 1].trend - series[Math.max(0, series.length - 8)].trend;
+    const unit = (db.profile && db.profile.weight_unit) || 'kg';
+    if (Math.abs(wk) >= 0.1) return fmtWeight(Math.abs(wk), unit) + (wk < 0 ? ' down' : ' up') + ' over the last week';
+    return 'Holding steady this week';
+  }
+  return 'How your weight and your burn are moving';
+}
+function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) {
   const [commit, tick] = useCommit(update);
   const p = db.profile;
   const [q, setQ] = useState('');
@@ -10767,6 +10788,18 @@ function SettingsOverview({ db, update, onOpen, onFreshStart }) {
   const appearanceMatches = !needle || 'appearance theme dark light units kg stone pounds st lb cm feet inches metric imperial'.includes(needle);
 
   return (<div className="fade-in">
+    {/* Progress lives here now rather than in the tab bar, so it needs to be the FIRST thing on this
+        screen and to look like a destination, not a settings row. The daily read (verdict, weight
+        spark, check-in prompt) is still on Today; this is where the full charts and the expenditure
+        engine live. Hidden while searching settings, because then you are looking for something else. */}
+    {!q && <button onClick={onOpenProgress} className="w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3" style={{ background: 'var(--card)' }}>
+      <span className="min-w-0">
+        <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Progress</span>
+        <span className="block text-sm font-semibold mt-1">{progressTeaser(db)}</span>
+        <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>Weight and body-fat trends, your real burn, and how closely you have stuck to it.</span>
+      </span>
+      <Icon.chevron width="18" height="18" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+    </button>}
     <div className="mb-4">
       <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search settings" className={inputCls} aria-label="Search settings" />
     </div>
@@ -10931,7 +10964,7 @@ function FeedbackSheet({ email, onClose }) {
     </div>
   );
 }
-function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial }) {
+function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
   const [tab, setTab] = useState('settings');
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
@@ -10979,7 +11012,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
       <PageHeader kicker="Your profile & settings" title="You" />
       <div className="flex gap-1 mb-5 bg-[#1E1E22] p-1 rounded-2xl">{[['settings', 'Settings'], ['account', 'Account']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
 
-      {tab === 'settings' && <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} />}
+      {tab === 'settings' && <SettingsOverview db={db} update={update} onOpen={setScreen} onFreshStart={onFreshStart} onOpenProgress={onOpenProgress} />}
 
       {tab === 'account' && <div className="space-y-2.5">
         <div className="pixel-box p-4" style={{ background: 'var(--card)' }}>
@@ -11743,7 +11776,9 @@ function demoState() {
   s.profile = {
     sex: 'male', age: 32, heightCm: 178, weightKg: 84, bodyFatPct: 22,
     activityLevel: 'moderate', goalType: 'cut', rateKgPerWeek: 0.5, dietStyle: 'balanced',
-    weight_unit: 'kg', height_unit: 'cm', theme: 'light', reminders: true, nudgeHour: 14,
+    weight_unit: 'kg', height_unit: 'cm',
+    theme: new URLSearchParams(window.location.search).has('dark') ? 'dark' : 'light',
+    reminders: true, nudgeHour: 14,
     carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
     cycling: { enabled: false, highDays: [], deltaPct: 0.15 },
     program_mode: 'collaborative', proteinGPerKgLBM: 2.0, goalWeightKg: 78, trackingLane: 'balance', aiKey: '',
@@ -11824,10 +11859,18 @@ function demoState() {
   // tile and the morning Macrodex catch have something to show in the demo.
   s.sleep = {};
   const sleepNights = [[462, null], [405, null], [498, { deep: 118, rem: 96, light: 260, awake: 24 }], [372, null], [510, { deep: 132, rem: 108, light: 246, awake: 24 }], [447, null], [489, { deep: 110, rem: 92, light: 262, awake: 25 }]];
+  // `?rough` makes last night a bad one, so the readiness-adjusted session and the recovery
+  // messaging are demoable. Same idea as ?dark and ?premium: the demo should be able to show the
+  // states that only appear when something has gone wrong, not just the happy path.
+  if (new URLSearchParams(window.location.search).has('rough')) sleepNights[6] = [268, { deep: 34, rem: 41, light: 172, awake: 21 }];
   sleepNights.forEach(([min, st], i) => { const d = shiftISO(today, -(6 - i)); s.sleep[d] = Object.assign({ min, score: Game.sleepScore(min, st) }, st || {}); });
   // A week of recovery signals (HRV / resting HR / SpO2) so readiness runs on more than sleep alone and
   // the breakdown shows the full multi-signal picture. Baselines are computed by mergeHealthInto.
   const hrvSeries = [48, 53, 50, 56, 52, 58, 60], rhrSeries = [56, 55, 57, 54, 55, 53, 52], spo2Series = [97, 96, 97, 98, 97, 97, 98];
+  // A rough night is rarely just the sleep: heart rate variability drops and resting heart rate
+  // climbs with it, and readiness reads all three. Degrading only the sleep left the demo reading as
+  // recovered, which is correct behaviour and a useless demo.
+  if (new URLSearchParams(window.location.search).has('rough')) { hrvSeries[6] = 33; rhrSeries[6] = 63; }
   const healthSeed = {}; hrvSeries.forEach((_, i) => { const d = shiftISO(today, -(6 - i)); healthSeed[d] = { hrv: hrvSeries[i], rhr: rhrSeries[i], spo2: spo2Series[i] }; });
   mergeHealthInto(s, healthSeed);
   // Per-user seed for the buddy's stable-per-day mood/personality flavour lines.
@@ -11851,6 +11894,49 @@ function demoState() {
       ['1 bagel', '150 g cottage cheese', '2 eggs', '1 tomato', 'salt', 'black pepper'],
       ['Toast the bagel.', 'Boil or fry the eggs.', 'Spread cottage cheese, add sliced tomato and egg.', 'Season and serve.']),
   ];
+  // A block already two weeks in, with the first ten sessions logged and the weights climbing, so
+  // the Train tab, the coverage audit, the history, the e1RM curves and the block review are all
+  // demoable without anyone having to lift anything first.
+  {
+    const blk = Training.generateBlock({
+      daysPerWeek: 4, weeks: 4, shape: 'build3-deload1', goal: 'hypertrophy',
+      targets: Training.defaultTargets({ experience: 'intermediate' }),
+      name: 'Summer growth block', startISO: shiftISO(today, -10),
+    });
+    const logs = [];
+    // Two full weeks of sessions, dated backwards from the block start, adding a little each week.
+    [1, 2].forEach(w => {
+      const week = Training.weekSessions(blk, w);
+      week.forEach((sess, di) => {
+        const dayOffset = -10 + (w - 1) * 7 + di;
+        if (dayOffset > 0) return;   // never seed a session in the future
+        // Leave the last session of the current week open, so the demo has a "Start" to press.
+        if (w === 2 && di === week.length - 1) return;
+        logs.push({
+          id: 'demolog_' + w + '_' + di, dateISO: shiftISO(today, dayOffset),
+          blockId: blk.id, sessionId: sess.id, name: sess.name,
+          startedAt: null, endedAt: null, notes: w === 2 && di === 0 ? 'Felt strong, bar speed good.' : '',
+          sets: sess.exercises.reduce((acc, e, ei) => {
+            const ex = Training.byId(e.exerciseId);
+            const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+            const base = compound ? 60 + ei * 5 : 12 + ei * 2;
+            for (let i = 0; i < e.target.sets; i++) {
+              acc.push({
+                exerciseId: e.exerciseId, setIndex: i, type: 'work',
+                weightKg: base + (w - 1) * (compound ? 2.5 : 1),
+                reps: e.target.repHigh - (i > 1 ? 1 : 0), rir: e.target.rir, done: true,
+              });
+            }
+            return acc;
+          }, []),
+        });
+      });
+    });
+    s.training = Object.assign(s.training || {}, {
+      blocks: [blk], logs: logs, custom: [], volumeTargets: {},
+      prefs: { units: 'kg', experience: 'intermediate', equipment: [], daysPerWeek: 4, sessionMinutes: 60, dislikes: [], restTimer: true },
+    });
+  }
   s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null, cosmetics: ['party_hat'] };
   // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
   s.amber_ledger = [{ id: 'demo1', date: shiftISO(today, -2), delta: 60, reason: 'Weekly boss' }, { id: 'demo2', date: shiftISO(today, -1), delta: 15, reason: 'Daily Hunt' }, { id: 'demo3', date: today, delta: 15, reason: 'Daily Hunt' }];
@@ -11903,10 +11989,10 @@ function tombstone(d, ids) { d.deleted = d.deleted || {}; var t = Date.now(); id
 function untombstone(d, ids) { if (!d.deleted) return; ids.forEach(function (id) { if (id != null) delete d.deleted[id]; }); }
 
 // (CatchReveal removed with the Macrodex: logging no longer reveals a "catch".)
-function Toast({ toast, onClose }) {
+function Toast({ toast, onClose, lifted }) {
   if (!toast) return null;
   return (
-    <div className="fixed left-0 right-0 z-[60] flex justify-center px-4" style={{ bottom: 86 }}>
+    <div className="fixed left-0 right-0 z-[60] flex justify-center px-4" style={{ bottom: lifted ? 148 : 86 }}>
       <div className="pixel-box px-4 py-3 flex items-center gap-3 fade-in" style={{ background: 'var(--surface2)' }}>
         <span className="text-sm">{toast.msg}</span>
         {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.action2Label}</button>}
@@ -11917,10 +12003,60 @@ function Toast({ toast, onClose }) {
   );
 }
 
-const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
-// The bottom bar has room for four destinations plus the centre Add button, so MENU lives in the
-// header (MobileHeader) and the desktop Sidebar instead. Bottom bar order: HOME, FOOD, (Add), GOAL, COOK.
-const BOTTOM_NAV = ['dashboard', 'foodlog', 'recipes', 'goals'].map(k => NAV_ITEMS.find(([n]) => n === k)); // Today, Food, (Add), Cook, Progress: matches the desktop sidebar order
+const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['train', 'TRAIN', Icon.dumbbell], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
+// The bottom bar holds four destinations plus the centre Add button, so it is ordered by FREQUENCY,
+// which is what the evidence supports for a tab bar rather than by how important a thing feels:
+// Today (every open), Food (several times a day), Train (a few times a week), Cook (now and then).
+//
+// PROGRESS MOVED OUT, to the "You" screen behind the header avatar. Two reasons. First, frequency:
+// the trend charts and the expenditure engine are a weekly read, and they were holding a slot that
+// training needs. Second, nothing daily is lost, because the parts of Progress you need often are
+// already on Today: the verdict, the weight spark and the weekly check-in prompt all live on the
+// StatusCard there. This is the same shape Hevy and Strava use, where statistics sit behind Profile.
+//
+// The 'goals' view still routes and still renders the full Progress page, so every deep link,
+// notification and setView('goals') call keeps working. It is just reached from You now.
+//
+// A briefly-shipped variant folded Cook into Food as a segmented control. That is a nested tab, which
+// both NN/G and Material warn against, and it read as a demotion. Cook is a peer destination again.
+const BOTTOM_NAV = ['dashboard', 'foodlog', 'recipes', 'train'].map(k => NAV_ITEMS.find(([n]) => n === k));
+// Does this account train? Used to decide whether a shared link needs disambiguating at all. Any
+// block, any logged session, or any stated training preference counts. Deliberately generous: the
+// cost of asking someone who does train is one tap, and the cost of NOT asking is their workout
+// silently becoming a recipe.
+function trainsHere(db) {
+  const t = (db && db.training) || {};
+  return !!((t.blocks && t.blocks.length) || (t.logs && t.logs.length) || t.draft);
+}
+// Shared from another app, and it could be either thing. Two big targets, no default, no cleverness.
+function ShareKindSheet({ onRecipe, onWorkout, onClose }) {
+  useBackClose(onClose);
+  return (
+    <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
+        <h2 className="pf text-[12px] mb-1.5">What have you shared?</h2>
+        <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+          We can read it either way, but the two go to different places.
+        </div>
+        <button onClick={onRecipe} className="pixel-box w-full p-3.5 mb-2 text-left flex items-center gap-3" style={{ background: 'var(--surface2)' }}>
+          <Icon.recipe width="20" height="20" style={{ color: 'var(--accent-ink)' }} />
+          <span>
+            <span className="block text-[13.5px] font-semibold">Something to cook</span>
+            <span className="block text-[11.5px]" style={{ color: 'var(--muted)' }}>Priced for macros and saved to Cook</span>
+          </span>
+        </button>
+        <button onClick={onWorkout} className="pixel-box w-full p-3.5 mb-3 text-left flex items-center gap-3" style={{ background: 'var(--surface2)' }}>
+          <Icon.dumbbell width="20" height="20" style={{ color: 'var(--accent-ink)' }} />
+          <span>
+            <span className="block text-[13.5px] font-semibold">A workout</span>
+            <span className="block text-[11.5px]" style={{ color: 'var(--muted)' }}>Read into a session you can add to a block</span>
+          </span>
+        </button>
+        <button onClick={onClose} className="w-full py-2.5 text-[12px]" style={{ color: 'var(--muted)' }}>Neither, close this</button>
+      </div>
+    </div>
+  );
+}
 function BottomNav({ view, setView, onAdd }) {
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2" style={{ height: 'calc(64px + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)', background: 'var(--header)', borderColor: 'var(--border)' }}>
@@ -11930,7 +12066,8 @@ function BottomNav({ view, setView, onAdd }) {
     </div>
   );
 }
-function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: view === k ? 'var(--on-header-accent)' : 'rgba(255,255,255,0.72)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
+function navActive(view, k) { return view === k; }
+function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: navActive(view, k) ? 'var(--on-header-accent)' : 'rgba(255,255,255,0.72)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
 function Sidebar({ view, setView, onAdd, onOpenPlay }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
@@ -11938,7 +12075,7 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
     <div className="hidden lg:flex fixed left-0 top-0 bottom-0 w-56 flex-col bg-[#0F0F12] border-r-[3px] border-[#262629] p-4 z-40">
       <button onClick={onOpenPlay} aria-label="Open Play" className="px-1 py-3 mb-3 text-left"><div className="flex items-center gap-2.5"><PixelEgg size={22} color="var(--good)" /><span className="pf text-[13px]">MACROSAURUS</span></div><div className="flex gap-1 mt-2 ml-8">{[PRO, CARB, FAT, 'var(--accent)'].map((c, i) => <span key={i} className="w-2.5 h-2.5" style={{ background: c }} />)}</div></button>
       <button onClick={onAdd} className="pixel-btn flex items-center justify-center gap-2 bg-white text-black py-3 font-bold mb-4"><Icon.plus width="18" height="18" /> Log food</button>
-      <div className="flex flex-col gap-2">{tabs.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === k ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Ic width="20" height="20" /> {l}</button>)}
+      <div className="flex flex-col gap-2">{tabs.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${navActive(view, k) ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Ic width="20" height="20" /> {l}</button>)}
         <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
         <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="20" height="20" /> YOU</button>
       </div>
@@ -13398,6 +13535,10 @@ function App() {
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
   const [dexOpen, setDexOpen] = useState(false); // Play/Macrodex hub, opened from the header dino (mobile) or sidebar (desktop)
+  const [focusMode, setFocusMode] = useState(false); // a screen that owns the whole viewport (currently: logging a workout) hides the tab bar
+  // Read inside showToast, which is a plain function and would otherwise close over a stale value.
+  const focusModeRef = useRef(false);
+  const pendingToast = useRef(null);
   // A settings subscreen to open on arrival, so Progress can send you to the ONE goal editor in
   // Settings rather than carrying a second copy of it.
   const [settingScreen, setSettingScreen] = useState(null);
@@ -13412,6 +13553,8 @@ function App() {
   const [adjusting, setAdjusting] = useState(null);    // log-entry id being tweaked from the post-log "Adjust" toast action
   const [shared, setShared] = useState(null); // { files, text } handed off from a Web Share / shortcut
   const [recipeImport, setRecipeImport] = useState(null); // a shared YouTube/Instagram link to import as a recipe
+  const [shareChoice, setShareChoice] = useState(null); // { url } shared from another app, when it could be either a recipe or a workout
+  const [trainImport, setTrainImport] = useState(null); // a shared link handed on to the Train tab's importer
   const [openRecipeId, setOpenRecipeId] = useState(null); // a recipe to open straight to detail (from the dashboard gap strip)
   const [openFridge, setOpenFridge] = useState(false); // open the Cook tab straight onto the fridge scanner (from the buddy nudge)
   const [toast, setToast] = useState(null);
@@ -13430,6 +13573,13 @@ function App() {
   const isPremium = (DEMO && new URLSearchParams(window.location.search).has('premium'))
     || (!!sub && (sub.status === 'active' || sub.status === 'trialing'));
   function showToast(msg, actionLabel, onAction, action2Label, onAction2) {
+    // A live workout owns the screen. Rewards, trophies and streak news are not urgent and they were
+    // landing on top of the set the user was in the middle of logging, which is the one moment in
+    // the app where an interruption actually costs something. They queue until the session ends.
+    if (focusModeRef.current && !/logged|saved|swapped|session/i.test(String(msg || ''))) {
+      pendingToast.current = arguments;
+      return;
+    }
     clearTimeout(toastTimer.current);
     setToast({
       msg, actionLabel, onAction: onAction ? () => { onAction(); setToast(null); } : null,
@@ -13646,10 +13796,16 @@ function App() {
         const files = [];
         for (let i = 0; i < (meta.count || 0); i++) { const r = await cache.match('/shared-file-' + i); if (r) { const b = await r.blob(); files.push(new File([b], 'shared-' + i + '.jpg', { type: b.type || 'image/jpeg' })); } }
         await Promise.all((await cache.keys()).map(k => cache.delete(k)));
-        // A shared YouTube/Instagram link (no photos) means "import this as a recipe": jump to the
-        // Recipes module and open the importer with the link. Photos still go to the meal estimator.
+        // A shared YouTube/Instagram/TikTok link (no photos) is ambiguous now that training exists:
+        // the same reel could be tonight's dinner or Monday's session. Rather than guess, ASK, but
+        // only of people who actually train. Someone who has never opened the Train tab goes
+        // straight to the recipe importer exactly as they always did, so the cooking flow is
+        // untouched for everyone it belongs to.
         const recShare = files.length ? null : (Rcp && Rcp.detectShare(meta.text || ''));
-        if (recShare) { setRecipeImport(recShare.url); setView('recipes'); }
+        if (recShare) {
+          if (trainsHere(db)) setShareChoice({ url: recShare.url });
+          else { setRecipeImport(recShare.url); setView('recipes'); }
+        }
         else if (files.length) setShared({ files: files, text: meta.text || '' });
         else if (meta.text && firstMeal) setAdding({ date: Store.todayISO(), mealId: firstMeal });
       } catch (e) { /* ignore */ }
@@ -13932,10 +14088,23 @@ function App() {
       {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
-      {view === 'goals' && <Goals db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
-      {view === 'more' && <More db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
+      {view === 'train' && <TrainTab db={db} update={update} showToast={showToast} isPremium={isPremium}
+        onFocusMode={(on) => {
+          focusModeRef.current = on;
+          setFocusMode(on);
+          if (!on && pendingToast.current) {
+            const held = pendingToast.current; pendingToast.current = null;
+            setTimeout(() => showToast.apply(null, held), 400);
+          }
+        }}
+        importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
+        onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
+      {view === 'goals' && <Goals onBack={() => setView('more')} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
+      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
-      <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />
+      {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
+          bar and the centre Add button get out of the way of the one control that matters there. */}
+      {!focusMode && <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />}
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onAddItems={(mealId, items) => addEstimateItems(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} isPremium={isPremium} />}
       {/* One quick weigh sheet for the whole app: the buddy's ask, the Progress button and the
@@ -13952,12 +14121,19 @@ function App() {
           <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>
       </div>}
+      {shareChoice && <ShareKindSheet
+        onRecipe={() => { setRecipeImport(shareChoice.url); setView('recipes'); setShareChoice(null); }}
+        onWorkout={() => { setTrainImport(shareChoice.url); setView('train'); setShareChoice(null); }}
+        onClose={() => setShareChoice(null)} />}
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
       {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} isPremium={isPremium} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
-      <Toast toast={toast} onClose={() => setToast(null)} />
+      {/* Lifted clear of the session player's fixed Finish button, which sits at the very bottom of
+          a screen that hides the tab bar. A toast landing on the one control you need is worse than
+          no toast at all. */}
+      <Toast toast={toast} onClose={() => setToast(null)} lifted={focusMode} />
       {showWelcome && <WelcomeCarousel theme={(db.profile && db.profile.theme) || 'light'} buddy={db.buddy} onDone={() => setShowWelcome(false)} />}
     </div>
   );

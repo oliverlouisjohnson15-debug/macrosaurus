@@ -210,6 +210,22 @@
       sleep: {},          // nightly sleep keyed by WAKE date (Google Health sync): { 'YYYY-MM-DD': { min, score, deep?, rem?, light?, awake? } }. Powers the sleep tile + readiness.
       health: {},         // daily recovery signals keyed by date (Google Health, Phase B): { 'YYYY-MM-DD': { hrv, hrvBaseline, rhr, rhrBaseline, tempDev } }. Powers the readiness score.
       googleHealth: null, // Google Health connection state (Phase 3): { connected, lastSync }; null until linked. Refresh token lives server-side only.
+      // Resistance training. Blocks are the 4-week plans, logs are what was actually performed
+      // (one per session, keyed to a real date), and volumeTargets are this user's own MEV/MAV/MRV
+      // once a completed block has taught us something (see Training.tuneTargets). Both arrays are
+      // id-keyed and unioned on merge, exactly like log_entries, so a session logged offline in the
+      // gym can never be lost to a higher-_rev copy from another device.
+      training: {
+        blocks: [],        // [{ id, name, goal, weeks, shape, daysPerWeek, startISO, source, sourceRef, archived, sessions:[...] }]
+        logs: [],          // [{ id, dateISO, blockId, sessionId, startedAt, endedAt, notes, sets:[{ exerciseId, setIndex, weightKg, reps, rir, type, done }], cardio:[{ exerciseId, minutes, note }] }]
+        custom: [],        // user-invented exercises, same shape as the library rows (a primary muscle is required, or they would count for nothing)
+        volumeTargets: {}, // per-muscle overrides layered on the defaults: { ch: { mev, mav, mrv } }
+        // Where you train. More than one, because people genuinely have a home setup and a gym, and
+        // a plan that assumes a cable stack is useless in a garage. Picked at the start of a session
+        // so anything unavailable can be swapped there and then.
+        gyms: [],          // [{ id, name, type, equipment:[], bench, pullupBar }]
+        prefs: { units: 'kg', experience: 'intermediate', equipment: [], daysPerWeek: 4, sessionMinutes: 60, dislikes: [], restTimer: true, currentGymId: null, plateCalc: true, restSound: true },
+      },
       goals: null,
     };
   }
@@ -291,6 +307,13 @@
     // Cancelling one tombstones it, exactly as removing a default meal does.
     out.week_plans     = unionBy(newer.week_plans,     older.week_plans,     byId);
     out.checkins       = unionBy(newer.checkins,       older.checkins,       byDate);
+    // Training: a session is logged in the gym, often offline, often on the phone while the laptop
+    // holds a higher _rev. Union by id so neither device's work is dropped. prefs and volumeTargets
+    // are settings, so the newer copy simply wins (the JSON clone above already did that).
+    out.training = Object.assign({}, older.training || {}, newer.training || {});
+    out.training.blocks = unionBy((newer.training || {}).blocks, (older.training || {}).blocks, byId);
+    out.training.logs   = unionBy((newer.training || {}).logs,   (older.training || {}).logs,   byId);
+    out.training.custom = unionBy((newer.training || {}).custom, (older.training || {}).custom, byId);
     // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
     // offline can never have its Amber lost or double-counted. Balance is recomputed from this.
     out.amber_ledger   = unionBy(newer.amber_ledger,   older.amber_ledger,   byId);
@@ -330,6 +353,8 @@
     out.shopping_list  = alive(out.shopping_list);
     out.meal_plan      = alive(out.meal_plan);
     out.week_plans     = alive(out.week_plans);
+    out.training.blocks = alive(out.training.blocks);
+    out.training.logs   = alive(out.training.logs);
     out.meal_templates = alive(out.meal_templates)
       .slice().sort(function (x, y) { return ((x && x.sort_order) || 0) - ((y && y.sort_order) || 0); });
     // Cap tombstones to the 1000 most recent so the map can't grow without bound.

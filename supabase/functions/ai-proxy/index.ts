@@ -67,6 +67,13 @@ function featureOf(prompt: string): string {
   // gated to Premium rather than spendable from the free monthly allowance. Signature must stay in
   // step with aiParseWeekPlan() in app/src/app.jsx.
   if (p.includes('You turn a sentence about someone\'s week into JSON')) return 'weekplan';
+  // Training. All three are Premium: reading someone else's plan out of a video or a PDF, judging a
+  // volume audit, and writing up a finished block are the paid half of the training feature (logging
+  // and building a block by hand are free and never come through here). Signatures must stay in step
+  // with WORKOUT_PROMPT / COVERAGE_PROMPT / BLOCK_REVIEW_PROMPT in app/src/prompts.jsx.
+  if (p.includes('You are a strength coach reading someone else')) return 'workout_import';
+  if (p.includes('You are a strength coach looking at a volume audit')) return 'coverage_advice';
+  if (p.includes('You are a strength coach writing up a finished')) return 'block_review';
   if (p.includes('You are Macrosaurus')) return 'coach';
   // Food-quality nutrient estimates (single food and the day's batch). Classified for two reasons:
   // to gate them as Premium here rather than trusting the client flag, and so their spend is
@@ -163,6 +170,28 @@ Deno.serve(async (req) => {
           return json({ error: {
             type: 'premium_required', feature: 'weekplan',
             message: 'Describing your week in your own words is a Premium feature.',
+          } }, 402);
+        }
+        // Training. Logging sessions and building a block by hand never reach this proxy, so a free
+        // account keeps a full workout tracker. What is gated is the thinking: reading a plan out of
+        // a video or a PDF, judging a volume audit, and writing up a block. The client gates these
+        // too, but only for a clean paywall hand-off; this is the real gate.
+        if (feature === 'workout_import') {
+          return json({ error: {
+            type: 'premium_required', feature: 'workout_import',
+            message: 'Importing a workout from a video, PDF or spreadsheet is a Premium feature.',
+          } }, 402);
+        }
+        if (feature === 'coverage_advice') {
+          return json({ error: {
+            type: 'premium_required', feature: 'coverage_advice',
+            message: 'Reading your volume gaps and saying what to change is a Premium feature.',
+          } }, 402);
+        }
+        if (feature === 'block_review') {
+          return json({ error: {
+            type: 'premium_required', feature: 'block_review',
+            message: 'The end-of-block write-up is a Premium feature.',
           } }, 402);
         }
         // Food quality is Premium, and the client flag that hides it (window.MISPREMIUM) is only a

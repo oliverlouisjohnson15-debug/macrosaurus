@@ -26,7 +26,10 @@ const twCss = read('.build/tw.css').trim();
 // concatenated in order before Babel sees them. That means a file can be split off without
 // rewriting anything, as long as it is listed BEFORE the code that uses it (function declarations
 // hoist, but `const` does not). Keep this list in dependency order.
-const APP_SOURCES = ['app/src/prompts.jsx', 'app/src/app.jsx'];
+// train.jsx sits AFTER app.jsx: everything it exposes is a function declaration, which hoists across
+// the whole concatenated script, so app.jsx can render <TrainTab/> while train.jsx is free to use
+// app.jsx's `const` helpers (Icon, Card, Pill, Field) at call time.
+const APP_SOURCES = ['app/src/prompts.jsx', 'app/src/app.jsx', 'app/src/train.jsx'];
 const appSrc = APP_SOURCES.map(f => '/* ---- ' + f + ' ---- */\n' + read(f)).join('\n');
 const transpiled = transformSync(appSrc, {
   presets: [['@babel/preset-react', { runtime: 'classic' }]],
@@ -44,6 +47,7 @@ const gameJs = read('app/game.js').trim();
 const quantityJs = read('app/quantity.js').trim();
 const recipeJs = read('app/recipe.js').trim();
 const cofidJs = read('app/cofid.js').trim();
+const trainingJs = read('app/training.js').trim();
 
 let html = read('index.html');
 
@@ -94,6 +98,18 @@ if (html.includes('<script>\n/*\n * cofid.js')) {
   if (rEnd < '</script>'.length) throw new Error('recipe block end not found for cofid.js insertion');
   html = html.slice(0, rEnd) + '\n' + cofidBlock + html.slice(rEnd);
 }
+// training block (pure resistance-training engine) - splice if present, else first-time insert
+// after recipe. Nothing else depends on it at load time, so its position only has to be before the
+// app script that calls it.
+const trainingBlock = '<script>\n' + trainingJs + '\n</script>';
+if (html.includes('<script>\n/*\n * training.js')) {
+  spliceBlock('<script>\n/*\n * training.js', trainingBlock, '</script>');
+} else {
+  const rEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * recipe.js')) + '</script>'.length;
+  if (rEnd < '</script>'.length) throw new Error('recipe block end not found for training.js insertion');
+  html = html.slice(0, rEnd) + '\n' + trainingBlock + html.slice(rEnd);
+}
+
 // app block (transpiled): the script holding the React app. Babel's output start can vary between
 // versions (some hoist an `_extends` helper before `const { ... } = React`), so we don't match on the
 // first line. Instead we locate the block by the render call it always contains and splice the whole
