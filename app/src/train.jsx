@@ -712,6 +712,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const [notes, setNotes] = useState(existing ? existing.notes || '' : '');
   const [exNotes, setExNotes] = useState(() => (existing && existing.exerciseNotes) || {});
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [signOff, setSignOff] = useState(null);    // the buddy's send-off, once the session is saved
   const [startedAt] = useState(() => (existing && existing.startedAt ? Date.parse(existing.startedAt) : Date.now()));
   // Anything in today's plan that the gym you are standing in has not got. Computed once, on open,
   // because it is a question about the room you walked into rather than about the plan.
@@ -939,8 +940,47 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     persist(null, null, next);
   }
 
+  // Everything the sign-off needs about the session that has just ended, gathered BEFORE the write
+  // so it reads the same list the screen was showing. Facts only; Game.sessionPraise decides which
+  // of them is worth leading with.
+  function signOffFacts() {
+    const work = it => it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup');
+    const doneSets = items.reduce((a, it) => a + work(it).length, 0);
+    const log = { id: logId, dateISO: today, sets: items.reduce((a, it) => a.concat(it.sets.filter(s => s.done).map(s => Object.assign({}, s, { exerciseId: it.exerciseId }))), []) };
+    // Previous sessions only: prsInLog already excludes this log by id, and the averages must not be
+    // dragged toward the session they are being compared against.
+    const prior = t.logs.filter(l => l.id !== logId);
+    const prs = doneSets ? Training.prsInLog(prior, log) : [];
+    const priorTon = prior.map(l => Training.tonnage(l)).filter(v => v > 0);
+    // Where today sits in the block's week, counting this session, so "that is the week done" can
+    // only fire on the session that actually closed it.
+    let weekDone = 0, weekOf = 0, blockFinished = false;
+    if (block) {
+      const prog = Training.blockProgress(block, today);
+      const wk = Training.weekSessions(block, prog.week);
+      const loggedIds = {};
+      prior.forEach(l => { if (l.sessionId) loggedIds[l.sessionId] = 1; });
+      if (sessionId) loggedIds[sessionId] = 1;
+      weekOf = wk.length;
+      weekDone = wk.filter(s => loggedIds[s.id]).length;
+      blockFinished = (block.sessions || []).every(s => loggedIds[s.id]);
+    }
+    return {
+      sets: doneSets,
+      prs: prs.length,
+      first: prior.length === 0,
+      minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)),
+      tonnageKg: Training.tonnage(log),
+      avgTonnageKg: priorTon.length >= 3 ? priorTon.slice(-8).reduce((a, b) => a + b, 0) / Math.min(8, priorTon.length) : 0,
+      weekDone, weekOf, blockFinished,
+      sessionsLast7: prior.filter(l => daysBetween(l.dateISO, today) < 7).length + 1,
+      name: (session && session.name) || 'Session',
+      blockName: block ? block.name : null,
+    };
+  }
+
   function finish() {
-    const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done).length, 0);
+    const facts = signOffFacts();
     trainUpdate(update, (tr, d) => {
       const i = tr.logs.findIndex(l => l.id === logId);
       if (i >= 0) {
@@ -952,8 +992,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         if (!tr.logs[i].sets.length) { tr.logs.splice(i, 1); tombstone(d, [logId]); }
       }
     });
-    showToast && showToast(doneSets ? doneSets + ' sets logged. Good work.' : 'Nothing logged, so nothing saved.');
-    onExit();
+    // An empty session leaves as quietly as it arrived. A real one gets its moment: the buddy, the
+    // numbers, and a line about what actually happened, rather than a toast sliding past the button
+    // you have just pressed.
+    if (!facts.sets) { showToast && showToast('Nothing logged, so nothing saved.'); onExit(); return; }
+    setSignOff(facts);
   }
 
   const totalSets = items.reduce((a, it) => a + it.sets.filter(s => (s.type || 'work') !== 'warmup').length, 0);
@@ -1252,7 +1295,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       {rest && (
         <div className="fixed inset-x-0 max-w-md mx-auto px-3 z-30" style={{ bottom: 'calc(74px + env(safe-area-inset-bottom))' }}>
           <div className="pixel-box flex items-center gap-2.5 px-3 h-14" style={{ background: restLeft <= 0 ? 'color-mix(in srgb, var(--accent) 22%, var(--card))' : 'var(--card)' }}>
-            <RestRing left={restLeft} total={rest.seconds} />
+            <RestRing left={restLeft} total={rest.seconds} db={db} />
             <div className="flex-1 min-w-0">
               <div className="pf text-[15px] tnum" style={{ color: restLeft <= 10 ? 'var(--good)' : 'var(--accent-ink)' }}>
                 {restLeft <= 0 ? 'Go' : fmtClock(restLeft)}
@@ -1293,6 +1336,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           ]} />
       )}
       {pr && <PRFlash pr={pr} db={db} units={units} onClose={() => setPr(null)} />}
+      {signOff && <SessionSignOff db={db} facts={signOff} units={units} onDone={onExit} />}
       {help && <TrainHelp topic={help} db={db} onClose={() => setHelp(null)}
         onHideForGood={() => { trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { hideHelp: true }); }); setHelp(null); }} />}
       {pastFor && <PastSets db={db} exerciseId={pastFor} onClose={() => setPastFor(null)} />}
@@ -1456,15 +1500,44 @@ function PastSets({ db, exerciseId, onClose }) {
 
 // A countdown ring rather than a bar: it reads as "time left" at a glance from arm's length, which
 // is the distance this gets looked at from.
-function RestRing({ left, total }) {
-  const r = 15, c = 2 * Math.PI * r;
+/* The rest timer is a character, not a clock.
+   Between sets you are looking at this bar and nothing else, for anything from sixty seconds to
+   three minutes, several times an hour. It was a ring and two digits. Now your buddy sits inside the
+   ring and gets its breath back with you: a slow, heavy idle while there is time, pacing in the last
+   ten seconds, and up on its feet the moment the rest is done.
+
+   The ring is untouched in meaning. It is the thing you are actually reading, so it stays the outer
+   edge and only gained a passenger. Nothing here changes when the timer fires or what it says. */
+function RestRing({ left, total, db }) {
+  const size = 46, r = 20, c = 2 * Math.PI * r, mid = size / 2;
   const frac = total > 0 ? Math.max(0, Math.min(1, left / total)) : 0;
+  const done = left <= 0;
+  const buddy = (db && db.buddy) || {};
+  // An unhatched egg has no legs to pace on, so it wobbles in its group's own strip exactly as it
+  // does everywhere else rather than borrowing a dino's animation.
+  const hatched = buddy.hatched !== false;
+  const species = buddy.species || 'doux';
+  let palette = buddy.palette || 'female';
+  // Some male colourways ship without the movement strips; fall back to the complete one rather than
+  // requesting a 404 and leaving an empty ring.
+  if (!spriteHasAnim(palette, species, 'base', 'move')) palette = 'female';
+  const anim = done ? 'jump' : left <= 10 ? 'move' : 'idle';
+  // Breathing, not performing: the resting idle runs slower than the buddy's normal pace, and only
+  // picks up when the clock does.
+  const fps = done ? 10 : left <= 10 ? 8 : 3;
   return (
-    <svg width="36" height="36" viewBox="0 0 36 36" className="shrink-0" aria-hidden="true">
-      <circle cx="18" cy="18" r={r} fill="none" stroke="var(--track)" strokeWidth="4" />
-      <circle cx="18" cy="18" r={r} fill="none" stroke={left <= 10 ? 'var(--good)' : 'var(--accent)'} strokeWidth="4"
-        strokeDasharray={c} strokeDashoffset={c * (1 - frac)} transform="rotate(-90 18 18)" />
-    </svg>
+    <div className="relative shrink-0" style={{ width: size, height: size }} aria-hidden="true">
+      <svg width={size} height={size} viewBox={'0 0 ' + size + ' ' + size} className="absolute inset-0">
+        <circle cx={mid} cy={mid} r={r} fill="none" stroke="var(--track)" strokeWidth="3" />
+        <circle cx={mid} cy={mid} r={r} fill="none" stroke={left <= 10 ? 'var(--good)' : 'var(--accent)'} strokeWidth="3"
+          strokeDasharray={c} strokeDashoffset={c * (1 - frac)} transform={'rotate(-90 ' + mid + ' ' + mid + ')'} />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center" style={{ lineHeight: 0 }}>
+        {hatched
+          ? <SpriteSheet key={anim} palette={palette} species={species} group="base" anim={anim} px={1.4} fps={fps} />
+          : <SpriteSheet {...buddyStageSprite(0, buddy)} px={1.4} />}
+      </div>
+    </div>
   );
 }
 
@@ -4346,14 +4419,91 @@ function PRFlash({ pr, db, units, onClose }) {
       </div>
       <button onClick={onClose} className="pixel-box p-5 text-center fade-in pointer-events-auto max-w-[300px]"
         style={{ background: 'var(--card)', boxShadow: '0 0 0 4px var(--accent)' }}>
+        {/* The buddy's real sprite, at its real stage, wearing what the person actually bought it.
+            This used to render a bare SpriteSheet pinned to stage 3, so a hatchling flexed like a
+            Rexosaur and 180 Amber of Ember Aura was invisible on the one screen that celebrates. */}
         <div className="flex justify-center mb-2">
-          <SpriteSheet {...buddyStageSprite((buddy.stage != null ? buddy.stage : 3), buddy)} px={4} fps={9} />
+          <BuddyAvatar buddy={buddy} px={4} />
         </div>
         <div className="pf text-[13px] mb-2" style={{ color: 'var(--accent-ink)' }}>NEW BEST</div>
         <div className="text-[15px] font-bold leading-tight mb-1">{ex ? ex.name : 'Personal record'}</div>
         <div className="pf text-[16px] tnum mb-2">{toDisplayWeight(pr.weightKg, units)}{unitLabel(units)} × {pr.reps}</div>
         <div className="text-[11.5px]" style={{ color: 'var(--muted)' }}>{pr.label}</div>
       </button>
+    </div>
+  );
+}
+
+/* ---- the send-off -------------------------------------------------------------------------------
+   Finishing a session used to be a toast: "14 sets logged. Good work.", sliding past the button you
+   had just pressed, and then the Train tab again. That is a flat ending for the hardest hour of
+   somebody's day, and it is the one moment in the module where the buddy has something unarguable
+   to react to, because the work is already done and nothing is being asked of anybody.
+
+   So the buddy meets you at the door. Game.sessionPraise picks the single thing worth leading with,
+   ordered by how rare it is rather than by how good it sounds, and the numbers underneath are the
+   ones the session actually produced. One button out. No CTA to do more, no "keep it up tomorrow":
+   the session is over, and the last word belongs to what just happened. */
+function signOffLine(praise, facts, who, units) {
+  if (!praise) return null;
+  const k = praise.kind;
+  if (k === 'first') return { head: 'Your first one', body: 'That is your first session in the book, ' + praise.sets + ' sets of it. Everything from here has something to be measured against, which is the part most people never get to.' };
+  if (k === 'block_done') return { head: 'Block finished', body: 'That was the last session of ' + (facts.blockName ? '"' + facts.blockName + '"' : 'the block') + '. Four weeks, all the way through. Go and see what moved before you build the next one.' };
+  if (k === 'pr') return { head: praise.prs === 1 ? 'A new best' : praise.prs + ' new bests', body: praise.prs === 1 ? 'You lifted something today you have never lifted before. I was watching.' : 'Two of your movements went past anything you had done before. Days like this are not the norm, so enjoy it.' };
+  if (k === 'week_done') return { head: 'Week done', body: 'That is all ' + praise.weekOf + ' sessions this week, in the bag. Weeks like this one are what the block is actually made of.' };
+  if (k === 'big') return { head: 'Heavy day', body: 'You moved about ' + praise.pct + '% more than your usual session today. Eat properly tonight and I will put it to work.' };
+  if (k === 'short') return { head: 'In and out', body: praise.sets + (praise.sets === 1 ? ' set' : ' sets') + ' and gone. A short session you actually did beats the perfect one you skipped, every time.' };
+  return { head: 'Logged', body: praise.sessionsLast7 >= 3 ? praise.sets + ' sets down, and that is ' + praise.sessionsLast7 + ' sessions this week. You are in a proper rhythm.' : praise.sets + ' sets down and all of it recorded. Get some protein in while you are still warm.' };
+}
+function SessionSignOff({ db, facts, units, onDone }) {
+  useBackClose(onDone);
+  const praise = Game.sessionPraise(facts);
+  const line = signOffLine(praise, facts, buddyName(db), units);
+  const buddy = db.buddy || {};
+  const stage = Math.min((buddy.stage != null ? buddy.stage : 0), BUDDY_STAGES.length - 1);
+  // Confetti belongs to the genuinely rare ones. On an ordinary Tuesday it would be the participation
+  // badge the whole design is trying not to be.
+  const party = praise && (praise.kind === 'block_done' || praise.kind === 'pr' || praise.kind === 'first');
+  const stat = (label, value) => (
+    <div className="flex-1 text-center">
+      <div className="pf text-[13px] tnum">{value}</div>
+      <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>{label}</div>
+    </div>
+  );
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-3" style={{ background: 'rgba(0,0,0,0.72)' }} role="dialog" aria-modal="true">
+      {party && (
+        <div className="confetti" aria-hidden="true">
+          {Array.from({ length: 22 }).map((_, i) => (
+            <i key={i} style={{
+              left: (5 + i * 4.3) + '%', animationDelay: (i % 6) * 0.16 + 's',
+              animationDuration: (2 + (i % 4) * 0.3) + 's',
+              background: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+            }} />
+          ))}
+        </div>
+      )}
+      <div className="w-full max-w-sm pixel-box fade-in p-5" style={{ background: 'var(--card)' }}>
+        <div className="flex justify-center mb-4">
+          <BuddyScene buddy={buddy} stageIndex={stage} px={4} w={150} h={112}
+            floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
+        </div>
+        <div className="pf text-[11px] text-center mb-2" style={{ color: 'var(--accent-ink)' }}>{(line ? line.head : 'Logged').toUpperCase()}</div>
+        <div className="text-[13px] leading-relaxed text-center mb-4">{line ? line.body : 'Session saved.'}</div>
+
+        <div className="flex items-start gap-1 py-3 mb-4" style={{ borderTop: '2px solid var(--border)', borderBottom: '2px solid var(--border)' }}>
+          {stat('sets', facts.sets)}
+          {stat(unitLabel(units) + ' moved', Math.round(toDisplayWeight(facts.tonnageKg, units)).toLocaleString())}
+          {stat('minutes', facts.minutes)}
+        </div>
+
+        {/* The one place the streak is worth mentioning: a session is an active day now, and the
+            person who trained instead of logging their dinner should be told their run is safe. */}
+        <div className="text-[11px] text-center mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
+          Today counts toward your streak.
+        </div>
+        <button onClick={onDone} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>Done</button>
+      </div>
     </div>
   );
 }
@@ -4407,8 +4557,11 @@ function StatSheet({ db, onBack }) {
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
 
       <Card className="p-5 mb-4 text-center">
-        <div className="flex justify-center mb-2">
-          <SpriteSheet {...buddyStageSprite((buddy.stage != null ? buddy.stage : 3), buddy)} px={5} fps={7} />
+        {/* The character sheet is the buddy's own screen, so it shows the buddy: its stage, its
+            colourway and its terrarium, not a stage-3 stand-in with the cosmetics stripped off. */}
+        <div className="flex justify-center mb-3">
+          <BuddyScene buddy={buddy} stageIndex={Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)}
+            px={4} w={150} h={112} floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
         </div>
         <div className="pf text-[13px] mb-1">{name.toUpperCase()}</div>
         <div className="pf text-[26px] mb-1" style={{ color: 'var(--accent-ink)' }}>{stats.overall}</div>

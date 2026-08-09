@@ -1441,6 +1441,21 @@ function plannedActiveDates(db) {
   });
   return out;
 }
+// The dates that carry a logged training session. A session makes a day ACTIVE for the streak in
+// exactly the way a food log or a weigh-in does: one streak, three inputs.
+//
+// This is deliberately not a second, parallel training streak. A competing streak is the clearest
+// negative finding in the whole gamification literature (see TRAINING_UI_REVIEW part 2), and it
+// deliberately mints no Amber either, because a currency earned two ways inflates and stops meaning
+// anything. Somebody who trains four times a week and forgets to log their lunch was previously
+// told their run had broken, which was simply untrue about the week they had actually had.
+// Mirrored server-side by activeStreak() in supabase/functions/push-nudge/decide.ts: the two must
+// agree, or the push would chase a streak the app can see is perfectly safe.
+function trainedDates(db) {
+  const out = new Set();
+  (((db || {}).training || {}).logs || []).forEach(l => { if (l && l.dateISO) out.add(l.dateISO); });
+  return out;
+}
 function cycleCoverage(db, todayISO) {
   const cs = cycleStartISO(db, todayISO);
   const days = Math.max(1, daysBetween(cs, todayISO) + 1);
@@ -4389,11 +4404,14 @@ function buddyCoach(db, today, streak) {
   const proteinTgt = et ? Math.round(et.eff.protein_g) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
   const weighedToday = (db.weight_entries || []).some(w => w.date === today);
+  const trainedToday = trainedDates(db).has(today);
   const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
-  // Streak-save: late in the day with a live streak and nothing logged or weighed yet, lean on loss
-  // aversion. Takes the slot ahead of the plain "nothing logged" line because the clock matters here.
-  if (Game.streakAtRisk(streak, logged.length > 0 || weighedToday, hour, 18) && !snoozed('coach_streaksave', 4)) {
-    return { text: "Don't break the chain! Log anything before midnight and your " + streak + "-day streak lives on.", cta: 'Log it', action: 'log', key: 'coach_streaksave' };
+  // Streak-save: late in the day with a live streak and the day still empty, lean on loss aversion.
+  // Takes the slot ahead of the plain "nothing logged" line because the clock matters here. A logged
+  // session counts as activity, so somebody who trained after work is never told their run is about
+  // to break: they have already done the hardest thing anyone does all day.
+  if (Game.streakAtRisk(streak, logged.length > 0 || weighedToday || trainedToday, hour, 18) && !snoozed('coach_streaksave', 4)) {
+    return { text: "Don't break the chain! Log a meal, a weight or a session before midnight and your " + streak + "-day streak lives on.", cta: 'Log it', action: 'log', key: 'coach_streaksave' };
   }
   if (!logged.length && !snoozed('coach_log', 12)) {
     return hour < 11
@@ -5105,8 +5123,9 @@ const BUDDY_STAGES = [
   { min: 14, name: 'Veloci', art: 'raptor', colors: crC('#B06BE0', '#7a3fb0') },
   { min: 30, name: 'Rexosaur', art: 'rex', colors: crC('#6B5FC0', '#3a3170') },
 ];
-// Streak maths lives in the pure, unit-tested game module. A day counts as ACTIVE if it
-// has food logs OR a weigh-in, and a monthly "streak freeze" forgives one missed day.
+// Streak maths lives in the pure, unit-tested game module. A day counts as ACTIVE if it has food
+// logs OR a weigh-in OR a logged training session (see trainedDates), and a monthly "streak freeze"
+// forgives one missed day.
 const computeStreak = Game.computeStreak;
 const freezeReady = Game.freezeReady;
 
@@ -5478,7 +5497,7 @@ const TROPHIES = [
   { id: 'early_adopter', name: 'Founding Saur', desc: 'Here from the very start, one of Macrosaurus’s first pack.', earned: (db) => Store.todayISO() < EARLY_TROPHY_UNTIL || !!(db && db.onboarding && db.onboarding.foundingMember) },
   { id: 'supporter', name: 'Patron Saur', desc: 'Backed the app with Premium. Genuinely, thank you.', earned: (db, ctx) => !!ctx.isPremium },
   { id: 'bond_hatch', name: 'It Hatched!', desc: 'Hatched your buddy and began raising it.', earned: (db) => db.buddy && db.buddy.hatched !== false && (db.buddy.stage || 0) >= 1 },
-  { id: 'streak7', name: 'Week Strong', desc: 'Logged seven days in a row.', earned: (db, ctx) => (ctx.streak || 0) >= 7 },
+  { id: 'streak7', name: 'Week Strong', desc: 'Seven active days in a row.', earned: (db, ctx) => (ctx.streak || 0) >= 7 },
   { id: 'streak30', name: 'Month Strong', desc: 'A full month’s streak. Serious consistency.', earned: (db, ctx) => (ctx.streak || 0) >= 30 },
   { id: 'streak100', name: 'Centenarian', desc: 'One hundred days in a row. Prehistoric discipline.', earned: (db, ctx) => (ctx.streak || 0) >= 100 },
   { id: 'perfect_week', name: 'Perfect Week', desc: 'Seven straight days, every single one logged in full.', earned: (db) => perfectWeek(db) },
@@ -7200,10 +7219,11 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const setShift = (v) => update(d => { d.day_overrides = Object.assign({}, d.day_overrides || {}, { [today]: { shiftKcal: v } }); });
   const remCarbs = Math.max(0, Math.round(et.eff.carbs_g - todayTot.carbs));
   const remFat = Math.max(0, Math.round(et.eff.fat_g - todayTot.fat));
-  // streak: consecutive ACTIVE days (food logged OR weighed in) ending today, with a
-  // monthly freeze forgiving one miss.
+  // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
+  // with a monthly freeze forgiving one miss.
   const frozenSet = new Set((db.freezes && db.freezes.frozen) || []);
-  const activeSet = new Set([...logSet, ...weighSet]);
+  const trainSet = trainedDates(db);
+  const activeSet = new Set([...logSet, ...weighSet, ...trainSet]);
   const streakInfo = computeStreak(activeSet, frozenSet, today, new Set(plannedActiveDates(db)));
   const streak = streakInfo.streak;
   // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
@@ -10650,7 +10670,7 @@ function RemindersScreen({ db, update, onBack }) {
     }
     setPushBusy(false);
   }
-  return (<SubScreen title="Reminders" onBack={onBack} intro="How your buddy nudges you on a day you have not logged food or weighed in, before a miss would spend your monthly streak freeze.">
+  return (<SubScreen title="Reminders" onBack={onBack} intro="How your buddy nudges you on a day you have not logged food, weighed in or trained, before a miss would spend your monthly streak freeze.">
     <SavedFlash tick={tick} />
     {pushSupported()
       ? <>
@@ -14186,7 +14206,7 @@ function App() {
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
-  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date)]), new Set((db.freezes && db.freezes.frozen) || []), _today, new Set(plannedActiveDates(db))).streak;
+  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date), ...trainedDates(db)]), new Set((db.freezes && db.freezes.frozen) || []), _today, new Set(plannedActiveDates(db))).streak;
   const appBuddy = Game.buddyView((db.buddy && db.buddy.stage) || 0, appStreak);
   return (
     <div className="lg:pl-56">

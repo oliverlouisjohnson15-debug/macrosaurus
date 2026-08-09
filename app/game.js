@@ -633,6 +633,34 @@
     return null;
   }
 
+  // What the buddy leads with when a session is signed off. Finishing a session used to produce a
+  // toast reading "14 sets logged. Good work." and drop you back on the Train tab, which is a
+  // remarkably flat ending for the hardest hour of somebody's day.
+  //
+  // Every branch is tied to something that actually happened, and the ladder is ordered by RARITY,
+  // not by how good it sounds: a finished block lands every five weeks or so, a record every few
+  // sessions, an ordinary Tuesday every Tuesday. A companion that treats all three the same way
+  // teaches you to ignore it. Returns null for a session with nothing ticked, because there is
+  // nothing to congratulate and pretending otherwise is exactly the participation-badge failure.
+  var BIG_SESSION_RATIO = 1.15;   // 15% over the recent average before it is worth remarking on
+  function sessionPraise(facts) {
+    var f = facts || {};
+    var sets = +f.sets || 0;
+    if (sets <= 0) return null;
+    if (f.first) return { kind: 'first', sets: sets };
+    if (f.blockFinished) return { kind: 'block_done' };
+    if ((+f.prs || 0) > 0) return { kind: 'pr', prs: +f.prs };
+    if ((+f.weekOf || 0) > 0 && (+f.weekDone || 0) >= f.weekOf) return { kind: 'week_done', weekOf: +f.weekOf };
+    var avg = +f.avgTonnageKg || 0, ton = +f.tonnageKg || 0;
+    if (avg > 0 && sets >= 8 && ton >= avg * BIG_SESSION_RATIO) {
+      return { kind: 'big', pct: Math.round((ton / avg - 1) * 100) };
+    }
+    // A short session is still a session, and it is the one most likely to be quietly written off as
+    // not counting. It gets its own warm line rather than the generic one.
+    if (sets <= 5) return { kind: 'short', sets: sets };
+    return { kind: 'solid', sets: sets, sessionsLast7: +f.sessionsLast7 || 0 };
+  }
+
   // ---- Weigh-in cadence: WHEN the buddy should ask for a weight ----
   // Weighing is the one thing the plan cannot be tuned without, and the honest reading is the one
   // taken first thing, before food or drink. So the buddy asks in the morning rather than leaving
@@ -768,6 +796,7 @@
     dayNightAffinity: dayNightAffinity,
     buddyCraving: buddyCraving,
     trainingAsk: trainingAsk,
+    sessionPraise: sessionPraise,
     TRAIN_LAPSE_DAYS: TRAIN_LAPSE_DAYS,
     TRAIN_DUE_DAYS: TRAIN_DUE_DAYS,
     FIGHT_TYPES: FIGHT_TYPES,

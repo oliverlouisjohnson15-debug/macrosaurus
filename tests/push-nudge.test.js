@@ -244,3 +244,31 @@ test('without the window, the same gap breaks the run', async () => {
   };
   assert.equal(activeStreak(state, TODAY), 1, 'only today survives');
 });
+
+// ---- a training session is an active day, on this side of the wire too ----
+// The app counts a logged session toward the streak (trainedDates in app/src/app.jsx). If this file
+// disagreed, we would buzz somebody's phone about a streak the app can see is perfectly safe, on the
+// evening of the day they worked hardest. These are the tests that keep the two definitions honest.
+
+const sessions = (...ds) => ({ logs: ds.map(d => ({ id: 'l' + d, dateISO: d })) });
+
+test('activeStreak counts training sessions alongside logs and weigh-ins', async () => {
+  const st = { log_entries: days('2026-07-25'), training: sessions('2026-07-24', '2026-07-23') };
+  assert.strictEqual((await load()).activeStreak(st, TODAY), 3);
+});
+
+test('activeStreak survives a training slice that is absent or malformed', async () => {
+  assert.strictEqual((await load()).activeStreak({ log_entries: days('2026-07-25'), training: {} }, TODAY), 1);
+  assert.strictEqual((await load()).activeStreak({ log_entries: days('2026-07-25'), training: null }, TODAY), 1);
+});
+
+test('no streak-save push on an evening the session is already in', async () => {
+  const st = { log_entries: days('2026-07-25', '2026-07-24', '2026-07-23'), training: sessions(TODAY) };
+  assert.strictEqual((await load()).decideNudge(st, TODAY, EVENING), null);
+});
+
+test('the streak-save still fires on an evening with nothing at all in it', async () => {
+  const st = { log_entries: days('2026-07-25', '2026-07-24', '2026-07-23') };
+  const n = (await load()).decideNudge(st, TODAY, EVENING);
+  assert.strictEqual(n && n.kind, 'streaksave');
+});

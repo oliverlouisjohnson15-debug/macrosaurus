@@ -3639,6 +3639,34 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return null;
   }
 
+  // What the buddy leads with when a session is signed off. Finishing a session used to produce a
+  // toast reading "14 sets logged. Good work." and drop you back on the Train tab, which is a
+  // remarkably flat ending for the hardest hour of somebody's day.
+  //
+  // Every branch is tied to something that actually happened, and the ladder is ordered by RARITY,
+  // not by how good it sounds: a finished block lands every five weeks or so, a record every few
+  // sessions, an ordinary Tuesday every Tuesday. A companion that treats all three the same way
+  // teaches you to ignore it. Returns null for a session with nothing ticked, because there is
+  // nothing to congratulate and pretending otherwise is exactly the participation-badge failure.
+  var BIG_SESSION_RATIO = 1.15;   // 15% over the recent average before it is worth remarking on
+  function sessionPraise(facts) {
+    var f = facts || {};
+    var sets = +f.sets || 0;
+    if (sets <= 0) return null;
+    if (f.first) return { kind: 'first', sets: sets };
+    if (f.blockFinished) return { kind: 'block_done' };
+    if ((+f.prs || 0) > 0) return { kind: 'pr', prs: +f.prs };
+    if ((+f.weekOf || 0) > 0 && (+f.weekDone || 0) >= f.weekOf) return { kind: 'week_done', weekOf: +f.weekOf };
+    var avg = +f.avgTonnageKg || 0, ton = +f.tonnageKg || 0;
+    if (avg > 0 && sets >= 8 && ton >= avg * BIG_SESSION_RATIO) {
+      return { kind: 'big', pct: Math.round((ton / avg - 1) * 100) };
+    }
+    // A short session is still a session, and it is the one most likely to be quietly written off as
+    // not counting. It gets its own warm line rather than the generic one.
+    if (sets <= 5) return { kind: 'short', sets: sets };
+    return { kind: 'solid', sets: sets, sessionsLast7: +f.sessionsLast7 || 0 };
+  }
+
   // ---- Weigh-in cadence: WHEN the buddy should ask for a weight ----
   // Weighing is the one thing the plan cannot be tuned without, and the honest reading is the one
   // taken first thing, before food or drink. So the buddy asks in the morning rather than leaving
@@ -3774,6 +3802,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     dayNightAffinity: dayNightAffinity,
     buddyCraving: buddyCraving,
     trainingAsk: trainingAsk,
+    sessionPraise: sessionPraise,
     TRAIN_LAPSE_DAYS: TRAIN_LAPSE_DAYS,
     TRAIN_DUE_DAYS: TRAIN_DUE_DAYS,
     FIGHT_TYPES: FIGHT_TYPES,
@@ -9997,6 +10026,23 @@ function plannedActiveDates(db) {
       out.push(d);
       d = shiftISO(d, 1);
     }
+  });
+  return out;
+}
+// The dates that carry a logged training session. A session makes a day ACTIVE for the streak in
+// exactly the way a food log or a weigh-in does: one streak, three inputs.
+//
+// This is deliberately not a second, parallel training streak. A competing streak is the clearest
+// negative finding in the whole gamification literature (see TRAINING_UI_REVIEW part 2), and it
+// deliberately mints no Amber either, because a currency earned two ways inflates and stops meaning
+// anything. Somebody who trains four times a week and forgets to log their lunch was previously
+// told their run had broken, which was simply untrue about the week they had actually had.
+// Mirrored server-side by activeStreak() in supabase/functions/push-nudge/decide.ts: the two must
+// agree, or the push would chase a streak the app can see is perfectly safe.
+function trainedDates(db) {
+  const out = new Set();
+  (((db || {}).training || {}).logs || []).forEach(l => {
+    if (l && l.dateISO) out.add(l.dateISO);
   });
   return out;
 }
@@ -16547,12 +16593,15 @@ function buddyCoach(db, today, streak) {
   const proteinTgt = et ? Math.round(et.eff.protein_g) : 0;
   const proteinGap = proteinTgt - Math.round(sumMacros(logged).protein);
   const weighedToday = (db.weight_entries || []).some(w => w.date === today);
+  const trainedToday = trainedDates(db).has(today);
   const meal = hour < 11 ? 'breakfast' : hour < 15 ? 'lunch' : 'dinner';
-  // Streak-save: late in the day with a live streak and nothing logged or weighed yet, lean on loss
-  // aversion. Takes the slot ahead of the plain "nothing logged" line because the clock matters here.
-  if (Game.streakAtRisk(streak, logged.length > 0 || weighedToday, hour, 18) && !snoozed('coach_streaksave', 4)) {
+  // Streak-save: late in the day with a live streak and the day still empty, lean on loss aversion.
+  // Takes the slot ahead of the plain "nothing logged" line because the clock matters here. A logged
+  // session counts as activity, so somebody who trained after work is never told their run is about
+  // to break: they have already done the hardest thing anyone does all day.
+  if (Game.streakAtRisk(streak, logged.length > 0 || weighedToday || trainedToday, hour, 18) && !snoozed('coach_streaksave', 4)) {
     return {
-      text: "Don't break the chain! Log anything before midnight and your " + streak + "-day streak lives on.",
+      text: "Don't break the chain! Log a meal, a weight or a session before midnight and your " + streak + "-day streak lives on.",
       cta: 'Log it',
       action: 'log',
       key: 'coach_streaksave'
@@ -18107,8 +18156,9 @@ const BUDDY_STAGES = [{
   art: 'rex',
   colors: crC('#6B5FC0', '#3a3170')
 }];
-// Streak maths lives in the pure, unit-tested game module. A day counts as ACTIVE if it
-// has food logs OR a weigh-in, and a monthly "streak freeze" forgives one missed day.
+// Streak maths lives in the pure, unit-tested game module. A day counts as ACTIVE if it has food
+// logs OR a weigh-in OR a logged training session (see trainedDates), and a monthly "streak freeze"
+// forgives one missed day.
 const computeStreak = Game.computeStreak;
 const freezeReady = Game.freezeReady;
 
@@ -18965,7 +19015,7 @@ const TROPHIES = [{
 }, {
   id: 'streak7',
   name: 'Week Strong',
-  desc: 'Logged seven days in a row.',
+  desc: 'Seven active days in a row.',
   earned: (db, ctx) => (ctx.streak || 0) >= 7
 }, {
   id: 'streak30',
@@ -22914,10 +22964,11 @@ function Dashboard({
   });
   const remCarbs = Math.max(0, Math.round(et.eff.carbs_g - todayTot.carbs));
   const remFat = Math.max(0, Math.round(et.eff.fat_g - todayTot.fat));
-  // streak: consecutive ACTIVE days (food logged OR weighed in) ending today, with a
-  // monthly freeze forgiving one miss.
+  // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
+  // with a monthly freeze forgiving one miss.
   const frozenSet = new Set(db.freezes && db.freezes.frozen || []);
-  const activeSet = new Set([...logSet, ...weighSet]);
+  const trainSet = trainedDates(db);
+  const activeSet = new Set([...logSet, ...weighSet, ...trainSet]);
   const streakInfo = computeStreak(activeSet, frozenSet, today, new Set(plannedActiveDates(db)));
   const streak = streakInfo.streak;
   // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
@@ -31177,7 +31228,7 @@ function RemindersScreen({
   return /*#__PURE__*/React.createElement(SubScreen, {
     title: "Reminders",
     onBack: onBack,
-    intro: "How your buddy nudges you on a day you have not logged food or weighed in, before a miss would spend your monthly streak freeze."
+    intro: "How your buddy nudges you on a day you have not logged food, weighed in or trained, before a miss would spend your monthly streak freeze."
   }, /*#__PURE__*/React.createElement(SavedFlash, {
     tick: tick
   }), pushSupported() ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(RowToggle, {
@@ -40437,7 +40488,7 @@ function App() {
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
-  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date)]), new Set(db.freezes && db.freezes.frozen || []), _today, new Set(plannedActiveDates(db))).streak;
+  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date), ...trainedDates(db)]), new Set(db.freezes && db.freezes.frozen || []), _today, new Set(plannedActiveDates(db))).streak;
   const appBuddy = Game.buddyView(db.buddy && db.buddy.stage || 0, appStreak);
   return /*#__PURE__*/React.createElement("div", {
     className: "lg:pl-56"
@@ -41881,6 +41932,7 @@ function SessionPlayer({
   const [notes, setNotes] = useState(existing ? existing.notes || '' : '');
   const [exNotes, setExNotes] = useState(() => existing && existing.exerciseNotes || {});
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [signOff, setSignOff] = useState(null); // the buddy's send-off, once the session is saved
   const [startedAt] = useState(() => existing && existing.startedAt ? Date.parse(existing.startedAt) : Date.now());
   // Anything in today's plan that the gym you are standing in has not got. Computed once, on open,
   // because it is a question about the room you walked into rather than about the plan.
@@ -42221,8 +42273,59 @@ function SessionPlayer({
     setExNotes(next);
     persist(null, null, next);
   }
+
+  // Everything the sign-off needs about the session that has just ended, gathered BEFORE the write
+  // so it reads the same list the screen was showing. Facts only; Game.sessionPraise decides which
+  // of them is worth leading with.
+  function signOffFacts() {
+    const work = it => it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup');
+    const doneSets = items.reduce((a, it) => a + work(it).length, 0);
+    const log = {
+      id: logId,
+      dateISO: today,
+      sets: items.reduce((a, it) => a.concat(it.sets.filter(s => s.done).map(s => Object.assign({}, s, {
+        exerciseId: it.exerciseId
+      }))), [])
+    };
+    // Previous sessions only: prsInLog already excludes this log by id, and the averages must not be
+    // dragged toward the session they are being compared against.
+    const prior = t.logs.filter(l => l.id !== logId);
+    const prs = doneSets ? Training.prsInLog(prior, log) : [];
+    const priorTon = prior.map(l => Training.tonnage(l)).filter(v => v > 0);
+    // Where today sits in the block's week, counting this session, so "that is the week done" can
+    // only fire on the session that actually closed it.
+    let weekDone = 0,
+      weekOf = 0,
+      blockFinished = false;
+    if (block) {
+      const prog = Training.blockProgress(block, today);
+      const wk = Training.weekSessions(block, prog.week);
+      const loggedIds = {};
+      prior.forEach(l => {
+        if (l.sessionId) loggedIds[l.sessionId] = 1;
+      });
+      if (sessionId) loggedIds[sessionId] = 1;
+      weekOf = wk.length;
+      weekDone = wk.filter(s => loggedIds[s.id]).length;
+      blockFinished = (block.sessions || []).every(s => loggedIds[s.id]);
+    }
+    return {
+      sets: doneSets,
+      prs: prs.length,
+      first: prior.length === 0,
+      minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)),
+      tonnageKg: Training.tonnage(log),
+      avgTonnageKg: priorTon.length >= 3 ? priorTon.slice(-8).reduce((a, b) => a + b, 0) / Math.min(8, priorTon.length) : 0,
+      weekDone,
+      weekOf,
+      blockFinished,
+      sessionsLast7: prior.filter(l => daysBetween(l.dateISO, today) < 7).length + 1,
+      name: session && session.name || 'Session',
+      blockName: block ? block.name : null
+    };
+  }
   function finish() {
-    const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done).length, 0);
+    const facts = signOffFacts();
     trainUpdate(update, (tr, d) => {
       const i = tr.logs.findIndex(l => l.id === logId);
       if (i >= 0) {
@@ -42237,8 +42340,15 @@ function SessionPlayer({
         }
       }
     });
-    showToast && showToast(doneSets ? doneSets + ' sets logged. Good work.' : 'Nothing logged, so nothing saved.');
-    onExit();
+    // An empty session leaves as quietly as it arrived. A real one gets its moment: the buddy, the
+    // numbers, and a line about what actually happened, rather than a toast sliding past the button
+    // you have just pressed.
+    if (!facts.sets) {
+      showToast && showToast('Nothing logged, so nothing saved.');
+      onExit();
+      return;
+    }
+    setSignOff(facts);
   }
   const totalSets = items.reduce((a, it) => a + it.sets.filter(s => (s.type || 'work') !== 'warmup').length, 0);
   const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup').length, 0);
@@ -42703,7 +42813,8 @@ function SessionPlayer({
     }
   }, /*#__PURE__*/React.createElement(RestRing, {
     left: restLeft,
-    total: rest.seconds
+    total: rest.seconds,
+    db: db
   }), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
@@ -42795,6 +42906,11 @@ function SessionPlayer({
     db: db,
     units: units,
     onClose: () => setPr(null)
+  }), signOff && /*#__PURE__*/React.createElement(SessionSignOff, {
+    db: db,
+    facts: signOff,
+    units: units,
+    onDone: onExit
   }), help && /*#__PURE__*/React.createElement(TrainHelp, {
     topic: help,
     db: db,
@@ -43046,37 +43162,84 @@ function PastSets({
 
 // A countdown ring rather than a bar: it reads as "time left" at a glance from arm's length, which
 // is the distance this gets looked at from.
+/* The rest timer is a character, not a clock.
+   Between sets you are looking at this bar and nothing else, for anything from sixty seconds to
+   three minutes, several times an hour. It was a ring and two digits. Now your buddy sits inside the
+   ring and gets its breath back with you: a slow, heavy idle while there is time, pacing in the last
+   ten seconds, and up on its feet the moment the rest is done.
+
+   The ring is untouched in meaning. It is the thing you are actually reading, so it stays the outer
+   edge and only gained a passenger. Nothing here changes when the timer fires or what it says. */
 function RestRing({
   left,
-  total
+  total,
+  db
 }) {
-  const r = 15,
-    c = 2 * Math.PI * r;
+  const size = 46,
+    r = 20,
+    c = 2 * Math.PI * r,
+    mid = size / 2;
   const frac = total > 0 ? Math.max(0, Math.min(1, left / total)) : 0;
-  return /*#__PURE__*/React.createElement("svg", {
-    width: "36",
-    height: "36",
-    viewBox: "0 0 36 36",
-    className: "shrink-0",
+  const done = left <= 0;
+  const buddy = db && db.buddy || {};
+  // An unhatched egg has no legs to pace on, so it wobbles in its group's own strip exactly as it
+  // does everywhere else rather than borrowing a dino's animation.
+  const hatched = buddy.hatched !== false;
+  const species = buddy.species || 'doux';
+  let palette = buddy.palette || 'female';
+  // Some male colourways ship without the movement strips; fall back to the complete one rather than
+  // requesting a 404 and leaving an empty ring.
+  if (!spriteHasAnim(palette, species, 'base', 'move')) palette = 'female';
+  const anim = done ? 'jump' : left <= 10 ? 'move' : 'idle';
+  // Breathing, not performing: the resting idle runs slower than the buddy's normal pace, and only
+  // picks up when the clock does.
+  const fps = done ? 10 : left <= 10 ? 8 : 3;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "relative shrink-0",
+    style: {
+      width: size,
+      height: size
+    },
     "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: '0 0 ' + size + ' ' + size,
+    className: "absolute inset-0"
   }, /*#__PURE__*/React.createElement("circle", {
-    cx: "18",
-    cy: "18",
+    cx: mid,
+    cy: mid,
     r: r,
     fill: "none",
     stroke: "var(--track)",
-    strokeWidth: "4"
+    strokeWidth: "3"
   }), /*#__PURE__*/React.createElement("circle", {
-    cx: "18",
-    cy: "18",
+    cx: mid,
+    cy: mid,
     r: r,
     fill: "none",
     stroke: left <= 10 ? 'var(--good)' : 'var(--accent)',
-    strokeWidth: "4",
+    strokeWidth: "3",
     strokeDasharray: c,
     strokeDashoffset: c * (1 - frac),
-    transform: "rotate(-90 18 18)"
-  }));
+    transform: 'rotate(-90 ' + mid + ' ' + mid + ')'
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "absolute inset-0 flex items-center justify-center",
+    style: {
+      lineHeight: 0
+    }
+  }, hatched ? /*#__PURE__*/React.createElement(SpriteSheet, {
+    key: anim,
+    palette: palette,
+    species: species,
+    group: "base",
+    anim: anim,
+    px: 1.4,
+    fps: fps
+  }) : /*#__PURE__*/React.createElement(SpriteSheet, {
+    ...buddyStageSprite(0, buddy),
+    px: 1.4
+  })));
 }
 
 // One line of plate maths under the weight box. Full breakdown on tap.
@@ -47525,10 +47688,9 @@ function PRFlash({
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center mb-2"
-  }, /*#__PURE__*/React.createElement(SpriteSheet, {
-    ...buddyStageSprite(buddy.stage != null ? buddy.stage : 3, buddy),
-    px: 4,
-    fps: 9
+  }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+    buddy: buddy,
+    px: 4
   })), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[13px] mb-2",
     style: {
@@ -47544,6 +47706,137 @@ function PRFlash({
       color: 'var(--muted)'
     }
   }, pr.label)));
+}
+
+/* ---- the send-off -------------------------------------------------------------------------------
+   Finishing a session used to be a toast: "14 sets logged. Good work.", sliding past the button you
+   had just pressed, and then the Train tab again. That is a flat ending for the hardest hour of
+   somebody's day, and it is the one moment in the module where the buddy has something unarguable
+   to react to, because the work is already done and nothing is being asked of anybody.
+
+   So the buddy meets you at the door. Game.sessionPraise picks the single thing worth leading with,
+   ordered by how rare it is rather than by how good it sounds, and the numbers underneath are the
+   ones the session actually produced. One button out. No CTA to do more, no "keep it up tomorrow":
+   the session is over, and the last word belongs to what just happened. */
+function signOffLine(praise, facts, who, units) {
+  if (!praise) return null;
+  const k = praise.kind;
+  if (k === 'first') return {
+    head: 'Your first one',
+    body: 'That is your first session in the book, ' + praise.sets + ' sets of it. Everything from here has something to be measured against, which is the part most people never get to.'
+  };
+  if (k === 'block_done') return {
+    head: 'Block finished',
+    body: 'That was the last session of ' + (facts.blockName ? '"' + facts.blockName + '"' : 'the block') + '. Four weeks, all the way through. Go and see what moved before you build the next one.'
+  };
+  if (k === 'pr') return {
+    head: praise.prs === 1 ? 'A new best' : praise.prs + ' new bests',
+    body: praise.prs === 1 ? 'You lifted something today you have never lifted before. I was watching.' : 'Two of your movements went past anything you had done before. Days like this are not the norm, so enjoy it.'
+  };
+  if (k === 'week_done') return {
+    head: 'Week done',
+    body: 'That is all ' + praise.weekOf + ' sessions this week, in the bag. Weeks like this one are what the block is actually made of.'
+  };
+  if (k === 'big') return {
+    head: 'Heavy day',
+    body: 'You moved about ' + praise.pct + '% more than your usual session today. Eat properly tonight and I will put it to work.'
+  };
+  if (k === 'short') return {
+    head: 'In and out',
+    body: praise.sets + (praise.sets === 1 ? ' set' : ' sets') + ' and gone. A short session you actually did beats the perfect one you skipped, every time.'
+  };
+  return {
+    head: 'Logged',
+    body: praise.sessionsLast7 >= 3 ? praise.sets + ' sets down, and that is ' + praise.sessionsLast7 + ' sessions this week. You are in a proper rhythm.' : praise.sets + ' sets down and all of it recorded. Get some protein in while you are still warm.'
+  };
+}
+function SessionSignOff({
+  db,
+  facts,
+  units,
+  onDone
+}) {
+  useBackClose(onDone);
+  const praise = Game.sessionPraise(facts);
+  const line = signOffLine(praise, facts, buddyName(db), units);
+  const buddy = db.buddy || {};
+  const stage = Math.min(buddy.stage != null ? buddy.stage : 0, BUDDY_STAGES.length - 1);
+  // Confetti belongs to the genuinely rare ones. On an ordinary Tuesday it would be the participation
+  // badge the whole design is trying not to be.
+  const party = praise && (praise.kind === 'block_done' || praise.kind === 'pr' || praise.kind === 'first');
+  const stat = (label, value) => /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[13px] tnum"
+  }, value), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] mt-1",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, label));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-3",
+    style: {
+      background: 'rgba(0,0,0,0.72)'
+    },
+    role: "dialog",
+    "aria-modal": "true"
+  }, party && /*#__PURE__*/React.createElement("div", {
+    className: "confetti",
+    "aria-hidden": "true"
+  }, Array.from({
+    length: 22
+  }).map((_, i) => /*#__PURE__*/React.createElement("i", {
+    key: i,
+    style: {
+      left: 5 + i * 4.3 + '%',
+      animationDelay: i % 6 * 0.16 + 's',
+      animationDuration: 2 + i % 4 * 0.3 + 's',
+      background: CONFETTI_COLORS[i % CONFETTI_COLORS.length]
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "w-full max-w-sm pixel-box fade-in p-5",
+    style: {
+      background: 'var(--card)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-center mb-4"
+  }, /*#__PURE__*/React.createElement(BuddyScene, {
+    buddy: buddy,
+    stageIndex: stage,
+    px: 4,
+    w: 150,
+    h: 112,
+    floor: 26,
+    spriteBottom: 6,
+    shadowW: 62,
+    eq: equippedCosmetics(buddy)
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[11px] text-center mb-2",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, (line ? line.head : 'Logged').toUpperCase()), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] leading-relaxed text-center mb-4"
+  }, line ? line.body : 'Session saved.'), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-1 py-3 mb-4",
+    style: {
+      borderTop: '2px solid var(--border)',
+      borderBottom: '2px solid var(--border)'
+    }
+  }, stat('sets', facts.sets), stat(unitLabel(units) + ' moved', Math.round(toDisplayWeight(facts.tonnageKg, units)).toLocaleString()), stat('minutes', facts.minutes)), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-center mb-4 leading-snug",
+    style: {
+      color: 'var(--muted2)'
+    }
+  }, "Today counts toward your streak."), /*#__PURE__*/React.createElement("button", {
+    onClick: onDone,
+    className: "pixel-btn w-full h-14 font-bold",
+    style: {
+      background: '#fff',
+      color: '#111'
+    }
+  }, "Done")));
 }
 
 // A short rising fanfare. Deliberately different from the rest-timer beep: one says "go", this says
@@ -47607,11 +47900,17 @@ function StatSheet({
   }, "‹ Train"), /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4 text-center"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center mb-2"
-  }, /*#__PURE__*/React.createElement(SpriteSheet, {
-    ...buddyStageSprite(buddy.stage != null ? buddy.stage : 3, buddy),
-    px: 5,
-    fps: 7
+    className: "flex justify-center mb-3"
+  }, /*#__PURE__*/React.createElement(BuddyScene, {
+    buddy: buddy,
+    stageIndex: Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1),
+    px: 4,
+    w: 150,
+    h: 112,
+    floor: 26,
+    spriteBottom: 6,
+    shadowW: 62,
+    eq: equippedCosmetics(buddy)
   })), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[13px] mb-1"
   }, name.toUpperCase()), /*#__PURE__*/React.createElement("div", {

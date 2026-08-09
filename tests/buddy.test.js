@@ -234,3 +234,59 @@ test('trainingAsk mentions a stall only when nothing more pressing is due', () =
   assert.equal(a.kind, 'stalled');
   assert.equal(a.lift, 'Barbell bench press', 'the worst one, not a list');
 });
+
+// ---- sessionPraise: what the buddy leads with when a session is signed off ----
+// Ordered by RARITY, not by how good the line sounds. A finished block lands every five weeks, an
+// ordinary Tuesday lands every Tuesday, and treating them the same teaches people to ignore both.
+
+const sess = (over) => Object.assign({
+  sets: 14, prs: 0, first: false, minutes: 58, tonnageKg: 9000, avgTonnageKg: 9000,
+  weekDone: 2, weekOf: 4, blockFinished: false, sessionsLast7: 2,
+}, over || {});
+
+test('sessionPraise says nothing about a session with nothing ticked', () => {
+  assert.strictEqual(Game.sessionPraise(sess({ sets: 0, prs: 2, first: true })), null);
+  assert.strictEqual(Game.sessionPraise(null), null);
+});
+
+test('sessionPraise leads with the first session ever, over everything else', () => {
+  assert.equal(Game.sessionPraise(sess({ first: true, prs: 3, blockFinished: true })).kind, 'first');
+});
+
+test('sessionPraise puts a finished block above a record', () => {
+  // A record already had its own moment mid-session (PRFlash). A block lands every five weeks.
+  assert.equal(Game.sessionPraise(sess({ blockFinished: true, prs: 2 })).kind, 'block_done');
+});
+
+test('sessionPraise reports records over a closed week', () => {
+  const p = Game.sessionPraise(sess({ prs: 2, weekDone: 4 }));
+  assert.equal(p.kind, 'pr');
+  assert.equal(p.prs, 2);
+});
+
+test('sessionPraise only closes the week on the session that closed it', () => {
+  assert.equal(Game.sessionPraise(sess({ weekDone: 3, weekOf: 4 })).kind, 'solid');
+  assert.equal(Game.sessionPraise(sess({ weekDone: 4, weekOf: 4 })).kind, 'week_done');
+});
+
+test('sessionPraise calls a session heavy only well above the recent average', () => {
+  assert.equal(Game.sessionPraise(sess({ tonnageKg: 10000, avgTonnageKg: 9000 })).kind, 'solid', '11% is noise');
+  const p = Game.sessionPraise(sess({ tonnageKg: 11000, avgTonnageKg: 9000 }));
+  assert.equal(p.kind, 'big');
+  assert.equal(p.pct, 22);
+});
+
+test('sessionPraise will not call a short session heavy on tonnage alone', () => {
+  // Three sets of very heavy deadlifts can out-tonnage a full session. That is not a big day.
+  assert.equal(Game.sessionPraise(sess({ sets: 4, tonnageKg: 20000, avgTonnageKg: 9000 })).kind, 'short');
+});
+
+test('sessionPraise has no average to compare against early on', () => {
+  assert.equal(Game.sessionPraise(sess({ avgTonnageKg: 0, tonnageKg: 40000 })).kind, 'solid');
+});
+
+test('sessionPraise gives a short session its own warm line', () => {
+  const p = Game.sessionPraise(sess({ sets: 3 }));
+  assert.equal(p.kind, 'short');
+  assert.equal(p.sets, 3);
+});

@@ -40,7 +40,7 @@ export function daysBetween(a: string, b: string): number {
   return Math.floor((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
 }
 
-// Consecutive ACTIVE days (food logged OR weighed) ending today. A deliberately simple mirror of
+// Consecutive ACTIVE days (food logged OR weighed OR trained) ending today. A deliberately simple mirror of
 // Game.computeStreak: it counts already-recorded freezes as active but never applies a NEW one, so
 // where the two differ this reads SHORTER than the app's streak. That errs toward staying quiet,
 // which is the right direction for something that buzzes a phone.
@@ -78,6 +78,11 @@ export function activeStreak(d: Record<string, unknown>, today: string): number 
   };
   add(d.log_entries, "date");
   add(d.weight_entries, "date");
+  // A logged training session is an active day too, exactly as in the app (trainedDates in
+  // app/src/app.jsx). If the two ever disagree, this one sends a "your streak is about to break"
+  // push to somebody whose streak the app can see is perfectly safe, which is the worst push we
+  // could possibly send: wrong, and wrong about the day they worked hardest.
+  add((d.training as { logs?: unknown } | undefined)?.logs, "dateISO");
   // Bridge planned days so a declared trip cannot snap the run, without counting toward it.
   const planned = plannedDays(d);
   const frozen = (d.freezes as { frozen?: string[] } | undefined)?.frozen;
@@ -153,9 +158,13 @@ export function decideNudge(d: Record<string, unknown>, today: string, win: Wind
     && (d.log_entries as { date?: string }[]).some((e) => e && e.date === today);
   const weighedToday = Array.isArray(d.weight_entries)
     && (d.weight_entries as { date?: string }[]).some((w) => w && w.date === today);
+  // Somebody who trained today has done the hardest thing anyone does all day. Buzzing their phone
+  // at 8pm to say their streak is at risk would be both wrong and insulting.
+  const trainedToday = Array.isArray((d.training as { logs?: unknown[] } | undefined)?.logs)
+    && ((d.training as { logs: { dateISO?: string }[] }).logs).some((l) => l && l.dateISO === today);
 
   // 1. Streak-save. The one push worth a second slot in the day: loss aversion, with the number in it.
-  if (win.streakSave && !loggedToday && !weighedToday) {
+  if (win.streakSave && !loggedToday && !weighedToday && !trainedToday) {
     const streak = activeStreak(d, today);
     if (streak >= STREAK_SAVE_MIN) {
       return {
