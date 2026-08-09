@@ -679,6 +679,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const [focus, setFocus] = useState(0);
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
+  const [swapScope, setSwapScope] = useState(null);   // a swap that could apply to the rest of the block
   const [menuOpen, setMenuOpen] = useState(null);  // index of the exercise whose options are open
   const [help, setHelp] = useState(null);          // which "?" explainer is open
   const [pastFor, setPastFor] = useState(null);    // exercise id whose history sheet is open
@@ -880,11 +881,19 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     setFocus(f => Math.max(0, Math.min(f, items.length - 2)));
   }
   function swapExercise(ii, exId) {
+    const wasId = items[ii] && items[ii].exerciseId;
     mutate(n => {
       const old = n[ii];
       const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: old.sets.length, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
       n[ii] = { id: old.id || ('swap_' + trainUid()), exerciseId: exId, target: old.target, sets: pre.sets, note: coachNote(pre), superset: old.superset };
     });
+    // Today is changed. Whether the BLOCK should change is a different question, and only the person
+    // knows the answer: a machine being busy is today, a grip that suits you better is the rest of
+    // the block. Asked only when there is something to ask about, which is when the movement we just
+    // replaced actually appears in sessions still to come.
+    if (!block || !session || !wasId || wasId === exId) return;
+    const reach = Training.swapReach(block, wasId, session.week);
+    if (reach > 1) setSwapScope({ from: wasId, to: exId, week: session.week, reach: reach });
   }
   function move(ii, delta) {
     const to = ii + delta;
@@ -1271,9 +1280,33 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       {picking && <ExercisePicker db={db} update={update} onPick={addExercise} onClose={() => setPicking(false)} />}
       {swapping != null && (
         <ExercisePicker db={db} update={update} title="Swap movement"
+          basedOn={items[swapping] && items[swapping].exerciseId}
           onPick={(id) => { swapExercise(swapping, id); setSwapping(null); }}
           onClose={() => setSwapping(null)} />
       )}
+      {/* The weeks already trained are never touched: they are a record of what you actually did, and
+          rewriting them to match a decision made afterwards would make your own history lie. */}
+      {swapScope && (() => {
+        const from = Training.byId(swapScope.from, t.custom), to = Training.byId(swapScope.to, t.custom);
+        return (
+          <ActionSheet title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
+            onClose={() => setSwapScope(null)}
+            actions={[
+              { label: 'Just today', sub: 'The block keeps ' + (from ? from.name : 'the original') },
+              {
+                label: 'The rest of the block',
+                sub: 'Changes ' + swapScope.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
+                onClick: () => {
+                  trainUpdate(update, (tr) => {
+                    const i = tr.blocks.findIndex(b => b.id === block.id);
+                    if (i >= 0) Training.swapInBlock(tr.blocks[i], swapScope.from, swapScope.to, swapScope.week);
+                  });
+                  showToast && showToast((to ? to.name : 'Changed') + ' for the rest of the block.');
+                },
+              },
+            ]} />
+        );
+      })()}
       {confirmEnd && (
         <ConfirmDialog title="Finish this session?"
           body={doneSets ? doneSets + ' sets will be saved. Anything you did not tick is dropped.' : 'You have not ticked any sets, so nothing will be saved.'}
@@ -1492,12 +1525,13 @@ function restAlert(prefs) {
 }
 
 // ---- exercise picker --------------------------------------------------------------------------
-function ExercisePicker({ db, update, onPick, onClose, title }) {
+function ExercisePicker({ db, update, onPick, onClose, title, basedOn }) {
   useBackClose(onClose);
   const t = tdb(db);
   const [q, setQ] = useState('');
   const [muscle, setMuscle] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(false);   // true, or a parent id to vary
+  const parent = basedOn ? Training.byId(basedOn, t.custom) : null;
   let list = Training.search(q, t.custom, 200);
   if (muscle) list = list.filter(e => (e.primary || []).indexOf(muscle) !== -1 || (e.secondary || []).indexOf(muscle) !== -1);
   if (!q) list = list.concat(Training.CARDIO);
@@ -1523,6 +1557,16 @@ function ExercisePicker({ db, update, onPick, onClose, title }) {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-3 pb-6">
+        {/* The commonest reason a movement is not in the library is that it is a variation of one
+            that is: a grip, a stance, an attachment. Making it from its parent inherits what it
+            trains, which is the part nobody standing at a machine wants to fill in. */}
+        {parent && (
+          <button onClick={() => setCreating(basedOn)} className="w-full text-left pixel-box p-3 mb-2"
+            style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
+            <div className="text-[13px] font-bold">Make a variation of {parent.name}</div>
+            <div className="text-[10.5px] mt-0.5" style={{ color: 'var(--muted)' }}>A different grip, stance or attachment. Keeps what it trains.</div>
+          </button>
+        )}
         {list.map(e => (
           <button key={e.id} onClick={() => onPick(e.id)} className="w-full text-left pixel-box p-3 mb-2" style={{ background: 'var(--surface2)' }}>
             <div className="text-[13px] font-bold">{e.name}</div>
@@ -1538,27 +1582,42 @@ function ExercisePicker({ db, update, onPick, onClose, title }) {
           </div>
         )}
       </div>
-      {creating && <CustomExercise db={db} update={update} initialName={q} onDone={(id) => { setCreating(false); onPick(id); }} onClose={() => setCreating(false)} />}
+      {creating && <CustomExercise db={db} update={update} initialName={q}
+        basedOn={typeof creating === 'string' ? creating : null}
+        onDone={(id) => { setCreating(false); onPick(id); }} onClose={() => setCreating(false)} />}
     </div>
   );
 }
 
 // A user-invented movement still has to say what it trains, or it would sit in the plan
 // contributing nothing and quietly making the coverage audit wrong.
-function CustomExercise({ db, update, initialName, onDone, onClose }) {
+function CustomExercise({ db, update, initialName, basedOn, onDone, onClose }) {
   useBackClose(onClose);
-  const [name, setName] = useState(initialName || '');
-  const [primary, setPrimary] = useState([]);
-  const [secondary, setSecondary] = useState([]);
-  const [equipment, setEquipment] = useState('machine');
+  const t0 = tdb(db);
+  // A variation arrives with everything but its name already answered, because its parent already
+  // answered it. The fields stay editable: inherited is a starting point, not a claim.
+  const seed = basedOn ? Training.variationOf(basedOn, 'x', t0.custom) : null;
+  const parent = basedOn ? Training.byId(basedOn, t0.custom) : null;
+  const [name, setName] = useState(initialName || (parent ? parent.name : ''));
+  const [primary, setPrimary] = useState(seed ? seed.primary : []);
+  const [secondary, setSecondary] = useState(seed ? seed.secondary : []);
+  const [equipment, setEquipment] = useState(seed ? seed.equipment : 'machine');
   function toggle(list, setList, m) { setList(list.indexOf(m) !== -1 ? list.filter(x => x !== m) : list.concat([m])); }
+  // A variation opens with its parent's name so you can add to it rather than retype it, which means
+  // the one thing that must not happen is saving it unchanged and quietly minting a second exercise
+  // with the same name as the first.
+  const unchanged = !!parent && norm2(name) === norm2(parent.name);
   function save() {
-    if (!name.trim() || !primary.length) return;
+    if (!name.trim() || !primary.length || unchanged) return;
     const id = 'cu_' + trainUid();
     trainUpdate(update, (tr) => {
       tr.custom.push({
-        id: id, name: name.trim(), equipment: equipment, pattern: 'isolation',
-        primary: primary, secondary: secondary.filter(m => primary.indexOf(m) === -1), profile: 'mid', custom: true,
+        id: id, name: name.trim(), equipment: equipment,
+        // A variation keeps its parent's movement pattern and resistance profile too. Those decide
+        // warm-up ramps and which gaps it can fill, and a wide-grip row is still a horizontal pull.
+        pattern: seed ? seed.pattern : 'isolation', profile: seed ? seed.profile : 'mid',
+        primary: primary, secondary: secondary.filter(m => primary.indexOf(m) === -1),
+        custom: true, variantOf: basedOn || null,
       });
     });
     onDone(id);
@@ -1566,7 +1625,12 @@ function CustomExercise({ db, update, initialName, onDone, onClose }) {
   return (
     <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="w-full max-w-sm pixel-box p-4 fade-in max-h-[85vh] overflow-y-auto" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
-        <h2 className="pf text-[11px] mb-4">New exercise</h2>
+        <h2 className="pf text-[11px] mb-1">{parent ? 'Variation' : 'New exercise'}</h2>
+        {parent && (
+          <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+            Based on {parent.name}, so it already knows what it trains. Change anything that is not true of yours.
+          </div>
+        )}
         <Field label="Name"><TextInput value={name} onChange={e => setName(e.target.value)} placeholder="What do you call it?" /></Field>
         <Field label="Equipment">
           <Seg value={equipment} onChange={setEquipment} options={[{ v: 'barbell', l: 'Barbell' }, { v: 'dumbbell', l: 'Dumbbell' }, { v: 'machine', l: 'Machine' }, { v: 'cable', l: 'Cable' }, { v: 'bodyweight', l: 'Body' }]} />
@@ -1593,7 +1657,9 @@ function CustomExercise({ db, update, initialName, onDone, onClose }) {
         </Field>
         <div className="flex gap-2">
           <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
-          <Btn className="flex-1" onClick={save} disabled={!name.trim() || !primary.length}>Save</Btn>
+          <Btn className="flex-1" onClick={save} disabled={!name.trim() || !primary.length || unchanged}>
+            {unchanged ? 'Name it' : 'Save'}
+          </Btn>
         </div>
       </div>
     </div>

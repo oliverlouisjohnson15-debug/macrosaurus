@@ -6553,6 +6553,60 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return !!a && !!b && key(a) === key(b);
   }
 
+  // ---- a variation of a movement you already have ------------------------------------------------
+  // "Wide grip T-bar row" is a T-bar row. The hard part of adding a movement is not its name, it is
+  // saying what it trains, and a variation of something already in the library trains what that
+  // trains. Asking someone standing at the machine to tick seventeen muscle chips to record a change
+  // of grip is how a library stays empty and how a plan quietly stops matching what is being done.
+  //
+  // So a variation inherits its parent's attribution, equipment and pattern wholesale, and remembers
+  // what it came from. Nothing is guessed: every field is copied from a movement the library already
+  // describes, and it stays editable like any other custom exercise.
+  function variationOf(parentId, name, custom) {
+    var p = byId(parentId, custom);
+    if (!p || !String(name || '').trim()) return null;
+    return {
+      name: String(name).trim(),
+      equipment: p.equipment, pattern: p.pattern, profile: p.profile,
+      primary: (p.primary || []).slice(), secondary: (p.secondary || []).slice(),
+      custom: true, variantOf: parentId,
+    };
+  }
+
+  // ---- changing a movement for the rest of a block -----------------------------------------------
+  // Swapping a movement mid-session changes today. Whether it should change the block is a different
+  // question and only the person can answer it: a machine being busy is today, and a grip that suits
+  // you better is the rest of the block. Apps that guess this either make you redo the swap every
+  // week or silently rewrite a plan you did not mean to change, and both are worse than asking.
+  //
+  // Only sessions from `fromWeek` on are touched. The weeks you already trained are a record of what
+  // you actually did, and rewriting those to match a decision made afterwards would make the history
+  // lie. Returns how many sessions changed so the caller can say.
+  function swapInBlock(block, fromId, toId, fromWeek) {
+    var n = 0;
+    ((block && block.sessions) || []).forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      var hit = false;
+      (s.exercises || []).forEach(function (e) {
+        if (e.exerciseId !== fromId) return;
+        e.exerciseId = toId;
+        hit = true;
+      });
+      if (hit) n++;
+    });
+    return n;
+  }
+  // How many sessions a swap WOULD change, so the question can say what it is asking about rather
+  // than asking in the abstract.
+  function swapReach(block, fromId, fromWeek) {
+    var n = 0;
+    ((block && block.sessions) || []).forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      if ((s.exercises || []).some(function (e) { return e.exerciseId === fromId; })) n++;
+    });
+    return n;
+  }
+
   // ---- naming a block -------------------------------------------------------------------------
   // "4-week growth block" is what every generated block was called, so a person with three of them
   // had three identically-named blocks and no way to tell which was which. Everything needed to name
@@ -7235,6 +7289,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
+    variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
@@ -41458,6 +41513,7 @@ function SessionPlayer({
   const [focus, setFocus] = useState(0);
   const [picking, setPicking] = useState(false);
   const [swapping, setSwapping] = useState(null);
+  const [swapScope, setSwapScope] = useState(null); // a swap that could apply to the rest of the block
   const [menuOpen, setMenuOpen] = useState(null); // index of the exercise whose options are open
   const [help, setHelp] = useState(null); // which "?" explainer is open
   const [pastFor, setPastFor] = useState(null); // exercise id whose history sheet is open
@@ -41746,6 +41802,7 @@ function SessionPlayer({
     setFocus(f => Math.max(0, Math.min(f, items.length - 2)));
   }
   function swapExercise(ii, exId) {
+    const wasId = items[ii] && items[ii].exerciseId;
     mutate(n => {
       const old = n[ii];
       const pre = Training.prefillSets({
@@ -41764,6 +41821,18 @@ function SessionPlayer({
         note: coachNote(pre),
         superset: old.superset
       };
+    });
+    // Today is changed. Whether the BLOCK should change is a different question, and only the person
+    // knows the answer: a machine being busy is today, a grip that suits you better is the rest of
+    // the block. Asked only when there is something to ask about, which is when the movement we just
+    // replaced actually appears in sessions still to come.
+    if (!block || !session || !wasId || wasId === exId) return;
+    const reach = Training.swapReach(block, wasId, session.week);
+    if (reach > 1) setSwapScope({
+      from: wasId,
+      to: exId,
+      week: session.week,
+      reach: reach
     });
   }
   function move(ii, delta) {
@@ -42397,12 +42466,34 @@ function SessionPlayer({
     db: db,
     update: update,
     title: "Swap movement",
+    basedOn: items[swapping] && items[swapping].exerciseId,
     onPick: id => {
       swapExercise(swapping, id);
       setSwapping(null);
     },
     onClose: () => setSwapping(null)
-  }), confirmEnd && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }), swapScope && (() => {
+    const from = Training.byId(swapScope.from, t.custom),
+      to = Training.byId(swapScope.to, t.custom);
+    return /*#__PURE__*/React.createElement(ActionSheet, {
+      title: (to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it'),
+      onClose: () => setSwapScope(null),
+      actions: [{
+        label: 'Just today',
+        sub: 'The block keeps ' + (from ? from.name : 'the original')
+      }, {
+        label: 'The rest of the block',
+        sub: 'Changes ' + swapScope.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
+        onClick: () => {
+          trainUpdate(update, tr => {
+            const i = tr.blocks.findIndex(b => b.id === block.id);
+            if (i >= 0) Training.swapInBlock(tr.blocks[i], swapScope.from, swapScope.to, swapScope.week);
+          });
+          showToast && showToast((to ? to.name : 'Changed') + ' for the rest of the block.');
+        }
+      }]
+    });
+  })(), confirmEnd && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Finish this session?",
     body: doneSets ? doneSets + ' sets will be saved. Anything you did not tick is dropped.' : 'You have not ticked any sets, so nothing will be saved.',
     confirmLabel: "Finish",
@@ -42745,13 +42836,15 @@ function ExercisePicker({
   update,
   onPick,
   onClose,
-  title
+  title,
+  basedOn
 }) {
   useBackClose(onClose);
   const t = tdb(db);
   const [q, setQ] = useState('');
   const [muscle, setMuscle] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(false); // true, or a parent id to vary
+  const parent = basedOn ? Training.byId(basedOn, t.custom) : null;
   let list = Training.search(q, t.custom, 200);
   if (muscle) list = list.filter(e => (e.primary || []).indexOf(muscle) !== -1 || (e.secondary || []).indexOf(muscle) !== -1);
   if (!q) list = list.concat(Training.CARDIO);
@@ -42810,7 +42903,20 @@ function ExercisePicker({
     }
   }, Training.MUSCLE_LABEL[m])))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto px-3 pb-6"
-  }, list.map(e => /*#__PURE__*/React.createElement("button", {
+  }, parent && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCreating(basedOn),
+    className: "w-full text-left pixel-box p-3 mb-2",
+    style: {
+      background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] font-bold"
+  }, "Make a variation of ", parent.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10.5px] mt-0.5",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "A different grip, stance or attachment. Keeps what it trains.")), list.map(e => /*#__PURE__*/React.createElement("button", {
     key: e.id,
     onClick: () => onPick(e.id),
     className: "w-full text-left pixel-box p-3 mb-2",
@@ -42844,6 +42950,7 @@ function ExercisePicker({
     db: db,
     update: update,
     initialName: q,
+    basedOn: typeof creating === 'string' ? creating : null,
     onDone: id => {
       setCreating(false);
       onPick(id);
@@ -42858,30 +42965,43 @@ function CustomExercise({
   db,
   update,
   initialName,
+  basedOn,
   onDone,
   onClose
 }) {
   useBackClose(onClose);
-  const [name, setName] = useState(initialName || '');
-  const [primary, setPrimary] = useState([]);
-  const [secondary, setSecondary] = useState([]);
-  const [equipment, setEquipment] = useState('machine');
+  const t0 = tdb(db);
+  // A variation arrives with everything but its name already answered, because its parent already
+  // answered it. The fields stay editable: inherited is a starting point, not a claim.
+  const seed = basedOn ? Training.variationOf(basedOn, 'x', t0.custom) : null;
+  const parent = basedOn ? Training.byId(basedOn, t0.custom) : null;
+  const [name, setName] = useState(initialName || (parent ? parent.name : ''));
+  const [primary, setPrimary] = useState(seed ? seed.primary : []);
+  const [secondary, setSecondary] = useState(seed ? seed.secondary : []);
+  const [equipment, setEquipment] = useState(seed ? seed.equipment : 'machine');
   function toggle(list, setList, m) {
     setList(list.indexOf(m) !== -1 ? list.filter(x => x !== m) : list.concat([m]));
   }
+  // A variation opens with its parent's name so you can add to it rather than retype it, which means
+  // the one thing that must not happen is saving it unchanged and quietly minting a second exercise
+  // with the same name as the first.
+  const unchanged = !!parent && norm2(name) === norm2(parent.name);
   function save() {
-    if (!name.trim() || !primary.length) return;
+    if (!name.trim() || !primary.length || unchanged) return;
     const id = 'cu_' + trainUid();
     trainUpdate(update, tr => {
       tr.custom.push({
         id: id,
         name: name.trim(),
         equipment: equipment,
-        pattern: 'isolation',
+        // A variation keeps its parent's movement pattern and resistance profile too. Those decide
+        // warm-up ramps and which gaps it can fill, and a wide-grip row is still a horizontal pull.
+        pattern: seed ? seed.pattern : 'isolation',
+        profile: seed ? seed.profile : 'mid',
         primary: primary,
         secondary: secondary.filter(m => primary.indexOf(m) === -1),
-        profile: 'mid',
-        custom: true
+        custom: true,
+        variantOf: basedOn || null
       });
     });
     onDone(id);
@@ -42896,8 +43016,13 @@ function CustomExercise({
     },
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("h2", {
-    className: "pf text-[11px] mb-4"
-  }, "New exercise"), /*#__PURE__*/React.createElement(Field, {
+    className: "pf text-[11px] mb-1"
+  }, parent ? 'Variation' : 'New exercise'), parent && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-4 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Based on ", parent.name, ", so it already knows what it trains. Change anything that is not true of yours."), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: name,
@@ -42959,8 +43084,8 @@ function CustomExercise({
   }, "Cancel"), /*#__PURE__*/React.createElement(Btn, {
     className: "flex-1",
     onClick: save,
-    disabled: !name.trim() || !primary.length
-  }, "Save"))));
+    disabled: !name.trim() || !primary.length || unchanged
+  }, unchanged ? 'Name it' : 'Save'))));
 }
 
 // ---- block wizard -----------------------------------------------------------------------------

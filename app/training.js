@@ -1714,6 +1714,60 @@
     return !!a && !!b && key(a) === key(b);
   }
 
+  // ---- a variation of a movement you already have ------------------------------------------------
+  // "Wide grip T-bar row" is a T-bar row. The hard part of adding a movement is not its name, it is
+  // saying what it trains, and a variation of something already in the library trains what that
+  // trains. Asking someone standing at the machine to tick seventeen muscle chips to record a change
+  // of grip is how a library stays empty and how a plan quietly stops matching what is being done.
+  //
+  // So a variation inherits its parent's attribution, equipment and pattern wholesale, and remembers
+  // what it came from. Nothing is guessed: every field is copied from a movement the library already
+  // describes, and it stays editable like any other custom exercise.
+  function variationOf(parentId, name, custom) {
+    var p = byId(parentId, custom);
+    if (!p || !String(name || '').trim()) return null;
+    return {
+      name: String(name).trim(),
+      equipment: p.equipment, pattern: p.pattern, profile: p.profile,
+      primary: (p.primary || []).slice(), secondary: (p.secondary || []).slice(),
+      custom: true, variantOf: parentId,
+    };
+  }
+
+  // ---- changing a movement for the rest of a block -----------------------------------------------
+  // Swapping a movement mid-session changes today. Whether it should change the block is a different
+  // question and only the person can answer it: a machine being busy is today, and a grip that suits
+  // you better is the rest of the block. Apps that guess this either make you redo the swap every
+  // week or silently rewrite a plan you did not mean to change, and both are worse than asking.
+  //
+  // Only sessions from `fromWeek` on are touched. The weeks you already trained are a record of what
+  // you actually did, and rewriting those to match a decision made afterwards would make the history
+  // lie. Returns how many sessions changed so the caller can say.
+  function swapInBlock(block, fromId, toId, fromWeek) {
+    var n = 0;
+    ((block && block.sessions) || []).forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      var hit = false;
+      (s.exercises || []).forEach(function (e) {
+        if (e.exerciseId !== fromId) return;
+        e.exerciseId = toId;
+        hit = true;
+      });
+      if (hit) n++;
+    });
+    return n;
+  }
+  // How many sessions a swap WOULD change, so the question can say what it is asking about rather
+  // than asking in the abstract.
+  function swapReach(block, fromId, fromWeek) {
+    var n = 0;
+    ((block && block.sessions) || []).forEach(function (s) {
+      if (fromWeek != null && s.week < fromWeek) return;
+      if ((s.exercises || []).some(function (e) { return e.exerciseId === fromId; })) n++;
+    });
+    return n;
+  }
+
   // ---- naming a block -------------------------------------------------------------------------
   // "4-week growth block" is what every generated block was called, so a person with three of them
   // had three identically-named blocks and no way to tell which was which. Everything needed to name
@@ -2396,6 +2450,7 @@
     templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
+    variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,

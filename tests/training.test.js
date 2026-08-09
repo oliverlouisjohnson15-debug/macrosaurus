@@ -1628,3 +1628,74 @@ test('a movement nothing could place is kept on its own day, not dropped', () =>
   assert.equal(template[0].missing.length, 1, 'the unplaceable movement rides with its own day');
   assert.equal(template[0].missing[0].name, 'The finisher coach showed me');
 });
+
+// ---- a variation of a movement you already have ---------------------------------------------------
+// "Wide grip T-bar row" is a T-bar row. The hard part of adding a movement is saying what it trains,
+// and a variation of something in the library trains what that trains.
+
+test('a variation inherits everything but its name', () => {
+  const v = T.variationOf('tbar_row', 'Wide grip T-bar row');
+  const p = T.byId('tbar_row');
+  assert.equal(v.name, 'Wide grip T-bar row');
+  assert.deepEqual(v.primary, p.primary);
+  assert.deepEqual(v.secondary, p.secondary);
+  assert.equal(v.equipment, p.equipment);
+  // Pattern and profile decide warm-up ramps and which gaps it can fill. A wide-grip row is still a
+  // horizontal pull, so guessing "isolation" would quietly mis-file it.
+  assert.equal(v.pattern, p.pattern);
+  assert.equal(v.profile, p.profile);
+  assert.equal(v.variantOf, 'tbar_row');
+});
+
+test('a variation of nothing, or of nothing named, is refused', () => {
+  assert.equal(T.variationOf('tbar_row', '   '), null);
+  assert.equal(T.variationOf('no_such_exercise', 'Whatever'), null);
+});
+
+test('a variation still counts toward volume, exactly as its parent would', () => {
+  const v = Object.assign({ id: 'cu_wide' }, T.variationOf('tbar_row', 'Wide grip T-bar row'));
+  const day = [{ exercises: [{ exerciseId: 'cu_wide', target: { sets: 3 } }] }];
+  const asParent = [{ exercises: [{ exerciseId: 'tbar_row', target: { sets: 3 } }] }];
+  assert.deepEqual(T.plannedVolume(day, [v]), T.plannedVolume(asParent, []));
+});
+
+// ---- changing a movement for the rest of a block --------------------------------------------------
+
+function blockWithRows() {
+  const { template } = T.importTemplate({ days: [
+    { name: 'Day 1', exercises: [{ name: 'T-Bar Row', sets: 2 }, { name: 'Lat Pulldown', sets: 2 }] },
+    { name: 'Day 4', exercises: [{ name: 'T-Bar Row', sets: 2 }] },
+  ] });
+  return T.blockFromTemplate(template, { weeks: 4, shape: 'as-written', targets: T.defaultTargets() });
+}
+
+test('a swap applied to the block never rewrites a week already trained', () => {
+  // Those weeks are a record of what actually happened. Editing them to match a decision made
+  // afterwards would make the history lie about what was lifted.
+  const block = blockWithRows();
+  const changed = T.swapInBlock(block, 'tbar_row', 'cu_wide', 2);
+  assert.equal(changed, 6, 'weeks 2 to 4, both days each');
+  assert.deepEqual(T.weekSessions(block, 1).map(s => s.exercises.map(e => e.exerciseId)),
+    [['tbar_row', 'lat_pulldown'], ['tbar_row']], 'week 1 was already trained and must be untouched');
+  for (const w of [2, 3, 4]) {
+    const ids = T.weekSessions(block, w).reduce((a, s) => a.concat(s.exercises.map(e => e.exerciseId)), []);
+    assert.ok(!ids.includes('tbar_row'), `week ${w} still has the old movement`);
+    assert.ok(ids.includes('cu_wide'), `week ${w} did not get the new one`);
+  }
+});
+
+test('a swap leaves every other movement alone', () => {
+  const block = blockWithRows();
+  T.swapInBlock(block, 'tbar_row', 'cu_wide', 1);
+  const pulldowns = block.sessions.reduce((a, s) => a + s.exercises.filter(e => e.exerciseId === 'lat_pulldown').length, 0);
+  assert.equal(pulldowns, 4, 'the other movement is not ours to touch');
+});
+
+test('the question knows how many sessions it is asking about', () => {
+  // Asked in the abstract it is unanswerable; "changes 6 sessions from this week on" is a decision.
+  const block = blockWithRows();
+  assert.equal(T.swapReach(block, 'tbar_row', 1), 8);
+  assert.equal(T.swapReach(block, 'tbar_row', 2), 6);
+  assert.equal(T.swapReach(block, 'tbar_row', 4), 2);
+  assert.equal(T.swapReach(block, 'not_in_here', 1), 0, 'nothing to ask about');
+});
