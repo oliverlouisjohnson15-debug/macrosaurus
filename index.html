@@ -5246,7 +5246,34 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     'press ups': 'pushup', 'pushups': 'pushup', 'push ups': 'pushup', 'press-ups': 'pushup',
     'ab rollout': 'ab_wheel', 'rollouts': 'ab_wheel', 'leg raises': 'hanging_leg_raise',
     'planks': 'plank', 'crunches': 'crunch', 'cable crunches': 'cable_crunch',
+    // Names a coaching app writes that the library has no token in common with, so no amount of
+    // scoring reaches them. A "chest fly" is not called that anywhere in the table; a French press
+    // is an overhead extension under another name; "decline" on a fly means the high-to-low angle.
+    'chest fly': 'cable_fly', 'chest flies': 'cable_fly', 'decline chest fly': 'cable_fly_high',
+    'decline fly': 'cable_fly_high', 'incline chest fly': 'db_incline_fly',
+    'french press': 'overhead_ez', 'french presses': 'overhead_ez',
+    'triceps pushdown': 'rope_pushdown', 'cable triceps pushdown': 'bar_pushdown',
+    'cable tricep pushdown': 'bar_pushdown', 'triceps pushdowns': 'rope_pushdown',
+    'split squat smith machine': 'split_squat', 'smith machine split squat': 'split_squat',
+    'machine adduction': 'hip_adduction', 'machine abduction': 'hip_abduction',
+    'machine ab crunch': 'machine_crunch',
   };
+  // The alias table is written the way a person types, but lookups arrive already normalised and
+  // shorthand-expanded. Building a second copy through the SAME pipeline is what keeps the two in
+  // step: without it, teaching cleanName that "tricep" means "triceps" silently unhooks every alias
+  // that spells it the short way.
+  var ALIAS_N = null;
+  function aliasFor(q) {
+    if (!ALIAS_N) {
+      ALIAS_N = {};
+      Object.keys(ALIASES).forEach(function (k) {
+        ALIAS_N[k] = ALIASES[k];
+        var expanded = norm(k).split(' ').map(function (t) { return SHORTHAND[t] || t; }).join(' ').trim();
+        if (expanded && !ALIAS_N[expanded]) ALIAS_N[expanded] = ALIASES[k];
+      });
+    }
+    return ALIAS_N[q] || null;
+  }
 
   // ---- saying why -----------------------------------------------------------------------------
   // Competitors answer "how do I do this?" with video. We cannot make video, and a stock clip of a
@@ -5357,16 +5384,38 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       .replace(/\s+/g, ' ')
       .trim();
   }
-  // Strip the noise a caption or a coach's spreadsheet carries: set/rep counts, tempo, RIR, and
-  // the numbering people put in front of a movement ("A1.", "3)").
+  // Coaching apps and spreadsheets label every movement with the coach's own tag: "CAM - PENDULUM
+  // SQUAT", "TW – Leg Press". A short token followed by a SPACED dash is never part of a movement's
+  // name, and left in it does real damage: it is one more query token that matched nothing, and the
+  // score divides by how much of the query matched, so a whole plan can drop below the threshold and
+  // vanish. The spaces are what make this safe, so "T-bar row" and "Low-to-high cable fly" survive.
+  // u2013 and u2014 are the en and em dash, written as escapes because the build refuses a literal
+  // em dash anywhere in the bundle. Coaching apps use all three separators interchangeably.
+  var COACH_PREFIX = /^\s*[^\s]{1,14}(\s+[^\s]{1,14})?\s+[-\u2013\u2014:]\s+/;
+  // What people actually write, expanded to what the library calls it. Without this "DB SEATED
+  // SHOULDER PRESS" scores 0.33 against "Dumbbell shoulder press" and is thrown away for being one
+  // hundredth under the bar.
+  // Kit and count abbreviations ONLY. Muscle words are deliberately absent: "lat pulldown" is what
+  // the movement is actually called, and expanding it to "lats pulldown" walks straight past both the
+  // alias table and the exact-name match. An abbreviation earns a place here when the long form is
+  // what the library calls it and the short form is what a coach types.
+  var SHORTHAND = {
+    db: 'dumbbell', dbs: 'dumbbell', bb: 'barbell', kb: 'kettlebell', bw: 'bodyweight',
+    ohp: 'overhead press', bor: 'bent over row', ohtx: 'overhead triceps',
+    tricep: 'triceps', bicep: 'biceps', mach: 'machine', alt: 'alternating',
+  };
+  // Strip the noise a caption or a coach's spreadsheet carries: set/rep counts, tempo, RIR, the
+  // numbering people put in front of a movement ("A1.", "3)"), and the coach's own tag.
   function cleanName(s) {
-    return norm(String(s || '')
+    var raw = String(s || '').replace(COACH_PREFIX, '');
+    return norm(raw
       .replace(/^\s*[a-dA-D]?\d{0,2}\s*[\).:-]\s*/, '')
       .replace(/\b\d+\s*[x×]\s*\d+(\s*-\s*\d+)?\b/g, ' ')
       .replace(/\b\d+\s*(sets?|reps?)\b/g, ' ')
       .replace(/\b\d\s*rir\b/g, ' ')
       .replace(/\b\d{4}\b/g, ' ')
-      .replace(/@.*$/, ' '));
+      .replace(/@.*$/, ' '))
+      .split(' ').map(function (t) { return SHORTHAND[t] || t; }).join(' ').trim();
   }
 
   // Resolve a free-text movement name to a library id. Exact, then alias, then a token-overlap
@@ -5378,26 +5427,66 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var pool = all(custom);
     var i, e;
     for (i = 0; i < pool.length; i++) if (norm(pool[i].name) === q) return pool[i].id;
-    if (ALIASES[q]) return ALIASES[q];
+    var al = aliasFor(q); if (al) return al;
     var singular = q.replace(/s$/, '');
-    if (ALIASES[singular]) return ALIASES[singular];
+    al = aliasFor(singular); if (al) return al;
     var qt = q.split(' ').filter(Boolean);
     var best = null, bestScore = 0;
     for (i = 0; i < pool.length; i++) {
       e = pool[i];
       var et = norm(e.name).split(' ').filter(Boolean);
-      var hit = 0;
+      var hit = 0, qw = 0, ew = 0;
       for (var j = 0; j < qt.length; j++) {
+        qw += weightOf(qt[j]);
         for (var k = 0; k < et.length; k++) {
-          if (qt[j] === et[k] || (qt[j].length > 3 && et[k].indexOf(qt[j]) === 0) || (et[k].length > 3 && qt[j].indexOf(et[k]) === 0)) { hit++; break; }
+          if (tokenMatch(qt[j], et[k])) { hit += weightOf(qt[j]); break; }
         }
       }
-      // Score by how much of BOTH names matched, so "row" does not beat "seated cable row"
-      // for the query "seated cable row", and a one-word query cannot claim a five-word name.
-      var score = (hit / qt.length) * (hit / et.length);
+      for (k = 0; k < et.length; k++) ew += weightOf(et[k]);
+      // Score by how much of BOTH names matched, so "row" does not beat "seated cable row" for the
+      // query "seated cable row", and a one-word query cannot claim a five-word name.
+      //
+      // Tokens are WEIGHTED by how rare they are across the library, which is what lets the score
+      // tell "alternating dumbbell HAMMER curl" apart from a plain dumbbell curl: "dumbbell" is in
+      // dozens of names and says almost nothing, "hammer" is in a handful and says everything. Under
+      // a flat count those two tie and the winner is whichever happens to sit earlier in the table,
+      // which is how a hammer curl became a dumbbell curl and a split squat became a Smith squat.
+      var score = qw && ew ? (hit / qw) * (hit / ew) : 0;
       if (score > bestScore) { bestScore = score; best = e.id; }
     }
-    return bestScore >= 0.34 ? best : null;
+    if (bestScore >= 0.34) return best;
+    // Last resort, and only ever on a line that was otherwise going to be thrown away: coaches append
+    // qualifiers the library has never heard of ("French press (OHTX)", "T-bar row (mega mass)"), so
+    // try the alias table against the leading words alone. Running this AFTER scoring is what keeps it
+    // safe: it can rescue a dropped movement but never outrank a good match.
+    for (var n = qt.length - 1; n >= 2; n--) {
+      var lead = aliasFor(qt.slice(0, n).join(' '));
+      if (lead) return lead;
+    }
+    return null;
+  }
+  function tokenMatch(a, b) {
+    return a === b || (a.length > 3 && b.indexOf(a) === 0) || (b.length > 3 && a.indexOf(b) === 0);
+  }
+  // Inverse document frequency over the library's own names, computed once. A token nothing in the
+  // library uses (a coach's tag, a gym's brand) scores high on rarity but can never be MATCHED, so it
+  // only ever costs the query, which is exactly the pressure that makes a stray word survivable.
+  var DF = null;
+  function weightOf(tok) {
+    if (!DF) {
+      DF = {};
+      EXERCISES.forEach(function (e) {
+        var seen = {};
+        norm(e.name).split(' ').filter(Boolean).forEach(function (t) {
+          if (seen[t]) return; seen[t] = 1; DF[t] = (DF[t] || 0) + 1;
+        });
+      });
+    }
+    // Match the same prefix rule the scorer uses, so "dumbbell" is not treated as rare just because
+    // half its occurrences are spelt "dumbell" or reached by prefix.
+    var df = DF[tok] || 0;
+    if (!df) for (var k in DF) if (tokenMatch(tok, k)) { df = Math.max(df, DF[k]); }
+    return Math.log(1 + EXERCISES.length / (1 + df));
   }
 
   function search(q, custom, limit) {
@@ -6095,6 +6184,12 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var SHAPES = {
     'build4': { build: 4, deload: false, label: '4 building weeks, then we check whether you need a lighter one' },
     'build3-deload1': { build: 3, deload: true, label: '3 building weeks and a lighter fourth, every block' },
+    // Somebody else's plan, run the way they wrote it. No set added per week, no lighter fourth, no
+    // trimming to our volume landmarks. It exists because importing a coach's block is a decision:
+    // a plan built on two hard sets per movement is not an undercooked version of ours to be topped
+    // up, it is a different bet, and quietly turning it into four sets by week three is not
+    // periodisation, it is overruling the person whose plan you chose to follow.
+    'as-written': { build: 0, deload: false, asWritten: true, label: 'Exactly as the plan is written, all four weeks' },
   };
 
   // Should the next week be a light one? Read off the markers the app already holds, in the order a
@@ -6204,6 +6299,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       }
     }
 
+    var asWritten = !!SHAPES[shape].asWritten;
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
@@ -6223,18 +6319,26 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
               var L = targets[m]; return Math.max(a, L ? L.mav - L.mev : 0);
             }, 0);
             var base = Math.max(1, (item.target && item.target.sets) || 3);
-            var sets = isDeload
+            var sets = asWritten ? base : (isDeload
               ? Math.max(1, Math.round(base / 2))
-              : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1));
+              : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1)));
+            // As written means as written: the effort target comes from the plan too, and where the
+            // plan does not state one we hold it steady rather than walking it in a week at a time.
+            var effort = asWritten
+              ? (item.target && item.target.rir != null ? item.target.rir : 2)
+              : rir;
             return {
               id: (item.id || (item.exerciseId + '_' + di + '_' + ei)) + '_w' + w,
               exerciseId: item.exerciseId, order: item.order == null ? ei : item.order,
-              target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target, { sets: sets, rir: rir }),
+              target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target, { sets: sets, rir: effort }),
             };
           }),
         });
       });
-      trimToMRV(weekSess);
+      // Trimming to MRV is us editing the plan, which is the one thing "as written" promises not to
+      // do. The volume is still MEASURED, and the coverage screen still says plainly if a week sits
+      // over the ceiling, so nothing is hidden: it is shown and left to the person, not cut for them.
+      if (!asWritten) trimToMRV(weekSess);
       sessions = sessions.concat(weekSess);
     }
     return {
@@ -6790,7 +6894,18 @@ const AI_PROMPT = 'You are a UK nutrition estimator helping someone log a meal. 
 // Training.importTemplate does all three deterministically, and flags anything it cannot resolve.
 // The 'You are a strength coach reading someone else' phrase is the signature ai-proxy classifies as
 // the premium workout_import feature, so keep it in step with featureOf() in ai-proxy/index.ts.
-const WORKOUT_PROMPT = 'You are a strength coach reading someone else\'s training plan and writing down exactly what it says. The source may be a social video caption or transcript, a PDF from a coach, a spreadsheet exported to text, a screenshot, or a pasted message. Extract the TRAINING WEEK it describes. Rules: copy the movement names as written, do not translate them into your own vocabulary and do not correct spelling. Record only sets, reps and rest that the source actually states, and leave a field out when it does not state it. NEVER invent exercises, days, sets or reps that are not in the source. NEVER add your own advice, warm-ups or extra movements. If the source shows several weeks, return only the FIRST week, because the app builds the remaining weeks itself. If a line is a note, a heading, a warm-up instruction or a cardio finisher rather than a resistance movement, leave it out. The person importing the plan may have added a note of their own, marked as WHAT THE PERSON SAID ABOUT THIS. Treat it as context they know and the source does not show: it can tell you which day of the week this is, what to call the session, which parts of the image to read and which to ignore, or that a number is in pounds rather than kilos. Trust it over your own reading of the source where the two disagree, and use it to name the day when the source does not name one. It is still not a source of exercises: never add a movement, a set or a rep that appears in neither the source nor that note. Respond ONLY with compact JSON: {"name": string, "confidence": "low"|"medium"|"high", "note": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null}]}]}. name = what the plan calls itself, or a short plain description if it is unnamed. dayOfWeek = 0 for Monday through 6 for Sunday when the source names actual weekdays, otherwise null. repLow/repHigh = the rep range; if a single number is given put it in repLow and leave repHigh null. note = one short sentence on anything you could not read or had to leave out, or "" if the source was complete. confidence reflects how much of the plan was actually legible. British English in all text fields, keeping the JSON keys exactly as specified.';
+const WORKOUT_PROMPT = 'You are a strength coach reading someone else\'s training plan and writing down exactly what it says. The source may be a social video caption or transcript, a PDF from a coach, a spreadsheet exported to text, a screenshot, or a pasted message. Extract the TRAINING WEEK it describes. Rules: copy the movement names as written, do not translate them into your own vocabulary and do not correct spelling. Record only sets, reps and rest that the source actually states, and leave a field out when it does not state it. NEVER invent exercises, days, sets or reps that are not in the source. NEVER add your own advice, warm-ups or extra movements. If the source shows several weeks, return only the FIRST week, because the app builds the remaining weeks itself. If a line is a note, a heading, a warm-up instruction or a cardio finisher rather than a resistance movement, leave it out. The person importing the plan may have added a note of their own, marked as WHAT THE PERSON SAID ABOUT THIS. Treat it as context they know and the source does not show: it can tell you which day of the week this is, what to call the session, which parts of the image to read and which to ignore, or that a number is in pounds rather than kilos. Trust it over your own reading of the source where the two disagree, and use it to name the day when the source does not name one. It is still not a source of exercises: never add a movement, a set or a rep that appears in neither the source nor that note. Respond ONLY with compact JSON: {"name": string, "confidence": "low"|"medium"|"high", "note": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null}]}]}. tempo = the four-character tempo the source prints against a movement, copied exactly ("2110", "3110", "30X0"), and null when it does not state one. Coaching apps put it in a column of its own next to sets and reps, and it is part of the prescription: leave it out and the plan is not the plan any more. name = what the plan calls itself, or a short plain description if it is unnamed. dayOfWeek = 0 for Monday through 6 for Sunday when the source names actual weekdays, otherwise null. repLow/repHigh = the rep range; if a single number is given put it in repLow and leave repHigh null. note = one short sentence on anything you could not read or had to leave out, or "" if the source was complete. confidence reflects how much of the plan was actually legible. British English in all text fields, keeping the JSON keys exactly as specified.';
+
+// The tweak pass. An import is never right first time: a screenshot cannot say which day is the
+// Friday, the coach's own shorthand resolves to the wrong machine, and half a plan's character lives
+// in things nobody wrote down. So the plan comes back as JSON, the person says what is wrong in their
+// own words, and this applies it. It is deliberately a CORRECTION step and not a coaching step: it
+// changes what it was asked to change and returns everything else untouched, so the plan you keep is
+// still the plan you imported. Every name it returns goes back through Training.importTemplate, so
+// this can no more invent a movement the library does not have than the first pass could.
+// The 'You are a strength coach correcting a training plan' phrase is the signature ai-proxy
+// classifies as workout_import, so keep it in step with featureOf() in ai-proxy/index.ts.
+const WORKOUT_TWEAK_PROMPT = 'You are a strength coach correcting a training plan someone has just imported into their app, using notes they have written about what is wrong with it. You are given the plan as JSON exactly as the app read it, and what the person wants changed. Apply ONLY what they asked for, and return the WHOLE plan in the same shape, including every day and every movement you did not touch. Rules: keep movement names, day names, sets, reps, RIR and tempo EXACTLY as given unless the person asked for that specific thing to change. Never change a number they did not mention. If they name a movement to swap, replace it and carry its sets, reps and tempo over unless they said otherwise. If they ask for something to come out, remove it. If they ask for something to go in, add it with sets and reps that match the rest of that day rather than numbers of your own invention. If they say a movement was read wrongly and tell you what it really was, use their name for it. If they tell you which weekday a session is, put it in the day name. Never add advice, warm-ups, cardio, extra sets or extra movements that they did not ask for, and never "improve" a plan that someone else wrote: it is not yours to make better. If something they asked for is ambiguous or you cannot do it, leave that part alone and say so plainly. Respond ONLY with compact JSON: {"name": string, "note": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null}]}]}. dayOfWeek = 0 for Monday through 6 for Sunday when the person says which day it is, otherwise null. note = one short sentence saying what you changed, or what you could not do and why. British English in all text fields, keeping the JSON keys exactly as specified.';
 
 // Volume-audit advice. The audit itself is computed in training.js and handed over as finished
 // numbers; the model's only job is to choose between movements we already shortlisted and say why.
@@ -40196,6 +40311,8 @@ function TrainTab({
       db: db,
       update: update,
       showToast: showToast,
+      isPremium: isPremium,
+      onUpgrade: onUpgrade,
       onBack: () => go('home'),
       onImport: () => go('import', {
         from: 'draft'
@@ -40203,9 +40320,13 @@ function TrainTab({
       onBuild: draft => {
         // The draft's days become week 1 and the block is written on top, exactly as a single
         // import would be. Nothing about a multi-source block is a different code path.
+        //
+        // 'as-written' rather than the app's own periodisation, because these days came off somebody
+        // else's plan. Adding a set a week to a programme built on two hard sets is not building on
+        // it, it is disagreeing with it, and the person chose that coach over us.
         const block = Training.blockFromTemplate(draft.days, {
           weeks: 4,
-          shape: 'build3-deload1',
+          shape: 'as-written',
           targets: trainTargets(db),
           custom: tdb(db).custom,
           name: draft.name || 'My block',
@@ -40361,6 +40482,7 @@ function TrainHome({
   const lastLog = t.logs.slice().sort((a, b) => a.dateISO < b.dateISO ? 1 : -1)[0];
   const draftDays = (t.draft && t.draft.days || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
+  const [confirmDraft, setConfirmDraft] = useState(false);
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
@@ -40582,14 +40704,16 @@ function TrainHome({
       color: 'var(--muted2)',
       flexShrink: 0
     }
-  })), draftDays > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: () => go('draft'),
-    className: "w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3",
+  })), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-4 mb-4 flex items-center justify-between gap-2",
     style: {
       background: 'color-mix(in srgb, var(--accent) 10%, var(--card))'
     }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => go('draft'),
+    className: "min-w-0 flex-1 text-left flex items-center gap-3"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "min-w-0"
+    className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("span", {
     className: "pf text-[9px] uppercase block",
     style: {
@@ -40609,7 +40733,14 @@ function TrainHome({
       color: 'var(--muted2)',
       flexShrink: 0
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setConfirmDraft(true),
+    "aria-label": "Delete draft block",
+    className: "hit shrink-0 px-2 py-2 text-[12px]",
+    style: {
+      color: 'var(--danger)'
+    }
+  }, "Delete")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 gap-2 mb-4"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => go('library'),
@@ -40668,7 +40799,17 @@ function TrainHome({
     style: {
       color: 'var(--muted2)'
     }
-  }, "Logging is free and always will be. Building blocks for you, reading a gap and importing a plan are the Premium parts."));
+  }, "Logging is free and always will be. Building blocks for you, reading a gap and importing a plan are the Premium parts."), confirmDraft && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: "Throw this draft away?",
+    body: 'The ' + draftDays + (draftDays === 1 ? ' day' : ' days') + ' collected in it go. Anything you already built into a block stays.',
+    onConfirm: () => {
+      trainUpdate(update, tr => {
+        tr.draft = null;
+      });
+      showToast && showToast('Draft thrown away.');
+    },
+    onClose: () => setConfirmDraft(false)
+  }));
 }
 
 // "Yesterday" beats a date you have to work out. Past a week, the date is more useful than "9 days ago".
@@ -42327,6 +42468,7 @@ function BlockWizard({
       return {
         parsed: parsed,
         template: res.template,
+        unresolved: res.unresolved,
         file: file
       };
     }
@@ -42367,6 +42509,11 @@ function BlockWizard({
           kind: 'file',
           name: r.file.name || 'screenshot'
         }));
+        // A movement the library could not place used to be dropped here without a word, which is how
+        // three of Day 3's seven went missing in silence. It rides along with the draft now, so the
+        // review screen can show it and the person can say what it really was.
+        d.unresolved = (d.unresolved || []).concat(got.reduce((a, r) => a.concat(r.unresolved || []), []));
+        d.source = 'import';
         tr.draft = d;
       });
     }
@@ -44162,6 +44309,62 @@ async function aiParseWorkout(content, opts) {
   return parseModelJSON(txt);
 }
 
+// Hand the plan back to the model with the person's notes on what is wrong with it. What comes back
+// is re-resolved by Training.importTemplate exactly like a fresh import, so a tweak cannot smuggle in
+// a movement the library does not have any more than the first read could.
+async function aiTweakWorkout(plan, comments) {
+  const j = await aiRequest({
+    model: AI_MODEL,
+    max_tokens: 4000,
+    messages: [{
+      role: 'user',
+      content: [{
+        type: 'text',
+        text: WORKOUT_TWEAK_PROMPT,
+        cache_control: {
+          type: 'ephemeral'
+        }
+      }, {
+        type: 'text',
+        text: 'THE PLAN AS IT STANDS:\n' + JSON.stringify(plan)
+      }, {
+        type: 'text',
+        text: 'WHAT THEY WANT CHANGED:\n' + String(comments || '').slice(0, 2000)
+      }]
+    }]
+  }, {
+    timeoutMs: 120000
+  });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  if (!txt.trim()) throw new Error('Nothing came back. Try saying it another way.');
+  return parseModelJSON(txt);
+}
+
+// The draft, in the shape the tweak pass reads and returns: the library's names rather than the
+// coach's, because that is what is actually on screen and what the person is describing when they say
+// "the hamstring curl is wrong".
+function draftAsPlan(draft, custom) {
+  return {
+    name: draft && draft.name || 'My block',
+    days: (draft && draft.days || []).map(d => ({
+      name: d.name,
+      dayOfWeek: d.dayOfWeek == null ? null : d.dayOfWeek,
+      exercises: (d.exercises || []).map(e => {
+        const ex = Training.byId(e.exerciseId, custom);
+        return {
+          name: ex && ex.name || e.exerciseId,
+          sets: e.target.sets,
+          repLow: e.target.repLow,
+          repHigh: e.target.repHigh,
+          rir: e.target.rir,
+          restSec: e.target.restSec,
+          tempo: e.target.tempo || null
+        };
+      })
+    }))
+  };
+}
+
 // Advice on a gap. The audit is handed over finished, and the shortlist of movements is computed by
 // Training.suggestFor, so the model is choosing and explaining rather than prescribing.
 async function coverageAdvice(db, cov, block, week) {
@@ -44516,8 +44719,9 @@ function WorkoutImport({
   }
   function accept() {
     const block = Training.blockFromTemplate(result.template, {
+      // As written: see the note on the draft screen's build. An import is a plan someone chose.
       weeks: 4,
-      shape: 'build3-deload1',
+      shape: 'as-written',
       targets: trainTargets(db),
       custom: t.custom,
       name: result.parsed && result.parsed.name || 'Imported block',
@@ -45118,6 +45322,8 @@ function BlockDraft({
   db,
   update,
   showToast,
+  isPremium,
+  onUpgrade,
   onBack,
   onBuild,
   onImport
@@ -45129,6 +45335,52 @@ function BlockDraft({
   const [name, setName] = useState(draft && draft.name || 'My block');
   const [confirmClear, setConfirmClear] = useState(false);
   const [picking, setPicking] = useState(null); // day index we are adding a movement to
+  const [tweak, setTweak] = useState('');
+  const [tweakBusy, setTweakBusy] = useState(false);
+  const [tweakNote, setTweakNote] = useState(null);
+  const [tweakErr, setTweakErr] = useState(false);
+
+  // Say what is wrong in your own words and it re-reads the plan with that in hand. This is the step
+  // that was missing: a screenshot cannot say which day is the Friday or that the coach's "hamstring
+  // curl" is the machine one, so the first read is a draft in the real sense, and this is how you
+  // correct it without retyping a five-day programme by hand.
+  async function applyTweak() {
+    const v = tweak.trim();
+    if (!v || !draft) return;
+    if (!isPremium) {
+      onUpgrade && onUpgrade('workout_import');
+      return;
+    }
+    setTweakBusy(true);
+    setTweakNote(null);
+    setTweakErr(false);
+    try {
+      const revised = await aiTweakWorkout(draftAsPlan(draft, t.custom), v);
+      const res = Training.importTemplate(revised, {
+        custom: t.custom
+      });
+      if (!res.template.length) throw new Error('That left nothing I could read. Try describing the change another way.');
+      trainUpdate(update, tr => {
+        // The revision REPLACES the draft rather than merging into it, because it is the same plan
+        // corrected, not another source arriving. Merging would leave both readings side by side.
+        tr.draft = Object.assign({}, tr.draft, {
+          name: revised && revised.name || tr.draft && tr.draft.name || 'My block',
+          days: res.template.map((d, i) => Object.assign({}, d, {
+            dayOfWeek: i,
+            sourceRef: (tr.draft && tr.draft.days || []).map(x => x.sourceRef)[i] || null
+          })),
+          unresolved: res.unresolved
+        });
+      });
+      if (revised && revised.name) setName(revised.name);
+      setTweak('');
+      setTweakNote(revised && revised.note || 'Done. Have a look and change anything else.');
+    } catch (e) {
+      setTweakErr(true);
+      setTweakNote(e && e.message || 'I could not apply that. Try saying it a different way.');
+    }
+    setTweakBusy(false);
+  }
   if (!draft || !draft.days.length) {
     return /*#__PURE__*/React.createElement("div", {
       className: "fade-in"
@@ -45156,7 +45408,18 @@ function BlockDraft({
         background: '#fff',
         color: '#111'
       }
-    }, "Import a session")));
+    }, "Import a session")), draft && /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        trainUpdate(update, tr => {
+          tr.draft = null;
+        });
+        onBack();
+      },
+      className: "w-full py-3 text-[12px] mt-3",
+      style: {
+        color: 'var(--danger)'
+      }
+    }, "Throw the empty draft away"));
   }
   const cov = Training.coverage(Training.plannedVolume(draft.days, t.custom), targets);
   function edit(fn) {
@@ -45167,180 +45430,241 @@ function BlockDraft({
       });
     });
   }
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fade-in"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
-    className: "pf text-[9px] uppercase mb-4 hit",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "‹ Train"), /*#__PURE__*/React.createElement("h1", {
-    className: "pf text-lg mb-1"
-  }, "Draft block"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mb-4 leading-snug",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, draft.days.length, " ", draft.days.length === 1 ? 'day' : 'days', " collected. Build it whenever you are ready, and the four weeks get written on top."), /*#__PURE__*/React.createElement(Field, {
-    label: "Call it"
-  }, /*#__PURE__*/React.createElement(TextInput, {
-    value: name,
-    onChange: e => {
-      setName(e.target.value);
-      edit(d => {
-        d.name = e.target.value;
-      });
-    }
-  })), /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-baseline justify-between mb-2"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "What it covers so far"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px]",
-    style: {
-      color: cov.gaps.length ? 'var(--warn)' : 'var(--good)'
-    }
-  }, cov.gaps.length ? cov.gaps.length + ' short' : 'all covered')), cov.gaps.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mb-4 leading-snug"
-  }, "Still light on ", cov.gaps.slice(0, 3).map(g => g.label.toLowerCase()).join(', '), ". Import the rest of the week, or let the coach fill the gaps when you build."), /*#__PURE__*/React.createElement(CoverageBars, {
-    coverage: cov,
-    limit: 5,
-    compact: true
-  })), draft.days.map((day, di) => /*#__PURE__*/React.createElement(Card, {
-    key: di,
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-baseline justify-between gap-2 mb-2"
-  }, /*#__PURE__*/React.createElement("input", {
-    value: day.name,
-    onChange: e => edit(d => {
-      d.days[di].name = e.target.value;
-    }),
-    className: "text-[13.5px] font-bold bg-transparent min-w-0 flex-1",
-    style: {
-      color: 'var(--text)'
-    },
-    "aria-label": "Day name"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => edit(d => {
-      d.days.splice(di, 1);
-    }),
-    "aria-label": "Remove day",
-    className: "px-2 text-[16px] shrink-0",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "×")), day.sourceRef && /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] mb-2",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "from ", day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? day.sourceRef.name || 'a file' : 'text you pasted'), day.exercises.map((e, ei) => /*#__PURE__*/React.createElement("div", {
-    key: e.id || ei,
-    className: "flex items-baseline justify-between gap-2 py-1 border-t",
-    style: {
-      borderColor: 'var(--border)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[12px] truncate"
-  }, /*#__PURE__*/React.createElement(ExerciseName, {
-    id: e.exerciseId,
-    custom: t.custom
-  })), /*#__PURE__*/React.createElement("span", {
-    className: "flex items-center gap-2 shrink-0"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[11px] tnum",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, e.target.sets, " x ", e.target.repLow, "-", e.target.repHigh), /*#__PURE__*/React.createElement("button", {
-    onClick: () => edit(d => {
-      d.days[di].exercises.splice(ei, 1);
-    }),
-    "aria-label": "Remove",
-    className: "text-[14px]",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "×")))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setPicking(di),
-    className: "pixel-box w-full h-9 text-[11px] mt-2",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "+ Add movement"))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2 mb-4"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: onImport,
-    className: "pixel-box flex-1 h-11 text-[12px]",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Import another day"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => edit(d => {
-      d.days.push({
-        name: 'Day ' + (d.days.length + 1),
-        kind: 'full',
-        exercises: []
-      });
-    }),
-    className: "pixel-box flex-1 h-11 text-[12px]",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Add a blank day")), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setConfirmClear(true),
-    className: "w-full py-3 text-[12px]",
-    style: {
-      color: 'var(--danger)'
-    }
-  }, "Throw the draft away"), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
-    onClick: () => onBuild(draft),
-    className: "pixel-btn w-full h-14 font-bold",
-    style: {
-      background: '#fff',
-      color: '#111'
-    }
-  }, "Build the 4-week block")), picking != null && /*#__PURE__*/React.createElement(ExercisePicker, {
-    db: db,
-    update: update,
-    onClose: () => setPicking(null),
-    onPick: id => {
-      const ex = Training.byId(id, t.custom);
-      const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
-      edit(d => {
-        d.days[picking].exercises.push({
-          id: id + '_d' + picking + '_' + d.days[picking].exercises.length,
-          exerciseId: id,
-          order: d.days[picking].exercises.length,
-          target: {
-            sets: 3,
-            repLow: compound ? 6 : 10,
-            repHigh: compound ? 10 : 15,
-            rir: 2,
-            restSec: compound ? 150 : 90
-          }
+  return (
+    /*#__PURE__*/
+    /* pb-28 clears the StickyAction bar, which is fixed 104px off the bottom and stands about 170px
+       tall with its gradient. Without it the LAST thing on this screen sits underneath the Build
+       button, and the last thing on this screen is how you throw the draft away. */
+    React.createElement("div", {
+      className: "fade-in pb-28"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: onBack,
+      className: "pf text-[9px] uppercase mb-4 hit",
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, "‹ Train"), /*#__PURE__*/React.createElement("h1", {
+      className: "pf text-lg mb-1"
+    }, "Draft block"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mb-4 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, draft.days.length, " ", draft.days.length === 1 ? 'day' : 'days', " collected. Build it whenever you are ready, and the four weeks get written on top."), /*#__PURE__*/React.createElement(Field, {
+      label: "Call it"
+    }, /*#__PURE__*/React.createElement(TextInput, {
+      value: name,
+      onChange: e => {
+        setName(e.target.value);
+        edit(d => {
+          d.name = e.target.value;
         });
-      });
-      setPicking(null);
-    }
-  }), confirmClear && /*#__PURE__*/React.createElement(ConfirmDialog, {
-    title: "Throw this draft away?",
-    body: "The days you collected go. Anything you already built into a block stays.",
-    onConfirm: () => {
-      trainUpdate(update, tr => {
-        tr.draft = null;
-      });
-      onBack();
-    },
-    onClose: () => setConfirmClear(false)
-  }));
+      }
+    })), /*#__PURE__*/React.createElement(Card, {
+      className: "p-4 mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase mb-2",
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, "Anything read wrong?"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mb-4 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "Say it how you would say it to a person. It re-reads the plan with your note in hand and changes only what you mention."), /*#__PURE__*/React.createElement("textarea", {
+      value: tweak,
+      onChange: e => setTweak(e.target.value),
+      rows: 3,
+      placeholder: 'The hamstring curl is the seated machine, not Nordics.\nDay 1 is Monday, day 5 is Friday.\nKeep every set count exactly as the plan says.',
+      className: "w-full pixel-box px-3 py-3 text-[13px] mb-2",
+      style: {
+        background: 'var(--surface2)',
+        color: 'var(--text)'
+      }
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: applyTweak,
+      disabled: tweakBusy || !tweak.trim(),
+      className: "pixel-box w-full h-11 text-[12.5px]",
+      style: {
+        background: 'var(--surface2)'
+      }
+    }, tweakBusy ? 'Changing it...' : isPremium ? 'Apply these changes' : 'Apply these changes · Premium'), tweakNote && /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mt-2 leading-snug",
+      style: {
+        color: tweakErr ? 'var(--danger)' : 'var(--accent-ink)'
+      }
+    }, tweakNote)), (draft.unresolved || []).length > 0 && /*#__PURE__*/React.createElement(Card, {
+      className: "p-4 mb-4",
+      style: {
+        background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase mb-2",
+      style: {
+        color: 'var(--warn)'
+      }
+    }, "Could not place these"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mb-2 leading-snug",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "I left them out rather than guess at the wrong movement. Say what they are in the box above, or add them to the day yourself."), (draft.unresolved || []).map((u, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      className: "text-[12px]",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, u.dayName, ": ", u.name))), /*#__PURE__*/React.createElement(Card, {
+      className: "p-4 mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[9px] uppercase",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, "What it covers so far"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px]",
+      style: {
+        color: cov.gaps.length ? 'var(--warn)' : 'var(--good)'
+      }
+    }, cov.gaps.length ? cov.gaps.length + ' short' : 'all covered')), cov.gaps.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "text-[12px] mb-4 leading-snug"
+    }, "Still light on ", cov.gaps.slice(0, 3).map(g => g.label.toLowerCase()).join(', '), ". Import the rest of the week, or let the coach fill the gaps when you build."), /*#__PURE__*/React.createElement(CoverageBars, {
+      coverage: cov,
+      limit: 5,
+      compact: true
+    })), draft.days.map((day, di) => /*#__PURE__*/React.createElement(Card, {
+      key: di,
+      className: "p-4 mb-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between gap-2 mb-2"
+    }, /*#__PURE__*/React.createElement("input", {
+      value: day.name,
+      onChange: e => edit(d => {
+        d.days[di].name = e.target.value;
+      }),
+      className: "text-[13.5px] font-bold bg-transparent min-w-0 flex-1",
+      style: {
+        color: 'var(--text)'
+      },
+      "aria-label": "Day name"
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => edit(d => {
+        d.days.splice(di, 1);
+      }),
+      "aria-label": "Remove day",
+      className: "px-2 text-[16px] shrink-0",
+      style: {
+        color: 'var(--muted2)'
+      }
+    }, "×")), day.sourceRef && /*#__PURE__*/React.createElement("div", {
+      className: "text-[10px] mb-2",
+      style: {
+        color: 'var(--muted2)'
+      }
+    }, "from ", day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? day.sourceRef.name || 'a file' : 'text you pasted'), day.exercises.map((e, ei) => /*#__PURE__*/React.createElement("div", {
+      key: e.id || ei,
+      className: "flex items-baseline justify-between gap-2 py-1 border-t",
+      style: {
+        borderColor: 'var(--border)'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[12px] truncate"
+    }, /*#__PURE__*/React.createElement(ExerciseName, {
+      id: e.exerciseId,
+      custom: t.custom
+    })), /*#__PURE__*/React.createElement("span", {
+      className: "flex items-center gap-2 shrink-0"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[11px] tnum",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, e.target.sets, " x ", e.target.repLow, "-", e.target.repHigh, e.target.tempo ? ' · ' + e.target.tempo : ''), /*#__PURE__*/React.createElement("button", {
+      onClick: () => edit(d => {
+        d.days[di].exercises.splice(ei, 1);
+      }),
+      "aria-label": "Remove",
+      className: "text-[14px]",
+      style: {
+        color: 'var(--muted2)'
+      }
+    }, "×")))), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setPicking(di),
+      className: "pixel-box w-full h-9 text-[11px] mt-2",
+      style: {
+        background: 'var(--surface2)'
+      }
+    }, "+ Add movement"))), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2 mb-4"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: onImport,
+      className: "pixel-box flex-1 h-11 text-[12px]",
+      style: {
+        background: 'var(--surface2)'
+      }
+    }, "Import another day"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => edit(d => {
+        d.days.push({
+          name: 'Day ' + (d.days.length + 1),
+          kind: 'full',
+          exercises: []
+        });
+      }),
+      className: "pixel-box flex-1 h-11 text-[12px]",
+      style: {
+        background: 'var(--surface2)'
+      }
+    }, "Add a blank day")), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setConfirmClear(true),
+      className: "w-full py-3 text-[12px]",
+      style: {
+        color: 'var(--danger)'
+      }
+    }, "Throw the draft away"), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("button", {
+      onClick: () => onBuild(draft),
+      className: "pixel-btn w-full h-14 font-bold",
+      style: {
+        background: '#fff',
+        color: '#111'
+      }
+    }, "Build the 4-week block")), picking != null && /*#__PURE__*/React.createElement(ExercisePicker, {
+      db: db,
+      update: update,
+      onClose: () => setPicking(null),
+      onPick: id => {
+        const ex = Training.byId(id, t.custom);
+        const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+        edit(d => {
+          d.days[picking].exercises.push({
+            id: id + '_d' + picking + '_' + d.days[picking].exercises.length,
+            exerciseId: id,
+            order: d.days[picking].exercises.length,
+            target: {
+              sets: 3,
+              repLow: compound ? 6 : 10,
+              repHigh: compound ? 10 : 15,
+              rir: 2,
+              restSec: compound ? 150 : 90
+            }
+          });
+        });
+        setPicking(null);
+      }
+    }), confirmClear && /*#__PURE__*/React.createElement(ConfirmDialog, {
+      title: "Throw this draft away?",
+      body: "The days you collected go. Anything you already built into a block stays.",
+      onConfirm: () => {
+        trainUpdate(update, tr => {
+          tr.draft = null;
+        });
+        onBack();
+      },
+      onClose: () => setConfirmClear(false)
+    }))
+  );
 }
 
 // Turn a sentence into block settings. The model only ever fills in the FORM: days, minutes, kit,

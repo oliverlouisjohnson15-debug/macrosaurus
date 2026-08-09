@@ -258,13 +258,17 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
       onCollected={() => go('draft')} />);
   }
   if (screen.name === 'draft') {
-    return page(<BlockDraft db={db} update={update} showToast={showToast}
+    return page(<BlockDraft db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       onBack={() => go('home')} onImport={() => go('import', { from: 'draft' })}
       onBuild={(draft) => {
         // The draft's days become week 1 and the block is written on top, exactly as a single
         // import would be. Nothing about a multi-source block is a different code path.
+        //
+        // 'as-written' rather than the app's own periodisation, because these days came off somebody
+        // else's plan. Adding a set a week to a programme built on two hard sets is not building on
+        // it, it is disagreeing with it, and the person chose that coach over us.
         const block = Training.blockFromTemplate(draft.days, {
-          weeks: 4, shape: 'build3-deload1', targets: trainTargets(db), custom: tdb(db).custom,
+          weeks: 4, shape: 'as-written', targets: trainTargets(db), custom: tdb(db).custom,
           name: draft.name || 'My block', source: 'import', startISO: Store.todayISO(),
           sourceRef: { kind: 'draft', days: draft.days.length, importedISO: Store.todayISO() },
         });
@@ -334,6 +338,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
   const lastLog = t.logs.slice().sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1))[0];
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
+  const [confirmDraft, setConfirmDraft] = useState(false);
 
   return (
     <div className="fade-in">
@@ -472,16 +477,22 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
 
       {/* ---- a draft in progress is a promise you made yourself, so it gets a real card ---- */}
       {draftDays > 0 && (
-        <button onClick={() => go('draft')} className="w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3" style={{ background: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>
-          <span className="min-w-0">
-            <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Draft block</span>
-            <span className="block text-[13px] font-semibold mt-1 truncate">{(t.draft && t.draft.name) || 'My block'}</span>
-            <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
-              {draftDays} {draftDays === 1 ? 'day' : 'days'} collected, ready when you are
+        <div className="pixel-box p-4 mb-4 flex items-center justify-between gap-2" style={{ background: 'color-mix(in srgb, var(--accent) 10%, var(--card))' }}>
+          <button onClick={() => go('draft')} className="min-w-0 flex-1 text-left flex items-center gap-3">
+            <span className="min-w-0 flex-1">
+              <span className="pf text-[9px] uppercase block" style={{ color: 'var(--accent-ink)' }}>Draft block</span>
+              <span className="block text-[13px] font-semibold mt-1 truncate">{(t.draft && t.draft.name) || 'My block'}</span>
+              <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                {draftDays} {draftDays === 1 ? 'day' : 'days'} collected, ready when you are
+              </span>
             </span>
-          </span>
-          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-        </button>
+            <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+          </button>
+          {/* Binning a half-read import is at least as common as finishing one, so it does not need
+              a trip inside the draft to find. */}
+          <button onClick={() => setConfirmDraft(true)} aria-label="Delete draft block"
+            className="hit shrink-0 px-2 py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete</button>
+        </div>
       )}
 
       {/* ---- where new blocks come from. Three routes, given equal weight, because which one a
@@ -526,6 +537,13 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onStart
         <div className="text-[11px] leading-snug mt-4 text-center" style={{ color: 'var(--muted2)' }}>
           Logging is free and always will be. Building blocks for you, reading a gap and importing a plan are the Premium parts.
         </div>
+      )}
+
+      {confirmDraft && (
+        <ConfirmDialog title="Throw this draft away?"
+          body={'The ' + draftDays + (draftDays === 1 ? ' day' : ' days') + ' collected in it go. Anything you already built into a block stays.'}
+          onConfirm={() => { trainUpdate(update, (tr) => { tr.draft = null; }); showToast && showToast('Draft thrown away.'); }}
+          onClose={() => setConfirmDraft(false)} />
       )}
     </div>
   );
@@ -1555,7 +1573,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       }
       const res = Training.importTemplate(parsed, { custom: t.custom });
       if (!res.template.length) throw new Error('nothing readable in it');
-      return { parsed: parsed, template: res.template, file: file };
+      return { parsed: parsed, template: res.template, unresolved: res.unresolved, file: file };
     }
 
     // Results are collected in upload order and written once at the end, so the days land in the
@@ -1582,6 +1600,11 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       trainUpdate(update, (tr) => {
         const d = tr.draft || { name: (got[0].parsed && got[0].parsed.name) || 'My block', days: [] };
         got.forEach(r => Training.mergeDraftDays(d.days, r.template, { kind: 'file', name: r.file.name || 'screenshot' }));
+        // A movement the library could not place used to be dropped here without a word, which is how
+        // three of Day 3's seven went missing in silence. It rides along with the draft now, so the
+        // review screen can show it and the person can say what it really was.
+        d.unresolved = (d.unresolved || []).concat(got.reduce((a, r) => a.concat(r.unresolved || []), []));
+        d.source = 'import';
         tr.draft = d;
       });
     }
@@ -2680,6 +2703,43 @@ async function aiParseWorkout(content, opts) {
   return parseModelJSON(txt);
 }
 
+// Hand the plan back to the model with the person's notes on what is wrong with it. What comes back
+// is re-resolved by Training.importTemplate exactly like a fresh import, so a tweak cannot smuggle in
+// a movement the library does not have any more than the first read could.
+async function aiTweakWorkout(plan, comments) {
+  const j = await aiRequest({
+    model: AI_MODEL, max_tokens: 4000,
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: WORKOUT_TWEAK_PROMPT, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: 'THE PLAN AS IT STANDS:\n' + JSON.stringify(plan) },
+      { type: 'text', text: 'WHAT THEY WANT CHANGED:\n' + String(comments || '').slice(0, 2000) },
+    ] }],
+  }, { timeoutMs: 120000 });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  if (!txt.trim()) throw new Error('Nothing came back. Try saying it another way.');
+  return parseModelJSON(txt);
+}
+
+// The draft, in the shape the tweak pass reads and returns: the library's names rather than the
+// coach's, because that is what is actually on screen and what the person is describing when they say
+// "the hamstring curl is wrong".
+function draftAsPlan(draft, custom) {
+  return {
+    name: (draft && draft.name) || 'My block',
+    days: ((draft && draft.days) || []).map(d => ({
+      name: d.name, dayOfWeek: d.dayOfWeek == null ? null : d.dayOfWeek,
+      exercises: (d.exercises || []).map(e => {
+        const ex = Training.byId(e.exerciseId, custom);
+        return {
+          name: (ex && ex.name) || e.exerciseId,
+          sets: e.target.sets, repLow: e.target.repLow, repHigh: e.target.repHigh,
+          rir: e.target.rir, restSec: e.target.restSec, tempo: e.target.tempo || null,
+        };
+      }),
+    })),
+  };
+}
+
 // Advice on a gap. The audit is handed over finished, and the shortlist of movements is computed by
 // Training.suggestFor, so the model is choosing and explaining rather than prescribing.
 async function coverageAdvice(db, cov, block, week) {
@@ -2921,7 +2981,8 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
 
   function accept() {
     const block = Training.blockFromTemplate(result.template, {
-      weeks: 4, shape: 'build3-deload1', targets: trainTargets(db), custom: t.custom,
+      // As written: see the note on the draft screen's build. An import is a plan someone chose.
+      weeks: 4, shape: 'as-written', targets: trainTargets(db), custom: t.custom,
       name: (result.parsed && result.parsed.name) || 'Imported block',
       source: 'import', sourceRef: Object.assign({ importedISO: Store.todayISO() }, result.sourceRef || {}),
       startISO: Store.todayISO(),
@@ -3311,7 +3372,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
 // Where days collected from several sources wait until there are enough of them to be a programme.
 // This is the answer to "I follow someone who posts Upper A on Monday and Lower B on Thursday":
 // import each post as it lands, and build the block once the week is complete.
-function BlockDraft({ db, update, showToast, onBack, onBuild, onImport }) {
+function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBuild, onImport }) {
   useBackClose(onBack);
   const t = tdb(db);
   const targets = trainTargets(db);
@@ -3319,6 +3380,45 @@ function BlockDraft({ db, update, showToast, onBack, onBuild, onImport }) {
   const [name, setName] = useState((draft && draft.name) || 'My block');
   const [confirmClear, setConfirmClear] = useState(false);
   const [picking, setPicking] = useState(null);   // day index we are adding a movement to
+  const [tweak, setTweak] = useState('');
+  const [tweakBusy, setTweakBusy] = useState(false);
+  const [tweakNote, setTweakNote] = useState(null);
+  const [tweakErr, setTweakErr] = useState(false);
+
+  // Say what is wrong in your own words and it re-reads the plan with that in hand. This is the step
+  // that was missing: a screenshot cannot say which day is the Friday or that the coach's "hamstring
+  // curl" is the machine one, so the first read is a draft in the real sense, and this is how you
+  // correct it without retyping a five-day programme by hand.
+  async function applyTweak() {
+    const v = tweak.trim();
+    if (!v || !draft) return;
+    if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
+    setTweakBusy(true); setTweakNote(null); setTweakErr(false);
+    try {
+      const revised = await aiTweakWorkout(draftAsPlan(draft, t.custom), v);
+      const res = Training.importTemplate(revised, { custom: t.custom });
+      if (!res.template.length) throw new Error('That left nothing I could read. Try describing the change another way.');
+      trainUpdate(update, (tr) => {
+        // The revision REPLACES the draft rather than merging into it, because it is the same plan
+        // corrected, not another source arriving. Merging would leave both readings side by side.
+        tr.draft = Object.assign({}, tr.draft, {
+          name: (revised && revised.name) || (tr.draft && tr.draft.name) || 'My block',
+          days: res.template.map((d, i) => Object.assign({}, d, {
+            dayOfWeek: i,
+            sourceRef: ((tr.draft && tr.draft.days) || []).map(x => x.sourceRef)[i] || null,
+          })),
+          unresolved: res.unresolved,
+        });
+      });
+      if (revised && revised.name) setName(revised.name);
+      setTweak('');
+      setTweakNote((revised && revised.note) || 'Done. Have a look and change anything else.');
+    } catch (e) {
+      setTweakErr(true);
+      setTweakNote((e && e.message) || 'I could not apply that. Try saying it a different way.');
+    }
+    setTweakBusy(false);
+  }
   if (!draft || !draft.days.length) {
     return (
       <div className="fade-in">
@@ -3331,6 +3431,12 @@ function BlockDraft({ db, update, showToast, onBack, onBuild, onImport }) {
           </div>
           <button onClick={onImport} className="pixel-btn w-full h-12 font-bold" style={{ background: '#fff', color: '#111' }}>Import a session</button>
         </Card>
+        {/* A draft can be empty and still exist: delete every day one by one and the basket itself is
+            still there, named, holding nothing. Without this there is no way to be rid of it. */}
+        {draft && (
+          <button onClick={() => { trainUpdate(update, (tr) => { tr.draft = null; }); onBack(); }}
+            className="w-full py-3 text-[12px] mt-3" style={{ color: 'var(--danger)' }}>Throw the empty draft away</button>
+        )}
       </div>
     );
   }
@@ -3339,7 +3445,10 @@ function BlockDraft({ db, update, showToast, onBack, onBuild, onImport }) {
   function edit(fn) { trainUpdate(update, (tr) => { fn(tr.draft); tr.draft.days.forEach((d, i) => { d.dayOfWeek = i; }); }); }
 
   return (
-    <div className="fade-in">
+    /* pb-28 clears the StickyAction bar, which is fixed 104px off the bottom and stands about 170px
+       tall with its gradient. Without it the LAST thing on this screen sits underneath the Build
+       button, and the last thing on this screen is how you throw the draft away. */
+    <div className="fade-in pb-28">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-1">Draft block</h1>
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
@@ -3347,6 +3456,36 @@ function BlockDraft({ db, update, showToast, onBack, onBuild, onImport }) {
       </div>
 
       <Field label="Call it"><TextInput value={name} onChange={e => { setName(e.target.value); edit(d => { d.name = e.target.value; }); }} /></Field>
+
+      {/* Tell it what is wrong, in words. Sits ABOVE the days, because the point of this screen is to
+          check what was read before it becomes four weeks, and the fix should be next to the doubt. */}
+      <Card className="p-4 mb-4">
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Anything read wrong?</div>
+        <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+          Say it how you would say it to a person. It re-reads the plan with your note in hand and changes only what you mention.
+        </div>
+        <textarea value={tweak} onChange={e => setTweak(e.target.value)} rows={3}
+          placeholder={'The hamstring curl is the seated machine, not Nordics.\nDay 1 is Monday, day 5 is Friday.\nKeep every set count exactly as the plan says.'}
+          className="w-full pixel-box px-3 py-3 text-[13px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+        <button onClick={applyTweak} disabled={tweakBusy || !tweak.trim()} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+          {tweakBusy ? 'Changing it...' : isPremium ? 'Apply these changes' : 'Apply these changes · Premium'}
+        </button>
+        {tweakNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: tweakErr ? 'var(--danger)' : 'var(--accent-ink)' }}>{tweakNote}</div>}
+      </Card>
+
+      {/* What the library could not place. These used to be dropped without a word, which is the
+          worst way to lose a movement: the day just looks shorter than the plan you uploaded. */}
+      {(draft.unresolved || []).length > 0 && (
+        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Could not place these</div>
+          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
+            I left them out rather than guess at the wrong movement. Say what they are in the box above, or add them to the day yourself.
+          </div>
+          {(draft.unresolved || []).map((u, i) => (
+            <div key={i} className="text-[12px]" style={{ color: 'var(--text2)' }}>{u.dayName}: {u.name}</div>
+          ))}
+        </Card>
+      )}
 
       {/* Coverage of the draft AS IT STANDS, so you can see which day is still missing before you
           build. This is the thing a pile of imported screenshots can never tell you. */}
@@ -3381,7 +3520,10 @@ function BlockDraft({ db, update, showToast, onBack, onBuild, onImport }) {
             <div key={e.id || ei} className="flex items-baseline justify-between gap-2 py-1 border-t" style={{ borderColor: 'var(--border)' }}>
               <span className="text-[12px] truncate"><ExerciseName id={e.exerciseId} custom={t.custom} /></span>
               <span className="flex items-center gap-2 shrink-0">
-                <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>{e.target.sets} x {e.target.repLow}-{e.target.repHigh}</span>
+                <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
+                  {e.target.sets} x {e.target.repLow}-{e.target.repHigh}
+                  {e.target.tempo ? ' · ' + e.target.tempo : ''}
+                </span>
                 <button onClick={() => edit(d => { d.days[di].exercises.splice(ei, 1); })} aria-label="Remove" className="text-[14px]" style={{ color: 'var(--muted2)' }}>&times;</button>
               </span>
             </div>

@@ -70,6 +70,74 @@ test('strips the noise a caption or spreadsheet carries around the movement name
   assert.equal(T.resolve('Leg Press 4x12'), 'leg_press');
 });
 
+// A real five-day plan exported from a coaching app, which is where the failures below came from.
+// Every movement carries the coach's own tag, and that one stray token was enough to make five of
+// the thirty-one vanish and three more resolve to the wrong machine.
+test('a coach tag in front of every movement does not cost the plan its movements', () => {
+  const cases = [
+    ['CAM - SMITH MACHINE INCLINE PRESS', 'machine_incline'],
+    ['CAM - DECLINE CHEST FLY', 'cable_fly_high'],
+    ['CAM - DB SEATED SHOULDER PRESS', 'db_ohp'],
+    ['CAM - FRENCH PRESS (OHTX)', 'overhead_ez'],
+    ['CAM - CABLE TRICEP PUSHDOWN', 'bar_pushdown'],
+    ['CAM - MACHINE PREACHER CURL', 'machine_preacher'],
+    ['CAM - HANGING LEG RAISES', 'hanging_leg_raise'],
+    ['CAM - MACHINE ADDUCTION', 'hip_adduction'],
+    ['CAM - PENDULUM SQUAT', 'pendulum_squat'],
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(T.resolve(input), expected, `"${input}" resolved to ${T.resolve(input)}`);
+  }
+});
+
+test('the tag can be an en dash or an em dash, and a hyphenated movement survives either way', () => {
+  assert.equal(T.resolve('CAM – PENDULUM SQUAT'), 'pendulum_squat');
+  assert.equal(T.resolve('TW — Leg Press'), 'leg_press');
+  // The spaces around the separator are what make the strip safe. These have none, so they stay.
+  assert.equal(T.resolve('T-Bar Row'), 'tbar_row');
+  assert.equal(T.resolve('Low-to-high cable fly'), 'cable_fly_low');
+});
+
+test('a rare word outweighs a common one, so the specific movement wins', () => {
+  // Both of these used to tie on a flat token count and fall to whichever sat earlier in the table.
+  assert.equal(T.resolve('ALTERNATING DUMBBELL HAMMER CURL'), 'hammer_curl', 'not a plain dumbbell curl');
+  assert.equal(T.resolve('SPLIT SQUAT SMITH MACHINE'), 'split_squat', 'not a bilateral Smith squat');
+  // A plain "hamstring curl" in a machine-based plan is the machine, not a Nordic.
+  assert.equal(T.resolve('HAMSTRING CURL'), 'lying_leg_curl');
+});
+
+test('an imported plan can be run exactly as its author wrote it', () => {
+  // The whole point of importing someone's plan: two hard sets is the prescription, not an
+  // undercooked version of ours to be topped up to four by week three.
+  const { template } = T.importTemplate({
+    days: [{ name: 'Day 1', exercises: [
+      { name: 'CAM - SMITH MACHINE INCLINE PRESS', sets: 2, repLow: 6, tempo: '2110' },
+      { name: 'CAM - MACHINE LAT PULLDOWN', sets: 2, repLow: 8, tempo: '2110' },
+    ] }],
+  });
+  const block = T.blockFromTemplate(template, { weeks: 4, shape: 'as-written', targets: T.defaultTargets(), source: 'import' });
+  for (let w = 1; w <= 4; w++) {
+    const s = T.weekSessions(block, w)[0];
+    assert.deepEqual(s.exercises.map(e => e.target.sets), [2, 2], `week ${w} was rewritten`);
+    assert.equal(s.deload, false, `week ${w} became a deload the plan never asked for`);
+    assert.deepEqual(s.exercises.map(e => e.target.tempo), ['2110', '2110'], `week ${w} lost the tempo`);
+  }
+  // And the effort target holds steady rather than being walked in a week at a time.
+  const rirs = [1, 2, 3, 4].map(w => T.weekSessions(block, w)[0].exercises[0].target.rir);
+  assert.equal(new Set(rirs).size, 1, `RIR moved across the block: ${rirs}`);
+});
+
+test('the app still periodises its OWN blocks', () => {
+  // As-written is for imports. Nothing here may leak into a block the app generated.
+  const { template } = T.importTemplate({
+    days: [{ name: 'Upper', exercises: [{ name: 'Bench Press', sets: 2 }, { name: 'Lat Pulldown', sets: 2 }] }],
+  });
+  const built = T.blockFromTemplate(template, { weeks: 4, shape: 'build3-deload1', targets: T.defaultTargets() });
+  const w1 = T.weekSessions(built, 1)[0].exercises[0].target.sets;
+  const w3 = T.weekSessions(built, 3)[0].exercises[0].target.sets;
+  assert.ok(w3 > w1, `a generated block should still build: ${w1} -> ${w3}`);
+});
+
 test('refuses to guess when it genuinely does not know', () => {
   // The failure mode that matters: a nonsense line must come back null so the import can flag it,
   // rather than silently logging someone's warm-up note as an exercise.

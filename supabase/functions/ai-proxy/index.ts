@@ -72,6 +72,9 @@ function featureOf(prompt: string): string {
   // and building a block by hand are free and never come through here). Signatures must stay in step
   // with WORKOUT_PROMPT / COVERAGE_PROMPT / BLOCK_REVIEW_PROMPT in app/src/prompts.jsx.
   if (p.includes('You are a strength coach reading someone else')) return 'workout_import';
+  // The tweak pass that corrects an import from the person's own notes. Same feature and same gate as
+  // the read itself: it is the second half of importing a plan, not a thing of its own.
+  if (p.includes('You are a strength coach correcting a training plan')) return 'workout_import';
   if (p.includes('You are a strength coach looking at a volume audit')) return 'coverage_advice';
   if (p.includes('You are a strength coach writing up a finished')) return 'block_review';
   if (p.includes('You are Macrosaurus')) return 'coach';

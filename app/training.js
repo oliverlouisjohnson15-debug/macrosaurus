@@ -407,7 +407,34 @@
     'press ups': 'pushup', 'pushups': 'pushup', 'push ups': 'pushup', 'press-ups': 'pushup',
     'ab rollout': 'ab_wheel', 'rollouts': 'ab_wheel', 'leg raises': 'hanging_leg_raise',
     'planks': 'plank', 'crunches': 'crunch', 'cable crunches': 'cable_crunch',
+    // Names a coaching app writes that the library has no token in common with, so no amount of
+    // scoring reaches them. A "chest fly" is not called that anywhere in the table; a French press
+    // is an overhead extension under another name; "decline" on a fly means the high-to-low angle.
+    'chest fly': 'cable_fly', 'chest flies': 'cable_fly', 'decline chest fly': 'cable_fly_high',
+    'decline fly': 'cable_fly_high', 'incline chest fly': 'db_incline_fly',
+    'french press': 'overhead_ez', 'french presses': 'overhead_ez',
+    'triceps pushdown': 'rope_pushdown', 'cable triceps pushdown': 'bar_pushdown',
+    'cable tricep pushdown': 'bar_pushdown', 'triceps pushdowns': 'rope_pushdown',
+    'split squat smith machine': 'split_squat', 'smith machine split squat': 'split_squat',
+    'machine adduction': 'hip_adduction', 'machine abduction': 'hip_abduction',
+    'machine ab crunch': 'machine_crunch',
   };
+  // The alias table is written the way a person types, but lookups arrive already normalised and
+  // shorthand-expanded. Building a second copy through the SAME pipeline is what keeps the two in
+  // step: without it, teaching cleanName that "tricep" means "triceps" silently unhooks every alias
+  // that spells it the short way.
+  var ALIAS_N = null;
+  function aliasFor(q) {
+    if (!ALIAS_N) {
+      ALIAS_N = {};
+      Object.keys(ALIASES).forEach(function (k) {
+        ALIAS_N[k] = ALIASES[k];
+        var expanded = norm(k).split(' ').map(function (t) { return SHORTHAND[t] || t; }).join(' ').trim();
+        if (expanded && !ALIAS_N[expanded]) ALIAS_N[expanded] = ALIASES[k];
+      });
+    }
+    return ALIAS_N[q] || null;
+  }
 
   // ---- saying why -----------------------------------------------------------------------------
   // Competitors answer "how do I do this?" with video. We cannot make video, and a stock clip of a
@@ -518,16 +545,38 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
-  // Strip the noise a caption or a coach's spreadsheet carries: set/rep counts, tempo, RIR, and
-  // the numbering people put in front of a movement ("A1.", "3)").
+  // Coaching apps and spreadsheets label every movement with the coach's own tag: "CAM - PENDULUM
+  // SQUAT", "TW – Leg Press". A short token followed by a SPACED dash is never part of a movement's
+  // name, and left in it does real damage: it is one more query token that matched nothing, and the
+  // score divides by how much of the query matched, so a whole plan can drop below the threshold and
+  // vanish. The spaces are what make this safe, so "T-bar row" and "Low-to-high cable fly" survive.
+  // u2013 and u2014 are the en and em dash, written as escapes because the build refuses a literal
+  // em dash anywhere in the bundle. Coaching apps use all three separators interchangeably.
+  var COACH_PREFIX = /^\s*[^\s]{1,14}(\s+[^\s]{1,14})?\s+[-\u2013\u2014:]\s+/;
+  // What people actually write, expanded to what the library calls it. Without this "DB SEATED
+  // SHOULDER PRESS" scores 0.33 against "Dumbbell shoulder press" and is thrown away for being one
+  // hundredth under the bar.
+  // Kit and count abbreviations ONLY. Muscle words are deliberately absent: "lat pulldown" is what
+  // the movement is actually called, and expanding it to "lats pulldown" walks straight past both the
+  // alias table and the exact-name match. An abbreviation earns a place here when the long form is
+  // what the library calls it and the short form is what a coach types.
+  var SHORTHAND = {
+    db: 'dumbbell', dbs: 'dumbbell', bb: 'barbell', kb: 'kettlebell', bw: 'bodyweight',
+    ohp: 'overhead press', bor: 'bent over row', ohtx: 'overhead triceps',
+    tricep: 'triceps', bicep: 'biceps', mach: 'machine', alt: 'alternating',
+  };
+  // Strip the noise a caption or a coach's spreadsheet carries: set/rep counts, tempo, RIR, the
+  // numbering people put in front of a movement ("A1.", "3)"), and the coach's own tag.
   function cleanName(s) {
-    return norm(String(s || '')
+    var raw = String(s || '').replace(COACH_PREFIX, '');
+    return norm(raw
       .replace(/^\s*[a-dA-D]?\d{0,2}\s*[\).:-]\s*/, '')
       .replace(/\b\d+\s*[x×]\s*\d+(\s*-\s*\d+)?\b/g, ' ')
       .replace(/\b\d+\s*(sets?|reps?)\b/g, ' ')
       .replace(/\b\d\s*rir\b/g, ' ')
       .replace(/\b\d{4}\b/g, ' ')
-      .replace(/@.*$/, ' '));
+      .replace(/@.*$/, ' '))
+      .split(' ').map(function (t) { return SHORTHAND[t] || t; }).join(' ').trim();
   }
 
   // Resolve a free-text movement name to a library id. Exact, then alias, then a token-overlap
@@ -539,26 +588,66 @@
     var pool = all(custom);
     var i, e;
     for (i = 0; i < pool.length; i++) if (norm(pool[i].name) === q) return pool[i].id;
-    if (ALIASES[q]) return ALIASES[q];
+    var al = aliasFor(q); if (al) return al;
     var singular = q.replace(/s$/, '');
-    if (ALIASES[singular]) return ALIASES[singular];
+    al = aliasFor(singular); if (al) return al;
     var qt = q.split(' ').filter(Boolean);
     var best = null, bestScore = 0;
     for (i = 0; i < pool.length; i++) {
       e = pool[i];
       var et = norm(e.name).split(' ').filter(Boolean);
-      var hit = 0;
+      var hit = 0, qw = 0, ew = 0;
       for (var j = 0; j < qt.length; j++) {
+        qw += weightOf(qt[j]);
         for (var k = 0; k < et.length; k++) {
-          if (qt[j] === et[k] || (qt[j].length > 3 && et[k].indexOf(qt[j]) === 0) || (et[k].length > 3 && qt[j].indexOf(et[k]) === 0)) { hit++; break; }
+          if (tokenMatch(qt[j], et[k])) { hit += weightOf(qt[j]); break; }
         }
       }
-      // Score by how much of BOTH names matched, so "row" does not beat "seated cable row"
-      // for the query "seated cable row", and a one-word query cannot claim a five-word name.
-      var score = (hit / qt.length) * (hit / et.length);
+      for (k = 0; k < et.length; k++) ew += weightOf(et[k]);
+      // Score by how much of BOTH names matched, so "row" does not beat "seated cable row" for the
+      // query "seated cable row", and a one-word query cannot claim a five-word name.
+      //
+      // Tokens are WEIGHTED by how rare they are across the library, which is what lets the score
+      // tell "alternating dumbbell HAMMER curl" apart from a plain dumbbell curl: "dumbbell" is in
+      // dozens of names and says almost nothing, "hammer" is in a handful and says everything. Under
+      // a flat count those two tie and the winner is whichever happens to sit earlier in the table,
+      // which is how a hammer curl became a dumbbell curl and a split squat became a Smith squat.
+      var score = qw && ew ? (hit / qw) * (hit / ew) : 0;
       if (score > bestScore) { bestScore = score; best = e.id; }
     }
-    return bestScore >= 0.34 ? best : null;
+    if (bestScore >= 0.34) return best;
+    // Last resort, and only ever on a line that was otherwise going to be thrown away: coaches append
+    // qualifiers the library has never heard of ("French press (OHTX)", "T-bar row (mega mass)"), so
+    // try the alias table against the leading words alone. Running this AFTER scoring is what keeps it
+    // safe: it can rescue a dropped movement but never outrank a good match.
+    for (var n = qt.length - 1; n >= 2; n--) {
+      var lead = aliasFor(qt.slice(0, n).join(' '));
+      if (lead) return lead;
+    }
+    return null;
+  }
+  function tokenMatch(a, b) {
+    return a === b || (a.length > 3 && b.indexOf(a) === 0) || (b.length > 3 && a.indexOf(b) === 0);
+  }
+  // Inverse document frequency over the library's own names, computed once. A token nothing in the
+  // library uses (a coach's tag, a gym's brand) scores high on rarity but can never be MATCHED, so it
+  // only ever costs the query, which is exactly the pressure that makes a stray word survivable.
+  var DF = null;
+  function weightOf(tok) {
+    if (!DF) {
+      DF = {};
+      EXERCISES.forEach(function (e) {
+        var seen = {};
+        norm(e.name).split(' ').filter(Boolean).forEach(function (t) {
+          if (seen[t]) return; seen[t] = 1; DF[t] = (DF[t] || 0) + 1;
+        });
+      });
+    }
+    // Match the same prefix rule the scorer uses, so "dumbbell" is not treated as rare just because
+    // half its occurrences are spelt "dumbell" or reached by prefix.
+    var df = DF[tok] || 0;
+    if (!df) for (var k in DF) if (tokenMatch(tok, k)) { df = Math.max(df, DF[k]); }
+    return Math.log(1 + EXERCISES.length / (1 + df));
   }
 
   function search(q, custom, limit) {
@@ -1256,6 +1345,12 @@
   var SHAPES = {
     'build4': { build: 4, deload: false, label: '4 building weeks, then we check whether you need a lighter one' },
     'build3-deload1': { build: 3, deload: true, label: '3 building weeks and a lighter fourth, every block' },
+    // Somebody else's plan, run the way they wrote it. No set added per week, no lighter fourth, no
+    // trimming to our volume landmarks. It exists because importing a coach's block is a decision:
+    // a plan built on two hard sets per movement is not an undercooked version of ours to be topped
+    // up, it is a different bet, and quietly turning it into four sets by week three is not
+    // periodisation, it is overruling the person whose plan you chose to follow.
+    'as-written': { build: 0, deload: false, asWritten: true, label: 'Exactly as the plan is written, all four weeks' },
   };
 
   // Should the next week be a light one? Read off the markers the app already holds, in the order a
@@ -1365,6 +1460,7 @@
       }
     }
 
+    var asWritten = !!SHAPES[shape].asWritten;
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
@@ -1384,18 +1480,26 @@
               var L = targets[m]; return Math.max(a, L ? L.mav - L.mev : 0);
             }, 0);
             var base = Math.max(1, (item.target && item.target.sets) || 3);
-            var sets = isDeload
+            var sets = asWritten ? base : (isDeload
               ? Math.max(1, Math.round(base / 2))
-              : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1));
+              : base + (room >= 6 ? Math.min(extra, 2) : Math.min(extra, 1)));
+            // As written means as written: the effort target comes from the plan too, and where the
+            // plan does not state one we hold it steady rather than walking it in a week at a time.
+            var effort = asWritten
+              ? (item.target && item.target.rir != null ? item.target.rir : 2)
+              : rir;
             return {
               id: (item.id || (item.exerciseId + '_' + di + '_' + ei)) + '_w' + w,
               exerciseId: item.exerciseId, order: item.order == null ? ei : item.order,
-              target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target, { sets: sets, rir: rir }),
+              target: Object.assign({ sets: 3, repLow: 8, repHigh: 12, restSec: 120, tempo: defaultTempo(exx) }, item.target, { sets: sets, rir: effort }),
             };
           }),
         });
       });
-      trimToMRV(weekSess);
+      // Trimming to MRV is us editing the plan, which is the one thing "as written" promises not to
+      // do. The volume is still MEASURED, and the coverage screen still says plainly if a week sits
+      // over the ceiling, so nothing is hidden: it is shown and left to the person, not cut for them.
+      if (!asWritten) trimToMRV(weekSess);
       sessions = sessions.concat(weekSess);
     }
     return {
