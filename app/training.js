@@ -1513,7 +1513,9 @@
     }
     return {
       id: 'blk_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-      name: opts.name || (weeks + '-week ' + ((opts.goal || 'hypertrophy') === 'strength' ? 'strength' : 'growth') + ' block'),
+      // An imported plan keeps the name its author gave it; anything built here gets named for what
+      // it is rather than "4-week growth block", which every generated block used to be called.
+      name: opts.name || blockName(template, opts),
       goal: opts.goal || 'hypertrophy',
       weeks: weeks, shape: shape, daysPerWeek: opts.daysPerWeek || template.length,
       startISO: opts.startISO || null,
@@ -1654,6 +1656,38 @@
     if (!raw) return focus;
     if (!GENERIC_DAY.test(raw)) return raw;
     return raw + ' - ' + focus;
+  }
+
+  // ---- naming a block -------------------------------------------------------------------------
+  // "4-week growth block" is what every generated block was called, so a person with three of them
+  // had three identically-named blocks and no way to tell which was which. Everything needed to name
+  // one properly is already known at the moment it is built: what shape the week is, how many days it
+  // asks for, and what it was told to bring up. It is still only a default, sitting in an editable
+  // box on the next screen, so the job is to be recognisable rather than clever.
+  var SPLIT_LABEL = { full: 'Full body', ppl: 'Push pull legs', upper_lower: 'Upper/lower' };
+  function emphasisLabel(emphasis) {
+    var got = [];
+    (emphasis || []).forEach(function (m) { var r = REGION[m]; if (r && got.indexOf(r) === -1) got.push(r); });
+    if (!got.length) return '';
+    // Named in the order a person says them, and never more than two: a name listing four body parts
+    // has stopped being a name.
+    var names = REGION_ORDER.filter(function (r) { return got.indexOf(r) !== -1; })
+      .map(function (r) { return REGION_LABEL[r]; }).slice(0, 2);
+    return names.length === 2 ? names[0] + ' and ' + names[1] : names[0];
+  }
+  function blockName(template, opts) {
+    opts = opts || {};
+    var days = (template || []).length;
+    var head = SPLIT_LABEL[splitKind(template, opts.custom)] || (days ? 'Split' : 'Block');
+    var parts = [head];
+    if (days) parts.push(days + (days === 1 ? ' day' : ' days'));
+    // What you asked it to bring up is the thing that tells two otherwise identical blocks apart, so
+    // it beats the goal to the name. Where nothing was emphasised, a strength block says so, because
+    // growth is the assumption everywhere else in the app.
+    var em = emphasisLabel(opts.emphasis);
+    if (em) parts.push(em + ' up');
+    else if (opts.goal === 'strength') parts.push('for strength');
+    return parts.join(', ');
   }
 
   // ---- did we match the right piece of kit? -----------------------------------------------------
@@ -2305,7 +2339,7 @@
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
     templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
-    rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName,
+    rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,

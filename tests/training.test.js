@@ -1536,3 +1536,39 @@ test('a session with nothing but compounds is softened rather than gutted', () =
 test('an empty session cannot be trimmed', () => {
   assert.equal(T.readinessAdjust({ exercises: [] }, 20).action, 'none');
 });
+
+// ---- naming a block ------------------------------------------------------------------------------
+// Every generated block used to be called "4-week growth block", so three of them were three
+// identically-named blocks. Everything needed to tell them apart is known when they are built.
+
+test('a generated block is named for its shape, its days and what it brings up', () => {
+  const targets = T.defaultTargets();
+  const name = o => T.generateBlock(Object.assign({ weeks: 4, targets }, o)).name;
+  assert.equal(name({ daysPerWeek: 4, goal: 'hypertrophy' }), 'Upper/lower, 4 days');
+  assert.equal(name({ daysPerWeek: 6, goal: 'hypertrophy' }), 'Push pull legs, 6 days');
+  assert.equal(name({ daysPerWeek: 3, goal: 'hypertrophy' }), 'Full body, 3 days');
+  assert.equal(name({ daysPerWeek: 4, goal: 'strength' }), 'Upper/lower, 4 days, for strength');
+  assert.equal(name({ daysPerWeek: 4, goal: 'hypertrophy', emphasis: ['sd', 'fd'] }), 'Upper/lower, 4 days, shoulders up');
+});
+
+test('two blocks that differ only in emphasis get different names', () => {
+  // The whole point: the thing that tells them apart has to reach the name.
+  const targets = T.defaultTargets();
+  const a = T.generateBlock({ weeks: 4, targets, daysPerWeek: 4, goal: 'hypertrophy', emphasis: ['ch'] });
+  const b = T.generateBlock({ weeks: 4, targets, daysPerWeek: 4, goal: 'hypertrophy', emphasis: ['qu', 'ha'] });
+  assert.notEqual(a.name, b.name);
+});
+
+test('a name never lists more than two body parts', () => {
+  // A name reciting four body parts has stopped being a name.
+  const targets = T.defaultTargets();
+  const n = T.generateBlock({ weeks: 4, targets, daysPerWeek: 4, goal: 'hypertrophy', emphasis: ['ch', 'bi', 'tr', 'qu', 'ca'] }).name;
+  assert.ok(n.split(' and ').length <= 2, n);
+  assert.ok(n.length < 46, `too long to sit on a card: "${n}"`);
+});
+
+test('an imported plan keeps the name its author gave it', () => {
+  const { template } = T.importTemplate({ days: [{ name: 'Day 1', exercises: [{ name: 'Bench Press', sets: 3 }] }] });
+  const b = T.blockFromTemplate(template, { weeks: 4, targets: T.defaultTargets(), name: "Cam Kissel's Program" });
+  assert.equal(b.name, "Cam Kissel's Program");
+});

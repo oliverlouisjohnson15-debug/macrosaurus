@@ -395,7 +395,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               by mistake. That used to be reachable from nowhere at all. */}
           <button onClick={() => go('blocks')} className="w-full flex items-start justify-between gap-2 text-left mb-4">
             <span className="min-w-0">
-              <span className="block text-[15px] font-bold leading-tight truncate">{block.name}</span>
+              <span className="block text-[15px] font-bold leading-tight" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{block.name}</span>
               <span className="block text-[11px] tnum mt-1" style={{ color: doneThisWeek === thisWeek.length ? 'var(--good)' : 'var(--muted)' }}>
                 {doneThisWeek} of {thisWeek.length} done this week
               </span>
@@ -2273,7 +2273,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           <Card key={block.id} className="p-4 mb-3">
             <div className="flex items-start justify-between gap-2">
               <button onClick={() => onOpen(block.id)} className="min-w-0 flex-1 text-left">
-                <span className="block text-[13.5px] font-semibold truncate">{block.name}</span>
+                <span className="block text-[13.5px] font-semibold" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{block.name}</span>
                 <span className="block text-[11px] mt-1" style={{ color: running ? 'var(--accent-ink)' : 'var(--muted)' }}>
                   {statusOf(block)}
                 </span>
