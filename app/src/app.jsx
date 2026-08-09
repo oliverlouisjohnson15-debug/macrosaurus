@@ -559,6 +559,30 @@ async function buddyHatchLine(name) {
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 120, messages: [{ role: 'user', content: rules + '\n\nYour first words:' }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
+// What the buddy knows about the Train tab, shaped for a prompt. Training.trainingSummary does the
+// derivation; this trims it to the fields a sentence would actually use and drops the whole block
+// for somebody who has never lifted, because a row of nulls invites a model to comment on training
+// that has not happened. Shared by the deeper dive and the chat so the two can never disagree.
+function trainingSnapshot(db) {
+  const s = Training.trainingSummary((db || {}).training, Store.todayISO());
+  if (!s.everTrained) return null;
+  const out = {
+    trainedToday: s.trainedToday,
+    lastSession: s.lastSessionName,
+    daysSinceLastSession: s.daysSinceSession,
+    sessionsLast7: s.sessionsLast7,
+    sessionsLast28: s.sessionsLast28,
+  };
+  if (s.block) {
+    out.block = {
+      name: s.block.name, week: s.block.week, ofWeeks: s.block.weeks,
+      sessionsDoneThisWeek: s.block.doneThisWeek, sessionsPlannedThisWeek: s.block.sessionsThisWeek,
+      nextSession: s.block.nextSession, deloadWeek: s.block.deloadWeek, finished: s.block.finished,
+    };
+  }
+  if ((s.stalledLifts || []).length) out.liftsNotMoving = s.stalledLifts;
+  return out;
+}
 // Premium AI "deeper dive": a personalised coaching paragraph that ties today's sleep, steps, readiness
 // and logging into one focus. Premium-gated by the proxy (like every aiRequest); guardrailed so it can
 // only ever advise around the figures we hand it. Returns text or throws.
@@ -581,8 +605,13 @@ async function buddyDeepDive(db) {
     weighDay: db.profile.weighCadence === 'single' && db.profile.weighDay != null ? DOW_FULL[db.profile.weighDay] : null,
     weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null),
   };
+  // Training belongs in the morning read as much as sleep does: whether today is a session day, and
+  // whether last night's sleep can carry it, is the single most useful thing the two facts make
+  // together. Omitted entirely for somebody who does not lift, so the read stays about their day.
+  const tr = trainingSnapshot(db);
+  if (tr) payload.training = tr;
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
-  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
+  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness, training and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. If a "training" block is present, treat it as real: a session logged today, a session still to do, or a stretch away from the gym is worth a sentence, and poor sleep against a hard session is worth naming. If it is absent they do not use the training side of the app, so do not mention lifting at all. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
   const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, messages: [{ role: 'user', content: rules + '\n\nToday (JSON):\n' + JSON.stringify(payload) + '\n\nYour deeper dive:' }] });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
@@ -604,7 +633,12 @@ function buddyChatSnapshot(db) {
   const p = db.profile || {};
   const span = weightSpan(db);
   const proj = goalProjection(db);
-  return {
+  // The system prompt below has always told the buddy to answer questions about training. Until this
+  // went in, the snapshot carried none, so the one honest answer to "how did my squat go this block"
+  // was the one the buddy could not give. Absent (not null) for somebody who does not lift, so the
+  // "say so plainly" rule still fires rather than the model filling a blank.
+  const tr = trainingSnapshot(db);
+  return Object.assign(tr ? { training: tr } : {}, {
     readiness: isFinite(rf) ? Math.round(rf) : null,
     sleepHours: night ? +(night.rec.min / 60).toFixed(1) : null,
     stepsToday: +((db.steps || {})[today]) || 0,
@@ -621,7 +655,7 @@ function buddyChatSnapshot(db) {
     weighCadence: p.weighCadence || 'daily',
     weighDay: p.weighCadence === 'single' && p.weighDay != null ? DOW_FULL[p.weighDay] : null,
     weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null),
-  };
+  });
 }
 async function buddyChatReply(db, history) {
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
@@ -629,6 +663,7 @@ async function buddyChatReply(db, history) {
   const system = 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. '
     + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". '
     + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. '
+    + 'The snapshot carries a "training" block when they lift: their current block and week, what is done and still to do this week, how long since their last session, and any lift that has stopped moving. Use it for training questions rather than guessing, and if that block is absent tell them the training side is in the Train tab rather than inventing a session. Never prescribe a weight, a set count or a rep count of your own; the Train tab writes the programme and you talk about it. '
     + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. '
     + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. '
     + 'No emojis, no headings, no bullet points, no markdown, no em dashes.'
@@ -4385,6 +4420,27 @@ function buddyCoach(db, today, streak) {
   if (logged.length && proteinTgt > 0 && proteinGap >= 20 && hour >= 14 && !snoozed('coach_protein', 12)) {
     return { text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.', cta: 'See ideas', action: 'cook', key: 'coach_protein' };
   }
+  // Training. The buddy used to be silent about the one tab where somebody is physically working
+  // hardest. Game.trainingAsk decides whether there is anything worth saying (most days there is
+  // not, which is the point); the wording is here, same as every other line on this ladder.
+  const ta = Game.trainingAsk(Training.trainingSummary(db.training, today), hour);
+  if (ta && !snoozed('coach_train_' + ta.kind, 20)) {
+    const tk = 'coach_train_' + ta.kind;
+    if (ta.kind === 'week_done')
+      return { text: 'That is week ' + ta.week + ' of ' + ta.weeks + ' done, every session of it. Weeks like that are the ones the block is actually made of.', cta: null, action: null };
+    if (ta.kind === 'trained_today')
+      return { text: ta.sessionsLast7 >= 3
+        ? 'Session logged, and that is ' + ta.sessionsLast7 + ' this week. Get some protein in while you are still warm.'
+        : 'Session logged. Feed me and I will put it to good use, protein first while you are still warm.', cta: 'Log it', action: 'log', key: tk };
+    if (ta.kind === 'block_finished')
+      return { text: '"' + ta.name + '" is finished, all of it. Come and see what actually moved before you build the next one.', cta: 'See how it went', action: 'train', key: tk };
+    if (ta.kind === 'lapsed')
+      return { text: 'It has been ' + ta.days + ' days since a session. No lecture, life happens. Whenever you are ready, the block is where you left it.', cta: 'Open Train', action: 'train', key: tk };
+    if (ta.kind === 'session_due')
+      return { text: ta.session + ' is the next one up, and it has been ' + ta.days + ' days. ' + ta.done + ' of ' + ta.of + ' done this week.', cta: 'Open it', action: 'train', key: tk };
+    if (ta.kind === 'stalled')
+      return { text: ta.lift + ' has not moved in a month. That is usually the movement asking to be swapped, not you needing to try harder.', cta: 'Open Train', action: 'train', key: tk };
+  }
   // Late-day steps push: if there's a wearable goal and you're within striking distance in the evening,
   // send the buddy out to rally you. No CTA (you can't walk in-app), just encouragement.
   const stepGoal = stepGoalFor(db);
@@ -7301,6 +7357,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         : a === 'cook' ? () => { snoozeKey(btn.key); setView('recipes'); }
         : a === 'cook_fridge' ? () => { snoozeKey(btn.key); onOpenFridge(); }
         : a === 'progress' ? () => { snoozeKey(btn.key); setView('goals'); }
+        : a === 'train' ? () => { snoozeKey(btn.key); setView('train'); }
         : (a === 'fight' || a === 'shop') ? () => { snoozeKey(btn.key); onOpenPlay(); }
         : a === 'instagram' ? () => { snoozeKey(btn.key); try { window.open('https://instagram.com/macrosaurus.app', '_blank'); } catch (_) {} }
         : a === 'feedback' ? () => { snoozeKey(btn.key); try { window.MFEEDBACK && window.MFEEDBACK(); } catch (_) {} }

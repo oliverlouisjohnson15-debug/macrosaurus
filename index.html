@@ -3596,6 +3596,49 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return (streak || 0) >= 2 && !activeToday && h >= (eveningHour || 18);
   }
 
+  // ---- Training: what the buddy is entitled to say about lifting ----
+  // Same division of labour as every line above: this decides WHETHER to speak and WHICH thing to
+  // say, and app.jsx writes the words. Fed by Training.trainingSummary, so the buddy can never
+  // contradict the Train tab.
+  //
+  // The bar for speaking is set deliberately high. Somebody running a block already has a tab that
+  // tells them what is next, and a companion repeating it every morning is exactly the "streak
+  // anxiety" failure the gamification research warns about (see TRAINING_UI_REVIEW). So the buddy
+  // speaks when something CHANGED - a session went in, a week closed, a block finished - or when
+  // enough time has passed that saying nothing would be the odder choice. On a day where training
+  // is simply ticking along, it stays quiet and lets the food lines have the slot.
+  var TRAIN_LAPSE_DAYS = 10;   // long enough that it reads as concern rather than nagging
+  var TRAIN_DUE_DAYS = 2;      // a rest day is a rest day; two of them is worth a gentle word
+  function trainingAsk(summary, hour) {
+    var s = summary;
+    if (!s || !s.everTrained) return null;           // never lifted: Train is not the buddy's business yet
+    var h = (hour == null) ? 12 : hour;
+    var b = s.block;
+    // 1. It happened today. The warmest thing available and the only one tied to an event, so it
+    //    outranks everything, and it carries no CTA because the work is already done.
+    if (s.trainedToday) {
+      var weekDone = !!(b && b.sessionsThisWeek > 0 && b.doneThisWeek >= b.sessionsThisWeek);
+      return { kind: weekDone ? 'week_done' : 'trained_today', sessionsLast7: s.sessionsLast7,
+        week: b ? b.week : null, weeks: b ? b.weeks : null };
+    }
+    // 2. A finished block is an unclaimed payoff sitting in the app, not a nudge to do more.
+    if (b && b.finished) return { kind: 'block_finished', name: b.name };
+    // 3. Gone quiet. No number of missed sessions, no percentage: just how long it has been.
+    if (s.daysSinceSession != null && s.daysSinceSession >= TRAIN_LAPSE_DAYS) {
+      return { kind: 'lapsed', days: s.daysSinceSession };
+    }
+    // 4. A session is waiting and a couple of days have passed. Evening only: telling somebody at
+    //    8am what they should do after work is guessing at a day that has not happened yet.
+    if (b && b.nextSession && !b.deloadWeek && h >= 16
+      && s.daysSinceSession != null && s.daysSinceSession >= TRAIN_DUE_DAYS) {
+      return { kind: 'session_due', session: b.nextSession, days: s.daysSinceSession,
+        done: b.doneThisWeek, of: b.sessionsThisWeek };
+    }
+    // 5. A lift that has not moved in a month. Genuinely useful, rare, and the fix lives in the app.
+    if (b && (s.stalledLifts || []).length) return { kind: 'stalled', lift: s.stalledLifts[0] };
+    return null;
+  }
+
   // ---- Weigh-in cadence: WHEN the buddy should ask for a weight ----
   // Weighing is the one thing the plan cannot be tuned without, and the honest reading is the one
   // taken first thing, before food or drink. So the buddy asks in the morning rather than leaving
@@ -3730,6 +3773,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     buddyEvoStage: buddyEvoStage,
     dayNightAffinity: dayNightAffinity,
     buddyCraving: buddyCraving,
+    trainingAsk: trainingAsk,
+    TRAIN_LAPSE_DAYS: TRAIN_LAPSE_DAYS,
+    TRAIN_DUE_DAYS: TRAIN_DUE_DAYS,
     FIGHT_TYPES: FIGHT_TYPES,
     TYPE_MACRO: TYPE_MACRO,
     typeForBiome: typeForBiome,
@@ -6965,6 +7011,84 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     };
   }
 
+  // ---- what the buddy knows about your training ------------------------------------------------
+  // The buddy has always run entirely on food: quality days, macros and the scale. It knew nothing
+  // whatsoever about lifting, which made a nonsense of a chat prompt that promises to answer
+  // questions about training, and left the one tab where somebody is physically working hardest as
+  // the one tab their companion had nothing to say about.
+  //
+  // This is the single shape every buddy-side surface reads from: the chat snapshot, the Today coach
+  // line, the session sign-off and the push nudge. One derivation means the buddy can never say
+  // something the Train tab disagrees with, which is the whole reason it is here and not four
+  // separate reads spread across app.jsx.
+  //
+  // Deliberately SMALL. It is sent to a model on every chat turn, so every field has to earn the
+  // tokens: a number the buddy would actually say out loud in a sentence, and nothing else.
+  function trainingSummary(training, todayISO, opts) {
+    opts = opts || {};
+    var t = training || {};
+    var custom = t.custom;
+    var logs = (t.logs || []).filter(function (l) { return l && l.dateISO; })
+      .sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : a.dateISO > b.dateISO ? 1 : 0; });
+    var since = function (iso) { return iso ? Math.round((Date.parse(todayISO + 'T00:00:00Z') - Date.parse(iso + 'T00:00:00Z')) / 86400000) : null; };
+    var last = logs.length ? logs[logs.length - 1] : null;
+    var daysSince = last ? since(last.dateISO) : null;
+    var within = function (n) { return logs.filter(function (l) { var d = since(l.dateISO); return d != null && d >= 0 && d < n; }); };
+    var last7 = within(7), last28 = within(28);
+
+    // The block the person is actually running, chosen exactly as the Train tab chooses it: the most
+    // recently started live block that has not run past its final week. Anything else and the buddy
+    // would talk about a block the tab is not showing.
+    var live = (t.blocks || []).filter(function (b) { return b && !b.archived && b.startISO; });
+    var running = live.filter(function (b) { return !blockProgress(b, todayISO).done; });
+    var pool = running.length ? running : live;
+    var block = pool.slice().sort(function (a, b) { return a.startISO < b.startISO ? 1 : -1; })[0] || null;
+    var blockOut = null;
+    if (block) {
+      var prog = blockProgress(block, todayISO);
+      var wk = weekSessions(block, prog.week);
+      var loggedIds = {};
+      logs.forEach(function (l) { if (l.sessionId) loggedIds[l.sessionId] = l; });
+      var doneThisWeek = wk.filter(function (s) { return loggedIds[s.id]; }).length;
+      var next = wk.filter(function (s) { return !loggedIds[s.id]; })[0] || null;
+      blockOut = {
+        name: block.name || 'your block', week: prog.week, weeks: block.weeks || 4,
+        finished: !!prog.done,
+        sessionsThisWeek: wk.length, doneThisWeek: doneThisWeek,
+        nextSession: next ? next.name : null,
+        deloadWeek: wk.some(function (s) { return !!s.deload; }),
+      };
+    }
+
+    // Stalls the buddy is entitled to mention: only movements trained at least three times in the
+    // last month, because detectStall on two sessions is reading tea leaves, and only the worst
+    // couple, because a companion that lists six stalled lifts is a spreadsheet.
+    var recentIds = uniq(last28.reduce(function (a, l) {
+      return a.concat((l.sets || []).filter(function (s) { return s.done && (!s.type || s.type === 'work'); })
+        .map(function (s) { return s.exerciseId; }));
+    }, []));
+    var stalled = [];
+    recentIds.forEach(function (id) {
+      var h = exerciseHistory(last28, id);
+      if (h.length < 3) return;
+      if (detectStall(h)) { var ex = byId(id, custom); stalled.push(ex ? ex.name : id); }
+    });
+
+    return {
+      everTrained: logs.length > 0,
+      sessions: logs.length,
+      trainedToday: !!last && last.dateISO === todayISO,
+      lastSessionISO: last ? last.dateISO : null,
+      lastSessionName: last ? (last.name || 'a session') : null,
+      daysSinceSession: daysSince,
+      sessionsLast7: last7.length,
+      sessionsLast28: last28.length,
+      tonnageLast7Kg: round(last7.reduce(function (a, l) { return a + tonnage(l); }, 0), 0),
+      block: blockOut,
+      stalledLifts: stalled.slice(0, 2),
+    };
+  }
+
   // Landmarks tuned by what actually happened: if a muscle was trained above MAV and its lifts
   // still went up, that user tolerates more; if lifts stalled at high volume, they tolerate less.
   // Deliberately timid, +/- 2 sets per block, because over-reacting to one block is noise-chasing.
@@ -7365,7 +7489,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
-    blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock,
+    blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
     tuneTargets: tuneTargets, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
     trainingDaysOfWeek: trainingDaysOfWeek, round: round,
   };
@@ -7446,14 +7570,31 @@ const WORKOUT_PROMPT = 'You are a strength coach reading someone else\'s trainin
 // classifies as workout_import, so keep it in step with featureOf() in ai-proxy/index.ts.
 const WORKOUT_TWEAK_PROMPT = 'You are a strength coach correcting a training plan someone has just imported into their app, using notes they have written about what is wrong with it. You are given the plan as JSON exactly as the app read it, and what the person wants changed. Apply ONLY what they asked for, and return the WHOLE plan in the same shape, including every day and every movement you did not touch. Rules: keep movement names, day names, sets, reps, RIR and tempo EXACTLY as given unless the person asked for that specific thing to change. Never change a number they did not mention. If they name a movement to swap, replace it and carry its sets, reps and tempo over unless they said otherwise. If they ask for something to come out, remove it. If they ask for something to go in, add it with sets and reps that match the rest of that day rather than numbers of your own invention. If they say a movement was read wrongly and tell you what it really was, use their name for it. If they tell you which weekday a session is, put it in the day name. Never add advice, warm-ups, cardio, extra sets or extra movements that they did not ask for, and never "improve" a plan that someone else wrote: it is not yours to make better. If something they asked for is ambiguous or you cannot do it, leave that part alone and say so plainly. Respond ONLY with compact JSON: {"name": string, "note": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null}]}]}. dayOfWeek = 0 for Monday through 6 for Sunday when the person says which day it is, otherwise null. note = one short sentence saying what you changed, or what you could not do and why. British English in all text fields, keeping the JSON keys exactly as specified.';
 
+/* THE TRAINING VOICE IS THE BUDDY'S VOICE
+ * ----------------------------------------------------------------------------
+ * These two used to open "in the app's voice" and sign nothing, so the Train tab read as though a
+ * second, anonymous coach had been hired for the gym while the dinosaur handled the food. One app,
+ * two narrators. The buddy is the only voice Macrosaurus has, and the end of a four-week block is
+ * the single warmest thing that happens in the product: it belongs to the companion who watched it
+ * happen, not to a stranger.
+ *
+ * {{NAME}} is replaced with the buddy's name at the call site (train.jsx), so the prompt file stays
+ * strings and nothing else.
+ *
+ * The opening clause of each is a SIGNATURE: featureOf() in supabase/functions/ai-proxy/index.ts
+ * classifies and meters these by substring, so 'You are a strength coach looking at a volume audit'
+ * and 'You are a strength coach writing up a finished' must survive verbatim in any rewrite. The
+ * persona goes after them, never in front.
+ * ==========================================================================*/
+
 // Volume-audit advice. The audit itself is computed in training.js and handed over as finished
 // numbers; the model's only job is to choose between movements we already shortlisted and say why.
 // Signature 'You are a strength coach looking at a volume audit' maps to coverage_advice in ai-proxy.
-const COVERAGE_PROMPT = 'You are a strength coach looking at a volume audit for one training week, in the app\'s voice: warm, plain, British, no nonsense. You are given the weekly hard sets per muscle, the person\'s own MEV (the floor that grows a muscle), MAV (the productive band) and MRV (the ceiling they can recover from), and a shortlist of movements that would fill each gap. Rules: use ONLY the numbers given, never compute or invent your own. Recommend movements ONLY from the shortlist provided. Name at most three changes, most important first, and say what to take OUT if something needs to come out to make room, because a week has a fixed size. If a muscle is above MRV, say to cut it before you suggest adding anything anywhere. Do not prescribe rehab, do not diagnose pain or injury, and if the person mentions either, tell them to see a qualified professional. 3 to 5 short sentences, no headings, no bullet points, no markdown, no em dashes, no emojis.';
+const COVERAGE_PROMPT = 'You are a strength coach looking at a volume audit for one training week, and you are speaking as {{NAME}}, the pixel dinosaur companion the person is raising in this app. Warm, plain, British, no nonsense. Speak as the dinosaur ("I", "me") and address them as "you". You are not a hired expert delivering a verdict; you are the one who has been watching them train, so say it the way a friend who knows the numbers would. You are given the weekly hard sets per muscle, the person\'s own MEV (the floor that grows a muscle), MAV (the productive band) and MRV (the ceiling they can recover from), and a shortlist of movements that would fill each gap. Rules: use ONLY the numbers given, never compute or invent your own. Recommend movements ONLY from the shortlist provided. Name at most three changes, most important first, and say what to take OUT if something needs to come out to make room, because a week has a fixed size. If a muscle is above MRV, say to cut it before you suggest adding anything anywhere. Do not prescribe rehab, do not diagnose pain or injury, and if the person mentions either, tell them to see a qualified professional. 3 to 5 short sentences, no headings, no bullet points, no markdown, no em dashes, no emojis.';
 
 // End-of-block write-up. Every figure is precomputed by Training.reviewBlock.
 // Signature 'You are a strength coach writing up a finished' maps to block_review in ai-proxy.
-const BLOCK_REVIEW_PROMPT = 'You are a strength coach writing up a finished four-week training block for the person who ran it, in the app\'s voice: warm, honest, British, never gushing. You are given how much of the block they actually completed, how each lift moved, which lifts stalled, and the average weekly sets per muscle they really did. Rules: use ONLY the figures given and never invent a number. Lead with the single most important thing that happened. If adherence was under about 70 percent, say plainly that the plan was too much for the life they are living and that the next one should be smaller, rather than reading anything into the lifts. If lifts stalled at high volume, say the answer is to cut volume or change the movement, never to add more. If they are eating in a calorie deficit, treat holding a lift as a good outcome rather than a failure. Finish with one specific thing to carry into the next block. 4 to 6 short sentences, no headings, no bullet points, no markdown, no em dashes, no emojis.';
+const BLOCK_REVIEW_PROMPT = 'You are a strength coach writing up a finished four-week training block for the person who ran it, and you are speaking as {{NAME}}, the pixel dinosaur companion they are raising in this app. Warm, honest, British, never gushing. Speak as the dinosaur ("I", "me") and address them as "you". You were there for the whole block, so write like somebody who watched it rather than somebody handed a spreadsheet, but never claim to have seen anything the figures do not show. You are given how much of the block they actually completed, how each lift moved, which lifts stalled, and the average weekly sets per muscle they really did. Rules: use ONLY the figures given and never invent a number. Lead with the single most important thing that happened. If adherence was under about 70 percent, say plainly that the plan was too much for the life they are living and that the next one should be smaller, rather than reading anything into the lifts, and say it kindly, because a block somebody could not run is a planning problem and not a character flaw. If lifts stalled at high volume, say the answer is to cut volume or change the movement, never to add more. If they are eating in a calorie deficit, treat holding a lift as a good outcome rather than a failure. Finish with one specific thing to carry into the next block. 4 to 6 short sentences, no headings, no bullet points, no markdown, no em dashes, no emojis.';
 const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You are given whatever could be read from a shared cooking video: its title, description or caption, what the creator says out loud (subtitles or an audio transcript), and/or still frames from the video itself. Reconstruct the recipe as accurately as you can, filling sensible gaps from standard cooking knowledge but never inventing ingredients the text does not support. Do NOT estimate nutrition (a nutrition database does that from the ingredient lines). Respond ONLY with compact JSON: {"title": string, "servings": number, "source_platform": string, "ingredients": [string], "steps": [string], "stated_macros_per_serving": {"kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number} | null, "macros_confidence": "low"|"medium"|"high", "tags": {"meal": string, "cuisine": string, "main": string, "effort": string, "diet": [string]}}. ingredients = an array of plain ingredient LINES, each written like a shopping/recipe list item: the AMOUNT then the FOOD, ready to look up in a nutrition database, for example "150 g cottage cheese", "1 tbsp olive oil", "2 cloves garlic", "1 wholemeal pitta", "200 g chicken breast". Prefer metric weights (g/ml) and give your best weight when the source is vague, but keep natural counts for whole items (eggs, cloves, slices, pittas). Every line MUST include both an amount and the food, and MUST NOT include brand names or nutrition. servings = how many portions the recipe makes (estimate from the quantities if unstated; never 0). steps = the method as short ordered instructions. stated_macros_per_serving = ONLY the per-serving nutrition the source EXPLICITLY states (e.g. the caption says "480 kcal, 42g protein per serving"); if it does not clearly state per-serving macros, return null, do not estimate. macros_confidence reflects how complete the source text was. tags = classify the dish for browsing, using ONLY these values: meal is one of breakfast, lunch, dinner, snack, dessert, drink (or "" if genuinely unclear); cuisine is one of british, italian, indian, chinese, thai, mexican, japanese, mediterranean, middle-eastern, american, french, korean, vietnamese, greek, spanish, caribbean, or other; main is the primary protein or base ingredient, one of chicken, beef, pork, lamb, fish, seafood, eggs, tofu, beans, veg, cheese, or other; effort is quick (roughly 15 minutes or under, few steps), standard, or project (long or involved); diet is an array of any that clearly apply from high-protein, vegetarian, vegan, pescatarian, gluten-free, dairy-free (empty array if none clearly apply). Write all text in British English spelling (fibre, yoghurt, flavour), keeping the JSON keys exactly as specified.';
 
 /* ---- app/src/app.jsx ---- */
@@ -8550,6 +8691,35 @@ async function buddyHatchLine(name) {
   });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }
+// What the buddy knows about the Train tab, shaped for a prompt. Training.trainingSummary does the
+// derivation; this trims it to the fields a sentence would actually use and drops the whole block
+// for somebody who has never lifted, because a row of nulls invites a model to comment on training
+// that has not happened. Shared by the deeper dive and the chat so the two can never disagree.
+function trainingSnapshot(db) {
+  const s = Training.trainingSummary((db || {}).training, Store.todayISO());
+  if (!s.everTrained) return null;
+  const out = {
+    trainedToday: s.trainedToday,
+    lastSession: s.lastSessionName,
+    daysSinceLastSession: s.daysSinceSession,
+    sessionsLast7: s.sessionsLast7,
+    sessionsLast28: s.sessionsLast28
+  };
+  if (s.block) {
+    out.block = {
+      name: s.block.name,
+      week: s.block.week,
+      ofWeeks: s.block.weeks,
+      sessionsDoneThisWeek: s.block.doneThisWeek,
+      sessionsPlannedThisWeek: s.block.sessionsThisWeek,
+      nextSession: s.block.nextSession,
+      deloadWeek: s.block.deloadWeek,
+      finished: s.block.finished
+    };
+  }
+  if ((s.stalledLifts || []).length) out.liftsNotMoving = s.stalledLifts;
+  return out;
+}
 // Premium AI "deeper dive": a personalised coaching paragraph that ties today's sleep, steps, readiness
 // and logging into one focus. Premium-gated by the proxy (like every aiRequest); guardrailed so it can
 // only ever advise around the figures we hand it. Returns text or throws.
@@ -8574,8 +8744,13 @@ async function buddyDeepDive(db) {
     weighDay: db.profile.weighCadence === 'single' && db.profile.weighDay != null ? DOW_FULL[db.profile.weighDay] : null,
     weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null)
   };
+  // Training belongs in the morning read as much as sleep does: whether today is a session day, and
+  // whether last night's sleep can carry it, is the single most useful thing the two facts make
+  // together. Omitted entirely for somebody who does not lift, so the read stays about their day.
+  const tr = trainingSnapshot(db);
+  if (tr) payload.training = tr;
   const who = db.buddy && db.buddy.name || 'Your buddy';
-  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
+  const rules = 'You are ' + who + ', a warm, honest UK body-composition coach speaking to the person raising you. From this snapshot of their day (JSON), give a personalised deeper dive in 3 to 4 short sentences: connect their sleep, steps, readiness, training and logging into ONE clear focus for today, then one specific, evidence-aligned thing to do next. Refer only to the figures given, never invent numbers. If a "training" block is present, treat it as real: a session logged today, a session still to do, or a stretch away from the gym is worth a sentence, and poor sleep against a hard session is worth naming. If it is absent they do not use the training side of the app, so do not mention lifting at all. No medical, supplement or crash-diet advice, no emojis, no headings, no bullet points, no markdown, no em dashes. Speak as the dinosaur, address them as "you".';
   const j = await aiRequest({
     model: AI_MODEL_FAST,
     max_tokens: 300,
@@ -8604,7 +8779,14 @@ function buddyChatSnapshot(db) {
   const p = db.profile || {};
   const span = weightSpan(db);
   const proj = goalProjection(db);
-  return {
+  // The system prompt below has always told the buddy to answer questions about training. Until this
+  // went in, the snapshot carried none, so the one honest answer to "how did my squat go this block"
+  // was the one the buddy could not give. Absent (not null) for somebody who does not lift, so the
+  // "say so plainly" rule still fires rather than the model filling a blank.
+  const tr = trainingSnapshot(db);
+  return Object.assign(tr ? {
+    training: tr
+  } : {}, {
     readiness: isFinite(rf) ? Math.round(rf) : null,
     sleepHours: night ? +(night.rec.min / 60).toFixed(1) : null,
     stepsToday: +(db.steps || {})[today] || 0,
@@ -8625,12 +8807,12 @@ function buddyChatSnapshot(db) {
     weighCadence: p.weighCadence || 'daily',
     weighDay: p.weighCadence === 'single' && p.weighDay != null ? DOW_FULL[p.weighDay] : null,
     weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null)
-  };
+  });
 }
 async function buddyChatReply(db, history) {
   const who = db.buddy && db.buddy.name || 'Your buddy';
   const snapshot = buddyChatSnapshot(db);
-  const system = 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. ' + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". ' + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. ' + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. ' + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. ' + 'No emojis, no headings, no bullet points, no markdown, no em dashes.' + '\n\nTheir day right now (JSON):\n' + JSON.stringify(snapshot);
+  const system = 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. ' + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". ' + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. ' + 'The snapshot carries a "training" block when they lift: their current block and week, what is done and still to do this week, how long since their last session, and any lift that has stopped moving. Use it for training questions rather than guessing, and if that block is absent tell them the training side is in the Train tab rather than inventing a session. Never prescribe a weight, a set count or a rep count of your own; the Train tab writes the programme and you talk about it. ' + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. ' + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. ' + 'No emojis, no headings, no bullet points, no markdown, no em dashes.' + '\n\nTheir day right now (JSON):\n' + JSON.stringify(snapshot);
   // The API needs a clean user-first, strictly alternating thread. Trimming to a trailing window can
   // land on an assistant turn (an odd-length thread cut by an even window), so drop any leading
   // assistant turns after the slice rather than assuming the window lines up.
@@ -16422,6 +16604,48 @@ function buddyCoach(db, today, streak) {
       key: 'coach_protein'
     };
   }
+  // Training. The buddy used to be silent about the one tab where somebody is physically working
+  // hardest. Game.trainingAsk decides whether there is anything worth saying (most days there is
+  // not, which is the point); the wording is here, same as every other line on this ladder.
+  const ta = Game.trainingAsk(Training.trainingSummary(db.training, today), hour);
+  if (ta && !snoozed('coach_train_' + ta.kind, 20)) {
+    const tk = 'coach_train_' + ta.kind;
+    if (ta.kind === 'week_done') return {
+      text: 'That is week ' + ta.week + ' of ' + ta.weeks + ' done, every session of it. Weeks like that are the ones the block is actually made of.',
+      cta: null,
+      action: null
+    };
+    if (ta.kind === 'trained_today') return {
+      text: ta.sessionsLast7 >= 3 ? 'Session logged, and that is ' + ta.sessionsLast7 + ' this week. Get some protein in while you are still warm.' : 'Session logged. Feed me and I will put it to good use, protein first while you are still warm.',
+      cta: 'Log it',
+      action: 'log',
+      key: tk
+    };
+    if (ta.kind === 'block_finished') return {
+      text: '"' + ta.name + '" is finished, all of it. Come and see what actually moved before you build the next one.',
+      cta: 'See how it went',
+      action: 'train',
+      key: tk
+    };
+    if (ta.kind === 'lapsed') return {
+      text: 'It has been ' + ta.days + ' days since a session. No lecture, life happens. Whenever you are ready, the block is where you left it.',
+      cta: 'Open Train',
+      action: 'train',
+      key: tk
+    };
+    if (ta.kind === 'session_due') return {
+      text: ta.session + ' is the next one up, and it has been ' + ta.days + ' days. ' + ta.done + ' of ' + ta.of + ' done this week.',
+      cta: 'Open it',
+      action: 'train',
+      key: tk
+    };
+    if (ta.kind === 'stalled') return {
+      text: ta.lift + ' has not moved in a month. That is usually the movement asking to be swapped, not you needing to try harder.',
+      cta: 'Open Train',
+      action: 'train',
+      key: tk
+    };
+  }
   // Late-day steps push: if there's a wearable goal and you're within striking distance in the evening,
   // send the buddy out to rally you. No CTA (you can't walk in-app), just encouragement.
   const stepGoal = stepGoalFor(db);
@@ -22948,6 +23172,9 @@ function Dashboard({
       } : a === 'progress' ? () => {
         snoozeKey(btn.key);
         setView('goals');
+      } : a === 'train' ? () => {
+        snoozeKey(btn.key);
+        setView('train');
       } : a === 'fight' || a === 'shop' ? () => {
         snoozeKey(btn.key);
         onOpenPlay();
@@ -40794,6 +41021,41 @@ function MuscleTags({
   }, prim.map(m => Training.MUSCLE_LABEL[m]).join(', '), sec.length ? ' · ' + sec.map(m => Training.MUSCLE_LABEL[m]).join(', ') : '');
 }
 
+// The buddy, saying something in Train. Everywhere else in the app the companion has a face when it
+// speaks: the habitat on Today, the bubbles at check-in, the hatch. Train printed its prose under a
+// label reading "Your coach", which is not a character this app has anywhere else, and the effect
+// was two narrators in one product. This is the one way anything speaks over here now.
+// `tone` colours the name only, for the rare line that is a warning rather than a chat.
+function BuddySays({
+  db,
+  children,
+  tone,
+  className
+}) {
+  return /*#__PURE__*/React.createElement(Card, {
+    className: 'p-4 mb-4' + (className ? ' ' + className : '')
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-1 shrink-0",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      lineHeight: 0
+    }
+  }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+    buddy: db && db.buddy || {},
+    px: 1.6
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase truncate",
+    style: {
+      color: tone || 'var(--accent-ink)'
+    }
+  }, buddyName(db))), /*#__PURE__*/React.createElement("div", {
+    className: "text-[13px] leading-relaxed whitespace-pre-wrap"
+  }, children));
+}
+
 // ---- the tab ----------------------------------------------------------------------------------
 function TrainTab({
   db,
@@ -44360,7 +44622,7 @@ function CoverageScreen({
       setAdvice(res);
     } catch (e) {
       setAdvice({
-        error: 'Could not reach the coach just now. The numbers above are still right.'
+        error: 'Could not reach ' + buddyName(db) + ' just now. The numbers above are still right.'
       });
     }
     setBusy(false);
@@ -44464,16 +44726,10 @@ function CoverageScreen({
       background: '#fff',
       color: '#111'
     }
-  }, busy ? 'Thinking...' : isPremium ? 'Ask what to change' : 'Ask what to change · Premium')), advice && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-2",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "Your coach"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] leading-relaxed whitespace-pre-wrap"
-  }, advice.error || advice.text)), block && lens === 'planned' && /*#__PURE__*/React.createElement(Card, {
+  }, busy ? 'Thinking...' : isPremium ? 'Ask what to change' : 'Ask what to change · Premium')), advice && /*#__PURE__*/React.createElement(BuddySays, {
+    db: db,
+    tone: advice.error ? 'var(--warn)' : null
+  }, advice.error || advice.text), block && lens === 'planned' && /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
@@ -44536,7 +44792,7 @@ function BlockReviewScreen({
     try {
       setProse(await blockReviewProse(db, review));
     } catch (e) {
-      setProse('Could not reach the coach just now. The numbers below are still yours.');
+      setProse('Could not reach ' + buddyName(db) + ' just now. The numbers below are still yours.');
     }
     setBusy(false);
   }
@@ -44698,23 +44954,16 @@ function BlockReviewScreen({
     }
   }, "Average sets a week, from the sessions you logged rather than the ones we wrote down."), /*#__PURE__*/React.createElement(CoverageBars, {
     coverage: review.coverage
-  })), prose && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[9px] uppercase mb-2",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "Your coach"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] leading-relaxed whitespace-pre-wrap"
-  }, prose)), !prose && /*#__PURE__*/React.createElement("button", {
+  })), prose && /*#__PURE__*/React.createElement(BuddySays, {
+    db: db
+  }, prose), !prose && /*#__PURE__*/React.createElement("button", {
     onClick: writeUp,
     disabled: busy,
     className: "pixel-box w-full py-3 text-[12px] mb-4",
     style: {
       background: 'var(--surface2)'
     }
-  }, busy ? 'Writing...' : isPremium ? 'Read it back to me' : 'Read it back to me · Premium'), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("div", {
+  }, busy ? 'Writing...' : isPremium ? 'Read it back to me · ' + buddyName(db) : 'Read it back to me · Premium'), /*#__PURE__*/React.createElement(StickyAction, null, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: buildNext,
@@ -45522,6 +45771,17 @@ function draftAsPlan(draft, custom) {
   };
 }
 
+// Both training write-ups are spoken by the buddy, not by an anonymous coach, so the prompt gets the
+// name of the individual the person is actually raising. {{NAME}} lives in prompts.jsx purely so that
+// file can stay strings and nothing else.
+function buddyVoice(prompt, db) {
+  return String(prompt).replace('{{NAME}}', buddyName(db));
+}
+// The buddy's name, or a stand-in that still reads as a companion rather than a job title. Shared by
+// every Train surface that speaks, so one unnamed buddy cannot be "Your buddy" here and blank there.
+function buddyName(db) {
+  return (db && db.buddy && db.buddy.name || '').trim() || 'your buddy';
+}
 // Advice on a gap. The audit is handed over finished, and the shortlist of movements is computed by
 // Training.suggestFor, so the model is choosing and explaining rather than prescribing.
 async function coverageAdvice(db, cov, block, week) {
@@ -45548,7 +45808,7 @@ async function coverageAdvice(db, cov, block, week) {
       }).map(e => e.name)
     })),
     currentPlan: currentIds.map(id => (Training.byId(id, t.custom) || {}).name).filter(Boolean),
-    // Whether they are cutting changes what "good" looks like, and the coach should know.
+    // Whether they are cutting changes what "good" looks like, and the buddy should know.
     eatingPhase: db.profile && db.profile.goal ? db.profile.goal : null
   };
   const j = await aiRequest({
@@ -45556,7 +45816,7 @@ async function coverageAdvice(db, cov, block, week) {
     max_tokens: 400,
     messages: [{
       role: 'user',
-      content: COVERAGE_PROMPT + '\n\nThe audit (JSON):\n' + JSON.stringify(payload) + '\n\nYour advice:'
+      content: buddyVoice(COVERAGE_PROMPT, db) + '\n\nThe audit (JSON):\n' + JSON.stringify(payload) + '\n\nYour advice:'
     }]
   });
   return {
@@ -45587,7 +45847,7 @@ async function blockReviewProse(db, review) {
     max_tokens: 450,
     messages: [{
       role: 'user',
-      content: BLOCK_REVIEW_PROMPT + '\n\nThe block (JSON):\n' + JSON.stringify(payload) + '\n\nYour write-up:'
+      content: buddyVoice(BLOCK_REVIEW_PROMPT, db) + '\n\nThe block (JSON):\n' + JSON.stringify(payload) + '\n\nYour write-up:'
     }]
   });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();

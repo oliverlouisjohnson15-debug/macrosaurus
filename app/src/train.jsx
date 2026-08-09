@@ -202,6 +202,25 @@ function MuscleTags({ exerciseId, custom }) {
   );
 }
 
+// The buddy, saying something in Train. Everywhere else in the app the companion has a face when it
+// speaks: the habitat on Today, the bubbles at check-in, the hatch. Train printed its prose under a
+// label reading "Your coach", which is not a character this app has anywhere else, and the effect
+// was two narrators in one product. This is the one way anything speaks over here now.
+// `tone` colours the name only, for the rare line that is a warning rather than a chat.
+function BuddySays({ db, children, tone, className }) {
+  return (
+    <Card className={'p-4 mb-4' + (className ? ' ' + className : '')}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}>
+          <BuddyAvatar buddy={(db && db.buddy) || {}} px={1.6} />
+        </div>
+        <div className="pf text-[9px] uppercase truncate" style={{ color: tone || 'var(--accent-ink)' }}>{buddyName(db)}</div>
+      </div>
+      <div className="text-[13px] leading-relaxed whitespace-pre-wrap">{children}</div>
+    </Card>
+  );
+}
+
 // ---- the tab ----------------------------------------------------------------------------------
 function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, importUrl, onConsumeImport }) {
   const [screen, setScreen] = useState({ name: 'home' });
@@ -2447,7 +2466,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
       const res = await coverageAdvice(db, cov, block, week);
       setAdvice(res);
     } catch (e) {
-      setAdvice({ error: 'Could not reach the coach just now. The numbers above are still right.' });
+      setAdvice({ error: 'Could not reach ' + buddyName(db) + ' just now. The numbers above are still right.' });
     }
     setBusy(false);
   }
@@ -2505,12 +2524,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
         </Card>
       )}
 
-      {advice && (
-        <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Your coach</div>
-          <div className="text-[13px] leading-relaxed whitespace-pre-wrap">{advice.error || advice.text}</div>
-        </Card>
-      )}
+      {advice && <BuddySays db={db} tone={advice.error ? 'var(--warn)' : null}>{advice.error || advice.text}</BuddySays>}
 
       {block && lens === 'planned' && (
         <Card className="p-4 mb-4">
@@ -2549,7 +2563,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
     if (!isPremium) { onUpgrade && onUpgrade('blockreview'); return; }
     setBusy(true);
     try { setProse(await blockReviewProse(db, review)); }
-    catch (e) { setProse('Could not reach the coach just now. The numbers below are still yours.'); }
+    catch (e) { setProse('Could not reach ' + buddyName(db) + ' just now. The numbers below are still yours.'); }
     setBusy(false);
   }
   function buildNext() {
@@ -2657,15 +2671,10 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
         <CoverageBars coverage={review.coverage} />
       </Card>
 
-      {prose && (
-        <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Your coach</div>
-          <div className="text-[13px] leading-relaxed whitespace-pre-wrap">{prose}</div>
-        </Card>
-      )}
+      {prose && <BuddySays db={db}>{prose}</BuddySays>}
       {!prose && (
         <button onClick={writeUp} disabled={busy} className="pixel-box w-full py-3 text-[12px] mb-4" style={{ background: 'var(--surface2)' }}>
-          {busy ? 'Writing...' : isPremium ? 'Read it back to me' : 'Read it back to me · Premium'}
+          {busy ? 'Writing...' : isPremium ? 'Read it back to me · ' + buddyName(db) : 'Read it back to me · Premium'}
         </button>
       )}
 
@@ -3171,6 +3180,17 @@ function draftAsPlan(draft, custom) {
   };
 }
 
+// Both training write-ups are spoken by the buddy, not by an anonymous coach, so the prompt gets the
+// name of the individual the person is actually raising. {{NAME}} lives in prompts.jsx purely so that
+// file can stay strings and nothing else.
+function buddyVoice(prompt, db) {
+  return String(prompt).replace('{{NAME}}', buddyName(db));
+}
+// The buddy's name, or a stand-in that still reads as a companion rather than a job title. Shared by
+// every Train surface that speaks, so one unnamed buddy cannot be "Your buddy" here and blank there.
+function buddyName(db) {
+  return ((db && db.buddy && db.buddy.name) || '').trim() || 'your buddy';
+}
 // Advice on a gap. The audit is handed over finished, and the shortlist of movements is computed by
 // Training.suggestFor, so the model is choosing and explaining rather than prescribing.
 async function coverageAdvice(db, cov, block, week) {
@@ -3184,12 +3204,12 @@ async function coverageAdvice(db, cov, block, week) {
       options: Training.suggestFor(g.muscle, { equipment: t.prefs.equipment, dislikes: t.prefs.dislikes, custom: t.custom, currentExerciseIds: currentIds, limit: 4 }).map(e => e.name),
     })),
     currentPlan: currentIds.map(id => (Training.byId(id, t.custom) || {}).name).filter(Boolean),
-    // Whether they are cutting changes what "good" looks like, and the coach should know.
+    // Whether they are cutting changes what "good" looks like, and the buddy should know.
     eatingPhase: db.profile && db.profile.goal ? db.profile.goal : null,
   };
   const j = await aiRequest({
     model: AI_MODEL_FAST, max_tokens: 400,
-    messages: [{ role: 'user', content: COVERAGE_PROMPT + '\n\nThe audit (JSON):\n' + JSON.stringify(payload) + '\n\nYour advice:' }],
+    messages: [{ role: 'user', content: buddyVoice(COVERAGE_PROMPT, db) + '\n\nThe audit (JSON):\n' + JSON.stringify(payload) + '\n\nYour advice:' }],
   });
   return { text: ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim() };
 }
@@ -3206,7 +3226,7 @@ async function blockReviewProse(db, review) {
   };
   const j = await aiRequest({
     model: AI_MODEL_FAST, max_tokens: 450,
-    messages: [{ role: 'user', content: BLOCK_REVIEW_PROMPT + '\n\nThe block (JSON):\n' + JSON.stringify(payload) + '\n\nYour write-up:' }],
+    messages: [{ role: 'user', content: buddyVoice(BLOCK_REVIEW_PROMPT, db) + '\n\nThe block (JSON):\n' + JSON.stringify(payload) + '\n\nYour write-up:' }],
   });
   return ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
 }

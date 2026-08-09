@@ -1750,3 +1750,85 @@ test('each repair can be taken on its own', () => {
   assert.equal(b.name, '4-week growth block', 'nothing else was touched');
   assert.equal(b.shape, 'build3-deload1', 'nothing else was touched');
 });
+
+// ---- trainingSummary: the one shape the buddy reads training from -------------------------------
+// Everything buddy-side (the chat snapshot, the Today coach line, the session sign-off) reads this,
+// so a wrong field here is the buddy contradicting the Train tab out loud.
+
+function sessionLog(dateISO, over) {
+  return Object.assign({
+    id: 'log_' + dateISO, dateISO, name: 'Upper A', blockId: null, sessionId: null,
+    sets: [
+      { exerciseId: 'bb_bench', weightKg: 80, reps: 5, done: true, type: 'work' },
+      { exerciseId: 'bb_bench', weightKg: 80, reps: 5, done: true, type: 'work' },
+    ],
+  }, over || {});
+}
+
+test('trainingSummary reads an empty training slice without inventing anything', () => {
+  const s = T.trainingSummary({}, '2026-08-09');
+  assert.equal(s.everTrained, false);
+  assert.equal(s.sessions, 0);
+  assert.equal(s.trainedToday, false);
+  assert.equal(s.daysSinceSession, null, 'never trained is not "0 days ago"');
+  assert.equal(s.block, null);
+  assert.deepEqual(s.stalledLifts, []);
+});
+
+test('trainingSummary counts the recent windows and dates the last session', () => {
+  const s = T.trainingSummary({
+    logs: [sessionLog('2026-08-09'), sessionLog('2026-08-06'), sessionLog('2026-07-20'), sessionLog('2026-05-01')],
+  }, '2026-08-09');
+  assert.equal(s.trainedToday, true);
+  assert.equal(s.daysSinceSession, 0);
+  assert.equal(s.sessionsLast7, 2, 'today and three days ago');
+  assert.equal(s.sessionsLast28, 3, 'the May session is outside the window');
+  assert.equal(s.sessions, 4, 'but it still counts toward the lifetime total');
+  assert.equal(s.tonnageLast7Kg, 1600, '2 sessions x 2 sets x 80kg x 5 reps');
+});
+
+test('trainingSummary dates a lapse from the last session, not from today', () => {
+  const s = T.trainingSummary({ logs: [sessionLog('2026-08-01')] }, '2026-08-09');
+  assert.equal(s.trainedToday, false);
+  assert.equal(s.daysSinceSession, 8);
+  assert.equal(s.sessionsLast7, 0);
+});
+
+test('trainingSummary reports the running block the way the Train tab picks it', () => {
+  const b = T.generateBlock({ daysPerWeek: 3, weeks: 4, targets: T.defaultTargets() });
+  b.id = 'blk1'; b.name = 'Summer growth'; b.startISO = '2026-08-03';   // week 1 starts the Monday
+  const wk1 = T.weekSessions(b, 1);
+  const s = T.trainingSummary({
+    blocks: [b],
+    logs: [sessionLog('2026-08-04', { blockId: 'blk1', sessionId: wk1[0].id })],
+  }, '2026-08-05');
+  assert.equal(s.block.name, 'Summer growth');
+  assert.equal(s.block.week, 1);
+  assert.equal(s.block.weeks, 4);
+  assert.equal(s.block.sessionsThisWeek, wk1.length);
+  assert.equal(s.block.doneThisWeek, 1);
+  assert.equal(s.block.nextSession, wk1[1].name, 'the first session this week without a log');
+  assert.equal(s.block.finished, false);
+});
+
+test('trainingSummary ignores archived and unstarted blocks', () => {
+  const a = T.generateBlock({ daysPerWeek: 3, weeks: 4, targets: T.defaultTargets() });
+  a.id = 'old'; a.startISO = '2026-06-01'; a.archived = true;
+  const b = T.generateBlock({ daysPerWeek: 3, weeks: 4, targets: T.defaultTargets() });
+  b.id = 'draft'; b.startISO = null;
+  assert.equal(T.trainingSummary({ blocks: [a, b], logs: [] }, '2026-08-09').block, null);
+});
+
+test('trainingSummary only names a stall backed by three sessions in the last month', () => {
+  const flat = (d) => sessionLog(d, { sets: [{ exerciseId: 'bb_bench', weightKg: 80, reps: 5, done: true, type: 'work' }] });
+  const two = T.trainingSummary({ logs: [flat('2026-08-01'), flat('2026-08-05')] }, '2026-08-09');
+  assert.deepEqual(two.stalledLifts, [], 'two flat sessions is not yet a stall');
+  const three = T.trainingSummary({ logs: [flat('2026-08-01'), flat('2026-08-05'), flat('2026-08-08')] }, '2026-08-09');
+  assert.deepEqual(three.stalledLifts, ['Barbell bench press']);
+});
+
+test('trainingSummary does not call a rising lift stalled', () => {
+  const up = (d, kg) => sessionLog(d, { sets: [{ exerciseId: 'bb_bench', weightKg: kg, reps: 5, done: true, type: 'work' }] });
+  const s = T.trainingSummary({ logs: [up('2026-08-01', 80), up('2026-08-05', 85), up('2026-08-08', 90)] }, '2026-08-09');
+  assert.deepEqual(s.stalledLifts, []);
+});

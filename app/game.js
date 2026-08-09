@@ -590,6 +590,49 @@
     return (streak || 0) >= 2 && !activeToday && h >= (eveningHour || 18);
   }
 
+  // ---- Training: what the buddy is entitled to say about lifting ----
+  // Same division of labour as every line above: this decides WHETHER to speak and WHICH thing to
+  // say, and app.jsx writes the words. Fed by Training.trainingSummary, so the buddy can never
+  // contradict the Train tab.
+  //
+  // The bar for speaking is set deliberately high. Somebody running a block already has a tab that
+  // tells them what is next, and a companion repeating it every morning is exactly the "streak
+  // anxiety" failure the gamification research warns about (see TRAINING_UI_REVIEW). So the buddy
+  // speaks when something CHANGED - a session went in, a week closed, a block finished - or when
+  // enough time has passed that saying nothing would be the odder choice. On a day where training
+  // is simply ticking along, it stays quiet and lets the food lines have the slot.
+  var TRAIN_LAPSE_DAYS = 10;   // long enough that it reads as concern rather than nagging
+  var TRAIN_DUE_DAYS = 2;      // a rest day is a rest day; two of them is worth a gentle word
+  function trainingAsk(summary, hour) {
+    var s = summary;
+    if (!s || !s.everTrained) return null;           // never lifted: Train is not the buddy's business yet
+    var h = (hour == null) ? 12 : hour;
+    var b = s.block;
+    // 1. It happened today. The warmest thing available and the only one tied to an event, so it
+    //    outranks everything, and it carries no CTA because the work is already done.
+    if (s.trainedToday) {
+      var weekDone = !!(b && b.sessionsThisWeek > 0 && b.doneThisWeek >= b.sessionsThisWeek);
+      return { kind: weekDone ? 'week_done' : 'trained_today', sessionsLast7: s.sessionsLast7,
+        week: b ? b.week : null, weeks: b ? b.weeks : null };
+    }
+    // 2. A finished block is an unclaimed payoff sitting in the app, not a nudge to do more.
+    if (b && b.finished) return { kind: 'block_finished', name: b.name };
+    // 3. Gone quiet. No number of missed sessions, no percentage: just how long it has been.
+    if (s.daysSinceSession != null && s.daysSinceSession >= TRAIN_LAPSE_DAYS) {
+      return { kind: 'lapsed', days: s.daysSinceSession };
+    }
+    // 4. A session is waiting and a couple of days have passed. Evening only: telling somebody at
+    //    8am what they should do after work is guessing at a day that has not happened yet.
+    if (b && b.nextSession && !b.deloadWeek && h >= 16
+      && s.daysSinceSession != null && s.daysSinceSession >= TRAIN_DUE_DAYS) {
+      return { kind: 'session_due', session: b.nextSession, days: s.daysSinceSession,
+        done: b.doneThisWeek, of: b.sessionsThisWeek };
+    }
+    // 5. A lift that has not moved in a month. Genuinely useful, rare, and the fix lives in the app.
+    if (b && (s.stalledLifts || []).length) return { kind: 'stalled', lift: s.stalledLifts[0] };
+    return null;
+  }
+
   // ---- Weigh-in cadence: WHEN the buddy should ask for a weight ----
   // Weighing is the one thing the plan cannot be tuned without, and the honest reading is the one
   // taken first thing, before food or drink. So the buddy asks in the morning rather than leaving
@@ -724,6 +767,9 @@
     buddyEvoStage: buddyEvoStage,
     dayNightAffinity: dayNightAffinity,
     buddyCraving: buddyCraving,
+    trainingAsk: trainingAsk,
+    TRAIN_LAPSE_DAYS: TRAIN_LAPSE_DAYS,
+    TRAIN_DUE_DAYS: TRAIN_DUE_DAYS,
     FIGHT_TYPES: FIGHT_TYPES,
     TYPE_MACRO: TYPE_MACRO,
     typeForBiome: typeForBiome,

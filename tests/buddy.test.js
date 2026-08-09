@@ -170,3 +170,67 @@ test('buddyMood: under / just-started stays peckish, and asleep + no-log take pr
   assert.strictEqual(Game.buddyMood(false, false, { kcalOver: true }), 'sluggish'); // nothing logged wins
   assert.strictEqual(Game.buddyMood(true, true, { kcalOver: true }), 'asleep');     // napping wins
 });
+
+// ---- trainingAsk: whether the buddy is entitled to say anything about lifting ----
+// The bar is high on purpose. A companion that comments on training every single day is the
+// streak-anxiety failure mode, so most days this returns null and the food lines keep the slot.
+
+const trainedBlock = (over) => Object.assign({
+  name: 'Summer growth', week: 2, weeks: 4, finished: false,
+  sessionsThisWeek: 4, doneThisWeek: 1, nextSession: 'Upper B', deloadWeek: false,
+}, over || {});
+const trained = (over) => Object.assign({
+  everTrained: true, sessions: 12, trainedToday: false, lastSessionISO: '2026-08-07',
+  lastSessionName: 'Upper A', daysSinceSession: 2, sessionsLast7: 2, sessionsLast28: 8,
+  tonnageLast7Kg: 9000, block: trainedBlock(), stalledLifts: [],
+}, over || {});
+
+test('trainingAsk says nothing to somebody who has never trained', () => {
+  assert.strictEqual(Game.trainingAsk({ everTrained: false }, 18), null);
+  assert.strictEqual(Game.trainingAsk(null, 18), null);
+});
+
+test('trainingAsk leads with today\'s session, whatever else is true', () => {
+  const a = Game.trainingAsk(trained({ trainedToday: true, daysSinceSession: 0, stalledLifts: ['Barbell bench press'] }), 19);
+  assert.equal(a.kind, 'trained_today');
+  assert.equal(a.week, 2);
+});
+
+test('trainingAsk marks the week closed when today finished it', () => {
+  const a = Game.trainingAsk(trained({ trainedToday: true, block: trainedBlock({ doneThisWeek: 4 }) }), 19);
+  assert.equal(a.kind, 'week_done');
+});
+
+test('trainingAsk offers the finished block before it nudges anything', () => {
+  const a = Game.trainingAsk(trained({ daysSinceSession: 12, block: trainedBlock({ finished: true }) }), 19);
+  assert.equal(a.kind, 'block_finished');
+  assert.equal(a.name, 'Summer growth');
+});
+
+test('trainingAsk only calls it a lapse after ten days', () => {
+  assert.equal(Game.trainingAsk(trained({ daysSinceSession: 9, block: null }), 12), null);
+  assert.equal(Game.trainingAsk(trained({ daysSinceSession: 10, block: null }), 12).kind, 'lapsed');
+});
+
+test('trainingAsk holds the session nudge until the evening', () => {
+  assert.equal(Game.trainingAsk(trained(), 9), null, 'at 9am the day has not happened yet');
+  const a = Game.trainingAsk(trained(), 17);
+  assert.equal(a.kind, 'session_due');
+  assert.equal(a.session, 'Upper B');
+});
+
+test('trainingAsk does not nudge a session after a single rest day', () => {
+  assert.equal(Game.trainingAsk(trained({ daysSinceSession: 1 }), 19), null);
+});
+
+test('trainingAsk leaves a deload week alone', () => {
+  // Backing off is the point of the week. Chasing sessions through it teaches the wrong lesson.
+  assert.equal(Game.trainingAsk(trained({ block: trainedBlock({ deloadWeek: true }) }), 19), null);
+});
+
+test('trainingAsk mentions a stall only when nothing more pressing is due', () => {
+  const s = trained({ daysSinceSession: 1, stalledLifts: ['Barbell bench press', 'Barbell row'] });
+  const a = Game.trainingAsk(s, 19);
+  assert.equal(a.kind, 'stalled');
+  assert.equal(a.lift, 'Barbell bench press', 'the worst one, not a list');
+});

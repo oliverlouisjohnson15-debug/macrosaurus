@@ -2126,6 +2126,84 @@
     };
   }
 
+  // ---- what the buddy knows about your training ------------------------------------------------
+  // The buddy has always run entirely on food: quality days, macros and the scale. It knew nothing
+  // whatsoever about lifting, which made a nonsense of a chat prompt that promises to answer
+  // questions about training, and left the one tab where somebody is physically working hardest as
+  // the one tab their companion had nothing to say about.
+  //
+  // This is the single shape every buddy-side surface reads from: the chat snapshot, the Today coach
+  // line, the session sign-off and the push nudge. One derivation means the buddy can never say
+  // something the Train tab disagrees with, which is the whole reason it is here and not four
+  // separate reads spread across app.jsx.
+  //
+  // Deliberately SMALL. It is sent to a model on every chat turn, so every field has to earn the
+  // tokens: a number the buddy would actually say out loud in a sentence, and nothing else.
+  function trainingSummary(training, todayISO, opts) {
+    opts = opts || {};
+    var t = training || {};
+    var custom = t.custom;
+    var logs = (t.logs || []).filter(function (l) { return l && l.dateISO; })
+      .sort(function (a, b) { return a.dateISO < b.dateISO ? -1 : a.dateISO > b.dateISO ? 1 : 0; });
+    var since = function (iso) { return iso ? Math.round((Date.parse(todayISO + 'T00:00:00Z') - Date.parse(iso + 'T00:00:00Z')) / 86400000) : null; };
+    var last = logs.length ? logs[logs.length - 1] : null;
+    var daysSince = last ? since(last.dateISO) : null;
+    var within = function (n) { return logs.filter(function (l) { var d = since(l.dateISO); return d != null && d >= 0 && d < n; }); };
+    var last7 = within(7), last28 = within(28);
+
+    // The block the person is actually running, chosen exactly as the Train tab chooses it: the most
+    // recently started live block that has not run past its final week. Anything else and the buddy
+    // would talk about a block the tab is not showing.
+    var live = (t.blocks || []).filter(function (b) { return b && !b.archived && b.startISO; });
+    var running = live.filter(function (b) { return !blockProgress(b, todayISO).done; });
+    var pool = running.length ? running : live;
+    var block = pool.slice().sort(function (a, b) { return a.startISO < b.startISO ? 1 : -1; })[0] || null;
+    var blockOut = null;
+    if (block) {
+      var prog = blockProgress(block, todayISO);
+      var wk = weekSessions(block, prog.week);
+      var loggedIds = {};
+      logs.forEach(function (l) { if (l.sessionId) loggedIds[l.sessionId] = l; });
+      var doneThisWeek = wk.filter(function (s) { return loggedIds[s.id]; }).length;
+      var next = wk.filter(function (s) { return !loggedIds[s.id]; })[0] || null;
+      blockOut = {
+        name: block.name || 'your block', week: prog.week, weeks: block.weeks || 4,
+        finished: !!prog.done,
+        sessionsThisWeek: wk.length, doneThisWeek: doneThisWeek,
+        nextSession: next ? next.name : null,
+        deloadWeek: wk.some(function (s) { return !!s.deload; }),
+      };
+    }
+
+    // Stalls the buddy is entitled to mention: only movements trained at least three times in the
+    // last month, because detectStall on two sessions is reading tea leaves, and only the worst
+    // couple, because a companion that lists six stalled lifts is a spreadsheet.
+    var recentIds = uniq(last28.reduce(function (a, l) {
+      return a.concat((l.sets || []).filter(function (s) { return s.done && (!s.type || s.type === 'work'); })
+        .map(function (s) { return s.exerciseId; }));
+    }, []));
+    var stalled = [];
+    recentIds.forEach(function (id) {
+      var h = exerciseHistory(last28, id);
+      if (h.length < 3) return;
+      if (detectStall(h)) { var ex = byId(id, custom); stalled.push(ex ? ex.name : id); }
+    });
+
+    return {
+      everTrained: logs.length > 0,
+      sessions: logs.length,
+      trainedToday: !!last && last.dateISO === todayISO,
+      lastSessionISO: last ? last.dateISO : null,
+      lastSessionName: last ? (last.name || 'a session') : null,
+      daysSinceSession: daysSince,
+      sessionsLast7: last7.length,
+      sessionsLast28: last28.length,
+      tonnageLast7Kg: round(last7.reduce(function (a, l) { return a + tonnage(l); }, 0), 0),
+      block: blockOut,
+      stalledLifts: stalled.slice(0, 2),
+    };
+  }
+
   // Landmarks tuned by what actually happened: if a muscle was trained above MAV and its lifts
   // still went up, that user tolerates more; if lifts stalled at high volume, they tolerate less.
   // Deliberately timid, +/- 2 sets per block, because over-reacting to one block is noise-chasing.
@@ -2526,7 +2604,7 @@
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
-    blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock,
+    blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
     tuneTargets: tuneTargets, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
     trainingDaysOfWeek: trainingDaysOfWeek, round: round,
   };
