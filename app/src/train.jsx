@@ -490,9 +490,23 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
       {!block && (
         <Card className="p-4 mb-4">
-          <div className="text-[15px] font-bold mb-1">No block running</div>
-          <div className="text-[12px] mb-4.5 leading-snug" style={{ color: 'var(--muted)' }}>
-            A block is four weeks that build on each other, then back off, so you start the next one fresher than you finished this one.
+          {/* Every other empty state in this app has the buddy in it. This one used to be a heading
+              and a definition, which is the tone of a manual rather than of the companion who is
+              about to run the next four weeks with you. */}
+          <div className="flex items-start gap-3 mb-4">
+            <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}>
+              <BuddyAvatar buddy={db.buddy || {}} px={2} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[15px] font-bold mb-1 leading-tight">
+                {t.logs.length ? 'Nothing running right now' : 'Let us get you a block'}
+              </div>
+              <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>
+                {t.logs.length
+                  ? 'Four weeks that build on each other and then back off, so you start the next one fresher than you finished this one. I will keep the numbers.'
+                  : 'Four weeks that build on each other and then back off. Bring one you already follow, take one off the shelf, or I will write you one.'}
+              </div>
+            </div>
           </div>
           <button onClick={() => go('wizard')} className="pixel-btn w-full h-14 font-bold mb-2" style={{ background: '#fff', color: '#111' }}>
             Build a 4-week block
@@ -705,6 +719,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const [noteOpen, setNoteOpen] = useState(null);  // exercise id whose note field is open
   const [setMenu, setSetMenu] = useState(null);    // "ii:si" of the set whose type/remove menu is open
   const [justDone, setJustDone] = useState(null);  // "ii:si" of the tick that was just pressed, for the pop
+  const [lift, setLift] = useState({ ii: -1, n: 0 });  // bumped on each tick, so the buddy does the rep too
   const [pr, setPr] = useState(null);              // a record just set, showing its celebration
   const [plateFor, setPlateFor] = useState(null);  // "exerciseIndex:setIndex" whose plate breakdown is open
   const [rest, setRest] = useState(null);
@@ -831,6 +846,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     try { if (navigator.vibrate) navigator.vibrate(15); } catch (_) {}
     setJustDone(ii + ':' + si);
     setTimeout(() => setJustDone(j => (j === ii + ':' + si ? null : j)), 220);
+    // Your buddy does the rep with you. Driven off the tick rather than a timer, so it moves when
+    // you move and stays still when you do.
+    setLift(l => ({ ii, n: (l.ii === ii ? l.n : 0) + 1 }));
 
     // A record, worked out against everything before today plus the earlier sets of this session.
     // Warm-ups and drop sets are excluded, so a light back-off set cannot claim one.
@@ -954,7 +972,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     const priorTon = prior.map(l => Training.tonnage(l)).filter(v => v > 0);
     // Where today sits in the block's week, counting this session, so "that is the week done" can
     // only fire on the session that actually closed it.
-    let weekDone = 0, weekOf = 0, blockFinished = false;
+    let weekDone = 0, weekOf = 0, finishedBlock = false;
     if (block) {
       const prog = Training.blockProgress(block, today);
       const wk = Training.weekSessions(block, prog.week);
@@ -963,7 +981,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       if (sessionId) loggedIds[sessionId] = 1;
       weekOf = wk.length;
       weekDone = wk.filter(s => loggedIds[s.id]).length;
-      blockFinished = (block.sessions || []).every(s => loggedIds[s.id]);
+      finishedBlock = (block.sessions || []).every(s => loggedIds[s.id]);
     }
     return {
       sets: doneSets,
@@ -972,7 +990,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)),
       tonnageKg: Training.tonnage(log),
       avgTonnageKg: priorTon.length >= 3 ? priorTon.slice(-8).reduce((a, b) => a + b, 0) / Math.min(8, priorTon.length) : 0,
-      weekDone, weekOf, blockFinished,
+      weekDone, weekOf, blockFinished: finishedBlock,
       sessionsLast7: prior.filter(l => daysBetween(l.dateISO, today) < 7).length + 1,
       name: (session && session.name) || 'Session',
       blockName: block ? block.name : null,
@@ -1133,13 +1151,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                 <div className="h-px mb-4" style={{ background: 'var(--accent)', opacity: 0.35 }} />
 
                 {/* ---- the prescription, with the jargon explained where it appears ---- */}
-                {tgt && (
-                  <div className="flex items-center gap-3 mb-4">
-                    <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />
-                    {tgt.tempo && <MetaBit label={tgt.tempo} onHelp={() => setHelp('tempo:' + tgt.tempo)} hideHelp={t.prefs.hideHelp} />}
-                    <MetaBit label={fmtRest(tgt.restSec || 120)} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />
-                  </div>
-                )}
+                <div className="flex items-center gap-3 mb-4">
+                  {tgt && <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />}
+                  {tgt && tgt.tempo && <MetaBit label={tgt.tempo} onHelp={() => setHelp('tempo:' + tgt.tempo)} hideHelp={t.prefs.hideHelp} />}
+                  {tgt && <MetaBit label={fmtRest(tgt.restSec || 120)} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />}
+                  <span className="ml-auto shrink-0">
+                    <LiftBuddy db={db} pattern={ex && ex.pattern} trigger={lift.ii === ii ? lift.n : 0} />
+                  </span>
+                </div>
 
                 {it.note && <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{it.note}</div>}
 
@@ -1386,6 +1405,46 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
 // The "?" earns its place the first few times and becomes wallpaper after that, so it can be turned
 // off for good from inside the explainer it opens. The label stays tappable either way, so the
 // explanation is never actually lost, it just stops shouting.
+/* ---- your buddy trains with you --------------------------------------------------------------
+   The single most on-brand thing available in this module, and it costs no new mechanic and no new
+   art: the buddy stands in the corner of the movement you are working on and does the rep when you
+   tick it. It drops and springs for a squat, lunges for a press, pulls away for a row, using strips
+   the sprite pack already ships.
+
+   Driven off the tick rather than a timer, so it moves when you move and is otherwise perfectly
+   still. That distinction is the whole point: a sprite bouncing away on its own in the middle of a
+   set is decoration and would be the first thing anyone asked us to turn off. This is company.
+
+   Honours prefers-reduced-motion by simply not playing the one-shot, and an unhatched egg does not
+   pretend to lift. */
+const PATTERN_ANIM = {
+  squat: 'jump', hinge: 'jump', lunge: 'kick',
+  horizPress: 'bite', vertPress: 'bite',       // a press is a drive away from the body
+  horizPull: 'avoid', vertPull: 'avoid',       // a pull is a drive back toward it
+  carry: 'move', core: 'dash', isolation: 'bite',
+};
+function LiftBuddy({ db, pattern, trigger }) {
+  const [rep, setRep] = useState(0);
+  useEffect(() => { if (trigger > 0) setRep(trigger); }, [trigger]);
+  const buddy = (db && db.buddy) || {};
+  if (buddy.hatched === false) return null;    // an egg has nothing to lift with
+  const species = buddy.species || 'doux';
+  const move = PATTERN_ANIM[pattern] || 'jump';
+  let palette = buddy.palette || 'female';
+  // Some male colourways ship without these strips. Falling back keeps the buddy on screen rather
+  // than requesting a 404 and leaving a hole where it was standing.
+  if (!spriteHasAnim(palette, species, 'base', move) || !spriteHasAnim(palette, species, 'base', 'idle')) palette = 'female';
+  const playing = rep > 0 && rep === trigger && !prefersReducedMotion();
+  const anim = playing ? move : 'idle';
+  return (
+    <span className="inline-block" style={{ lineHeight: 0, opacity: 0.9 }} aria-hidden="true">
+      <SpriteSheet key={anim + ':' + rep} palette={palette} species={species} group="base" anim={anim}
+        px={1.5} fps={playing ? 9 : BUDDY_IDLE_FPS} loop={!playing}
+        onEnd={playing ? () => setRep(0) : undefined} />
+    </span>
+  );
+}
+
 function MetaBit({ label, onHelp, muted, hideHelp }) {
   if (hideHelp) {
     return (

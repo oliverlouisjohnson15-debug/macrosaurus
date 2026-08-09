@@ -5503,7 +5503,20 @@ const TROPHIES = [
   { id: 'perfect_week', name: 'Perfect Week', desc: 'Seven straight days, every single one logged in full.', earned: (db) => perfectWeek(db) },
   { id: 'bond_grown', name: 'Fully Grown', desc: 'Raised your buddy all the way to its final form.', earned: (db) => (db.buddy && db.buddy.stage || 0) >= (BUDDY_STAGES.length - 1) },
   { id: 'prestige1', name: 'Apex Predator', desc: 'Cleared the whole fight ladder and prestiged.', earned: (db) => ((db.fight && db.fight.prestige) || 0) >= 1 },
+  // Finishing a block is the rarest real thing anybody does in this app: four weeks of turning up,
+  // landing about every fifth week, which is exactly the cadence at which a trophy still means
+  // something. Judged on sessions actually LOGGED against the block, not on the calendar having
+  // rolled past its last week, because a block you did not run is not a block you finished.
+  { id: 'block_done', name: 'Four Weeks Deep', desc: 'Ran a training block from the first session to the last.', earned: (db) => blockFinished(db) },
 ];
+// Whether any block has every one of its sessions logged against it. Cheap enough for the trophy
+// sweep: one pass over the training logs, then a lookup per session.
+function blockFinished(db) {
+  const t = (db && db.training) || {};
+  const logged = {};
+  (t.logs || []).forEach(l => { if (l && l.sessionId) logged[l.sessionId] = 1; });
+  return (t.blocks || []).some(b => (b.sessions || []).length > 0 && b.sessions.every(s => logged[s.id]));
+}
 // Trophy cabinet: trophies won, shiny gallery, streak records and the badge tracks.
 function TrophyCabinet({ db, streak, onBack }) {
   useBackClose(onBack);
