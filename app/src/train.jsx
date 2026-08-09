@@ -250,7 +250,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     const blk = screen.blockId ? t.blocks.filter(b => b.id === screen.blockId)[0] : null;
     const sess = blk ? (blk.sessions || []).filter(s => s.id === screen.sessionId)[0] : null;
     if (!sess) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      block={block} onOpen={previewSession} onStart={startSession} go={go} />);
+      block={block} onOpen={previewSession} go={go} />);
     return page(<SessionPreview db={db} session={sess} block={blk} onBack={() => go('home')}
       onStart={() => startSession(sess, blk)} />);
   }
@@ -339,7 +339,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     return page(<StatSheet db={db} onBack={() => go('home')} />);
   }
   const homeScreen = page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-    block={block} onOpen={previewSession} onStart={startSession} go={go} />);
+    block={block} onOpen={previewSession} go={go} />);
   return (
     <div>
       {homeScreen}
@@ -352,7 +352,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
 }
 
 // ---- home -------------------------------------------------------------------------------------
-function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, onStart, go }) {
+function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen, go }) {
   const t = tdb(db);
   const today = Store.todayISO();
   const units = t.prefs.units;
@@ -439,10 +439,14 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           </div>
 
           {next ? (
-            /* Still a direct start: pressing a button that says Start IS the confirmation. What
-               changed is that browsing the week no longer counts as one. */
-            <button onClick={() => onStart(next.session, block)} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
-              Start {next.session.name.split(' - ')[0]}
+            /* Opens the plan; the Start on that screen begins the session. This button used to start
+               it outright on the grounds that pressing "Start" is itself the confirmation, which is
+               true but beside the point: the thing people do most often on this screen is check what
+               tonight is, and there is now exactly one control in the app that begins a session. A
+               session is not a page you visited, it is a timer and a log, and it should take saying
+               so. The cost is one tap on the way in. */
+            <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+              Open {next.session.name.split(' - ')[0]}
             </button>
           ) : (
             <div className="text-[12.5px] text-center py-3" style={{ color: 'var(--good)' }}>
@@ -909,12 +913,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
 
   function finish() {
     const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done).length, 0);
-    trainUpdate(update, (tr) => {
+    trainUpdate(update, (tr, d) => {
       const i = tr.logs.findIndex(l => l.id === logId);
       if (i >= 0) {
         tr.logs[i].endedAt = new Date().toISOString();
         tr.logs[i].sets = (tr.logs[i].sets || []).filter(s => s.done);
-        if (!tr.logs[i].sets.length) tr.logs.splice(i, 1);
+        // Nothing ticked, so nothing to keep. Tombstoned, not just spliced: the sync unions training
+        // logs by id, so a row merely removed from this copy is handed straight back by the other one
+        // and the session returns looking like one you had started.
+        if (!tr.logs[i].sets.length) { tr.logs.splice(i, 1); tombstone(d, [logId]); }
       }
     });
     showToast && showToast(doneSets ? doneSets + ' sets logged. Good work.' : 'Nothing logged, so nothing saved.');
@@ -1962,7 +1969,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   }
   function remove() {
     if (saved && saved.shared) retractPublicBlock(block.id);
-    trainUpdate(update, (tr) => { tr.blocks = tr.blocks.filter(b => b.id !== block.id); });
+    trainUpdate(update, (tr, d) => { tr.blocks = tr.blocks.filter(b => b.id !== block.id); tombstone(d, [block.id]); });
     showToast && showToast('Block deleted.');
     onBack();
   }
@@ -2230,7 +2237,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
     // Same two steps as the editor's delete: pull the public copy first, so a block that was shared
     // does not outlive the copy you can see.
     if (block.shared) retractPublicBlock(block.id);
-    trainUpdate(update, (tr) => { tr.blocks = tr.blocks.filter(b => b.id !== block.id); });
+    trainUpdate(update, (tr, d) => { tr.blocks = tr.blocks.filter(b => b.id !== block.id); tombstone(d, [block.id]); });
     showToast && showToast('Block deleted.');   // ConfirmDialog closes itself once onConfirm returns
   }
 
@@ -2841,7 +2848,7 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
       )}
 
       {confirm && <ConfirmDialog title="Delete this session?" body="It comes out of your volume and your records too."
-        onConfirm={() => trainUpdate(update, (tr) => { tr.logs = tr.logs.filter(x => x.id !== confirm); })}
+        onConfirm={() => trainUpdate(update, (tr, d) => { tr.logs = tr.logs.filter(x => x.id !== confirm); tombstone(d, [confirm]); })}
         onClose={() => setConfirm(null)} />}
     </div>
   );

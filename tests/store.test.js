@@ -530,3 +530,31 @@ test('mergeStates preserves an explicit "taken off" slot', () => {
   assert.strictEqual(m.buddy.equipped.aura, null);
   assert.ok(m.buddy.cosmetics.indexOf('aura_ember') >= 0); // still owned, just not worn
 });
+
+test('mergeStates: a deleted training session and block stay deleted', () => {
+  // Training logs and blocks are unioned by id so a session logged offline in the gym is never lost
+  // to a laptop holding a higher _rev. The cost of that union is that a plain removal is handed
+  // straight back by the other copy, and a session you deleted returns looking like one you had
+  // started. The tombstone is what separates "this copy has not seen it" from "this was deleted".
+  const stillHas = {
+    _rev: 9000,   // deliberately the NEWER copy: recency must not decide this
+    training: { blocks: [{ id: 'b1' }], logs: [{ id: 'log1', sessionId: 's1' }], custom: [] },
+  };
+  const deletedOn = {
+    _rev: 100,
+    training: { blocks: [], logs: [], custom: [] },
+    deleted: { log1: 1720000000000, b1: 1720000000000 },
+  };
+  const m = Store.mergeStates(stillHas, deletedOn);
+  assert.deepStrictEqual(m.training.logs, [], 'the deleted session came back');
+  assert.deepStrictEqual(m.training.blocks, [], 'the deleted block came back');
+});
+
+test('mergeStates: an untombstoned training session still survives a merge', () => {
+  // The other half of the contract. Without a tombstone the union must keep both copies' work, which
+  // is the whole reason training logs are unioned rather than overwritten.
+  const phone  = { _rev: 100, training: { blocks: [], logs: [{ id: 'gym1' }], custom: [] } };
+  const laptop = { _rev: 9000, training: { blocks: [], logs: [{ id: 'desk1' }], custom: [] } };
+  const m = Store.mergeStates(laptop, phone);
+  assert.deepStrictEqual(m.training.logs.map(l => l.id).sort(), ['desk1', 'gym1']);
+});
