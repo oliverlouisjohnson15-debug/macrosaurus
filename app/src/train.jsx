@@ -424,7 +424,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   style={{ borderTop: i ? '2px solid var(--border)' : 'none' }}>
                   <span className="w-7 h-7 shrink-0 flex items-center justify-center text-[13px] font-bold pixel-box"
                     style={{ background: done ? 'var(--good)' : isNext ? 'var(--surface2)' : 'transparent', color: done ? '#05140a' : 'var(--muted2)', borderWidth: done || isNext ? undefined : 0 }}>
-                    {done ? '✓' : i + 1}
+                    {done ? <Tick /> : i + 1}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13.5px] font-semibold truncate" style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>{session.name}</span>
@@ -1046,7 +1046,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                 </span>
               </span>
               {done
-                ? <span className="shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>✓</span>
+                ? <span className="shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={13} /></span>
                 : <span className="shrink-0 mt-1" style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="15" height="15" /></span>}
             </button>
 
@@ -1154,7 +1154,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                             opacity: s.done ? 1 : 0.85,
                             transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)',
                           }}>
-                          ✓
+                          <Tick size={19} />
                         </button>
                       </div>
                       {setMenu === ii + ':' + si && (
@@ -1764,7 +1764,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       <Card className="p-4 mb-4">
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Show the coach</div>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          Screenshots of sessions you already do, from any app or a coach's message. Add as many as you like and they build into one block.
+          Sessions you already do, from any app or a coach's message. Add as many as you like.
         </div>
         {/* The note sits ABOVE the picker, because on a phone the file chooser takes over the screen
             the moment you tap it and whatever you meant to type never gets typed. */}
@@ -1808,10 +1808,10 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       <Field label="Days a week">
         <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
       </Field>
-      <Field label="How long a session" hint="Used to decide how many movements fit before quality drops.">
+      <Field label="How long a session" hint="Decides how many movements fit.">
         <Seg value={minutes} onChange={setMinutes} options={[{ v: 40, l: '40 min' }, { v: 60, l: '60 min' }, { v: 80, l: '80 min' }, { v: 100, l: '100 min' }]} />
       </Field>
-      <Field label="Where you are" hint="Sets the volume you start at. You can move it any time.">
+      <Field label="Where you are" hint="Sets your starting volume. Movable later.">
         <Seg value={experience} onChange={setExperience} options={[{ v: 'beginner', l: 'Newer' }, { v: 'intermediate', l: 'A while' }, { v: 'advanced', l: 'Years' }]} />
       </Field>
       <Field label="Goal">
@@ -1822,7 +1822,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       </Field>
       {/* A gym, not a checkbox grid. It decides both what is available and what to reach for first,
           which is why it replaced the nine tick boxes that used to live here. */}
-      <Field label="Where you will train it" hint="Pick a saved gym, or add one. This changes which movements the block reaches for, not just which it is allowed.">
+      <Field label="Where you will train it" hint="Changes which movements the block reaches for.">
         <button onClick={() => setGymPick(true)} className="w-full text-left pixel-box p-4 flex items-center justify-between gap-2" style={{ background: 'var(--surface2)' }}>
           <span className="min-w-0">
             <span className="block text-[13px] font-semibold truncate">{gym ? gym.name : 'Choose a gym'}</span>
@@ -1832,7 +1832,17 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </button>
       </Field>
 
-      <Field label="Anything to bring up" hint="Optional. Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it, because a block cannot grow everything hardest at once.">
+      {/* Seventeen chips and a forty-five word justification, for a field whose own label says
+          "Optional". They were nearly half the controls on this screen and the first thing you met
+          before the button that actually builds the block. Folded behind the same inline disclosure
+          the screen already opens with, so the default is calm and nothing is lost: the summary
+          names what you picked, so a closed row still tells you where you stand. */}
+      <Collapsible
+        label={emphasis.length ? 'Bringing up ' + emphasis.map(m => Training.MUSCLE_LABEL[m].toLowerCase()).join(', ') : 'Anything to bring up'}
+        sub={emphasis.length ? 'Change' : 'Optional'} variant="inline" className="mb-5">
+        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+          Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it.
+        </div>
         <div className="flex gap-1.5 flex-wrap">
           {Training.MUSCLES.map(m => (
             <button key={m} onClick={() => setEmphasis(emphasis.indexOf(m) !== -1 ? emphasis.filter(x => x !== m) : emphasis.concat([m]))}
@@ -1842,7 +1852,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             </button>
           ))}
         </div>
-      </Field>
+      </Collapsible>
 
       <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: '#fff', color: '#111' }}>
         {busy ? 'Building...' : 'Build it'}
@@ -1857,7 +1867,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       {gymPick && <GymPicker db={db} update={update} onClose={() => setGymPick(false)}
         onPicked={(g) => { setGym(g); setGymPick(false); }} />}
       <div className="text-[11px] mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
-        You will see the whole four weeks before anything is saved, and you can change every line of it.
+        Nothing is saved until you say so.
       </div>
     </div>
   );
@@ -2034,7 +2044,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                 </span>
               </span>
               {log
-                ? <span className="shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>✓</span>
+                ? <span className="shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={13} /></span>
                 : <span className="shrink-0" style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="15" height="15" /></span>}
             </button>
 
@@ -3221,7 +3231,7 @@ function withImportNote(blocks, note) {
   if (!v) return blocks;
   return blocks.concat([{ type: 'text', text: 'WHAT THE PERSON SAID ABOUT THIS:\n' + v.slice(0, 1200) }]);
 }
-const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say: which day of the week it is, that the weights are in pounds, which part to ignore.';
+const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say.';
 
 // ---- the import screen -------------------------------------------------------------------------
 function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, onDraft, onCollected, initialUrl }) {
@@ -3767,13 +3777,14 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
       {/* Tell it what is wrong, in words. Sits ABOVE the days, because the point of this screen is to
           check what was read before it becomes four weeks, and the fix should be next to the doubt. */}
       <Card className="p-4 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Anything read wrong?</div>
-        <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          Say it how you would say it to a person. It re-reads the plan with your note in hand and changes only what you mention.
-        </div>
+        {/* Through Field, like the two other places this journey asks for a note. Rolling its own
+            heading put this one label at section level and in accent ink while its siblings read as
+            field labels, for the same question asked of the same person minutes apart. */}
+        <Field label="Anything read wrong?" hint="It re-reads the plan with your note in hand and changes only what you mention.">
         <textarea value={tweak} onChange={e => setTweak(e.target.value)} rows={3}
           placeholder={'The hamstring curl is the seated machine, not Nordics.\nDay 1 is Monday, day 5 is Friday.\nKeep every set count exactly as the plan says.'}
-          className="w-full pixel-box px-3 py-3 text-[13px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+          className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+        </Field>
         <button onClick={applyTweak} disabled={tweakBusy || !tweak.trim()} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
           {tweakBusy ? 'Changing it...' : isPremium ? 'Apply these changes' : 'Apply these changes · Premium'}
         </button>
@@ -4019,11 +4030,11 @@ function GymEditor({ gym, onSave, onDelete, onClose }) {
             <div className="flex gap-2">
               <button onClick={() => setBench(!bench)} className="pixel-box flex-1 h-11 text-[12px]"
                 style={{ background: bench ? 'var(--good)' : 'var(--surface2)', color: bench ? '#05140a' : 'var(--muted)' }}>
-                {bench ? 'Bench ✓' : 'No bench'}
+                {bench ? <span>Bench <Tick /></span> : 'No bench'}
               </button>
               <button onClick={() => setBar(!bar)} className="pixel-box flex-1 h-11 text-[12px]"
                 style={{ background: bar ? 'var(--good)' : 'var(--surface2)', color: bar ? '#05140a' : 'var(--muted)' }}>
-                {bar ? 'Pull-up bar ✓' : 'No bar'}
+                {bar ? <span>Pull-up bar <Tick /></span> : 'No bar'}
               </button>
             </div>
           </Field>

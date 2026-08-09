@@ -40960,7 +40960,7 @@ function TrainHome({
         color: done ? '#05140a' : 'var(--muted2)',
         borderWidth: done || isNext ? undefined : 0
       }
-    }, done ? '✓' : i + 1), /*#__PURE__*/React.createElement("span", {
+    }, done ? /*#__PURE__*/React.createElement(Tick, null) : i + 1), /*#__PURE__*/React.createElement("span", {
       className: "min-w-0 flex-1"
     }, /*#__PURE__*/React.createElement("span", {
       className: "block text-[13.5px] font-semibold truncate",
@@ -41881,7 +41881,9 @@ function SessionPlayer({
         background: 'var(--accent)',
         color: 'var(--on-accent)'
       }
-    }, "✓") : /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement(Tick, {
+      size: 13
+    })) : /*#__PURE__*/React.createElement("span", {
       className: "shrink-0 mt-1",
       style: {
         color: 'var(--muted2)',
@@ -42056,7 +42058,9 @@ function SessionPlayer({
           opacity: s.done ? 1 : 0.85,
           transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)'
         }
-      }, "✓")), setMenu === ii + ':' + si && /*#__PURE__*/React.createElement("div", {
+      }, /*#__PURE__*/React.createElement(Tick, {
+        size: 19
+      }))), setMenu === ii + ':' + si && /*#__PURE__*/React.createElement("div", {
         className: "flex gap-1 flex-wrap mt-1 mb-2 pl-1"
       }, SET_TYPES.map(st => /*#__PURE__*/React.createElement("button", {
         key: st.v,
@@ -43061,7 +43065,7 @@ function BlockWizard({
     style: {
       color: 'var(--muted)'
     }
-  }, "Screenshots of sessions you already do, from any app or a coach's message. Add as many as you like and they build into one block."), /*#__PURE__*/React.createElement(Field, {
+  }, "Sessions you already do, from any app or a coach's message. Add as many as you like."), /*#__PURE__*/React.createElement(Field, {
     label: "Anything I should know",
     hint: IMPORT_NOTE_HINT
   }, /*#__PURE__*/React.createElement("textarea", {
@@ -43145,7 +43149,7 @@ function BlockWizard({
     }))
   })), /*#__PURE__*/React.createElement(Field, {
     label: "How long a session",
-    hint: "Used to decide how many movements fit before quality drops."
+    hint: "Decides how many movements fit."
   }, /*#__PURE__*/React.createElement(Seg, {
     value: minutes,
     onChange: setMinutes,
@@ -43164,7 +43168,7 @@ function BlockWizard({
     }]
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Where you are",
-    hint: "Sets the volume you start at. You can move it any time."
+    hint: "Sets your starting volume. Movable later."
   }, /*#__PURE__*/React.createElement(Seg, {
     value: experience,
     onChange: setExperience,
@@ -43208,7 +43212,7 @@ function BlockWizard({
     }]
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Where you will train it",
-    hint: "Pick a saved gym, or add one. This changes which movements the block reaches for, not just which it is allowed."
+    hint: "Changes which movements the block reaches for."
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setGymPick(true),
     className: "w-full text-left pixel-box p-4 flex items-center justify-between gap-2",
@@ -43231,10 +43235,17 @@ function BlockWizard({
       color: 'var(--muted2)',
       flexShrink: 0
     }
-  }))), /*#__PURE__*/React.createElement(Field, {
-    label: "Anything to bring up",
-    hint: "Optional. Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it, because a block cannot grow everything hardest at once."
+  }))), /*#__PURE__*/React.createElement(Collapsible, {
+    label: emphasis.length ? 'Bringing up ' + emphasis.map(m => Training.MUSCLE_LABEL[m].toLowerCase()).join(', ') : 'Anything to bring up',
+    sub: emphasis.length ? 'Change' : 'Optional',
+    variant: "inline",
+    className: "mb-5"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it."), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1.5 flex-wrap"
   }, Training.MUSCLES.map(m => /*#__PURE__*/React.createElement("button", {
     key: m,
@@ -43271,7 +43282,7 @@ function BlockWizard({
     style: {
       color: 'var(--muted2)'
     }
-  }, "You will see the whole four weeks before anything is saved, and you can change every line of it."));
+  }, "Nothing is saved until you say so."));
 }
 
 // ---- block builder / editor -------------------------------------------------------------------
@@ -43531,7 +43542,9 @@ function BlockBuilder({
         background: 'var(--accent)',
         color: 'var(--on-accent)'
       }
-    }, "✓") : /*#__PURE__*/React.createElement("span", {
+    }, /*#__PURE__*/React.createElement(Tick, {
+      size: 13
+    })) : /*#__PURE__*/React.createElement("span", {
       className: "shrink-0",
       style: {
         color: 'var(--muted2)',
@@ -45357,7 +45370,7 @@ function withImportNote(blocks, note) {
     text: 'WHAT THE PERSON SAID ABOUT THIS:\n' + v.slice(0, 1200)
   }]);
 }
-const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say: which day of the week it is, that the weights are in pounds, which part to ignore.';
+const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say.';
 
 // ---- the import screen -------------------------------------------------------------------------
 function WorkoutImport({
@@ -46196,27 +46209,20 @@ function BlockDraft({
       }
     })), /*#__PURE__*/React.createElement(Card, {
       className: "p-4 mb-4"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[9px] uppercase mb-2",
-      style: {
-        color: 'var(--accent-ink)'
-      }
-    }, "Anything read wrong?"), /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] mb-4 leading-snug",
-      style: {
-        color: 'var(--muted)'
-      }
-    }, "Say it how you would say it to a person. It re-reads the plan with your note in hand and changes only what you mention."), /*#__PURE__*/React.createElement("textarea", {
+    }, /*#__PURE__*/React.createElement(Field, {
+      label: "Anything read wrong?",
+      hint: "It re-reads the plan with your note in hand and changes only what you mention."
+    }, /*#__PURE__*/React.createElement("textarea", {
       value: tweak,
       onChange: e => setTweak(e.target.value),
       rows: 3,
       placeholder: 'The hamstring curl is the seated machine, not Nordics.\nDay 1 is Monday, day 5 is Friday.\nKeep every set count exactly as the plan says.',
-      className: "w-full pixel-box px-3 py-3 text-[13px] mb-2",
+      className: "w-full pixel-box px-3 py-3 text-[13px]",
       style: {
         background: 'var(--surface2)',
         color: 'var(--text)'
       }
-    }), /*#__PURE__*/React.createElement("button", {
+    })), /*#__PURE__*/React.createElement("button", {
       onClick: applyTweak,
       disabled: tweakBusy || !tweak.trim(),
       className: "pixel-box w-full h-11 text-[12.5px]",
@@ -46613,14 +46619,14 @@ function GymEditor({
       background: bench ? 'var(--good)' : 'var(--surface2)',
       color: bench ? '#05140a' : 'var(--muted)'
     }
-  }, bench ? 'Bench ✓' : 'No bench'), /*#__PURE__*/React.createElement("button", {
+  }, bench ? /*#__PURE__*/React.createElement("span", null, "Bench ", /*#__PURE__*/React.createElement(Tick, null)) : 'No bench'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setBar(!bar),
     className: "pixel-box flex-1 h-11 text-[12px]",
     style: {
       background: bar ? 'var(--good)' : 'var(--surface2)',
       color: bar ? '#05140a' : 'var(--muted)'
     }
-  }, bar ? 'Pull-up bar ✓' : 'No bar'))), type === 'custom' && /*#__PURE__*/React.createElement(Field, {
+  }, bar ? /*#__PURE__*/React.createElement("span", null, "Pull-up bar ", /*#__PURE__*/React.createElement(Tick, null)) : 'No bar'))), type === 'custom' && /*#__PURE__*/React.createElement(Field, {
     label: "Kit that is there"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1.5 flex-wrap"
