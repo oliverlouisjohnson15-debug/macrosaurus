@@ -594,17 +594,51 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const [logId] = useState(() => (existing ? existing.id : trainUid()));
   const [items, setItems] = useState(() => {
     if (existing) {
-      const order = [], byEx = {};
+      // Reopening a session you already started. Two things used to go missing here, and both of
+      // them read as "the app lost my plan".
+      //
+      // The target was set to null outright, so every header fell back to its "- reps" placeholder
+      // and the RIR vanished: the prescription disappeared the moment you came back to the session.
+      // The plan is still on the block, so it is read back off it rather than stored twice.
+      //
+      // And sets were regrouped by EXERCISE, so a day that programmes the same movement twice (a
+      // heavy T-bar row and a back-off T-bar row is the ordinary case) came back as one merged
+      // movement with both sets under it and one of the two prescriptions gone. Logs written from
+      // now on carry the item they belong to; older ones fall back to the old grouping, which is
+      // exactly as right as it ever was.
+      const order = [], byKey = {};
       (existing.sets || []).forEach(s => {
-        if (!byEx[s.exerciseId]) { byEx[s.exerciseId] = []; order.push(s.exerciseId); }
-        byEx[s.exerciseId].push(Object.assign({}, s));
+        const key = s.itemId || s.exerciseId;
+        if (!byKey[key]) { byKey[key] = { exerciseId: s.exerciseId, itemId: s.itemId || null, sets: [] }; order.push(key); }
+        byKey[key].sets.push(Object.assign({}, s));
       });
-      return order.map(id => ({ exerciseId: id, target: null, sets: byEx[id], note: null, superset: null }));
+      const planned = (session && session.exercises) || [];
+      const used = {};
+      return order.map(key => {
+        const g = byKey[key];
+        // Match the logged group back to its line in the plan: by item id when the log has one, and
+        // otherwise by the first unused line for that movement, so two T-bar rows take one each
+        // rather than both claiming the first.
+        let e = g.itemId ? planned.filter(x => x.id === g.itemId)[0] : null;
+        if (!e) e = planned.filter(x => x.exerciseId === g.exerciseId && !used[x.id])[0];
+        if (e) used[e.id] = 1;
+        const saved = (existing.itemTargets || {})[g.itemId] || null;
+        return {
+          id: (e && e.id) || g.itemId || null,
+          exerciseId: g.exerciseId,
+          // The plan first, because that is the live prescription and it may have been edited since.
+          // What was saved with the session covers what the plan cannot: a movement added on the day,
+          // and a freeform session, which has no plan behind it at all.
+          target: (e && e.target) || saved,
+          sets: g.sets, note: null,
+          superset: (e && e.supersetGroup) || null,
+        };
+      });
     }
     if (!session) return [];
     return (session.exercises || []).slice().sort((a, b) => a.order - b.order).map(e => {
       const pre = Training.prefillSets(e, t.logs, t.custom);
-      return { exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), superset: e.supersetGroup || null };
+      return { id: e.id || null, exerciseId: e.exerciseId, target: e.target, sets: pre.sets, note: coachNote(pre), superset: e.supersetGroup || null };
     });
   });
   const [focus, setFocus] = useState(0);
@@ -668,12 +702,21 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     (nextItems || items).forEach(it => {
       it.sets.forEach((s, i) => {
         flat.push({
-          exerciseId: it.exerciseId, setIndex: i, type: s.type || 'work',
+          // itemId says WHICH line of the plan this set belongs to, which exerciseId cannot when a
+          // day programmes the same movement twice. Everything downstream still reads exerciseId, so
+          // this is additive: history, tonnage and PRs are untouched.
+          exerciseId: it.exerciseId, itemId: it.id || null, setIndex: i, type: s.type || 'work',
           weightKg: +s.weightKg || 0, reps: s.reps == null ? null : +s.reps,
           rir: s.rir == null ? null : +s.rir, done: !!s.done,
         });
       });
     });
+    // One prescription per MOVEMENT, not per set: a handful of small objects against a session,
+    // against the hundreds of set rows it already writes. It is what lets a movement added or swapped
+    // mid-session still know what it was asked for when you come back to it, and it covers a freeform
+    // session, which has no plan behind it to read from at all.
+    const itemTargets = {};
+    (nextItems || items).forEach(it => { if (it.id && it.target) itemTargets[it.id] = it.target; });
     trainUpdate(update, (tr) => {
       const i = tr.logs.findIndex(l => l.id === logId);
       const row = {
@@ -682,6 +725,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         startedAt: (i >= 0 && tr.logs[i].startedAt) || new Date(startedAt).toISOString(),
         notes: nextNotes == null ? notes : nextNotes,
         exerciseNotes: nextExNotes || exNotes,
+        itemTargets: itemTargets,
         sets: flat,
       };
       if (i >= 0) tr.logs[i] = Object.assign({}, tr.logs[i], row); else tr.logs.push(row);
@@ -689,7 +733,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   }
   function mutate(fn) {
     setItems(prev => {
-      const next = prev.map(it => ({ exerciseId: it.exerciseId, target: it.target, note: it.note, superset: it.superset, sets: it.sets.map(s => Object.assign({}, s)) }));
+      // id travels with the item: it is what ties a logged set back to its line in the plan, and it
+      // is rebuilt from scratch here on every edit, so leaving it out loses it on the first tap.
+      const next = prev.map(it => ({ id: it.id || null, exerciseId: it.exerciseId, target: it.target, note: it.note, superset: it.superset, sets: it.sets.map(s => Object.assign({}, s)) }));
       fn(next);
       persist(next);
       return next;
@@ -788,7 +834,9 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     setPicking(false);
     mutate(n => {
       const pre = Training.prefillSets({ exerciseId: exId, target: { sets: 3, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
-      n.push({ exerciseId: exId, target: { sets: 3, repLow: 8, repHigh: 12, rir: 2, restSec: 120 }, sets: pre.sets, note: coachNote(pre), superset: null });
+      // Added mid-session, so it has no line in the plan to point back to. It gets its own id so
+      // its sets still group as one movement when the session is reopened.
+      n.push({ id: 'add_' + trainUid(), exerciseId: exId, target: { sets: 3, repLow: 8, repHigh: 12, rir: 2, restSec: 120 }, sets: pre.sets, note: coachNote(pre), superset: null });
     });
     setFocus(items.length);
   }
@@ -800,7 +848,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     mutate(n => {
       const old = n[ii];
       const pre = Training.prefillSets({ exerciseId: exId, target: old.target || { sets: old.sets.length, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
-      n[ii] = { exerciseId: exId, target: old.target, sets: pre.sets, note: coachNote(pre), superset: old.superset };
+      n[ii] = { id: old.id || ('swap_' + trainUid()), exerciseId: exId, target: old.target, sets: pre.sets, note: coachNote(pre), superset: old.superset };
     });
   }
   function move(ii, delta) {
@@ -915,7 +963,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   const old2 = n[u.index];
                   if (!old2) return;
                   const pre = Training.prefillSets({ exerciseId: u.alt, target: old2.target || { sets: 3, repLow: 8, repHigh: 12 } }, t.logs, t.custom);
-                  n[u.index] = { exerciseId: u.alt, target: old2.target, sets: pre.sets, note: coachNote(pre), superset: old2.superset };
+                  n[u.index] = { id: old2.id || ('swap_' + trainUid()), exerciseId: u.alt, target: old2.target, sets: pre.sets, note: coachNote(pre), superset: old2.superset };
                 });
               });
               showToast && showToast('Swapped for what is here.');

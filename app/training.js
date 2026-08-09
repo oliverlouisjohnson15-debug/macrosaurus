@@ -1598,6 +1598,16 @@
       days.push(row);
     });
     days.forEach(function (x, i) { x.dayOfWeek = i; });
+    // Re-mint the exercise ids against the day's position in the BASKET. importTemplate numbers them
+    // by the day's index within its own parse, and a batch of screenshots is one parse each, so every
+    // one of them thinks it is day zero: five screenshots produce five sets of identical ids. Those
+    // ids are what a logged set points back at to find its line in the plan, so a collision between
+    // day one and day four is a real one. Deterministic, because this file has to stay testable.
+    days.forEach(function (d, di) {
+      d.exercises = (d.exercises || []).map(function (e, ei) {
+        return Object.assign({}, e, { id: e.exerciseId + '_d' + di + '_' + ei, order: ei });
+      });
+    });
     return days;
   }
 

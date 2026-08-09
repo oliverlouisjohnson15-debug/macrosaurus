@@ -529,6 +529,38 @@ test('one screenshot read as two same-named sessions keeps both', () => {
   assert.equal(days.length, 2);
 });
 
+test('days collected from separate screenshots do not share exercise ids', () => {
+  // Each screenshot is its own parse, so importTemplate numbers every one of them as day zero. The
+  // ids that come out are what a logged set points back at to find its line in the plan, so two days
+  // carrying the same ids is a real collision, not a cosmetic one.
+  const days = [];
+  ['a.png', 'b.png'].forEach(f => {
+    const { template } = T.importTemplate({ days: [{ name: 'Day ' + f[0], exercises: [
+      { name: 'Bench Press', sets: 2 }, { name: 'Lat Pulldown', sets: 2 },
+    ] }] });
+    T.mergeDraftDays(days, template, { kind: 'file', name: f });
+  });
+  const ids = days.reduce((a, d) => a.concat(d.exercises.map(e => e.id)), []);
+  assert.equal(new Set(ids).size, ids.length, `duplicate ids: ${ids}`);
+});
+
+test('a day that programmes one movement twice keeps both lines apart', () => {
+  // A heavy T-bar row and a back-off T-bar row is an ordinary way to write a session, and the two
+  // carry different prescriptions. They must not collapse into each other anywhere.
+  const { template } = T.importTemplate({ days: [{ name: 'Day 1', exercises: [
+    { name: 'T-Bar Row', sets: 2, repLow: 6 },
+    { name: 'T-Bar Row', sets: 1, repLow: 8 },
+  ] }] });
+  const days = T.mergeDraftDays([], template, { kind: 'file', name: 'a.png' });
+  assert.equal(days[0].exercises.length, 2);
+  assert.notEqual(days[0].exercises[0].id, days[0].exercises[1].id);
+  const block = T.blockFromTemplate(days, { weeks: 4, shape: 'as-written', targets: T.defaultTargets() });
+  const s = T.weekSessions(block, 1)[0];
+  assert.equal(s.exercises.length, 2);
+  assert.notEqual(s.exercises[0].id, s.exercises[1].id);
+  assert.deepEqual(s.exercises.map(e => e.target.sets), [2, 1], 'the two prescriptions must stay distinct');
+});
+
 test('collected days become a block with every day intact', () => {
   // The end of the journey the bug broke: five screenshots in, five sessions in week 1.
   const days = [];
