@@ -1548,6 +1548,15 @@
         if (how === 'loose') loose.push({ day: di, dayName: dayName, name: raw.name, matched: (byId(id, opts.custom) || {}).name });
         var kit = kitMismatch(raw.name, id, opts.custom);
         if (kit) mismatches.push({ day: di, dayName: dayName, name: raw.name, said: kit.said, got: kit.got, matched: kit.name });
+        // Which rows are worth a second look, marked ON the row. A screen that says "counted as" on
+        // every line says nothing: "Hanging leg raises, counted as Hanging leg raise" is a plural,
+        // not a decision. Only two things are: kit the library has no version of, and a match that
+        // only just cleared the threshold.
+        var check = kit ? 'kit' : (how === 'loose' ? 'loose' : null);
+        // A weak SCORE on a name that ends up identical to the library's is not a weak match, it is
+        // the scorer being cautious about a word it had not seen ("T-bar row (mega mass)"). Nothing
+        // to look at, so nothing to say.
+        if (check === 'loose' && sameMovement(tidyName(raw.name), (byId(id, opts.custom) || {}).name)) check = null;
         var ex = byId(id, opts.custom);
         var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
         var lo = +raw.repLow || 0, hi = +raw.repHigh || 0;
@@ -1559,6 +1568,10 @@
         exercises.push({
           id: id + '_i' + di + '_' + exercises.length,
           exerciseId: id, order: exercises.length,
+          // What the plan called it, tidied but not replaced. The library match is what the maths
+          // counts; this is what the person reads, because it is their coach's session.
+          sourceName: tidyName(raw.name) || null,
+          check: check,
           target: {
             sets: clamp(+raw.sets || 3, 1, 8),
             repLow: clamp(lo, 1, 40), repHigh: clamp(Math.max(hi, lo + 1), 2, 50),
@@ -1576,6 +1589,12 @@
       // Name it for what it trains, once the movements are known. Only touches a name that says
       // nothing on its own, so a coach's "Upper A" survives exactly as they wrote it.
       row.name = nameDay(row.name, row, opts.custom);
+      // Movements this day had that could not be placed, kept ON THE DAY rather than in a list
+      // somewhere else. A day that is short two movements should say so where you are looking at it,
+      // and the fix belongs next to the gap. Ignored by every downstream reader, which all take
+      // day.exercises.
+      row.missing = unresolved.filter(function (u) { return u.day === di; })
+        .map(function (u) { return { name: tidyName(u.name) || u.name, raw: u.name }; });
       return row;
     }).filter(function (d) { return d.exercises.length > 0; });
     return {
@@ -1656,6 +1675,43 @@
     if (!raw) return focus;
     if (!GENERIC_DAY.test(raw)) return raw;
     return raw + ' - ' + focus;
+  }
+
+  // ---- the movement's name, as its author wrote it ----------------------------------------------
+  // An imported movement had two names and the app showed the wrong one. The plan says "CAM - SPLIT
+  // SQUAT SMITH MACHINE"; the library's nearest match is "Split squat", a dumbbell movement. Showing
+  // the library's name is the same silent substitution that as-written was built to stop: you are
+  // reading your coach's session and every line has been quietly renamed to something you did not
+  // write and, in that case, cannot do.
+  //
+  // So the source's own words are kept and only tidied. What tidying means is narrow on purpose:
+  // remove what is not part of a movement's name (the coach's tag, a parenthetical aside), expand the
+  // abbreviations a phone keyboard encourages, and move a trailing piece of kit to the front so it
+  // reads the way a person says it. Nothing is dropped that carries meaning, and no word is invented.
+  var KIT_TAIL = /\s+(smith machine|smith|machine|cable|dumbbell|barbell|kettlebell|band|ez bar|ez)$/i;
+  var KEEP_CAPS = { ez: 'EZ', rdl: 'RDL', ohp: 'OHP', bb: 'barbell', db: 'dumbbell' };
+  function tidyName(raw) {
+    var s = String(raw || '').replace(COACH_PREFIX, '');
+    s = s.replace(/\([^)]*\)/g, ' ');                       // "(OHTX)", "(mega mass)" - an aside, not a name
+    s = s.replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    // A trailing piece of kit reads backwards. "Split squat smith machine" is how a spreadsheet column
+    // sorts; "Smith machine split squat" is how a person says it.
+    var m = s.match(KIT_TAIL);
+    if (m) s = (m[1] + ' ' + s.slice(0, s.length - m[0].length)).replace(/\s+/g, ' ').trim();
+    var words = s.toLowerCase().split(' ').map(function (w) { return KEEP_CAPS[w] || w; });
+    var out = words.join(' ');
+    return out.charAt(0).toUpperCase() + out.slice(1);
+  }
+
+  // Two names for the same movement, allowing for the plural and the word order a source happens to
+  // use. "Leg extensions" and "Leg extension" are not a substitution worth telling anyone about.
+  function sameMovement(a, b) {
+    var key = function (x) {
+      return norm(String(x || '')).split(' ').filter(Boolean)
+        .map(function (w) { return w.replace(/s$/, ''); }).sort().join(' ');
+    };
+    return !!a && !!b && key(a) === key(b);
   }
 
   // ---- naming a block -------------------------------------------------------------------------
@@ -2339,7 +2395,7 @@
     defaultTargets: defaultTargets, emphasise: emphasise, band: band, coverage: coverage, frequency: frequency, suggestFor: suggestFor,
     templateOf: templateOf, splitKind: splitKind, adoptTemplate: adoptTemplate, mergeDraftDays: mergeDraftDays,
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
-    rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName,
+    rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,

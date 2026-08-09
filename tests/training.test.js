@@ -1572,3 +1572,59 @@ test('an imported plan keeps the name its author gave it', () => {
   const b = T.blockFromTemplate(template, { weeks: 4, targets: T.defaultTargets(), name: "Cam Kissel's Program" });
   assert.equal(b.name, "Cam Kissel's Program");
 });
+
+// ---- the movement's own name ---------------------------------------------------------------------
+// An imported movement has two names. The library's match is what the maths counts; the plan's own
+// words are what the person reads, because it is their coach's session.
+
+test('a movement keeps the words its plan used, tidied', () => {
+  const cases = [
+    ['CAM - SPLIT SQUAT SMITH MACHINE', 'Smith machine split squat'],
+    ['CAM - MACHINE REAR DELT FLY', 'Machine rear delt fly'],
+    ['CAM - ALTERNATING DUMBBELL HAMMER CURL', 'Alternating dumbbell hammer curl'],
+    ['CAM - FRENCH PRESS (OHTX)', 'French press'],
+    ['CAM - T-BAR ROW (MEGA MASS)', 'T-bar row'],
+    ['CAM - DB SEATED SHOULDER PRESS', 'Dumbbell seated shoulder press'],
+    ['Leg curl machine', 'Machine leg curl'],
+    ['Bench Press', 'Bench press'],
+  ];
+  for (const [input, expected] of cases) assert.equal(T.tidyName(input), expected, `"${input}"`);
+});
+
+test('the source name reaches the imported item, and the library match stays underneath', () => {
+  const { template } = T.importTemplate({ days: [{ name: 'Day 2', exercises: [
+    { name: 'CAM - SPLIT SQUAT SMITH MACHINE', sets: 1, repLow: 6 },
+  ] }] });
+  const it = template[0].exercises[0];
+  assert.equal(it.sourceName, 'Smith machine split squat');
+  assert.equal(it.exerciseId, 'split_squat', 'the maths still counts a real library movement');
+});
+
+test('only a movement worth a second look is marked', () => {
+  // A screen that says "counted as" on every line says nothing. Kit the library has no version of,
+  // and a match that only just cleared the threshold. Nothing else.
+  const names = ['CAM - SMITH MACHINE INCLINE PRESS', 'CAM - MACHINE LAT PULLDOWN', 'CAM - T-BAR ROW (MEGA MASS)',
+    'CAM - HANGING LEG RAISES', 'CAM - LEG EXTENSIONS', 'CAM - SPLIT SQUAT SMITH MACHINE',
+    'CAM - FRENCH PRESS (OHTX)', 'CAM - MACHINE REAR DELT FLY'];
+  const { template } = T.importTemplate({ days: [{ name: 'D', exercises: names.map(n => ({ name: n, sets: 2, repLow: 8 })) }] });
+  const marked = template[0].exercises.filter(e => e.check).map(e => e.sourceName);
+  assert.deepEqual(marked.sort(), ['French press', 'Machine rear delt fly', 'Smith machine split squat'].sort());
+});
+
+test('a plural is not a substitution worth flagging', () => {
+  const { template } = T.importTemplate({ days: [{ name: 'D', exercises: [
+    { name: 'CAM - HANGING LEG RAISES', sets: 2 }, { name: 'CAM - LEG EXTENSIONS', sets: 2 },
+    { name: 'CAM - T-BAR ROW (MEGA MASS)', sets: 2 },
+  ] }] });
+  assert.deepEqual(template[0].exercises.map(e => e.check), [null, null, null]);
+});
+
+test('a movement nothing could place is kept on its own day, not dropped', () => {
+  const { template } = T.importTemplate({ days: [{ name: 'Day 3', exercises: [
+    { name: 'CAM - MACHINE LATERAL RAISE', sets: 2 },
+    { name: 'the finisher coach showed me', sets: 2 },
+  ] }] });
+  assert.equal(template[0].exercises.length, 1);
+  assert.equal(template[0].missing.length, 1, 'the unplaceable movement rides with its own day');
+  assert.equal(template[0].missing[0].name, 'The finisher coach showed me');
+});

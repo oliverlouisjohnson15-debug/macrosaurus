@@ -3776,109 +3776,48 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
       <h1 className="pf text-lg mb-1">Draft block</h1>
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-        {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} collected. Build it whenever you are ready, and the four weeks get written on top.
+        {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} read from your plan. Tap any movement to change it.
       </div>
 
       <Field label="Call it"><TextInput value={name} onChange={e => { setName(e.target.value); edit(d => { d.name = e.target.value; }); }} /></Field>
 
-      {/* Tell it what is wrong, in words. Sits ABOVE the days, because the point of this screen is to
-          check what was read before it becomes four weeks, and the fix should be next to the doubt. */}
-      <Card className="p-4 mb-4">
-        {/* Through Field, like the two other places this journey asks for a note. Rolling its own
-            heading put this one label at section level and in accent ink while its siblings read as
-            field labels, for the same question asked of the same person minutes apart. */}
-        <Field label="Anything read wrong?" hint="It re-reads the plan with your note in hand and changes only what you mention.">
+      {/* The two things that are ABOUT the whole draft rather than about one movement, both folded
+          away. Correcting a single line is now a tap on that line, so a note in words is the fallback
+          rather than the main event, and coverage is a question you ask once before building rather
+          than a wall you read past on the way to the days. */}
+      <Collapsible label="Anything read wrong?" sub="Say it in words" variant="inline" className="mb-4">
         <textarea value={tweak} onChange={e => setTweak(e.target.value)} rows={3}
           placeholder={'The hamstring curl is the seated machine, not Nordics.\nDay 1 is Monday, day 5 is Friday.\nKeep every set count exactly as the plan says.'}
-          className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-        </Field>
+          className="w-full pixel-box px-3 py-3 text-[13px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
         <button onClick={applyTweak} disabled={tweakBusy || !tweak.trim()} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
-          {tweakBusy ? 'Changing it...' : isPremium ? 'Apply these changes' : 'Apply these changes · Premium'}
+          {tweakBusy ? 'Changing it...' : isPremium ? 'Apply these changes' : 'Apply these changes \u00b7 Premium'}
         </button>
         {tweakNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: tweakErr ? 'var(--danger)' : 'var(--accent-ink)' }}>{tweakNote}</div>}
-      </Card>
+      </Collapsible>
 
-      {/* Which week of somebody else's programme this actually is. A block builds four weeks out of
-          one, so importing the week that happened to be open is a decision worth making on purpose. */}
-      {draft.weekLabel && (
-        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--danger) 10%, var(--surface2))' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--danger)' }}>This is {draft.weekLabel}</div>
-          <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
-            That is the week your screenshots were showing, and all four weeks get built from it exactly as written. If you meant to start the programme from its beginning, switch the week in the other app and upload again.
-          </div>
-        </Card>
-      )}
-
-      {/* Right movement, wrong kit. Invisible in a list of names, because the day reads correctly and
-          you only find out standing in front of the wrong machine. */}
-      {(draft.mismatches || []).length > 0 && (
-        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Check the kit on these</div>
-          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
-            The movement is right, but your plan names equipment I do not have a version of. Say which it should be in the box above, or swap it on the day.
-          </div>
-          {(draft.mismatches || []).map((m, i) => (
-            <div key={i} className="text-[12px] leading-snug mb-1" style={{ color: 'var(--text2)' }}>
-              {m.name} <span style={{ color: 'var(--muted2)' }}>says {m.said.join(' and ')}, became</span> {m.matched} <span style={{ color: 'var(--muted2)' }}>({m.got})</span>
-            </div>
-          ))}
-        </Card>
-      )}
-
-      {/* What the library could not place. These used to be dropped without a word, which is the
-          worst way to lose a movement: the day just looks shorter than the plan you uploaded. */}
-      {(draft.unresolved || []).length > 0 && (
-        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Could not place these</div>
-          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
-            I left them out rather than guess at the wrong movement. Say what they are in the box above, or add them to the day yourself.
-          </div>
-          {(draft.unresolved || []).map((u, i) => (
-            <div key={i} className="text-[12px]" style={{ color: 'var(--text2)' }}>{u.dayName}: {u.name}</div>
-          ))}
-        </Card>
-      )}
-
-      {/* Matched, but only just. An exact name and a bare-minimum token overlap both arrive as a
-          movement on the card, and only one of them deserves a second look. */}
-      {(draft.loose || []).length > 0 && (
-        <Card className="p-4 mb-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Worth a second look</div>
-          <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
-            I am fairly sure about these but not certain, usually because the plan wrote them a way I have not seen before.
-          </div>
-          {(draft.loose || []).map((l, i) => (
-            <div key={i} className="text-[12px] leading-snug mb-1" style={{ color: 'var(--text2)' }}>
-              {l.name} <span style={{ color: 'var(--muted2)' }}>read as</span> {l.matched}
-            </div>
-          ))}
-        </Card>
-      )}
-
-      {/* Coverage of the draft AS IT STANDS, so you can see which day is still missing before you
-          build. This is the thing a pile of imported screenshots can never tell you. */}
-      <Card className="p-4 mb-4">
-        <div className="flex items-baseline justify-between mb-2">
-          <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>What it covers so far</div>
-          <div className="text-[11px]" style={{ color: cov.gaps.length ? 'var(--warn)' : 'var(--good)' }}>
-            {cov.gaps.length ? cov.gaps.length + ' short' : 'all covered'}
-          </div>
-        </div>
-        {/* This is now the ONE place a gap gets raised, so it has to be honest about the difference
-            between thin and absent. "Light on calves" reads as a nudge; nothing at all is a fact
-            about the plan, and it is the one worth knowing before you commit four weeks to it. */}
+      <Collapsible
+        label={cov.gaps.length ? 'What it covers' : 'Covers every muscle'}
+        sub={cov.gaps.length ? cov.gaps.length + ' short' : 'Show'} variant="inline" className="mb-5">
         {cov.gaps.filter(g => !g.sets).length > 0 && (
           <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--warn)' }}>
             Nothing at all for {cov.gaps.filter(g => !g.sets).map(g => g.label.toLowerCase()).join(', ')}. That may well be deliberate on your coach's part, but it is worth knowing now.
           </div>
         )}
         {cov.gaps.filter(g => g.sets > 0).length > 0 && (
-          <div className="text-[12px] mb-4 leading-snug">
-            Still light on {cov.gaps.filter(g => g.sets > 0).slice(0, 3).map(g => g.label.toLowerCase()).join(', ')}. Import the rest of the week, or add to it here.
+          <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+            Light on {cov.gaps.filter(g => g.sets > 0).slice(0, 3).map(g => g.label.toLowerCase()).join(', ')}.
           </div>
         )}
-        <CoverageBars coverage={cov} limit={5} compact />
-      </Card>
+        <CoverageBars coverage={cov} limit={6} compact />
+      </Collapsible>
+
+      {/* Which week of somebody else's programme this is. One line, because it is one fact about the
+          whole import, and it is the only warning left that is not about a specific movement. */}
+      {draft.weekLabel && (
+        <div className="text-[12px] mb-4 leading-snug px-3 py-2.5" style={{ background: 'color-mix(in srgb, var(--danger) 10%, var(--surface2))', color: 'var(--text2)' }}>
+          These screenshots were showing <strong>{draft.weekLabel}</strong>. All four weeks get built from it.
+        </div>
+      )}
 
       {draft.days.map((day, di) => (
         <Card key={di} className="p-4 mb-4">
@@ -3892,19 +3831,50 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
               from {day.sourceRef.kind === 'link' ? 'a shared post' : day.sourceRef.kind === 'file' ? (day.sourceRef.name || 'a file') : 'text you pasted'}
             </div>
           )}
-          {day.exercises.map((e, ei) => (
-            <div key={e.id || ei} className="flex items-baseline justify-between gap-2 py-1 border-t" style={{ borderColor: 'var(--border)' }}>
-              <span className="text-[12px] truncate"><ExerciseName id={e.exerciseId} custom={t.custom} /></span>
-              <span className="flex items-center gap-2 shrink-0">
-                <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
-                  {e.target.sets} x {e.target.repLow}-{e.target.repHigh}
-                  {e.target.tempo ? ' · ' + e.target.tempo : ''}
+          {day.exercises.map((e, ei) => {
+            const lib = Training.byId(e.exerciseId, t.custom);
+            const shown = e.sourceName || (lib ? lib.name : e.exerciseId);
+            // Only worth saying when the two differ. "Pendulum squat, counted as Pendulum squat" is
+            // noise on every line; "Smith machine split squat, counted as Split squat" is the whole
+            // point, and it is one tap from being corrected.
+            // The engine decides what is worth a second look, and marks it on the row at import.
+            // Anything unmarked matched cleanly enough that saying so would be noise on every line.
+            const differs = !!e.check && lib;
+            return (
+              <div key={e.id || ei} className="flex items-start justify-between gap-2 py-1.5 border-t" style={{ borderColor: 'var(--border)' }}>
+                <button onClick={() => setPicking({ day: di, index: ei })} className="min-w-0 flex-1 text-left">
+                  <span className="block text-[12.5px] leading-snug">{shown}</span>
+                  {/* Three words and the name. The row is tappable, so the note's whole job is to
+                      say what happened, not to argue for it. */}
+                  {differs && (
+                    <span className="block text-[10.5px] mt-0.5" style={{ color: 'var(--warn)' }}>
+                      {e.check === 'kit' ? 'Counted as ' + lib.name : 'Read as ' + lib.name + '?'}
+                    </span>
+                  )}
+                </button>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
+                    {e.target.sets} x {e.target.repLow}-{e.target.repHigh}
+                    {e.target.tempo ? ' · ' + e.target.tempo : ''}
+                  </span>
+                  <button onClick={() => edit(d => { d.days[di].exercises.splice(ei, 1); })} aria-label={'Remove ' + shown} className="text-[14px]" style={{ color: 'var(--muted2)' }}>&times;</button>
                 </span>
-                <button onClick={() => edit(d => { d.days[di].exercises.splice(ei, 1); })} aria-label="Remove" className="text-[14px]" style={{ color: 'var(--muted2)' }}>&times;</button>
+              </div>
+            );
+          })}
+          {/* What this day had that could not be placed, sitting IN the day rather than in a list of
+              warnings further up. The day then shows every movement the source did, and the fix is
+              next to the gap instead of a screen away. */}
+          {(day.missing || []).map((m, mi) => (
+            <button key={'m' + mi} onClick={() => setPicking({ day: di, index: null, replacing: mi })}
+              className="w-full flex items-start justify-between gap-2 py-1.5 border-t text-left" style={{ borderColor: 'var(--border)' }}>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12.5px] leading-snug" style={{ color: 'var(--muted2)' }}>{m.name}</span>
+                <span className="block text-[10.5px] mt-0.5" style={{ color: 'var(--warn)' }}>not recognised &middot; choose the movement</span>
               </span>
-            </div>
+            </button>
           ))}
-          <button onClick={() => setPicking(di)} className="pixel-box w-full h-9 text-[11px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
+          <button onClick={() => setPicking({ day: di, index: null })} className="pixel-box w-full h-9 text-[11px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
         </Card>
       ))}
 
@@ -3922,17 +3892,34 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
         </button>
       </StickyAction>
 
+      {/* One picker, three jobs: swap the movement on a row, place one the library could not read,
+          or add a new one. Swapping keeps the row's own sets, reps and tempo, because the coach
+          prescribed those for the slot and only the movement was ever in question. */}
       {picking != null && (
         <ExercisePicker db={db} update={update} onClose={() => setPicking(null)}
           onPick={(id) => {
             const ex = Training.byId(id, t.custom);
             const compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
+            const di = picking.day;
             edit(d => {
-              d.days[picking].exercises.push({
-                id: id + '_d' + picking + '_' + d.days[picking].exercises.length, exerciseId: id,
-                order: d.days[picking].exercises.length,
+              const day = d.days[di];
+              if (picking.index != null) {
+                const row = day.exercises[picking.index];
+                row.exerciseId = id;
+                row.id = id + '_d' + di + '_' + picking.index;
+                // Their correction becomes the name on the row: they have just told us what it is.
+                row.sourceName = ex ? ex.name : row.sourceName;
+                return;
+              }
+              const from = picking.replacing != null ? (day.missing || [])[picking.replacing] : null;
+              day.exercises.push({
+                id: id + '_d' + di + '_' + day.exercises.length, exerciseId: id,
+                order: day.exercises.length,
+                // A movement placed by hand keeps the plan's wording for it where there was one.
+                sourceName: from ? from.name : (ex ? ex.name : null),
                 target: { sets: 3, repLow: compound ? 6 : 10, repHigh: compound ? 10 : 15, rir: 2, restSec: compound ? 150 : 90 },
               });
+              if (picking.replacing != null && day.missing) day.missing.splice(picking.replacing, 1);
             });
             setPicking(null);
           }} />

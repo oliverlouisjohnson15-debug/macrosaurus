@@ -11955,6 +11955,31 @@ function demoState() {
       blocks: [blk], logs: logs, custom: [], volumeTargets: {},
       prefs: { units: 'kg', experience: 'intermediate', equipment: [], daysPerWeek: 4, sessionMinutes: 60, dislikes: [], restTimer: true },
     });
+    // ?demo&draft  a half-read import sitting in the draft basket, exactly as a batch of screenshots
+    // from a coaching app leaves it: the coach's own tag on every movement, kit the library has no
+    // version of, a line nothing could place, and a week label that says this is week four of
+    // somebody else's programme. The review screen is otherwise unreachable without a live AI call,
+    // which is precisely why it is the screen that goes unlooked-at.
+    if (new URLSearchParams(window.location.search).has('draft')) {
+      const src = [
+        ['Day 1', [['CAM - SMITH MACHINE INCLINE PRESS', 2, 6, '2110'], ['CAM - MACHINE LAT PULLDOWN', 2, 8, '2110'],
+          ['CAM - DECLINE CHEST FLY', 2, 8, '2110'], ['CAM - T-BAR ROW (MEGA MASS)', 2, 6, '2110'],
+          ['CAM - T-BAR ROW', 1, 8, '2110'], ['CAM - HANGING LEG RAISES', 2, 8, '2110']]],
+        ['Day 2', [['CAM - PENDULUM SQUAT', 2, 8, '2110'], ['CAM - SPLIT SQUAT SMITH MACHINE', 1, 6, '2110'],
+          ['CAM - HAMSTRING CURL', 2, 8, '2110'], ['CAM - MACHINE ADDUCTION', 2, 8, '2110'],
+          ['CAM - LEG EXTENSIONS', 2, 8, '2110']]],
+        ['Day 3', [['CAM - DB SEATED SHOULDER PRESS', 2, 8, '3110'], ['CAM - MACHINE LATERAL RAISE', 2, 10, '2110'],
+          ['CAM - MACHINE REAR DELT FLY', 1, 10, '2110'], ['CAM - ALTERNATING DUMBBELL HAMMER CURL', 2, 8, '2110'],
+          ['CAM - FRENCH PRESS (OHTX)', 2, 6, '2110'], ['the finisher coach showed me', 2, 12, null]]],
+      ];
+      const days = [];
+      src.forEach(([name, rows], i) => {
+        const parsed = { days: [{ name: name, exercises: rows.map(([n, st, r, tempo]) => ({ name: n, sets: st, repLow: r, tempo: tempo })) }] };
+        const res = Training.importTemplate(parsed, { custom: [] });
+        Training.mergeDraftDays(days, res.template, { kind: 'file', name: 'screenshot-' + (i + 1) + '.png' });
+      });
+      s.training.draft = { name: "Cam Kissel's Program", days: days, source: 'import', weekLabel: 'Week 4 (08/10/26 - 08/15/26)' };
+    }
   }
   s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null, cosmetics: ['party_hat'] };
   // Some Amber won from a week of hunts + a boss, so the demo shows the currency, shop and a cosmetic.
