@@ -11979,6 +11979,19 @@ function demoState() {
         Training.mergeDraftDays(days, res.template, { kind: 'file', name: 'screenshot-' + (i + 1) + '.png' });
       });
       s.training.draft = { name: "Cam Kissel's Program", days: days, source: 'import', weekLabel: 'Week 4 (08/10/26 - 08/15/26)' };
+      // And a block imported BEFORE any of that existed: days called "Day 1", the name every
+      // generated block used to get, and its author's two sets walked up to four by week three.
+      // This is what an early adopter is actually holding, and it is what "bring it up to date" has
+      // to be able to repair without touching a logged session.
+      const oldDays = JSON.parse(JSON.stringify(days.slice(0, 2)));
+      oldDays.forEach((d, i) => { d.name = 'Day ' + (i + 1); d.exercises.forEach(e => { delete e.sourceName; delete e.check; }); delete d.missing; });
+      const oldBlock = Training.blockFromTemplate(oldDays, {
+        weeks: 4, shape: 'build3-deload1', targets: Training.defaultTargets({ experience: 'intermediate' }),
+        source: 'import', startISO: shiftISO(today, -3),
+      });
+      oldBlock.name = '4-week growth block';
+      oldBlock.archived = true;
+      s.training.blocks = s.training.blocks.concat([oldBlock]);
     }
   }
   s.buddy = { stage: 3, name: 'Chompers', personality: 'plucky', hatchedISO: shiftISO(today, -20), speciesId: null, evoStage: 0, affinity: null, cosmetics: ['party_hat'] };

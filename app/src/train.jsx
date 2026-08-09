@@ -2290,10 +2290,13 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
   const t = tdb(db);
   const today = Store.todayISO();
   const [confirm, setConfirm] = useState(null);
+  const [fixing, setFixing] = useState(null);
   const live = activeBlock(db);
   const liveId = live ? live.id : null;
   // What is running first, then most recently started. An undated block sorts last: it is one that
   // was never actually begun, which is exactly the kind you came here to throw away.
+  const fixes = {};
+  t.blocks.forEach(b => { fixes[b.id] = Training.blockFixes(b, t.custom); });
   const blocks = t.blocks.slice().sort((a, b) => {
     if ((a.id === liveId) !== (b.id === liveId)) return a.id === liveId ? -1 : 1;
     return String(b.startISO || '').localeCompare(String(a.startISO || ''));
@@ -2350,6 +2353,14 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
               <button onClick={() => setConfirm(block)} aria-label={'Delete ' + block.name}
                 className="hit shrink-0 px-3 py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete</button>
             </div>
+            {/* A block built before a rule existed does not get it retroactively, and the ones that
+                show are the ones you read every day. Offered, never applied quietly: two of these
+                three change what the block asks of you. */}
+            {fixes[block.id] && fixes[block.id].length > 0 && (
+              <button onClick={() => setFixing(block)} className="w-full text-left mt-3 pt-3 text-[12px]" style={{ borderTop: '2px solid var(--border)', color: 'var(--warn)' }}>
+                {fixes[block.id].length} thing{fixes[block.id].length === 1 ? '' : 's'} here predate how the app builds blocks now &rsaquo;
+              </button>
+            )}
             <div className="flex items-center gap-4 mt-3 pt-3 text-[12px]" style={{ borderTop: '2px solid var(--border)' }}>
               {/* A block that was saved but never begun. Starting it is the whole point of having
                   saved it, so it is one tap from here rather than a trip through the editor. */}
@@ -2365,6 +2376,34 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
         );
       })}
 
+      {fixing && (() => {
+        const list = Training.blockFixes(fixing, t.custom);
+        const LABEL = {
+          dayName: 'Name the days for what they train',
+          blockName: 'Name the block for what it is',
+          asWritten: 'Run it as its author wrote it',
+        };
+        function applyKinds(kinds, msg) {
+          trainUpdate(update, (tr) => {
+            const i = tr.blocks.findIndex(b => b.id === fixing.id);
+            if (i >= 0) Training.applyBlockFixes(tr.blocks[i], kinds, tr.custom || []);
+          });
+          showToast && showToast(msg);
+        }
+        const actions = list.map(f => ({
+          label: LABEL[f.kind] || f.kind,
+          sub: f.from + '  \u2192  ' + f.to,
+          onClick: () => applyKinds([f.kind], 'Done. Your logged sessions are untouched.'),
+        }));
+        if (list.length > 1) {
+          actions.push({
+            label: 'All of it',
+            sub: 'Applies the ' + list.length + ' changes above',
+            onClick: () => applyKinds(list.map(f => f.kind), 'Block brought up to date.'),
+          });
+        }
+        return <ActionSheet title={'Bring "' + fixing.name + '" up to date'} actions={actions} onClose={() => setFixing(null)} />;
+      })()}
       {confirm && (
         <ConfirmDialog title={'Delete "' + confirm.name + '"?'}
           body={(Training.completion(confirm, t.logs.filter(l => l.blockId === confirm.id)).done

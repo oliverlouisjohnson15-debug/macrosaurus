@@ -2345,6 +2345,72 @@
     return n + ', run 2';
   }
 
+  // ---- bringing an older block up to date --------------------------------------------------------
+  // A block built before a rule existed does not get the rule retroactively, and the ones that hurt
+  // are the ones you look at every day: days called "Day 1", a block called "4-week growth block",
+  // and an imported plan quietly periodised into something its author did not write.
+  //
+  // Only what is repairable FROM THE BLOCK ITSELF is offered. The movements' original names are not:
+  // an older import stored only the library match, and the coach's own wording is gone. Inventing it
+  // back would be worse than leaving it, so it is not on this list and re-importing is the honest
+  // answer for that one.
+  function blockFixes(block, custom) {
+    var fixes = [], seen = {};
+    ((block && block.sessions) || []).forEach(function (s) {
+      if (seen[s.name]) return; seen[s.name] = 1;
+      var better = nameDay(s.name, s, custom);
+      if (better !== s.name) fixes.push({ kind: 'dayName', from: s.name, to: better });
+    });
+    // The name every generated block used to be given.
+    if (/^\d+-week (growth|strength) block$/.test(String(block && block.name || ''))) {
+      fixes.push({ kind: 'blockName', from: block.name, to: blockName(templateOf(block), { custom: custom, goal: block.goal }) });
+    }
+    // An imported plan carrying our periodisation rather than its author's prescription.
+    if (block && block.source === 'import' && block.shape !== 'as-written') {
+      var w1 = weekSessions(block, 1), wLast = weekSessions(block, block.weeks || 4);
+      var a = w1.reduce(function (x, s) { return x + (s.exercises || []).reduce(function (y, e) { return y + e.target.sets; }, 0); }, 0);
+      var b2 = wLast.reduce(function (x, s) { return x + (s.exercises || []).reduce(function (y, e) { return y + e.target.sets; }, 0); }, 0);
+      if (a !== b2) fixes.push({ kind: 'asWritten', from: a + ' sets in week 1, ' + b2 + ' in week ' + (block.weeks || 4), to: a + ' sets every week, as the plan is written' });
+    }
+    return fixes;
+  }
+
+  // Apply the chosen fixes, IN PLACE, without rebuilding the block. Rebuilding would re-mint the ids
+  // that logged sessions and logged sets point back at, so a repair would cost you the history it was
+  // supposed to be tidying up. Every change here edits fields and touches no id.
+  function applyBlockFixes(block, kinds, custom) {
+    var want = {}; (kinds || []).forEach(function (k) { want[k] = 1; });
+    if (want.dayName) {
+      var rename = {};
+      ((block.sessions) || []).forEach(function (s) {
+        if (rename[s.name] === undefined) rename[s.name] = nameDay(s.name, s, custom);
+      });
+      (block.sessions || []).forEach(function (s) { if (rename[s.name]) s.name = rename[s.name]; });
+    }
+    if (want.blockName) block.name = blockName(templateOf(block), { custom: custom, goal: block.goal });
+    if (want.asWritten) {
+      // Week 1 is the plan its author wrote; the rest were our arithmetic on top of it. Copy week 1's
+      // prescription across, matched by position, and drop the deload nobody asked for.
+      var base = weekSessions(block, 1);
+      (block.sessions || []).forEach(function (s) {
+        if (s.week === 1) return;
+        var from = base.filter(function (x) { return x.dayOfWeek === s.dayOfWeek; })[0];
+        if (!from) return;
+        (s.exercises || []).forEach(function (e, i) {
+          var src = (from.exercises || [])[i];
+          if (!src) return;
+          e.target = Object.assign({}, e.target, {
+            sets: src.target.sets, repLow: src.target.repLow, repHigh: src.target.repHigh,
+            rir: src.target.rir, tempo: src.target.tempo,
+          });
+        });
+        s.deload = false;
+      });
+      block.shape = 'as-written';
+    }
+    return block;
+  }
+
   // ---- training to the day you are actually having ---------------------------------------------
   // The deloading and autoregulation literature keeps landing on the same point: adjusting to the
   // athlete's current state beats running a fixed plan into the ground, and the adjustment that
@@ -2451,6 +2517,7 @@
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
+    blockFixes: blockFixes, applyBlockFixes: applyBlockFixes,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,

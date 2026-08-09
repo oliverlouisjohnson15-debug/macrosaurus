@@ -1699,3 +1699,54 @@ test('the question knows how many sessions it is asking about', () => {
   assert.equal(T.swapReach(block, 'tbar_row', 4), 2);
   assert.equal(T.swapReach(block, 'not_in_here', 1), 0, 'nothing to ask about');
 });
+
+// ---- bringing an older block up to date -----------------------------------------------------------
+// A block built before a rule existed does not get the rule retroactively.
+
+function oldStyleBlock() {
+  const { template } = T.importTemplate({ days: [
+    { name: 'Day 1', exercises: [{ name: 'Bench Press', sets: 2 }, { name: 'Lat Pulldown', sets: 2 }] },
+    { name: 'Day 2', exercises: [{ name: 'Back Squat', sets: 2 }, { name: 'Leg Extension', sets: 2 }] },
+  ] });
+  template.forEach((d, i) => { d.name = 'Day ' + (i + 1); });   // as an older import left them
+  const b = T.blockFromTemplate(template, { weeks: 4, shape: 'build3-deload1', targets: T.defaultTargets(), source: 'import', startISO: '2026-08-03' });
+  b.name = '4-week growth block';
+  return b;
+}
+
+test('it offers exactly what can be repaired from the block itself', () => {
+  const kinds = T.blockFixes(oldStyleBlock(), []).map(f => f.kind);
+  assert.deepEqual(kinds.sort(), ['asWritten', 'blockName', 'dayName', 'dayName'].sort());
+});
+
+test('a block already built the new way has nothing to offer', () => {
+  const { template } = T.importTemplate({ days: [{ name: 'Upper A', exercises: [{ name: 'Bench Press', sets: 2 }] }] });
+  const b = T.blockFromTemplate(template, { weeks: 4, shape: 'as-written', targets: T.defaultTargets(), source: 'import', name: "Cam's plan" });
+  assert.deepEqual(T.blockFixes(b, []), []);
+});
+
+test('repairing a block never re-mints an id', () => {
+  // Logged sessions and logged sets point back at these. Rebuilding the block to tidy its names
+  // would cost the history the repair was supposed to be tidying.
+  const b = oldStyleBlock();
+  const before = JSON.stringify(b.sessions.map(s => [s.id, s.exercises.map(e => e.id)]));
+  T.applyBlockFixes(b, ['dayName', 'blockName', 'asWritten'], []);
+  assert.equal(JSON.stringify(b.sessions.map(s => [s.id, s.exercises.map(e => e.id)])), before);
+});
+
+test('as-written copies week one across and drops the deload', () => {
+  const b = oldStyleBlock();
+  T.applyBlockFixes(b, ['asWritten'], []);
+  const perWeek = [1, 2, 3, 4].map(w => T.weekSessions(b, w).map(s => s.exercises.map(e => e.target.sets).join('/')).join(' '));
+  assert.equal(new Set(perWeek).size, 1, `weeks still differ: ${perWeek}`);
+  assert.ok(!b.sessions.some(s => s.deload), 'a deload its author never wrote');
+  assert.equal(b.shape, 'as-written');
+});
+
+test('each repair can be taken on its own', () => {
+  const b = oldStyleBlock();
+  T.applyBlockFixes(b, ['dayName'], []);
+  assert.equal(b.sessions[0].name, 'Day 1 - Chest and back');
+  assert.equal(b.name, '4-week growth block', 'nothing else was touched');
+  assert.equal(b.shape, 'build3-deload1', 'nothing else was touched');
+});
