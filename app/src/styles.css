@@ -247,11 +247,11 @@ input, select { color-scheme: dark; }
 .pixel-box.box-warn   { border-color: var(--warn) !important; }
 .pixel-box.box-danger { border-color: var(--danger) !important; }
 .pixel-box.box-tint   { border-color: var(--box-border, var(--border)) !important; }
-/* The doubled frame of a Game Boy textbox: the 4px border, a gap the width of the surface behind it,
-   then an inner rule. Drawn with insets rather than a second element so any box can take it, and
-   `--box-inner` lets a caller name the gap colour when the box is not sitting on --card. */
-.pixel-box.box-double { box-shadow: 4px 4px 0 0 var(--shadow),
-  inset 0 0 0 2px var(--box-inner, var(--card)), inset 0 0 0 4px var(--border); }
+/* `.box-double` (the doubled Game Boy textbox frame) lived here and had exactly one caller, the
+   buddy's dialogue. It is gone with it: a doubled frame inside the card's own frame put four dark
+   rules between the page and the sentence where every other panel spends one, which is the whole
+   reason that card read as belonging to a different app. The dialogue now hangs off a single rule of
+   the card's own border weight. See design-plans/15-buddy-box-one-frame.md. */
 .pixel-btn { border: 4px solid var(--border) !important; box-shadow: 4px 4px 0 0 var(--shadow); transition: transform .05s, box-shadow .05s; }
 .pixel-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 0 var(--shadow); }
 /* chunky macro/xp progress bar */

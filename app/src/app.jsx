@@ -4556,12 +4556,92 @@ function buddyCoach(db, today, streak) {
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
   if (eng) return eng;
-  // SILENCE. This used to fall through to a warm filler line, which was harmless at the bottom of
-  // Today and is not harmless at the top of it: a block that always talks is one people learn to
-  // scroll past, and an assistant whose defining problem is being always-there has a name. Nothing
-  // due means nothing said - the card renders as the buddy alone, and being finished for the day is
-  // rewarded with quiet rather than with another sentence.
+  // NOTHING ACTIONABLE. Every rung above this one is a REQUEST, and there is no request left to make,
+  // which is a real and common state rather than an error. buddyRest picks up here (see its note): the
+  // ladder ends in a statement instead of in nothing, because "ask for nothing" and "render nothing"
+  // are not the same instruction and the card cannot tell them apart.
   return null;
+}
+/* THE RESTING LINE: the rung that makes the ladder total.
+   Everything above this point asks for something - log a meal, weigh in, read your week, look at the
+   new plan - and the ladder used to end by saying nothing at all when none of them applied. The
+   reasoning behind that was sound and is worth keeping intact: a block at the top of Today that
+   always wants something is one people learn to scroll past, Duo taught a generation to feel guilty
+   about a bird, and the assistant whose defining problem was being always-there has a name.
+   But it answered the wrong question. Silence is the correct response to "do not nag"; it is not a
+   correct response to "what does this card show", and the card cannot distinguish the two. What a
+   finished day actually produced was a frame with a sprite in it and no words, which reads as broken
+   rather than as earned - the opposite of the reward it was meant to be.
+   So the ladder always ends somewhere now, and it ends with a STATEMENT. A resting line reports the
+   day back and asks for nothing: no CTA, no key, so nothing to obey and nothing to dismiss. That is
+   the distinction that actually matters, because the failure mode being avoided is interruption with
+   a demand attached, not a companion being visibly present. It is also the exact shape of the
+   food-quality line further up, which has been doing this on premium accounts all along and is the
+   best-liked thing the buddy says.
+   Deliberately carries no numbers. The macro card directly below owns the day's figures, and one
+   thing says one thing; what this line carries is the part the numbers do not, which is that the day
+   is finished and nothing is owed.
+   Rotation is seeded by the date, not random: a fortnight of good days should not be a fortnight of
+   the same sentence, and the line must not change under someone between two glances at the phone. */
+const REST_LINES = {
+  // Everything the day asked for is in. The one genuinely earned rest state, and the only one that
+  // gets to sound pleased with itself.
+  landed: [
+    'Everything landed today. Calories, protein and fibre, the lot. That is the eating that actually grows me.',
+    'All three targets in. I am full, you are finished, and there is nothing else today needs.',
+    'That is the day sorted. Nothing chasing, nothing left over. We can both sit down.',
+    'Protein, fibre and calories, all where they should be. Quietly, this is the good stuff.',
+  ],
+  // Same, with the run behind it. Only used once the streak is long enough to be worth naming.
+  landedStreak: [
+    'Landed the lot, {n} days running now. Days like this are what the whole thing is actually made of.',
+    '{n} days on the trot, and today is clean. I am not going to make a fuss. I am delighted though.',
+    'That is {n} in a row. Nothing dramatic, just the day done properly again.',
+  ],
+  // Trained AND fed. Worth its own line: it is the most work anybody does in a day here.
+  landedTrained: [
+    'Trained and fed, and every target in. That is about as good as a day gets round here.',
+    'A session and the full day of food. Honestly, go and put your feet up.',
+  ],
+  // The day still has an open loop, but it was waved away with the ×. Respecting that means not
+  // restating it - so the buddy says it is here, and says nothing about the loop.
+  waved: [
+    'Pottering about, keeping you company. Nothing else from me today.',
+    'I am just here if you want me. No notes on today.',
+    'Having a wander round my patch. Give me a shout whenever.',
+  ],
+  // Napping: the buddy is at its best-ever stage after a break and wakes on activity. The nap is its
+  // own state and reports itself; the waking is mentioned as a fact, never as an instruction.
+  asleep: [
+    'Curled up having a nap. I wake up when there is something to eat, no rush.',
+    'Fast asleep and dreaming of snacks. I will be up when you are.',
+  ],
+};
+// `asleep` is passed in rather than re-derived: Game.buddyView only knows the buddy is napping if it
+// is also told whether today is a comeback (which forces it awake), and that lives in the Dashboard.
+// Recomputing it here without that would let the buddy claim to be asleep on the exact day the sprite
+// is up and bobbing, which is the one contradiction a resting line must never produce.
+function buddyRest(db, today, streak, asleep) {
+  const pick = (arr) => arr[Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5) % arr.length];
+  const logged = entriesOn(db, today);
+  const et = effectiveTarget(db, today);
+  const ft = et ? E.fiberTarget(et.eff.kcal) : null;
+  const sums = sumMacros(logged);
+  const one = Game.oneThing({
+    logged: logged.length > 0,
+    protein: sums.protein, proteinTarget: et ? Math.round(et.eff.protein_g) : 0,
+    fiber: sums.fiber, fiberTarget: ft ? ft.min : 0,
+    kcal: sums.kcal, kcalTarget: et ? et.eff.kcal : 0,
+  });
+  if (asleep) return pick(REST_LINES.asleep);
+  // `one === null` is Game.oneThing's own way of saying every target on the day is met, so this is
+  // the same test the open-loop rung uses rather than a second opinion about what a good day is.
+  if (one === null) {
+    if (trainedDates(db).has(today)) return pick(REST_LINES.landedTrained);
+    if (streak >= 3) return pick(REST_LINES.landedStreak).replace('{n}', streak);
+    return pick(REST_LINES.landed);
+  }
+  return pick(REST_LINES.waved);
 }
 
 // A proactive conversational "breakout": the buddy asks a yes/no question when something's worth
@@ -4715,7 +4795,7 @@ function weighAsk(db, today) {
 // sleep/step data) -> the day's lesson (new users) -> a check-in "ask" (yes/no) -> the ambient coach
 // line. Each carries up to a primary and a secondary action (label + act string); the Dashboard wires
 // the act strings to handlers so this stays a pure, testable decision. Returns a message or null.
-function buddyMessage(db, today, streak) {
+function buddyMessage(db, today, streak, asleep) {
   const p = db.profile || {};
   const incubating = !!(db.buddy && db.buddy.hatched === false);
   // 1. Paused goal: the buddy now owns the resume path (the standalone check-in card is gone).
@@ -4774,7 +4854,14 @@ function buddyMessage(db, today, streak) {
     // Anything keyed (engagement nudges + the actionable coach reminders) can be dismissed with the ×;
     // the pure warm streak lines carry no key, so they get no dismiss (there's nothing to skip).
     dismiss: say.key ? { key: say.key } : null };
-  return null;
+  // 8. Rest: THIS LADDER IS TOTAL. Every rung above asks for something and any of them may decline to
+  // fire, so before this existed the common case of a well-run day fell out of the bottom as null and
+  // the habitat rendered an empty frame. buddyRest cannot return null (see its note), which is what
+  // makes "the buddy card is never blank" a property of the code rather than a hope about the data.
+  // A statement with no primary and no key is exactly the shape the habitat reads as `bare`: it gets
+  // the blinking ▼ and taps through to the Play hub, and there is no × because there is nothing being
+  // asked that could be waved away.
+  return { kind: 'say', text: buddyRest(db, today, streak, asleep) };
 }
 // THE GUARANTEE: the buddy always has a line. buddyMessage ranks the things that are genuinely
 // OUTSTANDING and is entitled to come back with nothing - no weigh-in due, no lesson owing, the day
@@ -4785,8 +4872,14 @@ function buddyMessage(db, today, streak) {
 // to it. The kind is 'talk' rather than 'say' so the box can tell the difference - there is nothing
 // here to advance or dismiss, and the dock underneath is the affordance, not the box itself.
 // Incubation keeps returning null, because there the hatch checklist IS the dialogue.
-function buddyLine(db, today, streak) {
-  const m = buddyMessage(db, today, streak);
+//
+// The ladder is now total on its own (rung 8, buddyRest), so in practice this fallback no longer
+// fires for a hatched buddy. It stays as the belt to that pair of braces: the guarantee is that the
+// habitat never renders a speechless frame, and that should not rest on every rung above staying
+// exhaustive forever. The 'talk' kind is what the box reads to skip the advance arrow and let the
+// dock underneath be the affordance instead.
+function buddyLine(db, today, streak, asleep) {
+  const m = buddyMessage(db, today, streak, asleep);
   if (m) return m;
   if (db.buddy && db.buddy.hatched === false) return null;
   return { kind: 'talk', text: Game.idleLine(db.game_salt || '', today) };
@@ -4836,33 +4929,30 @@ function WeighInline({ unit, seedKg, onSave }) {
 /* THE BUDDY'S WORLD.
    The buddy used to sit in a 66x70 thumbnail beside its own name, with anything it said fenced off
    below a hairline rule. That is not how anything on this hardware ever looked: the Game Boy gave you
-   a window LAYER over the background, so a character stood in a scene and the textbox appeared OVER
-   it when somebody spoke. Two things follow from copying that properly.
+   a window LAYER over the background, so a character stood in a scene and a textbox opened at the
+   bottom of that same screen when somebody spoke. Two things follow from copying that properly.
 
-   The textbox overlays rather than stacks, so a quiet buddy is not a collapsed strip - it is the same
-   world with nothing said over it, and the card barely changes height between the two. Silence stops
-   being an absence and becomes the thing you get for having finished.
+   The dialogue is a REGION of this one screen rather than a box floated inside it (see the note on
+   `box` below), so silence is not a collapsed strip - it is the same world, with the bottom of it
+   given back. Silence stops being an absence and becomes the thing you get for having finished.
 
    And the world is finally big enough to be worth decorating, which is where the shop has been
    hiding: SCENE_ART, PROP_ART and the auras are all Amber purchases that were rendering into a
    thumbnail nobody could read. BuddyScene already draws every one of them - sky, floor, floor line,
    a prop standing at its own fraction across, the aura on the sprite - so the world costs no new art,
    only room. */
-// Sized by the biggest buddy there can be, not by eye: STAGE_PX tops out at 1.12, so at WORLD_PX the
-// tallest sprite is 24 * 2.8 * 1.12 = 75px, and the speaking foot at 40 puts its head at 115 with 5px
-// to spare. Anything shorter clips a fully grown buddy, which is why this is arithmetic rather than
-// taste. It was 132 at px 3.2, which left a young buddy adrift in a frame built for a grown one.
+// ONE frame, in every state. The world used to be staged per state - a high horizon while speaking so
+// the box could cover the ground, a low one when quiet - and staging a set for what is or is not
+// covering it is what produced both of the faults here: quiet, the buddy stood 8px above its own
+// horizon in a 120px frame that was half empty sky; speaking, the ground it stood on was hidden
+// anyway. A hardware screen is a fixed rectangle and the character stands on its floor, so that is
+// what this is now, and the buddy growing to fill it is the whole point of STAGE_PX.
+// The height is arithmetic, not taste: a grown buddy is 21 sprite rows above its feet (the bottom 3
+// of the 24 are transparent), which at WORLD_PX * 1.12 is 66px, so a 20px floor puts the tallest head
+// at 86 with six to spare.
 const WORLD_PX = 2.8;
-const WORLD_H = 120;
-// The horizon and the buddy MOVE TOGETHER with whether anything is being said, because a stage set
-// for one state looks wrong in the other. Speaking, the box covers the lower scene, so the ground
-// line sits high and the buddy stands on it just clear of the box. Quiet, the whole scene is visible,
-// so the same high horizon would leave the buddy hovering over a 46px slab of empty floor - which is
-// exactly what it did, and exactly what looked wrong about it.
-const WORLD_STAGE = {
-  speaking: { floor: 42, foot: 40 },   // the box covers the bottom 40, so the feet land exactly on it
-  quiet: { floor: 26, foot: 24 },
-};
+const WORLD_H = 92;
+const WORLD_FLOOR = 20;
 function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, onSnap }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const asleep = bp.mood === 'asleep' || buddy.asleep;
@@ -4891,17 +4981,29 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, o
   const bare = !!(msg && msg.kind !== 'talk' && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
     && !msg.weigh && !(msg.choices || []).length);
   const speaking = !!(msg || (incubating && tasks));
-  const stage = speaking ? WORLD_STAGE.speaking : WORLD_STAGE.quiet;
+  /* THE DIALOGUE IS A REGION OF THIS CARD, NOT A BOX INSIDE IT.
+     It used to be a `pixel-box box-double` inset 8px from the card's own frame, which made this the
+     only panel in the app to stack full-width frames: card border, gutter, box border, and the two
+     inset rules of the doubled frame, so eighteen pixels of chrome and four dark lines stood between
+     the page and the sentence, against four pixels and one line on every other card on Today. Its
+     drop shadow was then clipped by the card's own overflow, printing a black slab under it, and the
+     8px gutter let the ground band show through either side as two pale slivers. That is what read as
+     belonging to a different app, and none of it was carrying meaning.
+     So the window keeps everything that makes it a window - the nameplate on its top edge, the
+     advance arrow, the world above it - and gives up the frame it was duplicating. It hangs from a
+     single rule of the card's own border weight, full-bleed, which is the same "one object, divided
+     interior" grammar the macro card below it already uses for Balance and the carryover footer. */
   const box = (body, plate) => (
-    <div className="relative mx-2 -mt-10 mb-2">
-      <div onClick={bare ? onOpenPlay : undefined} role={bare ? 'button' : undefined}
-        className={'pixel-box box-double p-2.5 pt-3' + (bare ? ' active:opacity-80' : '')}
-        style={{ background: 'var(--surface3)', '--box-inner': 'var(--surface3)' }}>
-        <span className="pf absolute px-1.5 py-1 text-[8px] uppercase" style={{ top: -9, left: 8, background: 'var(--accent)', color: 'var(--on-accent)', lineHeight: 1, zIndex: 1 }}>{plate}</span>
-        {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit absolute h-3 flex items-center justify-center text-[#8A8A90] text-[13px] active:opacity-60" style={{ top: 4, right: 6 }}>×</button>}
-        {body}
-        {bare && <span className="blink absolute pf" style={{ right: 6, bottom: 3, fontSize: 10, color: 'var(--accent-ink)' }}>▼</span>}
-      </div>
+    <div onClick={bare ? onOpenPlay : undefined} role={bare ? 'button' : undefined}
+      className={'relative px-3 pt-3.5 pb-3' + (bare ? ' active:opacity-80' : '')}
+      style={{ borderTop: '4px solid var(--border)', background: 'var(--card)' }}>
+      {/* -9 hangs the plate off the rule rather than beside it: 9px of it stands in the world above,
+          the rest covers the rule. That overlap is the convention; a plate that merely sits inside
+          the text area is just a label. */}
+      <span className="pf absolute px-1.5 py-1 text-[8px] uppercase" style={{ top: -9, left: 8, background: 'var(--accent)', color: 'var(--on-accent)', lineHeight: 1, zIndex: 1 }}>{plate}</span>
+      {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit absolute h-3 flex items-center justify-center text-[#8A8A90] text-[13px] active:opacity-60" style={{ top: 6, right: 6 }}>×</button>}
+      {body}
+      {bare && <span className="blink absolute pf" style={{ right: 8, bottom: 4, fontSize: 10, color: 'var(--accent-ink)' }}>▼</span>}
     </div>
   );
   return (
@@ -4909,7 +5011,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, o
       <div className="relative">
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="block w-full text-left" style={{ lineHeight: 0 }}>
           <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={WORLD_PX} w="100%" h={WORLD_H}
-            floor={stage.floor} spriteBottom={stage.foot} shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
+            floor={WORLD_FLOOR} plant shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
         </button>
         {/* The world carries its own HUD in the corners, the way a status overlay did on hardware. */}
         <div className="absolute flex items-start justify-between gap-2 pointer-events-none" style={{ top: 6, left: 8, right: 8 }}>
@@ -4918,6 +5020,15 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, o
             {incubating ? 'Incubating ' + tDone + '/' + (tasks ? tasks.length : 0) : mood.label}
           </span>
         </div>
+        {/* THE FALLBACK, and only that. buddyMessage's ladder is total - buddyRest cannot return
+            null - so a hatched buddy always has a box and an incubating one always has its hatch
+            list, and this branch does not render in the app as it stands. It is kept, and kept
+            correct, because "never blank" should survive somebody adding a rung above that returns
+            early: the failure mode of that mistake is then a card with a tap-through in its fourth
+            corner rather than a frame with a sprite in it and nothing else. `?demo&quiet` renders
+            it. Speaking, the box below carries its own arrow or its own buttons, so a second mark
+            here would be exactly the noise the ▼ rule exists to prevent. */}
+        {!speaking && <span className="pf absolute text-[7px] uppercase pointer-events-none" style={{ right: 8, bottom: 6, color: 'var(--accent-ink)' }}>Play ›</span>}
       </div>
       {/* INCUBATING: the hatch list IS the dialogue, because hatching is the only thing being said. */}
       {incubating && tasks && box(
@@ -5402,7 +5513,7 @@ function equippedCosmetics(buddy) {
    so a bought scene or prop shows up in both and the two can never drift apart (they used to carry
    near-duplicate markup). Sizing is passed in because the two surfaces differ: `px` is the BASE sprite
    scale, which stage growth then multiplies. */
-function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW, eq, asleep, stuffed, dayState, className, style }) {
+function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, shadowW, eq, asleep, stuffed, dayState, className, style }) {
   const s = buddyStageSprite(stageIndex, buddy);
   const scene = (eq && eq.scene) ? SCENE_ART[eq.scene] : null;
   const prop = (eq && eq.prop) ? PROP_ART[eq.prop] : null;
@@ -5418,7 +5529,15 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW,
   const size = px * scale;
   // Pin the shadow to the sprite's real foot line (and shrink it with the sprite), so the two move
   // together as the buddy grows instead of the buddy drifting below its own shadow.
-  const footY = spriteBottom + (SPRITE_FOOT_PAD[s.group] || 3) * size;
+  // `plant` then solves the other half of the same problem: the caller names the horizon and the
+  // buddy STANDS on it, feet on the line at every stage, instead of the caller guessing a bottom
+  // offset that only happens to look right at one size. Today's world was 24 with a floor at 26, so
+  // the pad put the visible feet eight pixels above the ground and the contact shadow floated in the
+  // sky - which is what made the quiet card look broken. The small character-sheet screens keep
+  // placing the sprite by eye, because there the buddy is a portrait and not a figure in a place.
+  const pad = (SPRITE_FOOT_PAD[s.group] || 3) * size;
+  const spriteY = plant ? floor - pad : spriteBottom;
+  const footY = spriteY + pad;
   const sceneStyle = scene
     ? { background: 'radial-gradient(56% 40% at 50% 78%, ' + scene.glow + ', transparent 72%), linear-gradient(180deg, ' + scene.top + ' 0%, ' + scene.bottom + ' 100%)' }
     : null;
@@ -5435,7 +5554,7 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW,
         <Sprite art={prop.art} colors={prop.colors} px={prop.px} />
       </div>}
       <div className={'absolute' + (still ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: Math.round(footY - SHADOW_H / 2), width: Math.round(shadowW * scale), height: SHADOW_H, transform: 'translateX(-50%)', background: scene ? '#000' : 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
-      <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteBottom, transform: 'translateX(-50%)' },
+      <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteY, transform: 'translateX(-50%)' },
         asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
         {/* Bobbing is the resting state; while a flourish plays, the animation itself carries the motion. */}
         <div className={'inline-block leading-none' + (still || flourishing ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
@@ -7891,7 +8010,15 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     showToast && showToast('Logged ' + fmtWeight(kg, unit) + '. Nice one.');
   };
   const msg = (() => {
-    const m = buddyLine(db, today, streak); if (!m) return null;
+    // Two demo switches for the bottom of the ladder, which is the state a consistent user is in most
+    // days and the hardest one to reach on purpose while working on it. `?demo&rest` jumps to the
+    // resting line - what a finished day now looks like. `?demo&quiet` returns nothing at all, which
+    // the ladder itself can no longer do, and renders the habitat's blank fallback.
+    const dq = DEMO ? new URLSearchParams(window.location.search) : null;
+    if (dq && dq.has('quiet')) return null;
+    const m = dq && dq.has('rest') ? { kind: 'say', text: buddyRest(db, today, streak, buddy.asleep) }
+      : buddyLine(db, today, streak, buddy.asleep);
+    if (!m) return null;
     const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
     const ackRead = () => update(d => { d.profile = d.profile || {}; d.profile.readAckDate = today; });
     const ackRecap = () => update(d => { d.profile = d.profile || {}; d.profile.recapAckDate = today; });
