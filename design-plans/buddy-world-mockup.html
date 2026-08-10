@@ -1,0 +1,135 @@
+<!doctype html>
+<html class="theme-dark">
+<head>
+<meta charset="utf-8">
+<title>Buddy world (H, developed)</title>
+<link rel="stylesheet" href="../app/src/styles.css">
+<style>
+  body { background: var(--bg); color: var(--text); font-family: ui-monospace, monospace; padding: 24px; }
+  .col { max-width: 390px; margin: 0 auto 34px; }
+  .cap { font-size: 11px; color: var(--muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+  .sub { font-size: 10.5px; color: var(--muted2); margin: 6px 0 0; line-height: 1.5; }
+
+  /* THE WORLD: one fixed-height frame. The textbox OVERLAYS it rather than stacking under it, so the
+     card is the same height whether the buddy is speaking or not - which is how the games did it, and
+     which means the calorie number below never moves. */
+  .world { position: relative; height: 152px; overflow: hidden; background: var(--card); }
+  .sky { position: absolute; inset: 0; }
+  .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; }
+  .gline { position: absolute; left: 0; right: 0; height: 2px; }
+  .glow { position: absolute; left: 0; right: 0; bottom: 0; height: 70%; }
+  .matrix::after { content:''; position:absolute; inset:0; pointer-events:none;
+    background-image: linear-gradient(rgba(0,0,0,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.18) 1px, transparent 1px);
+    background-size: 3px 3px; }
+
+  .dino { width:24px; height:24px; image-rendering:pixelated; position:absolute; bottom:56px;
+          background-image:url('../sprites/female/doux/base/idle.png'); background-size:72px 24px;
+          transform-origin:bottom center; }
+  .egg  { background-image:url('../sprites/female/doux/egg/move.png'); background-size:96px 24px; }
+  .prop { width:16px; height:16px; image-rendering:pixelated; position:absolute; bottom:57px;
+          background-image:url('../sprites/female/doux/base/idle.png'); background-size:48px 16px;
+          filter: brightness(.45) saturate(.5); transform-origin:bottom center; }
+
+  /* GB status corners: the world carries its own HUD, like a hardware overlay */
+  .hud { position:absolute; top:6px; left:8px; right:8px; display:flex; justify-content:space-between; }
+  .hud span { font-size:7px; }
+
+  /* the textbox, overlaid on the bottom of the world */
+  .tbox { position:absolute; left:7px; right:7px; bottom:7px; background: var(--surface3); padding: 10px 10px 9px; }
+  .plate { position:absolute; top:-10px; left:9px; background:var(--accent); color:var(--on-accent);
+           padding:3px 6px; font-size:8px; line-height:1; }
+  .adv { position:absolute; right:7px; bottom:5px; font-size:11px; color:var(--accent-ink); animation:none; }
+  .box-double { box-shadow: 4px 4px 0 0 var(--shadow), inset 0 0 0 2px var(--surface3), inset 0 0 0 4px var(--border); }
+  .meterline { display:flex; gap:2px; margin-top:7px; }
+  .meterline i { flex:1 1 0; height:5px; background:var(--track); }
+  .meterline i.on { background:var(--pro); }
+</style>
+</head>
+<body>
+
+<!-- 1. SPEAKING -->
+<div class="col">
+  <p class="cap">1 · speaking — textbox over the world</p>
+  <div class="world pixel-box matrix">
+    <div class="sky" style="background:linear-gradient(180deg,#16301c 0%,#0a1a0e 100%)"></div>
+    <div class="glow" style="background:radial-gradient(56% 70% at 50% 100%, rgba(127,212,107,0.26), transparent 72%)"></div>
+    <div class="ground" style="background:#1d3a22"></div>
+    <div class="gline" style="bottom:58px;background:#2c5531"></div>
+    <div class="dino" style="left:50%;transform:translateX(-50%) scale(3.2)"></div>
+    <div class="hud"><span class="pf" style="color:#7fd46b">DAY 21</span><span class="pf" style="color:var(--fat-ink)">PECKISH</span></div>
+    <div class="tbox pixel-box box-double">
+      <span class="plate pf">SAYS</span>
+      <div style="font-size:11px;line-height:1.5">I could do with 56g more protein today.</div>
+      <div class="meterline"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
+      <span class="adv blink">▼</span>
+    </div>
+  </div>
+  <p class="sub">The whole box is the tap target — no button. ▼ is the affordance, exactly as the games used it.</p>
+</div>
+
+<!-- 2. QUIET -->
+<div class="col">
+  <p class="cap">2 · quiet — same height, textbox simply absent</p>
+  <div class="world pixel-box matrix">
+    <div class="sky" style="background:linear-gradient(180deg,#16301c 0%,#0a1a0e 100%)"></div>
+    <div class="glow" style="background:radial-gradient(56% 70% at 50% 100%, rgba(127,212,107,0.26), transparent 72%)"></div>
+    <div class="ground" style="background:#1d3a22"></div>
+    <div class="gline" style="bottom:58px;background:#2c5531"></div>
+    <div class="prop" style="left:16%;transform:scale(2.4)"></div>
+    <div class="buddy-bob" style="position:absolute;left:62%;bottom:0;width:0;height:100%"><div class="dino" style="left:0;transform:translateX(-50%) scale(3.2)"></div></div>
+    <div class="hud"><span class="pf" style="color:#7fd46b">DAY 21</span><span class="pf" style="color:var(--good-ink)">THRIVING</span></div>
+  </div>
+  <p class="sub">Nothing due, so nothing is said — and the reward for being finished is watching it potter about. It has wandered from centre; in a world this wide the `move` strip can actually travel.</p>
+</div>
+
+<!-- 3. INCUBATING -->
+<div class="col">
+  <p class="cap">3 · incubating — the egg is in the world, the tasks are the dialogue</p>
+  <div class="world pixel-box matrix" style="height:172px">
+    <div class="sky" style="background:linear-gradient(180deg,#16301c 0%,#0a1a0e 100%)"></div>
+    <div class="glow" style="background:radial-gradient(56% 70% at 50% 100%, rgba(127,212,107,0.26), transparent 72%)"></div>
+    <div class="ground" style="background:#1d3a22"></div>
+    <div class="gline" style="bottom:58px;background:#2c5531"></div>
+    <div class="dino egg" style="left:50%;transform:translateX(-50%) scale(3.2)"></div>
+    <div class="hud"><span class="pf" style="color:#7fd46b">DAY 1</span><span class="pf" style="color:var(--carb-ink)">INCUBATING 2/5</span></div>
+    <div class="tbox pixel-box box-double">
+      <span class="plate pf">TO HATCH</span>
+      <div style="font-size:10.5px;line-height:1.7">
+        <div style="color:var(--muted);text-decoration:line-through">✓ Created your account</div>
+        <div>· Log a meal</div>
+        <div>· Add a weigh-in</div>
+      </div>
+      <span class="adv blink">▼</span>
+    </div>
+  </div>
+</div>
+
+<!-- 4/5. THE SHOP FINALLY PAYS OFF -->
+<div class="col">
+  <p class="cap">4 · scene_dusk — the same world, a bought scene</p>
+  <div class="world pixel-box matrix">
+    <div class="sky" style="background:linear-gradient(180deg,#3a2140 0%,#150d1c 100%)"></div>
+    <div class="glow" style="background:radial-gradient(56% 70% at 50% 100%, rgba(255,150,80,0.28), transparent 72%)"></div>
+    <div class="ground" style="background:#2e1c30"></div>
+    <div class="gline" style="bottom:58px;background:#4a2c45"></div>
+    <div class="prop" style="left:85%;transform:scale(2.4)"></div>
+    <div class="dino" style="left:44%;transform:translateX(-50%) scale(3.2);filter:drop-shadow(0 0 6px #ff7a1a) drop-shadow(0 0 3px #ff7a1a)"></div>
+    <div class="hud"><span class="pf" style="color:#e0a070">DAY 21</span><span class="pf" style="color:var(--fat-ink)">CONTENT</span></div>
+  </div>
+  <p class="sub">Scene, prop and aura are all existing Amber purchases. In a 66×70 thumbnail nobody can see what they bought; at this size the shop has a point.</p>
+</div>
+
+<div class="col">
+  <p class="cap">5 · scene_aurora</p>
+  <div class="world pixel-box matrix">
+    <div class="sky" style="background:linear-gradient(180deg,#1b1440 0%,#080618 100%)"></div>
+    <div class="glow" style="background:radial-gradient(56% 70% at 50% 100%, rgba(120,255,200,0.30), transparent 72%)"></div>
+    <div class="ground" style="background:#1d1642"></div>
+    <div class="gline" style="bottom:58px;background:#33285f"></div>
+    <div class="dino" style="left:56%;transform:translateX(-50%) scale(3.2);filter:drop-shadow(0 0 6px #3fd0ff) drop-shadow(0 0 3px #3fd0ff)"></div>
+    <div class="hud"><span class="pf" style="color:#8ad9c0">DAY 21</span><span class="pf" style="color:var(--good-ink)">THRIVING</span></div>
+  </div>
+</div>
+
+</body>
+</html>
