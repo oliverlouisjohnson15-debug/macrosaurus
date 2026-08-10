@@ -61,6 +61,19 @@
   --scene-ground: #171d28;   /* the lit floor the buddy stands on */
   --scene-line: #33405a;     /* the horizon, and the one edge that has to be visible */
   --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
+  /* THE TERRARIUM, at night. The imported design is a daylight scene on white, and inverting it
+     would have put a black ground line on a black sky - the one edge that has to be visible is the
+     first thing a naive inversion loses. So the dark theme is a deliberate second scene: the sky
+     goes deep, the "ink" that draws the ground and the cacti becomes the LIGHTEST value rather than
+     the darkest, and the sun is redrawn as a moon. Silhouettes read as shapes against the night
+     instead of holes cut out of it. */
+  --terra-sky: #14151C;
+  --terra-pale: #232735;     /* dune fill */
+  --terra-faint: #3A4055;    /* cloud outlines, far hills, ground dashes */
+  --terra-ink: #8B93AD;      /* ground line, cacti - the strongest value at night, not the weakest */
+  --terra-sun: #EDE7C4;      /* the moon */
+  --terra-red: #C4574F;      /* the logo chips, taken down for night */
+  --terra-blue: #4A7FD4;
   /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
      as a 12px block on a meter can be unreadable as 10px type, because a bar only has to be seen
      and type has to be read. On black the neon set already runs 6:1 to 15:1, so here ink and fill
@@ -122,6 +135,14 @@
   --scene-ground: #eaf0f8;
   --scene-line: #1e1e1e;     /* light keeps the hard pixel line; on white it is the strongest edge */
   --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
+  /* THE TERRARIUM, by day - the imported design's own palette, unchanged. */
+  --terra-sky: #FFFFFF;
+  --terra-pale: #E2E6EA;     /* dune fill */
+  --terra-faint: #C9CED4;    /* cloud outlines, far hills, ground dashes */
+  --terra-ink: #1A1A1A;      /* ground line, cacti */
+  --terra-sun: #F5C518;
+  --terra-red: #E03131;      /* the logo chips, as ground tufts */
+  --terra-blue: #2F6FD0;
   /* INK tokens: the brand colours when they are TEXT. Measured on white, the gold that carries the
      whole light theme scored 1.63:1 as type, which is not dim, it is invisible; teal ran 3.12 and
      the macro red 4.32, both under the 4.5 small text needs. These are the same hues taken down

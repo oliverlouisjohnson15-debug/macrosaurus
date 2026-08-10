@@ -1,4 +1,4 @@
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
 const E = window.Engine;
 const Store = window.Store;
 const Q = window.Quantity;
@@ -2034,7 +2034,7 @@ function QualityBar({ nd, onExplain }) {
    same value as --fat, directly above a PROT bar in red: the same number in two colours, one of
    them the wrong macro's. See design-plans/10-one-thing-macro-colour.md. */
 const ONE_THING_COLOR = { protein: PRO, fibre: 'var(--weight)', fuel: 'var(--hero)' };
-function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain, lens }) {
+function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain }) {
   const remaining = et.eff.kcal - tot.kcal;
   const ft = E.fiberTarget(et.eff.kcal);
   const isRem = mode === 'remaining';
@@ -2042,17 +2042,19 @@ function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain, lens }) {
   const heroColor = over ? 'var(--danger)' : 'var(--hero)';
   const nd = E.ndDay((entries || []).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
   return (<>
-    {/* One hero number per card. Everything under it is a meter with a single supporting value, so
-        the card leads with the one figure people open the app for instead of a wall of digits. */}
-    {/* The lens control rides the label it changes, rather than floating above the card. */}
-    <div className="flex items-center justify-between gap-3 mb-1" style={{ minHeight: lens ? 28 : 0 }}>
-      <span className="pf text-[8px]" style={{ color: 'var(--muted)' }}>{isRem ? 'KCAL LEFT' : 'KCAL EATEN'}{avg ? ' (AVG)' : ''}</span>
-      {lens}
-    </div>
-    <div className="flex items-baseline gap-1 mb-4">
-      <span className="text-5xl tnum" style={{ color: heroColor }}>{isRem ? Math.abs(Math.round(remaining)) : Math.round(tot.kcal)}</span>
-      <span className="text-5xl tnum blink" style={{ color: heroColor }}>_</span>
-      <span className="text-[11px] ml-1" style={{ color: 'var(--muted)' }}>{over ? 'over ' + et.eff.kcal : 'of ' + et.eff.kcal}</span>
+    {/* THE NUMBER, DEMOTED. This was 48px, from when it was the one figure on Today and the whole
+        reason the card wore the accent ring. The buddy box's status strip now carries kcal left in
+        the first glance, so a second 48px copy of the same number 200px lower was the page saying
+        its most important thing twice. At 30px it is still the largest thing on this card and reads
+        instantly - it has just stopped competing with the box above for the top of the page.
+        The label moved into the card's nameplate row, so this line is the figure and its context
+        and nothing else. The blinking cursor stays: it is the one bit of hardware voice here. */}
+    <div className="flex items-baseline gap-1 mb-3">
+      <span className="text-3xl tnum" style={{ color: heroColor }}>{isRem ? Math.abs(Math.round(remaining)) : Math.round(tot.kcal)}</span>
+      <span className="text-3xl tnum blink" style={{ color: heroColor }}>_</span>
+      <span className="pf text-[7px] uppercase ml-2" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>
+        {isRem ? (over ? 'over' : 'kcal left') : 'kcal eaten'}{avg ? ' (avg)' : ''} · of {et.eff.kcal}
+      </span>
     </div>
     <MeterRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} mode={mode} />
     <MeterRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} mode={mode} />
@@ -4621,22 +4623,55 @@ const REST_LINES = {
 // is also told whether today is a comeback (which forces it awake), and that lives in the Dashboard.
 // Recomputing it here without that would let the buddy claim to be asleep on the exact day the sprite
 // is up and bobbing, which is the one contradiction a resting line must never produce.
-function buddyRest(db, today, streak, asleep) {
-  const pick = (arr) => arr[Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5) % arr.length];
+// THE ONE TEST FOR "the day is landed". Game.oneThing returning null is its own way of saying every
+// target on the day is met. Three things now key off that - the resting line, the foraging trigger,
+// and the open-loop rung - and they must never disagree about what a good day is, so they read it
+// from here rather than each assembling the call themselves.
+function dayLanded(db, today) {
   const logged = entriesOn(db, today);
   const et = effectiveTarget(db, today);
   const ft = et ? E.fiberTarget(et.eff.kcal) : null;
   const sums = sumMacros(logged);
-  const one = Game.oneThing({
+  return Game.oneThing({
     logged: logged.length > 0,
     protein: sums.protein, proteinTarget: et ? Math.round(et.eff.protein_g) : 0,
     fiber: sums.fiber, fiberTarget: ft ? ft.min : 0,
     kcal: sums.kcal, kcalTarget: et ? et.eff.kcal : 0,
+  }) === null;
+}
+// How long a foraging trip takes, and the demo switch that makes it testable. Three hours is not
+// something anyone can sit through while working on the card.
+const FORAGE_DEMO_MS = 20 * 1000;
+function forageFor(db, today) {
+  // `?demo&forage` does two things, because a loop measured in hours is otherwise untestable: it
+  // shortens the trip to twenty seconds AND treats the day as landed, so the whole send -> away ->
+  // back -> claim cycle can be walked without first eating a day's targets into the demo fixture.
+  const fast = DEMO && new URLSearchParams(window.location.search).has('forage');
+  return Game.forageView((db.buddy || {}).forage, Date.now(), {
+    today, landed: fast || dayLanded(db, today),
+    durationMs: fast ? FORAGE_DEMO_MS : Game.FORAGE_MS,
   });
+}
+const forageClock = (ms) => new Date(ms).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
+// The forage state as something the habitat can say. One function so the two places it is read from
+// - the ladder, and the demo switch that jumps straight to it - can never word it differently.
+function forageMessage(v) {
+  if (!v) return null;
+  if (v.status === 'back') return { kind: 'say',
+    text: "I'm back, and I found " + v.amber + ' Amber while I was out. Want it?',
+    primary: { label: 'Take the Amber', act: 'forage_claim' } };
+  if (v.status === 'ready') return { kind: 'say',
+    text: "Everything's landed for today. Want me to go foraging while you get on? I'll bring something back.",
+    primary: { label: 'Send me out', act: 'forage_send' } };
+  // Away carries no CTA on purpose: there is nothing to do but come back later, and a button that
+  // only says "yes I know" is noise.
+  if (v.status === 'away') return { kind: 'say', text: "I'm out foraging. Back around " + forageClock(v.returnsAt) + '.' };
+  return null;
+}
+function buddyRest(db, today, streak, asleep) {
+  const pick = (arr) => arr[Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5) % arr.length];
   if (asleep) return pick(REST_LINES.asleep);
-  // `one === null` is Game.oneThing's own way of saying every target on the day is met, so this is
-  // the same test the open-loop rung uses rather than a second opinion about what a good day is.
-  if (one === null) {
+  if (dayLanded(db, today)) {
     if (trainedDates(db).has(today)) return pick(REST_LINES.landedTrained);
     if (streak >= 3) return pick(REST_LINES.landedStreak).replace('{n}', streak);
     return pick(REST_LINES.landed);
@@ -4846,6 +4881,11 @@ function buddyMessage(db, today, streak, asleep) {
   if (ask) return { kind: 'ask', text: ask.text,
     primary: { label: ask.yes, act: ask.action },
     secondary: { label: 'Not now', act: 'snooze', snoozeKey: ask.key } };
+  // 6b. Home from foraging. A reward that has already been earned outranks anything the buddy might
+  // still want to ask for: it is one tap, it cannot be declined, and holding it behind a nag would
+  // teach people that coming back is where the nagging happens.
+  const forage = forageFor(db, today);
+  if (forage.status === 'back') return forageMessage(forage);
   // 7. Say: the ambient next-action coach line (log / protein / weigh / streak). nextLesson is already
   // null here, so buddyCoach's own lesson branch is a no-op and won't double up.
   const say = buddyCoach(db, today, streak);
@@ -4854,6 +4894,11 @@ function buddyMessage(db, today, streak, asleep) {
     // Anything keyed (engagement nudges + the actionable coach reminders) can be dismissed with the ×;
     // the pure warm streak lines carry no key, so they get no dismiss (there's nothing to skip).
     dismiss: say.key ? { key: say.key } : null };
+  // 7b. Foraging. Sits below the coach line because an open loop on the day still matters more than
+  // a trip, and above rest because it is the one thing on this card whose state changes while nobody
+  // is looking - which is the entire reason it exists. `away` deliberately carries no CTA: there is
+  // nothing to do but come back later, and a button that only says "yes I know" is noise.
+  if (forage.status === 'ready' || forage.status === 'away') return forageMessage(forage);
   // 8. Rest: THIS LADDER IS TOTAL. Every rung above asks for something and any of them may decline to
   // fire, so before this existed the common case of a well-run day fell out of the bottom as null and
   // the habitat rendered an empty frame. buddyRest cannot return null (see its note), which is what
@@ -4950,10 +4995,79 @@ function WeighInline({ unit, seedKg, onSave }) {
 // The height is arithmetic, not taste: a grown buddy is 21 sprite rows above its feet (the bottom 3
 // of the 24 are transparent), which at WORLD_PX * 1.12 is 66px, so a 20px floor puts the tallest head
 // at 86 with six to spare.
+/* The terrarium's geometry. It lives up here rather than beside the drawing code because the world's
+   floor is derived from it at module scope, and a `const` cannot be read before its own definition:
+   the art data and the canvas component sit further down, next to BuddyScene. */
+const TERRA = { W: 200, H: 50, GROUND: 38, S: 4, TICK_MS: 260 };
+// Ground sits at 38 of 50 rows, so the standable surface is 24% up from the bottom whatever the
+// rendered height. Callers derive their floor from this rather than guessing, which is what keeps
+// the buddy's feet on the drawn line instead of near it.
+// SINK. The line is two logical rows thick, and feet that meet its exact top pixel read as hovering
+// rather than standing - the idle bob lifts the sprite a little, and the contact shadow then sits on
+// top of the horizon instead of in it. Planting a couple of rows lower puts the feet INTO the ground
+// band, which is what makes contact look like contact. Rows rather than pixels so it holds at any
+// rendered height.
+const TERRA_SINK_ROWS = 2;
+const TERRA_FLOOR_FRAC = 1 - (TERRA.GROUND + TERRA_SINK_ROWS) / TERRA.H;
+const terraFloor = (h) => Math.round(h * TERRA_FLOOR_FRAC);
 const WORLD_PX = 2.8;
 const WORLD_H = 92;
-const WORLD_FLOOR = 20;
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, onSnap }) {
+const WORLD_FLOOR = terraFloor(WORLD_H);   // the terrarium's own ground line, not a guessed offset
+/* THE STATUS STRIP.
+   The card's rule until now was that it carried no figures at all - the macro card directly below
+   owned every number, and the buddy owned the sentence. That was right about the RESTING LINE, which
+   should not be crowded with digits, and it quietly cost the page its glance: measured on a 375x812
+   phone, the calorie figure landed at 744px when the buddy was asking something and 679px when it
+   was resting, against a tab bar starting at 748. Whether you could see today's calories depended on
+   how long your dinosaur's sentence was.
+   The strip is a different object from the sentence: a hardware status bar, always on, never
+   speaking, sitting ABOVE the dialogue so its position cannot move with the text below it. The
+   resting line stays wordless; the numbers stop being downstream of it.
+   It costs no new chrome - one rule of the card's own border weight and a divided interior, the same
+   grammar the macro card uses for Balance and the carryover footer. */
+function StatusStrip({ stats, streak }) {
+  if (!stats) return null;
+  const cell = (key, value, colour, extra) => (
+    <div key={key} className="flex-1 min-w-0 px-1 py-1.5 text-center" style={{ borderRight: '1px solid var(--hairline, rgba(128,128,140,0.28))' }}>
+      <div className="pf text-[11px] tnum leading-none" style={{ color: colour }}>{value}</div>
+      <div className="pf text-[6.5px] uppercase mt-1 truncate" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>{key}</div>
+      {extra}
+    </div>
+  );
+  const cells = [];
+  cells.push(cell('kcal left', stats.kcalLeft != null ? Math.max(0, Math.round(stats.kcalLeft)) : '--',
+    stats.kcalLeft != null && stats.kcalLeft < 0 ? 'var(--fat-ink)' : 'var(--good-ink)'));
+  cells.push(cell('protein', stats.proteinLeft != null ? (Math.max(0, Math.round(stats.proteinLeft)) + 'g') : '--',
+    stats.proteinLeft != null && stats.proteinLeft <= 0 ? 'var(--good-ink)' : 'var(--accent-ink)'));
+  // THE THIRD CELL EARNS ITS PLACE EITHER WAY. Steps are the better number when they exist, but they
+  // need Google Health connected, and a "0" for something the user never linked reads as a failure
+  // rather than an absence - the one thing a status row must not do. So the slot falls back to fibre,
+  // which costs nothing to know, is the third target Game.oneThing scores a day on, and is the one
+  // daily figure the macro card below does not already carry.
+  if (stats.steps != null) {
+    const k = stats.steps >= 1000 ? (Math.round(stats.steps / 100) / 10).toString().replace(/\.0$/, '') + 'k' : String(stats.steps);
+    cells.push(cell('steps', k, stats.stepGoal && stats.steps >= stats.stepGoal ? 'var(--good-ink)' : 'var(--carb-ink)'));
+  } else if (stats.fiberLeft != null) {
+    cells.push(cell('fibre', Math.max(0, Math.round(stats.fiberLeft)) + 'g',
+      stats.fiberLeft <= 0 ? 'var(--good-ink)' : 'var(--carb-ink)'));
+  }
+  // The streak carries pips as well as a number: seven days of the rolling week, so the row shows
+  // the shape of the habit and not only its length.
+  const pips = (
+    <div className="flex gap-[2px] justify-center mt-1">
+      {(stats.week || []).map((on, i) => <span key={i} style={{ width: 4, height: 4, background: on ? 'var(--accent)' : 'var(--surface2)' }} />)}
+    </div>
+  );
+  cells.push(cell('streak', streak + 'd', 'var(--text)', pips));
+  return (
+    <div className="flex items-stretch" style={{ borderTop: '4px solid var(--border)', background: 'var(--surface3, var(--card))' }}>
+      {cells.map((c, i) => i === cells.length - 1
+        ? React.cloneElement(c, { style: { borderRight: 'none' } })
+        : c)}
+    </div>
+  );
+}
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, away }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   const stuffed = !asleep && bp.mood === 'stuffed';
@@ -4975,12 +5089,16 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, o
   // an inline weigh-in or a row of choices already tells you what to do, and a blinking "continue"
   // beside a "Log it" is a second affordance for a thing that only happens once. So the arrow means
   // exactly one thing here: this box is a statement, and tapping it opens the buddy's hub.
-  // The idle 'talk' line is deliberately NOT bare: there is nothing to advance to, and the dock
-  // directly beneath it is the thing to press. A blinking ▼ over "ask me something" would be
-  // pointing at the buddy's hub when the answer is sitting one row lower.
-  const bare = !!(msg && msg.kind !== 'talk' && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
+  // The 'talk' line used to be excepted here because the dock sat directly beneath it and was the
+  // thing to press. With the dock parked there is nothing one row lower, so a statement with no
+  // buttons is a statement with no buttons whatever its kind, and gets the tap-through like the rest.
+  const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
     && !msg.weigh && !(msg.choices || []).length);
   const speaking = !!(msg || (incubating && tasks));
+  /* THE ACCENT RING LIVES ON THIS CARD NOW. It used to ring the macro card, from when that card was
+     the page's one hero. The buddy box carries the day's figures in its status strip and is the
+     thing the page is built around, so the ring follows the hero rather than staying where the hero
+     used to be. Exactly one card on Today wears it - that is the whole point of it. */
   /* THE DIALOGUE IS A REGION OF THIS CARD, NOT A BOX INSIDE IT.
      It used to be a `pixel-box box-double` inset 8px from the card's own frame, which made this the
      only panel in the app to stack full-width frames: card border, gutter, box border, and the two
@@ -5007,19 +5125,23 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, o
     </div>
   );
   return (
-    <Card className="p-0 mb-4 overflow-hidden">
+    <Card className="p-0 mb-4 overflow-hidden" style={{ outline: '3px solid var(--accent)', outlineOffset: 2 }}>
+      {/* THE NAMEPLATE ROW, off the sky. The HUD used to be two labels floated over the scene, which
+          worked while the scene was a gradient and stopped working the moment it became a drawn
+          place: 7px type over drifting clouds is unreadable, and covering the sky is a poor use of
+          the one part of the card that now has something in it. The imported design puts the row
+          above the world inside the same frame, which is also how the hardware did it. */}
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5" style={{ borderBottom: '4px solid var(--border)' }}>
+        <span className="pf text-[7px] uppercase truncate" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>{who}{incubating ? '' : ' · Day ' + bp.daysTogether}</span>
+        <span className="pf text-[7px] uppercase shrink-0" style={{ color: incubating ? 'var(--carb-ink)' : away ? 'var(--carb-ink)' : mood.color, letterSpacing: '0.08em' }}>
+          {incubating ? 'Incubating ' + tDone + '/' + (tasks ? tasks.length : 0) : away ? 'Foraging' : mood.label}
+        </span>
+      </div>
       <div className="relative">
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="block w-full text-left" style={{ lineHeight: 0 }}>
-          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={WORLD_PX} w="100%" h={WORLD_H}
+          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={WORLD_PX} w="100%" h={WORLD_H} terrarium away={away}
             floor={WORLD_FLOOR} plant shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
         </button>
-        {/* The world carries its own HUD in the corners, the way a status overlay did on hardware. */}
-        <div className="absolute flex items-start justify-between gap-2 pointer-events-none" style={{ top: 6, left: 8, right: 8 }}>
-          <span className="pf text-[7px] uppercase truncate" style={{ color: 'var(--text2)' }}>{who}{incubating ? '' : ' · Day ' + bp.daysTogether}</span>
-          <span className="pf text-[7px] uppercase shrink-0" style={{ color: incubating ? 'var(--carb-ink)' : mood.color }}>
-            {incubating ? 'Incubating ' + tDone + '/' + (tasks ? tasks.length : 0) : mood.label}
-          </span>
-        </div>
         {/* THE FALLBACK, and only that. buddyMessage's ladder is total - buddyRest cannot return
             null - so a hatched buddy always has a box and an incubating one always has its hatch
             list, and this branch does not render in the app as it stands. It is kept, and kept
@@ -5030,6 +5152,9 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, o
             here would be exactly the noise the ▼ rule exists to prevent. */}
         {!speaking && <span className="pf absolute text-[7px] uppercase pointer-events-none" style={{ right: 8, bottom: 6, color: 'var(--accent-ink)' }}>Play ›</span>}
       </div>
+      {/* The numbers, above the sentence so they cannot move with it. Hidden during incubation, where
+          the hatch checklist is the whole content and there is no plan to report against yet. */}
+      {!incubating && <StatusStrip stats={stats} streak={streak} />}
       {/* INCUBATING: the hatch list IS the dialogue, because hatching is the only thing being said. */}
       {incubating && tasks && box(
         <div className="space-y-0.5">
@@ -5060,25 +5185,13 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, o
           </div>
         )}
       </>, kind)}
-      {/* THE DOCK. The buddy has been able to speak for a while; this is the row that lets you answer.
-          It sits below whatever is being said rather than replacing it, so a weigh-in ask and a
-          "describe your lunch" never compete for the same slot. Speaking and snapping route to the
-          capture paths that already exist (the Estimate tab's mic and camera) rather than to a second,
-          shallower copy of them - the conversation only has to own what it can genuinely do. */}
-      {!incubating && (onTalk || onSnap) && (
-        <div className="flex items-stretch gap-1.5 px-2 pb-2">
-          {/* One capture control, not two. The mic and the camera both live INSIDE the estimate sheet
-              ("snap it, type it or say it"), so a separate mic button here would be a second door to
-              the same room. The mic moves onto this row when it drives the conversation directly. */}
-          {onSnap && <button onClick={onSnap} aria-label="Photograph or describe a meal"
-            className="pixel-btn shrink-0 w-11 flex items-center justify-center active:scale-95 transition" style={{ background: 'var(--surface2)' }}><Icon.cam width="17" height="17" /></button>}
-          {onTalk && <button onClick={onTalk} aria-label={'Talk to ' + who}
-            className="pixel-btn flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 text-left active:opacity-80" style={{ background: 'var(--surface2)' }}>
-            <PixelGlyph kind="chat" color="var(--accent-ink)" size={12} />
-            <span className="text-[11px] truncate" style={{ color: 'var(--muted)' }}>Talk to {who}…</span>
-          </button>}
-        </div>
-      )}
+      {/* THE DOCK IS PARKED. It was a camera plus a "Talk to <name>…" field routing into the AI
+          conversation sheet. Pulled deliberately rather than deleted: the conversation is metered at
+          ten free replies a month, which is roughly one chat every three days, and a permanently
+          visible input promising a companion that is actually rationed sells the wrong thing. The
+          sheet, talk.js and the App-level plumbing are all still here and unchanged, so putting the
+          row back is a matter of restoring this block and its two props - do that once the common
+          questions are answered locally and the promise is one the free tier can keep. */}
     </Card>
   );
 }
@@ -5513,7 +5626,151 @@ function equippedCosmetics(buddy) {
    so a bought scene or prop shows up in both and the two can never drift apart (they used to carry
    near-duplicate markup). Sizing is passed in because the two surfaces differ: `px` is the BASE sprite
    scale, which stage growth then multiplies. */
-function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, shadowW, eq, asleep, stuffed, dayState, className, style }) {
+/* ---------- THE TERRARIUM ----------
+   Ported from the "Terrarium Background" design (Claude Design project a8a7d227). The buddy used to
+   stand in a two-stop gradient with a ruled line across it, which was a floor rather than a place;
+   this is a drawn desert - parallax clouds, a sun, far hills, near dunes, a hard ground line with
+   scattered dashes, and props (cacti, bushes, a weed, birds) with the logo's red/blue/yellow chips
+   as ground tufts.
+   It is a CANVAS at 200x50 logical pixels scaled up with image-rendering:pixelated, so the art stays
+   on the same pixel grid as the sprite standing in it however wide the card gets. Everything about
+   it that could have been a hardcoded colour is a --terra-* token instead, because the design ships
+   one daylight palette and this app has two themes (see styles.css for the night scene).
+   Bought scenery still means something: SCENE_ART recolours the sky, dunes and outlines rather than
+   being replaced by the terrarium, so a purchased sky changes the world it was always promising to
+   change. */
+const TERRA_DISCS = [
+  [26, 12, 6], [34, 10, 5], [42, 12, 6], [50, 11, 4], [20, 13, 4],
+  [92, 9, 6], [100, 7, 5], [108, 9, 6], [116, 10, 4], [86, 11, 4],
+  [156, 11, 5], [164, 9, 6], [172, 11, 5], [180, 12, 4],
+];
+const TERRA_OUTLINE_HILLS = [[40, 46, 14], [110, 40, 11], [168, 44, 13]];
+const TERRA_DUNES = [[16, 26, 10], [64, 22, 7], [104, 30, 9], [178, 24, 8]];
+const TERRA_DASHES = [
+  [4, 41, 9], [20, 41, 14], [42, 41, 7], [60, 41, 18], [88, 41, 10], [112, 41, 15], [140, 41, 8], [162, 41, 20],
+  [10, 44, 12], [34, 44, 8], [52, 44, 16], [78, 44, 9], [104, 44, 13], [132, 44, 7], [154, 44, 17], [182, 44, 10],
+  [2, 47, 6], [24, 47, 10], [70, 47, 8], [96, 47, 14], [126, 47, 6], [170, 47, 12],
+];
+const TERRA_BRANCH = ['X.....X', '.X...X.', '..X.X..', '...X...', '...X...', '...X...'];
+const TERRA_BRANCH_AT = [[30, 20], [72, 22], [120, 19], [152, 21], [186, 20]];
+const TERRA_CACTUS = ['...XXX...', '...XXX...', 'XX.XXX.XX', 'XX.XXX.XX', 'XX.XXX.XX', 'XXXXXXXXX', 'XXXXXXXXX', '...XXX...', '...XXX...', '...XXX...', '...XXX...'];
+const TERRA_BUSH = ['..X.X.X..', '.X.XXX.X.', 'X.XXXXX.X', '..XX.XX..', '...X.X...'];
+const TERRA_TUFT = ['.X.X.', 'XXXXX', '..X..'];
+const TERRA_WEED = ['.XX.', 'X..X', 'X..X', '.XX.'];
+const TERRA_BIRD = ['X...X', '.X.X.', '..X..'];
+function terraPalette(scene) {
+  const cs = typeof window !== 'undefined' ? getComputedStyle(document.documentElement) : null;
+  const v = (n, d) => { const got = cs ? (cs.getPropertyValue(n) || '').trim() : ''; return got || d; };
+  const p = {
+    sky: v('--terra-sky', '#FFFFFF'), pale: v('--terra-pale', '#E2E6EA'), faint: v('--terra-faint', '#C9CED4'),
+    ink: v('--terra-ink', '#1A1A1A'), sun: v('--terra-sun', '#F5C518'),
+    red: v('--terra-red', '#E03131'), blue: v('--terra-blue', '#2F6FD0'),
+  };
+  if (scene) { p.sky = scene.top || p.sky; p.pale = scene.ground || p.pale; p.faint = scene.line || p.faint; }
+  return p;
+}
+function TerrariumCanvas({ h, still, scene }) {
+  const ref = useRef(null);
+  const tRef = useRef(0);
+  // A theme flip rewrites the --terra-* tokens, and a canvas does not repaint because a custom
+  // property changed. Bumping this on the <html> class change is what re-reads the palette.
+  const [themeTick, setThemeTick] = useState(0);
+  useEffect(() => {
+    if (typeof MutationObserver === 'undefined') return;
+    const mo = new MutationObserver(() => setThemeTick(t => t + 1));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => mo.disconnect();
+  }, []);
+  const draw = useCallback(() => {
+    const cv = ref.current; if (!cv) return;
+    const { W, H, GROUND, S } = TERRA;
+    const P = terraPalette(scene);
+    if (cv.width !== W * S) { cv.width = W * S; cv.height = H * S; }
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = P.sky; ctx.fillRect(0, 0, cv.width, cv.height);
+    const px = (x, y, c) => {
+      x = ((Math.round(x) % W) + W) % W; y = Math.round(y);
+      if (y < 0 || y >= H) return;
+      ctx.fillStyle = c; ctx.fillRect(x * S, y * S, S, S);
+    };
+    const put = (rows, ox, oy, colour) => rows.forEach((r, j) => r.split('').forEach((ch, i) => {
+      if (ch === 'X') px(ox + i, oy + j, colour);
+    }));
+    const t = tRef.current;
+    const cloudOff = -t * 0.5;
+    const duneOff = -t * 0.16;
+    // Clouds are the outline of overlapping discs. The design tests membership per pixel AND for all
+    // four neighbours; doing that straight is ~250k disc tests a frame on a phone, so the mask is
+    // built once into a byte array and the outline pass just reads it. Same pixels, a fraction of
+    // the work.
+    const Y0 = 2, Y1 = 20, rows = Y1 - Y0;
+    const mask = new Uint8Array(W * rows);
+    for (const [cx, cy, r] of TERRA_DISCS) {
+      for (let y = Y0; y < Y1; y++) {
+        const dy = (y - cy) * 1.7; const rem = r * r - dy * dy;
+        if (rem < 0) continue;
+        const half = Math.sqrt(rem);
+        for (let k = Math.ceil(-half); k <= half; k++) {
+          const x = ((Math.round(cx + cloudOff + k) % W) + W) % W;
+          mask[(y - Y0) * W + x] = 1;
+        }
+      }
+    }
+    const at = (x, y) => (y < Y0 || y >= Y1) ? 0 : mask[(y - Y0) * W + (((x % W) + W) % W)];
+    for (let y = Y0; y < Y1; y++) for (let x = 0; x < W; x++) {
+      if (!at(x, y)) continue;
+      if (!at(x - 1, y) || !at(x + 1, y) || !at(x, y - 1) || !at(x, y + 1)) px(x, y, P.faint);
+    }
+    // The sun, or at night the moon: a solid pixel disc, the one warm thing in the sky.
+    for (let y = 3; y <= 8; y++) for (let x = 186; x <= 191; x++) {
+      const dx = x - 188.5, dy = y - 5.5;
+      if (dx * dx + dy * dy <= 8.2) px(x, y, P.sun);
+    }
+    const profile = (bumps, x, off) => {
+      let hh = 0;
+      for (const [cx, w, height] of bumps) {
+        let d = x - (cx + off); d = ((d % W) + W) % W; if (d > W / 2) d -= W;
+        if (Math.abs(d) < w) hh = Math.max(hh, height * (0.5 + 0.5 * Math.cos(Math.PI * d / w)));
+      }
+      return hh;
+    };
+    for (let x = 0; x < W; x++) {
+      const hh = profile(TERRA_OUTLINE_HILLS, x, duneOff * 0.6);
+      if (hh > 0.6 && x % 3 !== 2) px(x, GROUND - hh, P.faint);   // dashed ridge = distance
+    }
+    for (let x = 0; x < W; x++) {
+      const hh = profile(TERRA_DUNES, x, duneOff);
+      if (hh < 0.8) continue;
+      for (let y = GROUND - Math.round(hh); y < GROUND; y++) px(x, y, P.pale);
+    }
+    for (let x = 0; x < W; x++) { px(x, GROUND, P.ink); px(x, GROUND + 1, P.ink); }
+    TERRA_DASHES.forEach(([x, y, len]) => { for (let i = 0; i < len; i++) px(x + i, y, P.faint); });
+    TERRA_BRANCH_AT.forEach(([x, y]) => put(TERRA_BRANCH, x, y, P.faint));
+    put(TERRA_CACTUS, 24, GROUND - 11, P.ink);
+    put(TERRA_CACTUS, 170, GROUND - 11, P.ink);
+    put(TERRA_BUSH, 130, GROUND - 5, P.faint);
+    put(TERRA_BUSH, 58, GROUND - 5, P.faint);
+    put(TERRA_TUFT, 40, GROUND - 3, P.red);
+    put(TERRA_TUFT, 96, GROUND - 3, P.blue);
+    put(TERRA_TUFT, 148, GROUND - 3, P.sun);
+    put(TERRA_WEED, 84, GROUND - 4, P.ink);
+    put(TERRA_BIRD, 62 + Math.round(cloudOff * 0.6), 22, P.faint);
+    put(TERRA_BIRD, 142 + Math.round(cloudOff * 0.6), 25, P.faint);
+  }, [scene, themeTick]);
+  useEffect(() => { draw(); }, [draw]);
+  useEffect(() => {
+    if (still) return;                       // a nap stops the weather too
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) return;
+    const id = setInterval(() => { tRef.current += 1; draw(); }, TERRA.TICK_MS);
+    return () => clearInterval(id);
+  }, [still, draw]);
+  return <canvas ref={ref} aria-hidden="true" className="absolute inset-0"
+    style={{ width: '100%', height: h, imageRendering: 'pixelated', display: 'block' }} />;
+}
+
+function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, shadowW, eq, asleep, stuffed, dayState, className, style, terrarium, away }) {
   const s = buddyStageSprite(stageIndex, buddy);
   const scene = (eq && eq.scene) ? SCENE_ART[eq.scene] : null;
   const prop = (eq && eq.prop) ? PROP_ART[eq.prop] : null;
@@ -5542,27 +5799,42 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, s
     ? { background: 'radial-gradient(56% 40% at 50% 78%, ' + scene.glow + ', transparent 72%), linear-gradient(180deg, ' + scene.top + ' 0%, ' + scene.bottom + ' 100%)' }
     : null;
   return (
-    <div className={'relative overflow-hidden' + (scene ? '' : ' buddy-scene') + (className ? ' ' + className : '')}
-      style={Object.assign({ width: w, height: h }, sceneStyle, style)}>
+    <div className={'relative overflow-hidden' + (scene || terrarium ? '' : ' buddy-scene') + (className ? ' ' + className : '')}
+      style={Object.assign({ width: w, height: h }, terrarium ? { background: 'var(--terra-sky)' } : sceneStyle, style)}>
       {/* The default floor used --surface2 over --border, which in the dark theme is a #17171a band
           under a #2c2c2e line: at thumbnail size that was a hint of ground, at world size it is
           nothing at all. --scene-ground / --scene-line exist so the plain world gets the same lit
-          floor and visible horizon a bought scene does. */}
-      <div className="absolute left-0 right-0 bottom-0" style={{ height: floor, background: scene ? scene.ground : 'var(--scene-ground)', borderTop: '2px solid ' + (scene ? scene.line : 'var(--scene-line)') }} />
+          floor and visible horizon a bought scene does.
+          The terrarium draws its own ground, so the band is only for the small character-sheet
+          surfaces that keep the old flat scene. */}
+      {terrarium
+        ? <>
+            <TerrariumCanvas h={h} still={still} scene={scene} />
+            {/* The light the buddy stands in. The design ships this as a fixed 150x110 warm ellipse;
+                here it is sized from the world and coloured by --buddy-glow so it follows the theme
+                (gold by day, neon by night) rather than being warm on a night sky. */}
+            <div className="absolute pointer-events-none" style={{ left: '50%', bottom: Math.max(0, floor - 6), width: Math.min(180, h * 1.7), height: h * 1.2, transform: 'translateX(-50%)', background: 'radial-gradient(ellipse at 50% 78%, var(--buddy-glow), transparent 68%)' }} />
+          </>
+        : <div className="absolute left-0 right-0 bottom-0" style={{ height: floor, background: scene ? scene.ground : 'var(--scene-ground)', borderTop: '2px solid ' + (scene ? scene.line : 'var(--scene-line)') }} />}
       {/* The prop stands ON the floor, behind the buddy, and dims with it when the buddy is asleep. */}
       {prop && <div className="absolute" style={{ left: (prop.at * 100) + '%', bottom: Math.max(2, floor - 6), transform: 'translateX(-50%)', opacity: asleep ? 0.45 : 0.9, lineHeight: 0 }}>
         <Sprite art={prop.art} colors={prop.colors} px={prop.px} />
       </div>}
-      <div className={'absolute' + (still ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: Math.round(footY - SHADOW_H / 2), width: Math.round(shadowW * scale), height: SHADOW_H, transform: 'translateX(-50%)', background: scene ? '#000' : 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
-      <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteY, transform: 'translateX(-50%)' },
-        asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
-        {/* Bobbing is the resting state; while a flourish plays, the animation itself carries the motion. */}
-        <div className={'inline-block leading-none' + (still || flourishing ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
-          <SpriteSheet key={flourishing ? fl.anim : s.anim} palette={s.palette} species={s.species} group={s.group}
-            anim={flourishing ? fl.anim : s.anim} px={size} fps={flourishing ? 8 : s.fps}
-            loop={!flourishing} onEnd={fl.onEnd} />
+      {/* AWAY. Foraging is only worth anything if the buddy is genuinely gone, so the world renders
+          without it: the place carries on, the character is out. Drawing a dimmed sprite instead
+          would say "asleep", which is a state that already exists and means the opposite. */}
+      {!away && <>
+        <div className={'absolute' + (still ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: Math.round(footY - SHADOW_H / 2), width: Math.round(shadowW * scale), height: SHADOW_H, transform: 'translateX(-50%)', background: scene ? '#000' : 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
+        <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteY, transform: 'translateX(-50%)' },
+          asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
+          {/* Bobbing is the resting state; while a flourish plays, the animation itself carries the motion. */}
+          <div className={'inline-block leading-none' + (still || flourishing ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
+            <SpriteSheet key={flourishing ? fl.anim : s.anim} palette={s.palette} species={s.species} group={s.group}
+              anim={flourishing ? fl.anim : s.anim} px={size} fps={flourishing ? 8 : s.fps}
+              loop={!flourishing} onEnd={fl.onEnd} />
+          </div>
         </div>
-      </div>
+      </>}
       {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb-ink)' }}>Zz</span>}
       {stuffed && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--warn)' }}>z</span>}
     </div>
@@ -8009,6 +8281,43 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     });
     showToast && showToast('Logged ' + fmtWeight(kg, unit) + '. Nice one.');
   };
+  // The figures the habitat's status strip reports. Assembled here rather than inside the card
+  // because the Dashboard has already done every one of these sums for the macro hero below, and a
+  // second, independent set of the same numbers on the same screen is a bug waiting to happen.
+  // Foraging is the one thing on this screen that finishes on a clock rather than on a tap, so it
+  // needs one render at the moment it lands. Keyed on returnsAt (stable while away) rather than on
+  // the remaining time, which changes every render and would reset the timer forever.
+  const [, setForageBeat] = useState(0);
+  const forageNow = forageFor(db, today);
+  useEffect(() => {
+    if (forageNow.status !== 'away') return;
+    const id = setTimeout(() => setForageBeat(b => b + 1), Math.max(500, forageNow.returnsAt - Date.now() + 400));
+    return () => clearTimeout(id);
+  }, [forageNow.status, forageNow.returnsAt]);
+  const habitatStats = (() => {
+    if (!et) return null;
+    const stepsMap = db.steps || {};
+    // "Connected" is any step history at all, not a reading for today specifically: someone who
+    // linked Health yesterday should still get the steps cell at 7am, showing the 0 it honestly is,
+    // rather than being bounced to fibre and back as the day fills in.
+    const stepsLinked = Object.keys(stepsMap).length > 0;
+    const stepsToday = stepsLinked ? (+stepsMap[today] || 0) : null;
+    const ft = E.fiberTarget(et.eff.kcal);
+    // The rolling week of the streak, oldest first, on the same "counts as active" set computeStreak
+    // uses - logged, weighed or trained, plus anything a freeze already covered.
+    const active = new Set([...(db.log_entries || []).map(e => e.date), ...(db.weight_entries || []).map(w => w.date), ...trainedDates(db)]);
+    const frozen = new Set((db.freezes && db.freezes.frozen) || []);
+    const week = [];
+    for (let i = 6; i >= 0; i--) { const d = shiftISO(today, -i); week.push(active.has(d) || frozen.has(d)); }
+    return {
+      kcalLeft: et.eff.kcal - todayTot.kcal,
+      proteinLeft: Math.round(et.eff.protein_g) - todayTot.protein,
+      steps: stepsToday,
+      stepGoal: stepGoalFor(db) || null,
+      fiberLeft: ft ? ft.min - todayTot.fiber : null,
+      week,
+    };
+  })();
   const msg = (() => {
     // Two demo switches for the bottom of the ladder, which is the state a consistent user is in most
     // days and the hardest one to reach on purpose while working on it. `?demo&rest` jumps to the
@@ -8016,8 +8325,11 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     // the ladder itself can no longer do, and renders the habitat's blank fallback.
     const dq = DEMO ? new URLSearchParams(window.location.search) : null;
     if (dq && dq.has('quiet')) return null;
+    // `?demo&forage` jumps straight to the foraging rung, which otherwise sits below the coach line
+    // and so is unreachable on a fixture that always has something more urgent to say.
+    const demoForage = dq && dq.has('forage') ? forageMessage(forageFor(db, today)) : null;
     const m = dq && dq.has('rest') ? { kind: 'say', text: buddyRest(db, today, streak, buddy.asleep) }
-      : buddyLine(db, today, streak, buddy.asleep);
+      : demoForage || buddyLine(db, today, streak, buddy.asleep);
     if (!m) return null;
     const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
     const ackRead = () => update(d => { d.profile = d.profile || {}; d.profile.readAckDate = today; });
@@ -8035,6 +8347,25 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         : a === 'resume' ? () => onWeigh('resume')
         : a === 'weigh' ? () => onWeigh(true)
         : a === 'checkin' ? onCheckIn
+        // Foraging. Sending stamps a record with a return time; claiming pays through the Amber
+        // ledger under a per-day id, so a double tap (or the same day syncing from two devices) can
+        // never mint it twice.
+        : a === 'forage_send' ? () => {
+            const fast = DEMO && new URLSearchParams(window.location.search).has('forage');
+            update(d => { d.buddy = d.buddy || { stage: 0 }; d.buddy.forage = Game.forageStart(today, Date.now(), fast ? FORAGE_DEMO_MS : Game.FORAGE_MS); });
+            showToast && showToast(((db.buddy && db.buddy.name) || 'Your buddy') + ' has gone foraging. Back in a few hours.');
+          }
+        : a === 'forage_claim' ? () => {
+            const key = 'amber:forage:' + today;
+            update(d => {
+              d.buddy = d.buddy || { stage: 0 };
+              d.buddy.forage = Object.assign({}, d.buddy.forage, { claimed: true });
+              d.amber_ledger = d.amber_ledger || [];
+              if (d.amber_ledger.some(e => e.id === key)) return;
+              d.amber_ledger.push({ id: key, date: today, delta: Game.AMBER_REWARDS.forage, reason: 'Foraging' });
+            });
+            showToast && showToast(((db.buddy && db.buddy.name) || 'Your buddy') + ' brought back ' + Game.AMBER_REWARDS.forage + ' Amber', 'Shop', () => onOpenPlay && onOpenPlay());
+          }
         // These nudges write the SAME fields Settings owns, so they announce themselves and say
         // where the setting lives. A silent write from a nudge is a second, hidden settings screen.
         : (a === 'cadence_daily' || a === 'cadence_single') ? () => {
@@ -8092,18 +8423,32 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           on first paint. It earns its height rather than taking it: quiet when the ladder has
           nothing due, taller only when it is actually saying something. */}
       <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
-        onTalk={onTalk} onSnap={() => onQuickAdd({ describe: true })} />
+        away={forageNow.status === 'away'} stats={habitatStats} />
 
       {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
           Balance is a power tool behind Adjust; everything secondary is in More below.
           The heading and the lens control used to float above the card on their own row. The card
           already announces itself ("KCAL LEFT"), so the heading restated it and the control sat
           detached from the numbers it changes. Both now live on the card's own top line. */}
-      <Card className="p-5 mb-4" style={{ outline: '3px solid var(--accent)', outlineOffset: 2 }}>
-        <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)}
-          lens={<Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />} />
+      {/* THE BREAKDOWN, in the buddy box's mould. It was a p-5 card wearing the accent ring and
+          leading with a 48px number, which was right while it was the only thing on Today carrying
+          figures. The status strip above now answers "how am I doing" in the first glance, so this
+          card's job changed from headline to detail: it is where you come to see WHICH macro is
+          short and to shift the balance, not to find out the total.
+          So it takes the same construction as the box above - one object with a divided interior,
+          a nameplate row on top, bands split by a rule of the card's own border weight - instead of
+          the padded box with hairline separators it used to be. Two cards built the same way read as
+          one screen; two cards built differently read as two products. */}
+      <Card className="p-0 mb-4 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-2.5 py-1" style={{ borderBottom: '4px solid var(--border)' }}>
+          <span className="pf text-[7px] uppercase" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Today's plan</span>
+          <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
+        </div>
+        <div className="px-3.5 pt-3 pb-3">
+          <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
+        </div>
         {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
-        <div className="mt-3 pt-2.5 border-t border-[#262629]">
+        <div className="px-3.5 py-2.5" style={{ borderTop: '4px solid var(--border)' }}>
           <Collapsible variant="inline" label="Balance carbs & fat" sub="Adjust ›">
             <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
             <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
@@ -8122,7 +8467,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
           const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
           const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-          return <div className="mt-3 pt-2.5 border-t border-[#262629] flex items-center justify-between text-[11px] text-[#8A8A90]">
+          return <div className="px-3.5 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '4px solid var(--border)' }}>
             <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
             {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
           </div>;

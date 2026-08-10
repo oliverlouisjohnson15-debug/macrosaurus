@@ -583,7 +583,7 @@
   // ledger of {id, date, delta, reason} entries can never be lost or double-counted. Balance = sum(delta).
   // `welcome` is the signup stake: nobody should reach the home screen holding zero of the app's
   // currency, so the shop reads as a place they already have a stake in rather than a locked door.
-  var AMBER_REWARDS = { welcome: 50, daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10, comeback: COMEBACK_AMBER };
+  var AMBER_REWARDS = { welcome: 50, daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10, forage: 15, comeback: COMEBACK_AMBER };
   // The daily hunt pays a little; every 5th clear in a row tops up, so consistency compounds.
   function amberDailyReward(streak) {
     var base = AMBER_REWARDS.daily;
@@ -593,6 +593,45 @@
   function amberBalance(ledger) {
     var b = 0; (ledger || []).forEach(function (e) { b += (e && Number(e.delta)) || 0; });
     return Math.max(0, Math.round(b));
+  }
+
+  /* ---- FORAGING: the buddy does something while you are not looking ----
+     Every other reward in this app is settled in the same breath as the action that earned it, which
+     makes the second open of a day worth nothing: the message ladder has already said its one thing
+     and there is no state left that can change. Foraging is the one loop that spans a gap. Land the
+     day's targets, send the buddy out, and it is genuinely AWAY for a few hours - the world renders
+     without it - then it comes back carrying Amber and a line.
+     Three rules hold it honest:
+       1. It is EARNED, not a timer you can start whenever. `ready` requires the day's targets to be
+          met, which is the same Game.oneThing test the rest rung uses, so the two can never disagree
+          about what a good day is.
+       2. It is SENT, not automatic. The buddy vanishing at the exact moment you succeed reads as a
+          punishment; being asked to send it reads as the reward it is.
+       3. It CANNOT be lost. There is no window to miss and no decay - `back` waits indefinitely
+          until it is claimed, and claiming is idempotent through the Amber ledger. A loop that
+          punishes you for closing the app is not a reason to open it.
+     Pure: takes the stored record, a clock and the day's state, returns what to render. */
+  var FORAGE_MS = 3 * 60 * 60 * 1000;   // three hours: long enough to be a real gap, short enough to land the same day
+  function forageView(forage, nowMs, opts) {
+    var o = opts || {};
+    var f = forage || null;
+    var today = o.today || '';
+    var dur = o.durationMs || FORAGE_MS;
+    // A record from an earlier day is spent history; each day gets one trip.
+    if (f && f.date === today) {
+      if (f.claimed) return { status: 'done' };
+      var returnsAt = Number(f.returnsAt) || 0;
+      if (nowMs < returnsAt) return { status: 'away', returnsAt: returnsAt, msLeft: returnsAt - nowMs };
+      return { status: 'back', returnsAt: returnsAt, amber: AMBER_REWARDS.forage };
+    }
+    // No trip today. Offer one only once the day is genuinely landed.
+    if (o.landed) return { status: 'ready', durationMs: dur };
+    return { status: 'idle' };
+  }
+  // The record to store when the buddy is sent out. Separate from forageView so the caller never has
+  // to know the shape, and so the duration is overridable for the demo switch.
+  function forageStart(todayISO, nowMs, durationMs) {
+    return { date: todayISO, startedAt: nowMs, returnsAt: nowMs + (durationMs || FORAGE_MS), claimed: false };
   }
 
   // ---- Shop: spend Amber on buddy cosmetics. Prices are pure and stable. ----
@@ -958,6 +997,9 @@
     AMBER_REWARDS: AMBER_REWARDS,
     amberDailyReward: amberDailyReward,
     amberBalance: amberBalance,
+    FORAGE_MS: FORAGE_MS,
+    forageView: forageView,
+    forageStart: forageStart,
     COSMETICS: COSMETICS,
     COSMETIC_BY_ID: COSMETIC_BY_ID,
     COSMETIC_KINDS: COSMETIC_KINDS,
