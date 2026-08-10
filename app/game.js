@@ -169,6 +169,26 @@
     return null;
   }
 
+  // THE BUDDY IS NEVER SPEECHLESS. Every ranked thing the buddy might say (a weigh-in ask, the
+  // morning read, a lesson, the coach line) can legitimately come back empty on a settled day, and
+  // the world card then rendered as a sprite standing on a bare floor band with a dead slab under
+  // it - which is exactly what looked broken about it. So the dialogue box always has a line, and
+  // when there is genuinely no business to raise, that line invites the thing the buddy is now FOR:
+  // being talked to. Not filler - the one action the empty state should be pointing at.
+  //
+  // Deterministic per (user, day) so it cannot reshuffle under a re-render, and so a screenshot of
+  // a given day is reproducible. Keep every line short enough for two lines at 390px, in the
+  // buddy's own voice, and phrased as an opening rather than a demand.
+  var IDLE_LINES = [
+    'Nothing outstanding. Tell me what you ate and I’ll do the maths.',
+    'All quiet. Snap a photo of your next meal and I’ll work it out.',
+    'You’re on top of it. Ask me what to eat next if you fancy.',
+    'Day’s going well. Say the word and I’ll log something for you.',
+    'Nothing from me today. I’m here if you want to talk it through.',
+    'Looking good. Describe your next meal and I’ll take it from there.',
+  ];
+  function idleLine(salt, date) { return IDLE_LINES[seedFor(salt || '', date || '') % IDLE_LINES.length]; }
+
   // ---- Fight 2.0: macros are types, with a matchup triangle and a weekly boss weakness ----
   // Types cycle power > guard > swift > renew > power; balanced is neutral both ways.
   var FIGHT_TYPES = ['power', 'guard', 'swift', 'renew'];
@@ -952,6 +972,8 @@
     weighDue: weighDue,
     weeklyRecap: weeklyRecap,
     oneThing: oneThing,
+    IDLE_LINES: IDLE_LINES,
+    idleLine: idleLine,
     COMEBACK_MIN_GAP: COMEBACK_MIN_GAP,
     COMEBACK_AMBER: COMEBACK_AMBER,
     comeback: comeback,

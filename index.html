@@ -3198,6 +3198,26 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return null;
   }
 
+  // THE BUDDY IS NEVER SPEECHLESS. Every ranked thing the buddy might say (a weigh-in ask, the
+  // morning read, a lesson, the coach line) can legitimately come back empty on a settled day, and
+  // the world card then rendered as a sprite standing on a bare floor band with a dead slab under
+  // it - which is exactly what looked broken about it. So the dialogue box always has a line, and
+  // when there is genuinely no business to raise, that line invites the thing the buddy is now FOR:
+  // being talked to. Not filler - the one action the empty state should be pointing at.
+  //
+  // Deterministic per (user, day) so it cannot reshuffle under a re-render, and so a screenshot of
+  // a given day is reproducible. Keep every line short enough for two lines at 390px, in the
+  // buddy's own voice, and phrased as an opening rather than a demand.
+  var IDLE_LINES = [
+    'Nothing outstanding. Tell me what you ate and I’ll do the maths.',
+    'All quiet. Snap a photo of your next meal and I’ll work it out.',
+    'You’re on top of it. Ask me what to eat next if you fancy.',
+    'Day’s going well. Say the word and I’ll log something for you.',
+    'Nothing from me today. I’m here if you want to talk it through.',
+    'Looking good. Describe your next meal and I’ll take it from there.',
+  ];
+  function idleLine(salt, date) { return IDLE_LINES[seedFor(salt || '', date || '') % IDLE_LINES.length]; }
+
   // ---- Fight 2.0: macros are types, with a matchup triangle and a weekly boss weakness ----
   // Types cycle power > guard > swift > renew > power; balanced is neutral both ways.
   var FIGHT_TYPES = ['power', 'guard', 'swift', 'renew'];
@@ -3981,6 +4001,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     weighDue: weighDue,
     weeklyRecap: weeklyRecap,
     oneThing: oneThing,
+    IDLE_LINES: IDLE_LINES,
+    idleLine: idleLine,
     COMEBACK_MIN_GAP: COMEBACK_MIN_GAP,
     COMEBACK_AMBER: COMEBACK_AMBER,
     comeback: comeback,
@@ -17636,6 +17658,24 @@ function buddyMessage(db, today, streak) {
   };
   return null;
 }
+// THE GUARANTEE: the buddy always has a line. buddyMessage ranks the things that are genuinely
+// OUTSTANDING and is entitled to come back with nothing - no weigh-in due, no lesson owing, the day
+// already going well. That was rendering as a world card with no dialogue box: a sprite standing on a
+// bare floor band, which read as a component that had failed rather than a day with nothing to raise.
+//
+// So the empty state gets a line of its own, and it points at the thing the buddy is now for: talking
+// to it. The kind is 'talk' rather than 'say' so the box can tell the difference - there is nothing
+// here to advance or dismiss, and the dock underneath is the affordance, not the box itself.
+// Incubation keeps returning null, because there the hatch checklist IS the dialogue.
+function buddyLine(db, today, streak) {
+  const m = buddyMessage(db, today, streak);
+  if (m) return m;
+  if (db.buddy && db.buddy.hatched === false) return null;
+  return {
+    kind: 'talk',
+    text: Game.idleLine(db.game_salt || '', today)
+  };
+}
 
 // The weigh-in itself, right where the buddy asks for it: a number, a tap, done. Seeded with the
 // last known weight so most mornings it's a nudge of one digit, and it saves without leaving Today
@@ -17761,7 +17801,9 @@ function BuddyHabitat({
   streak,
   onOpenPlay,
   tasks,
-  msg
+  msg,
+  onTalk,
+  onSnap
 }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const asleep = bp.mood === 'asleep' || buddy.asleep;
@@ -17779,7 +17821,10 @@ function BuddyHabitat({
   // an inline weigh-in or a row of choices already tells you what to do, and a blinking "continue"
   // beside a "Log it" is a second affordance for a thing that only happens once. So the arrow means
   // exactly one thing here: this box is a statement, and tapping it opens the buddy's hub.
-  const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick) && !msg.weigh && !(msg.choices || []).length);
+  // The idle 'talk' line is deliberately NOT bare: there is nothing to advance to, and the dock
+  // directly beneath it is the thing to press. A blinking ▼ over "ask me something" would be
+  // pointing at the buddy's hub when the answer is sitting one row lower.
+  const bare = !!(msg && msg.kind !== 'talk' && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick) && !msg.weigh && !(msg.choices || []).length);
   const speaking = !!(msg || incubating && tasks);
   const stage = speaking ? WORLD_STAGE.speaking : WORLD_STAGE.quiet;
   const box = (body, plate) => /*#__PURE__*/React.createElement("div", {
@@ -17932,7 +17977,35 @@ function BuddyHabitat({
     style: {
       background: 'var(--surface2)'
     }
-  }, msg.secondary.label))), kind));
+  }, msg.secondary.label))), kind), !incubating && (onTalk || onSnap) && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-stretch gap-1.5 px-2 pb-2"
+  }, onSnap && /*#__PURE__*/React.createElement("button", {
+    onClick: onSnap,
+    "aria-label": "Photograph or describe a meal",
+    className: "pixel-btn shrink-0 w-11 flex items-center justify-center active:scale-95 transition",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "17",
+    height: "17"
+  })), onTalk && /*#__PURE__*/React.createElement("button", {
+    onClick: onTalk,
+    "aria-label": 'Talk to ' + who,
+    className: "pixel-btn flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 text-left active:opacity-80",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "chat",
+    color: "var(--accent-ink)",
+    size: 12
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[11px] truncate",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Talk to ", who, "…"))));
 }
 
 /* ---------- Share card (streak -> shareable image) ----------
@@ -23715,6 +23788,7 @@ function Dashboard({
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
+  const [talking, setTalking] = useState(false); // the two-way conversation, opened from the habitat dock
   const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the macro card
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
@@ -24039,7 +24113,7 @@ function Dashboard({
     showToast && showToast('Logged ' + fmtWeight(kg, unit) + '. Nice one.');
   };
   const msg = (() => {
-    const m = buddyMessage(db, today, streak);
+    const m = buddyLine(db, today, streak);
     if (!m) return null;
     const ackLesson = key => update(d => {
       d.profile = d.profile || {};
@@ -24213,7 +24287,15 @@ function Dashboard({
     streak: streak,
     onOpenPlay: onOpenPlay,
     tasks: eggIncubating ? hatchTasks : null,
-    msg: msg
+    msg: msg,
+    onTalk: () => setTalking(true),
+    onSnap: () => onQuickAdd({
+      describe: true
+    })
+  }), talking && /*#__PURE__*/React.createElement(BuddyChatModal, {
+    db: db,
+    isPremium: isPremium,
+    onClose: () => setTalking(false)
   }), /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4",
     style: {
@@ -26853,7 +26935,7 @@ function LogSheet({
 }) {
   useBackClose(onClose);
   const [isAlc, setIsAlc] = useState(!!target.alc);
-  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.alc ? 'recent' : ['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food');
+  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? 'recent' : ['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food');
   const setTab = t => {
     setTabRaw(t);
     setScanNow(0);
@@ -41422,10 +41504,12 @@ function App() {
     onReview: () => setCheckingIn('review'),
     onWeigh: k => setWeighing(k === 'resume' ? 'resume' : true),
     setView: setView,
-    onQuickAdd: alc => setAdding({
+    onQuickAdd: opt => setAdding({
       date: Store.todayISO(),
       mealId: meals[0].id,
-      alc: !!alc
+      alc: opt === true,
+      scan: !!(opt && opt.scan),
+      describe: !!(opt && opt.describe)
     }),
     showToast: showToast,
     onOpenRecipe: id => {

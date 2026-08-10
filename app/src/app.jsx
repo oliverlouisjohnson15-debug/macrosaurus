@@ -4737,6 +4737,21 @@ function buddyMessage(db, today, streak) {
     dismiss: say.key ? { key: say.key } : null };
   return null;
 }
+// THE GUARANTEE: the buddy always has a line. buddyMessage ranks the things that are genuinely
+// OUTSTANDING and is entitled to come back with nothing - no weigh-in due, no lesson owing, the day
+// already going well. That was rendering as a world card with no dialogue box: a sprite standing on a
+// bare floor band, which read as a component that had failed rather than a day with nothing to raise.
+//
+// So the empty state gets a line of its own, and it points at the thing the buddy is now for: talking
+// to it. The kind is 'talk' rather than 'say' so the box can tell the difference - there is nothing
+// here to advance or dismiss, and the dock underneath is the affordance, not the box itself.
+// Incubation keeps returning null, because there the hatch checklist IS the dialogue.
+function buddyLine(db, today, streak) {
+  const m = buddyMessage(db, today, streak);
+  if (m) return m;
+  if (db.buddy && db.buddy.hatched === false) return null;
+  return { kind: 'talk', text: Game.idleLine(db.game_salt || '', today) };
+}
 
 // The weigh-in itself, right where the buddy asks for it: a number, a tap, done. Seeded with the
 // last known weight so most mornings it's a nudge of one digit, and it saves without leaving Today
@@ -4809,7 +4824,7 @@ const WORLD_STAGE = {
   speaking: { floor: 42, foot: 40 },   // the box covers the bottom 40, so the feet land exactly on it
   quiet: { floor: 26, foot: 24 },
 };
-function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
+function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, onTalk, onSnap }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   const stuffed = !asleep && bp.mood === 'stuffed';
@@ -4831,7 +4846,10 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   // an inline weigh-in or a row of choices already tells you what to do, and a blinking "continue"
   // beside a "Log it" is a second affordance for a thing that only happens once. So the arrow means
   // exactly one thing here: this box is a statement, and tapping it opens the buddy's hub.
-  const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
+  // The idle 'talk' line is deliberately NOT bare: there is nothing to advance to, and the dock
+  // directly beneath it is the thing to press. A blinking ▼ over "ask me something" would be
+  // pointing at the buddy's hub when the answer is sitting one row lower.
+  const bare = !!(msg && msg.kind !== 'talk' && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
     && !msg.weigh && !(msg.choices || []).length);
   const speaking = !!(msg || (incubating && tasks));
   const stage = speaking ? WORLD_STAGE.speaking : WORLD_STAGE.quiet;
@@ -4892,6 +4910,25 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
           </div>
         )}
       </>, kind)}
+      {/* THE DOCK. The buddy has been able to speak for a while; this is the row that lets you answer.
+          It sits below whatever is being said rather than replacing it, so a weigh-in ask and a
+          "describe your lunch" never compete for the same slot. Speaking and snapping route to the
+          capture paths that already exist (the Estimate tab's mic and camera) rather than to a second,
+          shallower copy of them - the conversation only has to own what it can genuinely do. */}
+      {!incubating && (onTalk || onSnap) && (
+        <div className="flex items-stretch gap-1.5 px-2 pb-2">
+          {/* One capture control, not two. The mic and the camera both live INSIDE the estimate sheet
+              ("snap it, type it or say it"), so a separate mic button here would be a second door to
+              the same room. The mic moves onto this row when it drives the conversation directly. */}
+          {onSnap && <button onClick={onSnap} aria-label="Photograph or describe a meal"
+            className="pixel-btn shrink-0 w-11 flex items-center justify-center active:scale-95 transition" style={{ background: 'var(--surface2)' }}><Icon.cam width="17" height="17" /></button>}
+          {onTalk && <button onClick={onTalk} aria-label={'Talk to ' + who}
+            className="pixel-btn flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 text-left active:opacity-80" style={{ background: 'var(--surface2)' }}>
+            <PixelGlyph kind="chat" color="var(--accent-ink)" size={12} />
+            <span className="text-[11px] truncate" style={{ color: 'var(--muted)' }}>Talk to {who}…</span>
+          </button>}
+        </div>
+      )}
     </Card>
   );
 }
@@ -7399,6 +7436,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
+  const [talking, setTalking] = useState(false); // the two-way conversation, opened from the habitat dock
   const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the macro card
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
@@ -7611,7 +7649,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     showToast && showToast('Logged ' + fmtWeight(kg, unit) + '. Nice one.');
   };
   const msg = (() => {
-    const m = buddyMessage(db, today, streak); if (!m) return null;
+    const m = buddyLine(db, today, streak); if (!m) return null;
     const ackLesson = key => update(d => { d.profile = d.profile || {}; const ls = d.profile.lessonState || { seen: [], lastAck: null }; if ((ls.seen || []).indexOf(key) < 0) ls.seen = (ls.seen || []).concat([key]); ls.lastAck = today; d.profile.lessonState = ls; });
     const ackRead = () => update(d => { d.profile = d.profile || {}; d.profile.readAckDate = today; });
     const ackRecap = () => update(d => { d.profile = d.profile || {}; d.profile.recapAckDate = today; });
@@ -7684,7 +7722,9 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           390x844 phone against a fold of 844 - the app's whole relatedness layer was off screen
           on first paint. It earns its height rather than taking it: quiet when the ladder has
           nothing due, taller only when it is actually saying something. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg} />
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
+        onTalk={() => setTalking(true)} onSnap={() => onQuickAdd({ describe: true })} />
+      {talking && <BuddyChatModal db={db} isPremium={isPremium} onClose={() => setTalking(false)} />}
 
       {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
           Balance is a power tool behind Adjust; everything secondary is in More below.
@@ -8787,7 +8827,7 @@ let LAST_LOG_TAB = null;
 function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onClose, isPremium, aiCalls }) {
   useBackClose(onClose);
   const [isAlc, setIsAlc] = useState(!!target.alc);
-  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.alc ? 'recent' : (['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
+  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? 'recent' : (['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
   const setTab = (t) => { setTabRaw(t); setScanNow(0); if (!isAlc) LAST_LOG_TAB = t; };
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
@@ -14491,7 +14531,7 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(alc) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: !!alc })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'train' && <TrainTab db={db} update={update} showToast={showToast} isPremium={isPremium}

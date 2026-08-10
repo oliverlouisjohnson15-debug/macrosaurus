@@ -290,3 +290,35 @@ test('sessionPraise gives a short session its own warm line', () => {
   assert.equal(p.kind, 'short');
   assert.equal(p.sets, 3);
 });
+
+// ---- idleLine: the buddy is never speechless ----
+// buddyMessage is entitled to return nothing on a settled day. When it does, the world card used to
+// render with no dialogue box at all - a sprite on a bare floor band, which read as broken. These
+// cover the fallback that guarantees a line, and the properties the caller relies on.
+
+test('idleLine always returns a usable line, whatever the seed', () => {
+  const seeds = ['', 'abc', 'zzz', 'salt-1', '9f2b', 'Chompers'];
+  const dates = ['2026-08-10', '2026-01-01', '2026-12-31', ''];
+  for (const s of seeds) {
+    for (const d of dates) {
+      const line = Game.idleLine(s, d);
+      assert.equal(typeof line, 'string', `seed ${s} / ${d}`);
+      assert.ok(line.length > 0, `seed ${s} / ${d} produced an empty line`);
+      assert.ok(Game.IDLE_LINES.includes(line), 'line came from the pool');
+    }
+  }
+});
+
+test('idleLine is stable for the same user and day', () => {
+  assert.equal(Game.idleLine('salt', '2026-08-10'), Game.idleLine('salt', '2026-08-10'));
+});
+
+test('idleLine varies across days, so the empty state does not read as frozen', () => {
+  const week = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16']
+    .map(d => Game.idleLine('salt', d));
+  assert.ok(new Set(week).size > 1, 'a whole week produced one identical line');
+});
+
+test('idleLine copy stays short enough for the dialogue box', () => {
+  for (const line of Game.IDLE_LINES) assert.ok(line.length <= 72, `too long for two lines at 390px: ${line}`);
+});
