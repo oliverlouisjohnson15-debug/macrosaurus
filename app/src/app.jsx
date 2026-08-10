@@ -5470,11 +5470,10 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
         <PipLine pct={prog * 100} />
         <div className="text-[9px] text-[#8A8A90] mt-1.5">{nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`}</div>
       </div>}
-      {/* Talk back. Everything else the buddy does is one-way (it speaks on Today, you tap a CTA); this
-          is the one place the conversation runs both ways. Premium, and shown to free users too so the
-          feature is discoverable rather than hidden behind a tier they cannot see. */}
+      {/* Talk back. The main way in is the dock on Today now; this stays as the hub's own entry point.
+          No longer badged Premium: it spends from the free monthly AI allowance like anything else. */}
       {!incubating && onChat && <button onClick={onChat} className="pixel-btn w-full py-2.5 mb-2 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-        <PixelGlyph kind="chat" color="currentColor" size={13} /> TALK TO {(named ? bp.name : 'YOUR BUDDY').toUpperCase()}{isPremium ? '' : ' · PREMIUM'}
+        <PixelGlyph kind="chat" color="currentColor" size={13} /> TALK TO {(named ? bp.name : 'YOUR BUDDY').toUpperCase()}
       </button>}
       {/* Rename lives in the Shop now (an Amber spend), so it isn't duplicated here. */}
       <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={13} /> TROPHY CABINET</button>
@@ -5505,7 +5504,11 @@ function BuddyChatModal({ db, onClose, isPremium }) {
   async function send(text) {
     const q = String(text || '').trim().slice(0, CHAT_MAX_CHARS);
     if (!q || busy) return;
-    if (!isPremium) { try { window.MPAYWALL && window.MPAYWALL({ type: 'premium_required', feature: 'chat' }); } catch (_) {} return; }
+    // No client-side premium gate. Talking to the buddy is how you reach it from Today now, and a
+    // free account that cannot say a single word to its own buddy is a locked front door. It spends
+    // from the same free monthly AI allowance as a meal estimate, and the proxy is the real gate:
+    // when the allowance runs out it comes back as free_limit, which aiRequest routes to the paywall
+    // at the moment the value has already been felt rather than before it.
     const next = turns.concat([{ role: 'user', text: q }]);
     setTurns(next); setDraft(''); setErr(null); setBusy(true);
     try {
@@ -5556,7 +5559,7 @@ function BuddyChatModal({ db, onClose, isPremium }) {
         <div className="shrink-0 pt-3 flex gap-2 items-end" style={{ borderTop: '2px solid var(--border)' }}>
           <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value.slice(0, CHAT_MAX_CHARS))}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }}
-            placeholder={isPremium ? 'Ask ' + who + '…' : 'Premium feature'} disabled={busy}
+            placeholder={'Ask ' + who + '…'} disabled={busy}
             className="flex-1 min-w-0 pixel-box px-3 py-2.5 text-[12px] bg-transparent" style={{ boxShadow: 'none' }} />
           <button onClick={() => send(draft)} disabled={busy || !draft.trim()} className="pixel-btn px-3 py-2.5 text-[9px] pf shrink-0"
             style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (busy || !draft.trim()) ? 0.5 : 1 }}>SEND</button>

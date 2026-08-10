@@ -6,6 +6,8 @@ const FALLBACK_CAP_USD = 1.00;                        // legacy cap if app_confi
 const FALLBACK_FREE_MONTHLY = 10;                     // free AI actions/month if config unavailable
 const FALLBACK_PREMIUM_CAP_USD = 3.00;                // premium fair-use ceiling if config unavailable
 const MAX_TOKENS_CEILING = 4096;                      // bound worst-case cost per call
+const MAX_TOOLS = 16;                                 // the buddy's tool belt, with room to grow
+const MAX_TOOLS_BYTES = 20000;                        // bound the definitions a client can send
 
 // Price per token (USD). Update if Anthropic pricing changes.
 const PRICES: Record<string, { in: number; out: number }> = {
@@ -44,6 +46,19 @@ function extractPromptAndImages(messages: any[], system?: unknown): { prompt: st
         else if (b?.type === 'image' && b?.source?.type === 'base64' && b.source.data) {
           images.push('data:' + (b.source.media_type || 'image/jpeg') + ';base64,' + b.source.data);
         }
+        // Tool-loop turns carry the model's requests and the client's answers as their own block
+        // types. Rendered compactly rather than skipped, because on a later hop they are most of
+        // what happened, and an ai_logs row that shows only the system prompt tells a vetter
+        // nothing about the turn it is meant to explain.
+        else if (b?.type === 'tool_use' && typeof b.name === 'string') {
+          promptParts.push('[tool_use ' + b.name + '] ' + JSON.stringify(b.input ?? {}).slice(0, 2000));
+        } else if (b?.type === 'tool_result') {
+          const rc = b.content;
+          const flat = typeof rc === 'string' ? rc
+            : Array.isArray(rc) ? rc.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join(' ')
+            : '';
+          promptParts.push('[tool_result' + (b.is_error ? ' error' : '') + '] ' + String(flat).slice(0, 2000));
+        }
       }
     }
   }
@@ -59,9 +74,10 @@ function featureOf(prompt: string): string {
   // estimator" wording, so clients still running a cached bundle keep billing as 'meal' rather than
   // silently falling through to 'other'. Signature must stay in step with AI_PROMPT in app/src/prompts.jsx.
   if (p.includes('UK nutrition estimator')) return 'meal';
-  // The buddy chat is open-ended user text, so it is gated to Premium like bodyfat rather than being
-  // spendable from the free monthly allowance. Signature must stay in step with buddyChatReply()'s
-  // system prompt in app/src/app.jsx.
+  // The buddy conversation. Classified so its spend is attributable per feature in ai_logs, and so
+  // the tool-loop hops of one turn all land under the same label. It is NOT Premium-gated (see the
+  // access-control block below) - it spends from the free monthly allowance like a meal estimate.
+  // Signature must stay in step with buddyChatReply()'s system prompt in app/src/app.jsx.
   if (p.includes('You are Macrosaurus, speaking as')) return 'chat';
   // Free-text "what's coming up" parsing at check-in. Open-ended user text like the chat, so it is
   // gated to Premium rather than spendable from the free monthly allowance. Signature must stay in
@@ -124,6 +140,21 @@ Deno.serve(async (req) => {
   // two shapes we use are passed on; anything else is dropped rather than forwarded to Anthropic.
   const t = payload?.thinking;
   const thinking = (t && (t.type === 'disabled' || t.type === 'adaptive')) ? t : undefined;
+  // Tools. The buddy conversation is a client-executed tool loop: the model asks for a tool, the
+  // CLIENT runs it against local state (the diary lives on the device, not here) and sends the
+  // result back. So this only has to carry the definitions through and let tool_result blocks ride
+  // in `messages`, which are already forwarded verbatim. Bounded on count and serialized size so a
+  // modified client cannot inflate the prompt it is billed for; anything malformed is dropped
+  // rather than forwarded, matching how `thinking` is handled above.
+  const rawTools = payload?.tools;
+  const tools = (Array.isArray(rawTools) && rawTools.length > 0 && rawTools.length <= MAX_TOOLS
+    && JSON.stringify(rawTools).length <= MAX_TOOLS_BYTES) ? rawTools : undefined;
+  const tc = payload?.tool_choice;
+  const toolChoice = (tools && tc && typeof tc === 'object' && typeof tc.type === 'string') ? tc : undefined;
+  // Which hop of a multi-step turn this is. One USER TURN is one AI action however many times the
+  // model goes round the tool loop, so only hop 0 increments the monthly call count. Spend is
+  // always recorded truthfully, on every hop (see the accounting below).
+  const hop = Math.max(0, Math.floor(Number(payload?.hop) || 0));
 
   const { prompt, images } = extractPromptAndImages(messages, system);
   const feature = featureOf(prompt);
@@ -163,12 +194,11 @@ Deno.serve(async (req) => {
             message: 'Body-fat photo scans are a Premium feature.',
           } }, 402);
         }
-        if (feature === 'chat') {
-          return json({ error: {
-            type: 'premium_required', feature: 'chat',
-            message: 'Chatting with your buddy is a Premium feature.',
-          } }, 402);
-        }
+        // Chat is NOT Premium-only any more. It was, back when it was a curiosity buried in the Play
+        // hub; it is now the way you talk to the buddy on Today, and a locked front door is a bad
+        // first run for a free account. So it falls through to the free monthly allowance below and
+        // spends from the same pool as every other AI action, one per user turn. Body-fat, quality,
+        // week-planning and the training features stay Premium: those are the paid half.
         if (feature === 'weekplan') {
           return json({ error: {
             type: 'premium_required', feature: 'weekplan',
@@ -233,6 +263,8 @@ Deno.serve(async (req) => {
   }
 
   const anthBody: Record<string, unknown> = { model, max_tokens: maxTokens, messages };
+  if (tools) anthBody.tools = tools;
+  if (toolChoice) anthBody.tool_choice = toolChoice;
   if (system) anthBody.system = system;
   if (thinking) anthBody.thinking = thinking;
 
@@ -257,7 +289,15 @@ Deno.serve(async (req) => {
     cost = (Number(data.usage.input_tokens) || 0) * price.in
          + (Number(data.usage.output_tokens) || 0) * price.out;
     // add_ai_usage bumps both spend_usd and the monthly call count (used for the free-tier gate).
-    try { await admin.rpc('add_ai_usage', { p_user: userId, p_period: period, p_cost: cost }); } catch (_) { /* non-fatal */ }
+    // A tool-loop turn is several requests - the model asks for a tool, the client answers, the
+    // model replies - and charging the free allowance per REQUEST would burn a 10-a-month budget
+    // three times faster than the meter beside it says. So the call count moves once per user turn
+    // (hop 0) and later hops record spend only, which keeps the Premium fair-use ceiling honest
+    // without lying to a free user about what they have left.
+    try {
+      if (hop === 0) await admin.rpc('add_ai_usage', { p_user: userId, p_period: period, p_cost: cost });
+      else await admin.rpc('add_ai_spend', { p_user: userId, p_period: period, p_cost: cost });
+    } catch (_) { /* non-fatal */ }
     if (cost > 0) {
       try { await admin.rpc('add_ai_usage_model', { p_user: userId, p_period: period, p_model: model, p_cost: cost }); } catch (_) { /* non-fatal */ }
     }
@@ -272,6 +312,11 @@ Deno.serve(async (req) => {
       const textOut = (aRes.ok && Array.isArray(data?.content))
         ? data.content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('')
         : '';
+      // A tool-loop hop legitimately answers with tool_use blocks and NO text: the model is asking
+      // the client to go and do something, not talking. That is a successful turn, so it must not
+      // be filed as an error the way a genuinely empty 200 is.
+      const askedForTool = aRes.ok && Array.isArray(data?.content)
+        && data.content.some((b: any) => b?.type === 'tool_use');
       // A 200 carrying no text is a failure for the client (it has nothing to parse) but used to be
       // logged as a blank 'ok' row, which hid the cause. Log the raw payload and flag it, so
       // stop_reason and the block types are there to read.
@@ -287,7 +332,7 @@ Deno.serve(async (req) => {
         cost_usd: cost || null,
         image_count: images.length,
         images: images.slice(0, 6),
-        status: (aRes.ok && textOut) ? 'ok' : 'error',
+        status: (aRes.ok && (textOut || askedForTool)) ? 'ok' : 'error',
       };
       const p = admin.from('ai_logs').insert(row).then(() => {}, () => {});
       // @ts-ignore EdgeRuntime is provided by the Supabase edge runtime

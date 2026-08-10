@@ -19356,7 +19356,7 @@ function PlayBuddyView({
     kind: "chat",
     color: "currentColor",
     size: 13
-  }), " TALK TO ", (named ? bp.name : 'YOUR BUDDY').toUpperCase(), isPremium ? '' : ' · PREMIUM'), /*#__PURE__*/React.createElement("button", {
+  }), " TALK TO ", (named ? bp.name : 'YOUR BUDDY').toUpperCase()), /*#__PURE__*/React.createElement("button", {
     onClick: onTrophies,
     className: "pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2",
     style: {
@@ -19413,15 +19413,11 @@ function BuddyChatModal({
   async function send(text) {
     const q = String(text || '').trim().slice(0, CHAT_MAX_CHARS);
     if (!q || busy) return;
-    if (!isPremium) {
-      try {
-        window.MPAYWALL && window.MPAYWALL({
-          type: 'premium_required',
-          feature: 'chat'
-        });
-      } catch (_) {}
-      return;
-    }
+    // No client-side premium gate. Talking to the buddy is how you reach it from Today now, and a
+    // free account that cannot say a single word to its own buddy is a locked front door. It spends
+    // from the same free monthly AI allowance as a meal estimate, and the proxy is the real gate:
+    // when the allowance runs out it comes back as free_limit, which aiRequest routes to the paywall
+    // at the moment the value has already been felt rather than before it.
     const next = turns.concat([{
       role: 'user',
       text: q
@@ -19550,7 +19546,7 @@ function BuddyChatModal({
         send(draft);
       }
     },
-    placeholder: isPremium ? 'Ask ' + who + '…' : 'Premium feature',
+    placeholder: 'Ask ' + who + '…',
     disabled: busy,
     className: "flex-1 min-w-0 pixel-box px-3 py-2.5 text-[12px] bg-transparent",
     style: {
