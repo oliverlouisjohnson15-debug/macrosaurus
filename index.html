@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-2{margin-left:.5rem;margin-right:.5rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-10{margin-top:-2.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-full{width:100%}.w-px{width:1px}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.last\:mb-0:last-child{margin-bottom:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.top-7{top:1.75rem}.top-9{top:2.25rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-50{z-index:50}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-2{margin-left:.5rem;margin-right:.5rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-10{margin-top:-2.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-3{margin-left:.75rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-auto{margin-top:auto}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-20{height:5rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[90vh\]{max-height:90vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-full{width:100%}.w-px{width:1px}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-\[3px\]{gap:3px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-\[\#ff6b6b\]{--tw-bg-opacity:1;background-color:rgb(255 107 107/var(--tw-bg-opacity,1))}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-1{padding-bottom:.25rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-6{padding-right:1.5rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-60{opacity:.6}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.last\:mb-0:last-child{margin-bottom:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
@@ -8060,6 +8060,283 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   root.Training = Training;
 })(typeof window !== 'undefined' ? window : this);
 </script>
+<script>
+/*
+ * talk.js  ·  what the buddy is allowed to do, and what it means
+ * ----------------------------------------------------------------------------
+ * The buddy conversation is a CLIENT-EXECUTED tool loop. The model asks for a tool, this file says
+ * whether the ask is valid and what it resolves to, and app.jsx carries it out against the live
+ * diary. The split matters: the decision layer is pure, so it can be unit-tested without React, a
+ * network, or a signed-in user, and the part that can actually write to someone's food log is a
+ * small, readable switch rather than a maze of model-shaped conditionals.
+ *
+ * TWO RULES RUN THROUGH EVERYTHING HERE.
+ *
+ * 1. NOTHING IS LOGGED WITHOUT A TAP. Every tool that would touch the diary resolves to a PROPOSAL,
+ *    which the conversation renders as a card the user confirms. The model is told this in the tool
+ *    descriptions, so it never claims to have logged something it has only suggested. A macro
+ *    tracker whose numbers can be changed by a sentence you did not read back is not a tracker.
+ *
+ * 2. THE MODEL NEVER INVENTS NUMBERS. It does not get a tool that takes calories or macros. It can
+ *    describe a meal for the estimator (which is a separate, calibrated prompt with its own
+ *    review screen), or name a food the user has logged before (whose numbers we already hold), and
+ *    that is the whole surface. Whatever the conversation is for, it is not a second, chattier
+ *    route around the estimator's calibration.
+ *
+ * Concatenated ahead of app.jsx by build.mjs, and require()d directly by the tests.
+ */
+(function (root) {
+  'use strict';
+
+  // Tool schemas, in the shape the Messages API wants. `strict` + `additionalProperties: false`
+  // mean arguments validate exactly at the API layer, so everything below is defending against a
+  // model that asked for something sensible-but-wrong (a food it has not seen, a meal that is not
+  // in this day) rather than against malformed JSON.
+  var TOOLS = [
+    {
+      name: 'estimate_meal',
+      description: 'Estimate the calories and macros of a meal the user describes, or of the photo they have attached. '
+        + 'Use this for anything they ate that is not already one of their saved foods or saved meals. '
+        + 'This does NOT log anything: it shows the user an estimate to check and confirm. Say you have worked it out '
+        + 'and it is waiting for them, never that it is logged. Pass on everything they told you about portion size, '
+        + 'cooking method, brand or restaurant, because the estimator is much more accurate with those.',
+      strict: true,
+      input_schema: {
+        type: 'object',
+        properties: {
+          description: { type: 'string', description: 'What they ate, in their own words plus any detail they gave you about size, cooking or brand.' },
+          meal: { type: 'string', description: 'Which meal of the day it belongs to, e.g. Breakfast, Lunch, Dinner, Snacks. Omit if they did not say.' },
+        },
+        required: ['description'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'log_known_food',
+      description: 'Propose logging a food the user has logged before, at a given weight. Only for foods returned by '
+        + 'recent_foods - never guess a name. This does NOT log anything: it shows the user a card to confirm.',
+      strict: true,
+      input_schema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'The food name exactly as recent_foods returned it.' },
+          grams: { type: 'number', description: 'How many grams of it.' },
+          meal: { type: 'string', description: 'Which meal of the day it belongs to. Omit if they did not say.' },
+        },
+        required: ['name', 'grams'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'log_saved_meal',
+      description: 'Propose logging one of the user\'s saved meals, whole. Only for meals returned by recent_foods. '
+        + 'This does NOT log anything: it shows the user a card to confirm.',
+      strict: true,
+      input_schema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'The saved meal name exactly as recent_foods returned it.' },
+          meal: { type: 'string', description: 'Which meal of the day it belongs to. Omit if they did not say.' },
+        },
+        required: ['name'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'recent_foods',
+      description: 'Search the foods and saved meals this user has logged before. Use it before log_known_food or '
+        + 'log_saved_meal to find the exact name, and whenever you are not sure whether something is already saved.',
+      strict: true,
+      input_schema: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Part of a food or meal name. Empty string lists the most recent.' } },
+        required: ['query'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'day_summary',
+      description: 'Read today\'s numbers: calories and macros eaten and remaining, protein target, whether they have '
+        + 'weighed in, and their sleep, steps and readiness. Use it before answering anything about how the day is going. '
+        + 'Call it again after something is logged, because the numbers will have moved.',
+      strict: true,
+      input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+    },
+    {
+      name: 'save_weight',
+      description: 'Propose saving a weigh-in for today. This does NOT save anything: it shows the user the number to '
+        + 'confirm. Only use it when they tell you a weight; never estimate one.',
+      strict: true,
+      input_schema: {
+        type: 'object',
+        properties: {
+          kg: { type: 'number', description: 'The weight in kilograms. Convert from stones and pounds if that is what they said.' },
+        },
+        required: ['kg'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'open_screen',
+      description: 'Open a screen in the app for anything you cannot do yourself. Use it instead of explaining where to tap.',
+      strict: true,
+      input_schema: {
+        type: 'object',
+        properties: {
+          screen: {
+            type: 'string',
+            description: 'Which screen to open.',
+            enum: ['food', 'cook', 'train', 'progress', 'settings', 'buddy', 'check-in', 'weigh-in'],
+          },
+        },
+        required: ['screen'],
+        additionalProperties: false,
+      },
+    },
+  ];
+  var TOOL_NAMES = TOOLS.map(function (t) { return t.name; });
+  // Screens the buddy may open, mapped to what the app calls them. A closed list rather than a
+  // passthrough: "open a screen" is the one tool with no confirmation step, so the set of places it
+  // can send someone is fixed here rather than being whatever string the model produced.
+  var SCREENS = {
+    food: 'foodlog', cook: 'recipes', train: 'train', progress: 'goals',
+    settings: 'more', buddy: 'play', 'check-in': 'checkin', 'weigh-in': 'weigh',
+  };
+  // A weight a person could actually be. Wide on purpose - this is here to catch a decimal point in
+  // the wrong place or stones read as kilos, not to have an opinion about anybody's body.
+  var MIN_KG = 25, MAX_KG = 400;
+  var MAX_GRAMS = 5000;   // 5kg of one food in one sitting is a typo, not a meal
+  var MAX_MATCHES = 8;    // how many foods recent_foods hands back
+
+  function str(v) { return typeof v === 'string' ? v.trim() : ''; }
+  function err(message) { return { ok: false, error: message }; }
+  function norm(s) { return String(s || '').trim().toLowerCase(); }
+
+  // Which meal of the day. The model gets to say "lunch" and we find the real one, because meal ids
+  // are ours and the names are the user's (they can rename them, and a day can have a different set).
+  // Unmatched is not an error: no meal named is the normal case, and the caller picks the sensible
+  // default for the time of day rather than the conversation having to ask.
+  function resolveMeal(name, meals) {
+    var want = norm(name);
+    if (!want) return null;
+    var list = meals || [];
+    for (var i = 0; i < list.length; i++) if (norm(list[i].name) === want) return list[i].id;
+    for (var j = 0; j < list.length; j++) if (norm(list[j].name).indexOf(want) === 0) return list[j].id;
+    return null;
+  }
+
+  // Find a food the user has logged before. Exact first, then prefix, then substring, so "chicken"
+  // finds "Chicken breast" but an exact "Chicken" still wins if they have one.
+  function findFood(name, foods) {
+    var want = norm(name);
+    if (!want) return null;
+    var list = foods || [];
+    var i;
+    for (i = 0; i < list.length; i++) if (norm(list[i].name) === want) return list[i];
+    for (i = 0; i < list.length; i++) if (norm(list[i].name).indexOf(want) === 0) return list[i];
+    for (i = 0; i < list.length; i++) if (norm(list[i].name).indexOf(want) >= 0) return list[i];
+    return null;
+  }
+
+  // What to offer when a name did not resolve. Searching the whole phrase is useless here - the
+  // reason it failed is that nothing matches it - so this falls back to the first word, which is
+  // what turns "chicken korma" into a list of the chicken they actually have. Without it the model
+  // gets a flat "no" and its only move is to guess again.
+  function nearMatches(name, foods, savedMeals) {
+    var whole = search(name, foods, savedMeals);
+    if (whole.foods.length || whole.meals.length) return whole;
+    var first = String(name || '').trim().split(/\s+/)[0];
+    return first && first !== name ? search(first, foods, savedMeals) : whole;
+  }
+
+  function search(query, foods, savedMeals) {
+    var q = norm(query);
+    var hit = function (n) { return !q || norm(n).indexOf(q) >= 0; };
+    return {
+      foods: (foods || []).filter(function (f) { return hit(f.name); }).slice(0, MAX_MATCHES).map(function (f) { return f.name; }),
+      meals: (savedMeals || []).filter(function (m) { return hit(m.name); }).slice(0, MAX_MATCHES).map(function (m) { return m.name; }),
+    };
+  }
+
+  /* Validate one tool call and resolve it into a PLAN the app can carry out.
+     ctx = { meals: [{id,name}], foods: [{name}], savedMeals: [{name}] }
+     Returns { ok: true, plan } or { ok: false, error }. The error string goes straight back to the
+     model as a tool_result, so it is written to be acted on ("I do not have a food called X, here
+     is what I do have") rather than to be logged. */
+  function validate(name, args, ctx) {
+    var a = args || {}, c = ctx || {};
+    switch (name) {
+      case 'estimate_meal': {
+        var d = str(a.description);
+        if (!d) return err('I need to know what they ate before I can estimate it. Ask them.');
+        return { ok: true, plan: { kind: 'estimate', description: d, mealId: resolveMeal(a.meal, c.meals) } };
+      }
+      case 'log_known_food': {
+        var fname = str(a.name);
+        if (!fname) return err('Which food? Use recent_foods to find the exact name first.');
+        var food = findFood(fname, c.foods);
+        if (!food) {
+          var near = nearMatches(fname, c.foods, c.savedMeals);
+          return err('There is no saved food called "' + fname + '".'
+            + (near.foods.length ? ' Closest matches: ' + near.foods.join(', ') + '.' : '')
+            + ' If it is something new, use estimate_meal instead.');
+        }
+        var g = Number(a.grams);
+        if (!isFinite(g) || g <= 0) return err('How many grams? I need a positive number.');
+        if (g > MAX_GRAMS) return err('That is over ' + MAX_GRAMS + 'g of one food, which is almost certainly a slip. Check the amount with them.');
+        return { ok: true, plan: { kind: 'known_food', name: food.name, grams: Math.round(g), mealId: resolveMeal(a.meal, c.meals) } };
+      }
+      case 'log_saved_meal': {
+        var mname = str(a.name);
+        if (!mname) return err('Which saved meal? Use recent_foods to find the exact name first.');
+        var meal = findFood(mname, c.savedMeals);
+        if (!meal) {
+          var nearM = nearMatches(mname, c.foods, c.savedMeals);
+          return err('There is no saved meal called "' + mname + '".'
+            + (nearM.meals.length ? ' Saved meals: ' + nearM.meals.join(', ') + '.' : '')
+            + ' If it is something new, use estimate_meal instead.');
+        }
+        return { ok: true, plan: { kind: 'saved_meal', name: meal.name, mealId: resolveMeal(a.meal, c.meals) } };
+      }
+      case 'recent_foods':
+        return { ok: true, plan: { kind: 'search', results: search(a.query, c.foods, c.savedMeals) } };
+      case 'day_summary':
+        return { ok: true, plan: { kind: 'summary' } };
+      case 'save_weight': {
+        var kg = Number(a.kg);
+        if (!isFinite(kg) || kg <= 0) return err('I need a weight as a number in kilograms.');
+        if (kg < MIN_KG || kg > MAX_KG) return err('I read that as ' + kg + 'kg, which does not look right. Check the number with them.');
+        return { ok: true, plan: { kind: 'weight', kg: Math.round(kg * 10) / 10 } };
+      }
+      case 'open_screen': {
+        var view = SCREENS[norm(a.screen)];
+        if (!view) return err('I cannot open "' + str(a.screen) + '". Choose one of: ' + Object.keys(SCREENS).join(', ') + '.');
+        return { ok: true, plan: { kind: 'open', screen: norm(a.screen), view: view } };
+      }
+      default:
+        return err('There is no tool called "' + String(name) + '".');
+    }
+  }
+
+  var Talk = {
+    TOOLS: TOOLS,
+    TOOL_NAMES: TOOL_NAMES,
+    SCREENS: SCREENS,
+    MIN_KG: MIN_KG,
+    MAX_KG: MAX_KG,
+    MAX_GRAMS: MAX_GRAMS,
+    MAX_MATCHES: MAX_MATCHES,
+    resolveMeal: resolveMeal,
+    findFood: findFood,
+    search: search,
+    nearMatches: nearMatches,
+    validate: validate,
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = Talk;
+  root.Talk = Talk;
+})(typeof window !== 'undefined' ? window : this);
+</script>
 <script>/* ---- app/src/prompts.jsx ---- */
 /* ============================================================================
  * prompts.jsx  ·  the AI contract
@@ -9372,28 +9649,83 @@ function buddyChatSnapshot(db) {
     weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null)
   });
 }
-async function buddyChatReply(db, history) {
+// How many times the model may go round the tool loop for ONE thing the user said. Four is enough
+// for the longest honest chain we have (look up a food, read the day, propose the log, answer) and
+// short enough that a model which has got itself stuck stops rather than spending someone's month.
+const TALK_MAX_HOPS = 4;
+function buddyChatSystem(db) {
   const who = db.buddy && db.buddy.name || 'Your buddy';
-  const snapshot = buddyChatSnapshot(db);
-  const system = 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. ' + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". ' + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. ' + 'The snapshot carries a "training" block when they lift: their current block and week, what is done and still to do this week, how long since their last session, and any lift that has stopped moving. Use it for training questions rather than guessing, and if that block is absent tell them the training side is in the Train tab rather than inventing a session. Never prescribe a weight, a set count or a rep count of your own; the Train tab writes the programme and you talk about it. ' + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. ' + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. ' + 'No emojis, no headings, no bullet points, no markdown, no em dashes.' + '\n\nTheir day right now (JSON):\n' + JSON.stringify(snapshot);
+  return 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. ' + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". ' + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. ' + 'The snapshot carries a "training" block when they lift: their current block and week, what is done and still to do this week, how long since their last session, and any lift that has stopped moving. Use it for training questions rather than guessing, and if that block is absent tell them the training side is in the Train tab rather than inventing a session. Never prescribe a weight, a set count or a rep count of your own; the Train tab writes the programme and you talk about it. ' + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. ' + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. ' + 'No emojis, no headings, no bullet points, no markdown, no em dashes.'
+  // The tool contract, stated once and plainly. The individual tool descriptions repeat the
+  // no-writing rule because a model reading one tool in isolation must still get it right.
+  + '\n\nYou have tools. Use them rather than describing what the user should tap. Rules that matter more than being helpful: ' + 'you can PROPOSE things to log but you can never log them - every proposal appears as a card the user taps to confirm, so say it is ready for them to check, never that it is done. ' + 'Never state or guess calories or macros yourself: get them from a tool. ' + 'When they mention food they have eaten, log it for them rather than asking which tool they want. ' + 'If a tool comes back with an error, read it and try the thing it suggests instead of repeating the same call.' + '\n\nTheir day right now (JSON):\n' + JSON.stringify(buddyChatSnapshot(db));
+}
+// One user turn, however many times the model has to go and look something up. `runTool` executes a
+// tool against the live app and returns { text, isError } - the text is what the model is told
+// happened, so it is written for the model, not the user (the user gets the card).
+//
+// Deliberately built from the TEXT history rather than a preserved block-level transcript: the
+// thread is ephemeral and per-day, so replaying prior tool traffic would cost tokens on every turn
+// to re-tell the model things its own last reply already says. It can always look again.
+async function buddyChatReply(db, history, runTool) {
+  const system = buddyChatSystem(db);
   // The API needs a clean user-first, strictly alternating thread. Trimming to a trailing window can
   // land on an assistant turn (an odd-length thread cut by an even window), so drop any leading
   // assistant turns after the slice rather than assuming the window lines up.
-  const messages = (history || []).slice(-CHAT_MAX_TURNS).map(t => ({
+  let messages = (history || []).slice(-CHAT_MAX_TURNS).map(t => ({
     role: t.role === 'buddy' ? 'assistant' : 'user',
     content: String(t.text || '').slice(0, CHAT_MAX_CHARS)
   }));
   while (messages.length && messages[0].role !== 'user') messages.shift();
   if (!messages.length) throw new Error('Ask me something first.');
-  const j = await aiRequest({
-    model: AI_MODEL_FAST,
-    max_tokens: 300,
-    system,
-    messages
-  });
-  const txt = ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
-  if (!txt) throw new Error('I did not catch that, try asking again.');
-  return txt;
+  let said = '';
+  for (let hop = 0; hop < TALK_MAX_HOPS; hop++) {
+    // `hop` tells the proxy which request this is: only the first counts against the free monthly
+    // allowance, so one thing the user asked for costs one AI action however much looking up it took.
+    const j = await aiRequest({
+      model: AI_MODEL_FAST,
+      max_tokens: 700,
+      system,
+      messages,
+      tools: runTool ? Talk.TOOLS : undefined,
+      hop
+    });
+    const blocks = j && j.content || [];
+    const text = blocks.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    if (text) said = text;
+    const uses = blocks.filter(b => b.type === 'tool_use');
+    if (!uses.length) break;
+    messages = messages.concat([{
+      role: 'assistant',
+      content: blocks
+    }]);
+    // All results go back in ONE user message: splitting them teaches the model to stop asking for
+    // more than one thing at a time, and the API rejects a follow-up that leaves a tool_use unanswered.
+    const results = [];
+    for (const u of uses) {
+      let r;
+      try {
+        r = await runTool(u.name, u.input);
+      } catch (e) {
+        r = {
+          text: 'That failed: ' + (e && e.message || 'unknown error'),
+          isError: true
+        };
+      }
+      results.push({
+        type: 'tool_result',
+        tool_use_id: u.id,
+        content: String(r && r.text || 'Done.'),
+        is_error: !!(r && r.isError)
+      });
+    }
+    messages = messages.concat([{
+      role: 'user',
+      content: results
+    }]);
+  }
+  if (!said) throw new Error('I did not catch that, try asking again.');
+  return said;
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
@@ -19386,23 +19718,242 @@ function PlayBuddyView({
     }
   }, BUDDY_LORE[crHash((db.game_salt || '') + Store.todayISO()) % BUDDY_LORE.length])));
 }
-/* The buddy, answering back. A short conversation grounded in the same day snapshot the deeper dive
-   uses. Deliberately EPHEMERAL: the thread lives in component state and is gone when the sheet closes,
-   so nothing is added to the synced user_state blob (which merges wholesale across devices) and no
-   chat history is ever persisted. Premium-gated on the client for a clean paywall hand-off, and again
-   in ai-proxy so the gate is real rather than cosmetic. */
+/* The buddy, answering back AND doing things. A conversation grounded in the same day snapshot the
+   deeper dive uses, with a client-executed tool loop behind it: the model asks for a tool, this
+   component runs it against the live diary, and anything that would WRITE comes back as a card the
+   user taps. Nothing here can change the food log on its own - see app/talk.js for why that rule is
+   the whole design rather than a precaution.
+
+   The thread is per-day and kept in sessionStorage rather than in `db`: it must survive closing the
+   sheet (an estimate you are half way through confirming is not a thing to lose) without ever
+   entering the synced user_state blob, which merges wholesale across devices. */
 const CHAT_OPENERS = ['How am I doing today?', 'What should I eat next?', 'Am I on track for my goal?'];
+const TALK_STORE_TURNS = 20; // how much thread survives a close; older turns fall off the top
+// Scale a food the user has logged before to a weight. Their OWN corrected numbers first (the whole
+// point of a smart food), then whatever was last logged as a per-100g basis. Returns null when there
+// is no per-100g basis to scale from, which is the honest answer for a one-off "1 serving" entry:
+// the conversation then falls back to the estimator rather than inventing a scale factor.
+function macrosFor(food, grams) {
+  if (!food || !(grams > 0)) return null;
+  if (food.saved_base) {
+    const b = food.saved_base;
+    let per100 = b;
+    if (food.saved_kind === 'serving') {
+      const sg = +food.saved_serving_g || 0;
+      if (!sg) return null;
+      per100 = {
+        kcal: b.kcal / sg * 100,
+        protein: b.protein / sg * 100,
+        carbs: b.carbs / sg * 100,
+        fat: b.fat / sg * 100,
+        fiber: (b.fiber || 0) / sg * 100
+      };
+    }
+    const s = grams / 100;
+    return {
+      kcal: Math.round(per100.kcal * s),
+      protein: +(per100.protein * s).toFixed(1),
+      carbs: +(per100.carbs * s).toFixed(1),
+      fat: +(per100.fat * s).toFixed(1),
+      fiber: +((per100.fiber || 0) * s).toFixed(1)
+    };
+  }
+  return null;
+}
+/* One proposal, waiting on a tap. The estimate case hands straight over to AiConfirm - the same
+   review screen the Estimate tab uses, with its CoFID check, its follow-up question and its "tell
+   the AI what's wrong" box - because a number reached through conversation deserves exactly as much
+   scrutiny as one reached through the sheet, not less. The simpler cases get a one-line card.
+   Once confirmed the card becomes a receipt, so scrolling back shows what was done, not a button
+   that would do it again. */
+function TalkCard({
+  card,
+  db,
+  mealName,
+  done,
+  onDone,
+  onAdd,
+  onAddItems,
+  onAddMeal,
+  onSaveWeight
+}) {
+  const c = card || {};
+  if (done) return /*#__PURE__*/React.createElement("div", {
+    className: "mb-2 flex justify-start"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-2 max-w-[85%] text-[10.5px] inline-flex items-center gap-1.5",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none',
+      color: 'var(--good-ink)'
+    }
+  }, /*#__PURE__*/React.createElement(Tick, {
+    size: 10
+  }), " ", done));
+  const Wrap = ({
+    children
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "mb-2 pixel-box p-2.5",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[7px] uppercase mb-1.5",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Tap to confirm"), children);
+  if (c.kind === 'estimate') {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "mb-2 pixel-box p-2.5",
+      style: {
+        background: 'var(--surface3)',
+        boxShadow: 'none'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[7px] uppercase mb-1.5",
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, "Check this, then log it"), /*#__PURE__*/React.createElement(AiConfirm, {
+      est: c.est,
+      photos: c.photos || [],
+      onAdd: item => {
+        onAdd && onAdd(c.mealId, item);
+        onDone('Logged to ' + mealName(c.mealId));
+      },
+      onAddItems: items => {
+        onAddItems && onAddItems(c.mealId, items);
+        onDone('Logged ' + items.length + ' items to ' + mealName(c.mealId));
+      },
+      onCancel: () => onDone('Left it')
+    }));
+  }
+  if (c.kind === 'food') return /*#__PURE__*/React.createElement(Wrap, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11.5px] font-bold leading-snug"
+  }, c.grams, "g ", c.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] tnum mb-2",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, Math.round(c.macros.kcal), " kcal · P", Math.round(c.macros.protein), " C", Math.round(c.macros.carbs), " F", Math.round(c.macros.fat), " · ", mealName(c.mealId)), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onAdd && onAdd(c.mealId, {
+        name: c.name,
+        source: 'buddy',
+        qtyLabel: c.grams + ' g',
+        amount: c.grams,
+        unit: 'g',
+        unitNoun: 'g',
+        macros: c.macros
+      });
+      onDone('Logged to ' + mealName(c.mealId));
+    },
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "LOG IT ›"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onDone('Left it'),
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "No")));
+  if (c.kind === 'meal') return /*#__PURE__*/React.createElement(Wrap, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11.5px] font-bold leading-snug"
+  }, c.name), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] tnum mb-2",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, c.items.length, " item", c.items.length === 1 ? '' : 's', " · ", Math.round(c.macros.kcal), " kcal · ", mealName(c.mealId)), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onAddMeal && onAddMeal(c.mealId, c.items);
+      onDone('Logged to ' + mealName(c.mealId));
+    },
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "LOG IT ›"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onDone('Left it'),
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "No")));
+  if (c.kind === 'weight') return /*#__PURE__*/React.createElement(Wrap, null, /*#__PURE__*/React.createElement("div", {
+    className: "text-[11.5px] font-bold leading-snug mb-2"
+  }, fmtWeight(c.kg, db.profile.weight_unit), " today"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onSaveWeight && onSaveWeight(c.kg);
+      onDone('Weigh-in saved');
+    },
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--accent)',
+      color: 'var(--on-accent)'
+    }
+  }, "SAVE IT ›"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onDone('Left it'),
+    className: "pixel-btn py-1.5 px-3 text-[8px] pf",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, "No")));
+  return null;
+}
+function talkKey(db) {
+  return 'mac.talk.' + Store.todayISO();
+}
+function loadTalk(db) {
+  try {
+    const raw = sessionStorage.getItem(talkKey(db));
+    const v = raw ? JSON.parse(raw) : null;
+    return Array.isArray(v) ? v.filter(t => t && t.text && (t.role === 'user' || t.role === 'buddy')) : [];
+  } catch (_) {
+    return [];
+  }
+}
+function saveTalk(db, turns) {
+  // Text only. The cards carry live callbacks and half-finished estimates, which are meaningless
+  // once the sheet has closed, so they are deliberately not restored with the words around them.
+  try {
+    sessionStorage.setItem(talkKey(db), JSON.stringify(turns.filter(t => t.role === 'user' || t.role === 'buddy').map(t => ({
+      role: t.role,
+      text: t.text
+    })).slice(-TALK_STORE_TURNS)));
+  } catch (_) {}
+}
 function BuddyChatModal({
   db,
   onClose,
-  isPremium
+  isPremium,
+  meals,
+  onAdd,
+  onAddItems,
+  onAddMeal,
+  onSaveWeight,
+  onOpenScreen
 }) {
   useBackClose(onClose);
   const who = db.buddy && db.buddy.name || 'Your buddy';
-  const [turns, setTurns] = useState([]);
+  const [turns, setTurns] = useState(() => loadTalk(db));
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [cam, setCam] = useState(false);
+  const [pic, setPic] = useState(null); // one photo, attached to the next thing you say
   const endRef = useRef(null);
   const inputRef = useRef(null);
   useEffect(() => {
@@ -19410,6 +19961,131 @@ function BuddyChatModal({
       block: 'end'
     });
   }, [turns, busy]);
+  useEffect(() => {
+    saveTalk(db, turns);
+  }, [turns]);
+  const dayMeals = meals || mealsForDay(db, Store.todayISO());
+  // What the model is allowed to name, resolved against this user's own data. Rebuilt per turn so a
+  // food logged mid-conversation is immediately nameable in the next breath.
+  const toolCtx = () => ({
+    meals: dayMeals.map(m => ({
+      id: m.id,
+      name: m.name
+    })),
+    foods: (db.foods || []).slice().sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0)),
+    savedMeals: db.saved_meals || []
+  });
+  const pushCard = card => setTurns(t => t.concat([{
+    role: 'card',
+    card
+  }]));
+  const mealOr = id => id || suggestMealId(db, dayMeals) || dayMeals[0].id;
+  const mealName = id => (dayMeals.find(m => m.id === id) || {}).name || 'your meal';
+
+  /* Run one tool against the live app. The string returned goes back to the MODEL, so it is written
+     for the model: what happened, what is now true, and - for anything that writes - the fact that
+     it is only a proposal, so the reply it composes says "ready to check" rather than "logged". */
+  async function runTool(name, input) {
+    const v = Talk.validate(name, input, toolCtx());
+    if (!v.ok) return {
+      text: v.error,
+      isError: true
+    };
+    const p = v.plan;
+    if (p.kind === 'search') {
+      const r = p.results;
+      if (!r.foods.length && !r.meals.length) return {
+        text: 'Nothing saved matches that. Use estimate_meal for anything new.'
+      };
+      return {
+        text: 'Their saved foods: ' + (r.foods.join(', ') || 'none') + '. Their saved meals: ' + (r.meals.join(', ') || 'none') + '.'
+      };
+    }
+    if (p.kind === 'summary') return {
+      text: JSON.stringify(buddyChatSnapshot(db))
+    };
+    if (p.kind === 'open') {
+      onOpenScreen && onOpenScreen(p.view);
+      return {
+        text: 'Opened ' + p.screen + '. Tell them it is open.'
+      };
+    }
+    if (p.kind === 'weight') {
+      pushCard({
+        kind: 'weight',
+        kg: p.kg
+      });
+      return {
+        text: 'Showed them ' + p.kg + 'kg to confirm. NOT saved yet - they have to tap it.'
+      };
+    }
+    if (p.kind === 'known_food') {
+      const food = savedCorrection(db, p.name) || (db.foods || []).find(f => f.name === p.name);
+      const macros = macrosFor(food, p.grams);
+      if (!macros) return {
+        text: 'I do not have per-100g numbers for ' + p.name + ', so I cannot scale it. Use estimate_meal instead.',
+        isError: true
+      };
+      const mealId = mealOr(p.mealId);
+      pushCard({
+        kind: 'food',
+        name: p.name,
+        grams: p.grams,
+        macros,
+        mealId
+      });
+      return {
+        text: 'Showed them ' + p.grams + 'g of ' + p.name + ' (' + Math.round(macros.kcal) + ' kcal, ' + Math.round(macros.protein) + 'g protein) for ' + mealName(mealId) + ', ready to confirm. NOT logged yet.'
+      };
+    }
+    if (p.kind === 'saved_meal') {
+      const sm = (db.saved_meals || []).find(m => m.name === p.name);
+      if (!sm) return {
+        text: 'That saved meal has gone.',
+        isError: true
+      };
+      const tot = mealTotal(sm.items);
+      const mealId = mealOr(p.mealId);
+      pushCard({
+        kind: 'meal',
+        name: sm.name,
+        items: sm.items,
+        macros: tot,
+        mealId
+      });
+      return {
+        text: 'Showed them "' + sm.name + '" (' + sm.items.length + ' items, ' + Math.round(tot.kcal) + ' kcal) for ' + mealName(mealId) + ', ready to confirm. NOT logged yet.'
+      };
+    }
+    if (p.kind === 'estimate') {
+      // The estimate itself is the ESTIMATOR's job, not the conversation's: same calibrated prompt,
+      // same model, same review screen as the Estimate tab. The buddy only decides that one is
+      // wanted and passes on what it was told.
+      const key = db.profile.aiKey || 'builtin';
+      const files = pic ? [pic.file] : [];
+      const ctx = 'Context: food or drink consumed in England.' + (files.length ? ' A photo of the food is attached.' : '') + ' Description: "' + p.description + '"' + personalFoodHint(db) + personalNumbersHint(db, p.description) + cofidRefHint(p.description);
+      const est = await claudeVision(key, files, ctx, {
+        model: AI_MODEL,
+        maxTokens: 3000,
+        maxImg: 768,
+        cacheText: AI_PROMPT
+      });
+      setPic(null);
+      const mealId = mealOr(p.mealId);
+      pushCard({
+        kind: 'estimate',
+        est,
+        photos: pic ? [pic] : [],
+        mealId
+      });
+      return {
+        text: 'Estimated "' + (est.name || p.description) + '" at ' + Math.round(est.kcal) + ' kcal, ' + Math.round(est.protein_g) + 'g protein, and showed it to them for ' + mealName(mealId) + '. NOT logged yet - they check it and tap. Do not repeat the numbers, they can see them.'
+      };
+    }
+    return {
+      text: 'Nothing to do.'
+    };
+  }
   async function send(text) {
     const q = String(text || '').trim().slice(0, CHAT_MAX_CHARS);
     if (!q || busy) return;
@@ -19420,14 +20096,17 @@ function BuddyChatModal({
     // at the moment the value has already been felt rather than before it.
     const next = turns.concat([{
       role: 'user',
-      text: q
+      text: q,
+      pic: pic ? pic.url : null
     }]);
     setTurns(next);
     setDraft('');
     setErr(null);
     setBusy(true);
     try {
-      const reply = await buddyChatReply(db, next);
+      // Only the words go to the model; the cards are ours. A thread carrying a card in the middle
+      // is still a strictly alternating user/assistant conversation once they are filtered out.
+      const reply = await buddyChatReply(db, next.filter(t => t.role === 'user' || t.role === 'buddy'), runTool);
       setTurns(t => t.concat([{
         role: 'buddy',
         text: reply
@@ -19436,8 +20115,13 @@ function BuddyChatModal({
       // The proxy already opened the paywall for tier errors; here we just say why nothing came back.
       // Take the unanswered question back out of the thread and return it to the box: it keeps the
       // turns strictly alternating (two user turns in a row is not a valid conversation to send) and
-      // means a retry is one tap rather than a retype.
-      setTurns(t => t.slice(0, -1));
+      // means a retry is one tap rather than a retype. Everything from that question onwards goes,
+      // including any card a half-finished tool loop had already put up: a proposal from a turn that
+      // then fell over is not something to leave sitting there tappable.
+      setTurns(t => {
+        const i = t.map(x => x.role).lastIndexOf('user');
+        return i < 0 ? t : t.slice(0, i);
+      });
       setDraft(q);
       setErr(e && e.message || 'I could not answer that just now.');
     }
@@ -19497,7 +20181,20 @@ function BuddyChatModal({
       background: 'var(--surface3)',
       boxShadow: 'none'
     }
-  }, o)))), turns.map((t, i) => /*#__PURE__*/React.createElement("div", {
+  }, o)))), turns.map((t, i) => t.role === 'card' ? /*#__PURE__*/React.createElement(TalkCard, {
+    key: i,
+    card: t.card,
+    db: db,
+    mealName: mealName,
+    done: t.done,
+    onDone: label => setTurns(ts => ts.map((x, j) => j === i ? Object.assign({}, x, {
+      done: label
+    }) : x)),
+    onAdd: onAdd,
+    onAddItems: onAddItems,
+    onAddMeal: onAddMeal,
+    onSaveWeight: onSaveWeight
+  }) : /*#__PURE__*/React.createElement("div", {
     key: i,
     className: 'mb-2 flex ' + (t.role === 'user' ? 'justify-end' : 'justify-start')
   }, /*#__PURE__*/React.createElement("div", {
@@ -19510,7 +20207,14 @@ function BuddyChatModal({
       background: 'var(--surface3)',
       boxShadow: 'none'
     }
-  }, t.text))), busy && /*#__PURE__*/React.createElement("div", {
+  }, t.pic && /*#__PURE__*/React.createElement("img", {
+    src: t.pic,
+    alt: "",
+    className: "w-20 h-20 object-cover mb-1.5",
+    style: {
+      border: '2px solid var(--border)'
+    }
+  }), t.text))), busy && /*#__PURE__*/React.createElement("div", {
     className: "mb-2 flex justify-start"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 text-[11.5px]",
@@ -19531,12 +20235,42 @@ function BuddyChatModal({
     }
   }, err), /*#__PURE__*/React.createElement("div", {
     ref: endRef
-  })), /*#__PURE__*/React.createElement("div", {
+  })), pic && /*#__PURE__*/React.createElement("div", {
+    className: "shrink-0 flex items-center gap-2 pt-2"
+  }, /*#__PURE__*/React.createElement("img", {
+    src: pic.url,
+    alt: "",
+    className: "w-10 h-10 object-cover",
+    style: {
+      border: '2px solid var(--border)'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] flex-1",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Photo ready. Say what it is."), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setPic(null),
+    "aria-label": "Remove photo",
+    className: "hit px-2 text-[#8A8A90] text-base leading-none"
+  }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "shrink-0 pt-3 flex gap-2 items-end",
     style: {
       borderTop: '2px solid var(--border)'
     }
-  }, /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setCam(true),
+    disabled: busy,
+    "aria-label": "Add a photo",
+    className: "pixel-btn px-2.5 py-2.5 shrink-0",
+    style: {
+      background: 'var(--surface2)',
+      opacity: busy ? 0.5 : 1
+    }
+  }, /*#__PURE__*/React.createElement(Icon.cam, {
+    width: "16",
+    height: "16"
+  })), /*#__PURE__*/React.createElement("input", {
     ref: inputRef,
     value: draft,
     onChange: e => setDraft(e.target.value.slice(0, CHAT_MAX_CHARS)),
@@ -19563,7 +20297,17 @@ function BuddyChatModal({
     }
   }, "SEND")), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mt-2 leading-snug shrink-0"
-  }, who, " is an AI and can get things wrong. This chat is not saved.")));
+  }, who, " is an AI and can get things wrong. Nothing is logged until you tap to confirm it."), cam && /*#__PURE__*/React.createElement(MealCamera, {
+    onFiles: fs => {
+      const f = fs && fs[0];
+      if (f) setPic({
+        file: f,
+        url: URL.createObjectURL(f)
+      });
+      setCam(false);
+    },
+    onClose: () => setCam(false)
+  })));
 }
 function MacrodexModal({
   db,
@@ -23777,6 +24521,7 @@ function Dashboard({
   onOpenRecipe,
   onOpenFridge,
   onOpenPlay,
+  onTalk,
   isPremium,
   aiCalls
 }) {
@@ -23784,7 +24529,6 @@ function Dashboard({
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
-  const [talking, setTalking] = useState(false); // the two-way conversation, opened from the habitat dock
   const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the macro card
   const today = Store.todayISO();
   const et = effectiveTarget(db, today);
@@ -24284,14 +25028,10 @@ function Dashboard({
     onOpenPlay: onOpenPlay,
     tasks: eggIncubating ? hatchTasks : null,
     msg: msg,
-    onTalk: () => setTalking(true),
+    onTalk: onTalk,
     onSnap: () => onQuickAdd({
       describe: true
     })
-  }), talking && /*#__PURE__*/React.createElement(BuddyChatModal, {
-    db: db,
-    isPremium: isPremium,
-    onClose: () => setTalking(false)
   }), /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4",
     style: {
@@ -40380,6 +41120,7 @@ function App() {
   const [recovering, setRecovering] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [adding, setAdding] = useState(null);
+  const [talking, setTalking] = useState(false); // the buddy conversation, opened from the Today dock
   const [fresh, setFresh] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false); // true = fresh check-in, 'review' = reopen the pending proposal
   const [weighing, setWeighing] = useState(false); // the quick weigh sheet: true = weigh, 'resume' = un-pause
@@ -41517,6 +42258,7 @@ function App() {
       setView('recipes');
     },
     onOpenPlay: () => setDexOpen(true),
+    onTalk: () => setTalking(true),
     isPremium: isPremium,
     aiCalls: aiCalls
   }), view === 'foodlog' && /*#__PURE__*/React.createElement(FoodLog, {
@@ -41611,7 +42353,43 @@ function App() {
       date: Store.todayISO(),
       mealId: meals[0].id
     })
-  }), adding && /*#__PURE__*/React.createElement(LogSheet, {
+  }), talking && (() => {
+    const tday = Store.todayISO();
+    const tmeals = mealsForDay(db, tday);
+    return /*#__PURE__*/React.createElement(BuddyChatModal, {
+      db: db,
+      isPremium: isPremium,
+      meals: tmeals,
+      onClose: () => setTalking(false),
+      onAdd: (mealId, item) => addEntry(tday, mealId, item),
+      onAddMeal: (mealId, items) => addMeal(tday, mealId, items),
+      onAddItems: (mealId, items) => addEstimateItems(tday, mealId, items),
+      onSaveWeight: kg => {
+        update(d => {
+          const ex = d.weight_entries.find(x => x.date === tday);
+          if (ex) ex.scale_weight = +kg.toFixed(2);else d.weight_entries.push({
+            id: Store.uid(),
+            date: tday,
+            scale_weight: +kg.toFixed(2)
+          });
+          recomputeTrend(d);
+        });
+        showToast('Logged ' + fmtWeight(kg, db.profile.weight_unit) + '. Nice one.');
+      },
+      onOpenScreen: view => {
+        setTalking(false);
+        if (view === 'checkin') {
+          setView('goals');
+          setCheckingIn(true);
+        } else if (view === 'weigh') {
+          setView('dashboard');
+          setWeighing(true);
+        } else if (view === 'play') {
+          setDexOpen(true);
+        } else setView(view);
+      }
+    });
+  })(), adding && /*#__PURE__*/React.createElement(LogSheet, {
     db: db,
     update: update,
     meals: mealsForDay(db, adding.date),

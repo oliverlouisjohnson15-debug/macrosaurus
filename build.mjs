@@ -48,6 +48,7 @@ const quantityJs = read('app/quantity.js').trim();
 const recipeJs = read('app/recipe.js').trim();
 const cofidJs = read('app/cofid.js').trim();
 const trainingJs = read('app/training.js').trim();
+const talkJs = read('app/talk.js').trim();
 
 let html = read('index.html');
 
@@ -108,6 +109,16 @@ if (html.includes('<script>\n/*\n * training.js')) {
   const rEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * recipe.js')) + '</script>'.length;
   if (rEnd < '</script>'.length) throw new Error('recipe block end not found for training.js insertion');
   html = html.slice(0, rEnd) + '\n' + trainingBlock + html.slice(rEnd);
+}
+// talk block (what the buddy's conversation is allowed to do) - splice if present, else first-time
+// insert after training. Load order only has to put it before the app script that reads Talk.TOOLS.
+const talkBlock = '<script>\n' + talkJs + '\n</script>';
+if (html.includes('<script>\n/*\n * talk.js')) {
+  spliceBlock('<script>\n/*\n * talk.js', talkBlock, '</script>');
+} else {
+  const tEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * training.js')) + '</script>'.length;
+  if (tEnd < '</script>'.length) throw new Error('training block end not found for talk.js insertion');
+  html = html.slice(0, tEnd) + '\n' + talkBlock + html.slice(tEnd);
 }
 
 // app block (transpiled): the script holding the React app. Babel's output start can vary between

@@ -657,28 +657,67 @@ function buddyChatSnapshot(db) {
     weighedToday: (db.weight_entries || []).some(w => w.date === today && w.scale_weight != null),
   });
 }
-async function buddyChatReply(db, history) {
+// How many times the model may go round the tool loop for ONE thing the user said. Four is enough
+// for the longest honest chain we have (look up a food, read the day, propose the log, answer) and
+// short enough that a model which has got itself stuck stops rather than spending someone's month.
+const TALK_MAX_HOPS = 4;
+function buddyChatSystem(db) {
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
-  const snapshot = buddyChatSnapshot(db);
-  const system = 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. '
+  return 'You are Macrosaurus, speaking as ' + who + ', the user\'s pixel dinosaur companion and a warm, honest UK body-composition coach. '
     + 'Answer their questions about their food, training, sleep and progress in 1 to 3 short sentences, plain UK English, speaking as the dinosaur ("I", "me") and addressing them as "you". '
     + 'Ground every answer in the day snapshot below and never invent or recalculate a number that is not in it. If they ask something the snapshot cannot answer, say so plainly and tell them where in the app to look. '
     + 'The snapshot carries a "training" block when they lift: their current block and week, what is done and still to do this week, how long since their last session, and any lift that has stopped moving. Use it for training questions rather than guessing, and if that block is absent tell them the training side is in the Train tab rather than inventing a session. Never prescribe a weight, a set count or a rep count of your own; the Train tab writes the programme and you talk about it. '
     + 'No medical, supplement or crash-diet advice, and never encourage eating below their calorie target. If they raise a medical worry or disordered eating, gently point them to a doctor or a registered dietitian and do not coach it. '
     + 'Stay on food, training, sleep, body composition and the app itself; if asked about anything else, say that is not your patch and steer back. '
     + 'No emojis, no headings, no bullet points, no markdown, no em dashes.'
-    + '\n\nTheir day right now (JSON):\n' + JSON.stringify(snapshot);
+    // The tool contract, stated once and plainly. The individual tool descriptions repeat the
+    // no-writing rule because a model reading one tool in isolation must still get it right.
+    + '\n\nYou have tools. Use them rather than describing what the user should tap. Rules that matter more than being helpful: '
+    + 'you can PROPOSE things to log but you can never log them - every proposal appears as a card the user taps to confirm, so say it is ready for them to check, never that it is done. '
+    + 'Never state or guess calories or macros yourself: get them from a tool. '
+    + 'When they mention food they have eaten, log it for them rather than asking which tool they want. '
+    + 'If a tool comes back with an error, read it and try the thing it suggests instead of repeating the same call.'
+    + '\n\nTheir day right now (JSON):\n' + JSON.stringify(buddyChatSnapshot(db));
+}
+// One user turn, however many times the model has to go and look something up. `runTool` executes a
+// tool against the live app and returns { text, isError } - the text is what the model is told
+// happened, so it is written for the model, not the user (the user gets the card).
+//
+// Deliberately built from the TEXT history rather than a preserved block-level transcript: the
+// thread is ephemeral and per-day, so replaying prior tool traffic would cost tokens on every turn
+// to re-tell the model things its own last reply already says. It can always look again.
+async function buddyChatReply(db, history, runTool) {
+  const system = buddyChatSystem(db);
   // The API needs a clean user-first, strictly alternating thread. Trimming to a trailing window can
   // land on an assistant turn (an odd-length thread cut by an even window), so drop any leading
   // assistant turns after the slice rather than assuming the window lines up.
-  const messages = (history || []).slice(-CHAT_MAX_TURNS)
+  let messages = (history || []).slice(-CHAT_MAX_TURNS)
     .map(t => ({ role: t.role === 'buddy' ? 'assistant' : 'user', content: String(t.text || '').slice(0, CHAT_MAX_CHARS) }));
   while (messages.length && messages[0].role !== 'user') messages.shift();
   if (!messages.length) throw new Error('Ask me something first.');
-  const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 300, system, messages });
-  const txt = ((j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
-  if (!txt) throw new Error('I did not catch that, try asking again.');
-  return txt;
+  let said = '';
+  for (let hop = 0; hop < TALK_MAX_HOPS; hop++) {
+    // `hop` tells the proxy which request this is: only the first counts against the free monthly
+    // allowance, so one thing the user asked for costs one AI action however much looking up it took.
+    const j = await aiRequest({ model: AI_MODEL_FAST, max_tokens: 700, system, messages, tools: runTool ? Talk.TOOLS : undefined, hop });
+    const blocks = (j && j.content) || [];
+    const text = blocks.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    if (text) said = text;
+    const uses = blocks.filter(b => b.type === 'tool_use');
+    if (!uses.length) break;
+    messages = messages.concat([{ role: 'assistant', content: blocks }]);
+    // All results go back in ONE user message: splitting them teaches the model to stop asking for
+    // more than one thing at a time, and the API rejects a follow-up that leaves a tool_use unanswered.
+    const results = [];
+    for (const u of uses) {
+      let r;
+      try { r = await runTool(u.name, u.input); } catch (e) { r = { text: 'That failed: ' + ((e && e.message) || 'unknown error'), isError: true }; }
+      results.push({ type: 'tool_result', tool_use_id: u.id, content: String((r && r.text) || 'Done.'), is_error: !!(r && r.isError) });
+    }
+    messages = messages.concat([{ role: 'user', content: results }]);
+  }
+  if (!said) throw new Error('I did not catch that, try asking again.');
+  return said;
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
@@ -5485,22 +5524,191 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
     </div>
   );
 }
-/* The buddy, answering back. A short conversation grounded in the same day snapshot the deeper dive
-   uses. Deliberately EPHEMERAL: the thread lives in component state and is gone when the sheet closes,
-   so nothing is added to the synced user_state blob (which merges wholesale across devices) and no
-   chat history is ever persisted. Premium-gated on the client for a clean paywall hand-off, and again
-   in ai-proxy so the gate is real rather than cosmetic. */
+/* The buddy, answering back AND doing things. A conversation grounded in the same day snapshot the
+   deeper dive uses, with a client-executed tool loop behind it: the model asks for a tool, this
+   component runs it against the live diary, and anything that would WRITE comes back as a card the
+   user taps. Nothing here can change the food log on its own - see app/talk.js for why that rule is
+   the whole design rather than a precaution.
+
+   The thread is per-day and kept in sessionStorage rather than in `db`: it must survive closing the
+   sheet (an estimate you are half way through confirming is not a thing to lose) without ever
+   entering the synced user_state blob, which merges wholesale across devices. */
 const CHAT_OPENERS = ['How am I doing today?', 'What should I eat next?', 'Am I on track for my goal?'];
-function BuddyChatModal({ db, onClose, isPremium }) {
+const TALK_STORE_TURNS = 20;   // how much thread survives a close; older turns fall off the top
+// Scale a food the user has logged before to a weight. Their OWN corrected numbers first (the whole
+// point of a smart food), then whatever was last logged as a per-100g basis. Returns null when there
+// is no per-100g basis to scale from, which is the honest answer for a one-off "1 serving" entry:
+// the conversation then falls back to the estimator rather than inventing a scale factor.
+function macrosFor(food, grams) {
+  if (!food || !(grams > 0)) return null;
+  if (food.saved_base) {
+    const b = food.saved_base;
+    let per100 = b;
+    if (food.saved_kind === 'serving') {
+      const sg = +food.saved_serving_g || 0;
+      if (!sg) return null;
+      per100 = { kcal: b.kcal / sg * 100, protein: b.protein / sg * 100, carbs: b.carbs / sg * 100, fat: b.fat / sg * 100, fiber: (b.fiber || 0) / sg * 100 };
+    }
+    const s = grams / 100;
+    return { kcal: Math.round(per100.kcal * s), protein: +(per100.protein * s).toFixed(1), carbs: +(per100.carbs * s).toFixed(1), fat: +(per100.fat * s).toFixed(1), fiber: +((per100.fiber || 0) * s).toFixed(1) };
+  }
+  return null;
+}
+/* One proposal, waiting on a tap. The estimate case hands straight over to AiConfirm - the same
+   review screen the Estimate tab uses, with its CoFID check, its follow-up question and its "tell
+   the AI what's wrong" box - because a number reached through conversation deserves exactly as much
+   scrutiny as one reached through the sheet, not less. The simpler cases get a one-line card.
+   Once confirmed the card becomes a receipt, so scrolling back shows what was done, not a button
+   that would do it again. */
+function TalkCard({ card, db, mealName, done, onDone, onAdd, onAddItems, onAddMeal, onSaveWeight }) {
+  const c = card || {};
+  if (done) return (
+    <div className="mb-2 flex justify-start">
+      <div className="pixel-box p-2 max-w-[85%] text-[10.5px] inline-flex items-center gap-1.5" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good-ink)' }}>
+        <Tick size={10} /> {done}
+      </div>
+    </div>
+  );
+  const Wrap = ({ children }) => (
+    <div className="mb-2 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+      <div className="pf text-[7px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Tap to confirm</div>
+      {children}
+    </div>
+  );
+  if (c.kind === 'estimate') {
+    return (
+      <div className="mb-2 pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+        <div className="pf text-[7px] uppercase mb-1.5" style={{ color: 'var(--accent-ink)' }}>Check this, then log it</div>
+        <AiConfirm est={c.est} photos={c.photos || []}
+          onAdd={(item) => { onAdd && onAdd(c.mealId, item); onDone('Logged to ' + mealName(c.mealId)); }}
+          onAddItems={(items) => { onAddItems && onAddItems(c.mealId, items); onDone('Logged ' + items.length + ' items to ' + mealName(c.mealId)); }}
+          onCancel={() => onDone('Left it')} />
+      </div>
+    );
+  }
+  if (c.kind === 'food') return (
+    <Wrap>
+      <div className="text-[11.5px] font-bold leading-snug">{c.grams}g {c.name}</div>
+      <div className="text-[10px] tnum mb-2" style={{ color: 'var(--muted)' }}>{Math.round(c.macros.kcal)} kcal · P{Math.round(c.macros.protein)} C{Math.round(c.macros.carbs)} F{Math.round(c.macros.fat)} · {mealName(c.mealId)}</div>
+      <div className="flex gap-2">
+        <button onClick={() => { onAdd && onAdd(c.mealId, { name: c.name, source: 'buddy', qtyLabel: c.grams + ' g', amount: c.grams, unit: 'g', unitNoun: 'g', macros: c.macros }); onDone('Logged to ' + mealName(c.mealId)); }}
+          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+      </div>
+    </Wrap>
+  );
+  if (c.kind === 'meal') return (
+    <Wrap>
+      <div className="text-[11.5px] font-bold leading-snug">{c.name}</div>
+      <div className="text-[10px] tnum mb-2" style={{ color: 'var(--muted)' }}>{c.items.length} item{c.items.length === 1 ? '' : 's'} · {Math.round(c.macros.kcal)} kcal · {mealName(c.mealId)}</div>
+      <div className="flex gap-2">
+        <button onClick={() => { onAddMeal && onAddMeal(c.mealId, c.items); onDone('Logged to ' + mealName(c.mealId)); }}
+          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>LOG IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+      </div>
+    </Wrap>
+  );
+  if (c.kind === 'weight') return (
+    <Wrap>
+      <div className="text-[11.5px] font-bold leading-snug mb-2">{fmtWeight(c.kg, db.profile.weight_unit)} today</div>
+      <div className="flex gap-2">
+        <button onClick={() => { onSaveWeight && onSaveWeight(c.kg); onDone('Weigh-in saved'); }}
+          className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SAVE IT ›</button>
+        <button onClick={() => onDone('Left it')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>No</button>
+      </div>
+    </Wrap>
+  );
+  return null;
+}
+function talkKey(db) { return 'mac.talk.' + (Store.todayISO()); }
+function loadTalk(db) {
+  try {
+    const raw = sessionStorage.getItem(talkKey(db));
+    const v = raw ? JSON.parse(raw) : null;
+    return Array.isArray(v) ? v.filter(t => t && t.text && (t.role === 'user' || t.role === 'buddy')) : [];
+  } catch (_) { return []; }
+}
+function saveTalk(db, turns) {
+  // Text only. The cards carry live callbacks and half-finished estimates, which are meaningless
+  // once the sheet has closed, so they are deliberately not restored with the words around them.
+  try { sessionStorage.setItem(talkKey(db), JSON.stringify(turns.filter(t => t.role === 'user' || t.role === 'buddy').map(t => ({ role: t.role, text: t.text })).slice(-TALK_STORE_TURNS))); } catch (_) {}
+}
+function BuddyChatModal({ db, onClose, isPremium, meals, onAdd, onAddItems, onAddMeal, onSaveWeight, onOpenScreen }) {
   useBackClose(onClose);
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
-  const [turns, setTurns] = useState([]);
+  const [turns, setTurns] = useState(() => loadTalk(db));
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [cam, setCam] = useState(false);
+  const [pic, setPic] = useState(null);     // one photo, attached to the next thing you say
   const endRef = useRef(null);
   const inputRef = useRef(null);
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ block: 'end' }); }, [turns, busy]);
+  useEffect(() => { saveTalk(db, turns); }, [turns]);
+  const dayMeals = meals || mealsForDay(db, Store.todayISO());
+  // What the model is allowed to name, resolved against this user's own data. Rebuilt per turn so a
+  // food logged mid-conversation is immediately nameable in the next breath.
+  const toolCtx = () => ({
+    meals: dayMeals.map(m => ({ id: m.id, name: m.name })),
+    foods: (db.foods || []).slice().sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0)),
+    savedMeals: db.saved_meals || [],
+  });
+  const pushCard = (card) => setTurns(t => t.concat([{ role: 'card', card }]));
+  const mealOr = (id) => id || suggestMealId(db, dayMeals) || dayMeals[0].id;
+  const mealName = (id) => (dayMeals.find(m => m.id === id) || {}).name || 'your meal';
+
+  /* Run one tool against the live app. The string returned goes back to the MODEL, so it is written
+     for the model: what happened, what is now true, and - for anything that writes - the fact that
+     it is only a proposal, so the reply it composes says "ready to check" rather than "logged". */
+  async function runTool(name, input) {
+    const v = Talk.validate(name, input, toolCtx());
+    if (!v.ok) return { text: v.error, isError: true };
+    const p = v.plan;
+    if (p.kind === 'search') {
+      const r = p.results;
+      if (!r.foods.length && !r.meals.length) return { text: 'Nothing saved matches that. Use estimate_meal for anything new.' };
+      return { text: 'Their saved foods: ' + (r.foods.join(', ') || 'none') + '. Their saved meals: ' + (r.meals.join(', ') || 'none') + '.' };
+    }
+    if (p.kind === 'summary') return { text: JSON.stringify(buddyChatSnapshot(db)) };
+    if (p.kind === 'open') { onOpenScreen && onOpenScreen(p.view); return { text: 'Opened ' + p.screen + '. Tell them it is open.' }; }
+    if (p.kind === 'weight') {
+      pushCard({ kind: 'weight', kg: p.kg });
+      return { text: 'Showed them ' + p.kg + 'kg to confirm. NOT saved yet - they have to tap it.' };
+    }
+    if (p.kind === 'known_food') {
+      const food = savedCorrection(db, p.name) || (db.foods || []).find(f => f.name === p.name);
+      const macros = macrosFor(food, p.grams);
+      if (!macros) return { text: 'I do not have per-100g numbers for ' + p.name + ', so I cannot scale it. Use estimate_meal instead.', isError: true };
+      const mealId = mealOr(p.mealId);
+      pushCard({ kind: 'food', name: p.name, grams: p.grams, macros, mealId });
+      return { text: 'Showed them ' + p.grams + 'g of ' + p.name + ' (' + Math.round(macros.kcal) + ' kcal, ' + Math.round(macros.protein) + 'g protein) for ' + mealName(mealId) + ', ready to confirm. NOT logged yet.' };
+    }
+    if (p.kind === 'saved_meal') {
+      const sm = (db.saved_meals || []).find(m => m.name === p.name);
+      if (!sm) return { text: 'That saved meal has gone.', isError: true };
+      const tot = mealTotal(sm.items);
+      const mealId = mealOr(p.mealId);
+      pushCard({ kind: 'meal', name: sm.name, items: sm.items, macros: tot, mealId });
+      return { text: 'Showed them "' + sm.name + '" (' + sm.items.length + ' items, ' + Math.round(tot.kcal) + ' kcal) for ' + mealName(mealId) + ', ready to confirm. NOT logged yet.' };
+    }
+    if (p.kind === 'estimate') {
+      // The estimate itself is the ESTIMATOR's job, not the conversation's: same calibrated prompt,
+      // same model, same review screen as the Estimate tab. The buddy only decides that one is
+      // wanted and passes on what it was told.
+      const key = db.profile.aiKey || 'builtin';
+      const files = pic ? [pic.file] : [];
+      const ctx = 'Context: food or drink consumed in England.' + (files.length ? ' A photo of the food is attached.' : '')
+        + ' Description: "' + p.description + '"' + personalFoodHint(db) + personalNumbersHint(db, p.description) + cofidRefHint(p.description);
+      const est = await claudeVision(key, files, ctx, { model: AI_MODEL, maxTokens: 3000, maxImg: 768, cacheText: AI_PROMPT });
+      setPic(null);
+      const mealId = mealOr(p.mealId);
+      pushCard({ kind: 'estimate', est, photos: pic ? [pic] : [], mealId });
+      return { text: 'Estimated "' + (est.name || p.description) + '" at ' + Math.round(est.kcal) + ' kcal, ' + Math.round(est.protein_g) + 'g protein, and showed it to them for ' + mealName(mealId) + '. NOT logged yet - they check it and tap. Do not repeat the numbers, they can see them.' };
+    }
+    return { text: 'Nothing to do.' };
+  }
+
   async function send(text) {
     const q = String(text || '').trim().slice(0, CHAT_MAX_CHARS);
     if (!q || busy) return;
@@ -5509,17 +5717,21 @@ function BuddyChatModal({ db, onClose, isPremium }) {
     // from the same free monthly AI allowance as a meal estimate, and the proxy is the real gate:
     // when the allowance runs out it comes back as free_limit, which aiRequest routes to the paywall
     // at the moment the value has already been felt rather than before it.
-    const next = turns.concat([{ role: 'user', text: q }]);
+    const next = turns.concat([{ role: 'user', text: q, pic: pic ? pic.url : null }]);
     setTurns(next); setDraft(''); setErr(null); setBusy(true);
     try {
-      const reply = await buddyChatReply(db, next);
+      // Only the words go to the model; the cards are ours. A thread carrying a card in the middle
+      // is still a strictly alternating user/assistant conversation once they are filtered out.
+      const reply = await buddyChatReply(db, next.filter(t => t.role === 'user' || t.role === 'buddy'), runTool);
       setTurns(t => t.concat([{ role: 'buddy', text: reply }]));
     } catch (e) {
       // The proxy already opened the paywall for tier errors; here we just say why nothing came back.
       // Take the unanswered question back out of the thread and return it to the box: it keeps the
       // turns strictly alternating (two user turns in a row is not a valid conversation to send) and
-      // means a retry is one tap rather than a retype.
-      setTurns(t => t.slice(0, -1));
+      // means a retry is one tap rather than a retype. Everything from that question onwards goes,
+      // including any card a half-finished tool loop had already put up: a proposal from a turn that
+      // then fell over is not something to leave sitting there tappable.
+      setTurns(t => { const i = t.map(x => x.role).lastIndexOf('user'); return i < 0 ? t : t.slice(0, i); });
       setDraft(q);
       setErr((e && e.message) || 'I could not answer that just now.');
     }
@@ -5545,18 +5757,34 @@ function BuddyChatModal({ db, onClose, isPremium }) {
               </div>
             </div>
           )}
-          {turns.map((t, i) => (
+          {turns.map((t, i) => t.role === 'card' ? (
+            <TalkCard key={i} card={t.card} db={db} mealName={mealName} done={t.done}
+              onDone={(label) => setTurns(ts => ts.map((x, j) => j === i ? Object.assign({}, x, { done: label }) : x))}
+              onAdd={onAdd} onAddItems={onAddItems} onAddMeal={onAddMeal} onSaveWeight={onSaveWeight} />
+          ) : (
             <div key={i} className={'mb-2 flex ' + (t.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div className="pixel-box p-2.5 max-w-[85%] text-[11.5px] leading-snug" style={t.role === 'user'
                 ? { background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'none' }
-                : { background: 'var(--surface3)', boxShadow: 'none' }}>{t.text}</div>
+                : { background: 'var(--surface3)', boxShadow: 'none' }}>
+                {t.pic && <img src={t.pic} alt="" className="w-20 h-20 object-cover mb-1.5" style={{ border: '2px solid var(--border)' }} />}
+                {t.text}
+              </div>
             </div>
           ))}
           {busy && <div className="mb-2 flex justify-start"><div className="pixel-box p-2.5 text-[11.5px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div></div>}
           {err && <div className="text-[10px] leading-snug mb-2 px-1" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
           <div ref={endRef} />
         </div>
+        {/* A photo waits here until you say what it is. A picture with no words is the weakest thing
+            you can hand the estimator, so the composer holds it and the next sentence goes with it. */}
+        {pic && <div className="shrink-0 flex items-center gap-2 pt-2">
+          <img src={pic.url} alt="" className="w-10 h-10 object-cover" style={{ border: '2px solid var(--border)' }} />
+          <span className="text-[10px] flex-1" style={{ color: 'var(--muted)' }}>Photo ready. Say what it is.</span>
+          <button onClick={() => setPic(null)} aria-label="Remove photo" className="hit px-2 text-[#8A8A90] text-base leading-none">×</button>
+        </div>}
         <div className="shrink-0 pt-3 flex gap-2 items-end" style={{ borderTop: '2px solid var(--border)' }}>
+          <button onClick={() => setCam(true)} disabled={busy} aria-label="Add a photo"
+            className="pixel-btn px-2.5 py-2.5 shrink-0" style={{ background: 'var(--surface2)', opacity: busy ? 0.5 : 1 }}><Icon.cam width="16" height="16" /></button>
           <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value.slice(0, CHAT_MAX_CHARS))}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }}
             placeholder={'Ask ' + who + '…'} disabled={busy}
@@ -5564,7 +5792,8 @@ function BuddyChatModal({ db, onClose, isPremium }) {
           <button onClick={() => send(draft)} disabled={busy || !draft.trim()} className="pixel-btn px-3 py-2.5 text-[9px] pf shrink-0"
             style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (busy || !draft.trim()) ? 0.5 : 1 }}>SEND</button>
         </div>
-        <div className="text-[9px] text-[#8A8A90] mt-2 leading-snug shrink-0">{who} is an AI and can get things wrong. This chat is not saved.</div>
+        <div className="text-[9px] text-[#8A8A90] mt-2 leading-snug shrink-0">{who} is an AI and can get things wrong. Nothing is logged until you tap to confirm it.</div>
+        {cam && <MealCamera onFiles={fs => { const f = fs && fs[0]; if (f) setPic({ file: f, url: URL.createObjectURL(f) }); setCam(false); }} onClose={() => setCam(false)} />}
       </div>
     </div>
   );
@@ -7434,12 +7663,11 @@ function useNutrientBackfill(db, update, date, isPremium) {
     })();
   }, [pending, date, isPremium, premiumSince]);
 }
-function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, isPremium, aiCalls }) {
+function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickAdd, showToast, onOpenRecipe, onOpenFridge, onOpenPlay, onTalk, isPremium, aiCalls }) {
   const [mode, setMode] = useState('remaining'); // Left/Eaten lens on the hero macro card
   const [showCarry, setShowCarry] = useState(false);
   const [readyOpen, setReadyOpen] = useState(false); // the buddy's full morning-read sheet, opened from the habitat
   const [recapOpen, setRecapOpen] = useState(false); // the buddy's weekly-recap sheet, opened from the habitat
-  const [talking, setTalking] = useState(false); // the two-way conversation, opened from the habitat dock
   const [densityHelp, setDensityHelp] = useState(false); // the Density Score explainer, opened from the macro card
   const today = Store.todayISO();
   const et = effectiveTarget(db, today); if (!et) return null;
@@ -7726,8 +7954,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           on first paint. It earns its height rather than taking it: quiet when the ladder has
           nothing due, taller only when it is actually saying something. */}
       <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg}
-        onTalk={() => setTalking(true)} onSnap={() => onQuickAdd({ describe: true })} />
-      {talking && <BuddyChatModal db={db} isPremium={isPremium} onClose={() => setTalking(false)} />}
+        onTalk={onTalk} onSnap={() => onQuickAdd({ describe: true })} />
 
       {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
           Balance is a power tool behind Adjust; everything secondary is in More below.
@@ -13996,6 +14223,7 @@ function App() {
   const [recovering, setRecovering] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [adding, setAdding] = useState(null);
+  const [talking, setTalking] = useState(false);   // the buddy conversation, opened from the Today dock
   const [fresh, setFresh] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false); // true = fresh check-in, 'review' = reopen the pending proposal
   const [weighing, setWeighing] = useState(false);     // the quick weigh sheet: true = weigh, 'resume' = un-pause
@@ -14534,7 +14762,7 @@ function App() {
           <button onClick={() => window.location.reload()} className="pixel-btn px-3 py-2 text-[11px] shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Reload</button>
         </div>
       </div>}
-      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {view === 'dashboard' && <Dashboard db={db} update={update} onCheckIn={() => setCheckingIn(true)} onReview={() => setCheckingIn('review')} onWeigh={(k) => setWeighing(k === 'resume' ? 'resume' : true)} setView={setView} onQuickAdd={(opt) => setAdding({ date: Store.todayISO(), mealId: meals[0].id, alc: opt === true, scan: !!(opt && opt.scan), describe: !!(opt && opt.describe) })} showToast={showToast} onOpenRecipe={(id) => { setOpenRecipeId(id); setView('recipes'); }} onOpenFridge={() => { setOpenFridge(true); setView('recipes'); }} onOpenPlay={() => setDexOpen(true)} onTalk={() => setTalking(true)} isPremium={isPremium} aiCalls={aiCalls} />}
       {view === 'foodlog' && <FoodLog db={db} update={update} openLog={setAdding} showToast={showToast} />}
       {view === 'recipes' && <Recipes db={db} update={update} showToast={showToast} importUrl={recipeImport} onConsumeImport={() => setRecipeImport(null)} openRecipeId={openRecipeId} onConsumeOpen={() => setOpenRecipeId(null)} openFridge={openFridge} onConsumeFridge={() => setOpenFridge(false)} onLogRecipe={(mealId, recipe, mode, portion) => logRecipeServing(Store.todayISO(), mealId, recipe, mode, portion)} onLogOn={(date, recipe, portion) => logRecipeServing(date, mealsForDay(db, date)[0].id, recipe, 'single', portion)} onSaveMeal={saveRecipeAsMeal} isPremium={isPremium} />}
       {view === 'train' && <TrainTab db={db} update={update} showToast={showToast} isPremium={isPremium}
@@ -14554,6 +14782,17 @@ function App() {
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
           bar and the centre Add button get out of the way of the one control that matters there. */}
       {!focusMode && <BottomNav view={view} setView={setView} onAdd={() => setAdding({ date: Store.todayISO(), mealId: meals[0].id })} />}
+      {/* The conversation lives HERE rather than inside Dashboard because its whole point is that it
+          can act: addEntry, addMeal and addEstimateItems are App's, and a tool loop that had to ask
+          a parent to write for it would be a worse version of the same thing. */}
+      {talking && (() => { const tday = Store.todayISO(); const tmeals = mealsForDay(db, tday); return (
+        <BuddyChatModal db={db} isPremium={isPremium} meals={tmeals} onClose={() => setTalking(false)}
+          onAdd={(mealId, item) => addEntry(tday, mealId, item)}
+          onAddMeal={(mealId, items) => addMeal(tday, mealId, items)}
+          onAddItems={(mealId, items) => addEstimateItems(tday, mealId, items)}
+          onSaveWeight={(kg) => { update(d => { const ex = d.weight_entries.find(x => x.date === tday); if (ex) ex.scale_weight = +kg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: tday, scale_weight: +kg.toFixed(2) }); recomputeTrend(d); }); showToast('Logged ' + fmtWeight(kg, db.profile.weight_unit) + '. Nice one.'); }}
+          onOpenScreen={(view) => { setTalking(false); if (view === 'checkin') { setView('goals'); setCheckingIn(true); } else if (view === 'weigh') { setView('dashboard'); setWeighing(true); } else if (view === 'play') { setDexOpen(true); } else setView(view); }} />
+      ); })()}
       {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onAddItems={(mealId, items) => addEstimateItems(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} isPremium={isPremium} />}
       {/* One quick weigh sheet for the whole app: the buddy's ask, the Progress button and the
