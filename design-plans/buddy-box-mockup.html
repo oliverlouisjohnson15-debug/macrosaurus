@@ -1,0 +1,127 @@
+<!doctype html>
+<html class="theme-light">
+<head>
+<meta charset="utf-8">
+<title>Buddy box — Game Boy treatments</title>
+<link rel="stylesheet" href="../app/src/styles.css">
+<style>
+  body { background: var(--bg); color: var(--text); font-family: ui-monospace, monospace; padding: 24px; }
+  .col { max-width: 390px; margin: 0 auto 40px; }
+  .cap { font-size: 12px; color: var(--muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; }
+  .card { background: var(--card); padding: 12px; margin-bottom: 6px; }
+  /* the buddy sprite, frame 1 of the real idle strip, scaled with nearest-neighbour */
+  .dino { width: 24px; height: 24px; image-rendering: pixelated;
+          background-image: url('../sprites/female/doux/base/idle.png');
+          background-size: 72px 24px; background-position: 0 0; transform: scale(2.6); transform-origin: bottom center; }
+  .screen { position: relative; display: flex; align-items: flex-end; justify-content: center; overflow: hidden; }
+
+  /* ---- B: the dialogue becomes its own window, with a nameplate on its edge ---- */
+  .dlg { position: relative; background: var(--surface3); padding: 14px 12px 12px; margin-top: 12px; }
+  .plate { position: absolute; top: -11px; left: 10px; background: var(--accent); color: var(--on-accent);
+           padding: 3px 7px; font-size: 8px; line-height: 1; letter-spacing: .04em; }
+  .adv { position: absolute; right: 8px; bottom: 4px; font-size: 11px; color: var(--accent-ink); }
+  .still .blink { animation: none; }
+
+  /* ---- D: the doubled Pokemon-style frame, as a modifier ---- */
+  .box-double { box-shadow: 4px 4px 0 0 var(--shadow), inset 0 0 0 2px var(--card), inset 0 0 0 4px var(--border); }
+</style>
+</head>
+<body class="still">
+
+<div class="col">
+  <p class="cap">A · current</p>
+  <div class="card pixel-box">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="pixel-box screen buddy-scene" style="width:66px;height:70px;box-shadow:none;flex:none"><div class="dino"></div></div>
+      <div style="flex:1;min-width:0">
+        <div class="pf" style="font-size:8px;color:var(--muted);margin-bottom:4px">YOUR BUDDY · DAY 21</div>
+        <div style="font-size:14px;font-weight:700">Chompers</div>
+        <div style="font-size:11px;color:var(--fat-ink)">Peckish</div>
+      </div>
+      <span style="color:var(--accent-ink)">›</span>
+    </div>
+    <div style="border-top:2px solid var(--border);margin-top:12px;padding-top:12px">
+      <div class="pf" style="font-size:8px;color:var(--accent-ink);margin-bottom:4px">CHOMPERS SAYS</div>
+      <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">B · dialogue is its own window + nameplate + advance arrow</p>
+  <div class="card pixel-box">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="pixel-box screen buddy-scene" style="width:66px;height:70px;box-shadow:none;flex:none"><div class="dino"></div></div>
+      <div style="flex:1;min-width:0">
+        <div class="pf" style="font-size:8px;color:var(--muted);margin-bottom:4px">YOUR BUDDY · DAY 21</div>
+        <div style="font-size:14px;font-weight:700">Chompers</div>
+        <div style="font-size:11px;color:var(--fat-ink)">Peckish</div>
+      </div>
+      <span style="color:var(--accent-ink)">›</span>
+    </div>
+    <div class="pixel-box dlg">
+      <span class="plate pf">CHOMPERS</span>
+      <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+      <span class="adv blink">▼</span>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">C · portrait beside the text (Link's Awakening layout)</p>
+  <div class="card pixel-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="pf" style="font-size:8px;color:var(--muted)">YOUR BUDDY · DAY 21</div>
+      <div class="pf" style="font-size:8px;color:var(--fat-ink)">PECKISH</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:stretch">
+      <div class="pixel-box screen buddy-scene" style="width:84px;height:88px;box-shadow:none;flex:none"><div class="dino" style="transform:scale(3.2)"></div></div>
+      <div class="pixel-box dlg" style="flex:1;min-width:0;margin-top:0;display:flex;align-items:center">
+        <span class="plate pf">CHOMPERS</span>
+        <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+        <span class="adv blink">▼</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">D · C with the doubled Pokémon frame</p>
+  <div class="card pixel-box box-double">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="pf" style="font-size:8px;color:var(--muted)">YOUR BUDDY · DAY 21</div>
+      <div class="pf" style="font-size:8px;color:var(--fat-ink)">PECKISH</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:stretch">
+      <div class="pixel-box screen buddy-scene box-double" style="width:84px;height:88px;flex:none"><div class="dino" style="transform:scale(3.2)"></div></div>
+      <div class="pixel-box dlg box-double" style="flex:1;min-width:0;margin-top:0;display:flex;align-items:center">
+        <span class="plate pf">CHOMPERS</span>
+        <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+        <span class="adv blink">▼</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">E · recommended — B's structure, bigger screen, doubled dialogue frame</p>
+  <div class="card pixel-box">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="pixel-box screen buddy-scene box-double" style="width:88px;height:92px;flex:none"><div class="dino" style="transform:scale(3.4)"></div></div>
+      <div style="flex:1;min-width:0">
+        <div class="pf" style="font-size:8px;color:var(--muted);margin-bottom:5px">YOUR BUDDY · DAY 21</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:3px">Chompers</div>
+        <div class="pf" style="font-size:8px;color:var(--fat-ink)">PECKISH</div>
+      </div>
+      <span style="color:var(--accent-ink)">›</span>
+    </div>
+    <div class="pixel-box dlg box-double">
+      <span class="plate pf">CHOMPERS</span>
+      <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+      <span class="adv blink">▼</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
