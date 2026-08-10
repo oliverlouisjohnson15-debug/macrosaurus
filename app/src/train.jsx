@@ -2476,6 +2476,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   }
   function undoRemove() {
     if (!undo) return;
+    const ex = Training.byId(undo.row.exerciseId, t.custom);
     edit(s => {
       const list = Training.sessionItems(s);
       list.splice(Math.min(undo.at, list.length), 0, undo.row);
@@ -2483,6 +2484,9 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       s.exercises = list;
     });
     setUndo(null);
+    // Replace the "taken out, tap undo" toast rather than leaving it up: it is still on screen at
+    // this point and it now describes the opposite of what is true.
+    if (showToast) showToast((ex ? ex.name : 'It') + ' is back where it was.');
   }
   // Every argument is passed in rather than read off state, because the sheet that calls this closes
   // itself first: reaching back for `picking.itemId` afterwards would find it already cleared.
@@ -2583,8 +2587,12 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
               Undo: put {(Training.byId(undo.row.exerciseId, t.custom) || {}).name || 'it'} back
             </button>
           )}
+          {/* Name the gesture. A chevron says "this opens something", never "this is how you change
+              it", and the whole point of the screen is lost on somebody who does not tap a row. */}
           <div className="text-[11px] leading-snug mb-4 text-center" style={{ color: 'var(--muted2)' }}>
-            Changes here are saved as you make them, and they apply to this week. Nothing starts a session.
+            {log
+              ? 'Tap a movement to change it. You already logged this one, so edits change the plan for the week rather than what you did.'
+              : 'Tap a movement to swap it, change its sets and reps, reorder it or take it out. Everything saves as you go, applies to this week, and none of it starts a session.'}
           </div>
         </>
       )}
@@ -2610,8 +2618,12 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
               disabled: !item.supersetGroup && !(items[itemIndex + 1] && !items[itemIndex + 1].supersetGroup),
               onClick: () => edit(s => Training.toggleSuperset(s, item.id)),
             },
-            { label: 'Move up', disabled: itemIndex <= 0, onClick: () => edit(s => Training.moveExercise(s, item.id, -1)) },
-            { label: 'Move down', disabled: itemIndex < 0 || itemIndex >= items.length - 1, onClick: () => edit(s => Training.moveExercise(s, item.id, 1)) },
+            // keepOpen: reordering is the one thing here you do several times in a row, and closing
+            // the sheet after each step would make moving the last movement to the top fifteen taps.
+            { label: 'Move up', sub: itemIndex <= 0 ? 'Already first' : 'Above ' + ((Training.byId((items[itemIndex - 1] || {}).exerciseId, t.custom) || {}).name || 'the one before'),
+              disabled: itemIndex <= 0, keepOpen: true, onClick: () => edit(s => Training.moveExercise(s, item.id, -1)) },
+            { label: 'Move down', sub: itemIndex >= items.length - 1 ? 'Already last' : 'Below ' + ((Training.byId((items[itemIndex + 1] || {}).exerciseId, t.custom) || {}).name || 'the next one'),
+              disabled: itemIndex < 0 || itemIndex >= items.length - 1, keepOpen: true, onClick: () => edit(s => Training.moveExercise(s, item.id, 1)) },
             { label: 'Take it out', danger: true, sub: 'You can undo this', onClick: () => removeItem(item.id) },
           ]} />
       )}
@@ -2718,7 +2730,11 @@ function TargetSheet({ row, name, onChange, onClose }) {
         <Stepper label="RIR" value={t.rir} sub="Reps you leave in the tank"
           atMin={t.rir <= 0} atMax={t.rir >= Training.RIR_MAX}
           onMinus={() => onChange({ rir: t.rir - 1 })} onPlus={() => onChange({ rir: t.rir + 1 })} />
-        <button onClick={onClose} className="pixel-btn w-full h-12 font-bold mt-4" style={{ background: '#fff', color: '#111' }}>Done</button>
+        {/* A sheet with a button at the bottom reads as a form with a Save on it, and this one is not:
+            every tap above has already been written. Saying so is the difference between closing it
+            confidently and closing it wondering. */}
+        <div className="text-[11px] text-center mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>Saved as you change it.</div>
+        <button onClick={onClose} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: '#fff', color: '#111' }}>Done</button>
       </div>
     </div>
   );
@@ -4992,19 +5008,33 @@ function ActionSheet({ title, actions, onClose }) {
         <div className="px-4 pt-4 pb-2">
           <div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>{title}</div>
         </div>
-        {(actions || []).filter(Boolean).map((a, i) => (
-          <button key={i} disabled={a.disabled}
-            onClick={() => { onClose(); if (a.onClick) a.onClick(); }}
-            className="w-full text-left px-4 py-3"
-            style={{
-              borderTop: '2px solid var(--border)',
-              color: a.disabled ? 'var(--muted2)' : (a.danger ? 'var(--danger)' : 'var(--text)'),
-              opacity: a.disabled ? 0.5 : 1,
-            }}>
-            <span className="block text-[12px] font-semibold leading-tight">{a.label}</span>
-            {a.sub && <span className="block text-[10.5px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>{a.sub}</span>}
-          </button>
-        ))}
+        {/* Two things this list has to get right, both of them from the same finding: a consequential
+            option sitting flush against a benign one gets picked by accident (NN/g, "Dangerous UX:
+            Consequential Options Close to Benign Options").
+            1. A destructive row is separated by a real gap, not just coloured red, so the tap that
+               lands one row low from "Move down" lands in the gap rather than on "Take it out".
+            2. `keepOpen` leaves the sheet up after the tap, for actions that are meant to be repeated.
+               Reordering a six-movement session by closing the menu every time is fifteen taps, and
+               menu-driven reorder is the ACCESSIBLE alternative to dragging, so it has to not be
+               punishing to use. */}
+        {(actions || []).filter(Boolean).map((a, i) => {
+          const prev = (actions || []).filter(Boolean)[i - 1];
+          const opensGap = a.danger && prev && !prev.danger;
+          return (
+            <button key={i} disabled={a.disabled}
+              onClick={() => { if (!a.keepOpen) onClose(); if (a.onClick) a.onClick(); }}
+              className="w-full text-left px-4 py-3"
+              style={{
+                borderTop: '2px solid var(--border)',
+                marginTop: opensGap ? 12 : 0,
+                color: a.disabled ? 'var(--muted2)' : (a.danger ? 'var(--danger)' : 'var(--text)'),
+                opacity: a.disabled ? 0.5 : 1,
+              }}>
+              <span className="block text-[12px] font-semibold leading-tight">{a.label}</span>
+              {a.sub && <span className="block text-[10.5px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>{a.sub}</span>}
+            </button>
+          );
+        })}
         <button onClick={onClose} className="w-full px-4 py-3 text-[12px]" style={{ borderTop: '2px solid var(--border)', color: 'var(--muted)' }}>Cancel</button>
       </div>
     </div>

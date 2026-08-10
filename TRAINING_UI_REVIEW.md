@@ -206,3 +206,47 @@ lifting still mints no Amber.
   accessible name. They do now.
 - **The rest timer announces itself.** Finishing was a beep and a colour change, neither of any use
   to a screen reader. An assertive live region announces the transition only, never the count.
+
+---
+
+## Review of the week editor (sw 261-262)
+
+Built first, then reviewed against current guidance, then fixed. Four things the review changed.
+
+**1. Undo, not a confirmation dialog.** NN/g's position is that a confirmation dialog earns its
+place only when an action is genuinely irreversible, because using one on a routine tap trains people
+to dismiss dialogs without reading them; where an action CAN be reversed, an undo is the better
+answer. Taking a movement out of a session is entirely reversible, so it has no dialog. What it does
+have is an undo that lives ON THE SCREEN rather than inside a toast, because the toast is gone in
+five seconds and the moment you notice the mistake is usually later than that. The undo restores the
+row whole, with its sets, reps and position, since anything less is not undo.
+
+*Known limit:* the undo is lost if you leave the screen. Re-adding the movement is then two taps but
+it comes back with default sets and reps at the bottom of the list. Worth a durable stash only if it
+turns out to bite; noting it rather than pretending it is not there.
+
+**2. Reordering does not close the menu.** Menu-driven reorder is the accessible alternative to
+dragging (WCAG 2.1 SC 2.5.7 wants a non-drag path, and drag on a dense list fights the row's other
+gestures anyway), so it has to not be punishing. Closing the sheet after every step made moving the
+last movement to the top fifteen taps. Move up and move down now keep the sheet open and relabel
+themselves live: "Above Cable pull-through", "Below Seated calf raise".
+
+**3. The destructive row gets a gap, not just a colour.** NN/g's "Dangerous UX: Consequential Options
+Close to Benign Options": "Take it out" sat flush against "Move down", so a tap that lands one row
+low hits the destructive one. It now has real space above it, in ActionSheet generally rather than
+just here.
+
+**4. The sets and reps sheet says it has already saved.** A sheet with a button at the bottom reads
+as a form with a Save on it. This one is not: every stepper tap is written immediately, like every
+other edit on the screen. It now says so, so closing it is not a guess.
+
+Two things the review confirmed rather than changed. A modal for sets and reps is right (the guidance
+is that modal editing earns its place when an edit touches several fields or needs cross-field
+validation, and this one does both: four fields, with the rep range kept in order across two of
+them). And a stepper beats a number pad for a value with a narrow known range.
+
+**Discoverability is the risk that remains.** A chevron says "this opens something", never "this is
+how you change it", and the whole feature is invisible to somebody who never taps a row. Copy carries
+it for now, in two places: the week list on the Train tab says opening a day lets you change it, and
+the session screen names the gesture outright. Static review cannot settle whether that lands; it
+needs watching someone use it.
