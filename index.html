@@ -11948,6 +11948,15 @@ const ONE_THING_SUFFIX = {
   fibre: 'fibre to go',
   fuel: 'calories to go'
 };
+// The meter carries the colour of the macro it names, exactly as the MeterRow siblings below it do.
+// Painting it var(--accent) instead drew a protein bar in #F5C518 in the light theme, which is the
+// same value as --fat, directly above a PROT bar in red - the same number in two colours, one of
+// them the wrong macro's. See design-plans/10-one-thing-macro-colour.md.
+const ONE_THING_COLOR = {
+  protein: PRO,
+  fibre: 'var(--weight)',
+  fuel: 'var(--hero)'
+};
 function OneThingLine({
   one,
   onGo
@@ -11987,7 +11996,7 @@ function OneThingLine({
     className: "w-6 h-6 flex items-center justify-center shrink-0",
     style: {
       background: 'var(--good)',
-      color: '#fff'
+      color: 'var(--on-accent)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
     size: 13
@@ -12001,7 +12010,7 @@ function OneThingLine({
   }, /*#__PURE__*/React.createElement(PipMeter, {
     value: one.pct,
     target: 100,
-    color: 'var(--accent)',
+    color: ONE_THING_COLOR[one.key],
     small: true,
     overIsFine: true
   })));
@@ -17815,7 +17824,7 @@ function BuddyHabitat({
     style: {
       border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'),
       background: t.done ? 'var(--good)' : 'transparent',
-      color: '#fff'
+      color: 'var(--on-accent)'
     }
   }, t.done ? /*#__PURE__*/React.createElement(Tick, {
     size: 10
@@ -19786,7 +19795,7 @@ function TrophyCabinet({
     className: "grid grid-cols-2 gap-2 mb-4"
   }, Game.BEST_KEYS.map(k => /*#__PURE__*/React.createElement("div", {
     key: k,
-    className: "pixel-box p-3",
+    className: "pixel-box p-3 text-center",
     style: {
       background: 'var(--surface3)',
       boxShadow: 'none'
@@ -19794,7 +19803,7 @@ function TrophyCabinet({
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-xl font-bold tnum",
     style: {
-      color: bests[k].value > 0 ? 'var(--good-ink)' : 'var(--muted)'
+      color: bests[k].value > 0 ? 'var(--fat-ink)' : 'var(--muted)'
     }
   }, bests[k].value, /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] text-[#8A8A90]"
@@ -36355,7 +36364,7 @@ function OnboardingChecklist({
     style: {
       border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'),
       background: it.done ? 'var(--good)' : 'transparent',
-      color: '#fff'
+      color: 'var(--on-accent)'
     }
   }, it.done ? /*#__PURE__*/React.createElement(Tick, {
     size: 12
@@ -37275,7 +37284,7 @@ function CookMode({
     style: {
       border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'),
       background: checked[ing.id] ? 'var(--good)' : 'transparent',
-      color: '#fff'
+      color: 'var(--on-accent)'
     }
   }, checked[ing.id] ? /*#__PURE__*/React.createElement(Tick, {
     size: 12
@@ -37771,7 +37780,7 @@ function RecipeDetail({
     style: {
       border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'),
       background: ing.have ? 'var(--good)' : 'transparent',
-      color: '#fff'
+      color: 'var(--on-accent)'
     }
   }, ing.have ? /*#__PURE__*/React.createElement(Tick, {
     size: 12
@@ -37990,7 +37999,7 @@ function RecipeDetail({
       style: {
         border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'),
         background: on ? 'var(--good)' : 'transparent',
-        color: '#fff'
+        color: 'var(--on-accent)'
       }
     }, on ? /*#__PURE__*/React.createElement(Tick, {
       size: 12
@@ -38140,7 +38149,7 @@ function ShoppingListView({
     style: {
       border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'),
       background: it.checked ? 'var(--good)' : 'transparent',
-      color: '#fff'
+      color: 'var(--on-accent)'
     }
   }, it.checked ? /*#__PURE__*/React.createElement(Tick, {
     size: 12

@@ -1997,6 +1997,11 @@ function QualityBar({ nd, onExplain }) {
    Game.oneThing picks it, in the same priority order the buddy speaks in, so the number here and the
    word from the buddy can never name different macros. */
 const ONE_THING_SUFFIX = { protein: 'protein to go', fibre: 'fibre to go', fuel: 'calories to go' };
+// The meter carries the colour of the macro it names, exactly as the MeterRow siblings below it do.
+// Painting it var(--accent) instead drew a protein bar in #F5C518 in the light theme, which is the
+// same value as --fat, directly above a PROT bar in red - the same number in two colours, one of
+// them the wrong macro's. See design-plans/10-one-thing-macro-colour.md.
+const ONE_THING_COLOR = { protein: PRO, fibre: 'var(--weight)', fuel: 'var(--hero)' };
 function OneThingLine({ one, onGo }) {
   const done = !one;
   const first = !done && one.key === 'firstmeal';
@@ -2017,10 +2022,10 @@ function OneThingLine({ one, onGo }) {
           </div>
         </div>
         {done
-          ? <span className="w-6 h-6 flex items-center justify-center shrink-0" style={{ background: 'var(--good)', color: '#fff' }}><Tick size={13} /></span>
+          ? <span className="w-6 h-6 flex items-center justify-center shrink-0" style={{ background: 'var(--good)', color: 'var(--on-accent)' }}><Tick size={13} /></span>
           : <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Log ›</span>}
       </button>
-      {!done && !first && <div className="mt-2"><PipMeter value={one.pct} target={100} color={'var(--accent)'} small overIsFine /></div>}
+      {!done && !first && <div className="mt-2"><PipMeter value={one.pct} target={100} color={ONE_THING_COLOR[one.key]} small overIsFine /></div>}
     </div>
   );
 }
@@ -4818,7 +4823,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Do these to hatch</div>
           {tasks.map(t => (
             <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1.5 active:opacity-60 transition-opacity">
-              <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{t.done ? <Tick size={10} /> : null}</span>
+              <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{t.done ? <Tick size={10} /> : null}</span>
               <span className="text-[11px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
               {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
             </button>
@@ -5619,12 +5624,14 @@ function TrophyCabinet({ db, streak, onBack }) {
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[9px] text-[#8A8A90]">current streak</div></div>
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{longest}</div><div className="text-[9px] text-[#8A8A90]">longest ever</div></div>
     </div>
+    {/* The same object as the streak records above, so the same presentation: centred, with the
+        cabinet's own --fat-ink numeral. See design-plans/11-bests-tiles-match-record-tiles.md. */}
     {bests && (<>
       <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your bests</div>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {Game.BEST_KEYS.map(k => (
-          <div key={k} className="pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-            <div className="text-xl font-bold tnum" style={{ color: bests[k].value > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>{bests[k].value}<span className="text-[11px] text-[#8A8A90]">/7</span></div>
+          <div key={k} className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+            <div className="text-xl font-bold tnum" style={{ color: bests[k].value > 0 ? 'var(--fat-ink)' : 'var(--muted)' }}>{bests[k].value}<span className="text-[11px] text-[#8A8A90]">/7</span></div>
             <div className="text-[9px] text-[#8A8A90] leading-snug">{BEST_LABEL[k].label}</div>
           </div>
         ))}
@@ -12512,7 +12519,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
     <div className="space-y-0.5">
       {items.map(it => (
         <button key={it.k} onClick={it.done ? undefined : it.go} className="w-full flex items-center gap-3 text-left py-2 active:opacity-60 transition-opacity">
-          <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.done ? <Tick size={12} /> : null}</span>
+          <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.done ? 'var(--good)' : 'var(--border)'), background: it.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.done ? <Tick size={12} /> : null}</span>
           <span className="text-[13px] flex-1 min-w-0" style={{ color: it.done ? 'var(--muted)' : 'var(--text)', textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
           {!it.done && <span className="pf text-[8px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
         </button>
@@ -12818,7 +12825,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
         <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]">×</button></div>
         <div className="space-y-0.5">{recipe.ingredients.map(ing => (
           <button key={ing.id} onClick={() => setChecked(c => Object.assign({}, c, { [ing.id]: !c[ing.id] }))} className="w-full flex items-center gap-3 text-left py-2">
-            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: '#fff' }}>{checked[ing.id] ? <Tick size={12} /> : null}</span>
+            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{checked[ing.id] ? <Tick size={12} /> : null}</span>
             <span className="text-[14px]" style={{ color: checked[ing.id] ? 'var(--muted)' : 'var(--text)', textDecoration: checked[ing.id] ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</span>
           </button>))}</div>
       </div>
@@ -12976,7 +12983,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <div className="space-y-2.5 mb-4">
         {recipe.ingredients.map((ing) => (
           <div key={ing.id} className="flex items-start gap-2.5">
-            <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 mt-0.5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: '#fff' }}>{ing.have ? <Tick size={12} /> : null}</button>
+            <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 mt-0.5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{ing.have ? <Tick size={12} /> : null}</button>
             <div className="flex-1 min-w-0">
               <button onClick={() => toggleHave(ing.id)} className="block w-full text-left text-[14px]" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
               <button onClick={() => setMacrosIng(ing)} className="text-[11px] flex items-center gap-1.5 mt-0.5" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent-ink)' }}>
@@ -13033,7 +13040,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         <div className="text-[12px] text-[#8A8A90] mb-3">Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways).</div>
         <div className="space-y-1.5 mb-4">{allCollections.map(c => { const on = (recipe.collections || []).includes(c); return (
           <button key={c} onClick={() => toggleColl(c)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>
-            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'), background: on ? 'var(--good)' : 'transparent', color: '#fff' }}>{on ? <Tick size={12} /> : null}</span>{c}
+            <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (on ? 'var(--good)' : 'var(--border)'), background: on ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{on ? <Tick size={12} /> : null}</span>{c}
           </button>); })}</div>
         <div className="flex gap-2"><input value={newColl} onChange={e => setNewColl(e.target.value)} className={inputCls + ' flex-1'} placeholder="New collection" /><Btn kind="accent" onClick={() => { const n = newColl.trim(); if (n) { toggleColl(n); setNewColl(''); } }}>Add</Btn></div>
       </div>
@@ -13091,7 +13098,7 @@ function ShoppingListView({ db, update, showToast, onBack }) {
 
   const row = (it) => (
     <div key={it.id} className="flex items-center gap-2.5 py-2">
-      <button onClick={() => toggle(it.id)} aria-label={it.checked ? 'Untick' : 'Tick'} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: '#fff' }}>{it.checked ? <Tick size={12} /> : null}</button>
+      <button onClick={() => toggle(it.id)} aria-label={it.checked ? 'Untick' : 'Tick'} className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (it.checked ? 'var(--good)' : 'var(--border)'), background: it.checked ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{it.checked ? <Tick size={12} /> : null}</button>
       <button onClick={() => toggle(it.id)} className="flex-1 min-w-0 text-left">
         <div className="text-[14px] truncate" style={{ color: it.checked ? 'var(--muted)' : 'var(--text)', textDecoration: it.checked ? 'line-through' : 'none' }}>{it.name}</div>
         {!it.checked && attrOf(it) && <div className="text-[11px] text-[#8A8A90] truncate">{attrOf(it)}</div>}
