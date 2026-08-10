@@ -89,8 +89,14 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --shadow: #000000;
   /* Buddy terrarium scene: a faint lit "little world" behind the sprite so the pixel dino reads as
      placed rather than pasted onto flat grey. Kept subtle to respect the flat Game Boy chrome. */
-  --scene-top: #121218;      /* a hair of night sky lifted off pure black */
-  --scene-bottom: #050507;
+  /* The world is FLAT: a sky block, a ground block and one crisp horizon between them. It used to be
+     a gradient fading to #050507, which is darker than --card (#0d0d0d), so at the size the buddy's
+     world is now drawn the scene sank THROUGH the card it sits on and read as a hole rather than a
+     place. Flat also happens to be the honest thing: this hardware drew tiles, not gradients. */
+  --scene-top: #131926;      /* night sky, sitting clearly ON the card rather than under it */
+  --scene-bottom: #131926;
+  --scene-ground: #1d2534;   /* the lit floor the buddy stands on */
+  --scene-line: #3a4a68;     /* the horizon, and the one edge that has to be visible */
   --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
   /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
      as a 12px block on a meter can be unreadable as 10px type, because a bar only has to be seen
@@ -148,10 +154,10 @@ window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{wind
   --sleep-light: #9A9AC0;    /* light: muted blue-grey */
   --sleep-awake: #B26A00;    /* awake: amber */
   --shadow: #1e1e1e;
-  --scene-top: #e6edf6;      /* soft daylight sky */
-  /* Not #ffffff: that is exactly --card, so at the size the buddy's world is now drawn the sky faded
-     into the card behind it and the horizon disappeared. A hair of blue keeps the scene a place. */
-  --scene-bottom: #d7e2f0;
+  --scene-top: #e2ebf7;      /* soft daylight sky, flat (see the dark theme's note) */
+  --scene-bottom: #e2ebf7;
+  --scene-ground: #ccd9e8;
+  --scene-line: #1e1e1e;     /* light keeps the hard pixel line; on white it is the strongest edge */
   --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
   /* INK tokens: the brand colours when they are TEXT. Measured on white, the gold that carries the
      whole light theme scored 1.63:1 as type, which is not dim, it is invisible; teal ran 3.12 and
@@ -17720,9 +17726,24 @@ function WeighInline({
    thumbnail nobody could read. BuddyScene already draws every one of them - sky, floor, floor line,
    a prop standing at its own fraction across, the aura on the sprite - so the world costs no new art,
    only room. */
-const WORLD_H = 132; // the scene band; the buddy stands in it and the textbox overlaps its foot
-const WORLD_FLOOR = 46; // ground band depth, measured from the bottom of the scene
-const WORLD_FOOT = 44; // where the buddy's feet sit, kept ABOVE the textbox's top edge (see -mt-10)
+const WORLD_H = 132; // the scene band. Fixed: a fully grown buddy is 86px tall (STAGE_PX tops
+// out at 1.12) and must not clip, so this height is a floor, not a taste.
+// The horizon and the buddy MOVE TOGETHER with whether anything is being said, because a stage set
+// for one state looks wrong in the other. Speaking, the box covers the lower scene, so the ground
+// line sits high and the buddy stands on it just clear of the box. Quiet, the whole scene is visible,
+// so the same high horizon would leave the buddy hovering over a 46px slab of empty floor - which is
+// exactly what it did, and exactly what looked wrong about it.
+const WORLD_STAGE = {
+  speaking: {
+    floor: 46,
+    foot: 44
+  },
+  // 44 + 86 = 130, two under the ceiling at full growth
+  quiet: {
+    floor: 30,
+    foot: 28
+  }
+};
 function BuddyHabitat({
   db,
   buddy,
@@ -17749,6 +17770,8 @@ function BuddyHabitat({
   // beside a "Log it" is a second affordance for a thing that only happens once. So the arrow means
   // exactly one thing here: this box is a statement, and tapping it opens the buddy's hub.
   const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick) && !msg.weigh && !(msg.choices || []).length);
+  const speaking = !!(msg || incubating && tasks);
+  const stage = speaking ? WORLD_STAGE.speaking : WORLD_STAGE.quiet;
   const box = (body, plate) => /*#__PURE__*/React.createElement("div", {
     className: "relative mx-2 -mt-10 mb-2"
   }, /*#__PURE__*/React.createElement("div", {
@@ -17803,8 +17826,8 @@ function BuddyHabitat({
     px: 3.2,
     w: "100%",
     h: WORLD_H,
-    floor: WORLD_FLOOR,
-    spriteBottom: WORLD_FOOT,
+    floor: stage.floor,
+    spriteBottom: stage.foot,
     shadowW: 44,
     eq: eq,
     asleep: asleep,
@@ -19024,8 +19047,8 @@ function BuddyScene({
     className: "absolute left-0 right-0 bottom-0",
     style: {
       height: floor,
-      background: scene ? scene.ground : 'var(--surface2)',
-      borderTop: '2px solid ' + (scene ? scene.line : 'var(--border)')
+      background: scene ? scene.ground : 'var(--scene-ground)',
+      borderTop: '2px solid ' + (scene ? scene.line : 'var(--scene-line)')
     }
   }), prop && /*#__PURE__*/React.createElement("div", {
     className: "absolute",

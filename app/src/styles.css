@@ -46,8 +46,14 @@
   --shadow: #000000;
   /* Buddy terrarium scene: a faint lit "little world" behind the sprite so the pixel dino reads as
      placed rather than pasted onto flat grey. Kept subtle to respect the flat Game Boy chrome. */
-  --scene-top: #121218;      /* a hair of night sky lifted off pure black */
-  --scene-bottom: #050507;
+  /* The world is FLAT: a sky block, a ground block and one crisp horizon between them. It used to be
+     a gradient fading to #050507, which is darker than --card (#0d0d0d), so at the size the buddy's
+     world is now drawn the scene sank THROUGH the card it sits on and read as a hole rather than a
+     place. Flat also happens to be the honest thing: this hardware drew tiles, not gradients. */
+  --scene-top: #131926;      /* night sky, sitting clearly ON the card rather than under it */
+  --scene-bottom: #131926;
+  --scene-ground: #1d2534;   /* the lit floor the buddy stands on */
+  --scene-line: #3a4a68;     /* the horizon, and the one edge that has to be visible */
   --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
   /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
      as a 12px block on a meter can be unreadable as 10px type, because a bar only has to be seen
@@ -105,10 +111,10 @@
   --sleep-light: #9A9AC0;    /* light: muted blue-grey */
   --sleep-awake: #B26A00;    /* awake: amber */
   --shadow: #1e1e1e;
-  --scene-top: #e6edf6;      /* soft daylight sky */
-  /* Not #ffffff: that is exactly --card, so at the size the buddy's world is now drawn the sky faded
-     into the card behind it and the horizon disappeared. A hair of blue keeps the scene a place. */
-  --scene-bottom: #d7e2f0;
+  --scene-top: #e2ebf7;      /* soft daylight sky, flat (see the dark theme's note) */
+  --scene-bottom: #e2ebf7;
+  --scene-ground: #ccd9e8;
+  --scene-line: #1e1e1e;     /* light keeps the hard pixel line; on white it is the strongest edge */
   --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
   /* INK tokens: the brand colours when they are TEXT. Measured on white, the gold that carries the
      whole light theme scored 1.63:1 as type, which is not dim, it is invisible; teal ran 3.12 and

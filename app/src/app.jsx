@@ -4794,9 +4794,17 @@ function WeighInline({ unit, seedKg, onSave }) {
    thumbnail nobody could read. BuddyScene already draws every one of them - sky, floor, floor line,
    a prop standing at its own fraction across, the aura on the sprite - so the world costs no new art,
    only room. */
-const WORLD_H = 132;        // the scene band; the buddy stands in it and the textbox overlaps its foot
-const WORLD_FLOOR = 46;     // ground band depth, measured from the bottom of the scene
-const WORLD_FOOT = 44;      // where the buddy's feet sit, kept ABOVE the textbox's top edge (see -mt-10)
+const WORLD_H = 132;        // the scene band. Fixed: a fully grown buddy is 86px tall (STAGE_PX tops
+                            // out at 1.12) and must not clip, so this height is a floor, not a taste.
+// The horizon and the buddy MOVE TOGETHER with whether anything is being said, because a stage set
+// for one state looks wrong in the other. Speaking, the box covers the lower scene, so the ground
+// line sits high and the buddy stands on it just clear of the box. Quiet, the whole scene is visible,
+// so the same high horizon would leave the buddy hovering over a 46px slab of empty floor - which is
+// exactly what it did, and exactly what looked wrong about it.
+const WORLD_STAGE = {
+  speaking: { floor: 46, foot: 44 },   // 44 + 86 = 130, two under the ceiling at full growth
+  quiet: { floor: 30, foot: 28 },
+};
 function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const asleep = bp.mood === 'asleep' || buddy.asleep;
@@ -4821,6 +4829,8 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   // exactly one thing here: this box is a statement, and tapping it opens the buddy's hub.
   const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
     && !msg.weigh && !(msg.choices || []).length);
+  const speaking = !!(msg || (incubating && tasks));
+  const stage = speaking ? WORLD_STAGE.speaking : WORLD_STAGE.quiet;
   const box = (body, plate) => (
     <div className="relative mx-2 -mt-10 mb-2">
       <div onClick={bare ? onOpenPlay : undefined} role={bare ? 'button' : undefined}
@@ -4838,7 +4848,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
       <div className="relative">
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="block w-full text-left" style={{ lineHeight: 0 }}>
           <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={3.2} w="100%" h={WORLD_H}
-            floor={WORLD_FLOOR} spriteBottom={WORLD_FOOT} shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
+            floor={stage.floor} spriteBottom={stage.foot} shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
         </button>
         {/* The world carries its own HUD in the corners, the way a status overlay did on hardware. */}
         <div className="absolute flex items-start justify-between gap-2 pointer-events-none" style={{ top: 6, left: 8, right: 8 }}>
@@ -5335,7 +5345,11 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW,
   return (
     <div className={'relative overflow-hidden' + (scene ? '' : ' buddy-scene') + (className ? ' ' + className : '')}
       style={Object.assign({ width: w, height: h }, sceneStyle, style)}>
-      <div className="absolute left-0 right-0 bottom-0" style={{ height: floor, background: scene ? scene.ground : 'var(--surface2)', borderTop: '2px solid ' + (scene ? scene.line : 'var(--border)') }} />
+      {/* The default floor used --surface2 over --border, which in the dark theme is a #17171a band
+          under a #2c2c2e line: at thumbnail size that was a hint of ground, at world size it is
+          nothing at all. --scene-ground / --scene-line exist so the plain world gets the same lit
+          floor and visible horizon a bought scene does. */}
+      <div className="absolute left-0 right-0 bottom-0" style={{ height: floor, background: scene ? scene.ground : 'var(--scene-ground)', borderTop: '2px solid ' + (scene ? scene.line : 'var(--scene-line)') }} />
       {/* The prop stands ON the floor, behind the buddy, and dims with it when the buddy is asleep. */}
       {prop && <div className="absolute" style={{ left: (prop.at * 100) + '%', bottom: Math.max(2, floor - 6), transform: 'translateX(-50%)', opacity: asleep ? 0.45 : 0.9, lineHeight: 0 }}>
         <Sprite art={prop.art} colors={prop.colors} px={prop.px} />
