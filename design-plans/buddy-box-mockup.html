@@ -22,6 +22,38 @@
   .adv { position: absolute; right: 8px; bottom: 4px; font-size: 11px; color: var(--accent-ink); }
   .still .blink { animation: none; }
 
+
+  /* ---- BOLD SET ---- */
+  /* The four DMG greens. Locking the buddy's screen to them makes it read as a DEVICE inside the
+     app rather than a picture of one, and it survives both themes untouched. */
+  :root { --dmg-0:#0f380f; --dmg-1:#306230; --dmg-2:#8bac0f; --dmg-3:#9bbc0f; }
+  .dmg { background: var(--dmg-3) !important; }
+  /* grayscale then push into the DMG green ramp; the sprite keeps its shading, loses its hues */
+  .dmg .dino { filter: grayscale(1) sepia(1) hue-rotate(38deg) saturate(3.2) contrast(1.15) brightness(.92); }
+  /* the LCD grid: 1px of gutter every 3px, the thing that makes a dot-matrix look like one */
+  .matrix { position: relative; }
+  .matrix::after { content:''; position:absolute; inset:0; pointer-events:none;
+    background-image: linear-gradient(rgba(15,56,15,.13) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(15,56,15,.13) 1px, transparent 1px);
+    background-size: 3px 3px; }
+
+  /* F: the handheld shell */
+  .shell { background: var(--surface2); padding: 10px 10px 6px; }
+  .shell .lens { padding: 8px 10px 10px; background: var(--dmg-0); }
+  .shell .strip { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+  .led { width:6px; height:6px; background: var(--danger); box-shadow: 0 0 5px var(--danger); }
+
+  /* G: the battle status plate */
+  .plate-hp { background: var(--surface3); padding: 7px 9px; }
+  .hpbar { height: 9px; background: var(--track); display:flex; gap:2px; padding:2px; }
+  .hpbar i { flex:1 1 0; background: var(--track); }
+  .hpbar i.on { background: var(--pro); }
+
+  /* H: full-bleed world, textbox floating over the bottom third */
+  .world { position: relative; height: 132px; overflow: hidden; }
+  .world .dino { position:absolute; left:50%; bottom:56px; transform: translateX(-50%) scale(3.2); transform-origin: bottom center; }
+  .world .over { position:absolute; left:8px; right:8px; bottom:8px; background: var(--surface3); padding: 11px 10px 9px; }
+
   /* ---- D: the doubled Pokemon-style frame, as a modifier ---- */
   .box-double { box-shadow: 4px 4px 0 0 var(--shadow), inset 0 0 0 2px var(--card), inset 0 0 0 4px var(--border); }
 </style>
@@ -119,6 +151,126 @@
       <span class="plate pf">CHOMPERS</span>
       <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
       <span class="adv blink">▼</span>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">F · the handheld — the buddy lives in a DMG screen</p>
+  <div class="shell pixel-box">
+    <div class="lens">
+      <div class="pixel-box screen buddy-scene dmg matrix" style="height:104px;border-color:var(--dmg-1) !important;box-shadow:none">
+        <div class="dino" style="transform:scale(3.4)"></div>
+      </div>
+      <div class="strip">
+        <span class="pf" style="font-size:6px;color:var(--dmg-2)">CHOMPERS &nbsp;DAY 21</span>
+        <span class="pf" style="font-size:6px;color:var(--dmg-2)">PECKISH</span>
+      </div>
+    </div>
+    <div class="strip" style="padding:0 2px">
+      <span class="led"></span>
+      <span class="pf" style="font-size:6px;color:var(--muted)">MACROSAURUS · DOT MATRIX</span>
+    </div>
+    <div class="pixel-box dlg box-double" style="margin-top:8px">
+      <span class="plate pf">SAYS</span>
+      <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+      <span class="adv blink">▼</span>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">G · battle HUD — the open loop is an HP bar</p>
+  <div class="card pixel-box">
+    <div style="display:flex;gap:10px;align-items:flex-end">
+      <div class="pixel-box screen buddy-scene box-double" style="width:92px;height:96px;flex:none"><div class="dino" style="transform:scale(3.4)"></div></div>
+      <div class="pixel-box plate-hp" style="flex:1;min-width:0;box-shadow:3px 3px 0 0 var(--shadow)">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+          <span class="pf" style="font-size:9px">CHOMPERS</span>
+          <span class="pf" style="font-size:7px;color:var(--muted)">Lv21</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span class="pf" style="font-size:6px;color:var(--pro-ink)">PRO</span>
+          <div class="hpbar pixel-box" style="flex:1;box-shadow:none;border-width:2px !important">
+            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+        </div>
+        <div class="pf" style="font-size:6px;color:var(--muted);margin-top:5px;text-align:right">56 / 157 G</div>
+      </div>
+    </div>
+    <div class="pixel-box dlg box-double">
+      <span class="plate pf">SAYS</span>
+      <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+      <span class="adv blink">▼</span>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">H · full-bleed world, textbox over it (the Link's Awakening screen)</p>
+  <div class="pixel-box" style="background:var(--card)">
+    <div class="world buddy-scene matrix">
+      <div class="dino"></div>
+      <div class="pf" style="position:absolute;top:8px;left:8px;font-size:7px;color:var(--muted)">CHOMPERS · DAY 21</div>
+      <div class="pf" style="position:absolute;top:8px;right:8px;font-size:7px;color:var(--fat-ink)">PECKISH</div>
+      <div class="over pixel-box box-double">
+        <span class="plate pf">SAYS</span>
+        <div style="font-size:11px;line-height:1.55">I could do with 56g more protein today.</div>
+        <span class="adv blink">▼</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">I · E, but the screen is locked to the DMG palette + dot matrix</p>
+  <div class="card pixel-box">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="pixel-box screen buddy-scene dmg matrix box-double" style="width:88px;height:92px;flex:none;border-color:var(--dmg-1) !important"><div class="dino" style="transform:scale(3.4)"></div></div>
+      <div style="flex:1;min-width:0">
+        <div class="pf" style="font-size:8px;color:var(--muted);margin-bottom:5px">YOUR BUDDY · DAY 21</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:3px">Chompers</div>
+        <div class="pf" style="font-size:8px;color:var(--fat-ink)">PECKISH</div>
+      </div>
+      <span style="color:var(--accent-ink)">›</span>
+    </div>
+    <div class="pixel-box dlg box-double">
+      <span class="plate pf">SAYS</span>
+      <div style="font-size:11.5px;line-height:1.6">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+      <span class="adv blink">▼</span>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <p class="cap">J · the full battle screen — DMG lens + HP plate + textbox</p>
+  <div class="shell pixel-box">
+    <div class="lens" style="padding:8px">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div class="pixel-box screen buddy-scene dmg matrix" style="width:88px;height:88px;flex:none;border-color:var(--dmg-1) !important;box-shadow:none"><div class="dino" style="transform:scale(3.4)"></div></div>
+        <div class="pixel-box" style="flex:1;min-width:0;background:var(--dmg-3);border-color:var(--dmg-1) !important;box-shadow:none;padding:7px 8px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+            <span class="pf" style="font-size:9px;color:var(--dmg-0)">CHOMPERS</span>
+            <span class="pf" style="font-size:7px;color:var(--dmg-1)">Lv21</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span class="pf" style="font-size:6px;color:var(--dmg-0)">PRO</span>
+            <div class="hpbar pixel-box" style="flex:1;box-shadow:none;border-width:2px !important;border-color:var(--dmg-0) !important;background:var(--dmg-2)">
+              <i class="on" style="background:var(--dmg-0)"></i><i class="on" style="background:var(--dmg-0)"></i><i class="on" style="background:var(--dmg-0)"></i><i class="on" style="background:var(--dmg-0)"></i><i class="on" style="background:var(--dmg-0)"></i><i style="background:var(--dmg-2)"></i><i style="background:var(--dmg-2)"></i><i style="background:var(--dmg-2)"></i><i style="background:var(--dmg-2)"></i><i style="background:var(--dmg-2)"></i>
+            </div>
+          </div>
+          <div class="pf" style="font-size:6px;color:var(--dmg-1);margin-top:5px;text-align:right">56 / 157 G</div>
+        </div>
+      </div>
+      <div class="pixel-box" style="margin-top:8px;background:var(--dmg-3);border-color:var(--dmg-1) !important;box-shadow:none;padding:11px 10px 9px;position:relative">
+        <span class="plate pf" style="background:var(--dmg-0);color:var(--dmg-3)">SAYS</span>
+        <div style="font-size:11px;line-height:1.55;color:var(--dmg-0)">I could do with 56g more protein today. That’s the one that actually grows me.</div>
+        <span class="adv blink" style="color:var(--dmg-0)">▼</span>
+      </div>
+    </div>
+    <div class="strip" style="padding:2px 2px 0">
+      <span class="led"></span>
+      <span class="pf" style="font-size:6px;color:var(--muted)">MACROSAURUS · DOT MATRIX</span>
     </div>
   </div>
 </div>
