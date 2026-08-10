@@ -200,16 +200,100 @@ from — a character that reacts to what you just did.
 
 ---
 
-## Part 4 — Decisions I need
+## Part 4 — Decisions, resolved
 
-1. **Does the kcal number stay the hero?** The hero card's comment says it "leads with
-   the one figure people open the app for". Buddy-first demotes it by one card. I
-   recommend buddy first, because after this work the buddy's line is the *actionable*
-   thing and the number is one scroll-inch below — but this is the genuinely
-   contentious call.
-2. **Is silence acceptable?** I strongly recommend yes (§2.4). It is the single
-   difference between a companion and Clippy. The cost is that a happy, consistent user
-   often sees a buddy that says nothing.
-3. **How far does the voice pass go?** Minimum is rewriting `sluggish`. Maximum is
-   auditing every coach line in `buddyCoach` against §2.5. I recommend the full pass —
-   it is copy-only, and it is where the care-vs-performance reframe actually lands.
+**Silence: yes.** The ladder may return null and the card renders quiet. Agreed.
+
+**Voice pass: full audit.** Agreed — and it must include push (§5.1), which is where
+the worst copy currently lives.
+
+### 4.1 The hero question, answered by measurement
+
+Measured on a 390×844 viewport (iPhone-class), free account, `?demo`:
+
+| Block | top | height | |
+|---|---|---|---|
+| "Today" header | 87 | 51 | |
+| Premium nudge | 162 | 147 | free accounts only |
+| Macro hero card | 325 | 530 | ends at 855 |
+| **Buddy card** | **871** | **298** | **fold is 844** |
+| Recovery | 1185 | 79 | |
+
+**The buddy card begins 27px below the fold.** The app's entire relatedness engine —
+the bond, the growth, the thing the retention loop hangs on — is not on screen when a
+free user opens Today. That settles it: the buddy goes up.
+
+But the naive move breaks the number. At its current 298px, buddy-first pushes the kcal
+numeral from y=485 to roughly y=783 — inside the fold on this phone, but *below* it on
+a 375×667 (SE-class) device.
+
+**Recommendation: buddy first, height earned.**
+
+- **Quiet state ≤ 72px** — sprite, name, bond dots, no line. Costs almost nothing, so
+  the number stays high on the opens where the buddy has nothing to add.
+- **Speaking state ≤ 180px** — face, line, meter, one CTA. Trim by moving the
+  stage-progress bar out of Today; `PlayBuddyView` already renders it in the Play hub,
+  so Today is currently showing it twice-over.
+- On the smallest phones a *speaking* buddy will push the kcal number to a scroll. That
+  is the correct trade: if the buddy has something worth saying, that is the priority,
+  and it is bounded because silence is now a real state.
+
+This makes §2.4 do double duty — silence stops being only an etiquette rule and becomes
+the mechanism that keeps the number where people expect it.
+
+---
+
+## Part 5 — Further findings
+
+### 5.1 The push copy is the worst offender, and it is not in the app
+
+`supabase/functions/push-nudge/decide.ts` sends, uninvited, to a lock screen:
+
+> **"Your 12-day streak is at risk"**
+> "Do not break the chain! Log anything before midnight and we keep the run going."
+> "There is still time. One quick log tonight and your 12 days stay safe."
+> **"I have been counting."**
+
+This is precisely the pattern the research names when it describes how Duo became
+shorthand for streak anxiety: loss-aversion framing, persistent, guilt-carrying, and
+arriving when the person did not ask for it. "I have been counting" is the buddy
+telling someone it has been keeping score of them.
+
+**Push is the highest-guilt surface in the product and the one furthest from §2.5.** In
+the app a line can be dismissed; a notification cannot be un-read. The audit must cover
+`decide.ts`, and the care reframe applies hardest here: the buddy can say it would like
+to see you, without telling you what you stand to lose.
+
+The same "Don't break the chain!" string exists in-app at `buddyCoach`'s streak-save
+branch, so one rewrite fixes both.
+
+### 5.2 Three computed-but-never-rendered systems
+
+Each is recomputed on every Dashboard render and displayed nowhere:
+
+| Field | Source | Consumers |
+|---|---|---|
+| `bp.craving` | `Game.buddyCraving` | 0 — `CRAVE_LABEL` also has 0 |
+| `bp.needs` | `Game.buddyNeeds` | 0 |
+| `bp.personality` | `PERSONALITIES` | 0 — deliberately retired (comment at `app/src/app.jsx:5346`) |
+
+`craving` and `needs` should be deleted or re-pointed at `Game.oneThing`, which now owns
+the concept. `personality` is the interesting one — see below.
+
+### 5.3 Personality as a voice axis (optional, high ceiling)
+
+Six personalities are still generated and persisted onto every buddy (`plucky`,
+`steady`, `greedy`, `gentle`, `brave`, `dozy`) and affect nothing. They were retired as
+*needs meters*, but the research is clear that character personality is what drives
+attachment, and the app already has the seed and the storage.
+
+The cheap version: personality selects **which phrasing** of an existing line is used,
+not new content. Greedy Chompers and Gentle Sage ask for the same 40g of protein in
+different words. It multiplies the copy budget, which is why this is optional and last —
+but it is the difference between a buddy and *your* buddy.
+
+### 5.4 Audit scope
+
+Roughly 55 strings: ~18 coach/message lines in `buddyCoach` + `buddyMessage`, ~19 mood
+lines in `MOOD_META`, and ~21 titles and bodies in `push-nudge/decide.ts`. Tractable in
+one pass, and copy-only.
