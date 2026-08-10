@@ -19940,6 +19940,7 @@ function BuddyChatModal({
   onClose,
   isPremium,
   meals,
+  aiCalls,
   onAdd,
   onAddItems,
   onAddMeal,
@@ -20235,7 +20236,29 @@ function BuddyChatModal({
     }
   }, err), /*#__PURE__*/React.createElement("div", {
     ref: endRef
-  })), pic && /*#__PURE__*/React.createElement("div", {
+  })), !isPremium && (() => {
+    const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+    return /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        try {
+          window.MPAYWALL && window.MPAYWALL({
+            type: 'free_limit'
+          });
+        } catch (_) {}
+      },
+      className: "shrink-0 flex items-center justify-between gap-2 pt-2 text-left w-full"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[9px]",
+      style: {
+        color: 'var(--muted)'
+      }
+    }, left, " of ", FREE_AI_MONTHLY, " free AI replies left this month"), /*#__PURE__*/React.createElement("span", {
+      className: "pf text-[7px] uppercase shrink-0",
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, "Go unlimited ›"));
+  })(), pic && /*#__PURE__*/React.createElement("div", {
     className: "shrink-0 flex items-center gap-2 pt-2"
   }, /*#__PURE__*/React.createElement("img", {
     src: pic.url,
@@ -42360,6 +42383,7 @@ function App() {
       db: db,
       isPremium: isPremium,
       meals: tmeals,
+      aiCalls: aiCalls,
       onClose: () => setTalking(false),
       onAdd: (mealId, item) => addEntry(tday, mealId, item),
       onAddMeal: (mealId, items) => addMeal(tday, mealId, items),

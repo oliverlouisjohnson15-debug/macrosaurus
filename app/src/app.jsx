@@ -5633,7 +5633,7 @@ function saveTalk(db, turns) {
   // once the sheet has closed, so they are deliberately not restored with the words around them.
   try { sessionStorage.setItem(talkKey(db), JSON.stringify(turns.filter(t => t.role === 'user' || t.role === 'buddy').map(t => ({ role: t.role, text: t.text })).slice(-TALK_STORE_TURNS))); } catch (_) {}
 }
-function BuddyChatModal({ db, onClose, isPremium, meals, onAdd, onAddItems, onAddMeal, onSaveWeight, onOpenScreen }) {
+function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddItems, onAddMeal, onSaveWeight, onOpenScreen }) {
   useBackClose(onClose);
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
   const [turns, setTurns] = useState(() => loadTalk(db));
@@ -5775,6 +5775,17 @@ function BuddyChatModal({ db, onClose, isPremium, meals, onAdd, onAddItems, onAd
           {err && <div className="text-[10px] leading-snug mb-2 px-1" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
           <div ref={endRef} />
         </div>
+        {/* What a turn costs, where the turn is typed. One thing you say is one AI action however
+            many times the buddy has to go and look something up, so this counts down at the pace a
+            person would expect it to. Shown low and quiet: it is a fact about the tool, not a pitch. */}
+        {!isPremium && (() => {
+          const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
+          return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'free_limit' }); } catch (_) {} }}
+            className="shrink-0 flex items-center justify-between gap-2 pt-2 text-left w-full">
+            <span className="text-[9px]" style={{ color: 'var(--muted)' }}>{left} of {FREE_AI_MONTHLY} free AI replies left this month</span>
+            <span className="pf text-[7px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
+          </button>;
+        })()}
         {/* A photo waits here until you say what it is. A picture with no words is the weakest thing
             you can hand the estimator, so the composer holds it and the next sentence goes with it. */}
         {pic && <div className="shrink-0 flex items-center gap-2 pt-2">
@@ -14786,7 +14797,7 @@ function App() {
           can act: addEntry, addMeal and addEstimateItems are App's, and a tool loop that had to ask
           a parent to write for it would be a worse version of the same thing. */}
       {talking && (() => { const tday = Store.todayISO(); const tmeals = mealsForDay(db, tday); return (
-        <BuddyChatModal db={db} isPremium={isPremium} meals={tmeals} onClose={() => setTalking(false)}
+        <BuddyChatModal db={db} isPremium={isPremium} meals={tmeals} aiCalls={aiCalls} onClose={() => setTalking(false)}
           onAdd={(mealId, item) => addEntry(tday, mealId, item)}
           onAddMeal={(mealId, items) => addMeal(tday, mealId, items)}
           onAddItems={(mealId, items) => addEstimateItems(tday, mealId, items)}
