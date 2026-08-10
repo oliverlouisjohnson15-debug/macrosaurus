@@ -17295,12 +17295,76 @@ function buddyCoach(db, today, streak) {
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
   if (eng) return eng;
-  // SILENCE. This used to fall through to a warm filler line, which was harmless at the bottom of
-  // Today and is not harmless at the top of it: a block that always talks is one people learn to
-  // scroll past, and an assistant whose defining problem is being always-there has a name. Nothing
-  // due means nothing said - the card renders as the buddy alone, and being finished for the day is
-  // rewarded with quiet rather than with another sentence.
+  // NOTHING ACTIONABLE. Every rung above this one is a REQUEST, and there is no request left to make,
+  // which is a real and common state rather than an error. buddyRest picks up here (see its note): the
+  // ladder ends in a statement instead of in nothing, because "ask for nothing" and "render nothing"
+  // are not the same instruction and the card cannot tell them apart.
   return null;
+}
+/* THE RESTING LINE: the rung that makes the ladder total.
+   Everything above this point asks for something - log a meal, weigh in, read your week, look at the
+   new plan - and the ladder used to end by saying nothing at all when none of them applied. The
+   reasoning behind that was sound and is worth keeping intact: a block at the top of Today that
+   always wants something is one people learn to scroll past, Duo taught a generation to feel guilty
+   about a bird, and the assistant whose defining problem was being always-there has a name.
+   But it answered the wrong question. Silence is the correct response to "do not nag"; it is not a
+   correct response to "what does this card show", and the card cannot distinguish the two. What a
+   finished day actually produced was a frame with a sprite in it and no words, which reads as broken
+   rather than as earned - the opposite of the reward it was meant to be.
+   So the ladder always ends somewhere now, and it ends with a STATEMENT. A resting line reports the
+   day back and asks for nothing: no CTA, no key, so nothing to obey and nothing to dismiss. That is
+   the distinction that actually matters, because the failure mode being avoided is interruption with
+   a demand attached, not a companion being visibly present. It is also the exact shape of the
+   food-quality line further up, which has been doing this on premium accounts all along and is the
+   best-liked thing the buddy says.
+   Deliberately carries no numbers. The macro card directly below owns the day's figures, and one
+   thing says one thing; what this line carries is the part the numbers do not, which is that the day
+   is finished and nothing is owed.
+   Rotation is seeded by the date, not random: a fortnight of good days should not be a fortnight of
+   the same sentence, and the line must not change under someone between two glances at the phone. */
+const REST_LINES = {
+  // Everything the day asked for is in. The one genuinely earned rest state, and the only one that
+  // gets to sound pleased with itself.
+  landed: ['Everything landed today. Calories, protein and fibre, the lot. That is the eating that actually grows me.', 'All three targets in. I am full, you are finished, and there is nothing else today needs.', 'That is the day sorted. Nothing chasing, nothing left over. We can both sit down.', 'Protein, fibre and calories, all where they should be. Quietly, this is the good stuff.'],
+  // Same, with the run behind it. Only used once the streak is long enough to be worth naming.
+  landedStreak: ['Landed the lot, {n} days running now. Days like this are what the whole thing is actually made of.', '{n} days on the trot, and today is clean. I am not going to make a fuss. I am delighted though.', 'That is {n} in a row. Nothing dramatic, just the day done properly again.'],
+  // Trained AND fed. Worth its own line: it is the most work anybody does in a day here.
+  landedTrained: ['Trained and fed, and every target in. That is about as good as a day gets round here.', 'A session and the full day of food. Honestly, go and put your feet up.'],
+  // The day still has an open loop, but it was waved away with the ×. Respecting that means not
+  // restating it - so the buddy says it is here, and says nothing about the loop.
+  waved: ['Pottering about, keeping you company. Nothing else from me today.', 'I am just here if you want me. No notes on today.', 'Having a wander round my patch. Give me a shout whenever.'],
+  // Napping: the buddy is at its best-ever stage after a break and wakes on activity. The nap is its
+  // own state and reports itself; the waking is mentioned as a fact, never as an instruction.
+  asleep: ['Curled up having a nap. I wake up when there is something to eat, no rush.', 'Fast asleep and dreaming of snacks. I will be up when you are.']
+};
+// `asleep` is passed in rather than re-derived: Game.buddyView only knows the buddy is napping if it
+// is also told whether today is a comeback (which forces it awake), and that lives in the Dashboard.
+// Recomputing it here without that would let the buddy claim to be asleep on the exact day the sprite
+// is up and bobbing, which is the one contradiction a resting line must never produce.
+function buddyRest(db, today, streak, asleep) {
+  const pick = arr => arr[Math.floor((new Date(today + 'T00:00:00') - new Date(today.slice(0, 4) + '-01-01T00:00:00')) / 864e5) % arr.length];
+  const logged = entriesOn(db, today);
+  const et = effectiveTarget(db, today);
+  const ft = et ? E.fiberTarget(et.eff.kcal) : null;
+  const sums = sumMacros(logged);
+  const one = Game.oneThing({
+    logged: logged.length > 0,
+    protein: sums.protein,
+    proteinTarget: et ? Math.round(et.eff.protein_g) : 0,
+    fiber: sums.fiber,
+    fiberTarget: ft ? ft.min : 0,
+    kcal: sums.kcal,
+    kcalTarget: et ? et.eff.kcal : 0
+  });
+  if (asleep) return pick(REST_LINES.asleep);
+  // `one === null` is Game.oneThing's own way of saying every target on the day is met, so this is
+  // the same test the open-loop rung uses rather than a second opinion about what a good day is.
+  if (one === null) {
+    if (trainedDates(db).has(today)) return pick(REST_LINES.landedTrained);
+    if (streak >= 3) return pick(REST_LINES.landedStreak).replace('{n}', streak);
+    return pick(REST_LINES.landed);
+  }
+  return pick(REST_LINES.waved);
 }
 
 // A proactive conversational "breakout": the buddy asks a yes/no question when something's worth
@@ -17520,7 +17584,7 @@ function weighAsk(db, today) {
 // sleep/step data) -> the day's lesson (new users) -> a check-in "ask" (yes/no) -> the ambient coach
 // line. Each carries up to a primary and a secondary action (label + act string); the Dashboard wires
 // the act strings to handlers so this stays a pure, testable decision. Returns a message or null.
-function buddyMessage(db, today, streak) {
+function buddyMessage(db, today, streak, asleep) {
   const p = db.profile || {};
   const incubating = !!(db.buddy && db.buddy.hatched === false);
   // 1. Paused goal: the buddy now owns the resume path (the standalone check-in card is gone).
@@ -17634,7 +17698,17 @@ function buddyMessage(db, today, streak) {
       key: say.key
     } : null
   };
-  return null;
+  // 8. Rest: THIS LADDER IS TOTAL. Every rung above asks for something and any of them may decline to
+  // fire, so before this existed the common case of a well-run day fell out of the bottom as null and
+  // the habitat rendered an empty frame. buddyRest cannot return null (see its note), which is what
+  // makes "the buddy card is never blank" a property of the code rather than a hope about the data.
+  // A statement with no primary and no key is exactly the shape the habitat reads as `bare`: it gets
+  // the blinking ▼ and taps through to the Play hub, and there is no × because there is nothing being
+  // asked that could be waved away.
+  return {
+    kind: 'say',
+    text: buddyRest(db, today, streak, asleep)
+  };
 }
 
 // The weigh-in itself, right where the buddy asks for it: a number, a tap, done. Seeded with the
@@ -24054,10 +24128,16 @@ function Dashboard({
     showToast && showToast('Logged ' + fmtWeight(kg, unit) + '. Nice one.');
   };
   const msg = (() => {
-    // `?demo&quiet` previews the buddy card with nothing on the ladder, which is the common state for
-    // a consistent user and the one that is hardest to reach on purpose while working on it.
-    if (DEMO && new URLSearchParams(window.location.search).has('quiet')) return null;
-    const m = buddyMessage(db, today, streak);
+    // Two demo switches for the bottom of the ladder, which is the state a consistent user is in most
+    // days and the hardest one to reach on purpose while working on it. `?demo&rest` jumps to the
+    // resting line - what a finished day now looks like. `?demo&quiet` returns nothing at all, which
+    // the ladder itself can no longer do, and renders the habitat's blank fallback.
+    const dq = DEMO ? new URLSearchParams(window.location.search) : null;
+    if (dq && dq.has('quiet')) return null;
+    const m = dq && dq.has('rest') ? {
+      kind: 'say',
+      text: buddyRest(db, today, streak, buddy.asleep)
+    } : buddyMessage(db, today, streak, buddy.asleep);
     if (!m) return null;
     const ackLesson = key => update(d => {
       d.profile = d.profile || {};

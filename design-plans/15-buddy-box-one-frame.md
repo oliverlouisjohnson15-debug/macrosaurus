@@ -66,8 +66,51 @@ Three changes, in that order:
   as the label. Speaking, the box carries its own `▼` or its own buttons, so a second mark
   there would be exactly the noise the `▼` rule in plan 14 exists to prevent.
 
+## 3. And then: never empty at all
+
+With the frame fixed and the buddy on its floor, the empty card is presentable. It is still
+the wrong thing to show. The ladder in `buddyMessage` is seven rungs of *requests* — weigh
+in, read your week, log a meal, look at the new plan — and it deliberately ended in nothing
+when none applied. From `buddyCoach`, before this change:
+
+> SILENCE. This used to fall through to a warm filler line, which was harmless at the bottom
+> of Today and is not harmless at the top of it: a block that always talks is one people
+> learn to scroll past, and an assistant whose defining problem is being always-there has a
+> name.
+
+That reasoning is right and is kept. It just answered a different question than the one the
+card asks. Silence is the correct response to *"do not nag"*; it is not a response to *"what
+does this card show"*, and the card cannot tell the two apart. What a well-run day actually
+produced was a frame with a sprite in it and no words — the reward for finishing, rendered
+as the same thing as a bug.
+
+The distinction that does the work is **request vs. statement**. The Clippy and Duo failure
+mode is interruption *with a demand attached*; a companion being visibly present is not that.
+So the ladder gets an eighth rung, `buddyRest`, which cannot return null:
+
+- **No CTA, no key.** Nothing to obey, and no `×`, because nothing is being asked that could
+  be waved away. In the habitat that makes it `bare`, so it gets the blinking `▼` and taps
+  through to the Play hub — the affordance the quiet card was missing.
+- **No numbers.** The macro card directly below owns the day's figures. What the line carries
+  is the part the figures do not: that the day is finished and nothing is owed.
+- **Five pools, picked by state**, not one filler line: everything landed, landed with a run
+  behind it, landed *and* trained, an open loop the user waved away (say nothing about it),
+  and napping. `landed` keys off `Game.oneThing` returning null — the same test the open-loop
+  rung uses, so the two can never disagree about what a good day is.
+- **Rotated by day-of-year**, seeded not random, so a fortnight of good days is not a
+  fortnight of the same sentence and the line does not change under someone mid-glance.
+
+It is the same shape as the food-quality line that already sits higher up the ladder, which
+has been doing exactly this on premium accounts all along.
+
+`tests/buddy-rest.test.js` holds it shut: it reads the source and fails if `buddyMessage`
+can end on a bare `return null`, if `buddyRest` grows an empty return, or if a pool loses
+its lines. That is the rung most likely to be quietly reopened by someone adding a rung
+above it.
+
 ## Preview
 
-`?demo` for the speaking card, `?demo&quiet` for the empty one (the common state for a
-consistent user, and the hardest to reach on purpose while working on it), `?demo&egg` to
-walk into incubation, where the hatch list is the dialogue.
+`?demo` for the speaking card, `?demo&rest` for a finished day, `?demo&egg` to walk into
+incubation where the hatch list is the dialogue. `?demo&quiet` still renders the blank
+fallback, which the ladder itself can no longer reach — it is kept working so that "never
+blank" degrades into a tap-through rather than a void if a future rung returns early.
