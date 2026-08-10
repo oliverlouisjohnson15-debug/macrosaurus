@@ -1988,6 +1988,42 @@ function QualityBar({ nd, onExplain }) {
     </div>
   );
 }
+/* THE ONE OPEN LOOP, at the top of the hero card.
+   Today shows four macro bars, a balance slider, a buddy and three recovery dials, so at any moment
+   several things are part-done and none of them is THE thing. This is the one line that says what is
+   actually outstanding and exactly how far away it is - and it is the only element on the screen
+   allowed to read as unfinished. When the day closes it flips to a finished state rather than
+   lingering as another half-full bar: one thing outstanding, or nothing.
+   Game.oneThing picks it, in the same priority order the buddy speaks in, so the number here and the
+   word from the buddy can never name different macros. */
+const ONE_THING_SUFFIX = { protein: 'protein to go', fibre: 'fibre to go', fuel: 'calories to go' };
+function OneThingLine({ one, onGo }) {
+  const done = !one;
+  const first = !done && one.key === 'firstmeal';
+  return (
+    <div className="mb-3 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+      <button type="button" onClick={done ? undefined : onGo} disabled={done}
+        className="w-full flex items-center gap-3 text-left active:opacity-60 transition-opacity"
+        style={{ background: 'transparent', border: 0, padding: 0 }}>
+        <div className="min-w-0 flex-1">
+          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: done ? 'var(--good-ink)' : 'var(--accent-ink)' }}>
+            {done ? 'Today is done' : 'One thing left'}
+          </div>
+          <div className="text-[15px] font-bold leading-tight truncate" style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>
+            {done ? 'Nothing left to close' : first ? 'Log your first meal' : (
+              <><span className="tnum">{one.remaining}{one.unit === 'g' ? 'g' : ''}</span>
+                {one.unit === 'kcal' ? ' kcal' : ''} {ONE_THING_SUFFIX[one.key]}</>
+            )}
+          </div>
+        </div>
+        {done
+          ? <span className="w-6 h-6 flex items-center justify-center shrink-0" style={{ background: 'var(--good)', color: '#fff' }}><Tick size={13} /></span>
+          : <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Log ›</span>}
+      </button>
+      {!done && !first && <div className="mt-2"><PipMeter value={one.pct} target={100} color={'var(--accent)'} small overIsFine /></div>}
+    </div>
+  );
+}
 function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain, lens }) {
   const remaining = et.eff.kcal - tot.kcal;
   const ft = E.fiberTarget(et.eff.kcal);
@@ -4934,8 +4970,15 @@ function renderMilestoneCard({ headline, sub, name, art, colors }) {
   ctx.fillText('Track macros. Catch dinos.  macrosaurus.com', S / 2, 1004);
   return cv;
 }
+// The card renderer above was always generic; only this caption was welded to goal milestones, which
+// is why the app rendered a share card for exactly one of the half-dozen moments it already
+// celebrates. `payload.text` lets any of them supply its own line and reuse the whole chain: canvas,
+// Web Share with files, plain Web Share, then download-plus-copy.
 async function shareMilestone(payload, toast) {
-  const text = (payload.reached ? "Hit my goal weight on Macrosaurus! " : payload.headline + ' on Macrosaurus. ') + 'Track macros, catch dinos: ' + SHARE_URL;
+  // Callers supply the lead sentence only; the tagline and link are appended here so no new share
+  // surface can ship without the link that makes sharing worth anything.
+  const lead = payload.text || (payload.reached ? "Hit my goal weight on Macrosaurus! " : payload.headline + ' on Macrosaurus. ');
+  const text = lead + 'Track macros, catch dinos: ' + SHARE_URL;
   let blob = null;
   try { const cv = renderMilestoneCard(payload); blob = await new Promise(r => cv.toBlob(r, 'image/png')); } catch (_) {}
   const file = blob ? new File([blob], 'macrosaurus-milestone.png', { type: 'image/png' }) : null;
@@ -5518,12 +5561,48 @@ function blockFinished(db) {
   return (t.blocks || []).some(b => (b.sessions || []).length > 0 && b.sessions.every(s => logged[s.id]));
 }
 // Trophy cabinet: trophies won, shiny gallery, streak records and the badge tracks.
+/* PERSONAL BESTS, the food-side answer to Train's personal records.
+   Streaks and Amber both reward turning up; nothing rewarded getting BETTER at eating. These are the
+   numbers a person can actually say out loud - "six protein days, my best yet" - which an Amber
+   balance never is.
+   Finished weeks only (Monday-Sunday, the current part-week excluded): a best set on three days of a
+   week still in progress is not a week. Capped at a year because dayQuality recomposes each day's
+   target from history, and nobody needs a best from 2019 to know how this week went. */
+const BEST_WEEKS_CAP = 52;
+function mondayOf(iso) { const d = new Date(iso + 'T00:00:00'); return shiftISO(iso, -((d.getDay() + 6) % 7)); }
+function weeklyBestInputs(db, today) {
+  const dates = (db.log_entries || []).map(e => e.date).sort();
+  if (!dates.length) return [];
+  const curMon = mondayOf(today);
+  const capMon = shiftISO(curMon, -7 * BEST_WEEKS_CAP);
+  let m = mondayOf(dates[0]); if (m < capMon) m = capMon;
+  const out = [];
+  for (; m < curMon; m = shiftISO(m, 7)) {
+    let loggedDays = 0, proteinDays = 0, fibreDays = 0, perfectDays = 0;
+    for (let i = 0; i < 7; i++) {
+      const q = dayQuality(db, shiftISO(m, i));
+      if (!q) continue;
+      loggedDays++; if (q.proteinHit) proteinDays++; if (q.fiberHit) fibreDays++; if (q.perfect) perfectDays++;
+    }
+    if (loggedDays) out.push({ weekKey: m, loggedDays, proteinDays, fibreDays, perfectDays });
+  }
+  return out;
+}
+const BEST_LABEL = {
+  loggedDays: { label: 'Days logged in a week', hint: 'showing up' },
+  proteinDays: { label: 'Protein target hit', hint: 'days in one week' },
+  fibreDays: { label: 'Fibre goal reached', hint: 'days in one week' },
+  perfectDays: { label: 'Perfect days in a week', hint: 'every macro landed' },
+};
 function TrophyCabinet({ db, streak, onBack }) {
   useBackClose(onBack);
   const items = db.items || {};
   const badges = db.badges || { checkins: 0, inRange: 0 };
   const longest = Math.max((db.records && db.records.longestStreak) || 0, streak || 0);
   const trophyIds = ['amber', 'belt'].filter(id => (items[id] || 0) > 0);
+  // Memoised: this recomposes a year of daily targets, and the cabinet re-renders on every tab back.
+  const weeks = useMemo(() => weeklyBestInputs(db, Store.todayISO()), [db.log_entries, db.targets]);
+  const bests = weeks.length ? Game.personalBests(weeks) : null;
   const Track = ({ label, count, hint }) => {
     const t = Game.badgeTier(count);
     return <div className="pixel-box p-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -5540,6 +5619,17 @@ function TrophyCabinet({ db, streak, onBack }) {
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{streak || 0}</div><div className="text-[9px] text-[#8A8A90]">current streak</div></div>
       <div className="pixel-box p-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><div className="text-xl font-bold tnum" style={{ color: 'var(--fat-ink)' }}>{longest}</div><div className="text-[9px] text-[#8A8A90]">longest ever</div></div>
     </div>
+    {bests && (<>
+      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your bests</div>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        {Game.BEST_KEYS.map(k => (
+          <div key={k} className="pixel-box p-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+            <div className="text-xl font-bold tnum" style={{ color: bests[k].value > 0 ? 'var(--good-ink)' : 'var(--muted)' }}>{bests[k].value}<span className="text-[11px] text-[#8A8A90]">/7</span></div>
+            <div className="text-[9px] text-[#8A8A90] leading-snug">{BEST_LABEL[k].label}</div>
+          </div>
+        ))}
+      </div>
+    </>)}
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Badges</div>
     <Track label="Check-ins completed" count={badges.checkins || 0} hint="show up for the weekly read" />
     <Track label="In-range check-ins" count={badges.inRange || 0} hint="trend within 0.1 kg/wk of target" />
@@ -6285,6 +6375,19 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
   }
   const proj = goalProjection(db);
   if (proj) rows.push({ key: 'eta', tone: 'accent', label: 'At this pace', value: proj.short });
+  const stage = BUDDY_STAGES[Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)];
+  const [busy, setBusy] = useState(false);
+  async function doShare() {
+    setBusy(true);
+    try {
+      await shareMilestone({
+        headline: r.daysLogged + '/7 days', sub: 'logged this week', name: who, art: stage.art, colors: stage.colors,
+        text: 'Logged ' + r.daysLogged + '/7 days on Macrosaurus this week'
+          + (r.proteinTarget > 0 ? ', hitting protein ' + r.proteinDaysHit + ' of them' : '') + '. ',
+      }, null);
+    } catch (_) {}
+    setBusy(false);
+  }
   const line = proj ? proj.text + " Keep showing up and I'll get you there."
     : r.daysLogged >= 6 ? "Rock-solid week. This is exactly how we win, together."
     : r.daysLogged >= 3 ? "Good going. A couple more logged days next week and I'll read you even sharper."
@@ -6306,7 +6409,12 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
           ))}
         </div>
         <div className="pixel-box p-3 mb-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
-        {onOpenProgress && <button onClick={onOpenProgress} className="pixel-btn w-full py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>SEE FULL PROGRESS</button>}
+        {/* The week in numbers is the recap people actually want to post - a Wrapped, at weekly
+            cadence. It shares days logged and protein days only: never a weight, never an intake. */}
+        <div className="flex gap-2">
+          <button onClick={doShare} disabled={busy} className="pixel-btn flex-1 py-2.5 text-[10px]" style={{ background: 'var(--surface2)', opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'SHARE'}</button>
+          {onOpenProgress && <button onClick={onOpenProgress} className="pixel-btn flex-1 py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>FULL PROGRESS</button>}
+        </div>
       </div>
     </div>
   );
@@ -6935,6 +7043,17 @@ function StageUpCelebration({ db, stage, onClose }) {
   const line = STAGE_UP_LINES[crHash((db.game_salt || '') + 'stage' + stage) % STAGE_UP_LINES.length];
   const fromPx = 5 * stageScale(Math.max(0, stage - 1));
   const toPx = 5 * stageScale(stage);
+  const [busy, setBusy] = useState(false);
+  async function doShare() {
+    setBusy(true);
+    try {
+      await shareMilestone({
+        headline: st.name, sub: who + ' grew', name: who, art: st.art, colors: st.colors,
+        text: who + ' grew into a ' + st.name + ' on Macrosaurus. ',
+      }, null);
+    } catch (_) {}
+    setBusy(false);
+  }
   return (
     <div className="fixed inset-0 z-[95] overflow-y-auto" style={{ background: 'var(--bg)' }}>
       <div className="confetti" aria-hidden="true">{Array.from({ length: 28 }).map((_, i) => <i key={i} style={{ left: (3 + i * 3.4) + '%', animationDelay: (i % 7) * 0.18 + 's', animationDuration: (2.4 + (i % 5) * 0.3) + 's', background: CONFETTI_COLORS[i % CONFETTI_COLORS.length] }} />)}</div>
@@ -6961,7 +7080,13 @@ function StageUpCelebration({ db, stage, onClose }) {
           </div>
         )}
         <div className="pixel-box p-3 mb-6 max-w-xs text-[12px] leading-relaxed" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
-        <button onClick={onClose} className="pixel-btn w-full max-w-xs py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NICE ONE</button>
+        {/* People do not share features, they share proof. A buddy that grew because someone logged
+            for thirty days is the most personal proof this app produces, and until now it was the one
+            celebration with no way out of the app. */}
+        <div className="flex gap-2 w-full max-w-xs">
+          <button onClick={doShare} disabled={busy} className="pixel-btn flex-1 py-3 text-[10px] pf" style={{ background: 'var(--surface2)', opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'SHARE'}</button>
+          <button onClick={onClose} className="pixel-btn flex-1 py-3 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>NICE ONE</button>
+        </div>
       </div>
     </div>
   );
@@ -7232,6 +7357,14 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const setShift = (v) => update(d => { d.day_overrides = Object.assign({}, d.day_overrides || {}, { [today]: { shiftKcal: v } }); });
   const remCarbs = Math.max(0, Math.round(et.eff.carbs_g - todayTot.carbs));
   const remFat = Math.max(0, Math.round(et.eff.fat_g - todayTot.fat));
+  // The day's single open loop, fed the same targets the meters below it draw from so the line and
+  // the bars can never disagree about what is left.
+  const oneThing = Game.oneThing({
+    logged: entriesOn(db, today).length > 0,
+    protein: todayTot.protein, proteinTarget: et.eff.protein_g,
+    fiber: todayTot.fiber, fiberTarget: E.fiberTarget(et.eff.kcal).min,
+    kcal: todayTot.kcal, kcalTarget: et.eff.kcal,
+  });
   // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
   // with a monthly freeze forgiving one miss.
   const frozenSet = new Set((db.freezes && db.freezes.frozen) || []);
@@ -7241,6 +7374,16 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const streak = streakInfo.streak;
   // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
   // pays out (not only fights). Idempotent by ledger id (amber:log:<date>), so it can never double-pay.
+  // The signup stake. A brand-new account otherwise reaches the home screen holding nothing: no
+  // streak, no dex, and a shop it cannot afford a single thing in. Granted only while the account is
+  // genuinely fresh (nothing logged yet), so an established user syncing onto a new device never
+  // qualifies, and idempotent by ledger id on top of that.
+  useEffect(() => {
+    const key = 'amber:welcome';
+    if ((db.log_entries || []).length) return;
+    if ((db.amber_ledger || []).some(e => e.id === key)) return;
+    update(d => { d.amber_ledger = d.amber_ledger || []; if (d.amber_ledger.some(e => e.id === key)) return; d.amber_ledger.push({ id: key, date: today, delta: Game.AMBER_REWARDS.welcome, reason: 'Welcome to Macrosaurus' }); });
+  }, [db.log_entries, db.amber_ledger, today]);
   useEffect(() => {
     const key = 'amber:log:' + today;
     if (!(db.log_entries || []).some(e => e.date === today)) return;
@@ -7256,11 +7399,60 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     update(d => { d.game_awards = d.game_awards || {}; earned.forEach(t => { if (!d.game_awards['trophy:' + t.id]) d.game_awards['trophy:' + t.id] = today; }); });
     if (showToast) showToast(earned.length === 1 ? 'Trophy unlocked: ' + earned[0].name : earned.length + ' new trophies unlocked', 'See', () => onOpenPlay && onOpenPlay());
   }, [streak, isPremium, today, db.log_entries, db.buddy && db.buddy.stage, db.fight && db.fight.prestige]);
+  // PERSONAL BESTS: say it the moment a finished week beats one. Rewarding improvement rather than
+  // attendance is the whole point, and a best nobody is told about is the freeze problem all over
+  // again. Gated on a once-per-week marker BEFORE the work, because weeklyBestInputs recomposes a
+  // year of daily targets and must not run on every log; the per-measure keys then make the
+  // announcement itself idempotent across devices.
+  useEffect(() => {
+    const lastMon = shiftISO(mondayOf(today), -7);
+    const checked = 'bestcheck:' + lastMon;
+    if ((db.game_awards || {})[checked]) return;
+    const weeks = weeklyBestInputs(db, today);
+    const last = weeks.length ? weeks[weeks.length - 1] : null;
+    if (!last || last.weekKey !== lastMon) { update(d => { d.game_awards = d.game_awards || {}; d.game_awards[checked] = today; }); return; }
+    const beaten = Game.bestsBeaten(Game.personalBests(weeks.slice(0, -1)), last)
+      .filter(x => !(db.game_awards || {})['best:' + last.weekKey + ':' + x.key]);
+    update(d => {
+      d.game_awards = d.game_awards || {};
+      d.game_awards[checked] = today;
+      beaten.forEach(x => { d.game_awards['best:' + last.weekKey + ':' + x.key] = today; });
+    });
+    if (beaten.length && showToast) {
+      const top = beaten[0];
+      showToast('Best week yet · ' + BEST_LABEL[top.key].label.toLowerCase() + ' ' + top.value + '/7', 'Bests', () => onOpenPlay && onOpenPlay());
+    }
+  }, [db.log_entries, today]);
+  // THE COMEBACK. A lapse the monthly freeze could not cover, followed by a day they showed up again.
+  // Returning has to pay on the spot: Amber, and a buddy that wakes today rather than in three days.
+  // Idempotent by ledger id, like every other grant, so it pays once however many times this renders.
+  let lastActiveISO = null;
+  activeSet.forEach(d => { if (d < today && (!lastActiveISO || d > lastActiveISO)) lastActiveISO = d; });
+  const comeback = Game.comeback(lastActiveISO, today, activeSet.has(today));
+  const cameBackToday = !!(db.buddy && db.buddy.wokeISO === today);
+  useEffect(() => {
+    if (!comeback) return;
+    const key = 'amber:comeback:' + today;
+    if ((db.amber_ledger || []).some(e => e.id === key)) return;
+    update(d => {
+      d.amber_ledger = d.amber_ledger || [];
+      if (d.amber_ledger.some(e => e.id === key)) return;
+      d.amber_ledger.push({ id: key, date: today, delta: comeback.amber, reason: 'Welcome back' });
+      d.buddy = d.buddy || { stage: 0 }; d.buddy.wokeISO = today;
+    });
+    if (showToast) showToast(((db.buddy && db.buddy.name) || 'Your buddy') + ' woke up the moment you came back · +' + comeback.amber + ' Amber', 'Shop', () => onOpenPlay && onOpenPlay());
+  }, [comeback && comeback.lapsedDays, today]);
   const freezeAvail = freezeReady(frozenSet, today);
   const newFrozenKey = streakInfo.newFrozen.join(',');
   useEffect(() => {
     if (!newFrozenKey) return;
+    const already = new Set((db.freezes && db.freezes.frozen) || []);
+    const fresh = newFrozenKey.split(',').filter(x => !already.has(x));
     update(d => { d.freezes = d.freezes || { frozen: [] }; const s = new Set(d.freezes.frozen); newFrozenKey.split(',').forEach(x => s.add(x)); d.freezes.frozen = Array.from(s).sort().slice(-120); });
+    // Say it out loud. The freeze has always rescued the streak silently, which meant the single most
+    // forgiving thing the app does was the one thing nobody knew about. A rescue nobody notices is
+    // not a reward. Only fires for a date not already forgiven, so a re-render cannot re-announce it.
+    if (fresh.length && showToast) showToast('Streak freeze used · your ' + streak + '-day streak is safe');
   }, [newFrozenKey]);
   // Per-user catch seeding: mint a stable random salt once, so daily rolls differ between users.
   useEffect(() => {
@@ -7271,7 +7463,9 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   // Buddy is a HIGH-WATER mark: the stage never falls back to the egg. After a break it
   // naps at its best-ever stage and wakes after 3 active days. Also track the longest streak.
   const buddyHw = (db.buddy && db.buddy.stage) || 0;
-  const buddy = Game.buddyView(buddyHw, streak);
+  // `cameBackToday` keeps it awake for the rest of the comeback day, including the renders after the
+  // grant lands, so the wake does not flicker back to a nap while the streak is still only 1.
+  const buddy = Game.buddyView(buddyHw, streak, !!comeback || cameBackToday);
   const buddyLvl = useMemo(() => buddyLevel(db), [db.log_entries]);
   const bp = buddyProfile(db, streak, buddy, buddyLvl);
   // Hatch trigger: a brand-new account's egg hatches once the core onboarding STAPLES are done - the
@@ -7281,8 +7475,14 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const [hatching, setHatching] = useState(false);
   const eggIncubating = !!(db.buddy && db.buddy.hatched === false);
   const hatchEt = effectiveTarget(db, today);
-  const hatchProteinTgt = hatchEt ? hatchEt.eff.protein : 0;
+  // `eff` carries protein_g, never protein: reading the wrong key left this target undefined, which
+  // made the protein staple permanently unticked and meant the egg could never hatch from finishing
+  // the staples at all. Matches OnboardingChecklist, which had it right.
+  const hatchProteinTgt = hatchEt ? hatchEt.eff.protein_g : 0;
   const hatchTasks = [
+    // Creating the account IS the first task, banked before they do anything, so the very first
+    // screen a new user sees reads 1/5 rather than 0/4. Nobody should meet this app on a zero.
+    { k: 'account', label: 'Created your account', done: true, go: null },
     { k: 'meal', label: 'Log a meal', done: (db.log_entries || []).length > 0, go: () => onQuickAdd(false) },
     { k: 'ai', label: 'Try a Photo or Describe estimate', done: (db.log_entries || []).some(e => e.source === 'ai_estimate' || e.source === 'label'), go: () => onQuickAdd(false) },
     { k: 'protein', label: 'Hit your protein target', done: hatchProteinTgt > 0 && sumMacros(entriesOn(db, today)).protein >= hatchProteinTgt, go: () => onQuickAdd(false) },
@@ -7434,6 +7634,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           already announces itself ("KCAL LEFT"), so the heading restated it and the control sat
           detached from the numbers it changes. Both now live on the card's own top line. */}
       <Card className="p-5 mb-4" style={{ outline: '3px solid var(--accent)', outlineOffset: 2 }}>
+        <OneThingLine one={oneThing} onGo={() => onQuickAdd(false)} />
         <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)}
           lens={<Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />} />
         {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
@@ -12293,6 +12494,8 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
   const proteinTgt = et ? et.eff.protein_g : 0;
   const todayProtein = sumMacros(entriesOn(db, today)).protein;
   const items = [
+    // Banked before they lift a finger, so the card opens above zero (see hatchTasks).
+    { k: 'account', label: 'Created your account', done: true, go: null },
     { k: 'meal', label: 'Log your first meal', done: db.log_entries.length > 0, go: onLog },
     { k: 'ai', label: 'Try a Photo or Describe estimate', done: db.log_entries.some(e => e.source === 'ai_estimate' || e.source === 'label'), go: onLog },
     { k: 'protein', label: 'Hit your protein target today', done: proteinTgt > 0 && todayProtein >= proteinTgt, go: onLog },

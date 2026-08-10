@@ -765,3 +765,139 @@ test('weighDue: a weekly weigher who has drifted past the grace window is asked 
 test('weighDue: an unset cadence reads as most-days, so legacy accounts still get asked', () => {
   assert.strictEqual(Game.weighDue({ today: MON, hour: 8, weighedToday: false, lastWeighISO: '2026-07-26' }).kind, 'daily');
 });
+
+// ---- oneThing: exactly one open loop, with the distance left to close it ----
+
+test('oneThing: an unlogged day asks for the first meal and nothing else', () => {
+  const r = Game.oneThing({ logged: false });
+  assert.strictEqual(r.key, 'firstmeal');
+  assert.strictEqual(r.pct, 0);
+  // A missing day object reads the same way, so a first-ever open cannot render a blank line.
+  assert.strictEqual(Game.oneThing(null).key, 'firstmeal');
+});
+
+test('oneThing: protein outranks fibre and calories, and reports what is left', () => {
+  const r = Game.oneThing({ logged: true, protein: 112, proteinTarget: 150, fiber: 4, fiberTarget: 30, kcal: 900, kcalTarget: 2400 });
+  assert.strictEqual(r.key, 'protein');
+  assert.strictEqual(r.remaining, 38);
+  assert.strictEqual(r.unit, 'g');
+  assert.strictEqual(r.pct, 75);
+});
+
+test('oneThing: the remainder rounds UP, so a part-gram never reads as done', () => {
+  const r = Game.oneThing({ logged: true, protein: 149.2, proteinTarget: 150, fiber: 30, fiberTarget: 30, kcal: 2400, kcalTarget: 2400 });
+  assert.strictEqual(r.key, 'protein');
+  assert.strictEqual(r.remaining, 1);
+});
+
+test('oneThing: with protein done it moves to fibre, then to calories', () => {
+  const base = { logged: true, protein: 150, proteinTarget: 150, fiber: 12, fiberTarget: 30, kcal: 1800, kcalTarget: 2400 };
+  assert.strictEqual(Game.oneThing(base).key, 'fibre');
+  assert.strictEqual(Game.oneThing(base).remaining, 18);
+  const fed = Object.assign({}, base, { fiber: 30 });
+  assert.strictEqual(Game.oneThing(fed).key, 'fuel');
+  assert.strictEqual(Game.oneThing(fed).remaining, 600);
+  assert.strictEqual(Game.oneThing(fed).unit, 'kcal');
+});
+
+test('oneThing: a finished day has nothing outstanding', () => {
+  assert.strictEqual(Game.oneThing({ logged: true, protein: 150, proteinTarget: 150, fiber: 31, fiberTarget: 30, kcal: 2400, kcalTarget: 2400 }), null);
+});
+
+test('oneThing: being OVER on calories is not an unfinished thing', () => {
+  assert.strictEqual(Game.oneThing({ logged: true, protein: 160, proteinTarget: 150, fiber: 35, fiberTarget: 30, kcal: 3200, kcalTarget: 2400 }), null);
+});
+
+test('oneThing: a target that does not exist yet is skipped, not divided by', () => {
+  const r = Game.oneThing({ logged: true, protein: 10, proteinTarget: 0, fiber: 2, fiberTarget: 0, kcal: 500, kcalTarget: 2000 });
+  assert.strictEqual(r.key, 'fuel');
+  assert.ok(Number.isFinite(r.pct));
+});
+
+test('oneThing: priority matches buddyCraving, so the card and the buddy cannot disagree', () => {
+  // Protein short, fibre short: both must name protein.
+  const q = { logged: true, proteinHit: false, fiberHit: false, kcalIn: false };
+  assert.strictEqual(Game.buddyCraving(q), 'protein');
+  assert.strictEqual(Game.oneThing({ logged: true, protein: 50, proteinTarget: 150, fiber: 1, fiberTarget: 30, kcal: 800, kcalTarget: 2400 }).key, 'protein');
+});
+
+// ---- comeback: returning after a real lapse has to pay ----
+
+test('comeback: yesterday is not a comeback', () => {
+  assert.strictEqual(Game.comeback('2026-07-25', '2026-07-26', true), null);
+});
+
+test('comeback: one missed day is the freeze’s job, not a comeback', () => {
+  assert.strictEqual(Game.comeback('2026-07-24', '2026-07-26', true), null);
+});
+
+test('comeback: two missed days and a return pays out and wakes the buddy', () => {
+  const c = Game.comeback('2026-07-23', '2026-07-26', true);
+  assert.strictEqual(c.lapsedDays, 2);
+  assert.strictEqual(c.wake, true);
+  assert.strictEqual(c.amber, Game.COMEBACK_AMBER);
+});
+
+test('comeback: a long lapse reports the real length', () => {
+  assert.strictEqual(Game.comeback('2026-07-01', '2026-07-26', true).lapsedDays, 24);
+});
+
+test('comeback: nothing fires until they are actually active again', () => {
+  assert.strictEqual(Game.comeback('2026-07-01', '2026-07-26', false), null);
+  // A brand-new account has no last-active day to come back from.
+  assert.strictEqual(Game.comeback(null, '2026-07-26', true), null);
+});
+
+// ---- personalBests: the food-side answer to a training PR ----
+
+const WEEKS = [
+  { weekKey: '2026-W28', loggedDays: 4, proteinDays: 2, fibreDays: 1, perfectDays: 0 },
+  { weekKey: '2026-W29', loggedDays: 7, proteinDays: 6, fibreDays: 3, perfectDays: 2 },
+  { weekKey: '2026-W30', loggedDays: 5, proteinDays: 6, fibreDays: 5, perfectDays: 1 },
+];
+
+test('personalBests: each measure keeps its own high-water week', () => {
+  const b = Game.personalBests(WEEKS);
+  assert.strictEqual(b.loggedDays.value, 7);
+  assert.strictEqual(b.loggedDays.weekKey, '2026-W29');
+  assert.strictEqual(b.fibreDays.value, 5);
+  assert.strictEqual(b.fibreDays.weekKey, '2026-W30');
+});
+
+test('personalBests: a tie keeps the earlier week, so equalling a best is not beating it', () => {
+  // Protein hits 6 in W29 and again in W30; the best stays the week that got there first.
+  assert.strictEqual(Game.personalBests(WEEKS).proteinDays.weekKey, '2026-W29');
+});
+
+test('personalBests: no history is zeros, not undefined', () => {
+  const b = Game.personalBests([]);
+  Game.BEST_KEYS.forEach(k => { assert.strictEqual(b[k].value, 0); assert.strictEqual(b[k].weekKey, null); });
+  assert.strictEqual(Game.personalBests(null).proteinDays.value, 0);
+});
+
+test('bestsBeaten: only strictly better weeks count, and they carry the old number', () => {
+  const bests = Game.personalBests(WEEKS);
+  const beaten = Game.bestsBeaten(bests, { loggedDays: 7, proteinDays: 7, fibreDays: 5, perfectDays: 4 });
+  const keys = beaten.map(b => b.key).sort();
+  // loggedDays equalled (7) and fibreDays equalled (5) are NOT beats; protein and perfect are.
+  assert.deepStrictEqual(keys, ['perfectDays', 'proteinDays']);
+  assert.strictEqual(beaten.find(b => b.key === 'proteinDays').was, 6);
+});
+
+test('bestsBeaten: a first-ever week beats the zero baseline', () => {
+  const beaten = Game.bestsBeaten(Game.personalBests([]), { loggedDays: 3, proteinDays: 0, fibreDays: 0, perfectDays: 0 });
+  assert.deepStrictEqual(beaten.map(b => b.key), ['loggedDays']);
+  assert.strictEqual(Game.bestsBeaten({}, null).length, 0);
+});
+
+test('buddyView: a comeback wakes the buddy the same day instead of after WAKE_DAYS', () => {
+  // Best-ever stage 4, back to a 1-day run: normally asleep with 2 days to wake.
+  const napping = Game.buddyView(4, 1);
+  assert.strictEqual(napping.asleep, true);
+  assert.strictEqual(napping.wakeIn, Game.WAKE_DAYS - 1);
+  const woken = Game.buddyView(4, 1, true);
+  assert.strictEqual(woken.asleep, false);
+  assert.strictEqual(woken.wakeIn, 0);
+  // The stage high-water is untouched either way.
+  assert.strictEqual(woken.stage, 4);
+});

@@ -15,15 +15,20 @@ exist to the surfaces that need them.
 
 ## Scoreboard
 
-| # | Principle | State today | Lift |
+| # | Principle | State before | Now |
 |---|---|---|---|
-| 1 | Never show a new user a zero | Partly built (egg + checklist) | Small |
-| 2 | Make winning feel possible | **Missing entirely** | Large (backend) |
-| 3 | Make progress shared | **Missing** (referral graph only) | Large (backend) |
-| 4 | Always leave one thing unfinished | **Contradicted** | Medium (design) |
-| 5 | Reward the comeback | Built but invisible | Small |
-| 6 | Something worth keeping | Built, fires once | Small |
-| 7 | Reward getting better | Done in Train, missing in food | Medium |
+| 1 | Never show a new user a zero | Partly built (egg + checklist) | **Built** |
+| 2 | Make winning feel possible | **Missing entirely** | Still to do (backend) |
+| 3 | Make progress shared | **Missing** (referral graph only) | Still to do (backend) |
+| 4 | Always leave one thing unfinished | **Contradicted** | **Built** |
+| 5 | Reward the comeback | Built but invisible | **Built** |
+| 6 | Something worth keeping | Built, fires once | **Built** |
+| 7 | Reward getting better | Done in Train, missing in food | **Built** |
+
+Five of the seven are implemented and on this branch; the sections below describe what
+was built and why. Only 2 and 3 remain, because both need a migration, an edge
+function and a decision about what a user is willing to show other people — see
+those sections for the shape and the privacy constraint.
 
 ---
 
@@ -250,19 +255,39 @@ of seven, my best yet" passes it in a way "you have 1,240 Amber" never will.
 
 ---
 
+## What shipped, and one thing found on the way
+
+Implementing #1 turned up a real bug rather than a gap. The hatch staples read
+`hatchEt.eff.protein`, but `eff` only ever carries `protein_g` — so that target was
+`undefined`, the protein staple could never tick, `hatchStaplesDone` was never true,
+and **a new account's egg could not hatch from finishing the staples at all**. The
+getting-started checklist a few hundred lines away had the key right, which is why it
+went unnoticed. Fixed alongside the rest.
+
+Verified end-to-end in Chromium against the built bundle, walking the real
+first-run flow (`?demo&onboard`): a brand-new account's first Today now reads
+`ONE THING LEFT · Log your first meal`, a `1d` streak, `Incubating · 2/5` with
+"Created your account" already banked, and 50 Amber in the shop. On an established
+account the one-thing line reads `56g protein to go` and agrees exactly with the
+protein meter beneath it, and the streak-freeze rescue announces itself.
+
 ## Suggested order
 
-1. **#4, one thing unfinished** — highest impact, no backend, and it fixes a screen
-   that currently works against the user's attention.
-2. **#5, comeback** — nearly free; the logic is written and only needs to be spoken.
-3. **#6, share cards** — nearly free; the renderer exists.
-4. **#1, no zeros** — small, self-contained, touches only first-run.
-5. **#7, personal bests** — medium, pure logic plus one new block in the cabinet.
-6. **#2 and #3, leagues and shared streaks** — together, once the opt-in and display
-   name model is settled. They share a migration, an RLS shape and a cron, so
-   building them as one piece of work costs materially less than two.
+1. ~~**#4, one thing unfinished**~~ — done. `Game.oneThing`, rendered at the top of
+   the hero card.
+2. ~~**#5, comeback**~~ — done. `Game.comeback`, the freeze toast, and a buddy that
+   wakes on return.
+3. ~~**#6, share cards**~~ — done. `shareMilestone` generalised; buttons on the
+   stage-up and weekly-recap moments.
+4. ~~**#1, no zeros**~~ — done, plus the hatch bug above.
+5. ~~**#7, personal bests**~~ — done. `Game.personalBests` / `bestsBeaten`, a
+   "Your bests" block, and a toast when a week beats one.
+6. **#2 and #3, leagues and shared streaks** — remaining. Build them together, once
+   the opt-in and display-name model is settled: they share a migration, an RLS
+   shape and a cron, so doing them as one piece of work costs materially less than
+   two.
 
-The first five are client-side and `app/game.js` only: pure functions with unit
-tests, then wiring, then `node build.mjs` to regenerate the bundled `index.html`.
-The last needs a migration, an edge function, and a decision about what a user is
-willing to show other people on an app that knows their weight.
+The five that shipped are client-side and `app/game.js` only: pure functions with
+unit tests, then wiring, then `node build.mjs` to regenerate the bundled
+`index.html`. The last needs a migration, an edge function, and a decision about
+what a user is willing to show other people on an app that knows their weight.

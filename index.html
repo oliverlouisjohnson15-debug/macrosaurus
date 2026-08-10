@@ -3048,6 +3048,24 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   }
   function freezeReady(frozenSet, today) { var mo = today.slice(0, 7); var ok = true; frozenSet.forEach(function (fd) { if (fd.slice(0, 7) === mo) ok = false; }); return ok; }
 
+  // THE COMEBACK. Everyone misses days. A single miss is already forgiven silently by the monthly
+  // freeze above, so a "comeback" only means something after a gap the freeze could not cover:
+  // two or more missed days, then a day where they showed up again.
+  //
+  // The point is that returning has to PAY, immediately. Without this the buddy stays asleep for
+  // WAKE_DAYS after a lapse, so someone coming back logs, sees nothing change, and leaves again -
+  // punishing exactly the behaviour we want. A comeback wakes it the same day and mints Amber.
+  // `gap` counts calendar days between the last active day and today, so a gap of 1 is yesterday
+  // (no miss at all) and a gap of 2 is the one missed day the freeze already handles.
+  var COMEBACK_MIN_GAP = 3;    // days since last active before a return reads as a comeback
+  var COMEBACK_AMBER = 20;
+  function comeback(lastActiveISO, today, activeToday) {
+    if (!lastActiveISO || !activeToday || !today) return null;
+    var gap = daysBetween(lastActiveISO, today);
+    if (!(gap >= COMEBACK_MIN_GAP)) return null;
+    return { lapsedDays: gap - 1, wake: true, amber: COMEBACK_AMBER };
+  }
+
   // Buddy stage thresholds (art lives in app.jsx alongside the sprites).
   var STAGE_MINS = [0, 1, 3, 7, 14, 30];
   var WAKE_DAYS = 3;
@@ -3055,10 +3073,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // High-water buddy: the stage never falls back to the egg. After a break the buddy
   // shows its best-ever stage ASLEEP, and wakes once the new run reaches WAKE_DAYS
   // active days. The stage only ratchets up when the current run beats the high water.
-  function buddyView(hwStage, streak) {
+  // `forceWake` is the comeback override (see `comeback` above): somebody returning from a real lapse
+  // has their buddy wake THAT DAY rather than after WAKE_DAYS, because three days of logging with no
+  // visible change is how a returning user leaves again.
+  function buddyView(hwStage, streak, forceWake) {
     var cur = stageIndex(streak || 0);
     var hw = Math.max(hwStage || 0, cur);
-    var asleep = cur < hw && (streak || 0) < WAKE_DAYS;
+    var asleep = !forceWake && cur < hw && (streak || 0) < WAKE_DAYS;
     return { stage: hw, cur: cur, asleep: asleep, wakeIn: asleep ? WAKE_DAYS - (streak || 0) : 0, ratchet: cur > (hwStage || 0) };
   }
   // The growth stage that deserves a celebration right now, or null. `stageSeen` is the highest stage
@@ -3125,6 +3146,32 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     if (!todayQ.proteinHit) return 'protein';
     if (!todayQ.fiberHit) return 'fibre';
     if (!todayQ.kcalIn) return 'fuel';
+    return null;
+  }
+
+  // THE ONE OPEN LOOP. buddyCraving names what the buddy wants; this says how far away it is, so the
+  // day has exactly ONE thing that reads as unfinished instead of four bars all part-full. Same
+  // priority order as buddyCraving, so the number on the card and the word from the buddy can never
+  // point at different macros. Returns null on a finished day: one thing outstanding, or nothing.
+  //
+  // The closing point is the FULL target, not dayQuality's 90% scoring floor. The two answer
+  // different questions - dayQuality asks "was this a good day, for the dex", this asks "what is
+  // left to do" - and closing at the full number keeps the line honest against the bar beside it.
+  // Being over on calories is not unfinished, so `fuel` only opens while still under.
+  function oneThing(d) {
+    if (!d || !d.logged) return { key: 'firstmeal', label: 'First meal', remaining: null, unit: '', pct: 0 };
+    var steps = [
+      { key: 'protein', label: 'Protein', have: +d.protein || 0, need: +d.proteinTarget || 0, unit: 'g' },
+      { key: 'fibre', label: 'Fibre', have: +d.fiber || 0, need: +d.fiberTarget || 0, unit: 'g' },
+      { key: 'fuel', label: 'Calories', have: +d.kcal || 0, need: +d.kcalTarget || 0, unit: 'kcal' },
+    ];
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      if (s.need > 0 && s.have < s.need) {
+        return { key: s.key, label: s.label, remaining: Math.ceil(s.need - s.have), unit: s.unit,
+                 pct: Math.max(0, Math.min(100, Math.round(s.have / s.need * 100))) };
+      }
+    }
     return null;
   }
 
@@ -3520,7 +3567,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // ---- Amber: the spendable currency, an APPEND-ONLY LEDGER so it merges conflict-free (like catch_log) ----
   // Never store Amber as a bare mutable number: the state merge unions append-only collections, so a
   // ledger of {id, date, delta, reason} entries can never be lost or double-counted. Balance = sum(delta).
-  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10 };
+  // `welcome` is the signup stake: nobody should reach the home screen holding zero of the app's
+  // currency, so the shop reads as a place they already have a stake in rather than a locked door.
+  var AMBER_REWARDS = { welcome: 50, daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10, comeback: COMEBACK_AMBER };
   // The daily hunt pays a little; every 5th clear in a row tops up, so consistency compounds.
   function amberDailyReward(streak) {
     var base = AMBER_REWARDS.daily;
@@ -3721,6 +3770,41 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return { daysLogged: loggedDays.length, totalDays: days.length, avgKcal: avgKcal, proteinDaysHit: proteinDaysHit, proteinTarget: proteinTarget, trendDeltaKg: trendDeltaKg };
   }
 
+  // PERSONAL BESTS, the food-side answer to Train's personal records (see Training.prKind). Streaks
+  // and Amber reward turning up; nothing rewarded getting BETTER at eating, which is the thing people
+  // can actually explain in one sentence ("six protein days, my best yet") in a way a currency
+  // balance never is. Takes finished weeks, newest or oldest first, and returns the high-water mark
+  // for each measure with the week it was set.
+  //
+  // Ties keep the EARLIER week: a best is not beaten by equalling it, so re-hitting 6/7 does not
+  // re-fire the celebration every week.
+  var BEST_KEYS = ['loggedDays', 'proteinDays', 'fibreDays', 'perfectDays'];
+  function personalBests(weeks) {
+    var out = {};
+    BEST_KEYS.forEach(function (k) { out[k] = { value: 0, weekKey: null }; });
+    (weeks || []).forEach(function (w) {
+      if (!w) return;
+      BEST_KEYS.forEach(function (k) {
+        var v = +w[k] || 0;
+        if (v > out[k].value) out[k] = { value: v, weekKey: w.weekKey || null };
+      });
+    });
+    return out;
+  }
+  // Which measures the current week has BEATEN (strictly) against bests built from the weeks before
+  // it. Returns [{ key, value, was }], so the caller can celebrate the moment it happens and say
+  // what the old number was.
+  function bestsBeaten(bests, current) {
+    if (!current) return [];
+    var out = [];
+    BEST_KEYS.forEach(function (k) {
+      var was = ((bests || {})[k] || {}).value || 0;
+      var v = +current[k] || 0;
+      if (v > was) out.push({ key: k, value: v, was: was });
+    });
+    return out;
+  }
+
   // The next uncelebrated goal milestone, or null. Fires the biggest whole-kg step of net progress not
   // yet shown, plus a one-off "reached" when the trend meets the goal. `celebrated` is the keys already
   // shown; coveredKeys lets the caller mark everything up to here at once, so a big jump (e.g. a first
@@ -3873,6 +3957,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     WEIGH_WEEKLY_GRACE: WEIGH_WEEKLY_GRACE,
     weighDue: weighDue,
     weeklyRecap: weeklyRecap,
+    oneThing: oneThing,
+    COMEBACK_MIN_GAP: COMEBACK_MIN_GAP,
+    COMEBACK_AMBER: COMEBACK_AMBER,
+    comeback: comeback,
+    BEST_KEYS: BEST_KEYS,
+    personalBests: personalBests,
+    bestsBeaten: bestsBeaten,
     goalMilestone: goalMilestone,
     trendRatePerWeek: trendRatePerWeek,
     goalETA: goalETA,
@@ -11844,6 +11935,77 @@ function QualityBar({
     }
   }, nd.uncovered, " kcal couldn't be scored"));
 }
+/* THE ONE OPEN LOOP, at the top of the hero card.
+   Today shows four macro bars, a balance slider, a buddy and three recovery dials, so at any moment
+   several things are part-done and none of them is THE thing. This is the one line that says what is
+   actually outstanding and exactly how far away it is - and it is the only element on the screen
+   allowed to read as unfinished. When the day closes it flips to a finished state rather than
+   lingering as another half-full bar: one thing outstanding, or nothing.
+   Game.oneThing picks it, in the same priority order the buddy speaks in, so the number here and the
+   word from the buddy can never name different macros. */
+const ONE_THING_SUFFIX = {
+  protein: 'protein to go',
+  fibre: 'fibre to go',
+  fuel: 'calories to go'
+};
+function OneThingLine({
+  one,
+  onGo
+}) {
+  const done = !one;
+  const first = !done && one.key === 'firstmeal';
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mb-3 pb-3",
+    style: {
+      borderBottom: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: done ? undefined : onGo,
+    disabled: done,
+    className: "w-full flex items-center gap-3 text-left active:opacity-60 transition-opacity",
+    style: {
+      background: 'transparent',
+      border: 0,
+      padding: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase mb-1.5",
+    style: {
+      color: done ? 'var(--good-ink)' : 'var(--accent-ink)'
+    }
+  }, done ? 'Today is done' : 'One thing left'), /*#__PURE__*/React.createElement("div", {
+    className: "text-[15px] font-bold leading-tight truncate",
+    style: {
+      color: done ? 'var(--muted)' : 'var(--text)'
+    }
+  }, done ? 'Nothing left to close' : first ? 'Log your first meal' : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "tnum"
+  }, one.remaining, one.unit === 'g' ? 'g' : ''), one.unit === 'kcal' ? ' kcal' : '', " ", ONE_THING_SUFFIX[one.key]))), done ? /*#__PURE__*/React.createElement("span", {
+    className: "w-6 h-6 flex items-center justify-center shrink-0",
+    style: {
+      background: 'var(--good)',
+      color: '#fff'
+    }
+  }, /*#__PURE__*/React.createElement(Tick, {
+    size: 13
+  })) : /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[8px] uppercase shrink-0",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Log ›")), !done && !first && /*#__PURE__*/React.createElement("div", {
+    className: "mt-2"
+  }, /*#__PURE__*/React.createElement(PipMeter, {
+    value: one.pct,
+    target: 100,
+    color: 'var(--accent)',
+    small: true,
+    overIsFine: true
+  })));
+}
 function MacroSummaryCard({
   et,
   tot,
@@ -17932,8 +18094,15 @@ function renderMilestoneCard({
   ctx.fillText('Track macros. Catch dinos.  macrosaurus.com', S / 2, 1004);
   return cv;
 }
+// The card renderer above was always generic; only this caption was welded to goal milestones, which
+// is why the app rendered a share card for exactly one of the half-dozen moments it already
+// celebrates. `payload.text` lets any of them supply its own line and reuse the whole chain: canvas,
+// Web Share with files, plain Web Share, then download-plus-copy.
 async function shareMilestone(payload, toast) {
-  const text = (payload.reached ? "Hit my goal weight on Macrosaurus! " : payload.headline + ' on Macrosaurus. ') + 'Track macros, catch dinos: ' + SHARE_URL;
+  // Callers supply the lead sentence only; the tagline and link are appended here so no new share
+  // surface can ship without the link that makes sharing worth anything.
+  const lead = payload.text || (payload.reached ? "Hit my goal weight on Macrosaurus! " : payload.headline + ' on Macrosaurus. ');
+  const text = lead + 'Track macros, catch dinos: ' + SHARE_URL;
   let blob = null;
   try {
     const cv = renderMilestoneCard(payload);
@@ -19462,6 +19631,67 @@ function blockFinished(db) {
   return (t.blocks || []).some(b => (b.sessions || []).length > 0 && b.sessions.every(s => logged[s.id]));
 }
 // Trophy cabinet: trophies won, shiny gallery, streak records and the badge tracks.
+/* PERSONAL BESTS, the food-side answer to Train's personal records.
+   Streaks and Amber both reward turning up; nothing rewarded getting BETTER at eating. These are the
+   numbers a person can actually say out loud - "six protein days, my best yet" - which an Amber
+   balance never is.
+   Finished weeks only (Monday-Sunday, the current part-week excluded): a best set on three days of a
+   week still in progress is not a week. Capped at a year because dayQuality recomposes each day's
+   target from history, and nobody needs a best from 2019 to know how this week went. */
+const BEST_WEEKS_CAP = 52;
+function mondayOf(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return shiftISO(iso, -((d.getDay() + 6) % 7));
+}
+function weeklyBestInputs(db, today) {
+  const dates = (db.log_entries || []).map(e => e.date).sort();
+  if (!dates.length) return [];
+  const curMon = mondayOf(today);
+  const capMon = shiftISO(curMon, -7 * BEST_WEEKS_CAP);
+  let m = mondayOf(dates[0]);
+  if (m < capMon) m = capMon;
+  const out = [];
+  for (; m < curMon; m = shiftISO(m, 7)) {
+    let loggedDays = 0,
+      proteinDays = 0,
+      fibreDays = 0,
+      perfectDays = 0;
+    for (let i = 0; i < 7; i++) {
+      const q = dayQuality(db, shiftISO(m, i));
+      if (!q) continue;
+      loggedDays++;
+      if (q.proteinHit) proteinDays++;
+      if (q.fiberHit) fibreDays++;
+      if (q.perfect) perfectDays++;
+    }
+    if (loggedDays) out.push({
+      weekKey: m,
+      loggedDays,
+      proteinDays,
+      fibreDays,
+      perfectDays
+    });
+  }
+  return out;
+}
+const BEST_LABEL = {
+  loggedDays: {
+    label: 'Days logged in a week',
+    hint: 'showing up'
+  },
+  proteinDays: {
+    label: 'Protein target hit',
+    hint: 'days in one week'
+  },
+  fibreDays: {
+    label: 'Fibre goal reached',
+    hint: 'days in one week'
+  },
+  perfectDays: {
+    label: 'Perfect days in a week',
+    hint: 'every macro landed'
+  }
+};
 function TrophyCabinet({
   db,
   streak,
@@ -19475,6 +19705,9 @@ function TrophyCabinet({
   };
   const longest = Math.max(db.records && db.records.longestStreak || 0, streak || 0);
   const trophyIds = ['amber', 'belt'].filter(id => (items[id] || 0) > 0);
+  // Memoised: this recomposes a year of daily targets, and the cabinet re-renders on every tab back.
+  const weeks = useMemo(() => weeklyBestInputs(db, Store.todayISO()), [db.log_entries, db.targets]);
+  const bests = weeks.length ? Game.personalBests(weeks) : null;
   const Track = ({
     label,
     count,
@@ -19547,7 +19780,27 @@ function TrophyCabinet({
     }
   }, longest), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90]"
-  }, "longest ever"))), /*#__PURE__*/React.createElement("div", {
+  }, "longest ever"))), bests && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Your bests"), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2 mb-4"
+  }, Game.BEST_KEYS.map(k => /*#__PURE__*/React.createElement("div", {
+    key: k,
+    className: "pixel-box p-3",
+    style: {
+      background: 'var(--surface3)',
+      boxShadow: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xl font-bold tnum",
+    style: {
+      color: bests[k].value > 0 ? 'var(--good-ink)' : 'var(--muted)'
+    }
+  }, bests[k].value, /*#__PURE__*/React.createElement("span", {
+    className: "text-[11px] text-[#8A8A90]"
+  }, "/7")), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] text-[#8A8A90] leading-snug"
+  }, BEST_LABEL[k].label))))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
   }, "Badges"), /*#__PURE__*/React.createElement(Track, {
     label: "Check-ins completed",
@@ -21314,6 +21567,22 @@ function WeeklyRecapSheet({
     label: 'At this pace',
     value: proj.short
   });
+  const stage = BUDDY_STAGES[Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)];
+  const [busy, setBusy] = useState(false);
+  async function doShare() {
+    setBusy(true);
+    try {
+      await shareMilestone({
+        headline: r.daysLogged + '/7 days',
+        sub: 'logged this week',
+        name: who,
+        art: stage.art,
+        colors: stage.colors,
+        text: 'Logged ' + r.daysLogged + '/7 days on Macrosaurus this week' + (r.proteinTarget > 0 ? ', hitting protein ' + r.proteinDaysHit + ' of them' : '') + '. '
+      }, null);
+    } catch (_) {}
+    setBusy(false);
+  }
   const line = proj ? proj.text + " Keep showing up and I'll get you there." : r.daysLogged >= 6 ? "Rock-solid week. This is exactly how we win, together." : r.daysLogged >= 3 ? "Good going. A couple more logged days next week and I'll read you even sharper." : "Every day you log helps me read you better. Let's aim for a few more this week.";
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4",
@@ -21372,14 +21641,24 @@ function WeeklyRecapSheet({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "”")), onOpenProgress && /*#__PURE__*/React.createElement("button", {
+  }, "”")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: doShare,
+    disabled: busy,
+    className: "pixel-btn flex-1 py-2.5 text-[10px]",
+    style: {
+      background: 'var(--surface2)',
+      opacity: busy ? 0.6 : 1
+    }
+  }, busy ? '…' : 'SHARE'), onOpenProgress && /*#__PURE__*/React.createElement("button", {
     onClick: onOpenProgress,
-    className: "pixel-btn w-full py-2.5 text-[10px]",
+    className: "pixel-btn flex-1 py-2.5 text-[10px]",
     style: {
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "SEE FULL PROGRESS")));
+  }, "FULL PROGRESS"))));
 }
 // One dial in the recovery card: the headline number with room to breathe, a short status word, and an
 // ascending pixel "power-level" meter (a fighting-game gauge, not a played-out ring). Consistent across
@@ -22661,6 +22940,21 @@ function StageUpCelebration({
   const line = STAGE_UP_LINES[crHash((db.game_salt || '') + 'stage' + stage) % STAGE_UP_LINES.length];
   const fromPx = 5 * stageScale(Math.max(0, stage - 1));
   const toPx = 5 * stageScale(stage);
+  const [busy, setBusy] = useState(false);
+  async function doShare() {
+    setBusy(true);
+    try {
+      await shareMilestone({
+        headline: st.name,
+        sub: who + ' grew',
+        name: who,
+        art: st.art,
+        colors: st.colors,
+        text: who + ' grew into a ' + st.name + ' on Macrosaurus. '
+      }, null);
+    } catch (_) {}
+    setBusy(false);
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-[95] overflow-y-auto",
     style: {
@@ -22762,14 +23056,24 @@ function StageUpCelebration({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "”")), /*#__PURE__*/React.createElement("button", {
+  }, "”")), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 w-full max-w-xs"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: doShare,
+    disabled: busy,
+    className: "pixel-btn flex-1 py-3 text-[10px] pf",
+    style: {
+      background: 'var(--surface2)',
+      opacity: busy ? 0.6 : 1
+    }
+  }, busy ? '…' : 'SHARE'), /*#__PURE__*/React.createElement("button", {
     onClick: onClose,
-    className: "pixel-btn w-full max-w-xs py-3 text-[10px] pf",
+    className: "pixel-btn flex-1 py-3 text-[10px] pf",
     style: {
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "NICE ONE")));
+  }, "NICE ONE"))));
 }
 // The HATCH moment, fired from Today once the onboarding staples are done: the egg wobbles, cracks
 // and hatches, revealing the dino for the very first time - THEN you name it (with a fun name
@@ -23382,6 +23686,17 @@ function Dashboard({
   });
   const remCarbs = Math.max(0, Math.round(et.eff.carbs_g - todayTot.carbs));
   const remFat = Math.max(0, Math.round(et.eff.fat_g - todayTot.fat));
+  // The day's single open loop, fed the same targets the meters below it draw from so the line and
+  // the bars can never disagree about what is left.
+  const oneThing = Game.oneThing({
+    logged: entriesOn(db, today).length > 0,
+    protein: todayTot.protein,
+    proteinTarget: et.eff.protein_g,
+    fiber: todayTot.fiber,
+    fiberTarget: E.fiberTarget(et.eff.kcal).min,
+    kcal: todayTot.kcal,
+    kcalTarget: et.eff.kcal
+  });
   // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
   // with a monthly freeze forgiving one miss.
   const frozenSet = new Set(db.freezes && db.freezes.frozen || []);
@@ -23391,6 +23706,25 @@ function Dashboard({
   const streak = streakInfo.streak;
   // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
   // pays out (not only fights). Idempotent by ledger id (amber:log:<date>), so it can never double-pay.
+  // The signup stake. A brand-new account otherwise reaches the home screen holding nothing: no
+  // streak, no dex, and a shop it cannot afford a single thing in. Granted only while the account is
+  // genuinely fresh (nothing logged yet), so an established user syncing onto a new device never
+  // qualifies, and idempotent by ledger id on top of that.
+  useEffect(() => {
+    const key = 'amber:welcome';
+    if ((db.log_entries || []).length) return;
+    if ((db.amber_ledger || []).some(e => e.id === key)) return;
+    update(d => {
+      d.amber_ledger = d.amber_ledger || [];
+      if (d.amber_ledger.some(e => e.id === key)) return;
+      d.amber_ledger.push({
+        id: key,
+        date: today,
+        delta: Game.AMBER_REWARDS.welcome,
+        reason: 'Welcome to Macrosaurus'
+      });
+    });
+  }, [db.log_entries, db.amber_ledger, today]);
   useEffect(() => {
     const key = 'amber:log:' + today;
     if (!(db.log_entries || []).some(e => e.date === today)) return;
@@ -23423,10 +23757,72 @@ function Dashboard({
     });
     if (showToast) showToast(earned.length === 1 ? 'Trophy unlocked: ' + earned[0].name : earned.length + ' new trophies unlocked', 'See', () => onOpenPlay && onOpenPlay());
   }, [streak, isPremium, today, db.log_entries, db.buddy && db.buddy.stage, db.fight && db.fight.prestige]);
+  // PERSONAL BESTS: say it the moment a finished week beats one. Rewarding improvement rather than
+  // attendance is the whole point, and a best nobody is told about is the freeze problem all over
+  // again. Gated on a once-per-week marker BEFORE the work, because weeklyBestInputs recomposes a
+  // year of daily targets and must not run on every log; the per-measure keys then make the
+  // announcement itself idempotent across devices.
+  useEffect(() => {
+    const lastMon = shiftISO(mondayOf(today), -7);
+    const checked = 'bestcheck:' + lastMon;
+    if ((db.game_awards || {})[checked]) return;
+    const weeks = weeklyBestInputs(db, today);
+    const last = weeks.length ? weeks[weeks.length - 1] : null;
+    if (!last || last.weekKey !== lastMon) {
+      update(d => {
+        d.game_awards = d.game_awards || {};
+        d.game_awards[checked] = today;
+      });
+      return;
+    }
+    const beaten = Game.bestsBeaten(Game.personalBests(weeks.slice(0, -1)), last).filter(x => !(db.game_awards || {})['best:' + last.weekKey + ':' + x.key]);
+    update(d => {
+      d.game_awards = d.game_awards || {};
+      d.game_awards[checked] = today;
+      beaten.forEach(x => {
+        d.game_awards['best:' + last.weekKey + ':' + x.key] = today;
+      });
+    });
+    if (beaten.length && showToast) {
+      const top = beaten[0];
+      showToast('Best week yet · ' + BEST_LABEL[top.key].label.toLowerCase() + ' ' + top.value + '/7', 'Bests', () => onOpenPlay && onOpenPlay());
+    }
+  }, [db.log_entries, today]);
+  // THE COMEBACK. A lapse the monthly freeze could not cover, followed by a day they showed up again.
+  // Returning has to pay on the spot: Amber, and a buddy that wakes today rather than in three days.
+  // Idempotent by ledger id, like every other grant, so it pays once however many times this renders.
+  let lastActiveISO = null;
+  activeSet.forEach(d => {
+    if (d < today && (!lastActiveISO || d > lastActiveISO)) lastActiveISO = d;
+  });
+  const comeback = Game.comeback(lastActiveISO, today, activeSet.has(today));
+  const cameBackToday = !!(db.buddy && db.buddy.wokeISO === today);
+  useEffect(() => {
+    if (!comeback) return;
+    const key = 'amber:comeback:' + today;
+    if ((db.amber_ledger || []).some(e => e.id === key)) return;
+    update(d => {
+      d.amber_ledger = d.amber_ledger || [];
+      if (d.amber_ledger.some(e => e.id === key)) return;
+      d.amber_ledger.push({
+        id: key,
+        date: today,
+        delta: comeback.amber,
+        reason: 'Welcome back'
+      });
+      d.buddy = d.buddy || {
+        stage: 0
+      };
+      d.buddy.wokeISO = today;
+    });
+    if (showToast) showToast((db.buddy && db.buddy.name || 'Your buddy') + ' woke up the moment you came back · +' + comeback.amber + ' Amber', 'Shop', () => onOpenPlay && onOpenPlay());
+  }, [comeback && comeback.lapsedDays, today]);
   const freezeAvail = freezeReady(frozenSet, today);
   const newFrozenKey = streakInfo.newFrozen.join(',');
   useEffect(() => {
     if (!newFrozenKey) return;
+    const already = new Set(db.freezes && db.freezes.frozen || []);
+    const fresh = newFrozenKey.split(',').filter(x => !already.has(x));
     update(d => {
       d.freezes = d.freezes || {
         frozen: []
@@ -23435,6 +23831,10 @@ function Dashboard({
       newFrozenKey.split(',').forEach(x => s.add(x));
       d.freezes.frozen = Array.from(s).sort().slice(-120);
     });
+    // Say it out loud. The freeze has always rescued the streak silently, which meant the single most
+    // forgiving thing the app does was the one thing nobody knew about. A rescue nobody notices is
+    // not a reward. Only fires for a date not already forgiven, so a re-render cannot re-announce it.
+    if (fresh.length && showToast) showToast('Streak freeze used · your ' + streak + '-day streak is safe');
   }, [newFrozenKey]);
   // Per-user catch seeding: mint a stable random salt once, so daily rolls differ between users.
   useEffect(() => {
@@ -23447,7 +23847,9 @@ function Dashboard({
   // Buddy is a HIGH-WATER mark: the stage never falls back to the egg. After a break it
   // naps at its best-ever stage and wakes after 3 active days. Also track the longest streak.
   const buddyHw = db.buddy && db.buddy.stage || 0;
-  const buddy = Game.buddyView(buddyHw, streak);
+  // `cameBackToday` keeps it awake for the rest of the comeback day, including the renders after the
+  // grant lands, so the wake does not flicker back to a nap while the streak is still only 1.
+  const buddy = Game.buddyView(buddyHw, streak, !!comeback || cameBackToday);
   const buddyLvl = useMemo(() => buddyLevel(db), [db.log_entries]);
   const bp = buddyProfile(db, streak, buddy, buddyLvl);
   // Hatch trigger: a brand-new account's egg hatches once the core onboarding STAPLES are done - the
@@ -23457,8 +23859,19 @@ function Dashboard({
   const [hatching, setHatching] = useState(false);
   const eggIncubating = !!(db.buddy && db.buddy.hatched === false);
   const hatchEt = effectiveTarget(db, today);
-  const hatchProteinTgt = hatchEt ? hatchEt.eff.protein : 0;
-  const hatchTasks = [{
+  // `eff` carries protein_g, never protein: reading the wrong key left this target undefined, which
+  // made the protein staple permanently unticked and meant the egg could never hatch from finishing
+  // the staples at all. Matches OnboardingChecklist, which had it right.
+  const hatchProteinTgt = hatchEt ? hatchEt.eff.protein_g : 0;
+  const hatchTasks = [
+  // Creating the account IS the first task, banked before they do anything, so the very first
+  // screen a new user sees reads 1/5 rather than 0/4. Nobody should meet this app on a zero.
+  {
+    k: 'account',
+    label: 'Created your account',
+    done: true,
+    go: null
+  }, {
     k: 'meal',
     label: 'Log a meal',
     done: (db.log_entries || []).length > 0,
@@ -23750,7 +24163,10 @@ function Dashboard({
       outline: '3px solid var(--accent)',
       outlineOffset: 2
     }
-  }, /*#__PURE__*/React.createElement(MacroSummaryCard, {
+  }, /*#__PURE__*/React.createElement(OneThingLine, {
+    one: oneThing,
+    onGo: () => onQuickAdd(false)
+  }), /*#__PURE__*/React.createElement(MacroSummaryCard, {
     et: et,
     tot: tot,
     mode: mode,
@@ -35883,7 +36299,14 @@ function OnboardingChecklist({
   const et = effectiveTarget(db, today);
   const proteinTgt = et ? et.eff.protein_g : 0;
   const todayProtein = sumMacros(entriesOn(db, today)).protein;
-  const items = [{
+  const items = [
+  // Banked before they lift a finger, so the card opens above zero (see hatchTasks).
+  {
+    k: 'account',
+    label: 'Created your account',
+    done: true,
+    go: null
+  }, {
     k: 'meal',
     label: 'Log your first meal',
     done: db.log_entries.length > 0,

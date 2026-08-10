@@ -42,6 +42,24 @@
   }
   function freezeReady(frozenSet, today) { var mo = today.slice(0, 7); var ok = true; frozenSet.forEach(function (fd) { if (fd.slice(0, 7) === mo) ok = false; }); return ok; }
 
+  // THE COMEBACK. Everyone misses days. A single miss is already forgiven silently by the monthly
+  // freeze above, so a "comeback" only means something after a gap the freeze could not cover:
+  // two or more missed days, then a day where they showed up again.
+  //
+  // The point is that returning has to PAY, immediately. Without this the buddy stays asleep for
+  // WAKE_DAYS after a lapse, so someone coming back logs, sees nothing change, and leaves again -
+  // punishing exactly the behaviour we want. A comeback wakes it the same day and mints Amber.
+  // `gap` counts calendar days between the last active day and today, so a gap of 1 is yesterday
+  // (no miss at all) and a gap of 2 is the one missed day the freeze already handles.
+  var COMEBACK_MIN_GAP = 3;    // days since last active before a return reads as a comeback
+  var COMEBACK_AMBER = 20;
+  function comeback(lastActiveISO, today, activeToday) {
+    if (!lastActiveISO || !activeToday || !today) return null;
+    var gap = daysBetween(lastActiveISO, today);
+    if (!(gap >= COMEBACK_MIN_GAP)) return null;
+    return { lapsedDays: gap - 1, wake: true, amber: COMEBACK_AMBER };
+  }
+
   // Buddy stage thresholds (art lives in app.jsx alongside the sprites).
   var STAGE_MINS = [0, 1, 3, 7, 14, 30];
   var WAKE_DAYS = 3;
@@ -49,10 +67,13 @@
   // High-water buddy: the stage never falls back to the egg. After a break the buddy
   // shows its best-ever stage ASLEEP, and wakes once the new run reaches WAKE_DAYS
   // active days. The stage only ratchets up when the current run beats the high water.
-  function buddyView(hwStage, streak) {
+  // `forceWake` is the comeback override (see `comeback` above): somebody returning from a real lapse
+  // has their buddy wake THAT DAY rather than after WAKE_DAYS, because three days of logging with no
+  // visible change is how a returning user leaves again.
+  function buddyView(hwStage, streak, forceWake) {
     var cur = stageIndex(streak || 0);
     var hw = Math.max(hwStage || 0, cur);
-    var asleep = cur < hw && (streak || 0) < WAKE_DAYS;
+    var asleep = !forceWake && cur < hw && (streak || 0) < WAKE_DAYS;
     return { stage: hw, cur: cur, asleep: asleep, wakeIn: asleep ? WAKE_DAYS - (streak || 0) : 0, ratchet: cur > (hwStage || 0) };
   }
   // The growth stage that deserves a celebration right now, or null. `stageSeen` is the highest stage
@@ -119,6 +140,32 @@
     if (!todayQ.proteinHit) return 'protein';
     if (!todayQ.fiberHit) return 'fibre';
     if (!todayQ.kcalIn) return 'fuel';
+    return null;
+  }
+
+  // THE ONE OPEN LOOP. buddyCraving names what the buddy wants; this says how far away it is, so the
+  // day has exactly ONE thing that reads as unfinished instead of four bars all part-full. Same
+  // priority order as buddyCraving, so the number on the card and the word from the buddy can never
+  // point at different macros. Returns null on a finished day: one thing outstanding, or nothing.
+  //
+  // The closing point is the FULL target, not dayQuality's 90% scoring floor. The two answer
+  // different questions - dayQuality asks "was this a good day, for the dex", this asks "what is
+  // left to do" - and closing at the full number keeps the line honest against the bar beside it.
+  // Being over on calories is not unfinished, so `fuel` only opens while still under.
+  function oneThing(d) {
+    if (!d || !d.logged) return { key: 'firstmeal', label: 'First meal', remaining: null, unit: '', pct: 0 };
+    var steps = [
+      { key: 'protein', label: 'Protein', have: +d.protein || 0, need: +d.proteinTarget || 0, unit: 'g' },
+      { key: 'fibre', label: 'Fibre', have: +d.fiber || 0, need: +d.fiberTarget || 0, unit: 'g' },
+      { key: 'fuel', label: 'Calories', have: +d.kcal || 0, need: +d.kcalTarget || 0, unit: 'kcal' },
+    ];
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      if (s.need > 0 && s.have < s.need) {
+        return { key: s.key, label: s.label, remaining: Math.ceil(s.need - s.have), unit: s.unit,
+                 pct: Math.max(0, Math.min(100, Math.round(s.have / s.need * 100))) };
+      }
+    }
     return null;
   }
 
@@ -514,7 +561,9 @@
   // ---- Amber: the spendable currency, an APPEND-ONLY LEDGER so it merges conflict-free (like catch_log) ----
   // Never store Amber as a bare mutable number: the state merge unions append-only collections, so a
   // ledger of {id, date, delta, reason} entries can never be lost or double-counted. Balance = sum(delta).
-  var AMBER_REWARDS = { daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10 };
+  // `welcome` is the signup stake: nobody should reach the home screen holding zero of the app's
+  // currency, so the shop reads as a place they already have a stake in rather than a locked door.
+  var AMBER_REWARDS = { welcome: 50, daily: 15, dailyStreakBonus: 10, weekly: 60, weeklyFirst: 25, ladderRung: 5, perfectDay: 8, dailyLog: 10, comeback: COMEBACK_AMBER };
   // The daily hunt pays a little; every 5th clear in a row tops up, so consistency compounds.
   function amberDailyReward(streak) {
     var base = AMBER_REWARDS.daily;
@@ -715,6 +764,41 @@
     return { daysLogged: loggedDays.length, totalDays: days.length, avgKcal: avgKcal, proteinDaysHit: proteinDaysHit, proteinTarget: proteinTarget, trendDeltaKg: trendDeltaKg };
   }
 
+  // PERSONAL BESTS, the food-side answer to Train's personal records (see Training.prKind). Streaks
+  // and Amber reward turning up; nothing rewarded getting BETTER at eating, which is the thing people
+  // can actually explain in one sentence ("six protein days, my best yet") in a way a currency
+  // balance never is. Takes finished weeks, newest or oldest first, and returns the high-water mark
+  // for each measure with the week it was set.
+  //
+  // Ties keep the EARLIER week: a best is not beaten by equalling it, so re-hitting 6/7 does not
+  // re-fire the celebration every week.
+  var BEST_KEYS = ['loggedDays', 'proteinDays', 'fibreDays', 'perfectDays'];
+  function personalBests(weeks) {
+    var out = {};
+    BEST_KEYS.forEach(function (k) { out[k] = { value: 0, weekKey: null }; });
+    (weeks || []).forEach(function (w) {
+      if (!w) return;
+      BEST_KEYS.forEach(function (k) {
+        var v = +w[k] || 0;
+        if (v > out[k].value) out[k] = { value: v, weekKey: w.weekKey || null };
+      });
+    });
+    return out;
+  }
+  // Which measures the current week has BEATEN (strictly) against bests built from the weeks before
+  // it. Returns [{ key, value, was }], so the caller can celebrate the moment it happens and say
+  // what the old number was.
+  function bestsBeaten(bests, current) {
+    if (!current) return [];
+    var out = [];
+    BEST_KEYS.forEach(function (k) {
+      var was = ((bests || {})[k] || {}).value || 0;
+      var v = +current[k] || 0;
+      if (v > was) out.push({ key: k, value: v, was: was });
+    });
+    return out;
+  }
+
   // The next uncelebrated goal milestone, or null. Fires the biggest whole-kg step of net progress not
   // yet shown, plus a one-off "reached" when the trend meets the goal. `celebrated` is the keys already
   // shown; coveredKeys lets the caller mark everything up to here at once, so a big jump (e.g. a first
@@ -867,6 +951,13 @@
     WEIGH_WEEKLY_GRACE: WEIGH_WEEKLY_GRACE,
     weighDue: weighDue,
     weeklyRecap: weeklyRecap,
+    oneThing: oneThing,
+    COMEBACK_MIN_GAP: COMEBACK_MIN_GAP,
+    COMEBACK_AMBER: COMEBACK_AMBER,
+    comeback: comeback,
+    BEST_KEYS: BEST_KEYS,
+    personalBests: personalBests,
+    bestsBeaten: bestsBeaten,
     goalMilestone: goalMilestone,
     trendRatePerWeek: trendRatePerWeek,
     goalETA: goalETA,
