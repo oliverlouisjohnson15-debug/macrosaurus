@@ -169,11 +169,17 @@ export function decideNudge(d: Record<string, unknown>, today: string, win: Wind
     if (streak >= STREAK_SAVE_MIN) {
       return {
         kind: "streaksave",
-        title: "Your " + streak + "-day streak is at risk",
+        // A notification cannot be un-read, which makes this the highest-guilt surface in the product
+        // and the one furthest from how the buddy is supposed to speak. It used to lead with "your
+        // streak is at risk", tell people not to break the chain, and say "I have been counting" -
+        // loss framing, delivered uninvited, from a companion admitting it keeps score. The streak is
+        // still worth mentioning; it is not worth weaponising. Every line now ends somewhere the
+        // reader is allowed to do nothing.
+        title: who + " is still up",
         body: pick([
-          "Do not break the chain! Log anything before midnight and we keep the run going.",
-          "There is still time. One quick log tonight and your " + streak + " days stay safe.",
-          "I have been counting. Log something before bed and we carry on tomorrow.",
+          "Anything logged tonight and our " + streak + " days carry on. A weight or a session counts too.",
+          "No rush, but I am still awake. One quick log and we keep going.",
+          "Nothing yet today. Anything at all does it, and I will be here either way.",
         ], today),
         url: "/?action=log",
       };

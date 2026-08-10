@@ -11935,86 +11935,17 @@ function QualityBar({
     }
   }, nd.uncovered, " kcal couldn't be scored"));
 }
-/* THE ONE OPEN LOOP, at the top of the hero card.
-   Today shows four macro bars, a balance slider, a buddy and three recovery dials, so at any moment
-   several things are part-done and none of them is THE thing. This is the one line that says what is
-   actually outstanding and exactly how far away it is - and it is the only element on the screen
-   allowed to read as unfinished. When the day closes it flips to a finished state rather than
-   lingering as another half-full bar: one thing outstanding, or nothing.
-   Game.oneThing picks it, in the same priority order the buddy speaks in, so the number here and the
-   word from the buddy can never name different macros. */
-const ONE_THING_SUFFIX = {
-  protein: 'protein to go',
-  fibre: 'fibre to go',
-  fuel: 'calories to go'
-};
-// The meter carries the colour of the macro it names, exactly as the MeterRow siblings below it do.
-// Painting it var(--accent) instead drew a protein bar in #F5C518 in the light theme, which is the
-// same value as --fat, directly above a PROT bar in red - the same number in two colours, one of
-// them the wrong macro's. See design-plans/10-one-thing-macro-colour.md.
+/* The colour vocabulary for the day's one open loop. The buddy owns the loop now (see buddyCoach);
+   this is what paints the meter on its line, in the colour of the macro that line names - exactly
+   as the MeterRow siblings on the macro card do.
+   Painting it var(--accent) instead drew a protein bar in #F5C518 in the light theme, which is the
+   same value as --fat, directly above a PROT bar in red: the same number in two colours, one of
+   them the wrong macro's. See design-plans/10-one-thing-macro-colour.md. */
 const ONE_THING_COLOR = {
   protein: PRO,
   fibre: 'var(--weight)',
   fuel: 'var(--hero)'
 };
-function OneThingLine({
-  one,
-  onGo
-}) {
-  const done = !one;
-  const first = !done && one.key === 'firstmeal';
-  return /*#__PURE__*/React.createElement("div", {
-    className: "mb-3 pb-3",
-    style: {
-      borderBottom: '1px solid var(--border)'
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: done ? undefined : onGo,
-    disabled: done,
-    className: "w-full flex items-center gap-3 text-left active:opacity-60 transition-opacity",
-    style: {
-      background: 'transparent',
-      border: 0,
-      padding: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "min-w-0 flex-1"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase mb-1.5",
-    style: {
-      color: done ? 'var(--good-ink)' : 'var(--accent-ink)'
-    }
-  }, done ? 'Today is done' : 'One thing left'), /*#__PURE__*/React.createElement("div", {
-    className: "text-[15px] font-bold leading-tight truncate",
-    style: {
-      color: done ? 'var(--muted)' : 'var(--text)'
-    }
-  }, done ? 'Nothing left to close' : first ? 'Log your first meal' : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-    className: "tnum"
-  }, one.remaining, one.unit === 'g' ? 'g' : ''), one.unit === 'kcal' ? ' kcal' : '', " ", ONE_THING_SUFFIX[one.key]))), done ? /*#__PURE__*/React.createElement("span", {
-    className: "w-6 h-6 flex items-center justify-center shrink-0",
-    style: {
-      background: 'var(--good)',
-      color: 'var(--on-accent)'
-    }
-  }, /*#__PURE__*/React.createElement(Tick, {
-    size: 13
-  })) : /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase shrink-0",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "Log ›")), !done && !first && /*#__PURE__*/React.createElement("div", {
-    className: "mt-2"
-  }, /*#__PURE__*/React.createElement(PipMeter, {
-    value: one.pct,
-    target: 100,
-    color: ONE_THING_COLOR[one.key],
-    small: true,
-    overIsFine: true
-  })));
-}
 function MacroSummaryCard({
   et,
   tot,
@@ -16904,7 +16835,24 @@ const SHADOW_H = 8;
    hatchling and a fully grown buddy, awake and overfed alike - growth shows in size and in the
    occasional flourish, never in how fast the buddy moves. Only a sleeping buddy holds still. */
 const BUDDY_IDLE_FPS = 5;
-const STAGE_FLOURISH = [null, 'jump', 'jump', 'move', 'dash', 'scan'];
+/* The buddy's flourish used to be indexed by STAGE - i.e. by how long your streak is - so a
+   thirty-day buddy scanned whether or not you had eaten and a three-day one jumped whether or not it
+   was starving. The animation expressed seniority, not situation, which is the one thing an idle is
+   actually for: idle animation is what makes a character read as alive, and it should show what it
+   is doing now, not what rank it holds.
+   Keyed on the day instead. Every strip here already ships with the sprite pack (idle, move, dash,
+   jump, scan, and the combat frames the Fight uses); Today was drawing one of them. */
+const DAY_FLOURISH = {
+  hungry: 'scan',
+  // nothing logged: it is looking for food. The ask, without a word.
+  open: 'move',
+  // part-fed, loop still open: alive, unbothered, not nagging.
+  done: 'jump',
+  // the day's loop closed: the reaction to what you just did.
+  back: 'dash',
+  // first day back after a lapse: glad to see you.
+  full: null // over on calories: stuffed, going nowhere. Stillness IS the state.
+};
 const FLOURISH_MIN_MS = 7000; // at most one flourish per 7s, so it reads as ambient not busy
 const FLOURISH_JITTER_MS = 8000; // plus jitter, so two buddies on one screen never march in step
 function prefersReducedMotion() {
@@ -16919,8 +16867,8 @@ function prefersReducedMotion() {
 // pass true when the strip actually exists for this palette (see spriteHasAnim), because a flourish
 // that never renders would never fire onEnd and the rotation would stall on a sprite it cannot show.
 // Honours prefers-reduced-motion, which the terrarium's bob and shadow already respect in CSS.
-function useIdleFlourish(stageIndex, active) {
-  const move = active ? STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] || null : null;
+function useIdleFlourish(anim, active) {
+  const move = active ? anim || null : null;
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
     if (!move) {
@@ -17170,23 +17118,71 @@ function buddyCoach(db, today, streak) {
   // to break: they have already done the hardest thing anyone does all day.
   if (Game.streakAtRisk(streak, logged.length > 0 || weighedToday || trainedToday, hour, 18) && !snoozed('coach_streaksave', 4)) {
     return {
-      text: "Don't break the chain! Log a meal, a weight or a session before midnight and your " + streak + "-day streak lives on.",
+      text: 'Anything logged before midnight keeps our ' + streak + ' days going. A weight or a session counts too, and I’ll be here either way.',
       cta: 'Log it',
       action: 'log',
       key: 'coach_streaksave'
     };
   }
-  if (!logged.length && !snoozed('coach_log', 12)) {
-    return hour < 11 ? {
-      text: "Morning. Nothing logged yet, what did you have for breakfast?",
+  // THE DAY'S ONE OPEN LOOP. This used to be two separate branches here (nothing-logged and a
+  // protein gap) plus a bar at the top of the macro card that answered the same question on its own
+  // rules - any gap, all day, undismissable - so at nine in the morning the card and the buddy said
+  // different things to the same person. Game.oneThing is now the single owner: it picks the first
+  // unmet target in priority order and says how far off it is, and the buddy is the only thing that
+  // speaks it. The meter rides along so the distance is part of what the buddy is saying rather than
+  // a second instrument elsewhere on the page.
+  //
+  // Voiced as the buddy's own need, never as the user's shortfall: "I could do with 38g more
+  // protein", not "you are 38g short". Same number, different product.
+  const ft = et ? E.fiberTarget(et.eff.kcal) : null;
+  const one = Game.oneThing({
+    logged: logged.length > 0,
+    protein: sumMacros(logged).protein,
+    proteinTarget: proteinTgt,
+    fiber: sumMacros(logged).fiber,
+    fiberTarget: ft ? ft.min : 0,
+    kcal: sumMacros(logged).kcal,
+    kcalTarget: et ? et.eff.kcal : 0
+  });
+  if (one && !snoozed('coach_loop_' + one.key, 12)) {
+    const meter = one.key === 'firstmeal' ? null : {
+      pct: one.pct,
+      color: ONE_THING_COLOR[one.key]
+    };
+    const k = 'coach_loop_' + one.key;
+    if (one.key === 'firstmeal') {
+      return hour < 11 ? {
+        text: 'Morning! I’m getting hungry. What did you have for breakfast?',
+        cta: 'Log it',
+        action: 'log',
+        key: k
+      } : {
+        text: 'Nothing in the bowl yet today. Pop your ' + meal + ' in and I’ll do the maths.',
+        cta: 'Log it',
+        action: 'log',
+        key: k
+      };
+    }
+    if (one.key === 'protein') return {
+      text: 'I could do with ' + one.remaining + 'g more protein today. That’s the one that actually grows me.',
       cta: 'Log it',
       action: 'log',
-      key: 'coach_log'
-    } : {
-      text: 'Nothing logged yet today. Pop your ' + meal + ' in and I’ll do the maths.',
+      key: k,
+      meter
+    };
+    if (one.key === 'fibre') return {
+      text: one.remaining + 'g more fibre and I’d be properly sorted. Veg, pulses or fruit does it.',
+      cta: 'Find something',
+      action: 'cook',
+      key: k,
+      meter
+    };
+    return {
+      text: 'Room for ' + one.remaining + ' more kcal today. No rush, but I’ll take them.',
       cta: 'Log it',
       action: 'log',
-      key: 'coach_log'
+      key: k,
+      meter
     };
   }
   // Food quality: the buddy notices a genuinely good day, since the whole point of growing on quality
@@ -17214,14 +17210,8 @@ function buddyCoach(db, today, streak) {
   }
   // Protein nudge only makes sense once something's been logged (a gap against zero intake is just the
   // whole target and reads oddly on an empty day).
-  if (logged.length && proteinTgt > 0 && proteinGap >= 20 && hour >= 14 && !snoozed('coach_protein', 12)) {
-    return {
-      text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.',
-      cta: 'See ideas',
-      action: 'cook',
-      key: 'coach_protein'
-    };
-  }
+  // (The protein nudge used to live here on its own timer - gap >= 20g, after 2pm. It is now part of
+  // the one open loop above, which owns every "what's left to eat today" line the buddy has.)
   // Training. The buddy used to be silent about the one tab where somebody is physically working
   // hardest. Game.trainingAsk decides whether there is anything worth saying (most days there is
   // not, which is the point); the wording is here, same as every other line on this ladder.
@@ -17282,16 +17272,12 @@ function buddyCoach(db, today, streak) {
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
   if (eng) return eng;
-  if (streak >= 2) return {
-    text: streak + ' days logged in a row. Keep it up and I’ll grow.',
-    cta: null,
-    action: null
-  };
-  return {
-    text: 'Good start. Log as you go and I’ll keep you on track.',
-    cta: null,
-    action: null
-  };
+  // SILENCE. This used to fall through to a warm filler line, which was harmless at the bottom of
+  // Today and is not harmless at the top of it: a block that always talks is one people learn to
+  // scroll past, and an assistant whose defining problem is being always-there has a name. Nothing
+  // due means nothing said - the card renders as the buddy alone, and being finished for the day is
+  // rewarded with quiet rather than with another sentence.
+  return null;
 }
 
 // A proactive conversational "breakout": the buddy asks a yes/no question when something's worth
@@ -17613,6 +17599,7 @@ function buddyMessage(db, today, streak) {
   if (say) return {
     kind: 'say',
     text: say.text,
+    meter: say.meter || null,
     primary: say.cta ? {
       label: say.cta,
       act: say.action,
@@ -17744,15 +17731,16 @@ function BuddyHabitat({
   }, /*#__PURE__*/React.createElement(BuddyScene, {
     buddy: db.buddy,
     stageIndex: buddy.stage,
-    px: 3,
-    w: 90,
-    h: 94,
-    floor: 22,
-    spriteBottom: 4,
-    shadowW: 52,
+    px: 2.5,
+    w: 66,
+    h: 70,
+    floor: 16,
+    spriteBottom: 3,
+    shadowW: 40,
     eq: eq,
     asleep: asleep,
-    stuffed: stuffed
+    stuffed: stuffed,
+    dayState: bp.dayState
   })), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
     className: "min-w-0 flex-1 text-left flex items-center gap-1.5"
@@ -17769,24 +17757,18 @@ function BuddyHabitat({
     }
   }, "Incubating", tasks ? ' · ' + tDone + '/' + tasks.length : '…'), tasks && /*#__PURE__*/React.createElement(PipLine, {
     pct: tDone / tasks.length * 100
-  })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] leading-snug mb-2 truncate",
+  })) : /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] leading-snug truncate",
     style: {
       color: mood.color
     }
-  }, mood.label), next ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PipLine, {
-    pct: prog * 100
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] text-[#8A8A90] mt-1"
-  }, toNext, " day", toNext === 1 ? '' : 's', " to ", next.name)) : /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] text-[#8A8A90]"
-  }, "Fully grown · streak ", streak))), /*#__PURE__*/React.createElement("span", {
+  }, mood.label)), /*#__PURE__*/React.createElement("span", {
     className: "pf shrink-0 self-center",
     style: {
       color: 'var(--accent-ink)',
       fontSize: 15
     }
-  }, "›"))), !incubating && /*#__PURE__*/React.createElement("button", {
+  }, "›"))), !incubating && !msg && /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
     className: "w-full mt-2.5 pt-2.5 flex items-center justify-center gap-2",
     style: {
@@ -17860,7 +17842,15 @@ function BuddyHabitat({
       className: "w-11 h-11 flex items-center justify-center shrink-0 shrink-0 -mt-1 -mr-1 text-[#8A8A90] text-base leading-none active:opacity-60"
     }, "×")), /*#__PURE__*/React.createElement("div", {
       className: "text-[11.5px] leading-snug"
-    }, msg.text), msg.weigh && /*#__PURE__*/React.createElement(WeighInline, {
+    }, msg.text), msg.meter && /*#__PURE__*/React.createElement("div", {
+      className: "mt-2"
+    }, /*#__PURE__*/React.createElement(PipMeter, {
+      value: msg.meter.pct,
+      target: 100,
+      color: msg.meter.color,
+      small: true,
+      overIsFine: true
+    })), msg.weigh && /*#__PURE__*/React.createElement(WeighInline, {
       unit: msg.weigh.unit,
       seedKg: msg.weigh.seedKg,
       onSave: msg.weigh.onSave
@@ -18790,10 +18780,13 @@ const MOOD_META = {
     color: 'var(--warn)',
     lines: ['Ate a bit much, feeling lazy now.', 'Belly full, going nowhere fast.', 'Might just nap this one off.', 'Over the line today, no drama, back at it tomorrow.']
   },
+  // 'A bit low, nothing logged yet' told the reader the buddy was worse off because of them, which is
+  // the one thing none of these lines is allowed to do. The buddy states its own need; it never
+  // reports your failure.
   sluggish: {
     label: 'Sluggish',
     color: 'var(--weight)',
-    lines: ['Waiting on today’s first meal.', 'A bit low, nothing logged yet.', 'Perks right up when you log.']
+    lines: ['Waiting on today’s first meal.', 'Peckish, and patient.', 'Perks right up when you log.']
   },
   asleep: {
     label: 'Napping',
@@ -18842,9 +18835,23 @@ function buddyProfile(db, streak, buddy, level) {
     level: lvl,
     progress: 1
   };
+  // What the sprite animates: the day, not the streak (see DAY_FLOURISH). Derived from the same
+  // open loop the buddy speaks, so the face and the line can never describe different days.
+  const etp = effectiveTarget(db, today);
+  const totp = sumMacros(entriesOn(db, today));
+  const ftp = etp ? E.fiberTarget(etp.eff.kcal) : null;
+  const openLoop = Game.oneThing({
+    logged: loggedToday,
+    protein: totp.protein,
+    proteinTarget: etp ? etp.eff.protein_g : 0,
+    fiber: totp.fiber,
+    fiberTarget: ftp ? ftp.min : 0,
+    kcal: totp.kcal,
+    kcalTarget: etp ? etp.eff.kcal : 0
+  });
+  const dayState = b.wokeISO === today ? 'back' : todayQ && todayQ.kcalOver ? 'full' : !loggedToday ? 'hungry' : openLoop ? 'open' : 'done';
   return {
     name: b.name || '',
-    personality: PERSONALITIES.find(p => p.key === b.personality) || null,
     daysTogether: Math.max(1, Game.daysBetween(hatchedISO, today) + 1),
     bond,
     level: lvl,
@@ -18855,17 +18862,14 @@ function buddyProfile(db, streak, buddy, level) {
     affinity: evoStage > 0 ? b.affinity || null : null,
     // only shows once evolved
     mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
-    needs: Game.buddyNeeds(loggedToday, todayQ, streak),
-    craving: Game.buddyCraving(todayQ)
+    dayState: dayState
+    // `needs`, `craving` and `personality` used to be computed here on every render and rendered
+    // nowhere - craving in particular described the day's open loop months before Game.oneThing was
+    // written to describe the same thing, which is how the app ended up saying it twice. oneThing
+    // owns it now. (PERSONALITIES is still seeded onto the buddy and remains unused; it is a voice
+    // axis waiting to be picked up, not a view-model field.)
   };
 }
-// What the buddy is craving, in words, framing the day's macro gap as a thing to feed it.
-const CRAVE_LABEL = {
-  firstmeal: 'a first meal',
-  protein: 'protein',
-  fibre: 'fibre',
-  fuel: 'more fuel'
-};
 
 // ---- Buddy cosmetics: shop-bought dressing for the buddy and its terrarium ----
 // Three slots (see Game.COSMETICS): an aura glowing around the sprite, a scene behind it, and a prop
@@ -18975,6 +18979,7 @@ function BuddyScene({
   eq,
   asleep,
   stuffed,
+  dayState,
   className,
   style
 }) {
@@ -18983,11 +18988,11 @@ function BuddyScene({
   const prop = eq && eq.prop ? PROP_ART[eq.prop] : null;
   const still = !!asleep; // a nap is the only thing that stops the buddy moving
   const grown = s.group === 'base'; // the egg neither grows nor flourishes
-  const move = grown ? STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] : null;
+  const move = grown ? DAY_FLOURISH[dayState || 'open'] || null : null;
   // Only arm the flourish when this palette genuinely has the strip, so the rotation can't stall on a
   // sprite that would never render (some male colourways are missing the locomotion frames).
   const canFlourish = !!(move && !still && spriteHasAnim(s.palette, s.species, 'base', move));
-  const fl = useIdleFlourish(stageIndex, canFlourish);
+  const fl = useIdleFlourish(move, canFlourish);
   const flourishing = fl.anim !== 'idle';
   const scale = grown ? stageScale(stageIndex) : 1;
   const size = px * scale;
@@ -23695,17 +23700,6 @@ function Dashboard({
   });
   const remCarbs = Math.max(0, Math.round(et.eff.carbs_g - todayTot.carbs));
   const remFat = Math.max(0, Math.round(et.eff.fat_g - todayTot.fat));
-  // The day's single open loop, fed the same targets the meters below it draw from so the line and
-  // the bars can never disagree about what is left.
-  const oneThing = Game.oneThing({
-    logged: entriesOn(db, today).length > 0,
-    protein: todayTot.protein,
-    proteinTarget: et.eff.protein_g,
-    fiber: todayTot.fiber,
-    fiberTarget: E.fiberTarget(et.eff.kcal).min,
-    kcal: todayTot.kcal,
-    kcalTarget: et.eff.kcal
-  });
   // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
   // with a monthly freeze forgiving one miss.
   const frozenSet = new Set(db.freezes && db.freezes.frozen || []);
@@ -24105,6 +24099,7 @@ function Dashboard({
     return {
       kind: m.kind,
       text: m.text,
+      meter: m.meter || null,
       weigh,
       choices: (m.choices || []).map(resolve),
       primary: resolve(m.primary),
@@ -24166,16 +24161,21 @@ function Dashboard({
     trackKey: "today_top",
     headline: "Log a meal in one snap",
     blurb: "Premium unlocks unlimited AI logging and scores the quality of everything you eat, so you can see how well you ate and not just how much. Try it free for 7 days."
+  }), /*#__PURE__*/React.createElement(BuddyHabitat, {
+    db: db,
+    buddy: buddy,
+    bp: bp,
+    streak: streak,
+    onOpenPlay: onOpenPlay,
+    tasks: eggIncubating ? hatchTasks : null,
+    msg: msg
   }), /*#__PURE__*/React.createElement(Card, {
     className: "p-5 mb-4",
     style: {
       outline: '3px solid var(--accent)',
       outlineOffset: 2
     }
-  }, /*#__PURE__*/React.createElement(OneThingLine, {
-    one: oneThing,
-    onGo: () => onQuickAdd(false)
-  }), /*#__PURE__*/React.createElement(MacroSummaryCard, {
+  }, /*#__PURE__*/React.createElement(MacroSummaryCard, {
     et: et,
     tot: tot,
     mode: mode,
@@ -24260,15 +24260,7 @@ function Dashboard({
         color: 'var(--accent-ink)'
       }
     }, "Details ›"));
-  })()), /*#__PURE__*/React.createElement(BuddyHabitat, {
-    db: db,
-    buddy: buddy,
-    bp: bp,
-    streak: streak,
-    onOpenPlay: onOpenPlay,
-    tasks: eggIncubating ? hatchTasks : null,
-    msg: msg
-  }), readyOpen && /*#__PURE__*/React.createElement(BuddyReadinessSheet, {
+  })()), readyOpen && /*#__PURE__*/React.createElement(BuddyReadinessSheet, {
     db: db,
     onClose: () => setReadyOpen(false),
     onWeigh: () => onWeigh(true)

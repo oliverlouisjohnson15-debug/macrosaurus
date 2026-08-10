@@ -53,8 +53,27 @@ test('streak-save fires in the evening with a run on the line, and names the num
   const st = { log_entries: days('2026-07-23', '2026-07-24', '2026-07-25') };
   const n = (await load()).decideNudge(st, TODAY, EVENING);
   assert.strictEqual(n.kind, 'streaksave');
-  assert.match(n.title, /3-day streak/);
+  // The run is still named, in the body rather than the headline. The title used to lead with
+  // "your 3-day streak is at risk"; a lock screen is the one surface the reader cannot dismiss,
+  // so the number arrives as context rather than as the threat.
+  assert.match(n.body, /3 days/);
   assert.strictEqual(n.url, '/?action=log');
+});
+
+test('streak-save never uses loss framing or admits to keeping score', async () => {
+  const st = { log_entries: days('2026-07-23', '2026-07-24', '2026-07-25') };
+  const d = await load();
+  // Every rotation of the body, not just today's pick, so a line cannot regress unseen.
+  const back = (iso, n) => { const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - n); return t.toISOString().slice(0, 10); };
+  const seen = new Set();
+  for (const day of ['2026-07-26', '2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30']) {
+    const st2 = { log_entries: days(back(day, 3), back(day, 2), back(day, 1)) };
+    const n = d.decideNudge(st2, day, EVENING);
+    if (n && n.kind === 'streaksave') seen.add(n.title + ' | ' + n.body);
+  }
+  const banned = /at risk|do not break|don'?t break|breaking|lose|losing|last chance|counting/i;
+  for (const line of seen) assert.ok(!banned.test(line), 'loss framing in push copy: ' + line);
+  assert.ok(seen.size >= 2, 'expected the body to rotate, got ' + seen.size);
 });
 
 test('an incubating egg gets hatch copy, not "peckish"', async () => {

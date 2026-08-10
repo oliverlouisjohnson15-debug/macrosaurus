@@ -1988,47 +1988,13 @@ function QualityBar({ nd, onExplain }) {
     </div>
   );
 }
-/* THE ONE OPEN LOOP, at the top of the hero card.
-   Today shows four macro bars, a balance slider, a buddy and three recovery dials, so at any moment
-   several things are part-done and none of them is THE thing. This is the one line that says what is
-   actually outstanding and exactly how far away it is - and it is the only element on the screen
-   allowed to read as unfinished. When the day closes it flips to a finished state rather than
-   lingering as another half-full bar: one thing outstanding, or nothing.
-   Game.oneThing picks it, in the same priority order the buddy speaks in, so the number here and the
-   word from the buddy can never name different macros. */
-const ONE_THING_SUFFIX = { protein: 'protein to go', fibre: 'fibre to go', fuel: 'calories to go' };
-// The meter carries the colour of the macro it names, exactly as the MeterRow siblings below it do.
-// Painting it var(--accent) instead drew a protein bar in #F5C518 in the light theme, which is the
-// same value as --fat, directly above a PROT bar in red - the same number in two colours, one of
-// them the wrong macro's. See design-plans/10-one-thing-macro-colour.md.
+/* The colour vocabulary for the day's one open loop. The buddy owns the loop now (see buddyCoach);
+   this is what paints the meter on its line, in the colour of the macro that line names - exactly
+   as the MeterRow siblings on the macro card do.
+   Painting it var(--accent) instead drew a protein bar in #F5C518 in the light theme, which is the
+   same value as --fat, directly above a PROT bar in red: the same number in two colours, one of
+   them the wrong macro's. See design-plans/10-one-thing-macro-colour.md. */
 const ONE_THING_COLOR = { protein: PRO, fibre: 'var(--weight)', fuel: 'var(--hero)' };
-function OneThingLine({ one, onGo }) {
-  const done = !one;
-  const first = !done && one.key === 'firstmeal';
-  return (
-    <div className="mb-3 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
-      <button type="button" onClick={done ? undefined : onGo} disabled={done}
-        className="w-full flex items-center gap-3 text-left active:opacity-60 transition-opacity"
-        style={{ background: 'transparent', border: 0, padding: 0 }}>
-        <div className="min-w-0 flex-1">
-          <div className="pf text-[8px] uppercase mb-1.5" style={{ color: done ? 'var(--good-ink)' : 'var(--accent-ink)' }}>
-            {done ? 'Today is done' : 'One thing left'}
-          </div>
-          <div className="text-[15px] font-bold leading-tight truncate" style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>
-            {done ? 'Nothing left to close' : first ? 'Log your first meal' : (
-              <><span className="tnum">{one.remaining}{one.unit === 'g' ? 'g' : ''}</span>
-                {one.unit === 'kcal' ? ' kcal' : ''} {ONE_THING_SUFFIX[one.key]}</>
-            )}
-          </div>
-        </div>
-        {done
-          ? <span className="w-6 h-6 flex items-center justify-center shrink-0" style={{ background: 'var(--good)', color: 'var(--on-accent)' }}><Tick size={13} /></span>
-          : <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Log ›</span>}
-      </button>
-      {!done && !first && <div className="mt-2"><PipMeter value={one.pct} target={100} color={ONE_THING_COLOR[one.key]} small overIsFine /></div>}
-    </div>
-  );
-}
 function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain, lens }) {
   const remaining = et.eff.kcal - tot.kcal;
   const ft = E.fiberTarget(et.eff.kcal);
@@ -4309,7 +4275,20 @@ const SHADOW_H = 8;
    hatchling and a fully grown buddy, awake and overfed alike - growth shows in size and in the
    occasional flourish, never in how fast the buddy moves. Only a sleeping buddy holds still. */
 const BUDDY_IDLE_FPS = 5;
-const STAGE_FLOURISH = [null, 'jump', 'jump', 'move', 'dash', 'scan'];
+/* The buddy's flourish used to be indexed by STAGE - i.e. by how long your streak is - so a
+   thirty-day buddy scanned whether or not you had eaten and a three-day one jumped whether or not it
+   was starving. The animation expressed seniority, not situation, which is the one thing an idle is
+   actually for: idle animation is what makes a character read as alive, and it should show what it
+   is doing now, not what rank it holds.
+   Keyed on the day instead. Every strip here already ships with the sprite pack (idle, move, dash,
+   jump, scan, and the combat frames the Fight uses); Today was drawing one of them. */
+const DAY_FLOURISH = {
+  hungry: 'scan',     // nothing logged: it is looking for food. The ask, without a word.
+  open: 'move',       // part-fed, loop still open: alive, unbothered, not nagging.
+  done: 'jump',       // the day's loop closed: the reaction to what you just did.
+  back: 'dash',       // first day back after a lapse: glad to see you.
+  full: null,         // over on calories: stuffed, going nowhere. Stillness IS the state.
+};
 const FLOURISH_MIN_MS = 7000;     // at most one flourish per 7s, so it reads as ambient not busy
 const FLOURISH_JITTER_MS = 8000;  // plus jitter, so two buddies on one screen never march in step
 function prefersReducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } }
@@ -4318,8 +4297,8 @@ function prefersReducedMotion() { try { return window.matchMedia('(prefers-reduc
 // pass true when the strip actually exists for this palette (see spriteHasAnim), because a flourish
 // that never renders would never fire onEnd and the rotation would stall on a sprite it cannot show.
 // Honours prefers-reduced-motion, which the terrarium's bob and shadow already respect in CSS.
-function useIdleFlourish(stageIndex, active) {
-  const move = active ? (STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] || null) : null;
+function useIdleFlourish(anim, active) {
+  const move = active ? (anim || null) : null;
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
     if (!move) { setPlaying(false); return; }
@@ -4452,12 +4431,38 @@ function buddyCoach(db, today, streak) {
   // session counts as activity, so somebody who trained after work is never told their run is about
   // to break: they have already done the hardest thing anyone does all day.
   if (Game.streakAtRisk(streak, logged.length > 0 || weighedToday || trainedToday, hour, 18) && !snoozed('coach_streaksave', 4)) {
-    return { text: "Don't break the chain! Log a meal, a weight or a session before midnight and your " + streak + "-day streak lives on.", cta: 'Log it', action: 'log', key: 'coach_streaksave' };
+    return { text: 'Anything logged before midnight keeps our ' + streak + ' days going. A weight or a session counts too, and I’ll be here either way.', cta: 'Log it', action: 'log', key: 'coach_streaksave' };
   }
-  if (!logged.length && !snoozed('coach_log', 12)) {
-    return hour < 11
-      ? { text: "Morning. Nothing logged yet, what did you have for breakfast?", cta: 'Log it', action: 'log', key: 'coach_log' }
-      : { text: 'Nothing logged yet today. Pop your ' + meal + ' in and I’ll do the maths.', cta: 'Log it', action: 'log', key: 'coach_log' };
+  // THE DAY'S ONE OPEN LOOP. This used to be two separate branches here (nothing-logged and a
+  // protein gap) plus a bar at the top of the macro card that answered the same question on its own
+  // rules - any gap, all day, undismissable - so at nine in the morning the card and the buddy said
+  // different things to the same person. Game.oneThing is now the single owner: it picks the first
+  // unmet target in priority order and says how far off it is, and the buddy is the only thing that
+  // speaks it. The meter rides along so the distance is part of what the buddy is saying rather than
+  // a second instrument elsewhere on the page.
+  //
+  // Voiced as the buddy's own need, never as the user's shortfall: "I could do with 38g more
+  // protein", not "you are 38g short". Same number, different product.
+  const ft = et ? E.fiberTarget(et.eff.kcal) : null;
+  const one = Game.oneThing({
+    logged: logged.length > 0,
+    protein: sumMacros(logged).protein, proteinTarget: proteinTgt,
+    fiber: sumMacros(logged).fiber, fiberTarget: ft ? ft.min : 0,
+    kcal: sumMacros(logged).kcal, kcalTarget: et ? et.eff.kcal : 0,
+  });
+  if (one && !snoozed('coach_loop_' + one.key, 12)) {
+    const meter = one.key === 'firstmeal' ? null : { pct: one.pct, color: ONE_THING_COLOR[one.key] };
+    const k = 'coach_loop_' + one.key;
+    if (one.key === 'firstmeal') {
+      return hour < 11
+        ? { text: 'Morning! I’m getting hungry. What did you have for breakfast?', cta: 'Log it', action: 'log', key: k }
+        : { text: 'Nothing in the bowl yet today. Pop your ' + meal + ' in and I’ll do the maths.', cta: 'Log it', action: 'log', key: k };
+    }
+    if (one.key === 'protein')
+      return { text: 'I could do with ' + one.remaining + 'g more protein today. That’s the one that actually grows me.', cta: 'Log it', action: 'log', key: k, meter };
+    if (one.key === 'fibre')
+      return { text: one.remaining + 'g more fibre and I’d be properly sorted. Veg, pulses or fruit does it.', cta: 'Find something', action: 'cook', key: k, meter };
+    return { text: 'Room for ' + one.remaining + ' more kcal today. No rush, but I’ll take them.', cta: 'Log it', action: 'log', key: k, meter };
   }
   // Food quality: the buddy notices a genuinely good day, since the whole point of growing on quality
   // days is that the growing should be SEEN. Praise carries no key, so there is nothing to dismiss;
@@ -4476,9 +4481,8 @@ function buddyCoach(db, today, streak) {
   }
   // Protein nudge only makes sense once something's been logged (a gap against zero intake is just the
   // whole target and reads oddly on an empty day).
-  if (logged.length && proteinTgt > 0 && proteinGap >= 20 && hour >= 14 && !snoozed('coach_protein', 12)) {
-    return { text: 'You’re ' + proteinGap + 'g short on protein. The Cook tab has a few quick high-protein ideas.', cta: 'See ideas', action: 'cook', key: 'coach_protein' };
-  }
+  // (The protein nudge used to live here on its own timer - gap >= 20g, after 2pm. It is now part of
+  // the one open loop above, which owns every "what's left to eat today" line the buddy has.)
   // Training. The buddy used to be silent about the one tab where somebody is physically working
   // hardest. Game.trainingAsk decides whether there is anything worth saying (most days there is
   // not, which is the point); the wording is here, same as every other line on this ladder.
@@ -4513,8 +4517,12 @@ function buddyCoach(db, today, streak) {
   // On-track and nothing pressing: occasionally point somewhere useful, otherwise a warm streak line.
   const eng = engagementNudge(db, today);
   if (eng) return eng;
-  if (streak >= 2) return { text: streak + ' days logged in a row. Keep it up and I’ll grow.', cta: null, action: null };
-  return { text: 'Good start. Log as you go and I’ll keep you on track.', cta: null, action: null };
+  // SILENCE. This used to fall through to a warm filler line, which was harmless at the bottom of
+  // Today and is not harmless at the top of it: a block that always talks is one people learn to
+  // scroll past, and an assistant whose defining problem is being always-there has a name. Nothing
+  // due means nothing said - the card renders as the buddy alone, and being finished for the day is
+  // rewarded with quiet rather than with another sentence.
+  return null;
 }
 
 // A proactive conversational "breakout": the buddy asks a yes/no question when something's worth
@@ -4722,7 +4730,7 @@ function buddyMessage(db, today, streak) {
   // 7. Say: the ambient next-action coach line (log / protein / weigh / streak). nextLesson is already
   // null here, so buddyCoach's own lesson branch is a no-op and won't double up.
   const say = buddyCoach(db, today, streak);
-  if (say) return { kind: 'say', text: say.text,
+  if (say) return { kind: 'say', text: say.text, meter: say.meter || null,
     primary: say.cta ? { label: say.cta, act: say.action, key: say.key } : null,
     // Anything keyed (engagement nudges + the actionable coach reminders) can be dismissed with the ×;
     // the pure warm streak lines carry no key, so they get no dismiss (there's nothing to skip).
@@ -4791,28 +4799,31 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="shrink-0 pixel-box" style={{ boxShadow: 'none', lineHeight: 0 }}>
           {/* Overfed shows in the tint and the mood line, never in the pace: the idle always plays at
               full speed. The shadow is derived from the sprite's foot line, so it needs no offset. */}
-          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={3} w={90} h={94}
-            floor={22} spriteBottom={4} shadowW={52} eq={eq} asleep={asleep} stuffed={stuffed} />
+          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={2.5} w={66} h={70}
+            floor={16} spriteBottom={3} shadowW={40} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
         </button>
         <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left flex items-center gap-1.5">
          <div className="min-w-0 flex-1">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
           <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
+          {/* The growth bar and its "N days to Younglin" line used to sit here as well as in the Play
+              hub, which drew the same progress twice and cost this card most of its height. Today now
+              carries only what it needs to at a glance - who, how it is - and the growth lives in the
+              one place built for it. Incubation keeps its bar, because hatching IS the task then. */}
           {incubating
             ? <><div className="text-[11px] leading-snug mb-1.5 truncate" style={{ color: 'var(--carb-ink)' }}>Incubating{tasks ? ' · ' + tDone + '/' + tasks.length : '…'}</div>
                 {tasks && <PipLine pct={(tDone / tasks.length) * 100} />}</>
-            : <><div className="text-[11px] leading-snug mb-2 truncate" style={{ color: mood.color }}>{mood.label}</div>
-                {next
-                  ? <><PipLine pct={prog * 100} />
-                      <div className="text-[9px] text-[#8A8A90] mt-1">{toNext} day{toNext === 1 ? '' : 's'} to {next.name}</div></>
-                  : <div className="text-[9px] text-[#8A8A90]">Fully grown · streak {streak}</div>}</>}
+            : <div className="text-[11px] leading-snug truncate" style={{ color: mood.color }}>{mood.label}</div>}
          </div>
          <span className="pf shrink-0 self-center" style={{ color: 'var(--accent-ink)', fontSize: 15 }}>›</span>
         </button>
       </div>
       {/* Discoverability: name what's behind the tap so people know the buddy opens Buddy, Battle & Shop
           (a signposted affordance beats a card that just looks like a static display). */}
-      {!incubating && <button onClick={onOpenPlay} className="w-full mt-2.5 pt-2.5 flex items-center justify-center gap-2" style={{ borderTop: '2px solid var(--border)' }}>
+      {/* Shown only when the buddy has nothing to say. When it does, the line and its CTA are the
+          point and this row is a second, weaker invitation competing with them; the chevron beside
+          the name still signposts the tap. Nothing to say means room to show the way in. */}
+      {!incubating && !msg && <button onClick={onOpenPlay} className="w-full mt-2.5 pt-2.5 flex items-center justify-center gap-2" style={{ borderTop: '2px solid var(--border)' }}>
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Buddy</span><span className="text-[#8A8A90] opacity-40">·</span>
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Battle</span><span className="text-[#8A8A90] opacity-40">·</span>
         <span className="pf text-[8px] uppercase text-[#8A8A90]">Shop</span>
@@ -4844,6 +4855,9 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
               {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="w-11 h-11 flex items-center justify-center shrink-0 shrink-0 -mt-1 -mr-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
             </div>
             <div className="text-[11.5px] leading-snug">{msg.text}</div>
+            {/* The distance, attached to the ask that names it. The macro card used to carry this as
+                a second bar of its own, which is how Today ended up saying the same thing twice. */}
+            {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
             {/* The weigh-in answers itself: the scale number goes in on the spot. */}
             {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={msg.weigh.onSave} />}
             {/* A wider set of one-tap answers (the weekly weigh day) than primary/secondary allows. */}
@@ -5194,7 +5208,10 @@ const MOOD_META = {
   content: { label: 'Content', color: 'var(--carb-ink)', lines: ['Fed and happy.', 'A good, steady day.', 'Quietly pleased with you.'] },
   peckish: { label: 'Peckish', color: 'var(--fat-ink)', lines: ['Could do with more protein.', 'Still a little hungry.', 'Decent start, feed it up.'] },
   stuffed: { label: 'Stuffed', color: 'var(--warn)', lines: ['Ate a bit much, feeling lazy now.', 'Belly full, going nowhere fast.', 'Might just nap this one off.', 'Over the line today, no drama, back at it tomorrow.'] },
-  sluggish: { label: 'Sluggish', color: 'var(--weight)', lines: ['Waiting on today’s first meal.', 'A bit low, nothing logged yet.', 'Perks right up when you log.'] },
+  // 'A bit low, nothing logged yet' told the reader the buddy was worse off because of them, which is
+  // the one thing none of these lines is allowed to do. The buddy states its own need; it never
+  // reports your failure.
+  sluggish: { label: 'Sluggish', color: 'var(--weight)', lines: ['Waiting on today’s first meal.', 'Peckish, and patient.', 'Perks right up when you log.'] },
   asleep: { label: 'Napping', color: 'var(--muted)', lines: ['Fast asleep. Log to wake it.', 'Curled up, dreaming of snacks.'] },
 };
 function moodLine(mood, seed) { const m = MOOD_META[mood] || MOOD_META.content; return m.lines[crHash(String(seed) + mood) % m.lines.length]; }
@@ -5225,19 +5242,35 @@ function buddyProfile(db, streak, buddy, level) {
         ready: lvl >= next.at && bond.hearts >= heartsNeed,
         progress: Math.max(0, Math.min(1, Math.min(lvl / next.at, bond.hearts / (heartsNeed || 1)))) }
     : { atMax: true, level: lvl, progress: 1 };
+  // What the sprite animates: the day, not the streak (see DAY_FLOURISH). Derived from the same
+  // open loop the buddy speaks, so the face and the line can never describe different days.
+  const etp = effectiveTarget(db, today);
+  const totp = sumMacros(entriesOn(db, today));
+  const ftp = etp ? E.fiberTarget(etp.eff.kcal) : null;
+  const openLoop = Game.oneThing({
+    logged: loggedToday,
+    protein: totp.protein, proteinTarget: etp ? etp.eff.protein_g : 0,
+    fiber: totp.fiber, fiberTarget: ftp ? ftp.min : 0,
+    kcal: totp.kcal, kcalTarget: etp ? etp.eff.kcal : 0,
+  });
+  const dayState = b.wokeISO === today ? 'back'
+    : (todayQ && todayQ.kcalOver) ? 'full'
+    : !loggedToday ? 'hungry'
+    : openLoop ? 'open' : 'done';
   return {
     name: b.name || '',
-    personality: PERSONALITIES.find(p => p.key === b.personality) || null,
     daysTogether: Math.max(1, Game.daysBetween(hatchedISO, today) + 1),
     bond, level: lvl, species, evoStage, form, evoInfo,
     affinity: evoStage > 0 ? (b.affinity || null) : null,   // only shows once evolved
     mood: Game.buddyMood(buddy.asleep, loggedToday, todayQ),
-    needs: Game.buddyNeeds(loggedToday, todayQ, streak),
-    craving: Game.buddyCraving(todayQ),
+    dayState: dayState,
+    // `needs`, `craving` and `personality` used to be computed here on every render and rendered
+    // nowhere - craving in particular described the day's open loop months before Game.oneThing was
+    // written to describe the same thing, which is how the app ended up saying it twice. oneThing
+    // owns it now. (PERSONALITIES is still seeded onto the buddy and remains unused; it is a voice
+    // axis waiting to be picked up, not a view-model field.)
   };
 }
-// What the buddy is craving, in words, framing the day's macro gap as a thing to feed it.
-const CRAVE_LABEL = { firstmeal: 'a first meal', protein: 'protein', fibre: 'fibre', fuel: 'more fuel' };
 
 // ---- Buddy cosmetics: shop-bought dressing for the buddy and its terrarium ----
 // Three slots (see Game.COSMETICS): an aura glowing around the sprite, a scene behind it, and a prop
@@ -5277,17 +5310,17 @@ function equippedCosmetics(buddy) {
    so a bought scene or prop shows up in both and the two can never drift apart (they used to carry
    near-duplicate markup). Sizing is passed in because the two surfaces differ: `px` is the BASE sprite
    scale, which stage growth then multiplies. */
-function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW, eq, asleep, stuffed, className, style }) {
+function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, shadowW, eq, asleep, stuffed, dayState, className, style }) {
   const s = buddyStageSprite(stageIndex, buddy);
   const scene = (eq && eq.scene) ? SCENE_ART[eq.scene] : null;
   const prop = (eq && eq.prop) ? PROP_ART[eq.prop] : null;
   const still = !!asleep;                      // a nap is the only thing that stops the buddy moving
   const grown = s.group === 'base';            // the egg neither grows nor flourishes
-  const move = grown ? STAGE_FLOURISH[Math.min(stageIndex || 0, STAGE_FLOURISH.length - 1)] : null;
+  const move = grown ? (DAY_FLOURISH[dayState || 'open'] || null) : null;
   // Only arm the flourish when this palette genuinely has the strip, so the rotation can't stall on a
   // sprite that would never render (some male colourways are missing the locomotion frames).
   const canFlourish = !!(move && !still && spriteHasAnim(s.palette, s.species, 'base', move));
-  const fl = useIdleFlourish(stageIndex, canFlourish);
+  const fl = useIdleFlourish(move, canFlourish);
   const flourishing = fl.anim !== 'idle';
   const scale = grown ? stageScale(stageIndex) : 1;
   const size = px * scale;
@@ -7364,14 +7397,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   const setShift = (v) => update(d => { d.day_overrides = Object.assign({}, d.day_overrides || {}, { [today]: { shiftKcal: v } }); });
   const remCarbs = Math.max(0, Math.round(et.eff.carbs_g - todayTot.carbs));
   const remFat = Math.max(0, Math.round(et.eff.fat_g - todayTot.fat));
-  // The day's single open loop, fed the same targets the meters below it draw from so the line and
-  // the bars can never disagree about what is left.
-  const oneThing = Game.oneThing({
-    logged: entriesOn(db, today).length > 0,
-    protein: todayTot.protein, proteinTarget: et.eff.protein_g,
-    fiber: todayTot.fiber, fiberTarget: E.fiberTarget(et.eff.kcal).min,
-    kcal: todayTot.kcal, kcalTarget: et.eff.kcal,
-  });
   // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
   // with a monthly freeze forgiving one miss.
   const frozenSet = new Set((db.freezes && db.freezes.frozen) || []);
@@ -7618,7 +7643,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       const latest = ents.reduce((a, w) => (!a || w.date > a.date ? w : a), null);
       return { unit: db.profile.weight_unit, seedKg: latest ? latest.scale_weight : db.profile.weightKg, onSave: saveTodayWeight };
     })() : null;
-    return { kind: m.kind, text: m.text, weigh, choices: (m.choices || []).map(resolve), primary: resolve(m.primary), secondary: resolve(m.secondary), dismiss };
+    return { kind: m.kind, text: m.text, meter: m.meter || null, weigh, choices: (m.choices || []).map(resolve), primary: resolve(m.primary), secondary: resolve(m.secondary), dismiss };
   })();
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-16 pt-6 fade-in">
@@ -7635,13 +7660,18 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
         headline="Log a meal in one snap"
         blurb="Premium unlocks unlimited AI logging and scores the quality of everything you eat, so you can see how well you ate and not just how much. Try it free for 7 days." />}
 
+      {/* The buddy leads Today. It used to sit below the macro card, which put it at y=871 on a
+          390x844 phone against a fold of 844 - the app's whole relatedness layer was off screen
+          on first paint. It earns its height rather than taking it: quiet when the ladder has
+          nothing due, taller only when it is actually saying something. */}
+      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg} />
+
       {/* Hero: today's macros. One glance (what's left), the daily loop. One lens only (Left/Eaten);
           Balance is a power tool behind Adjust; everything secondary is in More below.
           The heading and the lens control used to float above the card on their own row. The card
           already announces itself ("KCAL LEFT"), so the heading restated it and the control sat
           detached from the numbers it changes. Both now live on the card's own top line. */}
       <Card className="p-5 mb-4" style={{ outline: '3px solid var(--accent)', outlineOffset: 2 }}>
-        <OneThingLine one={oneThing} onGo={() => onQuickAdd(false)} />
         <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)}
           lens={<Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />} />
         {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
@@ -7673,7 +7703,6 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
 
       {/* Compact companion: mood + a feed nudge, one tap into Play. The full buddy detail (hearts,
           needs, evolution) now lives in the Play hub so Today stays a calm glance. */}
-      <BuddyHabitat db={db} buddy={buddy} bp={bp} streak={streak} onOpenPlay={onOpenPlay} tasks={eggIncubating ? hatchTasks : null} msg={msg} />
       {readyOpen && <BuddyReadinessSheet db={db} onClose={() => setReadyOpen(false)} onWeigh={() => onWeigh(true)} />}
       {recapOpen && <WeeklyRecapSheet db={db} onClose={() => setRecapOpen(false)} onOpenProgress={() => { setRecapOpen(false); setView('goals'); }} />}
 
