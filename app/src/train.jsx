@@ -1310,10 +1310,23 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                     We ask for an effort; what that costs in kilos is the lifter's call on the day. */}
                 {(() => {
                   const lt = it.sets.map(x => x.lastTime).filter(Boolean)[0];
-                  if (!lt) return null;
+                  if (lt) {
+                    return (
+                      <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>
+                        Last time {toDisplayWeight(lt.weightKg, units)}{unitLabel(units)} × {lt.reps}
+                      </div>
+                    );
+                  }
+                  // A grip you have never done has no history, so the line borrows the movement it
+                  // came from and says whose number it is. Deliberately only the LINE: the weight box
+                  // stays empty, because a wide-grip row is not the weight of a plain one and a
+                  // number sitting in an input reads as an instruction rather than a reference.
+                  const ref = Training.lastReference(t.logs, it.exerciseId, today, t.custom);
+                  if (!ref || !ref.borrowed) return null;
+                  const from = Training.byId(ref.fromId, t.custom);
                   return (
                     <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>
-                      Last time {toDisplayWeight(lt.weightKg, units)}{unitLabel(units)} × {lt.reps}
+                      New to this one. On {from ? from.name : 'the plain version'} you did {toDisplayWeight(ref.best.weightKg, units)}{unitLabel(units)} × {ref.best.repsAtBest}
                     </div>
                   );
                 })()}
@@ -1729,6 +1742,10 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed }) {
   const [muscle, setMuscle] = useState('');
   const [creating, setCreating] = useState(false);   // true, or a parent id to vary
   const parent = basedOn ? Training.byId(basedOn, t.custom) : null;
+  // Every way of doing the movement being swapped: the plain version and each of its grips, stances
+  // or handles. Asked from a variation it returns its siblings, which is the case that matters, since
+  // "this grip is not working today" is a thought you have while already on a variation.
+  const siblings = basedOn ? Training.variantsOf(basedOn, t.custom) : [];
   let list = Training.search(q, t.custom, 200);
   if (muscle) list = list.filter(e => (e.primary || []).indexOf(muscle) !== -1 || (e.secondary || []).indexOf(muscle) !== -1);
   if (!q) list = list.concat(Training.CARDIO);
@@ -1757,21 +1774,57 @@ function ExercisePicker({ db, update, onPick, onClose, title, basedOn, seed }) {
         {/* The commonest reason a movement is not in the library is that it is a variation of one
             that is: a grip, a stance, an attachment. Making it from its parent inherits what it
             trains, which is the part nobody standing at a machine wants to fill in. */}
+        {/* Swapping FROM a movement that has ways of being done: offer them before anything else.
+            "Same lift, different grip" is far and away the commonest swap somebody makes standing at
+            a machine, and it used to mean searching the library again from scratch. */}
+        {parent && siblings.length > 1 && (
+          <div className="pixel-box p-3 mb-2" style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
+            <div className="pf text-[8px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Ways to do this one</div>
+            <div className="flex flex-wrap gap-2">
+              {siblings.map(v => (
+                <button key={v.id} onClick={() => onPick(v.id)} disabled={v.id === basedOn}
+                  className="pixel-box px-3 h-11 text-[11.5px]"
+                  style={{ background: v.id === basedOn ? 'var(--accent)' : 'var(--surface2)',
+                    color: v.id === basedOn ? 'var(--on-accent)' : 'var(--text2)', opacity: v.id === basedOn ? 0.7 : 1 }}>
+                  {v.variantLabel ? v.variantLabel : 'as written'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {parent && (
           <button onClick={() => setCreating(basedOn)} className="w-full text-left pixel-box p-3 mb-2"
-            style={{ background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))' }}>
+            style={{ background: 'var(--surface2)' }}>
             <div className="text-[13px] font-bold">Make a variation of {parent.name}</div>
-            <div className="text-[10.5px] mt-0.5" style={{ color: 'var(--muted)' }}>A different grip, stance or attachment. Keeps what it trains.</div>
+            <div className="text-[10.5px] mt-0.5" style={{ color: 'var(--muted)' }}>A grip, stance or attachment we have not got. Keeps what it trains.</div>
           </button>
         )}
-        {list.map(e => (
-          <button key={e.id} onClick={() => onPick(e.id)} className="w-full text-left pixel-box p-3 mb-2" style={{ background: 'var(--surface2)' }}>
-            <div className="text-[13px] font-bold">{e.name}</div>
-            {Training.isCardio(e)
-              ? <span className="text-[10px]" style={{ color: 'var(--muted2)' }}>Cardio, logged but not counted in your lifting volume</span>
-              : <MuscleTags exerciseId={e.id} custom={t.custom} />}
-          </button>
-        ))}
+        {list.map(e => {
+          // The ways of doing THIS movement, offered right on its row. Search folds them away so a
+          // hunt for "row" is not eleven ways to hold a T-bar, and this is where they come back:
+          // one tap, on the movement you were already looking at, with no second search.
+          const ways = Training.variantsOf(e.id, t.custom).filter(v => v.id !== e.id);
+          return (
+            <div key={e.id} className="pixel-box p-3 mb-2" style={{ background: 'var(--surface2)' }}>
+              <button onClick={() => onPick(e.id)} className="w-full text-left">
+                <div className="text-[13px] font-bold">{e.name}</div>
+                {Training.isCardio(e)
+                  ? <span className="text-[10px]" style={{ color: 'var(--muted2)' }}>Cardio, logged but not counted in your lifting volume</span>
+                  : <MuscleTags exerciseId={e.id} custom={t.custom} />}
+              </button>
+              {ways.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
+                  {ways.map(v => (
+                    <button key={v.id} onClick={() => onPick(v.id)} className="pixel-box px-3 h-11 text-[11.5px]"
+                      style={{ background: 'var(--card)', color: 'var(--accent-ink)' }}>
+                      {v.variantLabel || v.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
         {!list.length && (
           <div className="text-center py-8">
             <div className="text-[13px] mb-2" style={{ color: 'var(--muted)' }}>Nothing matches "{q}".</div>
@@ -2544,7 +2597,12 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
 
       {items.map((it, i) => {
         const ex = Training.byId(it.exerciseId, t.custom);
-        const last = Training.bestBefore(t.logs, it.exerciseId, Store.todayISO());
+        // A grip you have never used has no history of its own, and a blank row on the way into a
+        // session is worse than useless when the number you want is sitting under the movement it
+        // came from. Borrowed numbers say whose they are; the personal best stays per lift.
+        const ref = Training.lastReference(t.logs, it.exerciseId, Store.todayISO(), t.custom);
+        const last = ref && ref.best;
+        const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
         const body = (
           <>
             <span className="pf text-[10px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{codes[i]}</span>
@@ -2557,7 +2615,9 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
               {/* What you did last time is the number you actually want before you set off. */}
               {last && last.weightKg > 0 && (
                 <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
-                  Last time {toDisplayWeight(last.weightKg, units)}{unitLabel(units)} x {last.repsAtBest}
+                  {refFrom ? 'On ' + refFrom + ' ' : 'Last time '}
+                  {toDisplayWeight(last.weightKg, units)}{unitLabel(units)} x {last.repsAtBest}
+                  {refFrom ? ' · new to this one' : ''}
                 </span>
               )}
             </span>

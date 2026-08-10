@@ -1968,3 +1968,169 @@ test('sessionsOnDay names what is already there without blocking a two-a-day', (
   assert.deepEqual(clash, [wk[0].name]);
   assert.deepEqual(T.sessionsOnDay(b, 1, wk[0].dayOfWeek, wk[0].id), [wk[1].name], 'and it is symmetric');
 });
+
+// ---- generated variations -----------------------------------------------------------------------
+// A wide-grip T-bar row is its own lift with its own history and its own best. These are generated
+// from the movement they came from rather than typed into TABLE, which buys consistency and costs
+// two specific hazards: a typo'd parent silently produces nothing, and a generated name can collide
+// with a hand-written one and quietly steal imports off it. Both are asserted here.
+
+const VARIANTS = () => T.EXERCISES.filter(e => e.variantOf);
+const HANDWRITTEN = () => T.EXERCISES.filter(e => !e.variantOf);
+
+test('every movement listed for variations actually exists', () => {
+  // Without this, a renamed or mistyped id skips silently and the variations just never appear.
+  const missing = Object.keys(T.VARIANTS_FOR).filter(id => !T.byId(id));
+  assert.deepEqual(missing, [], `VARIANTS_FOR names movements that are not in the library: ${missing}`);
+});
+
+test('every axis listed for a movement actually exists, and every option on it', () => {
+  for (const [pid, axes] of Object.entries(T.VARIANTS_FOR)) {
+    for (const [axisId, only] of Object.entries(axes)) {
+      const opts = T.VARIANT_AXES[axisId];
+      assert.ok(opts, `${pid} asks for an axis that does not exist: ${axisId}`);
+      if (only === 1) continue;
+      for (const o of only) {
+        assert.ok(opts.some(x => x.id === o), `${pid} asks ${axisId} for an option it has not got: ${o}`);
+      }
+    }
+  }
+});
+
+test('no axis is defined and then never used', () => {
+  const used = new Set(Object.values(T.VARIANTS_FOR).flatMap(a => Object.keys(a)));
+  const dead = Object.keys(T.VARIANT_AXES).filter(a => !used.has(a));
+  assert.deepEqual(dead, [], `dead axes: ${dead}`);
+});
+
+test('variations inherit the movement they came from and change only the emphasis', () => {
+  for (const v of VARIANTS()) {
+    const p = T.byId(v.variantOf);
+    assert.ok(p, `${v.id} has no parent`);
+    assert.equal(v.pattern, p.pattern, `${v.id} changed its movement pattern`);
+    assert.equal(v.equipment, p.equipment, `${v.id} changed its equipment`);
+    assert.equal(v.profile, p.profile, `${v.id} changed its resistance profile`);
+    assert.ok(v.primary.length >= 1, `${v.id} works nothing, so it counts for nothing`);
+    for (const m of v.secondary) assert.ok(!v.primary.includes(m), `${v.id} lists ${m} twice`);
+  }
+});
+
+test('a wide grip moves a row off the lats and onto the rear delts', () => {
+  const p = T.byId('tbar_row'), w = T.byId('tbar_row__wide');
+  assert.ok(p.primary.includes('lt'), 'the parent is a lat movement');
+  assert.ok(w.primary.includes('rd'), 'the wide version promotes the rear delts');
+  assert.ok(!w.primary.includes('lt'), 'and demotes the lats');
+  assert.ok(w.secondary.includes('lt'), 'which are still worked, just not primarily');
+});
+
+test('a generated variation never steals a name off a hand-written movement', () => {
+  // This is the hammer curl bug: "Dumbbell curl (hammer grip)" scored the same as "Hammer curl" for
+  // ALTERNATING DUMBBELL HAMMER CURL, and an import that had resolved correctly for months started
+  // landing on the variation instead. Every hand-written name must still resolve to itself.
+  for (const e of HANDWRITTEN()) {
+    if (T.isCardio(e)) continue;
+    assert.equal(T.resolve(e.name), e.id, `"${e.name}" now resolves to a variation instead of itself`);
+  }
+});
+
+test('variantsOf gives the movement and its ways, from either end', () => {
+  const fromParent = T.variantsOf('tbar_row').map(e => e.id);
+  assert.equal(fromParent[0], 'tbar_row', 'the plain version leads');
+  assert.deepEqual(fromParent.slice(1).sort(), ['tbar_row__neutral', 'tbar_row__underhand', 'tbar_row__wide']);
+  // Asking from inside a variation gives the same list, because "swap this grip for another" is
+  // asked far more often from a variation than from the plain movement.
+  assert.deepEqual(T.variantsOf('tbar_row__wide').map(e => e.id).sort(), fromParent.slice().sort());
+});
+
+test('variantsOf is empty for a movement with no variations, rather than a list of one', () => {
+  assert.deepEqual(T.variantsOf('bulgarian'), [], 'a lone movement is not "1 variation"');
+});
+
+test('baseOf finds the movement behind a variation, and is a no-op otherwise', () => {
+  assert.equal(T.baseOf('tbar_row__wide'), 'tbar_row');
+  assert.equal(T.baseOf('tbar_row'), 'tbar_row');
+  assert.equal(T.baseOf('not_a_thing'), 'not_a_thing');
+});
+
+test('a hand-built custom variation is listed alongside the generated ones', () => {
+  const custom = [{ id: 'cu_1', name: 'T-bar row (fat grips)', variantOf: 'tbar_row', primary: ['ub'], secondary: [], pattern: 'horizPull', equipment: 'barbell', profile: 'mid', custom: true }];
+  const ids = T.variantsOf('tbar_row', custom).map(e => e.id);
+  assert.ok(ids.includes('cu_1'), 'your own variation belongs with the built-in ones');
+  assert.equal(T.baseOf('cu_1', custom), 'tbar_row');
+});
+
+test('variation ids are stable and unique, because history hangs off them', () => {
+  const seen = new Set();
+  for (const v of VARIANTS()) {
+    assert.ok(!seen.has(v.id), `duplicate variation id ${v.id}`);
+    seen.add(v.id);
+    assert.equal(v.id, v.variantOf + '__' + v.variant, 'the id must stay derivable, or logged sets orphan');
+  }
+});
+
+test('a list marker is stripped, but a hyphen inside a name is not', () => {
+  // Coaches number their plans, so "a) Bench press" and "3 - Deadlift" have to lose their marker.
+  assert.equal(T.resolve('a) Bench press'), 'bb_bench');
+  assert.equal(T.resolve('B. Back squat'), 'back_squat');
+  assert.equal(T.resolve('1. T-bar row'), 'tbar_row');
+  // But a hyphen glued to the next word is part of the movement. "B-stance" losing its B used to
+  // resolve correctly anyway, purely because "stance" was a rare word in the library; it stopped
+  // being rare the moment squats gained stance variations, and the match collapsed to a plain RDL.
+  assert.equal(T.resolve('B-stance Romanian deadlift'), 'b_stance_rdl');
+});
+
+// ---- the cold start a separate-lift model creates -----------------------------------------------
+// Picking a grip for the first time gives it no history of its own. That is correct and intended,
+// but a blank row on the way into a session is worse than useless when the number you want is
+// sitting right there under the movement it came from.
+
+test('lastReference borrows from the parent movement, and says that it did', () => {
+  const logs = [{ id: 'l1', dateISO: '2026-08-01', sets: [
+    { exerciseId: 'tbar_row', weightKg: 70, reps: 10, done: true, type: 'work' },
+  ] }];
+  const r = T.lastReference(logs, 'tbar_row__wide', '2026-08-09');
+  assert.equal(r.borrowed, true);
+  assert.equal(r.fromId, 'tbar_row', 'the caller needs this to label whose number it is');
+  assert.equal(r.best.weightKg, 70);
+});
+
+test('lastReference prefers the variation\'s own history the moment it has any', () => {
+  const logs = [
+    { id: 'l1', dateISO: '2026-08-01', sets: [{ exerciseId: 'tbar_row', weightKg: 70, reps: 10, done: true, type: 'work' }] },
+    { id: 'l2', dateISO: '2026-08-05', sets: [{ exerciseId: 'tbar_row__wide', weightKg: 60, reps: 10, done: true, type: 'work' }] },
+  ];
+  const r = T.lastReference(logs, 'tbar_row__wide', '2026-08-09');
+  assert.equal(r.borrowed, false, 'a lighter own number still beats a borrowed heavier one');
+  assert.equal(r.best.weightKg, 60);
+});
+
+test('lastReference never borrows for a movement that is not a variation', () => {
+  const logs = [{ id: 'l1', dateISO: '2026-08-01', sets: [{ exerciseId: 'tbar_row', weightKg: 70, reps: 10, done: true, type: 'work' }] }];
+  assert.equal(T.lastReference(logs, 'bb_bench', '2026-08-09'), null);
+});
+
+test('borrowing a reference never leaks into personal bests', () => {
+  // The whole point of separate lifts: a wide-grip best is a wide-grip best. Doing 70kg on the plain
+  // T-bar must not hand the wide-grip version a record it has not earned.
+  const logs = [{ id: 'l1', dateISO: '2026-08-01', sets: [{ exerciseId: 'tbar_row', weightKg: 70, reps: 10, done: true, type: 'work' }] }];
+  assert.equal(T.bestBefore(logs, 'tbar_row__wide', '2026-08-09').weightKg, 0);
+  const prs = T.computePRs(logs);
+  assert.ok(!prs['tbar_row__wide'], 'no borrowed record');
+});
+
+// ---- search folds variations away unless you ask for one ----------------------------------------
+
+test('a broad search returns movements, not every way of doing them', () => {
+  const names = T.search('row', null, 30).map(e => e.name);
+  assert.ok(names.includes('T-bar row'));
+  assert.ok(!names.some(n => n.includes('(')), `variations leaked into a broad search: ${names.filter(n => n.includes('('))}`);
+});
+
+test('naming the grip in the search brings that variation back', () => {
+  const names = T.search('t-bar row neutral', null, 10).map(e => e.name);
+  assert.deepEqual(names, ['T-bar row (neutral grip)']);
+});
+
+test('an empty search shows movements only', () => {
+  assert.ok(!T.search('', null, 50).some(e => e.variantOf));
+});

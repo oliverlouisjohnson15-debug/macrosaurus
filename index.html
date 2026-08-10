@@ -5440,6 +5440,189 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var BY_ID = {};
   EXERCISES.forEach(function (e) { BY_ID[e.id] = e; });
 
+  /* ---- variations: the same movement, done a different way -------------------------------------
+   * A wide-grip T-bar row and a neutral-grip T-bar row are not the same lift. They load differently,
+   * they get strong at different rates, and somebody who runs both wants to see both. So a variation
+   * is a REAL exercise: its own id, its own history, its own personal best, exactly as Wide-grip
+   * pulldown and Close-grip bench press already were. What changed is that they are no longer a
+   * scattered handful of hand-written rows. Most movements that obviously take a grip or a stance
+   * had none at all, and the only way to get one was to hand-build a custom exercise and re-answer
+   * every muscle it works.
+   *
+   * They are generated rather than typed into TABLE for three reasons. A derived variation cannot
+   * drift out of step with the movement it came from. The emphasis shift is stated once per grip
+   * instead of re-typed per movement, so "wide grip moves work to the rear delts" is one line and
+   * not forty. And TABLE stays something a person can read in a diff.
+   *
+   * WHAT A VARIATION MAY CHANGE: which muscles it mainly works. Nothing else. A wide-grip row is
+   * still a horizontal pull done with a barbell at a mid-length resistance profile, and pretending
+   * otherwise would corrupt warm-up ramps and gap-filling for the sake of a label.
+   */
+  var VARIANT_AXES = {
+    // Horizontal pulls. Widening the grip rolls the work off the lats and onto the rear delts and
+    // upper back; turning the palms up brings the biceps in properly.
+    rowGrip: [
+      { id: 'neutral', name: 'neutral grip' },
+      { id: 'wide', name: 'wide grip', promote: ['rd'], demote: ['lt'] },
+      { id: 'underhand', name: 'underhand', promote: ['bi'] },
+    ],
+    // Vertical pulls. Same idea, and underhand on a pulldown is a genuinely different lift.
+    pulldownGrip: [
+      { id: 'neutral', name: 'neutral grip' },
+      { id: 'wide', name: 'wide grip', promote: ['ub'] },
+      { id: 'underhand', name: 'underhand', promote: ['bi'] },
+    ],
+    // Horizontal presses. Narrowing the grip is the classic triceps builder; widening it is chest.
+    pressGrip: [
+      { id: 'close', name: 'close grip', promote: ['tr'], demote: ['ch'] },
+      { id: 'wide', name: 'wide grip', promote: ['ch'], demote: ['tr'] },
+    ],
+    // Squat and press stances. Wide takes the adductors and glutes, narrow keeps it on the quads.
+    stance: [
+      { id: 'narrow', name: 'narrow stance', promote: ['qu'], demote: ['gl'] },
+      { id: 'wide', name: 'wide stance', promote: ['ad', 'gl'], demote: ['qu'] },
+    ],
+    // Cable attachments, where the handle genuinely IS the movement.
+    attachment: [
+      { id: 'rope', name: 'rope' },
+      { id: 'vbar', name: 'V-bar' },
+    ],
+  };
+  /* THREE AXES THAT LOOK OBVIOUS AND ARE DELIBERATELY ABSENT.
+   * Single arm and single leg: the library already carries thirteen hand-written unilateral entries
+   * (Single-arm dumbbell row, Single-leg extension, Single-arm pushdown and so on). Generating
+   * "Leg extension (single leg)" beside "Single-leg extension" would give people two rows for one
+   * lift and split the history between them, which is the exact opposite of the point.
+   * Bench angle: Incline and Decline are already separate entries for every press that takes them.
+   * Cable attachments on triceps work: Rope pushdown and Bar pushdown are already separate entries.
+   * Curl grips: Hammer curl and Reverse curl are canonical entries people actually type, and
+   * "Dumbbell curl (hammer grip)" beside "Hammer curl" splits one lift's history across two rows.
+   * The rule this follows is that a generated variation is only worth having where the library has
+   * nothing, and duplicating a hand-written movement is worse than not offering the variation.
+   */
+  /* Which movements take which axes. Explicit and per-movement rather than derived from the pattern,
+   * for two reasons: only some movements genuinely take a given grip (you cannot narrow your stance
+   * on a leg curl), and the library already carries a scattering of hand-written variations that a
+   * pattern rule would happily duplicate. A value of 1 means every option on the axis; an array
+   * means only those options, which is how a movement that already has "Wide-grip pulldown" by hand
+   * gets the other two without getting a second wide-grip entry.
+   */
+  var VARIANTS_FOR = {
+    // ---- rows. The case this was built for: T-bar row had no grips at all.
+    tbar_row: { rowGrip: 1 },
+    bb_row: { rowGrip: 1 },
+    pendlay: { rowGrip: ['wide', 'underhand'] },
+    // Wide-grip cable row is a hand-written entry, so this one only gains underhand and the handles.
+    seated_cable_row: { rowGrip: ['underhand'], attachment: 1 },
+    machine_row: { rowGrip: 1 },
+    chest_supported_row: { rowGrip: ['neutral', 'wide'] },
+    plate_row: { rowGrip: ['neutral', 'wide'] },
+    seal_row: { rowGrip: ['neutral', 'wide'] },
+    inverted_row: { rowGrip: 1 },
+    band_row: { rowGrip: ['neutral', 'wide'] },
+    kb_row: { rowGrip: ['wide'] },
+    // ---- vertical pulls. Wide, neutral and reverse pulldowns are hand-written entries already, so
+    // the pulldown only gains the two attachments the library has no row for.
+    lat_pulldown: { attachment: 1 },
+    pullup: { pulldownGrip: ['wide', 'underhand'] },
+    // ---- horizontal presses. Close-grip bench is a hand-written entry, so the barbell only gains wide.
+    bb_bench: { pressGrip: ['wide'] },
+    db_bench: { pressGrip: 1 },
+    smith_bench: { pressGrip: 1 },
+    pushup: { pressGrip: ['wide'] },
+    bb_ohp: { pressGrip: 1 },
+    // ---- squats and leg presses. Narrow-stance leg press is hand-written, so it only gains wide.
+    back_squat: { stance: 1 },
+    front_squat: { stance: ['narrow'] },
+    hack_squat: { stance: 1 },
+    smith_squat: { stance: 1 },
+    goblet_squat: { stance: ['wide'] },
+    // ---- hinges are deliberately absent. Sumo deadlift, B-stance Romanian deadlift and Single-leg
+    // Romanian deadlift are all hand-written already, and a generated "Romanian deadlift (wide
+    // stance)" was close enough to the B-stance entry to start capturing imports off it.
+    // ---- curls are deliberately absent. Hammer curl and Reverse curl are already canonical
+    // hand-written entries covering every grip anybody runs, and "Dumbbell curl (hammer grip)"
+    // beside "Hammer curl" is two rows for one lift with the history split between them.
+  };
+  // Move a muscle into or out of the primary list. Never empties primary: a movement with nothing in
+  // it contributes nothing to the coverage audit, which is worse than a slightly generous attribution.
+  function shiftEmphasis(parent, opt) {
+    var prim = (parent.primary || []).slice();
+    var sec = (parent.secondary || []).slice();
+    (opt.demote || []).forEach(function (m) {
+      if (prim.indexOf(m) < 0 || prim.length <= 1) return;
+      prim = prim.filter(function (x) { return x !== m; });
+      if (sec.indexOf(m) < 0) sec.push(m);
+    });
+    (opt.promote || []).forEach(function (m) {
+      if (prim.indexOf(m) >= 0) return;
+      sec = sec.filter(function (x) { return x !== m; });
+      prim.push(m);
+    });
+    return { primary: prim, secondary: sec };
+  }
+  function buildVariants() {
+    var out = [];
+    var takenName = {};
+    EXERCISES.forEach(function (e) { takenName[norm(e.name)] = 1; });
+    Object.keys(VARIANTS_FOR).forEach(function (pid) {
+      var parent = BY_ID[pid];
+      if (!parent) return;                       // a renamed movement should not mint orphans
+      var axes = VARIANTS_FOR[pid];
+      Object.keys(axes).forEach(function (axisId) {
+        var opts = VARIANT_AXES[axisId];
+        if (!opts) return;
+        var only = axes[axisId];
+        opts.forEach(function (o) {
+          if (only !== 1 && only.indexOf(o.id) < 0) return;
+          var id = pid + '__' + o.id;
+          var name = parent.name + ' (' + o.name + ')';
+          // Belt and braces against the hand-written entries this is meant to complement rather
+          // than duplicate.
+          if (BY_ID[id] || takenName[norm(name)]) return;
+          var em = shiftEmphasis(parent, o);
+          var v = {
+            id: id, name: name,
+            equipment: parent.equipment, pattern: parent.pattern, profile: parent.profile,
+            primary: em.primary, secondary: em.secondary.filter(function (m) { return em.primary.indexOf(m) < 0; }),
+            variantOf: pid, variant: o.id, variantLabel: o.name,
+          };
+          takenName[norm(name)] = 1;
+          out.push(v);
+        });
+      });
+    });
+    return out;
+  }
+  var VARIANTS = buildVariants();
+  VARIANTS.forEach(function (v) { BY_ID[v.id] = v; });
+  EXERCISES = EXERCISES.concat(VARIANTS);
+  // Parent id -> its variations, built once. The picker and the swap sheet both read this, so a
+  // movement's ways of being done are one lookup rather than a scan of three hundred rows.
+  var VARIANTS_BY_PARENT = {};
+  VARIANTS.forEach(function (v) {
+    if (!VARIANTS_BY_PARENT[v.variantOf]) VARIANTS_BY_PARENT[v.variantOf] = [];
+    VARIANTS_BY_PARENT[v.variantOf].push(v);
+  });
+  // The movement a variation came from, or the movement itself when it is not one. Custom variations
+  // (the ones people build by hand) carry the same variantOf field, so they answer here too.
+  function baseOf(id, custom) {
+    var e = byId(id, custom);
+    return (e && e.variantOf) || id;
+  }
+  // Every way of doing this movement: the movement itself first, then its variations, generated and
+  // hand-built alike. Given a variation it returns its siblings, because "swap this for another grip"
+  // is asked far more often from inside a variation than from the plain version.
+  function variantsOf(id, custom) {
+    var base = baseOf(id, custom);
+    var parent = byId(base, custom);
+    if (!parent) return [];
+    var kids = (VARIANTS_BY_PARENT[base] || []).slice();
+    (custom || []).forEach(function (c) { if (c && c.variantOf === base) kids.push(c); });
+    if (!kids.length) return [];
+    return [parent].concat(kids);
+  }
+
   // A custom exercise a user invented still needs muscle attribution, otherwise it silently
   // contributes nothing and the coverage panel lies. The UI forces a primary muscle on create.
   function byId(id, custom) {
@@ -5484,7 +5667,14 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   function cleanName(s) {
     var raw = String(s || '').replace(COACH_PREFIX, '');
     return norm(raw
-      .replace(/^\s*[a-dA-D]?\d{0,2}\s*[\).:-]\s*/, '')
+      // List markers a coach numbers their plan with: "a) Bench press", "B. Squat", "3 - Deadlift".
+      // A BARE hyphen only counts when whitespace follows it, for the same reason COACH_PREFIX above
+      // insists on spaces: without that, "B-stance Romanian deadlift" loses its "B-" and becomes
+      // "stance Romanian deadlift", and "4-week block" loses its "4-". That used to resolve correctly
+      // anyway, but only by luck: "stance" was a rare enough token to carry the match on its own, and
+      // it stopped being rare the moment squats gained narrow and wide stance variations. A name that
+      // survives cleaning matches exactly and does not depend on how rare its words happen to be.
+      .replace(/^\s*[a-dA-D]?\d{0,2}\s*(?:[\).:]\s*|-\s+)/, '')
       .replace(/\b\d+\s*[x×]\s*\d+(\s*-\s*\d+)?\b/g, ' ')
       .replace(/\b\d+\s*(sets?|reps?)\b/g, ' ')
       .replace(/\b\d\s*rir\b/g, ' ')
@@ -5534,6 +5724,13 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       // a flat count those two tie and the winner is whichever happens to sit earlier in the table,
       // which is how a hammer curl became a dumbbell curl and a split squat became a Smith squat.
       var score = qw && ew ? (hit / qw) * (hit / ew) : 0;
+      // A hand-written movement beats a GENERATED variation at the same score. Both "Hammer curl"
+      // and "Dumbbell curl (hammer grip)" are real entries and both score the same against
+      // "ALTERNATING DUMBBELL HAMMER CURL", but only one of them is what a coach writing that line
+      // meant: the canonical name is the one people type, and the variation exists for somebody
+      // choosing it deliberately in the picker. Without this tiebreak, generating variations
+      // silently re-pointed imports that had resolved correctly for months.
+      if (e.variantOf) score *= 0.98;
       if (score > bestScore) { bestScore = score; best = e.id; }
     }
     // Comfortably clear of the threshold is a match nobody needs to check. Just over it is a guess
@@ -5573,9 +5770,16 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return Math.log(1 + EXERCISES.length / (1 + df));
   }
 
+  /* Variations are folded away unless you asked for one. Searching "row" should return the rows, not
+   * eleven ways to hold a T-bar with the movement you wanted pushed off the bottom of the list. So a
+   * variation is dropped when the movement it came from is also a hit, UNLESS the query says
+   * something its parent's name does not: "t-bar row neutral" wants the neutral one, "row" does not.
+   * The picker offers the folded-away ones under their parent, so nothing is unreachable.
+   */
   function search(q, custom, limit) {
     var n = norm(q);
     var pool = all(custom);
+    if (!n) pool = pool.filter(function (e) { return !e.variantOf; });
     if (!n) return pool.slice(0, limit || 30);
     var starts = [], contains = [];
     for (var i = 0; i < pool.length; i++) {
@@ -5583,7 +5787,16 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       if (nm.indexOf(n) === 0) starts.push(pool[i]);
       else if (nm.indexOf(n) !== -1) contains.push(pool[i]);
     }
-    return starts.concat(contains).slice(0, limit || 30);
+    // A variation surfaces only when the query names its grip, stance or handle as a WHOLE word.
+    // Whole word matters: the list is matched on substrings, and without it a search for "row"
+    // returns four narrow-stance squats, because "row" is inside "narrow".
+    var qt = n.split(' ').filter(Boolean);
+    var hits = starts.concat(contains).filter(function (e) {
+      if (!e.variantOf) return true;
+      var mod = norm(e.variantLabel || '').split(' ').filter(Boolean);
+      return mod.some(function (m) { return qt.indexOf(m) >= 0; });
+    });
+    return hits.slice(0, limit || 30);
   }
 
   // ---- volume --------------------------------------------------------------------------------
@@ -5856,6 +6069,25 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     });
     return Object.keys(bestPerEx).map(function (k) { return bestPerEx[k]; })
       .sort(function (a, b) { return a.setIndex - b.setIndex; });
+  }
+
+  /* What to show under a movement you have not done before, when you HAVE done the one it came from.
+   * Picking a grip for the first time is the moment a separate-lift model feels worst: the row goes
+   * blank, and a blank row on the way into a session is worse than useless because the number you
+   * want is sitting right there under the parent movement.
+   *
+   * So the reference falls back to the movement it came from, and says so. It never pretends to be
+   * this variation's own history: `fromId` is handed back precisely so the caller can label it, and
+   * nothing here touches personal bests, which stay strictly per lift as they should.
+   */
+  function lastReference(logs, exerciseId, beforeISO, custom) {
+    var own = bestBefore(logs, exerciseId, beforeISO);
+    if (own && own.weightKg > 0) return { best: own, fromId: exerciseId, borrowed: false };
+    var base = baseOf(exerciseId, custom);
+    if (base === exerciseId) return null;
+    var parent = bestBefore(logs, base, beforeISO);
+    if (!parent || !(parent.weightKg > 0)) return null;
+    return { best: parent, fromId: base, borrowed: true };
   }
 
   // The e1RM series for one movement, best set per session, oldest first.
@@ -7668,6 +7900,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
+    VARIANT_AXES: VARIANT_AXES, VARIANTS_FOR: VARIANTS_FOR,
+    baseOf: baseOf, variantsOf: variantsOf,
     sessionItems: sessionItems, moveExercise: moveExercise, toggleSuperset: toggleSuperset,
     addExerciseToSession: addExerciseToSession, removeExerciseFromSession: removeExerciseFromSession,
     setExerciseTarget: setExerciseTarget, setSessionDay: setSessionDay, sessionsOnDay: sessionsOnDay,
@@ -7677,7 +7911,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,
     e1rm: e1rm, tonnage: tonnage, bestSet: bestSet, computePRs: computePRs, exerciseHistory: exerciseHistory,
-    bestBefore: bestBefore, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
+    bestBefore: bestBefore, lastReference: lastReference, prKind: prKind, prsInLog: prsInLog, statSheet: statSheet, STAT_LABELS: STAT_LABELS,
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
@@ -43008,13 +43242,27 @@ function SessionPlayer({
         }, plateBarLine(s.weightKg, units)));
       }), (() => {
         const lt = it.sets.map(x => x.lastTime).filter(Boolean)[0];
-        if (!lt) return null;
+        if (lt) {
+          return /*#__PURE__*/React.createElement("div", {
+            className: "text-[11px] mt-2",
+            style: {
+              color: 'var(--muted2)'
+            }
+          }, "Last time ", toDisplayWeight(lt.weightKg, units), unitLabel(units), " × ", lt.reps);
+        }
+        // A grip you have never done has no history, so the line borrows the movement it
+        // came from and says whose number it is. Deliberately only the LINE: the weight box
+        // stays empty, because a wide-grip row is not the weight of a plain one and a
+        // number sitting in an input reads as an instruction rather than a reference.
+        const ref = Training.lastReference(t.logs, it.exerciseId, today, t.custom);
+        if (!ref || !ref.borrowed) return null;
+        const from = Training.byId(ref.fromId, t.custom);
         return /*#__PURE__*/React.createElement("div", {
           className: "text-[11px] mt-2",
           style: {
             color: 'var(--muted2)'
           }
-        }, "Last time ", toDisplayWeight(lt.weightKg, units), unitLabel(units), " × ", lt.reps);
+        }, "New to this one. On ", from ? from.name : 'the plain version', " you did ", toDisplayWeight(ref.best.weightKg, units), unitLabel(units), " × ", ref.best.repsAtBest);
       })(), /*#__PURE__*/React.createElement("button", {
         onClick: () => addSet(ii),
         className: "pixel-box w-full h-11 text-[12px] mt-2",
@@ -43700,6 +43948,10 @@ function ExercisePicker({
   const [muscle, setMuscle] = useState('');
   const [creating, setCreating] = useState(false); // true, or a parent id to vary
   const parent = basedOn ? Training.byId(basedOn, t.custom) : null;
+  // Every way of doing the movement being swapped: the plain version and each of its grips, stances
+  // or handles. Asked from a variation it returns its siblings, which is the case that matters, since
+  // "this grip is not working today" is a thought you have while already on a variation.
+  const siblings = basedOn ? Training.variantsOf(basedOn, t.custom) : [];
   let list = Training.search(q, t.custom, 200);
   if (muscle) list = list.filter(e => (e.primary || []).indexOf(muscle) !== -1 || (e.secondary || []).indexOf(muscle) !== -1);
   if (!q) list = list.concat(Training.CARDIO);
@@ -43761,11 +44013,33 @@ function ExercisePicker({
     }
   }, Training.MUSCLE_LABEL[m])))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto px-3 pb-6"
-  }, parent && /*#__PURE__*/React.createElement("button", {
+  }, parent && siblings.length > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-3 mb-2",
+    style: {
+      background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[8px] uppercase mb-2",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Ways to do this one"), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-2"
+  }, siblings.map(v => /*#__PURE__*/React.createElement("button", {
+    key: v.id,
+    onClick: () => onPick(v.id),
+    disabled: v.id === basedOn,
+    className: "pixel-box px-3 h-11 text-[11.5px]",
+    style: {
+      background: v.id === basedOn ? 'var(--accent)' : 'var(--surface2)',
+      color: v.id === basedOn ? 'var(--on-accent)' : 'var(--text2)',
+      opacity: v.id === basedOn ? 0.7 : 1
+    }
+  }, v.variantLabel ? v.variantLabel : 'as written')))), parent && /*#__PURE__*/React.createElement("button", {
     onClick: () => setCreating(basedOn),
     className: "w-full text-left pixel-box p-3 mb-2",
     style: {
-      background: 'color-mix(in srgb, var(--accent) 12%, var(--surface2))'
+      background: 'var(--surface2)'
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-bold"
@@ -43774,24 +44048,45 @@ function ExercisePicker({
     style: {
       color: 'var(--muted)'
     }
-  }, "A different grip, stance or attachment. Keeps what it trains.")), list.map(e => /*#__PURE__*/React.createElement("button", {
-    key: e.id,
-    onClick: () => onPick(e.id),
-    className: "w-full text-left pixel-box p-3 mb-2",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[13px] font-bold"
-  }, e.name), Training.isCardio(e) ? /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px]",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "Cardio, logged but not counted in your lifting volume") : /*#__PURE__*/React.createElement(MuscleTags, {
-    exerciseId: e.id,
-    custom: t.custom
-  }))), !list.length && /*#__PURE__*/React.createElement("div", {
+  }, "A grip, stance or attachment we have not got. Keeps what it trains.")), list.map(e => {
+    // The ways of doing THIS movement, offered right on its row. Search folds them away so a
+    // hunt for "row" is not eleven ways to hold a T-bar, and this is where they come back:
+    // one tap, on the movement you were already looking at, with no second search.
+    const ways = Training.variantsOf(e.id, t.custom).filter(v => v.id !== e.id);
+    return /*#__PURE__*/React.createElement("div", {
+      key: e.id,
+      className: "pixel-box p-3 mb-2",
+      style: {
+        background: 'var(--surface2)'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => onPick(e.id),
+      className: "w-full text-left"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] font-bold"
+    }, e.name), Training.isCardio(e) ? /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px]",
+      style: {
+        color: 'var(--muted2)'
+      }
+    }, "Cardio, logged but not counted in your lifting volume") : /*#__PURE__*/React.createElement(MuscleTags, {
+      exerciseId: e.id,
+      custom: t.custom
+    })), ways.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap gap-2 mt-3 pt-3",
+      style: {
+        borderTop: '2px solid var(--border)'
+      }
+    }, ways.map(v => /*#__PURE__*/React.createElement("button", {
+      key: v.id,
+      onClick: () => onPick(v.id),
+      className: "pixel-box px-3 h-11 text-[11.5px]",
+      style: {
+        background: 'var(--card)',
+        color: 'var(--accent-ink)'
+      }
+    }, v.variantLabel || v.name))));
+  }), !list.length && /*#__PURE__*/React.createElement("div", {
     className: "text-center py-8"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] mb-2",
@@ -44985,7 +45280,12 @@ function SessionPreview({
     className: "text-[12px] leading-snug"
   }, "You logged this one ", relativeDay(log.dateISO, Store.todayISO()).toLowerCase(), ", ", (log.sets || []).filter(s => s.done).length, " sets. Opening it again picks up where you left off.")), items.map((it, i) => {
     const ex = Training.byId(it.exerciseId, t.custom);
-    const last = Training.bestBefore(t.logs, it.exerciseId, Store.todayISO());
+    // A grip you have never used has no history of its own, and a blank row on the way into a
+    // session is worse than useless when the number you want is sitting under the movement it
+    // came from. Borrowed numbers say whose they are; the personal best stays per lift.
+    const ref = Training.lastReference(t.logs, it.exerciseId, Store.todayISO(), t.custom);
+    const last = ref && ref.best;
+    const refFrom = ref && ref.borrowed ? (Training.byId(ref.fromId, t.custom) || {}).name : null;
     const body = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
       className: "pf text-[10px] shrink-0 w-6 mt-0.5",
       style: {
@@ -45005,7 +45305,7 @@ function SessionPreview({
       style: {
         color: 'var(--muted2)'
       }
-    }, "Last time ", toDisplayWeight(last.weightKg, units), unitLabel(units), " x ", last.repsAtBest)));
+    }, refFrom ? 'On ' + refFrom + ' ' : 'Last time ', toDisplayWeight(last.weightKg, units), unitLabel(units), " x ", last.repsAtBest, refFrom ? ' · new to this one' : '')));
     if (!editable) return /*#__PURE__*/React.createElement(Card, {
       key: it.id || i,
       className: "p-4 mb-3"
