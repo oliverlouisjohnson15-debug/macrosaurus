@@ -48,6 +48,11 @@ function trainUpdate(update, fn) {
 }
 function trainUid() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// The same seven, written out, for the places somebody is CHOOSING a day rather than reading a label.
+// Deliberately not app.jsx's DOW_FULL, which is Sunday-first because it indexes Date.getDay();
+// training's dayOfWeek is Monday-first, and quietly borrowing the other one would move every session
+// by a day.
+const WEEKDAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 // "Week 3" on its own never told you WHEN. The dates do, and they are what people check against
 // their actual diary.
 function weekRangeLabel(startISO, week) {
@@ -270,8 +275,8 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
     const sess = blk ? (blk.sessions || []).filter(s => s.id === screen.sessionId)[0] : null;
     if (!sess) return page(<TrainHome db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       block={block} onOpen={previewSession} go={go} />);
-    return page(<SessionPreview db={db} session={sess} block={blk} onBack={() => go('home')}
-      onStart={() => startSession(sess, blk)} />);
+    return page(<SessionPreview db={db} update={update} showToast={showToast} session={sess} block={blk}
+      onBack={() => go('home')} onStart={() => startSession(sess, blk)} />);
   }
   if (screen.name === 'builder') {
     return page(<BlockBuilder db={db} update={update} showToast={showToast} isPremium={isPremium}
@@ -448,10 +453,11 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13.5px] font-semibold truncate" style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>{session.name}</span>
                     <span className="block text-[10.5px] tnum" style={{ color: 'var(--muted2)' }}>
-                      {done ? (log.sets || []).filter(s => s.done).length + ' sets done' : sets + ' sets · about ' + mins + ' min'}
+                      {WEEKDAYS[session.dayOfWeek] || '?'} · {done ? (log.sets || []).filter(s => s.done).length + ' sets done' : sets + ' sets · about ' + mins + ' min'}
                     </span>
                   </span>
                   {isNext && <span className="pf text-[7px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Next</span>}
+                  <Icon.chevron width="14" height="14" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
                 </button>
               );
             })}
@@ -464,9 +470,18 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                tonight is, and there is now exactly one control in the app that begins a session. A
                session is not a page you visited, it is a timer and a log, and it should take saying
                so. The cost is one tap on the way in. */
-            <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
-              Open {next.session.name.split(' - ')[0]}
-            </button>
+            <>
+              <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+                Open {next.session.name.split(' - ')[0]}
+              </button>
+              {/* Naming it is the whole of the discoverability. Opening a day has always been how you
+                  read it; that it is also how you CHANGE it is not something a chevron can say, and
+                  the alternative was people starting a session they did not want to start in order
+                  to swap one movement. */}
+              <div className="text-[11px] text-center mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>
+                Open any day above to see it, swap a movement or move it to another day. None of that starts a session.
+              </div>
+            </>
           ) : (
             <div className="text-[12.5px] text-center py-3" style={{ color: 'var(--good)' }}>
               Week {prog.week} done. That is the whole week, in the bag.
@@ -2395,30 +2410,125 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
   );
 }
 
-// ---- what is in today's session, before you commit to it --------------------------------------
-// Tapping a day used to drop you straight into the player, which starts a session: it stamps a
-// start time, and from the second visit onwards the app treats it as one you are part-way through.
-// Most taps are not that. They are "what am I doing tonight", asked on the bus, and the answer
-// should not begin a workout. So the tap opens the plan and Start begins it.
-function SessionPreview({ db, session, block, onBack, onStart }) {
+/* ---- what is in a session, and how to change it, before you commit to it -----------------------
+   Tapping a day used to drop you straight into the player, which STARTS a session: it stamps a start
+   time, and from the second visit onwards the app treats it as one you are part-way through. Most
+   taps are not that. They are "what am I doing tonight", asked on the bus, and the answer should not
+   begin a workout. So the tap opens the plan and Start begins it.
+
+   This screen is now also where you CHANGE it. Until it was, altering the week meant one of two bad
+   options: start the session you did not want to start yet and swap the movement inside it, leaving
+   a phantom half-finished session behind, or go two hops into the block editor, which asks a
+   different question entirely (it edits the four-week programme, not this Thursday).
+
+   Rearranging the week ahead is a weekly, casual, low-stakes act. The gym is shut, a machine is
+   taken, your Wednesday moved. It belongs here, in the place people already look, and not behind a
+   mode switch: every row opens its own menu, which is the same gesture the session player uses for
+   the same job, so the plan and the running of it stay one app.
+
+   Scope. Sets, reps, order, add and remove change THIS session, which is this week's copy, and the
+   screen says so. A swap is the one edit likely to be permanent (a grip that suits you better, a
+   machine your gym does not have), so it asks the same question the player asks, with the same
+   words and the same reach count. */
+function SessionPreview({ db, update, showToast, session, block, onBack, onStart }) {
   useBackClose(onBack);
   const t = tdb(db);
   const units = t.prefs.units;
-  const items = (session.exercises || []).slice().sort((a, b) => a.order - b.order);
+  const [menuFor, setMenuFor] = useState(null);   // item id whose options sheet is open
+  const [tuning, setTuning] = useState(null);     // item id whose sets/reps editor is open
+  const [picking, setPicking] = useState(null);   // { mode: 'add' } | { mode: 'swap', itemId }
+  const [dayPick, setDayPick] = useState(false);
+  const [swapScope, setSwapScope] = useState(null);
+  const [undo, setUndo] = useState(null);         // the last removal, restorable for as long as you stay
+  // Read the session back off the block on every render, so an edit shows immediately rather than
+  // this screen holding a copy that drifts away from what was saved.
+  const live = block ? ((block.sessions || []).filter(s => s.id === session.id)[0] || session) : session;
+  const items = Training.sessionItems(live);
   const codes = Training.sessionCodes(items);
   const sets = items.reduce((a, e) => a + (e.target.sets || 0), 0);
   const mins = Math.round(items.reduce((a, e) => a + (e.target.sets || 0) * (((e.target.restSec || 120) + 40) / 60), 0));
-  const log = t.logs.filter(l => l.sessionId === session.id)[0];
+  const log = t.logs.filter(l => l.sessionId === live.id)[0];
+  const prog = block ? Training.blockProgress(block, Store.todayISO()) : null;
+  const editable = !!(block && update);
+
+  // Every edit goes through here: find this session inside the stored block and mutate it in place.
+  // Training owns what the edit MEANS (ordering, clamping, whether a superset survives); this only
+  // owns finding the right row and saying what happened.
+  function edit(fn, say) {
+    if (!editable) return;
+    trainUpdate(update, (tr) => {
+      const b = tr.blocks.filter(x => x.id === block.id)[0];
+      if (!b) return;
+      const s = (b.sessions || []).filter(x => x.id === live.id)[0];
+      if (s) fn(s, b);
+    });
+    if (say && showToast) showToast(say);
+  }
+
+  function removeItem(itemId) {
+    const row = items.filter(x => x.id === itemId)[0];
+    const ex = row && Training.byId(row.exerciseId, t.custom);
+    // Keep the whole row, not just its id: putting it back has to restore its sets, reps and place
+    // in the order, or "undo" is a word for something else.
+    setUndo(row ? { row: JSON.parse(JSON.stringify(row)), at: items.indexOf(row) } : null);
+    edit(s => Training.removeExerciseFromSession(s, itemId));
+    if (showToast) showToast((ex ? ex.name : 'Movement') + ' taken out. Tap undo below to put it back.');
+  }
+  function undoRemove() {
+    if (!undo) return;
+    edit(s => {
+      const list = Training.sessionItems(s);
+      list.splice(Math.min(undo.at, list.length), 0, undo.row);
+      list.forEach((e, i) => { e.order = i; });
+      s.exercises = list;
+    });
+    setUndo(null);
+  }
+  // Every argument is passed in rather than read off state, because the sheet that calls this closes
+  // itself first: reaching back for `picking.itemId` afterwards would find it already cleared.
+  function doSwap(itemId, fromId, exId, scope) {
+    edit((s, b) => {
+      if (scope === 'block') Training.swapInBlock(b, fromId, exId, prog ? prog.week : 1);
+      else {
+        const it = (s.exercises || []).filter(x => x.id === itemId)[0];
+        if (it) it.exerciseId = exId;
+      }
+    });
+    const to = Training.byId(exId, t.custom);
+    if (showToast) showToast(scope === 'block' ? 'Swapped for the rest of the block.' : (to ? to.name : 'Swapped') + ' for this session.');
+  }
+
+  const item = menuFor ? items.filter(x => x.id === menuFor)[0] : null;
+  const itemIndex = item ? items.indexOf(item) : -1;
+  const itemEx = item ? Training.byId(item.exerciseId, t.custom) : null;
+  const tuneRow = tuning ? items.filter(x => x.id === tuning)[0] : null;
 
   return (
     <div className="fade-in pb-28">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Tonight</div>
-      <h1 className="text-[19px] font-bold leading-tight mb-2">{session.name}</h1>
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>
+        {prog ? 'Week ' + prog.week + ' of ' + block.weeks : 'Tonight'}
+      </div>
+      <h1 className="text-[19px] font-bold leading-tight mb-2">{live.name}</h1>
       <div className="text-[12px] mb-4 tnum" style={{ color: 'var(--muted)' }}>
         {items.length} movements &middot; {sets} sets &middot; about {mins} min
-        {session.deload ? ' · deload week' : ''}
+        {live.deload ? ' · deload week' : ''}
       </div>
+
+      {/* Which day this one falls on, and a tap to move it. Real weeks do not run in order: the gym
+          is shut, Wednesday moved, legs went to Thursday. Moving it here changes THIS week only,
+          because every week carries its own copy, which is what somebody rearranging one week means. */}
+      {editable && (
+        <button onClick={() => setDayPick(true)}
+          className="w-full pixel-box p-4 mb-4 flex items-center justify-between gap-3 text-left" style={{ background: 'var(--card)' }}>
+          <span className="min-w-0">
+            <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>Day</span>
+            <span className="block text-[13.5px] font-semibold mt-1">{WEEKDAYS_FULL[live.dayOfWeek] || 'Not set'}</span>
+            {prog && <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>This week only. Later weeks stay as they are.</span>}
+          </span>
+          <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Move</span>
+        </button>
+      )}
 
       {log && (
         <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--good) 12%, var(--surface2))' }}>
@@ -2431,33 +2541,185 @@ function SessionPreview({ db, session, block, onBack, onStart }) {
       {items.map((it, i) => {
         const ex = Training.byId(it.exerciseId, t.custom);
         const last = Training.bestBefore(t.logs, it.exerciseId, Store.todayISO());
-        return (
-          <Card key={it.id || i} className="p-4 mb-3">
-            <div className="flex items-baseline gap-3">
-              <span className="pf text-[10px] shrink-0 w-6" style={{ color: 'var(--accent-ink)' }}>{codes[i]}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
-                <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
-                  {it.target.sets} x {it.target.repLow}-{it.target.repHigh} &middot; {it.target.rir} RIR
-                  {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
-                </span>
-                {/* What you did last time is the number you actually want before you set off. */}
-                {last && last.weightKg > 0 && (
-                  <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
-                    Last time {toDisplayWeight(last.weightKg, units)}{unitLabel(units)} x {last.repsAtBest}
-                  </span>
-                )}
+        const body = (
+          <>
+            <span className="pf text-[10px] shrink-0 w-6 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{codes[i]}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13.5px] font-bold leading-tight">{ex ? ex.name : it.exerciseId}</span>
+              <span className="block text-[11px] tnum mt-1" style={{ color: 'var(--muted)' }}>
+                {it.target.sets} x {it.target.repLow}-{it.target.repHigh} &middot; {it.target.rir} RIR
+                {it.target.tempo ? ' · ' + it.target.tempo + ' tempo' : ''}
               </span>
-            </div>
-          </Card>
+              {/* What you did last time is the number you actually want before you set off. */}
+              {last && last.weightKg > 0 && (
+                <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
+                  Last time {toDisplayWeight(last.weightKg, units)}{unitLabel(units)} x {last.repsAtBest}
+                </span>
+              )}
+            </span>
+          </>
+        );
+        if (!editable) return <Card key={it.id || i} className="p-4 mb-3"><div className="flex items-start gap-3">{body}</div></Card>;
+        return (
+          <button key={it.id || i} onClick={() => setMenuFor(it.id)}
+            aria-label={'Change ' + (ex ? ex.name : 'this movement')}
+            className="w-full text-left pixel-box p-4 mb-3 flex items-start gap-3" style={{ background: 'var(--card)' }}>
+            {body}
+            <span className="shrink-0 mt-1" style={{ color: 'var(--muted2)' }}><Icon.chevron width="15" height="15" /></span>
+          </button>
         );
       })}
 
+      {editable && (
+        <>
+          <button onClick={() => setPicking({ mode: 'add' })} className="pixel-box w-full h-11 text-[12px] mb-3" style={{ background: 'var(--surface2)' }}>
+            + Add a movement
+          </button>
+          {/* Undo lives on the screen rather than inside a toast that has already slid away. Taking a
+              movement out is the one edit here that loses work, and the toast is gone in five seconds. */}
+          {undo && (
+            <button onClick={undoRemove} className="pixel-box w-full h-11 text-[12px] mb-3"
+              style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--surface2))', color: 'var(--accent-ink)' }}>
+              Undo: put {(Training.byId(undo.row.exerciseId, t.custom) || {}).name || 'it'} back
+            </button>
+          )}
+          <div className="text-[11px] leading-snug mb-4 text-center" style={{ color: 'var(--muted2)' }}>
+            Changes here are saved as you make them, and they apply to this week. Nothing starts a session.
+          </div>
+        </>
+      )}
+
       <StickyAction>
         <button onClick={onStart} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
-          {log ? 'Carry on with it' : 'Start ' + session.name.split(' - ')[0]}
+          {log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0]}
         </button>
       </StickyAction>
+
+      {/* One movement's options. Same sheet, same order, same words as the session player's, because
+          it is the same job asked in a different room. */}
+      {item && (
+        <ActionSheet title={itemEx ? itemEx.name : 'This movement'} onClose={() => setMenuFor(null)}
+          actions={[
+            { label: 'Swap it', sub: 'Something else that trains the same thing', onClick: () => setPicking({ mode: 'swap', itemId: item.id }) },
+            { label: 'Sets and reps', sub: item.target.sets + ' x ' + item.target.repLow + '-' + item.target.repHigh + ' at ' + item.target.rir + ' RIR', onClick: () => setTuning(item.id) },
+            {
+              label: item.supersetGroup ? 'Break the superset' : 'Superset with the next one',
+              sub: item.supersetGroup ? 'Do it on its own again' : (items[itemIndex + 1] && !items[itemIndex + 1].supersetGroup
+                ? 'Back to back with ' + ((Training.byId(items[itemIndex + 1].exerciseId, t.custom) || {}).name || 'the next movement')
+                : 'Nothing free to pair it with'),
+              disabled: !item.supersetGroup && !(items[itemIndex + 1] && !items[itemIndex + 1].supersetGroup),
+              onClick: () => edit(s => Training.toggleSuperset(s, item.id)),
+            },
+            { label: 'Move up', disabled: itemIndex <= 0, onClick: () => edit(s => Training.moveExercise(s, item.id, -1)) },
+            { label: 'Move down', disabled: itemIndex < 0 || itemIndex >= items.length - 1, onClick: () => edit(s => Training.moveExercise(s, item.id, 1)) },
+            { label: 'Take it out', danger: true, sub: 'You can undo this', onClick: () => removeItem(item.id) },
+          ]} />
+      )}
+
+      {tuneRow && <TargetSheet row={tuneRow} name={(Training.byId(tuneRow.exerciseId, t.custom) || {}).name}
+        onChange={patch => edit(s => Training.setExerciseTarget(s, tuneRow.id, patch))}
+        onClose={() => setTuning(null)} />}
+
+      {picking && (
+        <ExercisePicker db={db} update={update}
+          title={picking.mode === 'swap' ? 'Swap movement' : 'Add a movement'}
+          basedOn={picking.mode === 'swap' ? (items.filter(x => x.id === picking.itemId)[0] || {}).exerciseId : null}
+          onPick={(exId) => {
+            if (picking.mode === 'add') {
+              edit(s => Training.addExerciseToSession(s, exId, t.custom, exId + '_' + trainUid()));
+              const ex = Training.byId(exId, t.custom);
+              if (showToast) showToast((ex ? ex.name : 'Movement') + ' added to ' + live.name + '.');
+              setPicking(null);
+              return;
+            }
+            const row = items.filter(x => x.id === picking.itemId)[0];
+            setPicking(null);
+            if (!row) return;
+            // A swap changes this session for certain. Whether it should change the REST of the block
+            // is a different question and only the person knows the answer: a machine being busy is
+            // this week, a grip that suits you better is the rest of it. Asked once, and only when
+            // there is genuinely more than one session it could touch.
+            const reach = block ? Training.swapReach(block, row.exerciseId, prog ? prog.week : 1) : 1;
+            if (reach > 1) setSwapScope({ exId, reach, itemId: row.id, fromId: row.exerciseId });
+            else doSwap(row.id, row.exerciseId, exId, 'session');
+          }}
+          onClose={() => setPicking(null)} />
+      )}
+
+      {swapScope && (() => {
+        const from = Training.byId(swapScope.fromId, t.custom);
+        const to = Training.byId(swapScope.exId, t.custom);
+        const sc = swapScope;
+        return (
+          <ActionSheet title={(to ? to.name : 'That') + ' instead of ' + (from ? from.name : 'it')}
+            onClose={() => setSwapScope(null)}
+            actions={[
+              { label: 'Just this session', sub: 'The rest of the block keeps ' + (from ? from.name : 'the original'),
+                onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'session') },
+              { label: 'The rest of the block',
+                sub: 'Changes ' + sc.reach + ' sessions from this week on. Weeks you have trained stay as they were.',
+                onClick: () => doSwap(sc.itemId, sc.fromId, sc.exId, 'block') },
+            ]} />
+        );
+      })()}
+
+      {dayPick && (
+        <ActionSheet title={'Which day is ' + live.name + '?'} onClose={() => setDayPick(false)}
+          actions={WEEKDAYS_FULL.map((label, d) => {
+            const also = block && prog ? Training.sessionsOnDay(block, prog.week, d, live.id) : [];
+            return {
+              label,
+              sub: d === live.dayOfWeek ? 'Where it is now' : (also.length ? also.join(' and ') + ' ' + (also.length === 1 ? 'is' : 'are') + ' also on this day' : null),
+              onClick: () => {
+                edit(s => Training.setSessionDay(s, d));
+                if (showToast) showToast(live.name + ' moved to ' + label + ' this week.');
+              },
+            };
+          })} />
+      )}
+    </div>
+  );
+}
+
+/* The prescription, as four numbers you can actually change. This is the one edit in the module with
+   no obvious gesture: sets and reps are not a list to reorder or an item to pick, they are a dial.
+   Steppers rather than free text, because the range each one is allowed to take is narrow and known,
+   and a number pad on a phone for a value between 1 and 10 is three taps to do what one should. */
+function TargetSheet({ row, name, onChange, onClose }) {
+  useBackClose(onClose);
+  const t = row.target || {};
+  const Stepper = ({ label, value, sub, onMinus, onPlus, atMin, atMax }) => (
+    <div className="flex items-center gap-3 py-3" style={{ borderTop: '2px solid var(--border)' }}>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-semibold">{label}</span>
+        {sub && <span className="block text-[11px] mt-0.5" style={{ color: 'var(--muted2)' }}>{sub}</span>}
+      </span>
+      <button onClick={onMinus} disabled={atMin} aria-label={'Fewer ' + label.toLowerCase()}
+        className="pixel-box w-11 h-11 text-[15px] shrink-0" style={{ background: 'var(--surface2)', opacity: atMin ? 0.4 : 1 }}>-</button>
+      <span className="pf text-[13px] tnum w-14 text-center shrink-0">{value}</span>
+      <button onClick={onPlus} disabled={atMax} aria-label={'More ' + label.toLowerCase()}
+        className="pixel-box w-11 h-11 text-[15px] shrink-0" style={{ background: 'var(--surface2)', opacity: atMax ? 0.4 : 1 }}>+</button>
+    </div>
+  );
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Sets and reps" className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="w-full max-w-sm pixel-box fade-in max-h-[80vh] overflow-y-auto p-4" style={{ background: 'var(--card)' }} onClick={e => e.stopPropagation()}>
+        <div className="pf text-[11px] mb-1">SETS AND REPS</div>
+        <div className="text-[12px] mb-3" style={{ color: 'var(--muted)' }}>{name || 'This movement'}</div>
+        <Stepper label="Sets" value={t.sets}
+          atMin={t.sets <= Training.SETS_MIN} atMax={t.sets >= Training.SETS_MAX}
+          onMinus={() => onChange({ sets: t.sets - 1 })} onPlus={() => onChange({ sets: t.sets + 1 })} />
+        <Stepper label="Reps from" value={t.repLow} sub="The bottom of the range"
+          atMin={t.repLow <= Training.REPS_MIN} atMax={t.repLow >= Training.REPS_MAX}
+          onMinus={() => onChange({ repLow: t.repLow - 1 })} onPlus={() => onChange({ repLow: t.repLow + 1 })} />
+        <Stepper label="Reps to" value={t.repHigh} sub="The top of the range"
+          atMin={t.repHigh <= Training.REPS_MIN} atMax={t.repHigh >= Training.REPS_MAX}
+          onMinus={() => onChange({ repHigh: t.repHigh - 1 })} onPlus={() => onChange({ repHigh: t.repHigh + 1 })} />
+        <Stepper label="RIR" value={t.rir} sub="Reps you leave in the tank"
+          atMin={t.rir <= 0} atMax={t.rir >= Training.RIR_MAX}
+          onMinus={() => onChange({ rir: t.rir - 1 })} onPlus={() => onChange({ rir: t.rir + 1 })} />
+        <button onClick={onClose} className="pixel-btn w-full h-12 font-bold mt-4" style={{ background: '#fff', color: '#111' }}>Done</button>
+      </div>
     </div>
   );
 }

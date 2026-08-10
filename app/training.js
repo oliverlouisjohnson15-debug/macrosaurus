@@ -1768,6 +1768,165 @@
     return n;
   }
 
+  /* ---- editing a planned session, without setting foot in the gym ------------------------------
+   * Until these existed, the only way to change tonight's plan was to START the session. That
+   * stamps a start time, writes a log row, and from the second visit onward the app treats it as one
+   * you are part-way through. So "I want to do deadlifts instead of squats on Thursday", asked on
+   * the bus on Tuesday, cost you a phantom Thursday session you then had to go and delete.
+   *
+   * The other route was the block editor, which is a different question entirely: it edits the
+   * PROGRAMME, across four weeks, and it is two hops behind a secondary link. Rearranging the week
+   * in front of you is a weekly, casual act and it deserved to live where the week is.
+   *
+   * All of these MUTATE the session or block handed to them, matching swapInBlock and
+   * applyBlockFixes, so a caller runs them straight inside a trainUpdate draft. They return a truthy
+   * result on success and a falsy one when the edit was not possible, so a caller never has to
+   * re-derive whether anything happened.
+   */
+  var SETS_MIN = 1, SETS_MAX = 10;
+  var REPS_MIN = 1, REPS_MAX = 50;
+  var RIR_MAX = 6;
+
+  function sessionItems(session) {
+    return (((session && session.exercises) || []).slice())
+      .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+  }
+  function indexOfItem(list, itemId) {
+    for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === itemId) return i;
+    return -1;
+  }
+  // Densely renumber `order` from the array's own positions. Imports and generated blocks both leave
+  // gaps and duplicates in `order`, and a reorder that only swapped two numbers would inherit them,
+  // so the list on screen and the list in the data could drift apart.
+  function renumberSession(session, list) {
+    for (var i = 0; i < list.length; i++) list[i].order = i;
+    session.exercises = list;
+    return list;
+  }
+  // Move one movement up or down the session. Supersets travel as written: the pair is defined by
+  // being ADJACENT, so moving one leg out from beside the other has to break the pairing rather than
+  // leave two rows labelled A1 and A2 with a squat sitting between them.
+  function moveExercise(session, itemId, delta) {
+    var list = sessionItems(session);
+    var i = indexOfItem(list, itemId);
+    var to = i + (+delta || 0);
+    if (i < 0 || to < 0 || to >= list.length) return false;
+    var row = list.splice(i, 1)[0];
+    list.splice(to, 0, row);
+    renumberSession(session, list);
+    dropBrokenSupersets(session);
+    return true;
+  }
+  // A superset is a promise about ORDER: these two, back to back, no rest between. Once the two legs
+  // are no longer next to each other the promise is not true any more, so the group goes rather than
+  // the codes lying about it.
+  function dropBrokenSupersets(session) {
+    var list = sessionItems(session);
+    var seen = {};
+    list.forEach(function (e, i) {
+      var g = e.supersetGroup;
+      if (!g) return;
+      if (!seen[g]) seen[g] = [];
+      seen[g].push(i);
+    });
+    Object.keys(seen).forEach(function (g) {
+      var at = seen[g];
+      var contiguous = at.length >= 2;
+      for (var i = 1; i < at.length; i++) if (at[i] !== at[i - 1] + 1) contiguous = false;
+      if (!contiguous) at.forEach(function (i) { list[i].supersetGroup = null; });
+    });
+    renumberSession(session, list);
+    return session;
+  }
+  // Pair a movement with the one after it, or break the pair it is already in. Adjacent-only, which
+  // is how supersets are actually written: needing a multi-select picker to say "these two, together"
+  // would be ceremony for the one case that is not already obvious from the order.
+  function toggleSuperset(session, itemId) {
+    var list = sessionItems(session);
+    var i = indexOfItem(list, itemId);
+    if (i < 0) return false;
+    var g = list[i].supersetGroup;
+    if (g) {
+      list.forEach(function (e) { if (e.supersetGroup === g) e.supersetGroup = null; });
+      renumberSession(session, list);
+      return true;
+    }
+    var next = list[i + 1];
+    if (!next || next.supersetGroup) return false;   // nothing after it, or the next one is spoken for
+    var id = 'ss' + i + '_' + (session.id || 'x');
+    list[i].supersetGroup = id;
+    next.supersetGroup = id;
+    renumberSession(session, list);
+    return true;
+  }
+  // Append a movement, prescribed the way the block builder prescribes one: a compound gets fewer
+  // reps and longer rest than an isolation, and the RIR follows the week, so a movement added in
+  // week 3 is not softer than everything around it.
+  function addExerciseToSession(session, exerciseId, custom, itemId) {
+    var ex = byId(exerciseId, custom);
+    if (!ex || !session) return null;
+    var compound = ex.pattern !== 'isolation' && ex.pattern !== 'core';
+    var list = sessionItems(session);
+    var item = {
+      id: itemId || (exerciseId + '_a' + list.length),
+      exerciseId: exerciseId,
+      order: list.length,
+      target: {
+        sets: 3,
+        repLow: compound ? 6 : 10, repHigh: compound ? 10 : 15,
+        rir: Math.max(1, 4 - (session.week || 1)),
+        restSec: compound ? 150 : 90,
+      },
+    };
+    list.push(item);
+    renumberSession(session, list);
+    return item;
+  }
+  function removeExerciseFromSession(session, itemId) {
+    var list = sessionItems(session);
+    var i = indexOfItem(list, itemId);
+    if (i < 0) return false;
+    list.splice(i, 1);
+    renumberSession(session, list);
+    dropBrokenSupersets(session);   // a pair with one leg gone is not a pair
+    return true;
+  }
+  // Change what a movement asks for. Everything is clamped, and the rep range is kept in order from
+  // whichever end was just edited: a range reading "12-8" is a typo somebody is about to train from.
+  function setExerciseTarget(session, itemId, patch) {
+    var list = sessionItems(session);
+    var i = indexOfItem(list, itemId);
+    if (i < 0 || !patch) return null;
+    var t = Object.assign({}, list[i].target || {});
+    if (patch.sets != null) t.sets = clamp(Math.round(+patch.sets || 0), SETS_MIN, SETS_MAX);
+    if (patch.repLow != null) t.repLow = clamp(Math.round(+patch.repLow || 0), REPS_MIN, REPS_MAX);
+    if (patch.repHigh != null) t.repHigh = clamp(Math.round(+patch.repHigh || 0), REPS_MIN, REPS_MAX);
+    if (patch.rir != null) t.rir = clamp(Math.round(+patch.rir || 0), 0, RIR_MAX);
+    if (patch.restSec != null) t.restSec = clamp(Math.round(+patch.restSec || 0), 15, 600);
+    if (t.repLow != null && t.repHigh != null && t.repLow > t.repHigh) {
+      if (patch.repLow != null) t.repHigh = t.repLow; else t.repLow = t.repHigh;
+    }
+    list[i].target = t;
+    return t;
+  }
+  // Which weekday a session falls on. Per-week by construction, because every week carries its own
+  // session rows, so moving this Thursday's legs to Friday leaves next Thursday exactly where it was.
+  // That is what somebody rearranging THIS week means, and quietly moving all four weeks because a
+  // gym was shut once would be the app deciding something it was not asked to decide.
+  function setSessionDay(session, dayOfWeek) {
+    var d = Math.round(+dayOfWeek);
+    if (!session || !(d >= 0 && d <= 6)) return false;
+    session.dayOfWeek = d;
+    return true;
+  }
+  // Anything else already on that day, so the move can say "Upper A is there too" rather than either
+  // blocking it (two-a-days are real) or letting two sessions land on one day in silence.
+  function sessionsOnDay(block, week, dayOfWeek, exceptId) {
+    return weekSessions(block, week).filter(function (s) {
+      return s.id !== exceptId && s.dayOfWeek === dayOfWeek;
+    }).map(function (s) { return s.name; });
+  }
+
   // ---- naming a block -------------------------------------------------------------------------
   // "4-week growth block" is what every generated block was called, so a person with three of them
   // had three identically-named blocks and no way to tell which was which. Everything needed to name
@@ -2595,6 +2754,11 @@
     resolveDetail: resolveDetail, dayFocus: dayFocus, nameDay: nameDay, kitMismatch: kitMismatch,
     rerunPlan: rerunPlan, applyRerun: applyRerun, nextRunName: nextRunName, blockName: blockName, tidyName: tidyName,
     variationOf: variationOf, swapInBlock: swapInBlock, swapReach: swapReach,
+    sessionItems: sessionItems, moveExercise: moveExercise, toggleSuperset: toggleSuperset,
+    addExerciseToSession: addExerciseToSession, removeExerciseFromSession: removeExerciseFromSession,
+    setExerciseTarget: setExerciseTarget, setSessionDay: setSessionDay, sessionsOnDay: sessionsOnDay,
+    dropBrokenSupersets: dropBrokenSupersets,
+    SETS_MIN: SETS_MIN, SETS_MAX: SETS_MAX, REPS_MIN: REPS_MIN, REPS_MAX: REPS_MAX, RIR_MAX: RIR_MAX,
     blockFixes: blockFixes, applyBlockFixes: applyBlockFixes,
     GYMS: GYMS, gymEquipment: gymEquipment, NEEDS_BENCH: NEEDS_BENCH, NEEDS_BAR: NEEDS_BAR,
     cueFor: cueFor, whyFor: whyFor, defaultTempo: defaultTempo, tempoParts: tempoParts, sessionCodes: sessionCodes,

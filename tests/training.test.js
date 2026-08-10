@@ -1832,3 +1832,139 @@ test('trainingSummary does not call a rising lift stalled', () => {
   const s = T.trainingSummary({ logs: [up('2026-08-01', 80), up('2026-08-05', 85), up('2026-08-08', 90)] }, '2026-08-09');
   assert.deepEqual(s.stalledLifts, []);
 });
+
+// ---- editing a planned session, without starting it ---------------------------------------------
+// The only way to change tonight's plan used to be to start the session, which stamps a start time
+// and leaves a phantom log behind. These are the operations that made that unnecessary.
+
+function planned() {
+  return {
+    id: 's1', week: 2, name: 'Upper A', dayOfWeek: 3,
+    exercises: [
+      { id: 'i1', exerciseId: 'bb_bench', order: 0, target: { sets: 4, repLow: 6, repHigh: 10, rir: 2, restSec: 150 } },
+      { id: 'i2', exerciseId: 'bb_row', order: 1, target: { sets: 4, repLow: 6, repHigh: 10, rir: 2, restSec: 150 } },
+      { id: 'i3', exerciseId: 'db_lateral', order: 2, target: { sets: 3, repLow: 12, repHigh: 15, rir: 1, restSec: 90 } },
+    ],
+  };
+}
+const ids = (s) => T.sessionItems(s).map(e => e.id);
+
+test('moveExercise reorders and renumbers densely', () => {
+  const s = planned();
+  assert.equal(T.moveExercise(s, 'i3', -1), true);
+  assert.deepEqual(ids(s), ['i1', 'i3', 'i2']);
+  assert.deepEqual(T.sessionItems(s).map(e => e.order), [0, 1, 2], 'order must match the list on screen');
+});
+
+test('moveExercise refuses to walk off either end', () => {
+  const s = planned();
+  assert.equal(T.moveExercise(s, 'i1', -1), false);
+  assert.equal(T.moveExercise(s, 'i3', 1), false);
+  assert.deepEqual(ids(s), ['i1', 'i2', 'i3'], 'and changes nothing when it refuses');
+});
+
+test('moveExercise survives an import with duplicate order values', () => {
+  const s = planned();
+  s.exercises.forEach(e => { e.order = 0; });   // what a sloppy import leaves behind
+  T.moveExercise(s, 'i1', 1);
+  assert.deepEqual(T.sessionItems(s).map(e => e.order), [0, 1, 2]);
+});
+
+test('toggleSuperset pairs a movement with the next one, and unpairs both', () => {
+  const s = planned();
+  assert.equal(T.toggleSuperset(s, 'i1'), true);
+  const g = T.sessionItems(s)[0].supersetGroup;
+  assert.ok(g);
+  assert.equal(T.sessionItems(s)[1].supersetGroup, g, 'the pair shares one group');
+  assert.equal(T.sessionItems(s)[2].supersetGroup, undefined);
+  assert.equal(T.toggleSuperset(s, 'i2'), true, 'either leg breaks it');
+  assert.ok(!T.sessionItems(s)[0].supersetGroup);
+  assert.ok(!T.sessionItems(s)[1].supersetGroup);
+});
+
+test('toggleSuperset has nothing to pair the last movement with', () => {
+  assert.equal(T.toggleSuperset(planned(), 'i3'), false);
+});
+
+test('toggleSuperset will not steal a leg out of an existing pair', () => {
+  const s = planned();
+  T.toggleSuperset(s, 'i2');                     // i2 + i3 are now a pair
+  assert.equal(T.toggleSuperset(s, 'i1'), false, 'i2 is spoken for');
+});
+
+test('a superset breaks when its legs stop being adjacent', () => {
+  // The pair IS the promise "these two back to back". Moving one away makes the label a lie.
+  const s = planned();
+  T.toggleSuperset(s, 'i1');
+  T.moveExercise(s, 'i1', 2);                    // one leg walks to the bottom of the session
+  assert.deepEqual(ids(s), ['i2', 'i3', 'i1']);
+  assert.ok(T.sessionItems(s).every(e => !e.supersetGroup), 'the broken pair is cleared, not left lying');
+});
+
+test('removing one leg of a superset clears the orphan', () => {
+  const s = planned();
+  T.toggleSuperset(s, 'i1');
+  T.removeExerciseFromSession(s, 'i2');
+  assert.deepEqual(ids(s), ['i1', 'i3']);
+  assert.ok(!T.sessionItems(s)[0].supersetGroup, 'one movement is not a superset');
+});
+
+test('addExerciseToSession prescribes a compound differently from an isolation', () => {
+  const s = planned();
+  const c = T.addExerciseToSession(s, 'back_squat');
+  assert.equal(c.target.repLow, 6);
+  assert.equal(c.target.restSec, 150);
+  assert.equal(c.target.rir, 2, 'week 2 leaves 2 in the tank');
+  const i = T.addExerciseToSession(s, 'db_lateral');
+  assert.equal(i.target.repLow, 10);
+  assert.equal(i.target.restSec, 90);
+  assert.equal(T.sessionItems(s).length, 5);
+  assert.deepEqual(T.sessionItems(s).map(e => e.order), [0, 1, 2, 3, 4]);
+});
+
+test('addExerciseToSession refuses a movement the library does not have', () => {
+  assert.equal(T.addExerciseToSession(planned(), 'not_a_real_movement'), null);
+});
+
+test('setExerciseTarget clamps every field it is given', () => {
+  const s = planned();
+  assert.equal(T.setExerciseTarget(s, 'i1', { sets: 99 }).sets, T.SETS_MAX);
+  assert.equal(T.setExerciseTarget(s, 'i1', { sets: 0 }).sets, T.SETS_MIN);
+  assert.equal(T.setExerciseTarget(s, 'i1', { rir: 12 }).rir, T.RIR_MAX);
+  assert.equal(T.setExerciseTarget(s, 'i1', { rir: -3 }).rir, 0);
+  assert.equal(T.setExerciseTarget(s, 'i1', { restSec: 5 }).restSec, 15);
+});
+
+test('setExerciseTarget keeps the rep range the right way round', () => {
+  const s = planned();
+  // Dragging the bottom of the range past the top pushes the top with it, and vice versa, so nobody
+  // is ever shown "12-8 reps" and left to work out what it means.
+  let t = T.setExerciseTarget(s, 'i1', { repLow: 14 });
+  assert.equal(t.repLow, 14); assert.equal(t.repHigh, 14);
+  t = T.setExerciseTarget(s, 'i1', { repHigh: 8 });
+  assert.equal(t.repHigh, 8); assert.equal(t.repLow, 8);
+});
+
+test('setExerciseTarget leaves fields it was not given alone', () => {
+  const s = planned();
+  const t = T.setExerciseTarget(s, 'i1', { sets: 5 });
+  assert.equal(t.repLow, 6); assert.equal(t.repHigh, 10); assert.equal(t.rir, 2); assert.equal(t.restSec, 150);
+});
+
+test('setSessionDay moves one week only, and rejects a day that is not one', () => {
+  const s = planned();
+  assert.equal(T.setSessionDay(s, 4), true);
+  assert.equal(s.dayOfWeek, 4);
+  assert.equal(T.setSessionDay(s, 7), false);
+  assert.equal(T.setSessionDay(s, -1), false);
+  assert.equal(s.dayOfWeek, 4, 'a rejected move changes nothing');
+});
+
+test('sessionsOnDay names what is already there without blocking a two-a-day', () => {
+  const b = T.generateBlock({ daysPerWeek: 3, weeks: 4, targets: T.defaultTargets() });
+  const wk = T.weekSessions(b, 1);
+  T.setSessionDay(wk[1], wk[0].dayOfWeek);
+  const clash = T.sessionsOnDay(b, 1, wk[0].dayOfWeek, wk[1].id);
+  assert.deepEqual(clash, [wk[0].name]);
+  assert.deepEqual(T.sessionsOnDay(b, 1, wk[0].dayOfWeek, wk[0].id), [wk[1].name], 'and it is symmetric');
+});
