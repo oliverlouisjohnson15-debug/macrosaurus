@@ -1,157 +1,215 @@
-# The buddy does the talking: one voice, at the top of Today
+# The buddy overhaul: one voice, one object, at the top of Today
 
-A recommendation, with the evidence behind it. Short version: **do it** — but the
-overhaul is smaller than it sounds, because the thing being proposed is already built
-and the app is currently working against it.
+A researched design for making the buddy the thing that carries Macrosaurus's retention
+loop, rather than a mood badge sitting under a bar that says the same thing.
+
+Short version: **the pieces are nearly all built and wired to the wrong things.** The
+buddy has ten animation strips and Today uses one. It has a seven-rung message ladder
+that nothing on the hero card consults. It has a "craving" concept that computes the
+day's open loop and is rendered nowhere. The overhaul is mostly re-pointing what exists
+at what it was clearly built for, plus one genuinely new idea: the buddy's *animation*
+should express the day's situation instead of the streak's seniority.
 
 ---
 
-## 1. The problem, stated precisely
+## Part 1 — What the research says
 
-Today now nudges from two places with two different sets of rules.
+### 1.1 The reframe that matters most: care, not performance
 
-| | `OneThingLine` (new) | `buddyCoach` protein branch (existing) |
+[Finch](https://medium.com/@deepthi.aipm/ux-teardown-finch-self-care-app-18122357fae7) is
+the strongest example of this pattern working in a health context, and the reason it
+works is a reframe rather than a mechanic:
+
+> The app flips motivation by making your bird benefit when you take care of yourself,
+> so self-care becomes an act of care rather than a performance… There is no penalty for
+> an off day, only a small companion glad to see you back.
+
+Macrosaurus is already close. `dayBondPoints` pays the bond when you eat well, the
+freeze forgives a miss, and the training line literally says *"No lecture, life
+happens."* But the mood copy still leaks performance framing:
+
+| Current mood line | Frame |
+|---|---|
+| `sluggish`: "A bit low, nothing logged yet." | the buddy is worse off **because of you** |
+| `peckish`: "Could do with more protein." | care framing — **this one is right** |
+| `stuffed`: "Over the line today, no drama, back at it tomorrow." | forgiving — **right** |
+
+The rule to apply everywhere: **the buddy states its own need; it never reports your
+failure.** "I could do with some protein" and "You're 40g short" describe the same
+number and are not the same product.
+
+### 1.2 The failure mode, named
+
+[Duo became a symbol of streak anxiety](https://digest.headfoundation.org/2025/09/21/winning-at-what-cost-the-psychology-of-gamification-and-the-fight-for-our-focus/)
+through "playful yet persistent notifications with guilt-inducing messages", and the
+research on gamified health specifically finds that anxiety mediates the path from
+immersion to burnout. [Clippy's problem was never accuracy](https://thejaymo.net/2025/08/12/clippy-a-history/) —
+it was etiquette; an assistant that watches and butts in.
+
+Promoting the buddy to the top of Today points both barrels at us. It is the single
+biggest risk in this work and the reason for the silence rule in §2.4.
+
+### 1.3 The frame to design against: Self-Determination Theory
+
+SDT gives three needs — **autonomy, competence, relatedness** — and the research is
+consistent that streak-and-punishment designs produce *introjected regulation*
+(short-term compliance driven by guilt) rather than durable motivation. Usefully, the
+three map cleanly onto what this app is trying to do:
+
+| Need | Carried by | State today |
 |---|---|---|
-| Fires when | any protein gap at all | gap ≥ 20g |
-| Time gate | none, all day | `hour >= 14` |
-| Dismissible | no | yes, `coach_protein`, snoozed 12h |
-| Speaks as | the interface | the buddy |
-| Position | top of the hero card | below the hero card |
+| **Relatedness** | the buddy — bond, hearts, evolution, name | strong, but buried below the fold |
+| **Competence** | the one open loop, personal bests, "days logged" | built last week, in the wrong place |
+| **Autonomy** | dismiss, snooze, silence, no coercion | machinery exists; **silence does not** |
 
-At 09:00, 40g short, nothing logged, these produce: a bar reading **"40g protein to
-go"** at the top of the page, and — separately, lower down — the buddy saying
-**"Morning. Nothing logged yet, what did you have for breakfast?"**. Two voices, two
-different asks, neither aware of the other. That is the overlap you spotted, and it is
-worse than cosmetic: they disagree about *when a thing is worth saying*.
+Autonomy is the one actually missing, and it is the one that prevents 1.2.
 
-## 2. What already exists (this is what changes the answer)
+### 1.4 What makes a character feel alive
 
-The buddy is not a decoration with a mood. It is already a **message bus with a
-documented priority ladder**, and the code says so in its own words at
-`app/src/app.jsx:7547`:
+The [game-animation literature](https://blog.animationstudies.org/levels-of-agency-in-idle-animations-mapping-inactivity-in-video-games/)
+is blunt: idle animation is what conveys lifelikeness, and a character's idle should
+express *personality and situation* — Sonic taps his foot and looks annoyed when you
+stop playing. The general UI principle is that every action should get an immediate,
+visible reaction.
 
-> The buddy speaks with one voice in the habitat. buddyMessage picks the single top
-> thing to say; here we wire each action string to a handler (the decision stays pure
-> and testable in buddyMessage).
+**This is where Macrosaurus is leaving the most on the table.** The sprite pack ships
+ten strips per species — `idle, move, dash, jump, scan, bite, kick, avoid, hurt, dead` —
+and `useIdleFlourish` already rotates one in every 7–15s with `prefers-reduced-motion`
+honoured. But:
 
-What is built:
-
-- **`buddyMessage(db, today, streak)`** — a 7-rung ladder: paused goal → pending plan
-  review → weigh-in ask → weekly recap → morning read → lesson → breakout ask →
-  ambient coach.
-- **`buddyCoach(db, today, streak)`** — rung 7, itself a ~10-rung ladder: streak-save →
-  nothing logged → food quality → protein gap → training (5 kinds) → steps →
-  engagement → warm streak line.
-- **Etiquette machinery** — every ambient line carries a stable key, `nudgesDismissed`
-  snoozes it for a per-line TTL, and snoozed lines *fall through to the next rung*
-  rather than leaving a blank.
-- **A rich render contract** — `BuddyHabitat` already supports a speaker header
-  ("Rexy asks" / "Rexy's week" / "Rexy is teaching"), body text, an **inline weigh-in
-  input**, a grid of one-tap choices, primary/secondary CTAs, and a dismiss ×.
-
-So "push these things through *buddy says*" is not a new system. It is **routing to the
-bus that already exists** and deleting the bypass I added.
-
-### The dead code that proves the intent
-
-`Game.buddyCraving` (`app/game.js:136`) computes exactly the "one open loop" semantic —
-first unmet target in priority order, `firstmeal → protein → fibre → fuel`. It is
-computed into `bp.craving` in `buddyProfile`, and `CRAVE_LABEL` translates it into
-words at `app/src/app.jsx:5240`.
-
-**Neither is rendered anywhere.** `grep` for `.craving` outside its own definition
-returns nothing; `CRAVE_LABEL` has zero consumers. The feed loop was designed, built,
-commented — and never surfaced. `Game.oneThing` is the same idea rebuilt six months
-later with a distance attached, which is why the two collide so exactly.
-
-## 3. Recommendation
-
-**Yes to all three: move the buddy to the top, route the retention pushes through it,
-and let it own the day's one open loop.** Specifically:
-
-1. **The buddy leads Today**, directly under the page header, above the macro card.
-2. **`OneThingLine` is deleted as a separate block.** The one open loop becomes a new
-   rung on `buddyMessage`, rendered in the buddy's existing message slot.
-3. **`buddyCoach`'s `coach_log` and `coach_protein` branches are absorbed by it**, so
-   there is exactly one owner of "what should you do next about food today".
-4. **The meter moves with it** — the pip bar attaches to the buddy's line, not the
-   macro card, so the distance is part of what the buddy is saying.
-
-### Why this is better than deduplicating in place
-
-Three signals the app already computes get to line up on one object instead of three:
-
-| Signal | Already exists | Becomes |
-|---|---|---|
-| `Game.buddyMood` → `peckish` / `thriving` / `stuffed` / `sluggish` | drives a mood word | **the buddy's face** — the loop's state, before you read anything |
-| `Game.oneThing` → key + remaining | a separate bar | **the buddy's line** — the instruction |
-| `oneThing.pct` | a separate bar | **the meter under the line** — the distance |
-
-That is the mechanism Duolingo uses on its home widget, where Duo's expression shifts
-as the day goes on and the lesson is still undone — the character *is* the progress
-indicator, so the screen needs one object instead of a character plus a status bar.
-
-## 4. The etiquette problem, which is the real risk
-
-Promoting the buddy to first position makes every one of its habits load-bearing. The
-failure mode is Clippy: an assistant whose defining problem was not being wrong but
-being *always there*. Three rules, two of which need code:
-
-1. **Silence must be possible.** Today `buddyCoach` always returns something — it falls
-   through to `'Good start. Log as you go and I'll keep you on track.'` A block that
-   always talks, at the top of the page, becomes wallpaper within a week. **Change:
-   let the ladder return null and render the buddy quiet** — sprite, name, mood, no
-   line, no CTA.
-2. **One line, once.** The existing snooze keys already do this; the new rung needs its
-   own key and TTL like every sibling.
-3. **Never lead with guilt.** The buddy naps after a lapse (`buddyView`), and its first
-   mood on a bad day is `sluggish`. At the bottom of the page that is a detail; at the
-   top it is the first thing a returning user sees. The comeback path built last week
-   already wakes it the same day — that becomes *required*, not a nicety, and the
-   asleep sprite must never be the top-of-page default for someone who just came back.
-
-## 5. What the ladder looks like after
-
-The new rung slots at **7**, not higher. It must not outrank the weigh-in ask (only
-honest before breakfast) or a pending plan review (a decision is waiting).
-
-```
-1  paused goal            → unchanged
-2  pending plan review    → unchanged
-2b weigh-in ask           → unchanged  (morning, cadence-aware)
-2c weekly recap           → unchanged  (once a week)
-3  morning read           → unchanged  (sleep/steps, before 14:00)
-4  lesson                 → unchanged  (new users)
-6  breakout ask           → unchanged  (overdue check-in)
-7  ONE OPEN LOOP          → NEW: Game.oneThing, with the meter
-7b remaining coach lines  → training, steps, density, engagement
-   (coach_log + coach_protein deleted — rung 7 owns them)
-8  nothing to say         → NEW: null, buddy renders quiet
+```js
+const STAGE_FLOURISH = [null, 'jump', 'jump', 'move', 'dash', 'scan'];
 ```
 
-## 6. Phasing
+The flourish is indexed by **buddy stage** — i.e. how long your streak is. A 30-day
+buddy scans whether or not you have eaten; a 3-day buddy jumps whether or not it is
+starving. **The animation expresses seniority, not situation.** Every other strip
+(`bite`, `scan`, `dash`) is reserved for the Fight.
 
-Each phase is shippable on its own and reversible.
+---
 
-- **Phase 1 — stop the double voice.** Add the `onething` rung, delete `OneThingLine`
-  and the two absorbed `buddyCoach` branches. Today keeps its current block order.
-  *This alone fixes what you flagged.*
-- **Phase 2 — move the buddy up.** Swap the buddy above the macro card. Pure layout.
-- **Phase 3 — silence and face.** Allow a null ladder result; drive the sprite from
-  `buddyMood` so the face carries the loop state.
-- **Phase 4 — retire the dead craving path.** Delete `buddyCraving`/`CRAVE_LABEL`, or
-  re-point `buddyCraving` at `oneThing` so there is one definition of the open loop.
+## Part 2 — The design
 
-## 7. Decisions I need from you
+### 2.1 One object, four layers
 
-1. **Does the kcal number stay the hero?** The hero card's own comment says it "leads
-   with the one figure people open the app for". Putting the buddy above it demotes
-   that figure to second. My recommendation: yes, buddy first — *because* its line is
-   now the actionable one and the number is one scroll-inch below. But it is your
-   call, and it is the one genuinely contentious part of this.
-2. **How chatty at the top?** I recommend the buddy is silent whenever nothing is due,
-   which will be most afternoons for a consistent user. The alternative — always a
-   warm line — is friendlier on day one and invisible by day thirty.
-3. **Does the meter belong to the buddy or stay on the macro card?** I recommend it
-   moves, so the buddy's ask carries its own distance. The macro bars are unaffected
-   either way.
+The buddy card becomes the single carrier of the daily loop. Everything below already
+has a computed source in the codebase.
+
+| Layer | Says | Source | Built? |
+|---|---|---|---|
+| **Face** | how today is going, before you read | day state → animation | strips ship; mapping is new |
+| **Line** | the one thing worth doing | `buddyMessage` ladder | built |
+| **Meter** | how far off it is | `Game.oneThing().pct` | built last week |
+| **Bond** | the relationship you are building | hearts / level / stage | built |
+
+A user glancing without reading gets the state from the face. A user reading one line
+gets the instruction. A user who wants the number gets the meter. Nothing repeats.
+
+### 2.2 The face: animation carries the day, not the streak
+
+Replace stage-indexed flourish with **state-indexed** flourish. All strips already exist.
+
+| Day state | Flourish | Why |
+|---|---|---|
+| Nothing logged yet | `scan` | it is looking for food — the ask, without a word |
+| Loop open, part-fed | `idle` + occasional `move` | alive, unbothered, not nagging |
+| Loop just closed | `jump` **once**, then calm idle | the reaction to the action (§1.4) |
+| Over on calories | slow `idle`, no flourish | "stuffed", already in `buddyMood` |
+| Comeback after a lapse | `dash` on first render | glad to see you back (§1.1) |
+| Asleep (lapsed, not yet returned) | `idle`, dimmed | never the default after a return |
+
+Keep stage as a *modifier* (bigger sprite, cosmetics), not the driver. `useIdleFlourish`
+takes the animation as an argument instead of deriving it from stage — a one-line
+signature change plus a mapping table.
+
+### 2.3 The line: rung 7 of the ladder it already has
+
+`buddyMessage` is a seven-rung priority ladder; `buddyCoach` is its ambient rung. The
+open loop becomes a rung, and the two branches it duplicates are deleted.
+
+```
+1  paused goal            unchanged
+2  pending plan review    unchanged
+2b weigh-in ask           unchanged   (morning, cadence-aware, answers inline)
+2c weekly recap           unchanged   (once a week)
+3  morning read           unchanged   (sleep/steps, before 14:00)
+4  lesson                 unchanged   (new users)
+6  breakout ask           unchanged   (overdue check-in)
+7  THE OPEN LOOP          NEW — Game.oneThing, with the meter
+7b training / steps / density / engagement    unchanged
+8  nothing due            NEW — return null, buddy goes quiet
+   (coach_log + coach_protein deleted; rung 7 owns them)
+```
+
+Rung 7, **not higher**: the weigh-in is only honest before breakfast, and a pending plan
+change is a decision already waiting. Both must outrank a protein gap.
+
+### 2.4 Silence — the rule that makes the rest safe
+
+`buddyCoach` currently cannot say nothing; it falls through to *"Good start. Log as you
+go and I'll keep you on track."* At the bottom of the page that is wallpaper. At the top
+it is Clippy.
+
+**Change: the ladder may return null, and the card renders quiet** — sprite, name, mood,
+bond, no line, no CTA, no dismiss. For a consistent user mid-afternoon with the loop
+closed, quiet is the *correct* state and the card becomes a small reward for being done
+rather than another thing asking.
+
+This is the autonomy leg of §1.3, and it is what stops the top-of-page buddy becoming
+the thing people learn to scroll past.
+
+### 2.5 Voice rules
+
+1. **State a need, never report a failure.** "I could do with 40g more protein" ✓ / "You're 40g short" ✗.
+2. **Never imply the user let it down.** Rewrite `sluggish` to sit alongside `peckish`.
+3. **Glad to see you back, always.** The comeback path wakes it same-day; the line matches.
+4. **One line. One CTA. Always dismissible when it is an ask.**
+5. **Silence beats filler.**
+
+### 2.6 Layout
+
+```
+Today
+  ├── Buddy card          ← moves here (face · line · meter · bond)
+  ├── Macro hero          ← kcal number, four bars, balance   (OneThingLine deleted)
+  ├── Recovery dials
+  └── …
+```
+
+The macro card loses only the block I added last week. Its hero number, bars and balance
+tool are untouched.
+
+---
+
+## Part 3 — Phasing
+
+Each phase ships and reverts independently.
+
+| Phase | Change | Risk |
+|---|---|---|
+| **1** | Add rung 7; delete `OneThingLine` + `coach_log`/`coach_protein` | low — *fixes the live double voice on its own* |
+| **2** | Allow the ladder to return null; render the quiet card | low |
+| **3** | Move the buddy above the macro card | low, but it is the contentious one (§4.1) |
+| **4** | State-indexed flourish; `jump` on loop close; `dash` on comeback | medium — most new code, biggest felt difference |
+| **5** | Voice pass on `MOOD_META` + coach copy per §2.5 | low |
+| **6** | Retire the dead `buddyCraving`/`CRAVE_LABEL`, or re-point them at `oneThing` | low |
+
+Phases 1, 2, 5, 6 are pure consolidation and deletion. Phase 4 is the one that adds
+something genuinely new, and it is where the "best in class" feeling actually comes
+from — a character that reacts to what you just did.
+
+---
+
+## Part 4 — Decisions I need
+
+1. **Does the kcal number stay the hero?** The hero card's comment says it "leads with
+   the one figure people open the app for". Buddy-first demotes it by one card. I
+   recommend buddy first, because after this work the buddy's line is the *actionable*
+   thing and the number is one scroll-inch below — but this is the genuinely
+   contentious call.
+2. **Is silence acceptable?** I strongly recommend yes (§2.4). It is the single
+   difference between a companion and Clippy. The cost is that a happy, consistent user
+   often sees a buddy that says nothing.
+3. **How far does the voice pass go?** Minimum is rewriting `sluggish`. Maximum is
+   auditing every coach line in `buddyCoach` against §2.5. I recommend the full pass —
+   it is copy-only, and it is where the care-vs-performance reframe actually lands.
