@@ -163,7 +163,8 @@ export function decideNudge(d: Record<string, unknown>, today: string, win: Wind
   const trainedToday = Array.isArray((d.training as { logs?: unknown[] } | undefined)?.logs)
     && ((d.training as { logs: { dateISO?: string }[] }).logs).some((l) => l && l.dateISO === today);
 
-  // 1. Streak-save. The one push worth a second slot in the day: loss aversion, with the number in it.
+  // 1. Streak-save. The one push worth a second slot in the day. It names the run without leaning on
+  //    losing it: the number is context, not the threat (see the copy note below).
   if (win.streakSave && !loggedToday && !weighedToday && !trainedToday) {
     const streak = activeStreak(d, today);
     if (streak >= STREAK_SAVE_MIN) {
