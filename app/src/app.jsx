@@ -4794,16 +4794,20 @@ function WeighInline({ unit, seedKg, onSave }) {
    thumbnail nobody could read. BuddyScene already draws every one of them - sky, floor, floor line,
    a prop standing at its own fraction across, the aura on the sprite - so the world costs no new art,
    only room. */
-const WORLD_H = 132;        // the scene band. Fixed: a fully grown buddy is 86px tall (STAGE_PX tops
-                            // out at 1.12) and must not clip, so this height is a floor, not a taste.
+// Sized by the biggest buddy there can be, not by eye: STAGE_PX tops out at 1.12, so at WORLD_PX the
+// tallest sprite is 24 * 2.8 * 1.12 = 75px, and the speaking foot at 40 puts its head at 115 with 5px
+// to spare. Anything shorter clips a fully grown buddy, which is why this is arithmetic rather than
+// taste. It was 132 at px 3.2, which left a young buddy adrift in a frame built for a grown one.
+const WORLD_PX = 2.8;
+const WORLD_H = 120;
 // The horizon and the buddy MOVE TOGETHER with whether anything is being said, because a stage set
 // for one state looks wrong in the other. Speaking, the box covers the lower scene, so the ground
 // line sits high and the buddy stands on it just clear of the box. Quiet, the whole scene is visible,
 // so the same high horizon would leave the buddy hovering over a 46px slab of empty floor - which is
 // exactly what it did, and exactly what looked wrong about it.
 const WORLD_STAGE = {
-  speaking: { floor: 46, foot: 44 },   // 44 + 86 = 130, two under the ceiling at full growth
-  quiet: { floor: 30, foot: 28 },
+  speaking: { floor: 42, foot: 40 },   // the box covers the bottom 40, so the feet land exactly on it
+  quiet: { floor: 26, foot: 24 },
 };
 function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
@@ -4847,7 +4851,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
     <Card className="p-0 mb-4 overflow-hidden">
       <div className="relative">
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="block w-full text-left" style={{ lineHeight: 0 }}>
-          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={3.2} w="100%" h={WORLD_H}
+          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={WORLD_PX} w="100%" h={WORLD_H}
             floor={stage.floor} spriteBottom={stage.foot} shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
         </button>
         {/* The world carries its own HUD in the corners, the way a status overlay did on hardware. */}

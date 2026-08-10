@@ -50,10 +50,16 @@
      a gradient fading to #050507, which is darker than --card (#0d0d0d), so at the size the buddy's
      world is now drawn the scene sank THROUGH the card it sits on and read as a hole rather than a
      place. Flat also happens to be the honest thing: this hardware drew tiles, not gradients. */
-  --scene-top: #131926;      /* night sky, sitting clearly ON the card rather than under it */
-  --scene-bottom: #131926;
-  --scene-ground: #1d2534;   /* the lit floor the buddy stands on */
-  --scene-line: #3a4a68;     /* the horizon, and the one edge that has to be visible */
+  /* The DEFAULT world shares the card's own ground. Every other panel on Today is a flat --card
+     interior, so a world with a sky of its own was a second ground inside a page that already had
+     one, and it read as a picture pasted into a set of panels rather than one of the panels. The
+     place comes from the horizon and the lit floor instead, which is enough to stand on.
+     A BOUGHT scene (SCENE_ART) keeps its strong colour on purpose: the default being seamless is
+     what makes a purchased sky visibly worth having. */
+  --scene-top: #0d0d0d;      /* = --card */
+  --scene-bottom: #0d0d0d;
+  --scene-ground: #171d28;   /* the lit floor the buddy stands on */
+  --scene-line: #33405a;     /* the horizon, and the one edge that has to be visible */
   --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
   /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
      as a 12px block on a meter can be unreadable as 10px type, because a bar only has to be seen
@@ -111,9 +117,9 @@
   --sleep-light: #9A9AC0;    /* light: muted blue-grey */
   --sleep-awake: #B26A00;    /* awake: amber */
   --shadow: #1e1e1e;
-  --scene-top: #e2ebf7;      /* soft daylight sky, flat (see the dark theme's note) */
-  --scene-bottom: #e2ebf7;
-  --scene-ground: #ccd9e8;
+  --scene-top: #FFFFFF;      /* = --card; see the dark theme's note on sharing the page's ground */
+  --scene-bottom: #FFFFFF;
+  --scene-ground: #eaf0f8;
   --scene-line: #1e1e1e;     /* light keeps the hard pixel line; on white it is the strongest edge */
   --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
   /* INK tokens: the brand colours when they are TEXT. Measured on white, the gold that carries the
