@@ -4850,9 +4850,21 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
           : speaker + ' says';
         return (
           <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
-            <div className="flex items-start justify-between gap-2 mb-1">
+            {/* The dismiss used to be a literal 44x44 box (w-11 h-11) sharing a flex row with an 8px
+                label, so the button set the row height and the kicker floated 32px above the line it
+                introduces - against 4px on the same message without a ×, which is why the gap looked
+                arbitrary rather than wrong. `.hit` is the app's own primitive for exactly this: the
+                visual box stays the size of the glyph and a centred 44x44 pseudo-element carries the
+                touch target, so the tap area is unchanged and the layout stops paying for it. */}
+            <div className="flex items-center justify-between gap-2 mb-1">
               <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>{head}</div>
-              {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="w-11 h-11 flex items-center justify-center shrink-0 shrink-0 -mt-1 -mr-1 text-[#8A8A90] text-base leading-none active:opacity-60">×</button>}
+              {/* Sized by the BOX, not by the type. The design system remaps every Tailwind text size
+                  with `line-height: 1.7 !important` (styles.css, the type-scale block), so `leading-none`
+                  on a glyph here is silently a no-op and the × keeps a ~19px line box whatever size it
+                  is set to. h-3 + flex centring makes the row exactly the height of the kicker beside
+                  it and leaves the line box to overflow harmlessly; `.hit` still carries the 44px tap
+                  area, so nothing is lost but the space. */}
+              {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit shrink-0 h-3 flex items-center justify-center text-[#8A8A90] text-[13px] active:opacity-60">×</button>}
             </div>
             <div className="text-[11.5px] leading-snug">{msg.text}</div>
             {/* The distance, attached to the ask that names it. The macro card used to carry this as
