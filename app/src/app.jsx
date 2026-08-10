@@ -4779,13 +4779,26 @@ function WeighInline({ unit, seedKg, onSave }) {
 // action is deliberately left clear so the buddy's proactive coach line (Phase 5, the dead showNudge
 // slot) has room to speak here. The one rich, animated element in the pixel UI. (Refs BUDDY_STAGES/
 // MOOD_META below, resolved at render time.)
+/* THE BUDDY'S WORLD.
+   The buddy used to sit in a 66x70 thumbnail beside its own name, with anything it said fenced off
+   below a hairline rule. That is not how anything on this hardware ever looked: the Game Boy gave you
+   a window LAYER over the background, so a character stood in a scene and the textbox appeared OVER
+   it when somebody spoke. Two things follow from copying that properly.
+
+   The textbox overlays rather than stacks, so a quiet buddy is not a collapsed strip - it is the same
+   world with nothing said over it, and the card barely changes height between the two. Silence stops
+   being an absence and becomes the thing you get for having finished.
+
+   And the world is finally big enough to be worth decorating, which is where the shop has been
+   hiding: SCENE_ART, PROP_ART and the auras are all Amber purchases that were rendering into a
+   thumbnail nobody could read. BuddyScene already draws every one of them - sky, floor, floor line,
+   a prop standing at its own fraction across, the aura on the sprite - so the world costs no new art,
+   only room. */
+const WORLD_H = 132;        // the scene band; the buddy stands in it and the textbox overlaps its foot
+const WORLD_FLOOR = 46;     // ground band depth, measured from the bottom of the scene
+const WORLD_FOOT = 44;      // where the buddy's feet sit, kept ABOVE the textbox's top edge (see -mt-10)
 function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
-  const next = BUDDY_STAGES[buddy.stage + 1] || null;
-  // Measure streak toward the next stage from zero so the bar always reads sensibly, even when the
-  // buddy sits at a high-water stage above what the current streak supports (e.g. after a slip).
-  const prog = next ? Math.max(0.04, Math.min(1, streak / next.min)) : 1;
-  const toNext = next ? Math.max(1, next.min - streak) : 0;
   const asleep = bp.mood === 'asleep' || buddy.asleep;
   const stuffed = !asleep && bp.mood === 'stuffed';
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
@@ -4793,101 +4806,78 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg }) {
   const eq = equippedCosmetics(db.buddy);
   const who = incubating ? 'Your egg' : (bp.name || (bp.form ? bp.form.name : st.name));
   const tDone = tasks ? tasks.filter(t => t.done).length : 0;
-  return (
-    <Card className="p-3 mb-4">
-      <div className="flex items-center gap-2.5">
-        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="shrink-0 pixel-box" style={{ boxShadow: 'none', lineHeight: 0 }}>
-          {/* Overfed shows in the tint and the mood line, never in the pace: the idle always plays at
-              full speed. The shadow is derived from the sprite's foot line, so it needs no offset. */}
-          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={2.5} w={66} h={70}
-            floor={16} spriteBottom={3} shadowW={40} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
-        </button>
-        <button onClick={onOpenPlay} className="min-w-0 flex-1 text-left flex items-center gap-1.5">
-         <div className="min-w-0 flex-1">
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Your buddy · Day {bp.daysTogether}</div>
-          <div className="text-[14px] font-bold leading-tight truncate">{who}</div>
-          {/* The growth bar and its "N days to Younglin" line used to sit here as well as in the Play
-              hub, which drew the same progress twice and cost this card most of its height. Today now
-              carries only what it needs to at a glance - who, how it is - and the growth lives in the
-              one place built for it. Incubation keeps its bar, because hatching IS the task then. */}
-          {incubating
-            ? <><div className="text-[11px] leading-snug mb-1.5 truncate" style={{ color: 'var(--carb-ink)' }}>Incubating{tasks ? ' · ' + tDone + '/' + tasks.length : '…'}</div>
-                {tasks && <PipLine pct={(tDone / tasks.length) * 100} />}</>
-            : <div className="text-[11px] leading-snug truncate" style={{ color: mood.color }}>{mood.label}</div>}
-         </div>
-         <span className="pf shrink-0 self-center" style={{ color: 'var(--accent-ink)', fontSize: 15 }}>›</span>
-        </button>
+  // The nameplate carries the KIND, not the speaker. In a real dialogue box the plate names who is
+  // talking because you would not otherwise know; here the buddy is standing directly above it, so
+  // repeating its name twice in 20px would be the only thing the plate achieved.
+  const kind = !msg ? null
+    : msg.kind === 'read' ? 'Morning read'
+    : (msg.kind === 'ask' || msg.kind === 'weigh') ? 'Asks'
+    : msg.kind === 'lesson' ? 'Teaching'
+    : msg.kind === 'recap' ? 'This week'
+    : 'Says';
+  // The advance arrow is only honest when there is nothing else to press. A box carrying a button,
+  // an inline weigh-in or a row of choices already tells you what to do, and a blinking "continue"
+  // beside a "Log it" is a second affordance for a thing that only happens once. So the arrow means
+  // exactly one thing here: this box is a statement, and tapping it opens the buddy's hub.
+  const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
+    && !msg.weigh && !(msg.choices || []).length);
+  const box = (body, plate) => (
+    <div className="relative mx-2 -mt-10 mb-2">
+      <div onClick={bare ? onOpenPlay : undefined} role={bare ? 'button' : undefined}
+        className={'pixel-box box-double p-2.5 pt-3' + (bare ? ' active:opacity-80' : '')}
+        style={{ background: 'var(--surface3)', '--box-inner': 'var(--surface3)' }}>
+        <span className="pf absolute px-1.5 py-1 text-[8px] uppercase" style={{ top: -9, left: 8, background: 'var(--accent)', color: 'var(--on-accent)', lineHeight: 1, zIndex: 1 }}>{plate}</span>
+        {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit absolute h-3 flex items-center justify-center text-[#8A8A90] text-[13px] active:opacity-60" style={{ top: 4, right: 6 }}>×</button>}
+        {body}
+        {bare && <span className="blink absolute pf" style={{ right: 6, bottom: 3, fontSize: 10, color: 'var(--accent-ink)' }}>▼</span>}
       </div>
-      {/* Discoverability: name what's behind the tap so people know the buddy opens Buddy, Battle & Shop
-          (a signposted affordance beats a card that just looks like a static display). */}
-      {/* Shown only when the buddy has nothing to say. When it does, the line and its CTA are the
-          point and this row is a second, weaker invitation competing with them; the chevron beside
-          the name still signposts the tap. Nothing to say means room to show the way in. */}
-      {!incubating && !msg && <button onClick={onOpenPlay} className="w-full mt-2.5 pt-2.5 flex items-center justify-center gap-2" style={{ borderTop: '2px solid var(--border)' }}>
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">Buddy</span><span className="text-[#8A8A90] opacity-40">·</span>
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">Battle</span><span className="text-[#8A8A90] opacity-40">·</span>
-        <span className="pf text-[8px] uppercase text-[#8A8A90]">Shop</span>
-        <span className="pf" style={{ color: 'var(--accent-ink)', fontSize: 12 }}>›</span>
-      </button>}
-      {incubating && tasks && (
-        <div className="mt-3 pt-3 space-y-0.5" style={{ borderTop: '2px solid var(--border)' }}>
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1">Do these to hatch</div>
+    </div>
+  );
+  return (
+    <Card className="p-0 mb-4 overflow-hidden">
+      <div className="relative">
+        <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="block w-full text-left" style={{ lineHeight: 0 }}>
+          <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={3.2} w="100%" h={WORLD_H}
+            floor={WORLD_FLOOR} spriteBottom={WORLD_FOOT} shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
+        </button>
+        {/* The world carries its own HUD in the corners, the way a status overlay did on hardware. */}
+        <div className="absolute flex items-start justify-between gap-2 pointer-events-none" style={{ top: 6, left: 8, right: 8 }}>
+          <span className="pf text-[7px] uppercase truncate" style={{ color: 'var(--text2)' }}>{who}{incubating ? '' : ' · Day ' + bp.daysTogether}</span>
+          <span className="pf text-[7px] uppercase shrink-0" style={{ color: incubating ? 'var(--carb-ink)' : mood.color }}>
+            {incubating ? 'Incubating ' + tDone + '/' + (tasks ? tasks.length : 0) : mood.label}
+          </span>
+        </div>
+      </div>
+      {/* INCUBATING: the hatch list IS the dialogue, because hatching is the only thing being said. */}
+      {incubating && tasks && box(
+        <div className="space-y-0.5">
           {tasks.map(t => (
-            <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1.5 active:opacity-60 transition-opacity">
+            <button key={t.k} onClick={t.done ? undefined : t.go} className="w-full flex items-center gap-2.5 text-left py-1 active:opacity-60 transition-opacity">
               <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ border: '2px solid ' + (t.done ? 'var(--good)' : 'var(--border)'), background: t.done ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{t.done ? <Tick size={10} /> : null}</span>
               <span className="text-[11px] flex-1 min-w-0" style={{ color: t.done ? 'var(--muted)' : 'var(--text)', textDecoration: t.done ? 'line-through' : 'none' }}>{t.label}</span>
               {!t.done && <span className="pf text-[7px] shrink-0" style={{ color: 'var(--accent-ink)' }}>DO IT ›</span>}
             </button>
           ))}
-        </div>
-      )}
-      {msg && (() => {
-        const speaker = msg.kind === 'lesson' ? (bp.name || 'Your buddy') : who;
-        const head = msg.kind === 'read' ? speaker + '’s morning read'
-          : (msg.kind === 'ask' || msg.kind === 'weigh') ? speaker + ' asks'
-          : msg.kind === 'lesson' ? speaker + ' is teaching'
-          : msg.kind === 'recap' ? speaker + '’s week'
-          : speaker + ' says';
-        return (
-          <div className="mt-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
-            {/* The dismiss used to be a literal 44x44 box (w-11 h-11) sharing a flex row with an 8px
-                label, so the button set the row height and the kicker floated 32px above the line it
-                introduces - against 4px on the same message without a ×, which is why the gap looked
-                arbitrary rather than wrong. `.hit` is the app's own primitive for exactly this: the
-                visual box stays the size of the glyph and a centred 44x44 pseudo-element carries the
-                touch target, so the tap area is unchanged and the layout stops paying for it. */}
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>{head}</div>
-              {/* Sized by the BOX, not by the type. The design system remaps every Tailwind text size
-                  with `line-height: 1.7 !important` (styles.css, the type-scale block), so `leading-none`
-                  on a glyph here is silently a no-op and the × keeps a ~19px line box whatever size it
-                  is set to. h-3 + flex centring makes the row exactly the height of the kicker beside
-                  it and leaves the line box to overflow harmlessly; `.hit` still carries the 44px tap
-                  area, so nothing is lost but the space. */}
-              {msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit shrink-0 h-3 flex items-center justify-center text-[#8A8A90] text-[13px] active:opacity-60">×</button>}
-            </div>
-            <div className="text-[11.5px] leading-snug">{msg.text}</div>
-            {/* The distance, attached to the ask that names it. The macro card used to carry this as
-                a second bar of its own, which is how Today ended up saying the same thing twice. */}
-            {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
-            {/* The weigh-in answers itself: the scale number goes in on the spot. */}
-            {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={msg.weigh.onSave} />}
-            {/* A wider set of one-tap answers (the weekly weigh day) than primary/secondary allows. */}
-            {msg.choices && msg.choices.length > 0 && (
-              // One row, however many answers: a week of days must not wrap onto a stray second line.
-              <div className="grid gap-1 mt-2" style={{ gridTemplateColumns: 'repeat(' + msg.choices.length + ', minmax(0, 1fr))' }}>
-                {msg.choices.map(c => <button key={c.label} onClick={c.onClick} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[8px]">{c.label}</span></button>)}
-              </div>
-            )}
-            {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
-              <div className="flex gap-2 mt-2">
-                {msg.primary && msg.primary.onClick && <button onClick={msg.primary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
-                {msg.secondary && msg.secondary.onClick && <button onClick={msg.secondary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
-              </div>
-            )}
+        </div>, 'To hatch')}
+      {msg && !incubating && box(<>
+        <div className="text-[11.5px] leading-snug">{msg.text}</div>
+        {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
+        {/* The weigh-in answers itself: the scale number goes in on the spot. */}
+        {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={msg.weigh.onSave} />}
+        {/* A wider set of one-tap answers (the weekly weigh day) than primary/secondary allows. */}
+        {msg.choices && msg.choices.length > 0 && (
+          // One row, however many answers: a week of days must not wrap onto a stray second line.
+          <div className="grid gap-1 mt-2" style={{ gridTemplateColumns: 'repeat(' + msg.choices.length + ', minmax(0, 1fr))' }}>
+            {msg.choices.map(c => <button key={c.label} onClick={c.onClick} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[8px]">{c.label}</span></button>)}
           </div>
-        );
-      })()}
+        )}
+        {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
+          <div className="flex gap-2 mt-2">
+            {msg.primary && msg.primary.onClick && <button onClick={msg.primary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
+            {msg.secondary && msg.secondary.onClick && <button onClick={msg.secondary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
+          </div>
+        )}
+      </>, kind)}
     </Card>
   );
 }
