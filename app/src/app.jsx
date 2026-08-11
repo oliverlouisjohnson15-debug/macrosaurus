@@ -2672,18 +2672,10 @@ function LegalDoc({ doc, onClose }) {
   if (!doc || !LEGAL[doc]) return null;
   const d = LEGAL[doc];
   return (
-    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <BackClose onClose={onClose} />
-      <div className="w-full max-w-md pixel-box flex flex-col max-h-[90vh] overflow-hidden sheet-up" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
-        <div className="p-5 pb-3 flex-none flex items-start justify-between" style={{ borderBottom: '2px solid var(--border)' }}>
-          <div><h2 className="text-lg font-semibold">{d.title}</h2><div className="text-[10px] text-[#8A8A90] mt-0.5">Last updated {LEGAL_UPDATED}</div></div>
-          <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0 ml-3">×</button>
-        </div>
-        <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0 space-y-3.5" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
-          {d.sections.map((s, i) => (<div key={i}><div className="text-sm mb-1" style={{ color: 'var(--accent-ink)', fontSynthesis: 'none' }}>{s.h}</div><div className="text-[12px] text-[#8A8A90] leading-relaxed whitespace-pre-line">{s.p}</div></div>))}
-        </div>
-      </div>
-    </div>
+    <Sheet title={d.title} onClose={onClose} wide z={90}>
+      <div className="text-[11px]" style={{ color: 'var(--muted)' }}>Last updated {LEGAL_UPDATED}</div>
+      {d.sections.map((s, i) => (<div key={i}><div className="text-sm mb-1" style={{ color: 'var(--accent-ink)', fontSynthesis: 'none' }}>{s.h}</div><div className="text-[12px] leading-relaxed whitespace-pre-line" style={{ color: 'var(--muted)' }}>{s.p}</div></div>))}
+    </Sheet>
   );
 }
 function Auth() {
@@ -2786,7 +2778,7 @@ const BF_BANDS = {
   female: [{ r: '14–17%', v: 16, d: 'Very lean, athletic, visible muscle' }, { r: '18–22%', v: 20, d: 'Lean, some muscle definition' }, { r: '23–27%', v: 25, d: 'Fit, smooth and healthy' }, { r: '28–32%', v: 30, d: 'Average, softer curves' }, { r: '33–37%', v: 35, d: 'Higher, fuller figure' }, { r: '38%+', v: 40, d: 'High' }],
 };
 function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const bands = BF_BANDS[sex === 'female' ? 'female' : 'male'];
   const [mode, setMode] = useState('bands');
   const [imgs, setImgs] = useState({}); // { front, back, side }
@@ -2807,10 +2799,8 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
     setBusy(false);
   }
   return (
-    <div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Estimate body fat</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
+    <Sheet title="Estimate body fat" onClose={onClose} wide z={70}>
+      <div>
         {mode === 'bands' ? (<>
           <div className="text-[12px] text-[#8A8A90] mb-4">Pick whatever looks most like you, a rough guess is fine. Or let the AI read it from photos.</div>
           <button onClick={() => setMode('photos')} className="w-full flex items-center gap-3 bg-[#4A9EEB]/12 border border-[#4A9EEB]/40 rounded-2xl p-3.5 mb-4 active:scale-[.99] transition">
@@ -2842,7 +2832,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
         </>)}
         {mode === 'bands' && err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -6395,7 +6385,7 @@ function saveTalk(db, turns) {
   try { sessionStorage.setItem(talkKey(db), JSON.stringify(turns.filter(t => t.role === 'user' || t.role === 'buddy').map(t => ({ role: t.role, text: t.text })).slice(-TALK_STORE_TURNS))); } catch (_) {}
 }
 function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddItems, onAddMeal, onSaveWeight, onOpenScreen }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const who = (db.buddy && db.buddy.name) || 'Your buddy';
   const [turns, setTurns] = useState(() => loadTalk(db));
   const [draft, setDraft] = useState('');
@@ -6500,15 +6490,8 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
     try { inputRef.current && inputRef.current.focus(); } catch (_) {}
   }
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 flex flex-col sheet-up" style={{ height: '82vh', maxHeight: 640, paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="pixel-box p-1 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none', lineHeight: 0 }}><BuddyAvatar buddy={db.buddy || {}} px={1.6} /></div>
-            <div className="min-w-0"><div className="text-[14px] font-bold truncate">{who}</div><div className="pf text-[7px] uppercase text-[#8A8A90]">{busy ? 'Thinking…' : 'Ask me anything'}</div></div>
-          </div>
-          <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
-        </div>
+    <Sheet title={who + (busy ? ' · thinking…' : '')} onClose={onClose} wide z={80} pad={false}
+      bodyClass="flex flex-col p-3.5" bodyStyle={{ height: '78vh', maxHeight: 620, paddingBottom: 'calc(0.875rem + env(safe-area-inset-bottom))' }}>
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
           {!turns.length && (
             <div className="text-center py-4">
@@ -6564,14 +6547,13 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
           <button onClick={() => send(draft)} disabled={busy || !draft.trim()} className="pixel-btn px-3 py-2.5 text-[9px] pf shrink-0"
             style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (busy || !draft.trim()) ? 0.5 : 1 }}>SEND</button>
         </div>
-        <div className="text-[9px] text-[#8A8A90] mt-2 leading-snug shrink-0">{who} is an AI and can get things wrong. Nothing is logged until you tap to confirm it.</div>
+        <div className="text-[11px] mt-2 leading-snug shrink-0" style={{ color: 'var(--muted)' }}>{who} is an AI and can get things wrong. Nothing is logged until you tap to confirm it.</div>
         {cam && <MealCamera onFiles={fs => { const f = fs && fs[0]; if (f) setPic({ file: f, url: URL.createObjectURL(f) }); setCam(false); }} onClose={() => setCam(false)} />}
-      </div>
-    </div>
+    </Sheet>
   );
 }
 function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, isPremium }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
   const today = Store.todayISO();
   const [trophies, setTrophies] = useState(false);
@@ -6605,13 +6587,11 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, i
       d.buddy.equipped = Object.assign({}, d.buddy.equipped || {}, { [kind]: id });
     });
   }
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-4" />
+  return (<>
+    <Sheet title={trophies ? 'Trophies' : 'Play'} onClose={onClose} wide z={50}>
+      <div>
         {trophies ? <TrophyCabinet db={db} streak={streak} onBack={() => setTrophies(false)} />
         : (<>
-          <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
           {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
           <div className="grid grid-cols-3 mb-4" style={{ border: '2px solid var(--border)' }}>
@@ -6633,9 +6613,9 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, i
           {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} equip={equip} update={update} onRename={onOpenName} />}
         </>)}
       </div>
-      {chatting && <BuddyChatModal db={db} isPremium={isPremium} onClose={() => setChatting(false)} />}
-    </div>
-  );
+    </Sheet>
+    {chatting && <BuddyChatModal db={db} isPremium={isPremium} onClose={() => setChatting(false)} />}
+  </>);
 }
 // Achievement trophies, earned once and recorded idempotently in game_awards['trophy:<id>']. Each has
 // an `earned(db, ctx)` predicate; the Dashboard runs the pass and mints newly-earned ones with a toast.
@@ -6855,7 +6835,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
 // Recolour the hatched buddy for Amber: pick a colourway (its species' available palettes), pay once.
 // Visual pick, no colour names, since the palettes are the same egg colourways chosen at hatch.
 function BuddyColourModal({ db, update, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const b = db.buddy || {};
   const species = b.species || 'doux';
   const options = spritePalettes(species);
@@ -6875,9 +6855,8 @@ function BuddyColourModal({ db, update, onClose }) {
     onClose();
   }
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-1"><div className="text-[15px] font-bold">Change colour</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
+    <Sheet title="Change colour" onClose={onClose} z={80}>
+      <div>
         <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Pick a new colourway for {b.name || 'your buddy'}. Costs {COLOUR_COST} Amber (you have {amber}).</div>
         <div className="flex gap-3 justify-center mb-4">
           {options.map(pal => (
@@ -6890,7 +6869,7 @@ function BuddyColourModal({ db, update, onClose }) {
           <span className="pf text-[10px]">{!changed ? 'KEEP CURRENT' : canAfford ? 'RECOLOUR · ' + COLOUR_COST + ' AMBER' : 'NOT ENOUGH AMBER'}</span>
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 /* ---- Auto-battle: your buddy (stats from your recent eating) vs a rival ladder + rotating weekly boss ---- */
@@ -7204,12 +7183,9 @@ function FightModal({ db, update, streak, onClose, embedded }) {
   </>);
   if (embedded) return <div className="fade-in">{body}</div>;
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Dino fight</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
-        {body}
-      </div>
-    </div>
+    <Sheet title="Dino fight" onClose={onClose} wide z={50}>
+      {body}
+    </Sheet>
   );
 }
 // Slim weight-trend teaser for the dashboard: latest weight + a sparkline, taps through to
@@ -7695,7 +7671,7 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
 // Every figure is recomputed here from the same game.js functions the dials use, so the explanation
 // can never disagree with the number on the card.
 function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const today = Store.todayISO();
   const k = n => Math.round(n).toLocaleString('en-GB');
   const synced = db.googleHealth && db.googleHealth.connected;
@@ -7898,15 +7874,11 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold" style={{ color: TINT[metric] }}>{TITLE[metric]}</h2>
-          <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button>
-        </div>
+    <Sheet title={TITLE[metric]} onClose={onClose} wide z={70}>
+      <div>
         {body}
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -7915,7 +7887,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
 // we never sell / share / advertise with / train models on it, links the privacy policy, and only
 // proceeds to Google on an affirmative tap. onAgree runs the real OAuth redirect; onClose cancels.
 function GoogleHealthDisclosure({ onClose, onAgree }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const Row = ({ label, detail }) => (
     <div className="flex gap-3 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
       <div className="shrink-0 mt-0.5" style={{ color: 'var(--accent-ink)' }}><Tick size={12} /></div>
@@ -7926,12 +7898,8 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
     </div>
   );
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1">
-          <h2 className="text-lg font-bold">Connect Google Health</h2>
-          <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button>
-        </div>
+    <Sheet title="Connect Google Health" onClose={onClose} wide z={80}>
+      <div>
         <p className="text-[13px] leading-snug mb-3" style={{ color: 'var(--text2)' }}>
           With your permission, Macrosaurus reads the following from Google Health (read-only) to power features in the app:
         </p>
@@ -7947,12 +7915,12 @@ function GoogleHealthDisclosure({ onClose, onAgree }) {
         <p className="text-[12px] leading-snug mt-3" style={{ color: 'var(--muted)' }}>
           Tap Connect and Google will ask you to choose your account and approve this access.
         </p>
-        <div className="flex gap-2 mt-5">
-          <Btn kind="ghost" className="flex-1" onClick={onClose}>Not now</Btn>
-          <Btn kind="accent" className="flex-1" onClick={onAgree}>Connect Google Health</Btn>
+        <div className="flex flex-col gap-2.5 mt-5">
+          <SheetBtn onClick={onAgree}>Connect Google Health</SheetBtn>
+          <div className="text-center"><TextBtn onClick={onClose} tone="quiet">Not now</TextBtn></div>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -8246,7 +8214,7 @@ function HatchCelebration({ buddy, suggestedName, onDone }) {
 // Hatch-and-name: turn the generic buddy into an individual. Shown from the home strip; on an
 // account with no name yet it reads as "hatching", afterwards as a rename.
 function NameBuddyModal({ db, update, buddy, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const b = db.buddy || {};
   const isRename = !!b.name;
   const amber = Game.amberBalance(db.amber_ledger);
@@ -8263,19 +8231,17 @@ function NameBuddyModal({ db, update, buddy, onClose }) {
     onClose();
   }
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex flex-col items-center text-center mb-4">
-          <div className="pixel-box p-2 mb-3" style={{ background: 'var(--surface3)' }}><BuddyAvatar buddy={b} px={3} /></div>
-          <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">{isRename ? 'Rename your buddy. Costs ' + RENAME_COST + ' Amber (you have ' + amber + ').' : 'Give your buddy a name, it’s yours to raise.'}</div>
-        </div>
-        <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
-          className={inputCls + ' text-center'} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
-        <button onClick={save} disabled={!name.trim() || !canAfford} className="pixel-btn w-full py-3 mt-3" style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (name.trim() && canAfford) ? 1 : 0.5 }}>
-          <span className="pf text-[10px]">{isRename ? (canAfford ? 'RENAME · ' + RENAME_COST + ' AMBER' : 'NOT ENOUGH AMBER') : 'HATCH'}</span>
-        </button>
-      </div>
-    </div>
+    <Sheet title={isRename ? 'Rename your buddy' : 'Name your buddy'} onClose={onClose} z={80}>
+      <SheetBox className="p-4 flex flex-col items-center text-center gap-2">
+        <BuddyAvatar buddy={b} px={3} />
+        <span className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>{isRename ? 'Costs ' + RENAME_COST + ' Amber (you have ' + amber + ').' : 'Give your buddy a name, it’s yours to raise.'}</span>
+      </SheetBox>
+      <input value={name} onChange={e => setName(e.target.value)} maxLength={16} autoFocus placeholder="Name your buddy"
+        className={inputCls + ' text-center'} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
+      <SheetBtn onClick={save} disabled={!name.trim() || !canAfford} style={{ opacity: (name.trim() && canAfford) ? 1 : 0.5 }}>
+        {isRename ? (canAfford ? 'Rename · ' + RENAME_COST + ' Amber' : 'Not enough Amber') : 'Hatch'}
+      </SheetBtn>
+    </Sheet>
   );
 }
 
@@ -8902,7 +8868,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
 }
 
 function CarryoverSheet({ et, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const cd = et.carryDetail;
   const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
   const dd = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -8915,9 +8881,8 @@ function CarryoverSheet({ et, onClose }) {
     </div>
   );
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Today's target</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
+    <Sheet title="Today's target" onClose={onClose} wide z={80}>
+      <div>
         <div className="text-[11px] text-[#8A8A90] mb-4 leading-snug">Where today's {et.eff.kcal} kcal comes from.</div>
 
         <div className="pixel-box p-3 mb-4" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -8957,9 +8922,9 @@ function CarryoverSheet({ et, onClose }) {
             : `Onto the next day: the whole ${sgn(cd.balance)} balance lands on today (${sgn(cd.applied)}), capped at ±${cd.cap} kcal a day.`}</div>
         </>}
 
-        <button onClick={onClose} className="pixel-btn w-full mt-4 py-2.5 text-[11px]" style={{ background: 'var(--surface2)' }}>Got it</button>
+        <div className="mt-4"><SheetBtn onClick={onClose}>Got it</SheetBtn></div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -9533,19 +9498,15 @@ function applyPhotoEstimate(update, id, item) {
 }
 // Small in-app naming sheet (replaces window.prompt): prefilled text, Save/Cancel.
 function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const [name, setName] = useState(initial || '');
-  return (<div className="fixed inset-0 z-[70] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-    <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{title}</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
-      {hint && <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">{hint}</div>}
+  return (
+    <Sheet title={title} onClose={onClose} wide z={70}>
+      {hint && <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{hint}</div>}
       <TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && name.trim()) onSave(name.trim()); }} />
-      <div className="flex gap-2 mt-4">
-        <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
-        <Btn kind="accent" className="flex-1" disabled={!name.trim()} style={{ opacity: name.trim() ? 1 : 0.5 }} onClick={() => onSave(name.trim())}>{saveLabel || 'Save'}</Btn>
-      </div>
-    </div>
-  </div>);
+      <SheetBtn disabled={!name.trim()} style={{ opacity: name.trim() ? 1 : 0.5 }} onClick={() => onSave(name.trim())}>{saveLabel || 'Save'}</SheetBtn>
+    </Sheet>
+  );
 }
 /* Editing a logged food. This screen used to be strictly weaker than the confirm screen you get when
    ADDING one: no grams/portions toggle, no Density Score, no calorie sanity check, no way to delete
@@ -9670,7 +9631,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
 }
 
 function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal, onPick, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const today = Store.todayISO();
   const [cm, setCm] = useState(() => { const d = new Date((srcDate || today) + 'T00:00:00'); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [selMeal, setSelMeal] = useState(defaultMeal || (meals && meals[0] && meals[0].id));
@@ -9686,9 +9647,9 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
   const pick = (c) => onPick(c, meals ? selMeal : undefined);
   // One-tap targets for the common cases, so most copies never touch the calendar.
   const quick = [{ iso: shiftISO(today, -1), label: 'Yesterday' }, { iso: today, label: 'Today' }, { iso: shiftISO(today, 1), label: 'Tomorrow' }];
-  return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-    <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold truncate pr-2">{title}</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0">×</button></div>
+  return (
+    <Sheet title={title} onClose={onClose} wide z={60}>
+      <div>
       {count > 0 && <div className="text-[11px] tnum mb-3" style={{ color: 'var(--text2)' }}>{count}{count === 1 ? ' item' : ' items'} <span className="text-[#5A5A62]">·</span> <span className="font-semibold" style={{ color: 'var(--accent-ink)' }}>{kcal}</span> kcal</div>}
       {meals && <div className="mb-3">
         <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Into which meal</div>
@@ -9707,8 +9668,9 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
         <button key={i} onClick={() => pick(c)} className={`relative aspect-square text-[12px] tnum flex items-center justify-center pixel-box ${c === today ? 'bg-white text-black font-bold' : c === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22]'}`} style={{ boxShadow: 'none' }}>{new Date(c + 'T00:00:00').getDate()}{logged.has(c) && c !== today && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1" style={{ background: 'var(--accent)' }} />}</button>
       ) : <div key={i} />)}</div>
       <div className="flex items-center gap-1.5 mt-2 text-[10px] text-[#5A5A62]"><span className="inline-block w-1 h-1" style={{ background: 'var(--accent)' }} /> has food logged</div>
-    </div>
-  </div>);
+      </div>
+    </Sheet>
+  );
 }
 
 /* =====================================================================
@@ -9971,7 +9933,7 @@ function suggestMealId(db, meals, now) {
 // barcode) doesn't reset to the Food tab every time.
 let LAST_LOG_TAB = null;
 function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onClose, isPremium, aiCalls }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const [isAlc, setIsAlc] = useState(!!target.alc);
   const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? 'recent' : (['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
   const setTab = (t) => { setTabRaw(t); setScanNow(0); if (!isAlc) LAST_LOG_TAB = t; };
@@ -9984,25 +9946,23 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
   const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
   useEffect(() => { if (isAlc && tab === 'food') setTabRaw('recent'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw(['photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'); }, [isAlc]);
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box sheet-up flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+    <Sheet title={'Log ' + (isAlc ? 'alcohol' : 'food')} onClose={onClose} wide z={50} pad={false}
+      bodyClass="flex flex-col" bodyStyle={{ maxHeight: '86vh' }}>
         {/* This header was 300px tall: a grab bar, a title, a full-height Meal box, a Food/Alcohol
             toggle and a tab row. On a 667px phone that is HALF the sheet, permanently, leaving about
             three search results visible, and it stayed pinned over the confirm screen where none of
-            it applied. The meal is now a line of text under the title, the Type toggle is gone (see
-            the tabs note below) and the barcode icon went with it, since "Scan" is a tab 40px away. */}
-        <div className="px-5 pt-4 pb-3 flex-none">
-          <div className="w-10 h-1 bg-[#262629] rounded-full mx-auto mb-3" />
+            it applied. The title is the sheet's own bar now, the meal is a line under it, the Type
+            toggle is gone (see the tabs note below) and the barcode icon went with it, since "Scan"
+            is a tab 40px away. */}
+        <div className="px-3.5 pt-3 pb-3 flex-none">
           <div className="flex justify-between items-start gap-3 mb-3">
             <div className="min-w-0">
               {/* Alcohol as the labelled detour the comment below always described: entered from
                   the bottom of the Food tab, left by this link. The meal picker stays put either
                   way, so a drink still lands where you want it. */}
               {isAlc && <button onClick={() => setIsAlc(false)} className="block text-[11px] mb-0.5" style={{ color: 'var(--accent-ink)' }}>‹ Back to food</button>}
-              <h2 className="text-lg font-semibold leading-tight">Log {isAlc ? 'alcohol' : 'food'}</h2>
               <Dropdown compact value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />
             </div>
-            <button onClick={onClose} className="pixel-btn w-10 h-10 flex items-center justify-center shrink-0 pf text-[11px]" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Close">✕</button>
           </div>
           {/* The sheet's tabs, in the import's shape: one frame around the whole strip, segments butted
               together, the pixel face because they are chrome. Same grammar as the LEFT/EATEN switch
@@ -10014,7 +9974,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
                 color: tab === k ? 'var(--on-accent)' : 'var(--muted2)' }}>{l}</button>)}
           </div>
         </div>
-        <div className="px-5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+        <div className="px-3.5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
           {!isPremium && (tab === 'photo' || tab === 'describe') && (() => {
             const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
             return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: left > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-2 px-3 py-2 pixel-box flex items-center justify-between gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
@@ -10028,8 +9988,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
           {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} day={day} />)}
           {tab === 'photo' && <PhotoTab db={db} asAlcohol={isAlc} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onAskAI={() => setTab('describe')} day={day} />}
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
@@ -10249,7 +10208,7 @@ function DensityBadge({ nq, estimating, onExplain }) {
 // read once and trusted afterwards: what it measures, how a food differs from a day, and where it
 // is weakest, because a score that hides its limits is not one worth believing.
 function DensityExplainer({ onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const Row = ({ h, children }) => (
     <div className="mb-4">
       <div className="text-[13px] font-bold mb-1">{h}</div>
@@ -10257,13 +10216,8 @@ function DensityExplainer({ onClose }) {
     </div>
   );
   return (
-    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="w-full max-w-md pixel-box flex flex-col max-h-[92vh] overflow-hidden sheet-up" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="p-5 overflow-y-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div className="pf text-[10px] uppercase tracking-widest" style={{ color: 'var(--accent-ink)' }}>Density Score</div>
-            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button>
-          </div>
+    <Sheet title="Density Score" onClose={onClose} wide z={95}>
+        <div>
           <h2 className="text-xl font-bold mb-1">How well you ate, not just how much</h2>
           <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4">
             Calories and macros tell you the quantity of your food. The Density Score tells you the quality of it, out of 100, where higher is better.
@@ -10286,10 +10240,9 @@ function DensityExplainer({ onClose }) {
           <Row h="What it is not">
             A judgement of you, or medical advice. There are no banned foods here. It is a nudge towards food that carries more for the calories, nothing more.
           </Row>
-          <Btn kind="accent" className="w-full" onClick={onClose}>Got it</Btn>
+          <SheetBtn onClick={onClose}>Got it</SheetBtn>
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 // The same three nutrients as read off a printed label or estimated for a meal, on whatever basis
@@ -10842,7 +10795,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
    sauce, the drink out of frame). Itemising is off here on purpose: one entry cannot become five
    without becoming a different thing than the one you were updating. */
 function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const key = db.profile.aiKey || 'builtin';
   const MAX_PHOTOS = 3;
   const [imgs, setImgs] = useState([]);
@@ -10897,15 +10850,10 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)}
     title="Photograph what you actually had" subtitle="It replaces the estimate already in your diary"
     frameHint="Fit the whole plate in the frame, then tap to capture." />;
-  return (<div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-    <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-start gap-3 mb-3">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold leading-tight">Update with a photo</h2>
-          <div className="text-[11px] mt-1 truncate" style={{ color: 'var(--muted)' }}>{entry.name}</div>
-        </div>
-        <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button>
-      </div>
+  return (
+    <Sheet title="Update with a photo" onClose={onClose} wide z={60}>
+      <div>
+      <div className="text-[11px] mb-3 truncate" style={{ color: 'var(--muted)' }}>{entry.name}</div>
       {busy && !result ? <DinoLoader label="Reading what you actually had" />
         : result ? (<div className="fade-in">
           {/* No "currently logged" block above this: the confirm screen now carries the old figure
@@ -10934,8 +10882,9 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
           <Btn kind="accent" className="w-full mt-3" onClick={run}>Re-estimate from the photo</Btn>
         </>)}
       {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
-    </div>
-  </div>);
+      </div>
+    </Sheet>
+  );
 }
 // Load an external UMD script once, resolving when its global is present. Used to lazy-load the barcode
 // scanner library only when someone actually scans, so it never slows the normal app load.
@@ -12499,7 +12448,7 @@ function ticketStatusMeta(s) {
 // The user-facing feedback sheet: one message with a type picker, plus the user's own ticket
 // history with live status and any reply. Opened from a MenuRow in Menu → Account.
 function FeedbackSheet({ email, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const [kind, setKind] = useState('bug');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -12518,9 +12467,8 @@ function FeedbackSheet({ email, onClose }) {
     setBusy(false);
   }
   return (
-    <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">Send feedback</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none" aria-label="Close">×</button></div>
+    <Sheet title="Send feedback" onClose={onClose} wide z={85}>
+      <div>
         <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Report a bug, request a feature, or ask a question. We read every message{email ? ' and may reply to ' + email : ''}.</div>
         <Field label="Type"><Seg value={kind} options={TICKET_KINDS} onChange={setKind} /></Field>
         <Field label="Message">
@@ -12549,7 +12497,7 @@ function FeedbackSheet({ email, onClose }) {
               })}</div>}
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
@@ -12910,13 +12858,12 @@ function AdminAiLogs() {
   </div>);
 }
 function AdminAiLogDetail({ log, onClose, onImage }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   let resultDisplay = log.result || '(no result)';
   try { resultDisplay = JSON.stringify(JSON.parse(log.result), null, 2); } catch (e) { /* not JSON, show raw */ }
   return (
-    <div className="fixed inset-0 z-[85] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-1"><h2 className="text-lg font-semibold">{aiFeatureLabel(log.feature)}</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
+    <Sheet title={aiFeatureLabel(log.feature)} onClose={onClose} wide z={85}>
+      <div>
         <div className="text-[11px] text-[#8A8A90] mb-4 break-words">{(log.email || 'unknown')} · {adminFmtWhen(log.created_at)} · {modelLabel(log.model)}{log.status === 'error' ? ' · error' : ''}</div>
         {log.images && log.images.length > 0 && <div className="mb-4">
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Input images ({log.images.length})</div>
@@ -12933,7 +12880,7 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
         </details>
         <div className="text-[10px] text-[#8A8A90] tnum mt-4 pt-3 border-t border-[#262629]">{(log.input_tokens || 0) + ' tokens in · ' + (log.output_tokens || 0) + ' out'}{log.cost_usd ? ' · $' + (+log.cost_usd).toFixed(5) : ''}</div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 function AdminPanel({ onBack, adminEmail, update }) {
