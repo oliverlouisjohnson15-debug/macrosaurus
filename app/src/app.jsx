@@ -7049,6 +7049,10 @@ const PROP_ART = {
   prop_cycad: { art: 'brolly', colors: crC('#4FA35E', '#28632f'), at: 0.14, px: 4.2 },
   prop_nest: { art: 'egg', colors: crC('#EAD9A0', '#C77D3A'), at: 0.86, px: 3.0 },
 };
+// The terrarium's pool of light, as a fraction of the world's height. Half of it falls below the
+// horizon and half rises off it, so the light behaves like light on a floor rather than a ring
+// around a character (see the note at its draw site).
+const GLOW_H_FRAC = 0.5;
 const RENAME_COST = 40; // Amber to rename the buddy after hatch (the hatch naming itself is free).
 const COLOUR_COST = 60; // Amber to recolour the buddy (switch its palette / colourway) after hatch.
 function auraFilter(eq) { const c = eq && eq.aura && AURA_GLOW[eq.aura]; return c ? 'drop-shadow(0 0 6px ' + c + ') drop-shadow(0 0 3px ' + c + ')' : null; }
@@ -7245,10 +7249,16 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, s
       {terrarium
         ? <>
             <TerrariumCanvas h={h} still={still} scene={scene} />
-            {/* The light the buddy stands in. The design ships this as a fixed 150x110 warm ellipse;
+            {/* The light the buddy stands IN. The design ships this as a fixed 150x110 warm ellipse;
                 here it is sized from the world and coloured by --buddy-glow so it follows the theme
-                (gold by day, neon by night) rather than being warm on a night sky. */}
-            <div className="absolute pointer-events-none" style={{ left: '50%', bottom: Math.max(0, floor - 6), width: Math.min(180, h * 1.7), height: h * 1.2, transform: 'translateX(-50%)', background: 'radial-gradient(ellipse at 50% 78%, var(--buddy-glow), transparent 68%)' }} />
+                (gold by day, neon by night) rather than being warm on a night sky.
+                It is centred ON THE GROUND LINE, not on the sprite. Drawn tall and pinned near the
+                buddy's waist, the same pool reads as a coloured halo around the character - which is
+                exactly what a bought aura is - so somebody who took their aura off in the Shop still
+                saw their buddy glowing here and had no way to make it stop. Scenery must not
+                impersonate a cosmetic: a pool centred on the horizon lights the floor and the feet,
+                leaves the head in the sky, and lets the aura be the only thing that rings the buddy. */}
+            <div className="absolute pointer-events-none" style={{ left: '50%', bottom: Math.round(floor - GLOW_H_FRAC * h / 2), width: Math.min(180, h * 1.7), height: Math.round(GLOW_H_FRAC * h), transform: 'translateX(-50%)', background: 'radial-gradient(ellipse at 50% 50%, var(--buddy-glow), transparent 70%)' }} />
           </>
         : <div className="absolute left-0 right-0 bottom-0" style={{ height: floor, background: scene ? scene.ground : 'var(--scene-ground)', borderTop: '2px solid ' + (scene ? scene.line : 'var(--scene-line)') }} />}
       {/* The prop stands ON the floor, behind the buddy, and dims with it when the buddy is asleep. */}
