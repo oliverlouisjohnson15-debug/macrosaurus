@@ -319,6 +319,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   if (screen.name === 'blocks') {
     return page(<BlockList db={db} update={update} showToast={showToast}
       onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard')}
+      onImport={() => go('import', { from: 'blocks' })}
       onCoverage={(blockId) => go('coverage', { blockId, from: 'blocks' })}
       onReview={(blockId) => go('review', { blockId, from: 'blocks' })}
       onStart={(blk) => {
@@ -2875,7 +2876,7 @@ function TargetSheet({ row, name, onChange, onClose }) {
 // sight, and nothing anywhere opened the editor on a saved block, so BlockBuilder's "Delete this
 // block" button could not be reached at all. A block built by mistake was permanent. Editing and
 // deleting are the same screen because they answer the same question: this one is wrong, now what.
-function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, onReview, onStart }) {
+function BlockList({ db, update, showToast, onBack, onOpen, onNew, onImport, onCoverage, onReview, onStart }) {
   useBackClose(onBack);
   const t = tdb(db);
   const today = Store.todayISO();
@@ -2909,39 +2910,54 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">Your blocks</h1>
-      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+      <SubHeader back={onBack} backLabel="Train" title="Your blocks" />
+      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Built, imported and archived</div>
+      <h1 className="pf text-lg mb-2">Your blocks</h1>
+      <div className="text-[12.5px] mb-4 leading-relaxed" style={{ color: 'var(--muted)' }}>
         Everything you have built or imported. Tap one to change it, or delete one you made by mistake. The sessions you logged against a block are kept either way.
       </div>
 
+      {/* The design's empty slot: a dashed frame, not a solid card. A card says "here is a thing";
+          this has to say "here is where a thing would go", and a dashed edge is how every design
+          since graph paper has said that. */}
       {!blocks.length && (
-        <Card className="p-4">
-          <div className="text-[13px] mb-1">No blocks yet.</div>
-          <div className="text-[12px] leading-snug mb-4" style={{ color: 'var(--muted)' }}>
+        <div className="p-5 text-center mb-4" style={{ border: '2px dashed var(--border)' }}>
+          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Nothing here yet</div>
+          <div className="text-[12.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             Build one from your kit and your days, or import a plan you already follow.
           </div>
-          <button onClick={onNew} className="pixel-btn w-full h-12 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
-        </Card>
+        </div>
       )}
 
       {blocks.map(block => {
         const comp = Training.completion(block, t.logs.filter(l => l.blockId === block.id));
         const running = block.id === liveId && !Training.blockProgress(block, today).done;
+        const prog = Training.blockProgress(block, today);
+        const pct = comp.total > 0 ? comp.done / comp.total : 0;
         return (
-          <Card key={block.id} className="p-4 mb-3">
+          <Card key={block.id} className="p-0 overflow-hidden mb-3">
+            {/* The head carries the block's STATE, which is the thing you scan this list for, and
+                leaves the body to carry the block. It was a muted line of text under the name,
+                reading as a third tier of caption. */}
+            <CardHead title={running ? 'Running' : prog.done ? 'Archived' : 'Not running'}
+              right={running ? 'Week ' + prog.week + ' of ' + block.weeks : prog.done ? 'Finished' : (block.startISO ? null : 'Never started')} />
+            <div className="p-3.5">
             <div className="flex items-start justify-between gap-2">
               <button onClick={() => onOpen(block.id)} className="min-w-0 flex-1 text-left">
-                <span className="block text-[13.5px] font-semibold" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{block.name}</span>
-                <span className="block text-[11px] mt-1" style={{ color: running ? 'var(--accent-ink)' : 'var(--muted)' }}>
-                  {statusOf(block)}
-                </span>
-                <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
-                  {comp.done} of {comp.total} sessions logged{block.shared ? ' · shared' : ''}
+                <span className="block text-[15px] font-semibold leading-tight" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{block.name}</span>
+                <span className="block text-[12px] tnum mt-1" style={{ color: 'var(--muted)' }}>
+                  {comp.done} of {comp.total} sessions logged · {block.daysPerWeek || (block.days || []).length} days a week{block.shared ? ' · shared' : ''}
                 </span>
               </button>
               <button onClick={() => setConfirm(block)} aria-label={'Delete ' + block.name}
-                className="hit shrink-0 px-3 py-2 text-[12px]" style={{ color: 'var(--danger)' }}>Delete</button>
+                className="hit shrink-0 px-2 py-1 text-[12px] underline" style={{ color: 'var(--danger-ink)' }}>Delete</button>
+            </div>
+            {/* How far through it you are, in the house meter. The design gives every block one, and
+                it is the difference between reading "7 of 16" and seeing it. */}
+            <div className="flex gap-[1px] mt-2.5" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
+              {Array.from({ length: 20 }, (_, i) => (
+                <i key={i} className="flex-1" style={{ height: 11, background: i < Math.round(pct * 20) ? (prog.done ? 'var(--good)' : 'var(--accent)') : 'var(--track)' }} />
+              ))}
             </div>
             {/* A block built before a rule existed does not get it retroactively, and the ones that
                 show are the ones you read every day. Offered, never applied quietly: two of these
@@ -2951,20 +2967,29 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
                 {fixes[block.id].length} thing{fixes[block.id].length === 1 ? '' : 's'} here predate how the app builds blocks now &rsaquo;
               </button>
             )}
-            <div className="flex items-center gap-4 mt-3 pt-3 text-[12px]" style={{ borderTop: '2px solid var(--border)' }}>
-              {/* A block that was saved but never begun. Starting it is the whole point of having
-                  saved it, so it is one tap from here rather than a trip through the editor. */}
+            {/* Framed buttons, per the design, not a row of blue-ish words. These are the two things
+                you came to this card to do, and a text link at 12px is the weakest control the app
+                has for the strongest intent on the row. */}
+            <div className="flex gap-2 mt-3">
               {!block.startISO && (
-                <button onClick={() => onStart(block)} style={{ color: 'var(--accent-ink)' }}>Start this block</button>
+                <button onClick={() => onStart(block)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--accent)', color: 'var(--on-accent)' }}>Start this block</button>
               )}
-              <button onClick={() => onCoverage(block.id)} style={{ color: 'var(--accent-ink)' }}>What it covers</button>
+              <button onClick={() => onCoverage(block.id)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--surface2)' }}>What it covers</button>
               {comp.done > 0 && (
-                <button onClick={() => onReview(block.id)} style={{ color: 'var(--accent-ink)' }}>How it went</button>
+                <button onClick={() => onReview(block.id)} className="pixel-btn flex-1 py-2.5 text-[12.5px]" style={{ borderWidth: 2, background: 'var(--surface2)' }}>How it went</button>
               )}
+            </div>
             </div>
           </Card>
         );
       })}
+
+      {/* The two ways to get another one, at the bottom where the design puts them, so they are
+          reachable whether the list is empty or twelve long. */}
+      <div className="grid grid-cols-2 gap-2.5 mt-1">
+        <button onClick={onNew} className="pixel-btn py-3.5 px-2 pf text-[10px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
+        <button onClick={onImport} className="pixel-btn py-3.5 px-2 pf text-[10px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--card)', color: 'var(--text)' }}>Import a plan</button>
+      </div>
 
       {fixing && (() => {
         const list = Training.blockFixes(fixing, t.custom);
