@@ -9369,14 +9369,15 @@ function FoodLog({ db, update, openLog, showToast }) {
           {/* The same blocks as Today, laid out on one line each because this card is a reminder of
               where the day stands rather than the place you study it. Same instrument, same reading. */}
           <div className="px-3 py-3 space-y-2">
-            {[['PROT', tot.protein, et.eff.protein_g, PRO], ['CARB', tot.carbs, et.eff.carbs_g, CARB], ['FATS', tot.fat, et.eff.fat_g, FAT]].map(([l, e, t, c]) => (
+            {[['PROT', tot.protein, et.eff.protein_g, PRO, PRO_T], ['CARB', tot.carbs, et.eff.carbs_g, CARB, CARB_T], ['FATS', tot.fat, et.eff.fat_g, FAT, FAT_T]].map(([l, e, t, c, ink]) => (
               <div key={l} className="flex items-center gap-2.5">
-                <span className="pf text-[8px] w-8 shrink-0" style={{ color: 'var(--muted)' }}>{l}</span>
+                <span className="pf text-[9px] w-8 shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{l}</span>
                 <div className="flex-1 min-w-0"><PipMeter value={e} target={t} color={c} small /></div>
                 {/* The figure is set in the pixel face and carries its macro's colour, as the design
                     has it. In grey body type it was the quietest thing on a row whose whole job is
-                    to report a number. */}
-                <span className="pf tnum text-[10px] w-[78px] text-right shrink-0 whitespace-nowrap" style={{ color: e > t ? 'var(--danger-ink)' : c }}>
+                    to report a number. The INK of that colour, not the fill: measured, the amber came
+                    out at 2.21:1 against the card. Same rule as MacroRow on Today. */}
+                <span className="pf tnum text-[10px] w-[78px] text-right shrink-0 whitespace-nowrap" style={{ color: e > t ? 'var(--danger-ink)' : ink }}>
                   {e > t ? Math.round(e - t) + 'g over' : Math.max(0, Math.round(t - e)) + 'g left'}
                 </span>
               </div>
