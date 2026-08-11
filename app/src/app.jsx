@@ -1780,6 +1780,31 @@ function SheetBox({ className = '', children, style, ...rest }) {
 function SheetLabel({ children, className = '' }) {
   return <span className={'pf text-[9px] uppercase ' + className} style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{children}</span>;
 }
+/* THE SUB-HEADER, per `Recipe.dc.html` (and the same bar in `Settings` and `Train Subscreens`).
+   When you go INTO something - a recipe, a session, a settings page - the design does not leave you
+   with a back link floating on the page. It gives the screen a second bar of chrome in the header's
+   own purple, carrying where you came from on the left, what you are looking at in the middle, and
+   this screen's actions on the right. That bar is what makes a sub-screen feel like a place rather
+   than the tab you were on with different content in it.
+   `actions` is an array of { icon, label, onClick, tone }. */
+function SubHeader({ back, backLabel = 'Back', title, actions = [] }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2.5 -mx-4 mb-4 border-b-[3px]"
+      style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+      {back
+        ? <button onClick={back} className="hit pf text-[9px] uppercase shrink-0 truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em', maxWidth: '30%' }}>&lsaquo; {backLabel}</button>
+        : <span className="shrink-0" style={{ width: '18%' }} />}
+      <div className="pf text-[10px] uppercase flex-1 text-center truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{title}</div>
+      <div className="flex items-center gap-1.5 shrink-0 justify-end" style={{ minWidth: '18%' }}>
+        {actions.map((a, i) => (
+          <button key={i} onClick={a.onClick} aria-label={a.label} title={a.label}
+            className="pixel-btn flex items-center justify-center shrink-0"
+            style={{ width: 32, height: 32, borderWidth: 2, boxShadow: 'none', background: a.on ? 'var(--accent)' : 'var(--cardhead-bg)', color: a.on ? 'var(--on-accent)' : (a.tone === 'danger' ? 'var(--danger)' : 'var(--cardhead-text)') }}>{a.icon}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 /* THE CHOICE ROW, per `Sheets.dc.html`'s check-in. A framed card carrying a square radio, a bold
    title and one muted line under it. The radio is the point: the app used to answer these by turning
    the whole card gold, which reads as "this button is highlighted" rather than "this is the answer I
@@ -14065,6 +14090,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const [cooking, setCooking] = useState(false);
   const [showColl, setShowColl] = useState(false);
   const [newColl, setNewColl] = useState('');
+  const [more, setMore] = useState(false);   // the sub-header's ... menu: save-as-meal, delete
   const autoTried = useRef(false);
   const meals = mealsForDay(db, Store.todayISO());
   const today = Store.todayISO();
@@ -14140,53 +14166,81 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const srcLabel = { stated: 'as stated in the recipe', analysed: 'from a nutrition database', table: 'from standard measures', off: 'from Open Food Facts', mixed: 'standard measures, Open Food Facts and AI', ai: 'AI estimate', computed: 'from your ingredients', pending: 'not worked out yet' };
   const srcNote = srcLabel[recipe.macros_source] || (resolved > 0 ? 'from ' + resolved + ' of ' + total + ' ingredients' : 'not worked out yet');
   const fitColor = !fit ? MUTED : fit.fitsKcal ? 'var(--good)' : fit.overKcal <= (rem.kcal * 0.15) ? '#F5C542' : '#ff6b6b';
+  // Whole servings that still fit in what is left of today, which is the question the design's
+  // sentence actually answers ("so two servings still fit").
+  const fp2 = (rem && hasMacros && recipe.macros_per_serving.kcal > 0)
+    ? Math.floor(Math.max(0, rem.kcal) / recipe.macros_per_serving.kcal) : 0;
   const srcDot = { edamam: 'var(--good)', analysed: 'var(--good)', table: 'var(--good)', off: 'var(--good)', ai: '#F5C542', manual: 'var(--accent)', legacy: MUTED };
+  const chips = recipeChips(recipe);
   return (<div className="fade-in">
-    <div className="flex items-center justify-between mb-3">
-      <button onClick={onBack} className="hit text-[13px] text-[#8A8A90]">‹ Recipes</button>
-      <div className="flex items-center gap-3"><button onClick={() => onSaveMeal(recipe)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>Save as meal</button><button onClick={onDelete} className="hit text-[12px]" style={{ color: '#ff6b6b' }}>Delete</button></div>
-    </div>
-    <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}>
-      <RecipeImg src={recipe.photo || recipe.thumbnail} iconSize={40} />
-      {hasMacros && <div className="absolute top-2 right-2 pixel-box px-2.5 py-1 text-[12px] font-bold tnum" style={{ background: 'var(--bg)', color: 'var(--text)' }}>{Math.round(recipe.macros_per_serving.kcal)} kcal / serving</div>}
-      <button onClick={toggleFav} aria-label="Favourite" className="absolute top-2 left-2 w-9 h-9 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="18" height="18" fill="currentColor" /></button>
-      <label className="absolute bottom-2 right-2 pixel-box px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 cursor-pointer" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.cam width="14" height="14" /> {recipe.photo ? 'Change' : 'Photo'}<input type="file" accept="image/*" className="hidden" onChange={addPhoto} /></label>
-    </div>
-    {/* textarea, not input: long titles wrap instead of clipping at the card edge; auto-grows to fit */}
-    <textarea key={recipe.id} defaultValue={recipe.title} rows={1}
-      ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-      onInput={e => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
-      onBlur={e => setTitle(e.target.value)}
-      className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none resize-none overflow-hidden" />
-    <div className="text-[12px] text-[#8A8A90] mb-2">{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch original</a>} · tap anything to make it yours</div>
-    <div className="flex flex-wrap items-center gap-2 mb-1">
-      {(recipe.collections || []).map(c => <span key={c} className="pixel-box px-2 py-1 text-[11px]" style={{ background: 'var(--surface3)' }}>{c}</span>)}
-      <button onClick={() => setShowColl(true)} className="text-[11px]" style={{ color: 'var(--accent-ink)' }}>{(recipe.collections || []).length ? '+ collection' : '+ Add to a collection'}</button>
-    </div>
-    <Card className="p-3 mb-3 mt-2">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-[11px] text-[#8A8A90]">Macros per serving · {srcNote}</div>
-        {fit && hasMacros && <span className="pf text-[8px] uppercase px-2 py-1 rounded" style={{ color: fitColor, border: '1px solid ' + fitColor }}>{fit.fitsKcal ? 'fits today' : fit.overKcal + ' over'}</span>}
+    <SubHeader back={onBack} backLabel="Cook" title="Recipe" actions={[
+      { icon: <Icon.star width="15" height="15" fill="currentColor" />, label: 'Favourite', onClick: toggleFav, on: !!recipe.favorite },
+      { icon: <span className="pf text-[11px] leading-none">⋯</span>, label: 'More', onClick: () => setMore(true) },
+    ]} />
+    {/* ONE card carries the image AND the recipe's identity, per the design. Splitting them - a
+        framed photo, then a bare heading loose on the page - is what made this screen read as a
+        scroll of unrelated pieces rather than as a recipe. */}
+    <Card className="p-0 overflow-hidden mb-3">
+      <div className="relative w-full" style={{ aspectRatio: '16 / 9', background: 'var(--surface2)', borderBottom: '3px solid var(--border)' }}>
+        <RecipeImg src={recipe.photo || recipe.thumbnail} iconSize={40} />
+        {hasMacros && <div className="absolute top-2 left-2 px-2 py-1 pf text-[9px] tnum" style={{ background: 'var(--card)', border: '2px solid var(--border)', letterSpacing: '0.1em' }}>{Math.round(recipe.macros_per_serving.kcal)} KCAL / SERVING</div>}
+        <label className="absolute bottom-2 right-2 px-2 py-1.5 pf text-[9px] flex items-center gap-1.5 cursor-pointer" style={{ background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)', letterSpacing: '0.1em' }}><Icon.cam width="12" height="12" /> {recipe.photo ? 'CHANGE' : 'PHOTO'}<input type="file" accept="image/*" className="hidden" onChange={addPhoto} /></label>
       </div>
-      {hasMacros ? <RecipeMacroStrip macros={recipe.macros_per_serving} per /> : <div className="text-[12px] text-[#8A8A90]">Tap “Work out the macros” below.</div>}
-      {fit && rem && hasMacros && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal; you have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today.</div>}
+      <div className="p-3.5">
+        {/* textarea, not input: long titles wrap instead of clipping at the card edge; auto-grows to fit */}
+        <textarea key={recipe.id} defaultValue={recipe.title} rows={1}
+          ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+          onInput={e => { e.currentTarget.style.height = 'auto'; e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'; }}
+          onBlur={e => setTitle(e.target.value)}
+          className="text-xl font-bold leading-tight mb-1 w-full bg-transparent focus:outline-none resize-none overflow-hidden" />
+        <div className="text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>{Rcp.platformLabel(recipe.source_platform)}{recipe.source_url ? ' · ' : ''}{recipe.source_url && <a href={recipe.source_url} target="_blank" rel="noreferrer" className="underline">watch the original</a>} · tap anything to make it yours</div>
+        {/* The tags the importer already works out, finally shown on the recipe they describe. They
+            were only ever used to filter Discover, which is the one place you are NOT looking at the
+            recipe. Collections sit in the same row, because to a reader they are the same object. */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+          {chips.map((c, i) => <span key={'t' + i} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: c.hero ? 'var(--accent-dim)' : 'var(--card)', letterSpacing: '0.1em' }}>{c.label}</span>)}
+          {(recipe.collections || []).map(c => <span key={c} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', letterSpacing: '0.1em' }}>{c}</span>)}
+          <button onClick={() => setShowColl(true)} className="pf text-[8px] uppercase px-2 py-1.5" style={{ border: '2px dashed var(--border)', color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>+ Collection</button>
+        </div>
+      </div>
+    </Card>
+    {/* PER SERVING, per the design: a titled panel whose head carries the verdict, four framed stat
+        tiles rather than a run-on coloured line, then the sentence and the re-work button INSIDE the
+        panel they belong to. */}
+    <Card className="p-0 overflow-hidden mb-3">
+      <CardHead title="Per serving" right={fit && hasMacros ? (fit.fitsKcal ? 'Fits today' : fit.overKcal + ' over') : null} />
+      <div className="p-3.5 flex flex-col gap-3">
+        {hasMacros ? <div className="grid grid-cols-4 gap-2">
+          {[['kcal', Math.round(recipe.macros_per_serving.kcal), 'KCAL', 'var(--cal)'],
+            ['protein', Math.round(recipe.macros_per_serving.protein) + 'G', 'PROTEIN', 'var(--pro-ink)'],
+            ['carbs', Math.round(recipe.macros_per_serving.carbs) + 'G', 'CARBS', 'var(--carb-ink)'],
+            ['fat', Math.round(recipe.macros_per_serving.fat) + 'G', 'FATS', 'var(--fat-ink)']].map(([k, v, l, col]) => (
+            <SheetBox key={k} className="py-2.5 px-1 flex flex-col items-center gap-1">
+              <span className="pf text-[13px] tnum" style={{ color: col }}>{v}</span>
+              <SheetLabel className="text-[8px]">{l}</SheetLabel>
+            </SheetBox>
+          ))}
+        </div> : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Tap “Work out the macros” below.</div>}
+        {fit && rem && hasMacros && <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>A serving is {Math.round(recipe.macros_per_serving.kcal)} kcal. You have {Math.max(0, Math.round(rem.kcal))} kcal and {Math.max(0, Math.round(rem.protein))} g protein left today{fp2 > 1 ? ', so ' + fp2 + ' servings still fit' : ''}. Worked out {srcNote}.</div>}
+        {busy ? <div className="text-[12px] flex items-center gap-2" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
+          : <SheetBtn tone="ghost" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</SheetBtn>}
+        {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] underline text-left" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
+      </div>
     </Card>
     {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
-    {busy ? <div className="text-[12px] mb-4 flex items-center gap-2" style={{ color: 'var(--accent-ink)' }}><PixelEgg size={16} color="var(--accent)" /> {busy}</div>
-      : <div className="flex gap-2 mb-3">
-        <Btn kind={hasMacros ? 'ghost' : 'accent'} className="flex-1" onClick={() => analyze(false)}>{hasMacros ? 'Re-work out the macros' : 'Work out the macros'}</Btn>
-      </div>}
-    {recipe.stated_macros && recipe.macros_source !== 'stated' && <button onClick={useStated} className="hit text-[12px] mb-4 underline" style={{ color: 'var(--accent-ink)' }}>Use the recipe's stated macros instead</button>}
-    {(recipe.steps || []).length > 0 && <Btn kind="accent" className="w-full mb-4 flex items-center justify-center gap-2" onClick={() => setCooking(true)}><Icon.recipe width="18" height="18" /> Start cooking</Btn>}
-    <div className="flex items-center justify-between mb-2 mt-2">
-      <div className="flex items-center gap-3"><div className="text-lg font-bold">Ingredients</div><button onClick={() => setEditIng(v => !v)} className="pf text-[9px] uppercase px-2 py-1 rounded" style={{ color: editIng ? '#111' : 'var(--accent-ink)', background: editIng ? 'var(--accent)' : 'transparent', border: '1px solid var(--accent)' }}>{editIng ? 'Done' : 'Edit'}</button></div>
-      <div className="flex items-center gap-2 text-[12px]">
-        <span className="text-[#8A8A90]">Serves</span>
-        <button onClick={() => setServings(recipe.servings - 1)} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>-</button>
-        <span className="tnum w-5 text-center font-bold">{recipe.servings}</span>
-        <button onClick={() => setServings(recipe.servings + 1)} className="pixel-box w-7 h-7 flex items-center justify-center" style={{ background: 'var(--surface3)' }}>+</button>
+    {(recipe.steps || []).length > 0 && <div className="mb-3"><SheetBtn onClick={() => setCooking(true)}>▶ Start cooking</SheetBtn></div>}
+    <Card className="p-0 overflow-hidden mb-3">
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+        <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Ingredients</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => setEditIng(v => !v)} className="hit pf text-[9px] uppercase mr-1" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>{editIng ? 'Done' : 'Edit'}</button>
+          <span className="pf text-[8px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Serves</span>
+          <button onClick={() => setServings(recipe.servings - 1)} aria-label="Fewer servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>–</button>
+          <span className="pf text-[11px] tnum w-4 text-center" style={{ color: 'var(--cardhead-text)' }}>{recipe.servings}</span>
+          <button onClick={() => setServings(recipe.servings + 1)} aria-label="More servings" className="pf text-[11px] flex items-center justify-center" style={{ width: 24, height: 24, border: '2px solid var(--border)', background: 'var(--card)' }}>+</button>
+        </div>
       </div>
-    </div>
+      <div className="p-3.5">
     {editIng ? <>
       <div className="text-[11px] text-[#8A8A90] mb-2">Edit each line, amount first (e.g. "150 g cottage cheese"), then tap Done.</div>
       <div className="space-y-2 mb-2">
@@ -14200,39 +14254,51 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       <button onClick={addIng} className="hit text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>+ Add ingredient</button>
       <Btn kind="ghost" className="w-full mb-4" onClick={() => analyze(false)} disabled={!!busy}>Re-work out the macros</Btn>
     </> : <>
-      <div className="text-[11px] text-[#8A8A90] mb-2">Tick what you have. Tap a macro line to fix its numbers, or Edit to change the ingredients.</div>
-      {resolved > 0 && <div className="text-[10px] text-[#8A8A90] mb-2 flex flex-wrap items-center gap-x-3 gap-y-1"><span><span style={{ color: 'var(--good-ink)' }}>●</span> database</span><span><span style={{ color: '#F5C542' }}>●</span> AI estimate</span><span><span style={{ color: 'var(--accent-ink)' }}>●</span> your number</span></div>}
-      <div className="space-y-2.5 mb-4">
-        {recipe.ingredients.map((ing) => (
-          <div key={ing.id} className="flex items-start gap-2.5">
-            <button onClick={() => toggleHave(ing.id)} className="w-5 h-5 mt-0.5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (ing.have ? 'var(--good)' : 'var(--border)'), background: ing.have ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{ing.have ? <Tick size={12} /> : null}</button>
-            <div className="flex-1 min-w-0">
-              <button onClick={() => toggleHave(ing.id)} className="block w-full text-left text-[14px]" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
-              <button onClick={() => setMacrosIng(ing)} className="text-[11px] flex items-center gap-1.5 mt-0.5" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent-ink)' }}>
-                {ing.resolved && <span style={{ color: srcDot[ing.resolved.source] || MUTED }}>●</span>}
-                {ing.macros ? <span className="tnum">{Math.round(ing.macros.kcal)} kcal · P{Math.round(ing.macros.protein)} C{Math.round(ing.macros.carbs)} F{Math.round(ing.macros.fat)} · edit</span> : <span>Set macros ›</span>}
-              </button>
-            </div>
+      {/* Each ingredient is ONE ruled line: tick, what it is, what it costs you. The old row stacked
+          a "Set macros ›" link under every single item, which doubled the list's height and put a
+          call to action on six lines of a shopping list. The number IS the link now. */}
+      <div style={{ border: '2px solid var(--border)' }}>
+        {recipe.ingredients.map((ing, i) => (
+          <div key={ing.id} className="flex items-center gap-2.5 px-2.5 py-2.5" style={i ? { borderTop: '2px solid var(--border)' } : null}>
+            <button onClick={() => toggleHave(ing.id)} aria-label="Have it" className="flex items-center justify-center shrink-0" style={{ width: 20, height: 20, border: '2px solid var(--border)', background: ing.have ? 'var(--good)' : 'var(--card)', color: '#fff' }}>{ing.have ? <Tick size={12} /> : null}</button>
+            <button onClick={() => toggleHave(ing.id)} className="flex-1 min-w-0 text-left text-[13.5px] leading-snug" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
+            <button onClick={() => setMacrosIng(ing)} className="pf text-[9px] tnum shrink-0 flex items-center gap-1" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent-ink)', letterSpacing: '0.08em' }}>
+              {ing.resolved && <span style={{ color: srcDot[ing.resolved.source] || MUTED }}>●</span>}
+              {ing.macros ? Math.round(ing.macros.kcal) + ' KCAL' : 'SET ›'}
+            </button>
           </div>
         ))}
       </div>
+      <div className="mt-3"><SheetBtn tone="ghost" onClick={addMissingToShopping} disabled={!missing.length} style={missing.length ? null : { opacity: 0.5 }}>{missing.length ? ('Add ' + missing.length + ' missing to the shopping list') : 'You have everything'}</SheetBtn></div>
+      <div className="text-[11px] mt-2.5 leading-snug" style={{ color: 'var(--muted)' }}>Tick what you have. Tap a line's calories to fix its numbers, or Edit to change the ingredients.{resolved > 0 ? ' ' : ''}
+        {resolved > 0 && <span className="inline-flex flex-wrap gap-x-3"><span><span style={{ color: 'var(--good-ink)' }}>●</span> database</span><span><span style={{ color: 'var(--fat-ink)' }}>●</span> AI estimate</span><span><span style={{ color: 'var(--accent-ink)' }}>●</span> your number</span></span>}
+      </div>
     </>}
-    <Btn kind="ghost" className="w-full mb-5" onClick={addMissingToShopping} disabled={!missing.length}>{missing.length ? ('Add ' + missing.length + ' missing to shopping list') : 'You have everything'}</Btn>
-    <div className="flex items-center justify-between mb-2"><div className="text-lg font-bold">Method</div><button onClick={() => setEditSteps(v => !v)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>{editSteps ? 'Done' : 'Edit'}</button></div>
-    {editSteps ? <textarea defaultValue={(recipe.steps || []).join('\n')} onBlur={e => setSteps(e.target.value)} rows={Math.max(4, (recipe.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed mb-6'} placeholder="One instruction per line" />
-      : (recipe.steps || []).length > 0 ? <ol className="space-y-2 mb-6">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-3"><span className="pf text-[10px] shrink-0 mt-0.5" style={{ color: 'var(--accent-ink)' }}>{i + 1}</span><span className="text-[14px] leading-relaxed">{s}</span></li>))}</ol>
-      : <div className="text-[12px] text-[#8A8A90] mb-6">No method yet. Tap Edit to add the steps.</div>}
+      </div>
+    </Card>
+    <Card className="p-0 overflow-hidden mb-3">
+      <CardHead title="Method" right={editSteps ? 'Done' : 'Edit'} onRight={() => setEditSteps(v => !v)} />
+      <div className="p-3.5">
+    {editSteps ? <textarea defaultValue={(recipe.steps || []).join('\n')} onBlur={e => setSteps(e.target.value)} rows={Math.max(4, (recipe.steps || []).length + 1)} className={inputCls + ' resize-y leading-relaxed'} placeholder="One instruction per line" />
+      : (recipe.steps || []).length > 0 ? <ol className="flex flex-col gap-2.5">{recipe.steps.map((s, i) => (<li key={i} className="flex gap-2.5 items-start"><span className="pf text-[10px] shrink-0 flex items-center justify-center tnum" style={{ width: 22, height: 22, border: '2px solid var(--border)', background: 'var(--accent)', color: 'var(--on-accent)' }}>{i + 1}</span><span className="text-[13.5px] leading-relaxed pt-0.5">{s}</span></li>))}</ol>
+      : <div className="text-[12px]" style={{ color: 'var(--muted)' }}>No method yet. Tap Edit to add the steps.</div>}
+      </div>
+    </Card>
     {Rcp.batchLeft(recipe) > 0 && <div className="pixel-box p-3 mb-3 flex items-center gap-3" style={{ background: 'var(--surface3)', borderColor: 'var(--good)' }}>
       <div className="flex-1 min-w-0"><div className="text-[13px] font-bold">{Rcp.batchLeft(recipe)} serving{Rcp.batchLeft(recipe) === 1 ? '' : 's'} of leftovers</div><div className="text-[11px] text-[#8A8A90]">Batch cooked. Log one when you eat it.</div></div>
       <Btn kind="accent" className="shrink-0" onClick={() => doLog('single', { leftover: true })} disabled={!hasMacros}>Log one</Btn>
     </div>}
-    <Btn kind="accent" className="w-full" onClick={() => doLog('single')} disabled={!hasMacros}>{hasMacros ? 'Log a serving to today' : 'Work out the macros to log this'}</Btn>
-    {resolved > 0 && hasMacros && <button onClick={() => doLog('items')} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Log itemised (one diary entry per ingredient)</button>}
-    {hasMacros && Rcp.batchLeft(recipe) === 0 && <button onClick={() => doLog('single', { batch: true })} className="w-full text-[12px] text-[#8A8A90] mt-3 underline">Batch cooking? Log a serving and keep the rest as leftovers</button>}
-    {shareOn && recipe.source_url && <button onClick={togglePrivate} className="hit w-full flex items-center justify-center gap-2 text-[12px] text-[#8A8A90] mt-4">
-      <span className="w-4 h-4 rounded flex items-center justify-center text-[10px]" style={{ border: '2px solid ' + (recipe.private ? 'var(--accent)' : 'var(--border)'), background: recipe.private ? 'var(--accent)' : 'transparent', color: 'var(--on-accent)' }}>{recipe.private ? <Tick size={10} /> : null}</span>
-      Keep this recipe private (off Discover)
-    </button>}
+    <SheetBtn onClick={() => doLog('single')} disabled={!hasMacros} style={hasMacros ? null : { opacity: 0.5 }}>{hasMacros ? 'Log a serving to today' : 'Work out the macros to log this'}</SheetBtn>
+    {resolved > 0 && hasMacros && <div className="text-center mt-3"><TextBtn tone="quiet" onClick={() => doLog('items')}>Log itemised (one diary entry per ingredient)</TextBtn></div>}
+    {hasMacros && Rcp.batchLeft(recipe) === 0 && <div className="text-center mt-3 text-[12px] leading-snug" style={{ color: 'var(--muted)' }}>Batch cooking? <TextBtn tone="quiet" onClick={() => doLog('single', { batch: true })}>Log a serving and keep the rest as leftovers</TextBtn></div>}
+    {shareOn && recipe.source_url && <SheetBox className="p-3 mt-4 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-[13.5px] font-semibold">Keep this recipe private</div>
+        <div className="text-[11px]" style={{ color: 'var(--muted)' }}>Off Discover · nobody else sees it</div>
+      </div>
+      <button onClick={togglePrivate} className="pixel-btn shrink-0 pf text-[10px] px-3 py-2" style={{ borderWidth: 2,
+        background: recipe.private ? 'var(--accent)' : 'var(--card)', color: recipe.private ? 'var(--on-accent)' : 'var(--text)' }}>{recipe.private ? 'ON' : 'OFF'}</button>
+    </SheetBox>}
     {pickMeal && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPickMeal(null)}>
       <BackClose onClose={() => setPickMeal(null)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
@@ -14255,6 +14321,13 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     </div>}
     {macrosIng && <IngredientMacroSheet ingredient={recipe.ingredients.find(x => x.id === macrosIng.id) || macrosIng} onResolve={(macros, meta) => { setIngMacros(macrosIng.id, macros, meta); setMacrosIng(null); showToast('Set macros for ' + (macrosIng.name || 'ingredient')); }} onClose={() => setMacrosIng(null)} />}
     {cooking && <CookMode recipe={recipe} onClose={() => setCooking(false)} onLogDone={() => doLog('single')} />}
+    {/* The two actions that used to sit as naked text beside the back link. They are rare and one of
+        them is destructive, so the design puts them behind the sub-header's ... rather than leaving
+        "Delete" one mis-tap from "Recipes". */}
+    {more && <Sheet title="Recipe" onClose={() => setMore(false)} z={85}>
+      <SheetBtn tone="ghost" onClick={() => { setMore(false); onSaveMeal(recipe); }}>Save as a meal</SheetBtn>
+      <div className="text-center"><TextBtn tone="danger" onClick={() => { setMore(false); onDelete(); }}>Delete this recipe</TextBtn></div>
+    </Sheet>}
     {showColl && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowColl(false)}>
       <BackClose onClose={() => setShowColl(false)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
