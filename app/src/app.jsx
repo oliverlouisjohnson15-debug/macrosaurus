@@ -1495,6 +1495,13 @@ function bodyFatReadingDue(db, todayISO) {
   });
 }
 const BF_SOURCE_LABEL = { scale: 'smart scale', photo: 'photo estimate', manual: 'measured' };
+/* Where a diary entry's numbers came from, in the words a person would use. `Sheets.dc.html` puts
+   provenance on the edit sheet's meta line ("Logged 07:42 · saved food") and it is the honest thing
+   to have there: a barcode read and an AI guess deserve different amounts of trust when you are
+   deciding whether to correct them. There is no logged-at timestamp in the schema, so the line
+   carries the meal and the source rather than the time. */
+const ENTRY_SOURCE_LABEL = { off: 'from the database', ai: 'AI estimate', photo: 'read from a photo',
+  manual: 'your own numbers', saved: 'saved food', recipe: 'from a recipe', table: 'standard measures' };
 const BF_SOURCE_SHORT = { scale: 'Smart scale', photo: 'Photo estimate', manual: 'Measured' };
 // ONE definition of "how's your tracking going", for every counter in the app. The window is the
 // current check-in cycle (not a calendar week), a logged day is a COMPLETE day (>= 60% of that day's
@@ -1714,9 +1721,28 @@ function Field({ label, children, hint }) {
     {hint && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>{hint}</div>}
   </label>);
 }
-function Btn({ children, onClick, kind = 'primary', className = '', ...rest }) {
-  const s = { primary: 'bg-white text-black font-bold', accent: 'bg-white text-black font-bold', ghost: 'bg-[#1E1E22] text-[var(--text)]', danger: 'bg-[#ff6b6b] text-black font-bold' };
-  return <button onClick={onClick} className={`pixel-btn px-4 py-3 ${s[kind]} ${className}`} {...rest}>{children}</button>;
+/* THE BUTTON, and the design's two tiers of one.
+
+   Every one of the twelve design files sets its gold committing button in Silkscreen, uppercase -
+   SAVE CHANGES, LOG A SERVING TO TODAY, FINISH SESSION, START 7-DAY FREE TRIAL - and there is not a
+   single counter-example across the set. The app had them all in Plex Mono bold, which is why its
+   buttons read as web-app buttons on a page that is otherwise a printed thing.
+
+   The second tier is just as consistent and is the half that is easy to get wrong: a button that
+   OPENS or ADJUSTS rather than commits - Note, History, Swap, Re-work out the macros, Add 6 missing
+   to the shopping list - stays in Plex Mono, sentence case, on the inset surface. Shouting those in
+   the pixel face gives a tool the same voice as the thing it is a tool for. So `ghost` is not a
+   quieter `accent`; it is a different kind of object.
+
+   11px rather than the design's 12: the design's own labels top out around thirty characters and the
+   app has several at forty-five, and Silkscreen at 12px uppercase wraps those onto three lines. */
+function Btn({ children, onClick, kind = 'primary', className = '', style, ...rest }) {
+  const commits = kind !== 'ghost';
+  const bg = kind === 'ghost' ? 'var(--surface2)' : kind === 'danger' ? 'var(--danger)' : 'var(--accent)';
+  const fg = kind === 'ghost' ? 'var(--text)' : kind === 'danger' ? '#ffffff' : 'var(--on-accent)';
+  const face = commits ? 'pf text-[11px] uppercase' : 'text-[13px]';
+  return <button onClick={onClick} className={`pixel-btn px-4 py-3 ${face} ${className}`}
+    style={{ borderWidth: 2, background: bg, color: fg, letterSpacing: commits ? '0.06em' : undefined, ...style }} {...rest}>{children}</button>;
 }
 // One consistent "Add photo" control used across every photo/AI add-food flow. No `capture` flag,
 // so the native picker offers Camera, Photo Library and Files in a single tap, same on all flows.
@@ -1828,14 +1854,18 @@ function ChoiceRow({ selected, onClick, title, sub }) {
   );
 }
 /* A sheet's primary action: full-bleed gold, the pixel face, the design's 15px of padding. */
+/* The full-bleed version, with the same two tiers as `Btn` above. `accent` commits and wears the
+   pixel face at the design's 12px; `ghost` opens or adjusts and stays in Plex Mono, sentence case,
+   which is exactly how `Recipe.dc.html` draws "Re-work out the macros" and "Add 6 missing to the
+   shopping list" - the two controls this component got wrong on its first pass. */
 function SheetBtn({ children, onClick, tone = 'accent', className = '', style, ...rest }) {
-  const bg = tone === 'accent' ? 'var(--accent)' : 'var(--card)';
-  const fg = tone === 'accent' ? 'var(--on-accent)' : 'var(--text)';
+  const accent = tone === 'accent';
   // `style` is merged rather than spread with the rest: a caller passing `style={{opacity}}` for a
   // disabled state would otherwise replace the fill wholesale and hand back a white button.
   return (
-    <button onClick={onClick} className={'pixel-btn w-full pf text-[12px] uppercase ' + className}
-      style={{ borderWidth: 2, padding: 15, letterSpacing: '0.06em', background: bg, color: fg, ...style }} {...rest}>{children}</button>
+    <button onClick={onClick} className={'pixel-btn w-full ' + (accent ? 'pf text-[12px] uppercase ' : 'text-[12.5px] ') + className}
+      style={{ borderWidth: 2, padding: accent ? 15 : 11, letterSpacing: accent ? '0.06em' : undefined,
+        background: accent ? 'var(--accent)' : 'var(--surface2)', color: accent ? 'var(--on-accent)' : 'var(--text)', ...style }} {...rest}>{children}</button>
   );
 }
 // A block that only wears a box when it is among other boxes. Nesting cards inside a card breaks
@@ -3871,6 +3901,7 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
           </div>
           {numbersPanel}
           <Btn kind="accent" className="w-full" onClick={() => { complete(); go('reading'); }}>See what it means</Btn>
+          <div className="text-[11px] text-center leading-snug mt-2.5" style={{ color: 'var(--muted)' }}>Your answers change next week's calories. Nothing is locked in until the last step.</div>
         </div>}
 
         {/* 5. The read: one number, one sentence. Detail behind the disclosure. */}
@@ -6590,8 +6621,8 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
               vanished the moment you said anything - which is exactly when a prompt is most useful. */}
           <div className="flex gap-2 overflow-x-auto pb-2 -mx-2.5 px-2.5" style={{ scrollbarWidth: 'none' }}>
             {CHAT_OPENERS.map(o => <button key={o} onClick={() => send(o)} disabled={busy}
-              className="shrink-0 text-[12px] px-3 py-2 whitespace-nowrap active:opacity-60"
-              style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}>{o}</button>)}
+              className="shrink-0 pixel-btn text-[12px] px-3 py-2 whitespace-nowrap"
+              style={{ borderWidth: 2, background: 'var(--card)', color: 'var(--text)' }}>{o}</button>)}
           </div>
         {/* What a turn costs, where the turn is typed. One thing you say is one AI action however
             many times the buddy has to go and look something up, so this counts down at the pace a
@@ -9474,7 +9505,8 @@ function FoodLog({ db, update, openLog, showToast }) {
       </div>
       {editing && (() => { const dc = dayContextFor(db, date, editing.id); const mm = meals.find(x => x.id === editing.meal_id);
         return <EditEntryModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)}
-          onDelete={() => { del(editing); setEditing(null); }} contextLine={mm ? mm.name : null}
+          onDelete={() => { del(editing); setEditing(null); }}
+          contextLine={[mm && mm.name, ENTRY_SOURCE_LABEL[editing.source]].filter(Boolean).join(' · ') || null}
           onPhotoUpdate={E.photoUpdatable(editing) ? (() => { setPhotoUp(editing); setEditing(null); }) : null}
           dayRest={dc && dc.rest} dayTarget={dc && dc.target} />; })()}
       {photoUp && <PhotoUpdateSheet db={db} entry={photoUp} onSave={(item) => savePhotoUpdate(photoUp, item)} onClose={() => setPhotoUp(null)} />}
