@@ -22109,6 +22109,14 @@ function ShopView({
   const buddy = db.buddy || {};
   const hatched = buddy.hatched !== false; // no buddy actions on an unhatched egg
   const canRecolour = hatched && buddy.species && spritePalettes(buddy.species).length > 1;
+  // The buddy as an aura swatch wants it: itself, with the aura slot explicitly empty, so each row
+  // shows exactly the one aura it is selling. An explicit null is how equippedFor stores "nothing
+  // worn" (a missing key would fall back to the last owned aura and glow twice).
+  const auraBuddy = Object.assign({}, buddy, {
+    equipped: Object.assign({}, buddy.equipped, {
+      aura: null
+    })
+  });
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
@@ -22129,8 +22137,8 @@ function ShopView({
     className: "text-lg font-semibold mb-1"
   }, "Amber Shop"), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-4 leading-snug"
-  }, "Win Amber from your buddy's fights, then treat it to something nice."), hatched && (onRename || canRecolour) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }, "Amber comes from logging your days, the daily hunt and whatever your buddy forages. Spend it here."), hatched && (onRename || canRecolour) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SheetLabel, {
+    className: "block mb-2"
   }, "Your buddy"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-5"
   }, onRename && /*#__PURE__*/React.createElement(Row, {
@@ -22159,8 +22167,8 @@ function ShopView({
       buddy: buddy,
       px: 1.2
     }))
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }))), /*#__PURE__*/React.createElement(SheetLabel, {
+    className: "block mb-2"
   }, "Auras"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-5"
   }, Game.cosmeticsOfKind('aura').map(c => /*#__PURE__*/React.createElement(Row, {
@@ -22172,14 +22180,17 @@ function ShopView({
     price: c.price,
     preview: /*#__PURE__*/React.createElement("span", {
       style: {
-        filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')',
-        color: AURA_GLOW[c.id] || 'var(--fat-ink)'
+        filter: auraFilter({
+          aura: c.id
+        }) || undefined,
+        lineHeight: 0
       }
-    }, /*#__PURE__*/React.createElement(Spark, {
-      size: 16
+    }, /*#__PURE__*/React.createElement(BuddyAvatar, {
+      buddy: auraBuddy,
+      px: 1.1
     }))
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }))), /*#__PURE__*/React.createElement(SheetLabel, {
+    className: "block mb-2"
   }, "Terrarium scenes"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2 mb-5"
   }, Game.cosmeticsOfKind('scene').map(c => /*#__PURE__*/React.createElement(Row, {
@@ -22192,8 +22203,8 @@ function ShopView({
     preview: /*#__PURE__*/React.createElement(ScenePreview, {
       id: c.id
     })
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
+  }))), /*#__PURE__*/React.createElement(SheetLabel, {
+    className: "block mb-2"
   }, "Terrarium props"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-2"
   }, Game.cosmeticsOfKind('prop').map(c => /*#__PURE__*/React.createElement(Row, {

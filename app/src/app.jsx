@@ -7912,6 +7912,10 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   const buddy = db.buddy || {};
   const hatched = buddy.hatched !== false; // no buddy actions on an unhatched egg
   const canRecolour = hatched && buddy.species && spritePalettes(buddy.species).length > 1;
+  // The buddy as an aura swatch wants it: itself, with the aura slot explicitly empty, so each row
+  // shows exactly the one aura it is selling. An explicit null is how equippedFor stores "nothing
+  // worn" (a missing key would fall back to the last owned aura and glow twice).
+  const auraBuddy = Object.assign({}, buddy, { equipped: Object.assign({}, buddy.equipped, { aura: null }) });
   return (
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
@@ -7919,10 +7923,16 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
         <div className="pf text-[10px]" style={{ color: 'var(--fat-ink)' }}><Spark size={16} /> {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
-      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Win Amber from your buddy's fights, then treat it to something nice.</div>
+      {/* Where Amber comes from, honestly. This used to read "Win Amber from your buddy's fights",
+          which named the one source that is optional and left out every source that is not:
+          Game.AMBER_REWARDS pays for logging the day, landing it, foraging and coming back, and the
+          app says so in its own toast ("... found 10 Amber for today's log") - a toast whose action
+          opens this very sheet. So the first thing the shop said was contradicted by the message that
+          sent you to it. */}
+      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Amber comes from logging your days, the daily hunt and whatever your buddy forages. Spend it here.</div>
 
       {hatched && (onRename || canRecolour) && <>
-        <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your buddy</div>
+        <SheetLabel className="block mb-2">Your buddy</SheetLabel>
         <div className="space-y-2 mb-5">
           {onRename && <Row name="Rename" desc="Give your buddy a new name." price={RENAME_COST} onBuy={onRename}
             preview={<span className="pf text-[13px] font-bold" style={{ color: 'var(--accent-ink)' }}>Aa</span>} />}
@@ -7933,19 +7943,27 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
 
       {/* Three slots, one worn item each. Scenes and props dress the terrarium the buddy lives in,
           which is why the shop keeps earning after the auras are all bought. */}
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Auras</div>
+      <SheetLabel className="block mb-2">Auras</SheetLabel>
       <div className="space-y-2 mb-5">
+        {/* THE PREVIEW IS THE PURCHASE. A scene previews as that scene and a prop as that prop
+            sprite, both drawn from the tables the terrarium renders from; an aura previewed as a
+            star glyph with a glow behind it, which is not a thing anybody can buy. An aura is a rim
+            of light on YOUR dinosaur, so the swatch is your dinosaur wearing it - BuddyAvatar under
+            auraFilter, the same function the world draws with, in the same 40px slot the Change
+            colour row already previews the buddy in.
+            `auraBuddy` is the buddy with its aura slot explicitly emptied, so a swatch shows one
+            aura - the one it is selling - rather than the bought one glowing underneath it. */}
         {Game.cosmeticsOfKind('aura').map(c => <Row key={c.id} id={c.id} kind="aura" name={c.name} desc={c.desc} price={c.price}
-          preview={<span style={{ filter: 'drop-shadow(0 0 5px ' + (AURA_GLOW[c.id] || '#ff7a1a') + ')', color: AURA_GLOW[c.id] || 'var(--fat-ink)' }}><Spark size={16} /></span>} />)}
+          preview={<span style={{ filter: auraFilter({ aura: c.id }) || undefined, lineHeight: 0 }}><BuddyAvatar buddy={auraBuddy} px={1.1} /></span>} />)}
       </div>
 
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Terrarium scenes</div>
+      <SheetLabel className="block mb-2">Terrarium scenes</SheetLabel>
       <div className="space-y-2 mb-5">
         {Game.cosmeticsOfKind('scene').map(c => <Row key={c.id} id={c.id} kind="scene" name={c.name} desc={c.desc} price={c.price}
           preview={<ScenePreview id={c.id} />} />)}
       </div>
 
-      <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Terrarium props</div>
+      <SheetLabel className="block mb-2">Terrarium props</SheetLabel>
       <div className="space-y-2">
         {Game.cosmeticsOfKind('prop').map(c => <Row key={c.id} id={c.id} kind="prop" name={c.name} desc={c.desc} price={c.price}
           preview={<PropPreview id={c.id} />} />)}
