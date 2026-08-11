@@ -1741,7 +1741,21 @@ function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'da
   </div>);
 }
 function Seg({ value, options, onChange }) { return (<div className="flex gap-2 flex-wrap">{options.map(o => (<button key={o.v} onClick={() => onChange(o.v)} className={`pixel-box flex-1 min-w-[28%] py-2.5 px-2 text-[13px] ${value === o.v ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{o.l}</button>))}</div>); }
-function Pill({ value, options, onChange }) { return (<div className="inline-flex pixel-box bg-[#1E1E22] p-1 gap-1">{options.map(o => (<button key={o.v} onClick={() => onChange(o.v)} className={`px-3.5 py-1.5 text-[12px] font-bold ${value === o.v ? 'bg-white text-black' : 'text-[#8A8A90]'}`}>{o.l}</button>))}</div>); }
+/* The segmented control, as the import draws it: one 2px frame around the whole group with the
+   segments butted straight up against each other, no padding and no gaps. The old version was a
+   padded box holding two floating chips, which put three edges between "Left" and "Eaten" where the
+   design spends none, and made a two-way switch look like two buttons that happened to be adjacent.
+   Segments are set in the pixel face here because they are chrome, not prose. */
+function Pill({ value, options, onChange }) {
+  return (<div className="inline-flex" style={{ border: '2px solid var(--border)' }}>
+    {options.map(o => (
+      <button key={o.v} onClick={() => onChange(o.v)} className="pf uppercase"
+        style={{ padding: '6px 12px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
+          background: value === o.v ? 'var(--accent)' : 'var(--card)',
+          color: value === o.v ? 'var(--on-accent)' : 'var(--muted2)' }}>{o.l}</button>
+    ))}
+  </div>);
+}
 // `compact` swaps the full-height input for an inline trigger that reads as a line of text with a
 // caret, for places where a labelled box would cost more room than the choice is worth.
 function Dropdown({ value, options, onChange, compact }) {
@@ -2068,6 +2082,97 @@ function QualityBar({ nd, onExplain }) {
    same value as --fat, directly above a PROT bar in red: the same number in two colours, one of
    them the wrong macro's. See design-plans/10-one-thing-macro-colour.md. */
 const ONE_THING_COLOR = { protein: PRO, fibre: 'var(--weight)', fuel: 'var(--hero)' };
+/* ---------- Today's plan, band by band (the imported design's own construction) ----------
+   These four live next to MacroSummaryCard rather than replacing it: the Food log's day card and the
+   edit sheet still want the old stacked summary, where a compact list of five identical rows is the
+   right object. Today wants the import's arrangement, where the calorie figure leads a band of its
+   own and the two quality measures sit side by side. Same data, same meters, different composition. */
+const PLAN_CELLS = 20;   // the import's meter resolution; the app's own bars run 10
+
+function EnergyBand({ et, tot, mode }) {
+  const remaining = et.eff.kcal - tot.kcal;
+  const isRem = mode === 'remaining';
+  const over = remaining < 0;
+  const colour = over ? 'var(--danger)' : 'var(--hero)';
+  return (<>
+    <div className="flex items-baseline justify-between gap-2 mb-2">
+      <div className="flex items-baseline gap-2 min-w-0">
+        <span className="pf tnum" style={{ color: colour, fontSize: 34, letterSpacing: '-0.01em', lineHeight: 1 }}>
+          {isRem ? Math.abs(Math.round(remaining)) : Math.round(tot.kcal)}
+        </span>
+        <span className="pf uppercase truncate" style={{ color: 'var(--muted)', fontSize: 9, letterSpacing: '0.1em' }}>
+          {isRem ? (over ? 'kcal over' : 'kcal left') : 'kcal eaten'}
+        </span>
+      </div>
+      <span className="pf uppercase shrink-0 tnum" style={{ color: 'var(--muted)', fontSize: 9, letterSpacing: '0.08em' }}>{et.eff.kcal} tgt</span>
+    </div>
+    <PipMeter value={tot.kcal} target={et.eff.kcal} color={colour} cells={PLAN_CELLS} />
+  </>);
+}
+
+/* One macro, as the import lays it out: a fixed label gutter, the meter taking whatever is left, and
+   the figure right-aligned in a column wide enough that three rows of different lengths still line
+   up. `hero` is the first row only - it gets the taller bar and the larger figure, because protein
+   is the macro the app actually coaches on. */
+function MacroRow({ label, value, target, color, mode, unit = 'g', hero }) {
+  const over = target > 0 && value > target;
+  const isRem = mode === 'remaining';
+  const left = Math.round(target - value);
+  const num = over ? Math.round(value - target) + unit : isRem ? Math.max(0, left) + unit : Math.round(value) + unit;
+  const sub = over ? 'over ' + Math.round(target) + unit : isRem ? 'left of ' + Math.round(target) + unit : 'of ' + Math.round(target) + unit;
+  return (
+    <div className="grid items-center gap-2.5" style={{ gridTemplateColumns: '42px 1fr auto' }}>
+      <span className="pf uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: hero ? 'var(--text)' : 'var(--muted)' }}>{label}</span>
+      <PipMeter value={value} target={target} color={color} cells={PLAN_CELLS} small={!hero} />
+      <div className="flex items-baseline gap-1 justify-end" style={{ minWidth: 82 }}>
+        <span className="pf tnum" style={{ fontSize: hero ? 14 : 12, color: over ? 'var(--danger-ink)' : color }}>{num}</span>
+        <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>{sub}</span>
+      </div>
+    </div>
+  );
+}
+
+function FibreCell({ tot, et, mode }) {
+  const ft = E.fiberTarget(et.eff.kcal);
+  const left = Math.max(0, Math.round(ft.min - tot.fiber));
+  return (<>
+    <div className="flex justify-between items-baseline gap-2">
+      <span className="pf uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)' }}>Fibre</span>
+      <span className="tnum" style={{ fontSize: 11, fontWeight: 600 }}>
+        {mode === 'remaining' ? left + 'g left' : Math.round(tot.fiber) + 'g of ' + Math.round(ft.min) + 'g'}
+      </span>
+    </div>
+    <PipMeter value={tot.fiber} target={ft.min} color={'var(--weight)'} cells={PLAN_CELLS} small overIsFine />
+  </>);
+}
+
+/* The density half of the split. Same premium gate as QualityBar - a free account sees the label and
+   a dimmed track that opens the paywall, never a score. */
+function DensityCell({ entries, onExplain }) {
+  const nd = E.ndDay((entries || []).map(e => ({ kcal: (e.computed_macros || {}).kcal, nq: e.nq, alcohol: !!e.is_alcohol })));
+  if (window.MISPREMIUM !== true) {
+    return (
+      <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'quality' }); } catch (_) {} }}
+        className="w-full text-left flex flex-col gap-1.5 active:opacity-70">
+        <div className="flex justify-between items-baseline gap-2">
+          <span className="pf uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)' }}>Density</span>
+          <span className="pf uppercase" style={{ fontSize: 9, color: 'var(--accent-ink)' }}>Premium ›</span>
+        </div>
+        <PipMeter value={0} target={E.ND_TARGET} cells={PLAN_CELLS} scale={100 / E.ND_TARGET} color={'var(--good)'} dim overIsFine small />
+      </button>
+    );
+  }
+  const has = nd.score != null;
+  const band = E.ndBand(nd.score);
+  return (<>
+    <div className="flex justify-between items-baseline gap-2">
+      <button onClick={onExplain} className="hit pf uppercase active:opacity-70 shrink-0" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)' }}>Density <span style={{ opacity: 0.7 }}>ⓘ</span></button>
+      <span className="truncate text-right" style={{ fontSize: 11, fontWeight: 600, color: has ? densityColor(nd.score) : 'var(--muted)' }}>{has ? band.label : 'not scored'}</span>
+    </div>
+    <PipMeter value={has ? nd.score : 0} target={nd.target} cells={PLAN_CELLS} scale={100 / nd.target} color={densityColor(nd.score)} overIsFine small />
+  </>);
+}
+
 function MacroSummaryCard({ et, tot, mode, avg, entries, onExplain }) {
   const remaining = et.eff.kcal - tot.kcal;
   const ft = E.fiberTarget(et.eff.kcal);
@@ -5046,7 +5151,11 @@ const TERRA_SINK_ROWS = 2;
 const TERRA_FLOOR_FRAC = 1 - (TERRA.GROUND + TERRA_SINK_ROWS) / TERRA.H;
 const terraFloor = (h) => Math.round(h * TERRA_FLOOR_FRAC);
 const WORLD_PX = 2.8;
-const WORLD_H = 92;
+/* THE WORLD IS THICK. The import draws the terrarium 158px tall inside a 462px panel - just over a
+   third of the card's width - and that ratio is most of why the buddy reads as living somewhere
+   rather than posing on a shelf. At 92px the scene had a horizon and no sky above it. 132 is the
+   same third of a 375px phone. */
+const WORLD_H = 132;
 const WORLD_FLOOR = terraFloor(WORLD_H);   // the terrarium's own ground line, not a guessed offset
 /* THE STATUS STRIP.
    The card's rule until now was that it carried no figures at all - the macro card directly below
@@ -5062,10 +5171,15 @@ const WORLD_FLOOR = terraFloor(WORLD_H);   // the terrarium's own ground line, n
    grammar the macro card uses for Balance and the carryover footer. */
 function StatusStrip({ stats, streak }) {
   if (!stats) return null;
+  /* The import draws this strip as four equal cells divided by the card's OWN border weight, not by
+     a hairline, and it sets the figures in the body face at 17px/700 rather than in the pixel face.
+     Both are deliberate and worth keeping: a full-weight rule makes the strip read as part of the
+     panel's construction instead of a table ruled inside it, and the body face carries a four-digit
+     calorie count in the width a pixel face needs for three. */
   const cell = (key, value, colour, extra) => (
-    <div key={key} className="flex-1 min-w-0 px-1 py-1.5 text-center" style={{ borderRight: '1px solid var(--hairline, rgba(128,128,140,0.28))' }}>
-      <div className="pf text-[11px] tnum leading-none" style={{ color: colour }}>{value}</div>
-      <div className="pf text-[6.5px] uppercase mt-1 truncate" style={{ color: 'var(--text2)', letterSpacing: '0.06em' }}>{key}</div>
+    <div key={key} className="min-w-0 px-1 text-center flex flex-col items-center justify-start gap-[3px]" style={{ borderRight: '2px solid var(--border)', padding: '11px 4px' }}>
+      <div className="tnum leading-none" style={{ color: colour, fontSize: 17, fontWeight: 700 }}>{value}</div>
+      <div className="pf uppercase truncate" style={{ color: 'var(--muted)', fontSize: 8, letterSpacing: '0.1em' }}>{key}</div>
       {extra}
     </div>
   );
@@ -5073,7 +5187,7 @@ function StatusStrip({ stats, streak }) {
   cells.push(cell('kcal left', stats.kcalLeft != null ? Math.max(0, Math.round(stats.kcalLeft)) : '--',
     stats.kcalLeft != null && stats.kcalLeft < 0 ? 'var(--fat-ink)' : 'var(--good-ink)'));
   cells.push(cell('protein', stats.proteinLeft != null ? (Math.max(0, Math.round(stats.proteinLeft)) + 'g') : '--',
-    stats.proteinLeft != null && stats.proteinLeft <= 0 ? 'var(--good-ink)' : 'var(--accent-ink)'));
+    stats.proteinLeft != null && stats.proteinLeft <= 0 ? 'var(--good-ink)' : 'var(--pro-ink)'));
   // THE THIRD CELL EARNS ITS PLACE EITHER WAY. Steps are the better number when they exist, but they
   // need Google Health connected, and a "0" for something the user never linked reads as a failure
   // rather than an absence - the one thing a status row must not do. So the slot falls back to fibre,
@@ -5093,11 +5207,11 @@ function StatusStrip({ stats, streak }) {
       {(stats.week || []).map((on, i) => <span key={i} style={{ width: 4, height: 4, background: on ? 'var(--accent)' : 'var(--surface2)' }} />)}
     </div>
   );
-  cells.push(cell('streak', streak + 'd', 'var(--text)', pips));
+  cells.push(cell('streak', streak + 'd', 'var(--weight)', pips));
   return (
-    <div className="flex items-stretch" style={{ borderTop: '4px solid var(--border)', background: 'var(--surface3, var(--card))' }}>
+    <div className="grid items-stretch" style={{ gridTemplateColumns: 'repeat(' + cells.length + ', 1fr)', borderTop: '2px solid var(--border)', background: 'var(--surface3, var(--card))' }}>
       {cells.map((c, i) => i === cells.length - 1
-        ? React.cloneElement(c, { style: { borderRight: 'none' } })
+        ? React.cloneElement(c, { style: Object.assign({}, c.props.style, { borderRight: 'none' }) })
         : c)}
     </div>
   );
@@ -5146,29 +5260,37 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
      advance arrow, the world above it - and gives up the frame it was duplicating. It hangs from a
      single rule of the card's own border weight, full-bleed, which is the same "one object, divided
      interior" grammar the macro card below it already uses for Balance and the carryover footer. */
+  /* THE PLATE CAME INSIDE. It used to hang off the top rule, overlapping it by 9px, which is the
+     older Game Boy textbox convention. The import puts it on its own row inside the panel, as a
+     bordered chip paired with the dismiss on the opposite end, and that turns out to be the better
+     object here: the plate and the × are the same kind of thing (chrome about the message, not the
+     message), so they belong on the same line. It also stops the chip from covering the ground of
+     the world above it, which the overlap always did. */
   const box = (body, plate) => (
     <div onClick={bare ? onOpenPlay : undefined} role={bare ? 'button' : undefined}
-      className={'relative px-3 pt-3.5 pb-3' + (bare ? ' active:opacity-80' : '')}
-      style={{ borderTop: '4px solid var(--border)', background: 'var(--card)' }}>
-      {/* -9 hangs the plate off the rule rather than beside it: 9px of it stands in the world above,
-          the rest covers the rule. That overlap is the convention; a plate that merely sits inside
-          the text area is just a label. */}
-      <span className="pf absolute px-1.5 py-1 text-[8px] uppercase" style={{ top: -9, left: 8, background: 'var(--accent)', color: 'var(--on-accent)', lineHeight: 1, zIndex: 1 }}>{plate}</span>
-      {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit absolute h-3 flex items-center justify-center text-[#8A8A90] text-[13px] active:opacity-60" style={{ top: 6, right: 6 }}>×</button>}
+      className={'relative px-3 pt-3 pb-3.5' + (bare ? ' active:opacity-80' : '')}
+      style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+      <div className="flex items-center justify-between gap-2 mb-2.5">
+        <span className="pf px-1.5 py-[2px] text-[9px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', lineHeight: 1.4, letterSpacing: '0.12em' }}>{plate}</span>
+        {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit flex items-center justify-center text-[14px] active:opacity-60" style={{ color: 'var(--muted2)' }}>×</button>}
+      </div>
       {body}
       {bare && <span className="blink absolute pf" style={{ right: 8, bottom: 4, fontSize: 10, color: 'var(--accent-ink)' }}>▼</span>}
     </div>
   );
   return (
-    <Card className="p-0 mb-4 overflow-hidden" style={{ outline: '3px solid var(--accent)', outlineOffset: 2 }}>
+    <Card className="hero-card p-0 mb-4 overflow-hidden">
       {/* THE NAMEPLATE ROW, off the sky. The HUD used to be two labels floated over the scene, which
           worked while the scene was a gradient and stopped working the moment it became a drawn
           place: 7px type over drifting clouds is unreadable, and covering the sky is a poor use of
           the one part of the card that now has something in it. The imported design puts the row
           above the world inside the same frame, which is also how the hardware did it. */}
-      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5" style={{ borderBottom: '4px solid var(--border)' }}>
-        <span className="pf text-[7px] uppercase truncate" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>{who}{incubating ? '' : ' · Day ' + bp.daysTogether}</span>
-        <span className="pf text-[7px] uppercase shrink-0" style={{ color: incubating ? 'var(--carb-ink)' : away ? 'var(--carb-ink)' : mood.color, letterSpacing: '0.08em' }}>
+      {/* A FILLED title bar, not a ruled row. The import runs the card's name on an ink strip with
+          the mood in accent on the right, which is what makes the panel read as a piece of hardware
+          with a labelled window in it. */}
+      <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+        <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{who}{incubating ? '' : ' · Day ' + bp.daysTogether}</span>
+        <span className="pf text-[10px] uppercase shrink-0" style={{ color: incubating ? 'var(--carb)' : away ? 'var(--carb)' : 'var(--accent)', letterSpacing: '0.12em' }}>
           {incubating ? 'Incubating ' + tDone + '/' + (tasks ? tasks.length : 0) : away ? 'Foraging' : mood.label}
         </span>
       </div>
@@ -5202,7 +5324,7 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
           ))}
         </div>, 'To hatch')}
       {msg && !incubating && box(<>
-        <div className="text-[11.5px] leading-snug">{msg.text}</div>
+        <div className="text-base">{msg.text}</div>
         {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
         {/* The weigh-in answers itself: the scale number goes in on the spot. */}
         {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={msg.weigh.onSave} />}
@@ -7270,29 +7392,34 @@ function StepsSleepCard({ db, update, onOpenPlay, onCheckIn }) {
   const sleepBig = night ? (hasScore ? score : sHrsLabel) : '–';
   const readyBig = readiness != null ? readiness : '–';
   const Chip = (k, v, c) => (
-    <span className="pixel-box text-center px-1 py-1.5" style={{ background: 'var(--surface2)', boxShadow: 'none', borderWidth: 2 }}>
-      <span className="pf block uppercase" style={{ fontSize: 6.5, color: 'var(--muted2)' }}>{k}</span>
-      <span className="pf block tnum" style={{ fontSize: 12, color: c }}>{v}</span>
+    <span className="text-center flex flex-col items-center justify-center gap-1" style={{ padding: '12px 4px', borderRight: k === 'Ready' ? 'none' : '2px solid var(--border)' }}>
+      <span className="pf block uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)' }}>{k}</span>
+      <span className="pf block tnum" style={{ fontSize: 19, color: c }}>{v}</span>
     </span>
   );
   return (
-    <Card className="p-3 mb-4">
-      {/* Slim recovery strip (default): Move/Sleep/Ready at a glance + a scent-coloured dot carrying today's
-          verdict. One tap expands the full dials, sleep architecture and coaching. Food hero stays first. */}
-      <button type="button" onClick={() => setExpanded(e => !e)} aria-expanded={expanded} className="w-full flex items-center gap-2.5" style={{ background: 'transparent', border: 0 }}>
-        <span className="flex items-center gap-1.5 shrink-0">
+    <Card className="p-0 mb-4 overflow-hidden">
+      {/* RECOVERY, in the same construction as the two cards above it: a title bar with the way in on
+          the right, then a divided interior. The strip used to be a single button carrying a status
+          dot, a label, three bordered chips and a chevron on one line, which was five objects deep on
+          a row that says three numbers. The import spends a title bar and three plain cells instead,
+          and the dot moves onto the title bar where the card's own verdict belongs. */}
+      <div className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-2" style={{ borderBottom: '2px solid var(--border)' }}>
+        <span className="flex items-center gap-2 min-w-0">
           <span style={{ width: 7, height: 7, background: coach.color, boxShadow: '0 0 6px ' + coach.color }} />
-          <span className="pf uppercase" style={{ fontSize: 8, color: 'var(--sleep)' }}>Recovery</span>
+          <span className="pf uppercase truncate" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--text)' }}>Recovery</span>
         </span>
-        <span className="flex-1 grid grid-cols-3 gap-1.5">
-          {Chip('Move', moveBig, 'var(--good-ink)')}
-          {Chip('Sleep', sleepBig, 'var(--sleep)')}
-          {Chip('Ready', readyBig, rColor)}
-        </span>
-        <span className="pf shrink-0" style={{ fontSize: 10, color: 'var(--muted)', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>›</span>
+        <button type="button" onClick={() => setExpanded(e => !e)} aria-expanded={expanded} className="hit pf uppercase shrink-0" style={{ fontSize: 9, letterSpacing: '0.08em', color: 'var(--muted)' }}>
+          {expanded ? 'Less ›' : 'All ›'}
+        </button>
+      </div>
+      <button type="button" onClick={() => setExpanded(e => !e)} aria-expanded={expanded} className="w-full grid grid-cols-3 items-stretch text-left" style={{ background: 'transparent', border: 0 }}>
+        {Chip('Move', moveBig, 'var(--good-ink)')}
+        {Chip('Sleep', sleepBig, 'var(--sleep)')}
+        {Chip('Ready', readyBig, rColor)}
       </button>
 
-      {expanded && <div className="fade-in mt-3">
+      {expanded && <div className="fade-in px-3 pb-3 pt-3" style={{ borderTop: '2px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-1 px-1">
         <div className="pf uppercase" style={{ fontSize: 7, color: 'var(--muted2)' }}>Train hard, rest harder</div>
         {synced
@@ -8474,24 +8601,43 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           a nameplate row on top, bands split by a rule of the card's own border weight - instead of
           the padded box with hairline separators it used to be. Two cards built the same way read as
           one screen; two cards built differently read as two products. */}
+      {/* TODAY'S PLAN, band for band as the import draws it: a title bar carrying the lens control,
+          the energy band (one big figure, its caption, the target on the right, one hero meter), the
+          three macro rows, a two-up FIBRE | DENSITY split, and the balance footer on an inset strip.
+          The two secondary measures moved OUT of the macro list and into the split for a reason: as
+          a fourth and fifth row they read as two more macros, which is exactly what neither of them
+          is. Side by side under a rule they read as what they are - the day's two quality checks. */}
       <Card className="p-0 mb-4 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 px-2.5 py-1" style={{ borderBottom: '4px solid var(--border)' }}>
-          <span className="pf text-[7px] uppercase" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Today's plan</span>
+        <div className="flex items-center justify-between gap-2 pl-3 pr-2.5 py-[9px]" style={{ borderBottom: '2px solid var(--border)' }}>
+          <span className="pf text-[10px] uppercase" style={{ color: 'var(--text)', letterSpacing: '0.12em' }}>Today's plan</span>
           <Pill value={mode} onChange={setMode} options={[{ v: 'remaining', l: 'Left' }, { v: 'consumed', l: 'Eaten' }]} />
         </div>
-        <div className="px-3.5 pt-3 pb-3">
-          <MacroSummaryCard et={et} tot={tot} mode={mode} avg={false} entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
+        <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
+          <EnergyBand et={et} tot={tot} mode={mode} />
+        </div>
+        <div className="px-3 pt-3 pb-3.5 flex flex-col gap-2.5">
+          <MacroRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} mode={mode} hero />
+          <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} mode={mode} />
+          <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} mode={mode} />
+        </div>
+        <div className="grid grid-cols-2" style={{ borderTop: '2px solid var(--border)' }}>
+          <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ borderRight: '2px solid var(--border)' }}>
+            <FibreCell tot={tot} et={et} mode={mode} />
+          </div>
+          <div className="px-3 py-2.5 flex flex-col gap-1.5">
+            <DensityCell entries={entriesOn(db, today)} onExplain={() => setDensityHelp(true)} />
+          </div>
         </div>
         {/* Balance (shift leftover kcal between carbs and fat) sits right under the bars it affects. */}
-        <div className="px-3.5 py-2.5" style={{ borderTop: '4px solid var(--border)' }}>
-          <Collapsible variant="inline" label="Balance carbs & fat" sub="Adjust ›">
-            <div className="text-[12px] text-[#8A8A90] mb-3">Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
-            <div className="flex justify-between text-[11px] text-[#8A8A90] mb-1"><span>More carbs</span><span>More fat</span></div>
+        <div className="px-3 py-2.5" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+          <Collapsible variant="inline" label={<span style={{ fontSize: 12.5, color: 'var(--text)' }}>Balance carbs &amp; fat{override.shiftKcal ? <> · <strong style={{ color: 'var(--fat-ink)' }}>{(override.shiftKcal > 0 ? '+' : '−') + Math.abs(override.shiftKcal)}</strong> kcal adjusted</> : null}</span>} sub="Adjust ›">
+            <div className="text-[12px]" style={{ color: 'var(--muted)', marginBottom: 12 }}>Shift today's leftover calories between carbs and fat. Protein stays fixed.</div>
+            <div className="flex justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}><span>More carbs</span><span>More fat</span></div>
             <input type="range" min="-400" max="400" step="10" value={override.shiftKcal} onChange={e => setShift(+e.target.value)} className="w-full accent-[#4A9EEB]" />
             <div className="flex justify-between items-center mt-3">
-              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">carbs left</div></div>
-              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[8px] uppercase text-[#8A8A90]">Balanced</span>}
-              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[7px] uppercase text-[#8A8A90]">fat left</div></div>
+              <div className="leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: CARB_T }}>{remCarbs}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>carbs left</div></div>
+              {override.shiftKcal ? <button onClick={() => setShift(0)} className="pf text-[9px] uppercase" style={{ color: 'var(--accent-ink)' }}>Reset</button> : <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Balanced</span>}
+              <div className="text-right leading-tight"><div className="text-[16px] font-bold tnum" style={{ color: FAT_T }}>{remFat}g</div><div className="pf text-[8px] uppercase" style={{ color: 'var(--muted)' }}>fat left</div></div>
             </div>
           </Collapsible>
         </div>
@@ -8502,7 +8648,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           const canOpen = !!(cd && cd.days && cd.days.length) || et.cyc !== 0;
           const label = (et.cyc && et.carry) ? 'adjusted' : et.cyc ? (et.cyc > 0 ? 'high day' : 'low day') : (et.carry > 0 ? 'carried over' : 'carried back');
           const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
-          return <div className="px-3.5 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '4px solid var(--border)' }}>
+          return <div className="px-3 py-2.5 flex items-center justify-between text-[11px] text-[#8A8A90]" style={{ borderTop: '2px solid var(--border)' }}>
             <span className="tnum"><span style={{ color: adj > 0 ? 'var(--good-ink)' : 'var(--fat-ink)' }}>{sgn(adj)}</span> kcal {label}</span>
             {canOpen && <button onClick={() => setShowCarry(true)} className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Details ›</button>}
           </div>;
@@ -13275,13 +13421,17 @@ function BottomNav({ view, setView, onAdd }) {
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 max-w-md mx-auto border-t-[3px] flex items-center z-40 px-2" style={{ height: 'calc(64px + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)', background: 'var(--header)', borderColor: 'var(--border)' }}>
       {BOTTOM_NAV.slice(0, 2).map(([k, l, Ic]) => <NavBtn key={k} k={k} l={l} Ic={Ic} view={view} setView={setView} />)}
-      <div className="flex-1 flex justify-center"><button onClick={onAdd} className="w-[68px] h-[68px] pixel-btn flex items-center justify-center -mt-[72px]" style={{ background: '#fff', color: '#111' }}><Icon.plus width="32" height="32" /></button></div>
+      {/* The FAB takes the card's own surface and the theme's frame, rather than a hardcoded white
+          slab. On paper that is cream on ink, exactly as the import draws it; after dark the import
+          switches it to a near-black face with a neon edge and a neon glyph, which `--hero-ring`
+          already carries. A literal #fff here was the one control that stayed daylight at night. */}
+      <div className="flex-1 flex justify-center"><button onClick={onAdd} aria-label="Add food" className="w-[68px] h-[68px] pixel-btn box-tint flex items-center justify-center -mt-[72px]" style={{ background: 'var(--card)', color: 'var(--hero-ring)', '--box-border': 'var(--hero-ring)' }}><Icon.plus width="32" height="32" /></button></div>
       {BOTTOM_NAV.slice(2).map(([k, l, Ic]) => <NavBtn key={k} k={k} l={l} Ic={Ic} view={view} setView={setView} />)}
     </div>
   );
 }
 function navActive(view, k) { return view === k; }
-function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: navActive(view, k) ? 'var(--on-header-accent)' : 'rgba(255,255,255,0.72)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
+function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: navActive(view, k) ? 'var(--on-header-accent)' : 'var(--nav-off)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
 function Sidebar({ view, setView, onAdd, onOpenPlay }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');
@@ -14813,7 +14963,7 @@ function App() {
     // the static prefers-color-scheme metas so a user who picks a theme in-app sees it edge to edge.
     let tc = document.querySelector('meta[name="theme-color"]:not([media])');
     if (!tc) { tc = document.createElement('meta'); tc.setAttribute('name', 'theme-color'); document.head.appendChild(tc); }
-    tc.setAttribute('content', themePref === 'light' ? '#5B4FA6' : '#000000');
+    tc.setAttribute('content', themePref === 'light' ? '#5B4FA6' : '#4A3F90');
     if (!document.getElementById('scanline')) { const d = document.createElement('div'); d.id = 'scanline'; d.className = 'scanline'; document.body.appendChild(d); }
   }, [themePref]);
 

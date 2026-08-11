@@ -1,171 +1,199 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
-/* ============ MACROSAURUS · GAME BOY DESIGN SYSTEM ============ */
-/* Dark Game Boy (Pocket) is the default. Add .theme-light on <html> for Game Boy Color. */
-:root, .theme-dark {
-  --bg: #000000;             /* pure black */
-  --card: #0d0d0d;
-  --surface2: #17171a;
-  --surface3: #0a0a0a;
-  --track: #1a1a1a;
-  --border: #2c2c2e;
-  --header: #000000;         /* top bar / bottom nav */
-  --header-text: #39FF14;
-  --hero: #39FF14;           /* big kcal number */
-  --text: #ffffff;
-  --text2: #cfcfcf;
-  --muted: #9b9ba3;          /* lifted for contrast (~6:1 on card surfaces) */
-  --muted2: #85858d;         /* 4.9:1 on the darkest card, where #7c7c84 sat at 4.32 */
-  --accent: #39FF14;         /* neon green, primary action */
-  --on-accent: #05140a;
-  --accent-dim: #0f2a12;
-  --pro: #39FF14;            /* neon green */
-  --carb: #00F3FF;          /* neon cyan */
-  --fat: #FF2FD0;           /* neon magenta */
-  --cal: #39FF14;
-  --weight: #B388FF;
+/* ============ MACROSAURUS · PAPER TERRARIUM DESIGN SYSTEM ============ */
+/* The warm paper theme is the DEFAULT (`:root`, `.theme-light`). `.theme-dark` keeps the app's
+   original neon-on-black identity on the same layout - see the note above that block.
+   Ported from the Claude Design import `Today Page.dc.html`; see
+   design-plans/16-paper-terrarium-overhaul.md.
+
+   Every colour below was measured, not eyeballed. The three surfaces type actually lands on are
+   the card #fffdf7, the page #e7e3da and the inset panel #f8f4e8, and the page is the harshest of
+   the three, so anything that can appear on the page clears 4.5:1 THERE. That is why --muted is
+   #6b6459 and not the import's #7a7264 (3.71 on the page): the import only ever put that colour on
+   a card, and the app puts it everywhere. */
+:root, .theme-light {
+  --bg: #e7e3da;             /* paper, the page itself */
+  --card: #fffdf7;           /* the cream a panel is printed on */
+  --surface2: #f8f4e8;       /* inset strip inside a panel (the buddy's speech, card footers) */
+  --surface3: #fffdf7;
+  --track: #ece7dc;          /* an unfilled meter cell */
+  --border: #241f2e;         /* INK. The one border colour in the whole design. */
+  --header: #5B4FA6;         /* top bar / bottom nav */
+  --header-text: #fffdf7;
+  --hero: #2E7D6B;           /* big kcal number */
+  --text: #241f2e;
+  --text2: #4a4356;
+  --muted: #6b6459;          /* 4.56:1 on the page, 5.75 on the card */
+  --muted2: #746c5c;         /* the dimmest tier: 5.1 on the card, 4.7 on the inset. Prefer --muted
+                                for anything sitting directly on the page. */
+  --accent: #F0B429;         /* gold, primary action. A FILL only - see --accent-ink. */
+  --on-accent: #241f2e;
+  --accent-dim: #fbecc9;
+  --pro: #C7472F;           /* red */
+  --carb: #3D6FB4;          /* blue */
+  --fat: #E0A21B;           /* amber */
+  --cal: #2E7D6B;           /* green */
+  --weight: #5B4FA6;        /* purple */
   /* Food-type colours. Worn by the diary tiles on a FREE account, where there is no Density Score
      for colour to mean, so it may as well say what the food is. A premium account never sees these
      (its tiles carry the score instead), which is what keeps a green tile from being ambiguous
-     between "a vegetable" and "a good choice". Neon, to sit with the rest of the dark theme. */
+     between "a vegetable" and "a good choice". Pigments, to sit with the rest of the paper theme -
+     each one carries a black pixel glyph on top, so they stay light enough to draw ink on. */
+  --food-meat: #E08A7A;
+  --food-plant: #7FBFA6;
+  --food-drink: #8FB6E0;
+  --food-egg: #F0CE6A;
+  --food-grain: #E0B183;
+  --food-sweet: #D79BC4;
+  --food-other: #A79BD4;
+  --danger: #C7472F;
+  --good: #2E7D6B;
+  --warn: #E0A21B;           /* amber: "drowsy" readiness, over/under a target, take-it-easy */
+  --sleep: #5B4FA6;          /* sleep identity: the chrome purple */
+  --sleep-deep: #3F3577;     /* deep / N3: indigo */
+  --sleep-rem: #2E7D6B;      /* REM: green */
+  --sleep-light: #A79BD4;    /* light: pale violet */
+  --sleep-awake: #E0A21B;    /* awake: amber */
+  --shadow: #241f2e;         /* the hard offset shadow is ink, never black */
+  /* The buddy's terrarium gets a sky of its OWN, unlike the old flat theme where it borrowed the
+     card's ground. On paper it can afford one: the import draws a warm dawn #fdf1e7 against a cream
+     card, which is a small enough step to read as a lit window rather than a hole. A BOUGHT scene
+     (SCENE_ART) still overrides all of this - the default being quiet is what makes a purchased sky
+     visibly worth having. */
+  --scene-top: #fdf1e7;
+  --scene-bottom: #fdf1e7;
+  --scene-ground: #f3e4d4;   /* the lit floor the buddy stands on */
+  --scene-line: #241f2e;     /* the horizon: ink, the one edge that has to be visible */
+  --buddy-glow: rgba(240,180,41,0.45);  /* the warm sun pool the dino stands in */
+  /* THE TERRARIUM, by day - the imported design's own palette, unchanged from its prop defaults. */
+  --terra-sky: #fdf1e7;
+  --terra-pale: #c9c2d4;     /* dune fill */
+  --terra-faint: #dad4e0;    /* cloud outlines, far hills, ground dashes */
+  --terra-ink: #5b5060;      /* ground line, cacti */
+  --terra-sun: #F0B429;
+  --terra-red: #C7472F;      /* the logo chips, as ground tufts */
+  --terra-blue: #3D6FB4;
+  /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
+     as a 13px block on a meter can be unreadable as 9px type, because a bar only has to be seen and
+     type has to be read. This is where the split earns its keep: the gold that carries the whole
+     theme measures 1.83:1 as type on the card, which is not dim, it is invisible. These are the
+     same hues taken down until they clear 4.5:1 on the card, the page and the inset alike. The
+     bright originals keep their real job - filling meters, tiles and buttons. */
+  /* A card's TITLE BAR is a filled ink strip in this design, not a transparent row with a rule under
+     it. It is the one place light type sits on a dark ground in the paper theme, so it needs its own
+     pair rather than borrowing --card/--text. */
+  --cardhead-bg: #241f2e;
+  --cardhead-text: #f4f1ea;
+  /* The hero panel's frame. On paper it is the same ink as every other card - the import does NOT
+     ring it - and after dark it becomes neon with a bloom. See `.hero-card`. */
+  --hero-ring: #241f2e;
+  --nav-off: #ddd7f2;         /* inactive nav on the purple bar: 4.8:1 */
+  --accent-ink: #8A6100;     /* gold as type: 5.5:1 card, 4.3:1 page */
+  --on-header-accent: #FFD05E;  /* the same gold going the OTHER way, for type on the purple bar:
+                                   darkening it there would hide it, so it lightens to 4.6:1 */
+  /* The good / middling / poor trio, as MARKS. Kept far apart in hue as well as value so the chart
+     still says three things to the one man in twelve who cannot use the hue alone. */
+  --tone-good: #1F6153;
+  --tone-warn: #8A6100;
+  --tone-bad: #A93826;
+  --good-ink: #1F6153;       /* 7.1:1 card */
+  --danger-ink: #A93826;     /* 6.3:1 card */
+  --pro-ink: #A93826;
+  --carb-ink: #2F5E9E;
+  --fat-ink: #8A6100;
+}
+/* ============ THE SAME LAYOUT, AFTER DARK ============ */
+/* Ported verbatim from the Claude Design import's `[data-theme="dark"]` block and its `T` map.
+   Worth being explicit about what this theme is, because an earlier pass guessed wrong: dark is NOT
+   a warm dimming of the paper theme. It keeps Macrosaurus's original neon-on-black identity and
+   simply moves it onto the new layout and type system. So the chrome goes BLACK rather than purple,
+   the gold accent is replaced by neon green, and the card is near-black rather than ink.
+   The two themes share structure, weight and type; they do not share a palette. */
+.theme-dark {
+  --bg: #050507;             /* the stage */
+  --card: #0c0c11;
+  --surface2: #101017;       /* inset strip inside a panel */
+  --surface3: #0c0c11;
+  --track: #1a1a22;          /* an unfilled meter cell */
+  --border: #2f2f3a;
+  --header: #000000;         /* top bar / bottom nav go black, not purple */
+  --header-text: #3DFF62;
+  --hero: #3DFF62;
+  --text: #e8e8ea;
+  --text2: #c4c4cc;
+  --muted: #7c7c88;          /* 4.7:1 on the card */
+  --muted2: #8b8b98;         /* the import's inactive-tab text; 5.8:1 on the card. It is LIGHTER
+                                than --muted on purpose - #6c6c78 only reached 3.8 and this tier
+                                still has to be read. */
+  --accent: #3DFF62;         /* neon green carries everything gold carries on paper */
+  --on-accent: #06120a;
+  --accent-dim: #0f2a12;
+  --pro: #3DFF62;
+  --carb: #35E0E8;
+  --fat: #FF4FD0;
+  --cal: #3DFF62;
+  --weight: #9B7BFF;
+  /* The food-type set, back on the neon palette the dark theme has always used. */
   --food-meat: #FF6B6B;
-  --food-plant: #39FF14;
-  --food-drink: #00F3FF;
+  --food-plant: #3DFF62;
+  --food-drink: #35E0E8;
   --food-egg: #FFD93D;
   --food-grain: #FFA94D;
-  --food-sweet: #FF2FD0;
-  --food-other: #B388FF;
-  --danger: #FF5555;
-  --good: #39FF14;
-  --warn: #FFB020;           /* amber: "drowsy" readiness, over/under a target, take-it-easy */
-  --sleep: #B388FF;          /* sleep identity: soft violet (night) */
-  --sleep-deep: #7C5CFF;     /* deep / N3: indigo */
-  --sleep-rem: #00F3FF;      /* REM: cyan */
-  --sleep-light: #4B4B7A;    /* light: muted blue-grey */
-  --sleep-awake: #FFB020;    /* awake: amber */
-  --shadow: #000000;
-  /* Buddy terrarium scene: a faint lit "little world" behind the sprite so the pixel dino reads as
-     placed rather than pasted onto flat grey. Kept subtle to respect the flat Game Boy chrome. */
-  /* The world is FLAT: a sky block, a ground block and one crisp horizon between them. It used to be
-     a gradient fading to #050507, which is darker than --card (#0d0d0d), so at the size the buddy's
-     world is now drawn the scene sank THROUGH the card it sits on and read as a hole rather than a
-     place. Flat also happens to be the honest thing: this hardware drew tiles, not gradients. */
-  /* The DEFAULT world shares the card's own ground. Every other panel on Today is a flat --card
-     interior, so a world with a sky of its own was a second ground inside a page that already had
-     one, and it read as a picture pasted into a set of panels rather than one of the panels. The
-     place comes from the horizon and the lit floor instead, which is enough to stand on.
-     A BOUGHT scene (SCENE_ART) keeps its strong colour on purpose: the default being seamless is
-     what makes a purchased sky visibly worth having. */
-  --scene-top: #0d0d0d;      /* = --card */
-  --scene-bottom: #0d0d0d;
-  --scene-ground: #171d28;   /* the lit floor the buddy stands on */
-  --scene-line: #33405a;     /* the horizon, and the one edge that has to be visible */
-  --buddy-glow: rgba(57,255,20,0.15);   /* soft neon-green ground glow the dino stands in */
-  /* THE TERRARIUM, at night. The imported design is a daylight scene on white, and inverting it
-     would have put a black ground line on a black sky - the one edge that has to be visible is the
-     first thing a naive inversion loses. So the dark theme is a deliberate second scene: the sky
-     goes deep, the "ink" that draws the ground and the cacti becomes the LIGHTEST value rather than
-     the darkest, and the sun is redrawn as a moon. Silhouettes read as shapes against the night
-     instead of holes cut out of it. */
-  --terra-sky: #14151C;
-  --terra-pale: #232735;     /* dune fill */
-  --terra-faint: #3A4055;    /* cloud outlines, far hills, ground dashes */
-  --terra-ink: #8B93AD;      /* ground line, cacti - the strongest value at night, not the weakest */
-  --terra-sun: #EDE7C4;      /* the moon */
-  --terra-red: #C4574F;      /* the logo chips, taken down for night */
-  --terra-blue: #4A7FD4;
-  /* INK tokens: the brand colours when they are TEXT rather than a fill. A colour that is perfect
-     as a 12px block on a meter can be unreadable as 10px type, because a bar only has to be seen
-     and type has to be read. On black the neon set already runs 6:1 to 15:1, so here ink and fill
-     are the same colour; the light theme is where they part company. */
-  --accent-ink: #39FF14;
-  --on-header-accent: #39FF14;  /* header is pure black in this theme, so the neon is already 15:1 */
-  /* On black the neon set is already far apart and far from the ground, so the marks keep it. */
-  --tone-good: #39FF14;
+  --food-sweet: #FF4FD0;
+  --food-other: #9B7BFF;
+  --danger: #FF5A4D;
+  --good: #3DFF62;
+  --warn: #FFB020;           /* amber: "drowsy" readiness, over/under a target, take-it-easy. The
+                                import has no amber of its own - its `warn` slot is the red - but the
+                                app needs a third, genuinely middling colour, so it keeps one. */
+  --sleep: #9B7BFF;
+  --sleep-deep: #7C5CFF;
+  --sleep-rem: #35E0E8;
+  --sleep-light: #4B4B7A;
+  --sleep-awake: #FFB020;
+  --shadow: #2f2f3a;         /* NOT black. The import draws `3px 3px 0 #2f2f3a` after dark, because a
+                                black offset shadow on a near-black page is an invisible shadow. */
+  /* The terrarium after dark: the sky goes to almost nothing, the dunes and cacti are drawn in the
+     few values above it, and the sun is redrawn as a pale moon. */
+  --scene-top: #07070b;
+  --scene-bottom: #07070b;
+  --scene-ground: #20202a;
+  --scene-line: #3a3a48;
+  --buddy-glow: rgba(61,255,98,0.35);   /* the neon pool the dino stands in */
+  --terra-sky: #07070b;
+  --terra-pale: #20202a;     /* dune fill */
+  --terra-faint: #2d2d3a;    /* cloud outlines, far hills, ground dashes */
+  --terra-ink: #3a3a48;      /* ground line, cacti */
+  --terra-sun: #e8e8ea;      /* the moon */
+  --terra-red: #FF5A4D;
+  --terra-blue: #35E0E8;
+  /* INK tokens. On a near-black card every fill above already runs 6:1 to 15:1 as type, so here ink
+     and fill are the same colour. The split that paper needs, night does not. */
+  --cardhead-bg: #15151c;
+  --cardhead-text: #e8e8ea;
+  --hero-ring: #3DFF62;      /* after dark the hero IS ringed, and blooms - see `.hero-card` */
+  --nav-off: #7c7c88;        /* inactive nav on the black bar */
+  --accent-ink: #3DFF62;
+  --on-header-accent: #3DFF62;  /* the header is black in this theme, so the neon is already 15:1 */
+  --tone-good: #3DFF62;
   --tone-warn: #FFB020;
-  --tone-bad: #FF5555;
-  --good-ink: #39FF14;
-  --danger-ink: #FF5555;
-  --pro-ink: #39FF14;
-  --carb-ink: #00F3FF;
-  --fat-ink: #FF2FD0;
+  --tone-bad: #FF5A4D;
+  --good-ink: #3DFF62;
+  --danger-ink: #FF5A4D;
+  --pro-ink: #3DFF62;
+  --carb-ink: #35E0E8;
+  --fat-ink: #FF4FD0;
 }
-.theme-light {
-  --bg: #F0F0F0;
-  --card: #FFFFFF;
-  --surface2: #ececec;
-  --surface3: #FFFFFF;
-  --track: #d8d8d8;
-  --border: #1e1e1e;
-  --header: #5B4FA6;         /* purple top bar / bottom nav */
-  --header-text: #ffffff;
-  --hero: #17A398;           /* teal big kcal number */
-  --text: #1a1a1a;
-  --text2: #333333;
-  --muted: #666666;
-  --muted2: #6b6b6b;         /* 4.5:1 on white AND on the #ececec cards; #757575 only cleared it on white */
-  --accent: #F5C518;         /* gold, primary / selected / LVL / nav-active */
-  --on-accent: #1a1a1a;
-  --accent-dim: #fff3c9;
-  --pro: #E5342A;           /* red */
-  --carb: #2E6FD4;          /* blue */
-  --fat: #F5C518;           /* gold */
-  --cal: #2E6FD4;
-  --weight: #7c3aed;
-  /* The same food-type set, darkened so the black pixel glyph still reads on top of them in the
-     light (Game Boy Color) theme. */
-  --food-meat: #E4572E;
-  --food-plant: #2E9E4F;
-  --food-drink: #1B9AAA;
-  --food-egg: #E8B93B;
-  --food-grain: #D98324;
-  --food-sweet: #C64191;
-  --food-other: #7c3aed;
-  --danger: #E5342A;
-  --good: #17A398;
-  --warn: #9A5B00;           /* #B26A00 measured 4.24 on white and 3.59 on the cards, so it never actually cleared 4.5 */
-  --sleep: #7c3aed;          /* sleep identity: violet */
-  --sleep-deep: #5B3FCF;     /* deep / N3: indigo */
-  --sleep-rem: #1C8FA8;      /* REM: teal-cyan (readable on white) */
-  --sleep-light: #9A9AC0;    /* light: muted blue-grey */
-  --sleep-awake: #B26A00;    /* awake: amber */
-  --shadow: #1e1e1e;
-  --scene-top: #FFFFFF;      /* = --card; see the dark theme's note on sharing the page's ground */
-  --scene-bottom: #FFFFFF;
-  --scene-ground: #eaf0f8;
-  --scene-line: #1e1e1e;     /* light keeps the hard pixel line; on white it is the strongest edge */
-  --buddy-glow: rgba(245,197,24,0.24);  /* warm gold sun the dino basks in */
-  /* THE TERRARIUM, by day - the imported design's own palette, unchanged. */
-  --terra-sky: #FFFFFF;
-  --terra-pale: #E2E6EA;     /* dune fill */
-  --terra-faint: #C9CED4;    /* cloud outlines, far hills, ground dashes */
-  --terra-ink: #1A1A1A;      /* ground line, cacti */
-  --terra-sun: #F5C518;
-  --terra-red: #E03131;      /* the logo chips, as ground tufts */
-  --terra-blue: #2F6FD0;
-  /* INK tokens: the brand colours when they are TEXT. Measured on white, the gold that carries the
-     whole light theme scored 1.63:1 as type, which is not dim, it is invisible; teal ran 3.12 and
-     the macro red 4.32, both under the 4.5 small text needs. These are the same hues taken down
-     until they clear 4.5:1 on white, on the #F0F0F0 page and on the #ececec inputs alike. The
-     bright originals keep their real job: filling meters, tiles and buttons, where they are seen
-     and not read. */
-  --accent-ink: #9A5B00;     /* gold as type: 5.4:1 on white, 4.6:1 on the greys */
-  /* The good / middling / poor trio, as MARKS. The old set (#17A398, #9A5B00, #C4271E) put the
-     middling and poor colours 1.0 apart in OKLab under deuteranopia, which is one man in twelve
-     seeing one colour where the chart shows two, and only 12.0 apart for normal vision, under the
-     15 floor. Re-stepped, the same three hues clear every check: CVD separation 9.0 deutan and
-     12.7 tritan, normal vision 16.0, all three over 3:1 against the surface. */
-  --tone-good: #0B8C7E;
-  --tone-warn: #A87200;
-  --tone-bad: #B3261E;
-  --on-header-accent: #FFD84D;  /* the SAME gold going the other way, for type on the purple bar:
-                                   darkening it there would hide it, so it lightens to 4.9:1 */
-  --good-ink: #0D6B64;       /* teal as type: 6.4:1 */
-  --danger-ink: #C4271E;     /* red as type: 5.7:1 */
-  --pro-ink: #C4271E;
-  --carb-ink: #2A62BC;
-  --fat-ink: #9A5B00;
-}
+/* The hairline between meter cells is BLACK after dark, not the border colour: on a near-black
+   track a #2f2f3a divider disappears, so the import switches it to rgba(0,0,0,0.85). */
+.theme-dark .pip-bar { background: #000000; }
+/* THE HERO PANEL (the buddy's card). On paper it is an ordinary ink-framed card - the import gives
+   it no ring, because a page where one card shouts is a page with a hierarchy, and this design gets
+   its hierarchy from position and size instead. After dark the same panel takes a neon frame and a
+   soft bloom, which is the one piece of pure decoration in either theme and the thing that makes the
+   dark screen look lit rather than merely dark. */
+.hero-card { border-color: var(--hero-ring) !important; }
+.theme-dark .hero-card { box-shadow: 3px 3px 0 0 var(--shadow), 0 0 14px rgba(61,255,98,0.16); }
 
 html, body { background: var(--bg); overflow-x: hidden; }
 body {
@@ -173,10 +201,15 @@ body {
   background: var(--bg);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
-  font-family: 'Press Start 2P', ui-monospace, "Courier New", monospace;
-  line-height: 1.8;
+  /* Body prose is IBM Plex Mono, NOT the pixel face. Press Start 2P ran roughly twice the width of
+     a normal mono at the same size, which is why every prose size in this file used to be clamped
+     down to 9-11.5px just to fit a sentence on a 375px screen. Plex Mono fits at 13.5px, so the
+     app can finally read at the size the design drew it. The pixel face is still here - it is just
+     demoted to what it is good at: labels, numbers and chrome. See `.pf`. */
+  font-family: 'IBM Plex Mono', ui-monospace, "Courier New", monospace;
+  line-height: 1.55;
   letter-spacing: 0;
-  font-size: 12px;
+  font-size: 13.5px;
 }
 input, textarea, button, select { font-family: inherit; letter-spacing: 0; }
 #root { color: var(--text); }
@@ -187,12 +220,16 @@ input, textarea, button, select { font-family: inherit; letter-spacing: 0; }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .sheet-up { animation: sheet .32s cubic-bezier(.2,.8,.2,1); }
 @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
-input, select { color-scheme: dark; }
-.theme-light input, .theme-light select { color-scheme: light; }
+input, select { color-scheme: light; }
+.theme-dark input, .theme-dark select { color-scheme: dark; }
 ::-webkit-scrollbar { width: 0; height: 0; }
 
 /* ---- pixel font (headings, numbers, brand, nav) ---- */
-.pf { font-family: 'Press Start 2P', ui-monospace, monospace; line-height: 1.45; letter-spacing: 0; }
+/* Silkscreen replaces Press Start 2P. Same job, but it is a genuine text face at small sizes where
+   Press Start was a display face being asked to do prose. It also takes letter-spacing well, which
+   the import leans on hard: every pixel label in that design is tracked out 0.08em-0.16em, and that
+   tracking is most of what makes a 9px uppercase label read as a label rather than as noise. */
+.pf { font-family: 'Silkscreen', ui-monospace, monospace; line-height: 1.45; letter-spacing: 0.08em; }
 
 /* Animated buddy sprite sheets: one keyframe drives every strip. translateX(-100%) is the strip's
    own full width; steps(frames) subdivides it into whole-frame jumps, so it is frame-count- and
@@ -258,7 +295,12 @@ input, select { color-scheme: dark; }
 
 /* ---- pixel shapes: square everything, chunky borders + hard shadow ---- */
 .rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-full { border-radius: 0 !important; }
-.pixel-box { border: 4px solid var(--border) !important; box-shadow: 4px 4px 0 0 var(--shadow); }
+/* 3px, not 4px. The import spends 3px on a panel's OUTER frame and 2px on every rule INSIDE it, and
+   that one-step hierarchy is what stops a card full of sections reading as a stack of separate
+   boxes. At 4px/4px there was no inside voice. `--rule` is that inner weight, for components that
+   draw their own dividers. */
+:root { --rule: 2px; }
+.pixel-box { border: 3px solid var(--border) !important; box-shadow: 3px 3px 0 0 var(--shadow); }
 /* The !important above exists to beat Tailwind's border utilities, but it also silently kills any
    inline borderColor a component sets, which has cost real debugging time: React cannot emit
    !important, so the inline style just does nothing and the box stays grey. Use these modifiers to
@@ -268,13 +310,16 @@ input, select { color-scheme: dark; }
 .pixel-box.box-warn   { border-color: var(--warn) !important; }
 .pixel-box.box-danger { border-color: var(--danger) !important; }
 .pixel-box.box-tint   { border-color: var(--box-border, var(--border)) !important; }
+/* The same escape hatch for buttons. `.pixel-btn` carries its own `!important` border, so a tinted
+   button needs its own rule rather than inheriting the box one (the nav's + is the caller). */
+.pixel-btn.box-tint   { border-color: var(--box-border, var(--border)) !important; }
 /* `.box-double` (the doubled Game Boy textbox frame) lived here and had exactly one caller, the
    buddy's dialogue. It is gone with it: a doubled frame inside the card's own frame put four dark
    rules between the page and the sentence where every other panel spends one, which is the whole
    reason that card read as belonging to a different app. The dialogue now hangs off a single rule of
    the card's own border weight. See design-plans/15-buddy-box-one-frame.md. */
-.pixel-btn { border: 4px solid var(--border) !important; box-shadow: 4px 4px 0 0 var(--shadow); transition: transform .05s, box-shadow .05s; }
-.pixel-btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 0 var(--shadow); }
+.pixel-btn { border: 3px solid var(--border) !important; box-shadow: 3px 3px 0 0 var(--shadow); transition: transform .05s, box-shadow .05s; }
+.pixel-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--shadow); }
 /* chunky macro/xp progress bar */
 .pixel-bar { border: 3px solid var(--border); height: 18px; background: var(--track); overflow: hidden; }
 .pixel-bar > i { display: block; height: 100%; box-shadow: inset -2px -2px 0 rgba(0,0,0,0.25); }
@@ -291,19 +336,22 @@ input, select { color-scheme: dark; }
       carry one number each instead of three.
    3. The blocks are honest about precision. Food logging is estimates, and a bar
       that stops on a block edge claims exactly as much accuracy as we have.
-   Cells are separated by a 2px gap in the surface colour, never by a border, so the
-   ink stays data and the separation stays air. */
-.pip-bar { display: flex; gap: 2px; border: 3px solid var(--border); background: var(--track); padding: 2px; }
-.pip-bar > i { flex: 1 1 0; height: 12px; background: var(--surface2); transition: background .35s steps(4); }
-.pip-bar.pip-sm > i { height: 8px; }
+   Cells used to be separated by a 2px gap in the surface colour and to float on a
+   2px pad inside the frame. The import draws the same meter tighter: the cells run
+   edge to edge inside the frame and are divided by a 1px INK hairline, so the whole
+   control reads as one ruled strip rather than a row of loose tiles. That also buys
+   back 5px of width per bar, which is what lets 20 cells fit where 12 did. */
+.pip-bar { display: flex; gap: 1px; border: 3px solid var(--border); background: var(--border); padding: 0; }
+.pip-bar > i { flex: 1 1 0; height: 13px; background: var(--track); transition: background .35s steps(4); }
+.pip-bar.pip-sm > i { height: 9px; }
 .theme-dark .pip-bar > i { box-shadow: inset -1px -1px 0 rgba(0,0,0,0.35); }
 /* the target notch: a gap in the frame itself, so the goal is part of the meter
    rather than a line drawn on top of the data */
 .pip-bar { position: relative; }
 .pip-bar > .pip-goal { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--text); opacity: 0.55; pointer-events: none; }
 /* vertical variant, for the week */
-.pip-col { display: flex; flex-direction: column-reverse; gap: 2px; justify-content: flex-start; }
-.pip-col > i { flex: 1 1 0; background: var(--surface2); min-height: 3px; }
+.pip-col { display: flex; flex-direction: column-reverse; gap: 1px; justify-content: flex-start; }
+.pip-col > i { flex: 1 1 0; background: var(--track); min-height: 3px; }
 /* blinking retro cursor */
 .blink { animation: blink 1.05s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
@@ -311,11 +359,15 @@ input, select { color-scheme: dark; }
 /* ---- CRT scanline overlay ---- */
 /* sits below every modal/sheet layer (z-50+) so sheets aren't dimmed by the CRT effect */
 .scanline { pointer-events: none; position: fixed; inset: 0; background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 50%); background-size: 100% 4px; z-index: 45; }
-.theme-light .scanline { display: none; }
-/* neon glow on dark-theme accent text/icons */
-.theme-dark .neon-pro { text-shadow: 0 0 8px rgba(57,255,20,0.5); }
-.theme-dark .neon-carb { text-shadow: 0 0 8px rgba(0,243,255,0.5); }
-.theme-dark .neon-fat { text-shadow: 0 0 8px rgba(255,47,208,0.5); }
+/* Paper is the default now, and a CRT scanline over printed paper is a category error, so the
+   overlay is off unless the app is actually after dark. */
+.scanline { display: none; }
+.theme-dark .scanline { display: block; }
+/* The glow, at night only. Retuned off the neon set onto the night palette - these are the same
+   three macro hues the night block declares, at the same 0.5 alpha. */
+.theme-dark .neon-pro { text-shadow: 0 0 8px rgba(255,122,99,0.5); }
+.theme-dark .neon-carb { text-shadow: 0 0 8px rgba(111,165,232,0.5); }
+.theme-dark .neon-fat { text-shadow: 0 0 8px rgba(240,180,41,0.5); }
 
 /* ---- rings/charts track ---- */
 .ring-track { stroke: var(--border); }
@@ -344,39 +396,50 @@ input, select { color-scheme: dark; }
 /* "white" = the active / primary neon; "black" text on it = on-accent */
 .bg-white { background-color: var(--accent) !important; }
 .text-black { color: var(--on-accent) !important; }
-.theme-light .text-white { color: var(--text) !important; }
+/* `text-white` means "the strongest type on this surface", not literally white. On paper that is
+   ink; only after dark is it actually near-white. The scoping is inverted from what it was, because
+   the default theme is. */
+.text-white { color: var(--text) !important; }
+.theme-dark .text-white { color: #ffffff !important; }
 /* danger button */
 .bg-\[\#ff6b6b\] { background-color: var(--danger) !important; }
 
-/* ---- headings + big numbers use the pixel font (sized down to fit) ---- */
+/* ---- headings + big numbers use the pixel font ---- */
+/* Silkscreen is narrower than Press Start 2P at the same nominal size, so every step below moves
+   UP rather than down. The import's own hero number is 34px and its section headings are 10px
+   tracked 0.12em; this ladder is built to land on those. */
 .text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold,
 .text-xl.font-semibold, .text-2xl, .text-3xl, .text-4xl, .text-5xl {
-  font-family: 'Press Start 2P', ui-monospace, monospace !important; letter-spacing: 0;
+  font-family: 'Silkscreen', ui-monospace, monospace !important; letter-spacing: 0.04em;
 }
-.text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold { font-size: 12px !important; line-height: 1.6 !important; }
-.text-xl.font-semibold { font-size: 14px !important; line-height: 1.5 !important; }
-.text-2xl { font-size: 17px !important; line-height: 1.35 !important; }
-.text-3xl { font-size: 21px !important; line-height: 1.3 !important; }
-.text-4xl { font-size: 24px !important; line-height: 1.25 !important; }
-.text-5xl { font-size: 30px !important; line-height: 1.2 !important; }
-.text-xl.pf { font-size: 18px !important; }
+.text-lg.font-bold, .text-lg.font-extrabold, .text-lg.font-semibold { font-size: 14px !important; line-height: 1.5 !important; }
+.text-xl.font-semibold { font-size: 16px !important; line-height: 1.45 !important; }
+.text-2xl { font-size: 20px !important; line-height: 1.3 !important; }
+.text-3xl { font-size: 25px !important; line-height: 1.25 !important; }
+.text-4xl { font-size: 29px !important; line-height: 1.2 !important; }
+.text-5xl { font-size: 34px !important; line-height: 1.15 !important; }
+.text-xl.pf { font-size: 20px !important; }
 /* selection segments/pills: crisp pixel edge, no soft shadow layering */
 .pixel-box.flex-1, .inline-flex.pixel-box { box-shadow: 3px 3px 0 0 var(--shadow); }
 
-/* ---- body text sized for the pixel font (Press Start 2P runs wide) ---- */
-/* Sizes lifted ~1px+ for readability; break-word keeps long words inside cards on 375px. */
-.text-sm { font-size: 11.5px !important; line-height: 1.7 !important; }
-.text-base { font-size: 12px !important; line-height: 1.7 !important; }
+/* ---- body text, now that the body face is a normal-width mono ---- */
+/* This whole block existed to shrink prose until Press Start 2P would fit. IBM Plex Mono does not
+   need the apology: every step goes back UP, close to the nominal size the markup asked for in the
+   first place, and lands on the import's 13.5px body / 1.55 leading. This is the single biggest
+   legibility change in the overhaul - a 10px sentence became a 12.5px one. break-word still keeps
+   long words inside cards on 375px. */
+.text-sm { font-size: 12.5px !important; line-height: 1.55 !important; }
+.text-base { font-size: 13.5px !important; line-height: 1.55 !important; }
 /* NOTE: this remap carries line-height as well as size, and both are !important. That means
    `leading-none` (and every other line-height utility) is silently a NO-OP on any size below, so a
    glyph cannot be tightened from the markup: size its BOX instead (see the buddy message's dismiss,
    and design-plans/13-buddy-kicker-dismiss-alignment.md). */
-.text-\[13px\] { font-size: 11px !important; line-height: 1.7 !important; }
-.text-\[12px\] { font-size: 10px !important; line-height: 1.65 !important; }
-.text-\[11px\] { font-size: 9.5px !important; line-height: 1.65 !important; }
-.text-\[10px\] { font-size: 9px !important; line-height: 1.6 !important; }
+.text-\[13px\] { font-size: 13px !important; line-height: 1.55 !important; }
+.text-\[12px\] { font-size: 12px !important; line-height: 1.55 !important; }
+.text-\[11px\] { font-size: 11px !important; line-height: 1.5 !important; }
+.text-\[10px\] { font-size: 10px !important; line-height: 1.5 !important; }
 .text-sm, .text-base, .text-\[13px\], .text-\[12px\], .text-\[11px\], .text-\[10px\] { overflow-wrap: break-word; }
-p, .leading-snug, .leading-relaxed { line-height: 1.7 !important; }
+p, .leading-snug, .leading-relaxed { line-height: 1.55 !important; }
 
 /* ---- minimum ~44px touch target: expands the tappable area without growing the visual ---- */
 /* Expand a small control's TAP area to the 44px minimum without changing what is drawn (Apple HIG
