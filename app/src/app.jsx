@@ -1747,6 +1747,69 @@ function CardHead({ title, right, onRight, rightTone = 'accent' }) {
     </div>
   );
 }
+/* THE SHEET. `Sheets.dc.html` draws roughly twenty different modals and every one of them is the
+   same object: a scrim over the page, then a panel on the bottom edge that opens with the same
+   filled ink title bar every CARD in this design opens with, and whose body is a 14px column of
+   14px-spaced blocks. Before this, each of the app's ~28 modals hand-rolled its own header out of a
+   heading, a subtitle and a stray × floating at the top right, and paid `pixel-box p-5` for a frame
+   the design does not draw. One component now, so a sheet cannot drift.
+
+   `title` goes in the bar; the ✕ is the bar's right-hand slot, so no sheet draws its own close.
+   `wide` is the max-width for sheets that carry a list or a grid rather than a form.
+   `pad={false}` hands the body to the caller whole, for the few that scroll their own regions. */
+function Sheet({ title, onClose, children, wide, z = 80, pad = true, bodyClass = '', bodyStyle }) {
+  useBackClose(onClose);
+  return (
+    <div className="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4" style={{ zIndex: z, background: 'rgba(20,17,26,0.62)' }} onClick={onClose}>
+      <div className={'w-full sheet-panel sheet-up flex flex-col ' + (wide ? 'max-w-md' : 'max-w-sm')}
+        style={{ maxHeight: '92vh' }} onClick={e => e.stopPropagation()}>
+        <CardHead title={title} right="✕" onRight={onClose} rightTone="muted" />
+        <div className={'overflow-y-auto ' + (pad ? 'p-3.5 flex flex-col gap-3.5 ' : '') + bodyClass}
+          style={{ paddingBottom: pad ? 'calc(0.875rem + env(safe-area-inset-bottom))' : undefined, ...bodyStyle }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+/* The blocks a sheet body is built from, so the 2px inset frame and its label are not retyped
+   twenty times. `SheetBox` is the design's `data-t="sub"`: a 2px ink frame on the inset surface. */
+function SheetBox({ className = '', children, style, ...rest }) {
+  return <div className={className} style={{ border: '2px solid var(--border)', background: 'var(--surface2)', ...style }} {...rest}>{children}</div>;
+}
+/* The 9px tracked label that names a block. The design tracks these out to 0.14em and that tracking
+   is most of what makes it read as a label rather than as small text. */
+function SheetLabel({ children, className = '' }) {
+  return <span className={'pf text-[9px] uppercase ' + className} style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{children}</span>;
+}
+/* THE CHOICE ROW, per `Sheets.dc.html`'s check-in. A framed card carrying a square radio, a bold
+   title and one muted line under it. The radio is the point: the app used to answer these by turning
+   the whole card gold, which reads as "this button is highlighted" rather than "this is the answer I
+   gave", and gave a four-option question four different-coloured slabs to choose between. A checked
+   box says the same thing at a tenth of the volume, so the four options stay comparable. */
+function ChoiceRow({ selected, onClick, title, sub }) {
+  return (
+    <button onClick={onClick} className="pixel-btn w-full text-left flex items-start gap-3 p-3"
+      style={{ borderWidth: 2, background: selected ? 'var(--surface2)' : 'var(--card)' }}>
+      <span className="shrink-0 mt-0.5 flex items-center justify-center" style={{ width: 20, height: 20, border: '2px solid var(--border)', background: selected ? 'var(--accent)' : 'var(--card)' }}>
+        {selected && <span style={{ width: 6, height: 6, background: 'var(--on-accent)' }} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13.5px] font-semibold leading-snug">{title}</span>
+        {sub && <span className="block text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{sub}</span>}
+      </span>
+    </button>
+  );
+}
+/* A sheet's primary action: full-bleed gold, the pixel face, the design's 15px of padding. */
+function SheetBtn({ children, onClick, tone = 'accent', className = '', style, ...rest }) {
+  const bg = tone === 'accent' ? 'var(--accent)' : 'var(--card)';
+  const fg = tone === 'accent' ? 'var(--on-accent)' : 'var(--text)';
+  // `style` is merged rather than spread with the rest: a caller passing `style={{opacity}}` for a
+  // disabled state would otherwise replace the fill wholesale and hand back a white button.
+  return (
+    <button onClick={onClick} className={'pixel-btn w-full pf text-[12px] uppercase ' + className}
+      style={{ borderWidth: 2, padding: 15, letterSpacing: '0.06em', background: bg, color: fg, ...style }} {...rest}>{children}</button>
+  );
+}
 // A block that only wears a box when it is among other boxes. Nesting cards inside a card breaks
 // the mental model of what a card is, and a unit reads perfectly well without an enclosing border
 // given whitespace and a heading. On the Progress page these are cards; inside a full-screen sheet
@@ -2012,27 +2075,46 @@ function PipLine({ pct, color = 'var(--good)', height = 10, cells = 10, classNam
 // mean closing the sheet and reading the card behind it. `rest` is the day with this food taken
 // out, `add` is what it would put back, so the solid blocks are what is already banked and the
 // lighter ones are what you are about to commit. Same instrument as the day card, deliberately.
-function DayImpact({ rest, target, add, label = 'Your day if you save this' }) {
-  if (!rest || !target || !(target.kcal > 0)) return null;
-  const rows = [
-    ['KCAL', rest.kcal, add.kcal, target.kcal, 'var(--good)', ''],
-    ['PROT', rest.protein, add.protein, target.protein, PRO, 'g'],
-    ['CARB', rest.carbs, add.carbs, target.carbs, CARB, 'g'],
-    ['FATS', rest.fat, add.fat, target.fat, FAT, 'g']
-  ];
-  return (<div className="mb-3">
-    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">{label}</div>
-    {rows.map(([cap, base, plus, tgt, color, unit]) => {
-      if (!(tgt > 0)) return null;
-      const end = Math.round(base + plus);
-      const over = end > Math.round(tgt);
-      return (<div key={cap} className="grid items-center gap-2 mb-1.5" style={{ gridTemplateColumns: '2.6rem 1fr auto' }}>
-        <span className="pf text-[8px]" style={{ color: 'var(--muted)' }}>{cap}</span>
-        <PipMeter value={base} target={tgt} addValue={plus} color={color} small />
-        <span className="tnum text-[10px]" style={{ color: over ? 'var(--danger-ink)' : 'var(--muted)' }}>{end}{unit} / {Math.round(tgt)}{unit}</span>
-      </div>);
-    })}
-  </div>);
+/* THIS ENTRY, per `Sheets.dc.html`. One framed block that answers both questions a portion sheet is
+   asked, in the order they get asked: what IS this (the calories in the ruled head, the macro split
+   in the bars), and what does saving it cost me (the sentence).
+
+   The bars are the entry's OWN macro split by calories, not its share of the day's targets. That is
+   the change from the four-row table this replaces. Four meters each carrying "75g / 131g" put
+   fifteen numbers in a block whose job is to be glanced at, and every one of them was the day rather
+   than the food - which the sentence underneath already says, in words, once. */
+function DayImpact({ rest, target, add, label = 'THIS ENTRY', verb = 'Saving' }) {
+  const kcal = Math.round(add.kcal || 0);
+  const parts = [['PROT', add.protein, PRO, 4], ['CARB', add.carbs, CARB, 4], ['FATS', add.fat, FAT, 9]];
+  const fromMacros = parts.reduce((s, [, g, , kpg]) => s + (g || 0) * kpg, 0);
+  // Alcohol and rounding both mean the macros need not add up to the stated calories, so the bars are
+  // scaled by whichever is larger. A bar that overflows its own frame is worse than a short one.
+  const denom = Math.max(kcal, fromMacros, 1);
+  const canSay = rest && target && target.kcal > 0;
+  const leftK = canSay ? Math.round(target.kcal - (rest.kcal || 0) - (add.kcal || 0)) : 0;
+  const leftP = canSay && target.protein > 0 ? Math.round(target.protein - (rest.protein || 0) - (add.protein || 0)) : null;
+  return (
+    <SheetBox>
+      <div className="flex justify-between items-center px-2.5 py-2" style={{ borderBottom: '2px solid var(--border)' }}>
+        <SheetLabel>{label}</SheetLabel>
+        <span className="pf text-[13px] tnum" style={{ color: 'var(--accent-ink)', letterSpacing: '0.04em' }}>{kcal} KCAL</span>
+      </div>
+      <div className="px-2.5 py-2.5 flex flex-col gap-2">
+        {parts.map(([cap, g, color, kpg]) => (
+          <div key={cap} className="grid items-center gap-2.5" style={{ gridTemplateColumns: '2.75rem 1fr auto' }}>
+            <SheetLabel>{cap}</SheetLabel>
+            {/* scale 1 with the denominator as the target, so the frame IS the entry and there is no
+                goal notch to draw: nothing here can be over or under, it is just a split. */}
+            <PipMeter value={(g || 0) * kpg} target={denom} color={color} cells={20} scale={1} overIsFine small />
+            <span className="pf text-[10px] tnum" style={{ color: `var(--${cap === 'PROT' ? 'pro' : cap === 'CARB' ? 'carb' : 'fat'}-ink)` }}>{Math.round(g || 0)}G</span>
+          </div>
+        ))}
+        {canSay && <span className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
+          {verb} this leaves {leftK.toLocaleString()} kcal{leftP != null ? ` and ${leftP} g protein` : ''} for the rest of today.
+        </span>}
+      </div>
+    </SheetBox>
+  );
 }
 // The amount is the sheet's headline, and its own keypad: tap it and type.
 // Steppers are for small adjustments around a common default (Nielsen Norman Group's guidance is
@@ -2040,20 +2122,43 @@ function DayImpact({ rest, target, add, label = 'Your day if you save this' }) {
 // A food weight is the second kind, and driving it from +/- alone cost forty taps to go from 360 g
 // to 100 g. The buttons stay, at the side and at the size of a trim control, for the one or two
 // gram nudge they really are the fastest way to make.
-function AmountField({ value, onChange, unitLabel, step, onStep, label = 'How much' }) {
-  return (<div className="flex items-end gap-2">
-    <div className="flex-1 min-w-0">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">{label}</div>
-      <div className="pixel-box flex items-baseline gap-2 px-3 py-2" style={{ background: 'var(--surface2)' }}>
+/* PORTION, per `Sheets.dc.html`. The design centres the number between its two trim buttons in a
+   52 / 1fr / 52 grid rather than hanging them off the end of a left-aligned field, and adds a row of
+   multipliers under it. The multipliers are the answer to the range problem the note above states:
+   "half of what I logged" is one tap where the stepper wanted twenty, and unlike a rack of absolute
+   guesses they are meaningful for grams and servings alike. They only appear when a base amount is
+   known to multiply. */
+const PORTION_MULTS = [0.5, 1, 1.5, 2];
+function AmountField({ value, onChange, unitLabel, step, onStep, label = 'PORTION', base, onSetAmount }) {
+  const trim = { border: '2px solid var(--border)', background: 'var(--surface2)', height: 54, color: 'var(--text)' };
+  const cur = +value || 0;
+  return (<div className="flex flex-col gap-[7px]">
+    <div className="flex justify-between items-baseline">
+      <SheetLabel>{label}</SheetLabel>
+      {base > 0 && <span className="text-[11px]" style={{ color: 'var(--muted)' }}>base {fmtCount(base)} {unitLabel}</span>}
+    </div>
+    {/* minmax(0,1fr), not 1fr: the auto minimum of a grid track is its content's intrinsic width, so
+        a plain `1fr` lets the number field refuse to shrink and shoves the + button off the screen. */}
+    <div className="grid gap-2" style={{ gridTemplateColumns: '52px minmax(0,1fr) 52px' }}>
+      <button type="button" onClick={() => onStep(-step)} className="pixel-btn pf text-[16px] flex items-center justify-center" style={trim} aria-label="Less">–</button>
+      <div className="flex items-baseline justify-center gap-2 px-2" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', height: 54 }}>
         <input value={value} onChange={onChange} inputMode="decimal" type="text" aria-label="Amount"
           onFocus={e => { try { e.target.select(); } catch (_) {} }}
-          className="w-full min-w-0 bg-transparent border-0 outline-none text-[30px] font-bold tnum leading-none py-1"
+          className="min-w-0 flex-1 bg-transparent border-0 outline-none pf text-[26px] tnum text-center"
           style={{ color: 'var(--text)' }} />
-        <span className="text-[12px] shrink-0 leading-none" style={{ color: 'var(--muted)' }}>{unitLabel}</span>
+        <SheetLabel className="shrink-0">{unitLabel}</SheetLabel>
       </div>
+      <button type="button" onClick={() => onStep(step)} className="pixel-btn pf text-[16px] flex items-center justify-center" style={trim} aria-label="More">+</button>
     </div>
-    <button type="button" onClick={() => onStep(-step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }} aria-label="Less">−</button>
-    <button type="button" onClick={() => onStep(step)} className="pixel-btn w-12 h-12 flex items-center justify-center text-xl shrink-0" style={{ background: 'var(--surface2)', color: 'var(--text)' }} aria-label="More">+</button>
+    {base > 0 && onSetAmount && <div className="grid grid-cols-4 gap-[7px]">
+      {PORTION_MULTS.map(mu => {
+        const target = +(base * mu).toFixed(2);
+        const on = Math.abs(cur - target) < 0.005;
+        return <button key={mu} type="button" onClick={() => onSetAmount(String(target))}
+          className="pixel-btn py-2.5 pf text-[10px]" style={{ borderWidth: 2, letterSpacing: '0.06em',
+            background: on ? 'var(--accent)' : 'var(--surface2)', color: on ? 'var(--on-accent)' : 'var(--text)' }}>{mu}×</button>;
+      })}
+    </div>}
   </div>);
 }
 // One tracked quantity: name on the left, ONE number on the right, blocks underneath.
@@ -2862,13 +2967,15 @@ function Wizard({ initial, onDone, onCancel, initialKey, buddy }) {
 // the home-screen icon and the morning push both use. Also handles "weigh in & resume" when a paused
 // goal is coming back. The full weight trend and back-dating live in the Progress tab.
 function WeighSheet({ db, update, resume, showToast, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer; arming it here as well would take two back presses to shut one sheet.
   const unit = db.profile.weight_unit; const today = Store.todayISO();
   const todays = db.weight_entries.find(w => w.date === today);
   const lastEntry = db.weight_entries[db.weight_entries.length - 1];
   const seedKg = todays ? todays.scale_weight : (lastEntry ? lastEntry.scale_weight : db.profile.weightKg);
   const s0 = kgToStLb(seedKg);
-  const [kg, setKg] = useState(seedKg); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
+  // Seeded to one decimal: the headline is a scale reading, and "83" where the scale said 83.0 reads
+  // as a rounder, less trustworthy number than the one the user is copying off the display.
+  const [kg, setKg] = useState(seedKg != null ? (+seedKg).toFixed(1) : ''); const [st, setSt] = useState(s0.st); const [lb, setLb] = useState(s0.lb);
   // Body fat is optional and folded in here rather than being a reason to go and find the full
   // editor: giving it sharpens the protein target, skipping it costs nothing.
   const [bf, setBf] = useState(todays && todays.bodyfat != null ? todays.bodyfat : '');
@@ -2891,31 +2998,91 @@ function WeighSheet({ db, update, resume, showToast, onClose }) {
     showToast && showToast(resume ? 'Welcome back, plan resumed.' : 'Logged ' + fmtWeight(w, unit) + '. Nice one.');
     onClose();
   }
-  const weighInputs = unit === 'st_lb'
-    ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
-    : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
-  const who = (db.buddy && db.buddy.name) || 'Your buddy';
+  // THE MORNING NUMBER, per `Sheets.dc.html`. The design makes the weight itself the headline and
+  // puts four nudges under it, which is the right instrument for this measurement: the scale has
+  // already told you the number, so the sheet's job is to accept it in one tap, not to make you type
+  // it. Typing still works - the headline is the field. In stones the nudges are pounds, because a
+  // tenth of a stone is not a unit anybody's scale reports.
+  const curKg = unit === 'st_lb' ? stLbToKg(+st || 0, +lb || 0) : (+kg || 0);
+  const setKgAll = (v) => {
+    const w = Math.max(0, +v.toFixed(2));
+    setKg(w.toFixed(1)); const s = kgToStLb(w); setSt(s.st); setLb(+s.lb.toFixed(1));
+  };
+  const nudges = unit === 'st_lb'
+    ? [[-1, '–1 lb'], [-0.2, '–0.2'], [0.2, '+0.2'], [1, '+1 lb']].map(([d, l]) => [d / LB_PER_KG, l])
+    : [[-0.5, '–0.5'], [-0.1, '–0.1'], [0.1, '+0.1'], [0.5, '+0.5']];
+  // The trend is what the plan actually runs on, so it is the thing worth comparing a single
+  // morning against. Falls back to the 7-day average before there are enough readings for one.
+  const trendEntry = db.weight_entries.filter(w => w.trend_weight != null).slice(-1)[0];
+  const trendKg = trendEntry ? trendEntry.trend_weight : last7;
+  const delta = trendKg != null ? curKg - trendKg : null;
+  const prev = db.weight_entries.filter(w => w.date !== today).slice(-1)[0];
+  const dayName = new Date(today + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={db.buddy || {}} px={2.2} /></div>
-          <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who}</div><div className="text-[15px] font-bold leading-tight">{resume ? 'Weigh in to resume' : "Today's weight"}</div></div>
-          <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+    <Sheet title={(resume ? 'Weigh in to resume' : 'Weigh in') + ' · ' + dayName} onClose={onClose} z={80}>
+      <SheetBox className="p-4 flex flex-col items-center gap-2">
+        <SheetLabel>{resume ? 'Your weight now' : 'This morning'}</SheetLabel>
+        {unit === 'st_lb'
+          ? <div className="flex items-baseline justify-center gap-1.5">
+              <input value={st} onChange={e => setSt(e.target.value)} inputMode="decimal" aria-label="Stones"
+                onFocus={e => { try { e.target.select(); } catch (_) {} }}
+                className="pf text-[30px] tnum bg-transparent border-0 outline-none text-right" style={{ color: 'var(--text)', width: '2.6ch' }} />
+              <SheetLabel className="text-[13px]">ST</SheetLabel>
+              <input value={lb} onChange={e => setLb(e.target.value)} inputMode="decimal" aria-label="Pounds"
+                onFocus={e => { try { e.target.select(); } catch (_) {} }}
+                className="pf text-[30px] tnum bg-transparent border-0 outline-none text-right" style={{ color: 'var(--text)', width: '3.6ch' }} />
+              <SheetLabel className="text-[13px]">LB</SheetLabel>
+            </div>
+          // Right-aligned, not centred: the field is sized for the widest weight anyone will type,
+          // so centring "83.0" inside it parks the KG a thumb's width from the number it belongs to.
+          // The flex row centres the pair instead.
+          : <div className="flex items-baseline justify-center gap-2">
+              <input value={kg} onChange={e => setKg(e.target.value)} inputMode="decimal" aria-label="Weight"
+                onFocus={e => { try { e.target.select(); } catch (_) {} }}
+                className="pf text-[34px] tnum bg-transparent border-0 outline-none text-right" style={{ color: 'var(--text)', width: '5.5ch' }} />
+              <SheetLabel className="text-[15px]">KG</SheetLabel>
+            </div>}
+        <div className="grid grid-cols-4 gap-[7px] w-full pt-1">
+          {nudges.map(([d, l]) => (
+            <button key={l} onClick={() => setKgAll(curKg + d)} className="pixel-btn py-2.5 pf text-[10px]"
+              style={{ borderWidth: 2, background: 'var(--card)', color: 'var(--text)' }}>{l}</button>
+          ))}
         </div>
-        <div className="text-[11.5px] text-[#8A8A90] mb-3 leading-snug">{resume ? "Pop today's weight in and I'll pick your plan back up from here." : "Same time each morning, after the loo and before food or drink, gives the truest trend."}</div>
-        {weighInputs}
-        <div className="mt-3">
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-1.5">Body fat % · optional</div>
-          <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
-          {/* The ruler is only asked for once there IS a reading, so the morning sheet stays a
-              number and a Save for everyone who never touches this. */}
-          {bf !== '' && <div className="mt-2"><Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} /></div>}
+      </SheetBox>
+      {trendKg != null && <SheetBox className="p-3 flex flex-col gap-2.5">
+        <div className="flex justify-between items-baseline">
+          <SheetLabel>Against your trend</SheetLabel>
+          <span className="pf text-[12px] tnum" style={{ color: delta > 0 ? 'var(--danger-ink)' : 'var(--good-ink)' }}>{fmtWeightDelta(delta, unit)}</span>
         </div>
-        {last7 != null && <div className="text-[11px] text-[#8A8A90] mt-2">7-day avg <span className="text-white tnum">{fmtWeight(last7, unit)}</span></div>}
-        <button onClick={save} className="pixel-btn w-full py-3 mt-4" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><span className="pf text-[10px]">{resume ? 'WEIGH IN & RESUME' : 'SAVE WEIGHT'}</span></button>
-      </div>
-    </div>
+        <PipMeter value={curKg} target={trendKg} color={'var(--weight)'} cells={20} scale={1.15} overIsFine small />
+        <span className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>
+          Trend {fmtWeight(trendKg, unit)}.{prev ? ` Last weighed ${prev.date === shiftISO(today, -1) ? 'yesterday' : 'on ' + new Date(prev.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} at ${fmtWeight(prev.scale_weight, unit)}.` : ''} {resume
+            ? "Pop it in as it reads and I'll pick your plan back up from here."
+            : 'One heavy morning does not move the trend much, so log it as it reads.'}
+        </span>
+      </SheetBox>}
+      {/* Body fat is optional, so it stays a closed door until it is opened: the design gives it one
+          row with a switch rather than a permanent field and a source chooser nobody asked for. */}
+      <SheetBox className="p-3">
+        <div className="flex justify-between items-center gap-3">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[13.5px] font-semibold">Add body fat %</span>
+            <span className="text-[11px]" style={{ color: 'var(--muted)' }}>Optional · from a scan or smart scale</span>
+          </div>
+          <button onClick={() => setBf(v => v === '' ? (bfState ? bfState.pct.toFixed(1) : '20') : '')}
+            className="pixel-btn shrink-0 pf text-[10px] px-3 py-2" style={{ borderWidth: 2,
+              background: bf === '' ? 'var(--card)' : 'var(--accent)', color: bf === '' ? 'var(--text)' : 'var(--on-accent)' }}>{bf === '' ? 'OFF' : 'ON'}</button>
+        </div>
+        {bf !== '' && <div className="mt-3 flex flex-col gap-2">
+          <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span style={{ color: 'var(--muted)' }}>%</span></div>
+          {/* The ruler is only asked for once there IS a reading, because a smart scale, a photo
+              estimate and a DEXA are three different measurements of the same thing. */}
+          <Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} />
+        </div>}
+      </SheetBox>
+      <SheetBtn onClick={save}>{resume ? 'Weigh in & resume' : 'Save weight'}</SheetBtn>
+      <div className="text-center"><TextBtn onClick={onClose} tone="quiet">Skip today</TextBtn></div>
+    </Sheet>
   );
 }
 
@@ -3252,7 +3419,7 @@ function WeekPlanBanner({ db, onOpen }) {
 }
 
 function CheckInModal({ db, update, onClose, resume, isPremium }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer; arming it here too would need two back presses to shut one sheet.
   const p = db.profile; const unit = p.weight_unit; const today = Store.todayISO();
   const base = currentTargets(db);
   // Windows derive from the actual cadence (cycle start → today), not a fixed week.
@@ -3555,8 +3722,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
   if (pendingLoop) beats.unshift('loop');
   const beatIdx = beats.indexOf(phase);
   const go = (b) => setPhase(b);
-  const dots = (<div className="flex gap-1.5 justify-center mb-4">
-    {beats.map((b, i) => <span key={b} className="rounded-full" style={{ width: 6, height: 6, background: i <= beatIdx ? 'var(--accent)' : 'var(--border)', opacity: i <= beatIdx ? 1 : 0.25 }} />)}
+  // The step indicator, per `Sheets.dc.html`: SQUARE pips, framed in ink, filled gold as you pass
+  // them. Round dots were the one soft-edged object left in a design where nothing else has a radius.
+  const dots = (<div className="flex gap-2 justify-center">
+    {beats.map((b, i) => <span key={b} style={{ width: 14, height: 14, border: '2px solid var(--border)', background: i <= beatIdx ? 'var(--accent)' : 'var(--card)' }} />)}
   </div>);
   // The buddy, saying one thing. Never more than a couple of sentences: anything longer belongs
   // behind the disclosure, not in the speech.
@@ -3603,25 +3772,24 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
     </Collapsible>
   );
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={() => { if (!proposalShown) onClose(); }}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3">
+  return (<>
+    <Sheet title={'Check-in' + (beatIdx >= 0 ? ` · step ${beatIdx + 1} of ${beats.length}` : '')}
+      onClose={() => { if (!proposalShown) onClose(); }} wide z={50}>
+        {beatIdx >= 0 && <div className="flex items-center justify-center relative">
+          {dots}
           {/* A mistap on "did you stick to it" was unrecoverable without closing the whole sheet.
-              Back only exists before the retune is committed; afterwards the result owns the choice. */}
-          {beatIdx > 0 && beats.indexOf(phase) < beats.indexOf('reading')
-            ? <button onClick={() => go(beats[beatIdx - 1])} className="pf text-[9px] uppercase hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Back</button>
-            : <span className="pf text-[9px] uppercase text-[#8A8A90]">Check-in</span>}
-          <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none" aria-label="Close">&times;</button>
-        </div>
-        {beatIdx >= 0 && dots}
+              Back only exists before the retune is committed; afterwards the result owns the choice.
+              It sits beside the pips rather than in the title bar, whose right-hand slot is the ✕. */}
+          {beatIdx > 0 && beats.indexOf(phase) < beats.indexOf('reading') &&
+            <button onClick={() => go(beats[beatIdx - 1])} className="pf text-[9px] uppercase hit absolute left-0" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Back</button>}
+        </div>}
 
         {/* 1. A window that has been and gone gets asked about before anything else. */}
         {phase === 'loop' && pendingLoop && <div className="fade-in">
           <Say>How was {pendingLoop.label.toLowerCase()}?</Say>
           <div className="grid gap-2">
-            {[['went_well', 'Went well, stuck to it'], ['roughly', 'Roughly, close enough'], ['off_plan', 'Went off plan, honestly'], ['didnt_happen', "Didn't end up happening"]].map(([v, l]) => (
-              <button key={v} onClick={() => answerLoop(v)} className="pixel-box py-3 px-3.5 text-[13px] text-left" style={{ background: 'var(--card)' }}>{l}</button>
+            {[['went_well', 'Went well', 'Stuck to it, near enough.'], ['roughly', 'Roughly', 'Close enough, a few slips.'], ['off_plan', 'Went off plan', 'Honestly, it got away from me.'], ['didnt_happen', "Didn't happen", 'It never ended up going ahead.']].map(([v, l, s]) => (
+              <ChoiceRow key={v} onClick={() => answerLoop(v)} title={l} sub={s} />
             ))}
           </div>
         </div>}
@@ -3667,9 +3835,8 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
         {phase === 'adherence' && <div className="fade-in">
           <Say sub="Be honest. If it was a write-off I will hold your macros rather than chase a misleading week.">Did you stick to it this cycle?</Say>
           <div className="grid gap-2 mb-4">
-            {[['yes', 'Yes, pretty much'], ['no', 'Not really, off plan']].map(([v, l]) => (
-              <button key={v} onClick={() => setAdhered(v)} className="pixel-box py-3 px-3.5 text-[13px] text-left"
-                style={{ background: adhered === v ? 'var(--accent)' : 'var(--card)', color: adhered === v ? 'var(--on-accent)' : 'var(--text)' }}>{l}</button>
+            {[['yes', 'Yes, pretty much', 'A couple of guesses, nothing large.'], ['no', 'Not really', 'Meals out, plenty estimated.']].map(([v, l, s]) => (
+              <ChoiceRow key={v} selected={adhered === v} onClick={() => setAdhered(v)} title={l} sub={s} />
             ))}
           </div>
           {numbersPanel}
@@ -3765,11 +3932,10 @@ function CheckInModal({ db, update, onClose, resume, isPremium }) {
         {phase === 'ahead' && <div className="fade-in">
           <WeekAheadFlow db={db} update={update} showToast={null} isPremium={isPremium} onDone={() => onClose()} onSkip={() => onClose()} />
         </div>}
-      </div>
-      {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
-      {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
-    </div>
-  );
+    </Sheet>
+    {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={lastBfPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
+    {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
+  </>);
 }
 
 function fmtWeighDay(dateISO) {
@@ -3778,7 +3944,7 @@ function fmtWeighDay(dateISO) {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 function WeighInEditModal({ db, update, entry, onClose }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const p = db.profile; const unit = p.weight_unit; const isNew = !entry;
   const today = Store.todayISO();
   const lastEntry = db.weight_entries[db.weight_entries.length - 1];
@@ -3812,9 +3978,8 @@ function WeighInEditModal({ db, update, entry, onClose }) {
     ? <div className="flex gap-2 items-center"><NumInput value={st} onChange={e => setSt(+e.target.value)} /><span className="text-[#8A8A90]">st</span><NumInput value={lb} onChange={e => setLb(+e.target.value)} /><span className="text-[#8A8A90]">lb</span></div>
     : <NumInput value={kg} onChange={e => setKg(e.target.value)} />;
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">{isNew ? 'Add weigh-in' : 'Edit weigh-in'}</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
+    <Sheet title={isNew ? 'Add weigh-in' : 'Edit weigh-in'} onClose={onClose} wide z={80}>
+      <div>
         {isNew
           ? <Field label="Date"><input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className={inputCls} />{dupe && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>You already weighed in on this day, saving overwrites it.</div>}</Field>
           : <div className="pf text-[9px] uppercase text-[#8A8A90] mb-3">{fmtWeighDay(date)}</div>}
@@ -3824,11 +3989,11 @@ function WeighInEditModal({ db, update, entry, onClose }) {
           {bf !== '' && <div className="mt-2"><Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} /></div>}
           <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it from photos →</button>
         </Field>
-        <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={save}>Save</Btn><Btn kind="ghost" onClick={onClose}>Cancel</Btn></div>
+        <SheetBtn onClick={save}>Save</SheetBtn>
       </div>
       {bfPick && <BodyFatPicker sex={p.sex} apiKey={p.aiKey} prevBf={bfState ? bfState.pct : p.bodyFatPct} onPick={v => { setBf(v); setBfSrc('photo'); }} onClose={() => setBfPick(false)} />}
       {backfill && <WeighInEditModal db={db} update={update} entry={null} onClose={() => setBackfill(false)} />}
-    </div>
+    </Sheet>
   );
 }
 function WeighInLog({ db, update, bare }) {
@@ -7257,7 +7422,7 @@ function readinessRecap(db, today) {
 // The buddy delivers the daily readiness read on its own little screen: the dino, then a line each on
 // sleep, steps, readiness (how hard to push) and a weigh-in nudge. Opened from the Recovery card.
 function BuddyReadinessSheet({ db, onClose, onWeigh }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const recap = readinessRecap(db, Store.todayISO());
   const buddy = db.buddy || {};
   const who = buddy.name || 'Your buddy';
@@ -7273,35 +7438,33 @@ function BuddyReadinessSheet({ db, onClose, onWeigh }) {
       .catch(e => { setDiving(false); if (!(e && e.aiError)) setDiveErr("Couldn't reach me for a deeper look just now. Try again in a bit."); });
   }
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2.4} /></div>
-          <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who} · daily readiness</div><div className="text-[15px] font-bold leading-tight">Morning read</div></div>
-          <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
-        </div>
-        <div className="space-y-2 mb-3">
-          {recap.items.map(it => (
-            <div key={it.key} className="p-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', borderLeft: '4px solid ' + (toneColor[it.tone] || 'var(--border)') }}>{it.text}</div>
-          ))}
-        </div>
-        {recap.weighNeeded && onWeigh && <button onClick={() => { onWeigh(); onClose(); }} className="pixel-btn w-full py-2.5 text-[10px] mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN NOW</button>}
+    <Sheet title={'Morning read · ' + who} onClose={onClose} z={80}>
+        {/* The buddy delivers this, so it opens with the buddy: sprite on the left, the day's read on
+            the right, the way the design frames every message that comes from the companion. */}
+        <SheetBox className="p-3 flex gap-3 items-start">
+          <div className="shrink-0 pixel-box p-1.5" style={{ background: 'var(--card)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2.4} /></div>
+          <div className="min-w-0 flex flex-col gap-2">
+            {recap.items.map(it => (
+              <span key={it.key} className="block text-[11.5px] leading-snug pl-2.5" style={{ borderLeft: '3px solid ' + (toneColor[it.tone] || 'var(--border)') }}>{it.text}</span>
+            ))}
+          </div>
+        </SheetBox>
+        {recap.weighNeeded && onWeigh && <SheetBtn onClick={() => { onWeigh(); onClose(); }}>Weigh in now</SheetBtn>}
         {/* Premium AI deeper dive: ties the day's numbers into one personalised focus. Free users get a
             gentle upsell; premium runs the AI, degrading gracefully if the proxy is unreachable. */}
         {dive
-          ? <div className="pixel-box p-3 mb-2 text-[11.5px] leading-snug" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}><div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{who}'s deeper dive</div>{dive}</div>
-          : <button onClick={runDive} disabled={diving} className="pixel-btn w-full py-2.5 text-[9px] pf mb-2 inline-flex items-center justify-center gap-1.5" style={{ background: 'var(--surface2)', opacity: diving ? 0.6 : 1 }}>{diving ? 'THINKING…' : isPremium ? 'ASK ' + who.toUpperCase() + ' FOR A DEEPER DIVE' : 'DEEPER DIVE · PREMIUM'}</button>}
-        {diveErr && <div className="text-[10px] mb-2 leading-snug" style={{ color: 'var(--warn)' }}>{diveErr}</div>}
-        <div className="text-center text-[9px] text-[#8A8A90] leading-snug">It's all guidance, not gospel, so do what suits your day.</div>
-      </div>
-    </div>
+          ? <SheetBox className="p-3 text-[11.5px] leading-snug" style={{ background: 'var(--accent-dim)' }}><div className="pf text-[9px] uppercase mb-1" style={{ color: 'var(--accent-ink)', letterSpacing: '0.14em' }}>{who}'s deeper dive</div>{dive}</SheetBox>
+          : <SheetBtn tone="ghost" onClick={runDive} disabled={diving} style={diving ? { opacity: 0.6 } : null}>{diving ? 'Thinking…' : isPremium ? 'Ask ' + who + ' for a deeper dive' : 'Deeper dive · premium'}</SheetBtn>}
+        {diveErr && <div className="text-[11px] leading-snug" style={{ color: 'var(--warn)' }}>{diveErr}</div>}
+        <div className="text-center text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>It's all guidance, not gospel, so do what suits your day.</div>
+    </Sheet>
   );
 }
 // The buddy reads your past week back to you on its own little screen: days logged, average intake,
 // protein consistency and the week's weight trend, then a warm line and a jump into full Progress.
 // Opened from the weekly-recap line in the habitat. Mirrors the morning-read sheet's shape.
 function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
-  useBackClose(onClose);
+  // `Sheet` arms the back layer for us.
   const today = Store.todayISO();
   const r = weeklyRecapFor(db, today);
   const buddy = db.buddy || {};
@@ -7336,30 +7499,29 @@ function WeeklyRecapSheet({ db, onClose, onOpenProgress }) {
     : r.daysLogged >= 3 ? "Good going. A couple more logged days next week and I'll read you even sharper."
     : "Every day you log helps me read you better. Let's aim for a few more this week.";
   return (
-    <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#0F0F12] w-full max-w-sm pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className="pixel-box p-1.5 shrink-0" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={2.4} /></div>
-          <div className="min-w-0"><div className="pf text-[8px] uppercase text-[#8A8A90] truncate">{who} · weekly recap</div><div className="text-[15px] font-bold leading-tight">Your week</div></div>
-          <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 ml-auto text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
-        </div>
-        <div className="space-y-2 mb-3">
+    <Sheet title={'Your week · ' + who} onClose={onClose} z={80}>
+        {/* The design's recap opens with the verdict, not the data: buddy, one headline, one sentence.
+            The numbers follow as a grid of tiles, because four facts read faster side by side than
+            stacked as four label/value rows each carrying its own coloured edge. */}
+        <SheetBox className="p-4 flex flex-col items-center text-center gap-2">
+          <BuddyAvatar buddy={buddy} px={2.6} />
+          <span className="text-[11.5px] leading-relaxed" style={{ color: 'var(--text)' }}>
+            <span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span>
+          </span>
+        </SheetBox>
+        <div className="grid grid-cols-2 gap-2.5">
           {rows.map(row => (
-            <div key={row.key} className="flex items-center justify-between p-3 text-[12px]" style={{ background: 'var(--surface3)', borderLeft: '4px solid ' + toneColor[row.tone] }}>
-              <span className="text-[#8A8A90]">{row.label}</span>
-              <span className="font-bold tnum">{row.value}</span>
-            </div>
+            <SheetBox key={row.key} className="p-3 flex flex-col items-center gap-1">
+              <span className="pf text-[15px] tnum" style={{ color: toneColor[row.tone] || 'var(--text)' }}>{row.value}</span>
+              <SheetLabel className="text-center">{row.label}</SheetLabel>
+            </SheetBox>
           ))}
         </div>
-        <div className="pixel-box p-3 mb-3 text-[11.5px] leading-snug" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span style={{ color: 'var(--accent-ink)' }}>“</span>{line}<span style={{ color: 'var(--accent-ink)' }}>”</span></div>
         {/* The week in numbers is the recap people actually want to post - a Wrapped, at weekly
             cadence. It shares days logged and protein days only: never a weight, never an intake. */}
-        <div className="flex gap-2">
-          <button onClick={doShare} disabled={busy} className="pixel-btn flex-1 py-2.5 text-[10px]" style={{ background: 'var(--surface2)', opacity: busy ? 0.6 : 1 }}>{busy ? '…' : 'SHARE'}</button>
-          {onOpenProgress && <button onClick={onOpenProgress} className="pixel-btn flex-1 py-2.5 text-[10px]" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>FULL PROGRESS</button>}
-        </div>
-      </div>
-    </div>
+        {onOpenProgress && <SheetBtn onClick={onOpenProgress}>Full progress</SheetBtn>}
+        <div className="text-center"><TextBtn onClick={doShare} tone="quiet" disabled={busy}>{busy ? '…' : 'Share this week'}</TextBtn></div>
+    </Sheet>
   );
 }
 // One dial in the recovery card: the headline number with room to breathe, a short status word, and an
@@ -9391,7 +9553,8 @@ function NameSheet({ title, hint, initial, saveLabel, onSave, onClose }) {
    to be right. It now shares the quantity control, the fraction chips and the day meter with the
    confirm screen, so a portion bug has one place to be fixed rather than two. */
 function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title, saveVerb, contextLine, dayRest, dayTarget }) {
-  useBackClose(onClose);
+  // No useBackClose here: `Sheet` arms the back layer, and arming it twice pushes two layers so the
+  // hardware back button needs two presses to shut one sheet.
   const topRef = useScrolledToTop();
   const m = entry.computed_macros || {};
   const parsed = (entry.amount && +entry.amount > 0)
@@ -9437,43 +9600,34 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
   const [carbPct, setCarbPct] = useState(() => (m.kcal > 0 ? Math.max(0, Math.min(100, Math.round(((m.carbs || 0) * 4 / m.kcal) * 10) * 10)) : 50));
   function setSplit(pct) { setCarbPct(pct); setBase(b => Object.assign({}, b, b.kcal > 0 ? { carbs: (b.kcal * pct / 100) / 4, fat: (b.kcal * (100 - pct) / 100) / 9 } : {})); }
   function save() { onSave({ name: name || entry.name, qty: label, macros: { kcal: total.kcal, protein: total.protein, carbs: total.carbs, fat: total.fat, fiber: total.fiber }, amount: a, unit, unit_noun: unit === 'g' ? 'g' : noun, serving_g: sg || undefined, alcohol_split: isAlc ? { carb_pct: carbPct, fat_pct: 100 - carbPct } : undefined }); }
-  return (<div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center" onClick={onClose}>
-    <div ref={topRef} className="bg-[#0F0F12] w-full max-w-md pixel-box p-5 max-h-[90vh] overflow-y-auto sheet-up" style={{ paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-start gap-3 mb-4">
-        <div className="min-w-0 flex-1">
+  return (
+    <Sheet title={saveVerb === 'Add' ? 'Add entry' : 'Edit entry'} onClose={onClose} wide z={50}>
+      {/* The identity row the design opens every entry sheet with: the food's own tile, its name at
+          16px, and one muted line of provenance underneath. The name is still editable in place -
+          the dotted underline is the mark for that - but it is no longer competing with a heading,
+          a subtitle and a stray × for the top of the sheet, because the sheet has a title bar now. */}
+      <div ref={topRef} className="flex gap-3 items-start">
+        <FoodTile name={entry.name} isAlcohol={entry.is_alcohol} nq={entry.nq} size={52} />
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
           {renaming
             ? <TextInput autoFocus value={name} onChange={e => setName(e.target.value)} onBlur={() => setRenaming(false)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setRenaming(false); } }} aria-label="Name" />
             : <button onClick={() => setRenaming(true)} className="text-left w-full">
-                {/* A dotted underline is the long-standing "you can change this in place" mark, so
-                    the heading carries its own affordance and the line beneath it can go back to
-                    saying something useful. It used to read "Breakfast · tap to rename", which is an
-                    instruction manual printed on the furniture. */}
-                <h2 className="text-lg font-semibold leading-tight" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'var(--muted)', textUnderlineOffset: 4 }}>{name || title || 'Edit food'}</h2>
-                {contextLine && <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{contextLine}</div>}
+                <span className="block text-[15px] font-semibold leading-tight" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'var(--muted)', textUnderlineOffset: 4 }}>{name || title || 'Edit food'}</span>
+                {contextLine && <span className="block text-[11.5px] mt-1" style={{ color: 'var(--muted)' }}>{contextLine}</span>}
               </button>}
         </div>
-        <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
       </div>
-      {canSwitch && <div className="mb-3"><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
+      {canSwitch && <div><SheetLabel className="block mb-[7px]">Measure in</SheetLabel><Seg value={unit === 'g' ? 'g' : 'serv'} onChange={switchUnit}
         options={[{ v: 'g', l: 'Grams' }, { v: 'serv', l: cap(shortNoun) + (sg ? ' (' + Math.round(sg) + ' g)' : '') }]} /></div>}
-      <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun} step={step} onStep={bump} />
-      {/* No preset buttons, for servings any more than for grams. Typing the number is one tap and
-          a digit or two, and a rack of guesses at the amount only crowds the control that already
-          answers the question exactly. */}
-      {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">±{step} g per tap</div>}
-      <div className="pixel-box p-3 mt-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="flex justify-between items-baseline">
-          <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{total.kcal}</span> <span className="text-[10px] text-[#8A8A90]">kcal</span></div>
-          <div className="text-[12px] tnum"><span style={{ color: PRO_T }}>P{total.protein}</span> <span style={{ color: CARB_T }}>C{total.carbs}</span> <span style={{ color: FAT_T }}>F{total.fat}</span></div>
-        </div>
-        {/* The Density Score is invariant to how much you had (it is scored per 100 kcal), so the
-            food's own score can be shown here without recomputing anything as the amount moves. */}
-        {entry.nq && <div className="mt-2 pt-2" style={{ borderTop: '2px solid var(--surface2)' }}><DensityBadge nq={entry.nq} /></div>}
-      </div>
-      <DayImpact rest={dayRest} target={dayTarget} add={total} label={saveVerb === 'Add' ? 'Your day if you add this' : 'Your day if you save this'} />
-      {isAlc && <div className="mb-3">
-        <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">Split these calories</div>
+      <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : unit === 'oz' ? 'oz' : shortNoun}
+        step={step} onStep={bump} base={amt0} onSetAmount={setAmount} />
+      {/* The Density Score is invariant to how much you had (it is scored per 100 kcal), so the
+          food's own score sits with the food rather than inside the entry's own totals. */}
+      {entry.nq && <DensityBadge nq={entry.nq} />}
+      <DayImpact rest={dayRest} target={dayTarget} add={total} verb={saveVerb === 'Add' ? 'Adding' : 'Saving'} />
+      {isAlc && <div>
+        <SheetLabel className="block mb-2">Split these calories</SheetLabel>
         <Field label={`${carbPct}% carbs · ${100 - carbPct}% fat`}>
           <input type="range" min="0" max="100" step="10" value={carbPct} onChange={e => setSplit(+e.target.value)} className="w-full accent-[#4A9EEB]" />
           <div className="text-sm text-[#8A8A90] mt-2 tnum">= {total.carbs}g carbs · {total.fat}g fat</div>
@@ -9482,7 +9636,7 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
       {/* Sits with "Numbers look off?" because it answers the same question, and above it because a
           photograph settles an amount better than typing a gram figure at it does. Only offered on
           entries where it means something: see Engine.photoUpdatable. */}
-      {onPhotoUpdate && <button onClick={onPhotoUpdate} className="w-full flex items-center gap-2.5 mb-3 pixel-btn py-3 px-3 text-left" style={{ background: 'var(--surface3)' }}>
+      {onPhotoUpdate && <button onClick={onPhotoUpdate} className="w-full flex items-center gap-2.5 pixel-btn py-3 px-3 text-left" style={{ borderWidth: 2, background: 'var(--surface2)' }}>
         <Icon.cam width="18" height="18" className="shrink-0" />
         <span className="min-w-0">
           <span className="block text-[13px] font-medium" style={{ color: 'var(--text)' }}>Update with a photo</span>
@@ -9493,27 +9647,26 @@ function EditEntryModal({ entry, onSave, onClose, onDelete, onPhotoUpdate, title
             : 'Logged it before you ate it? Snap the real thing and the AI redoes the estimate.'}</span>
         </span>
       </button>}
-      <Collapsible variant="inline" label="Numbers look off?" sub="Edit" className="mb-3">
+      <Collapsible variant="inline" label="Numbers look off?" sub="Edit">
       <div className="mb-2">
         <div className="grid grid-cols-3 gap-2.5"><Field label="Protein (g)"><NumInput value={total.protein} onChange={e => setTotalField('protein', e.target.value)} /></Field><Field label="Carbs (g)"><NumInput value={total.carbs} onChange={e => setTotalField('carbs', e.target.value)} /></Field><Field label="Fat (g)"><NumInput value={total.fat} onChange={e => setTotalField('fat', e.target.value)} /></Field></div>
         <div className="grid grid-cols-2 gap-2.5"><Field label="Fibre (g)"><NumInput value={total.fiber} onChange={e => setTotalField('fiber', e.target.value)} /></Field><Field label="Calories"><NumInput value={total.kcal} onChange={e => setTotalField('kcal', e.target.value)} /></Field></div>
       </div>
       </Collapsible>
-      {/* The button says the number it is about to commit, so a mistyped amount gets one more chance
-          to be caught on the control that commits it. Delete sits with the entry it deletes, instead
-          of behind the ... menu on the row you have already left.
-          It is NOT a red slab beside the yellow one. Two filled buttons of equal weight, one of them
-          the loudest colour on the screen, is how a destructive action gets mistaken for the main
-          one, and it sat a thumb's width from Save. The standard answer is a red LABEL rather than a
-          red fill, set apart from the primary action instead of paired with it, which is also how
-          the platform's own alerts do it. The undo toast is still the real safety net. */}
-      <Btn kind="accent" className="w-full" disabled={a <= 0} style={{ opacity: a <= 0 ? 0.5 : 1 }} onClick={save}>{(saveVerb || 'Save') + ' ' + total.kcal + ' kcal'}</Btn>
-      <div className="flex justify-between items-center mt-3">
-        <TextBtn onClick={onClose} tone="quiet">Cancel</TextBtn>
-        {onDelete && <TextBtn onClick={onDelete} tone="danger">Delete this entry</TextBtn>}
-      </div>
-    </div>
-  </div>);
+      {/* The design sets this button in the pixel face, uppercase and full-bleed, and labels it SAVE
+          CHANGES. It keeps the number instead: a mistyped amount gets one more chance to be caught on
+          the control that commits it, which is worth more than two words of tidiness.
+          Delete is NOT a red slab beside the gold one. Two filled buttons of equal weight, one of them
+          the loudest colour on the screen, is how a destructive action gets mistaken for the main one,
+          and it sat a thumb's width from Save. A red LABEL set apart from the primary action is the
+          standard answer, and the one the design draws. Cancel is gone with it: the bar has a ✕ and
+          the scrim closes on a tap, so a third way out was only ever furniture. */}
+      <SheetBtn disabled={a <= 0} style={a <= 0 ? { opacity: 0.5 } : null} onClick={save}>{(saveVerb || 'Save') + ' ' + total.kcal + ' kcal'}</SheetBtn>
+      {onDelete && <div className="flex justify-end items-center px-0.5">
+        <TextBtn onClick={onDelete} tone="danger">Delete entry</TextBtn>
+      </div>}
+    </Sheet>
+  );
 }
 
 function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal, onPick, onClose }) {
@@ -10313,17 +10466,11 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} /></Field>
     {units.length > 1 && <div className="mb-2.5"><Seg value={unit} onChange={chooseUnit} options={units.map(u => ({ v: u, l: u === 'g' ? 'Grams' : cap(servNoun) }))} /></div>}
     <AmountField value={amount} onChange={e => setAmount(e.target.value)} unitLabel={unit === 'g' ? 'g' : shortNoun} step={step} onStep={stepBy} label="How much did you have?" />
-    {/* No preset buttons, for servings any more than for grams. Typing the number is one tap and a
-        digit or two, and a rack of guesses at the amount only crowds the control that already
-        answers the question exactly. */}
-    {unit === 'g' && <div className="text-[11px] text-[#8A8A90] mt-1.5">±{step} g per tap</div>}
-    <div className="pixel-box p-3 my-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-      <div className="text-[11px] text-[#8A8A90] mb-0.5">Logging {qtyLabel}</div>
-      <div className="tnum"><span className="text-xl font-bold" style={{ color: 'var(--text)' }}>{final.kcal}</span> <span className="text-[12px] text-[#8A8A90]">kcal</span> · <span style={{ color: PRO_T }}>{final.protein}g P</span> · <span style={{ color: CARB_T }}>{final.carbs}g C</span> · <span style={{ color: FAT_T }}>{final.fat}g F</span></div>
+    <div className="my-3 flex flex-col gap-2.5">
       <DensityBadge nq={nq} estimating={estimating} onExplain={() => setExplain(true)} />
-      {implausible && <div className="text-[11px] mt-1.5" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the quantity.</div>}
+      <DayImpact rest={dayRest} target={dayTarget} add={final} label={'Logging ' + qtyLabel} verb="Adding" />
+      {implausible && <div className="text-[11px]" style={{ color: 'var(--fat-ink)' }}>That is a very large amount, double-check the quantity.</div>}
     </div>
-    <DayImpact rest={dayRest} target={dayTarget} add={final} label="Your day if you add this" />
     {/* The app already had ONE disclosure component, used everywhere else; this panel was rolling
         its own out of grey caption text. Using the shared one puts the accent Show/Hide where the
         eye already looks for it on every other screen. */}

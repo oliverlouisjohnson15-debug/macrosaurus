@@ -220,6 +220,16 @@ input, textarea, button, select { font-family: inherit; letter-spacing: 0; }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .sheet-up { animation: sheet .32s cubic-bezier(.2,.8,.2,1); }
 @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
+/* THE SHEET, per `Sheets.dc.html`. The design anchors every modal to the bottom edge of the phone
+   and gives it exactly ONE rule, along its top. That is the whole idea: a sheet is the page's own
+   bottom edge lifting, not a card that happens to be floating low, so it has no side or bottom frame
+   to draw and no offset shadow - both of which the old `pixel-box p-5` version spent, which is why
+   every modal in the app read as a crate dropped on the screen. Above `sm` there is no bottom edge
+   to lift from, so it becomes an ordinary framed panel and takes its border back. */
+.sheet-panel { background: var(--card); border-top: 3px solid var(--border); }
+@media (min-width: 640px) {
+  .sheet-panel { border: 3px solid var(--border); box-shadow: 3px 3px 0 0 var(--shadow); }
+}
 input, select { color-scheme: light; }
 .theme-dark input, .theme-dark select { color-scheme: dark; }
 ::-webkit-scrollbar { width: 0; height: 0; }
