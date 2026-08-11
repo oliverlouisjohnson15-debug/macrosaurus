@@ -574,8 +574,13 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                 const sets = (lastLog.sets || []).filter(s => s.done).length;
                 const kg = toDisplayWeight(Training.tonnage(lastLog), units);
                 const vol = kg >= 1000 ? (Math.round(kg / 100) / 10) + 'T' : Math.round(kg) + unitLabel(units);
-                const mins = lastLog.durationSec ? Math.round(lastLog.durationSec / 60) + 'M' : null;
-                return [['Sets', sets], ['Volume', vol]].concat(mins ? [['Time', mins]] : []).map(([l, v]) => (
+                /* THREE tiles, always. The design's row is a fixed trio, and dropping Time when a
+                   session has no recorded duration left a two-up grid whose cells were half as wide
+                   again as every other card's - the row stopped looking like the same component. An
+                   unrecorded duration shows a dash, which is the honest answer and keeps the shape. */
+                const secs = lastLog.durationSec || lastLog.duration_sec || (lastLog.endedAt && lastLog.startedAt ? (lastLog.endedAt - lastLog.startedAt) / 1000 : 0);
+                const mins = secs > 0 ? Math.round(secs / 60) + 'M' : '–';
+                return [['Sets', sets], ['Volume', vol], ['Time', mins]].map(([l, v]) => (
                   <div key={l} className="flex flex-col items-center gap-1 py-2 px-1" style={{ background: 'var(--surface2)', border: '2px solid var(--border)' }}>
                     <span className="pf uppercase" style={{ fontSize: 8, letterSpacing: '0.1em', color: 'var(--muted)' }}>{l}</span>
                     <span className="pf tnum" style={{ fontSize: 15, color: 'var(--good-ink)' }}>{v}</span>

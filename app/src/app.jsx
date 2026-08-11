@@ -8943,7 +8943,13 @@ function FoodLog({ db, update, openLog, showToast }) {
   }, [drag]);
 
   const renderEntry = (e, m, mc) => { const dragging = drag && drag.id === e.id; return (
-    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="flex items-center gap-2 py-2.5 mt-2 relative" style={{ borderTop: '1px solid var(--surface2)', borderLeft: '4px solid ' + mc, paddingLeft: 8, opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
+    /* THE ROW, as the design draws it: a 34px tile, the name and its support line, and the numbers
+       right-aligned in a column of their own. It used to hang off a 4px coloured stripe in the meal's
+       hue - a fifth thing competing for the left edge on a card that now has an ink frame and an ink
+       title bar - and it separated rows with a 1px hairline in the surface colour. Rows are divided
+       by the card's own 2px rule instead, and the stripe is gone: the tile already carries colour,
+       and it carries a colour that MEANS something (the Density Score) rather than the meal's index. */
+    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="grid items-center gap-2.5 relative" style={{ gridTemplateColumns: 'auto 1fr auto auto', padding: '10px 12px', borderBottom: '2px solid var(--border)', opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
       {drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && <div className="absolute -top-1 left-0 right-0 h-1.5 pointer-events-none" style={{ background: 'var(--accent)', boxShadow: '2px 2px 0 0 var(--shadow)' }} />}
       {/* The food tile: a pixel glyph of what this is, in the colour of how good it is.
           It came back, smaller and re-pointed, after being cut entirely. Cutting it was half right:
@@ -8961,8 +8967,8 @@ function FoodLog({ db, update, openLog, showToast }) {
       <button
         onClick={() => { if (Date.now() - draggedAt.current < 500) return; setMenu(null); setMealMenu(null); setEditing(e); }}
         onPointerDown={(ev) => startDrag(ev, e, mc)}
-        className="flex items-center gap-2 min-w-0 flex-1 text-left"
-        style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', transform: arming === e.id ? 'scale(.985)' : 'none', transition: 'transform .16s ease' }}
+        className="contents text-left"
+        style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
         title="Tap to edit, press and hold to move">
       <FoodTile name={e.name} isAlcohol={e.is_alcohol} nq={e.nq} />
       {/* The food's NAME is the thing you scan for, so it gets the row's width and the only real
@@ -8979,9 +8985,12 @@ function FoodLog({ db, update, openLog, showToast }) {
             amount, macros and the score, and it has 216: something had to move or be cut. Up here
             it costs nothing, because this box WRAPS to a second line rather than truncating, so
             "· 360 g" simply flows on after the name instead of clipping anything. */}
+        {/* The name gets its own line and the amount drops to the support line beneath it, which is
+            how the design lays the row out. Sharing one wrapping line meant "Porridge, banana & whey
+            · 360 g" ran to two lines on a 375px screen and the row grew a head taller than the
+            design's, which is most of why the diary read as a different page. */}
         <div className="min-w-0">
-          <span className="text-[13.5px]" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.25 }}>{e.name}
-            {e.qty_label ? <span style={{ color: 'var(--muted)' }}>{' · ' + e.qty_label}</span> : ''}</span>
+          <span className="text-[13.5px] block" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>{e.name}</span>
         </div>
         {/* The macros are back, now that dropping the grab handle and moving the amount up have paid
             for them. They earn the place: this is a macro tracker, and "how much protein was that?"
@@ -8990,21 +8999,28 @@ function FoodLog({ db, update, openLog, showToast }) {
             from this line the whole thing fits, and nothing here truncates at all. */}
         {/* No "·" between the calories and the macros: it measured 16px, which was exactly the
             16px the line was over by, and the colour change already does a separator's job. */}
-        <div className="flex items-center gap-1.5 mt-1 min-w-0">
-          <span className="text-[11px] tnum truncate min-w-0">
-            <span className="font-bold" style={{ color: 'var(--text2)' }}>{Math.round(e.computed_macros.kcal)} kcal</span>{'  '}
-            <span style={{ color: PRO_T }}>P{Math.round(e.computed_macros.protein || 0)}</span>{' '}
-            <span style={{ color: CARB_T }}>C{Math.round(e.computed_macros.carbs || 0)}</span>{' '}
-            <span style={{ color: FAT_T }}>F{Math.round(e.computed_macros.fat || 0)}</span>
-          </span>
+        <div className="flex items-center gap-1.5 mt-[3px] min-w-0">
+          <span className="text-[11px] tnum truncate min-w-0" style={{ color: 'var(--muted)' }}>{e.qty_label || ''}</span>
           {/* Just the score. The blocks moved into the tile's colour, so repeating them here would
               say the same thing twice in one row. The number stays because colour alone is not a
               channel everyone has, and a phone has no hover to fall back on. */}
           <DensityScoreText nq={e.nq} className="shrink-0" />
         </div>
       </div>
+      {/* THE NUMBERS, in a column of their own on the right: the calories in the pixel face over the
+          three macros, right-aligned so a list of rows lines its figures up. They used to lead the
+          support line under the name, which put the row's least-scanned text in its most-scanned
+          position and left the right edge empty. */}
+      <div className="flex flex-col items-end gap-[3px] shrink-0 tnum">
+        <span className="pf text-[11px]" style={{ color: 'var(--text)' }}>{Math.round(e.computed_macros.kcal)}</span>
+        <span className="flex gap-1.5 text-[10px]">
+          <span style={{ color: PRO_T }}>P{Math.round(e.computed_macros.protein || 0)}</span>
+          <span style={{ color: CARB_T }}>C{Math.round(e.computed_macros.carbs || 0)}</span>
+          <span style={{ color: FAT_T }}>F{Math.round(e.computed_macros.fat || 0)}</span>
+        </span>
+      </div>
       </button>
-      <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu === e.id ? null : e.id); }} className="hit px-2 text-[#8A8A90] shrink-0" aria-label="Entry options">⋯</button>
+      <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu === e.id ? null : e.id); }} className="hit px-1 shrink-0" style={{ color: 'var(--muted2)' }} aria-label="Entry options">⋯</button>
       {menu === e.id && (<div className="absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl" onClick={ev => ev.stopPropagation()}>
         <button onClick={() => { setEditing(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Edit</button>
         {E.photoUpdatable(e) && <button onClick={() => { setPhotoUp(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Update with a photo</button>}
@@ -9095,7 +9111,10 @@ function FoodLog({ db, update, openLog, showToast }) {
               <div key={l} className="flex items-center gap-2.5">
                 <span className="pf text-[8px] w-8 shrink-0" style={{ color: 'var(--muted)' }}>{l}</span>
                 <div className="flex-1 min-w-0"><PipMeter value={e} target={t} color={c} small /></div>
-                <span className="tnum text-[10px] w-[64px] text-right shrink-0 whitespace-nowrap" style={{ color: e > t ? 'var(--danger-ink)' : 'var(--text2)' }}>
+                {/* The figure is set in the pixel face and carries its macro's colour, as the design
+                    has it. In grey body type it was the quietest thing on a row whose whole job is
+                    to report a number. */}
+                <span className="pf tnum text-[10px] w-[78px] text-right shrink-0 whitespace-nowrap" style={{ color: e > t ? 'var(--danger-ink)' : c }}>
                   {e > t ? Math.round(e - t) + 'g over' : Math.max(0, Math.round(t - e)) + 'g left'}
                 </span>
               </div>
@@ -9190,10 +9209,14 @@ function FoodLog({ db, update, openLog, showToast }) {
                 </div>
               </div>
             </div>
-            <div className="px-3 pt-2 pb-1">
+            {/* No horizontal padding here: each row draws its own full-bleed rule, so the divider
+                runs edge to edge inside the card's frame the way the design does it. A padded
+                container made every rule stop 12px short of both sides, which reads as a table drawn
+                inside the panel rather than as the panel's own construction. */}
+            <div>
               {me.map(e => renderEntry(e, m, mc))}
-              {!me.length && !drag && <div className="py-2 text-[12px]" style={{ color: 'var(--muted)' }}>Nothing logged yet.</div>}
-              {drag && me.length === 0 && <div className="my-2 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
+              {!me.length && !drag && <div className="px-3 py-3 text-[12px]" style={{ color: 'var(--muted)' }}>Nothing logged yet.</div>}
+              {drag && me.length === 0 && <div className="m-3 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
             </div>
             {/* An empty meal is an invitation, not a report, so it gets the one thing you would want
                 to do with it and no divider above it. A full meal keeps the rule, because there the
