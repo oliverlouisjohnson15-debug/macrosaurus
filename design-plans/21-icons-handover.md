@@ -1,5 +1,15 @@
 # Handover — the icons
 
+> **DONE, 2026-08-11 (sw 277).** Claude Design delivered a single 55-glyph set on a **16x16** grid
+> (not the 8x8 this doc assumed - 8 had no room for a chevron, a camera or a recipe card, which was
+> exactly the risk flagged in step 3 below). The vector `Icon` set is retired and `Icon.name` is now
+> a wrapper over the same pixel art, so call sites did not have to move. Sizes are rationalised to
+> 16/24/32. The leaked emoji and the Unicode geometry standing in for icons (✕ ▾ ▲ ▼ ‹ › ⋯ ⌄ ● ■ ★
+> ♥ ♡ ☀ ☾ ✚ ✎ ↳ ▶ ← → ↑ 🔒 📸 🧍 🔦 ⚡) are all drawn from the set now. Master art:
+> `design-exports/macrosaurus-icons-16.json` → `node tools/gen-px-icons.mjs` writes it into
+> app.jsx. Still open: the app icon / maskable work in "The app icon" below, and `ⓘ` (the set has
+> no info glyph). The rest of this file is the pre-work analysis, kept for the reasoning.
+
 2026-08-11. Written for a chat picking up icon work on Macrosaurus. Everything here was checked
 against the code and the shipped assets today, not recalled.
 

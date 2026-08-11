@@ -9,7 +9,9 @@ const { readFileSync } = require('node:fs');
 const path = require('node:path');
 
 const SRC = readFileSync(path.join(__dirname, '..', 'app', 'src', 'app.jsx'), 'utf8');
-const GRID = 8;   // the Game Boy's own tile size
+const GRID = 16;  // the delivered set's grid; 8 had no room for a chevron or a camera
+const ART = JSON.parse(readFileSync(
+  path.join(__dirname, '..', 'design-exports', 'macrosaurus-icons-16.json'), 'utf8'));
 
 function parseIcons() {
   const block = SRC.match(/const PX_ICONS = \{[\s\S]*?\n\};/);
@@ -26,7 +28,14 @@ test('there are icons to check', () => {
   assert.ok(Object.keys(ICONS).length >= 20, `only found ${Object.keys(ICONS).length} icons`);
 });
 
-test('every icon is a square 8x8 grid', () => {
+test('the art in app.jsx is exactly what the design export holds', () => {
+  // Two copies exist on purpose: the JSON is the delivered artwork and the editable one, app.jsx
+  // carries a generated copy so the bundle stays self-contained. Hand-editing either one is the
+  // easy mistake, so hold them identical - `node tools/gen-px-icons.mjs` is the fix.
+  assert.deepEqual(ICONS, ART.icons, 'app.jsx and macrosaurus-icons-16.json have drifted apart');
+});
+
+test('every icon is a square 16x16 grid', () => {
   for (const [name, rows] of Object.entries(ICONS)) {
     assert.equal(rows.length, GRID, `${name} has ${rows.length} rows, expected ${GRID}`);
     rows.forEach((r, i) => assert.equal(r.length, GRID, `${name} row ${i} is ${r.length} wide: "${r}"`));
