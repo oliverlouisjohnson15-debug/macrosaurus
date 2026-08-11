@@ -21,7 +21,7 @@
  */
 export const STREAK_SAVE_HOUR = 20;      // local hour for the evening streak-save window
 export const STREAK_SAVE_MIN = 2;        // a 1-day "streak" is not yet worth protecting
-export const CHECKIN_OVERDUE_DAYS = 8;   // the app asks at 5; push waits longer before interrupting
+export const CHECKIN_OVERDUE_DAYS = 8;   // the app asks at 7 (6 on your day); push waits a day longer
 export const WEIGH_MORNING_END = 12;     // a weigh-in push is only honest before the day's food
 export const WEIGH_GAP_DAYS = 2;         // a most-days weigher is only chased once a gap has opened
 export const WEIGH_WEEKLY_GRACE = 8;     // a weekly weigher who missed their day, asked again after this
