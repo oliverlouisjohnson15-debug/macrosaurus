@@ -20319,10 +20319,6 @@ const PROP_ART = {
     px: 3.0
   }
 };
-// The terrarium's pool of light, as a fraction of the world's height. Half of it falls below the
-// horizon and half rises off it, so the light behaves like light on a floor rather than a ring
-// around a character (see the note at its draw site).
-const GLOW_H_FRAC = 0.5;
 const RENAME_COST = 40; // Amber to rename the buddy after hatch (the hatch naming itself is free).
 const COLOUR_COST = 60; // Amber to recolour the buddy (switch its palette / colourway) after hatch.
 function auraFilter(eq) {
@@ -20586,16 +20582,6 @@ function BuddyScene({
     h: h,
     still: still,
     scene: scene
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "absolute pointer-events-none",
-    style: {
-      left: '50%',
-      bottom: Math.round(floor - GLOW_H_FRAC * h / 2),
-      width: Math.min(180, h * 1.7),
-      height: Math.round(GLOW_H_FRAC * h),
-      transform: 'translateX(-50%)',
-      background: 'radial-gradient(ellipse at 50% 50%, var(--buddy-glow), transparent 70%)'
-    }
   })) : /*#__PURE__*/React.createElement("div", {
     className: "absolute left-0 right-0 bottom-0",
     style: {
