@@ -1705,7 +1705,15 @@ function NumInput(props) {
     }} />;
 }
 function TextInput(props) { return <input type="text" className={inputCls} {...props} />; }
-function Field({ label, children, hint }) { return (<label className="block mb-3.5"><div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">{label}</div>{children}{hint && <div className="text-[12px] text-[#8A8A90] mt-1.5 leading-snug">{hint}</div>}</label>); }
+/* The section label above a control. The design tracks these out hard (0.12em) and that tracking is
+   most of what makes a 9px uppercase label read as a label rather than as small text. */
+function Field({ label, children, hint }) {
+  return (<label className="block mb-4">
+    <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{label}</div>
+    {children}
+    {hint && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>{hint}</div>}
+  </label>);
+}
 function Btn({ children, onClick, kind = 'primary', className = '', ...rest }) {
   const s = { primary: 'bg-white text-black font-bold', accent: 'bg-white text-black font-bold', ghost: 'bg-[#1E1E22] text-[var(--text)]', danger: 'bg-[#ff6b6b] text-black font-bold' };
   return <button onClick={onClick} className={`pixel-btn px-4 py-3 ${s[kind]} ${className}`} {...rest}>{children}</button>;
@@ -1762,7 +1770,22 @@ function ConfirmDialog({ title, body, confirmLabel = 'Delete', confirmKind = 'da
     </div>
   </div>);
 }
-function Seg({ value, options, onChange }) { return (<div className="flex gap-2 flex-wrap">{options.map(o => (<button key={o.v} onClick={() => onChange(o.v)} className={`pixel-box flex-1 min-w-[28%] py-2.5 px-2 text-[13px] ${value === o.v ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{o.l}</button>))}</div>); }
+/* The settings chooser, per Settings.dc.html: separate framed buttons each carrying the hard offset
+   shadow, the chosen one filled with the accent. It is deliberately NOT the butted-segment `Pill`
+   used for Left/Eaten and the sheet tabs - those switch a LENS on the same data and want to read as
+   one control, while these commit a setting and want to read as a row of things you can press. The
+   pixel face because the labels are short and chrome-like. */
+function Seg({ value, options, onChange }) {
+  return (<div className="flex gap-2.5 flex-wrap">
+    {options.map(o => (
+      <button key={o.v} onClick={() => onChange(o.v)}
+        className="pixel-btn flex-1 min-w-[28%] py-2.5 px-2 pf text-[10px] uppercase"
+        style={{ letterSpacing: '0.08em', borderWidth: 2,
+          background: value === o.v ? 'var(--accent)' : 'var(--card)',
+          color: value === o.v ? 'var(--on-accent)' : 'var(--text)' }}>{o.l}</button>
+    ))}
+  </div>);
+}
 /* The segmented control, as the import draws it: one 2px frame around the whole group with the
    segments butted straight up against each other, no padding and no gaps. The old version was a
    padded box holding two floating chips, which put three edges between "Left" and "Eaten" where the
@@ -11501,10 +11524,19 @@ function SettingsGroup({ title, children }) {
 // One level down from the overview, and never a level below that.
 function SubScreen({ title, intro, onBack, children }) {
   useBackClose(onBack);
+  /* THE SUB-HEADER BAR. Settings.dc.html gives every subscreen a purple bar carrying the way back on
+     the left and the screen's name in the middle, which is what tells you at a glance that you are a
+     level down rather than on a page of the same rank. It replaces a bare "‹ Settings" text link
+     floating above the title - the only navigation in the app that had no chrome at all.
+     Full-bleed: -mx pulls it out through the page's own 20px padding. */
   return (<div className="fade-in">
-    <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Settings</button>
-    <h1 className="pf text-lg mb-2">{title}</h1>
-    {intro && <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">{intro}</div>}
+    <div className="flex items-center gap-2 px-3 py-2.5 -mx-5 mb-4" style={{ background: 'var(--header)', borderBottom: '3px solid var(--border)' }}>
+      <button onClick={onBack} className="pf text-[10px] uppercase hit shrink-0" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>&lsaquo; You</button>
+      <span className="pf text-[10px] uppercase flex-1 text-center truncate pr-8" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{title}</span>
+    </div>
+    <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Settings</div>
+    <h1 className="pf text-[25px] mb-2.5" style={{ letterSpacing: '0.02em' }}>{title}</h1>
+    {intro && <div className="text-base mb-5 leading-relaxed" style={{ color: 'var(--muted)' }}>{intro}</div>}
     {children}
   </div>);
 }
