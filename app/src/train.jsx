@@ -414,18 +414,24 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
       {/* ---- the block ---- */}
       {block && !blockDone && (
-        <Card className="p-4 mb-4">
-          {/* The name is the way into the block itself: editing it, and deleting it if it was built
-              by mistake. That used to be reachable from nowhere at all. */}
-          <button onClick={() => go('blocks')} className="w-full flex items-start justify-between gap-2 text-left mb-4">
-            <span className="min-w-0">
-              <span className="block text-[15px] font-bold leading-tight" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{block.name}</span>
-              <span className="block text-[11px] tnum mt-1" style={{ color: doneThisWeek === thisWeek.length ? 'var(--good)' : 'var(--muted)' }}>
-                {doneThisWeek} of {thisWeek.length} done this week
-              </span>
+        /* The block, as a titled panel: its name on the ink bar with the week's progress in accent
+           beside it, which is the pair the design puts there and the two facts you open this page
+           for. The name is still the way into the block itself (renaming it, deleting one built by
+           mistake) - that is what the bar's right-hand tap-through leads to. */
+        <Card className="p-0 mb-4 overflow-hidden">
+          <CardHead title={block.name} right={doneThisWeek + ' / ' + thisWeek.length + ' done'} onRight={() => go('blocks')} />
+          {/* The week, as a meter and one sentence, in its own band above the sessions. The card used
+              to open straight onto the list, which answered "what are the days" but never "where am I
+              in the week" - the question the page is actually opened to settle. */}
+          <div className="px-3 py-3 flex flex-col gap-2" style={{ borderBottom: '2px solid var(--border)' }}>
+            <PipLine pct={thisWeek.length ? (doneThisWeek / thisWeek.length) * 100 : 0} color="var(--accent)" height={11} cells={Math.max(1, thisWeek.length)} />
+            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
+              {doneThisWeek >= thisWeek.length
+                ? 'That is the whole week done.'
+                : (thisWeek.length - doneThisWeek) + ' session' + (thisWeek.length - doneThisWeek === 1 ? '' : 's') + ' left this week' + (next ? '. ' + (next.dayLabel ? next.dayLabel + ' is ' : 'Next is ') + next.session.name.split(' - ')[0] + '.' : '.')}
             </span>
-            <Icon.chevron width="15" height="15" style={{ color: 'var(--muted2)', flexShrink: 0, marginTop: 2 }} />
-          </button>
+          </div>
+          <div className="p-3.5">
 
           {isDeload && (
             <div className="text-[11px] mb-4 px-3 py-2 leading-snug" style={{ background: 'color-mix(in srgb, var(--warn) 14%, var(--surface2))', color: 'var(--warn)' }}>
@@ -471,8 +477,10 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                session is not a page you visited, it is a timer and a log, and it should take saying
                so. The cost is one tap on the way in. */
             <>
-              <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
-                Open {next.session.name.split(' - ')[0]}
+              {/* The page's one primary action, so it wears the accent rather than a hardcoded white
+                  slab - which was also the last control in Train that stayed daylight at night. */}
+              <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
+                ▶ Open {next.session.name.split(' - ')[0]}
               </button>
               {/* Naming it is the whole of the discoverability. Opening a day has always been how you
                   read it; that it is also how you CHANGE it is not something a chevron can say, and
@@ -487,6 +495,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               Week {prog.week} done. That is the whole week, in the bag.
             </div>
           )}
+          </div>
         </Card>
       )}
 
@@ -497,7 +506,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
             All {block.weeks} weeks are behind you. See what moved, then build the next one on top of it.
           </div>
-          <button onClick={() => go('review', { blockId: block.id })} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={() => go('review', { blockId: block.id })} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             See how it went
           </button>
         </Card>
@@ -523,7 +532,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               </div>
             </div>
           </div>
-          <button onClick={() => go('wizard')} className="pixel-btn w-full h-14 font-bold mb-2" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={() => go('wizard')} className="pixel-btn w-full h-14 font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             Build a 4-week block
           </button>
           <div className="flex gap-2 mb-2">
@@ -546,16 +555,36 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
 
       {/* ---- last session, so the tab is never empty and progress is always in view ---- */}
       {lastLog && (
-        <button onClick={() => go('history')} className="w-full text-left pixel-box p-4 mb-4 flex items-center justify-between gap-3" style={{ background: 'var(--card)' }}>
-          <span className="min-w-0">
-            <span className="pf text-[9px] uppercase block" style={{ color: 'var(--muted)' }}>Last session</span>
-            <span className="block text-[13px] font-semibold mt-1 truncate">{lastLog.name || 'Session'}</span>
-            <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
-              {relativeDay(lastLog.dateISO, today)} · {(lastLog.sets || []).filter(s => s.done).length} sets · {Math.round(toDisplayWeight(Training.tonnage(lastLog), units)).toLocaleString()}{unitLabel(units)}
-            </span>
-          </span>
-          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
-        </button>
+        /* LAST SESSION is a titled panel too, with WHEN on the bar in accent - the design puts the
+           recency there because "yesterday" is the thing that makes the card worth a glance, and it
+           frees the interior to carry the session and its numbers instead of a three-line stack. */
+        <Card className="p-0 mb-4 overflow-hidden">
+          <CardHead title="Last session" right={relativeDay(lastLog.dateISO, today)} onRight={() => go('history')} />
+          {/* The design turns the session's numbers into three read-at-a-glance tiles rather than a
+              run-on line of text, which is what makes this card scannable: you see 24 / 11.3T / 58M
+              without parsing a sentence. Tonnage is abbreviated to tonnes so the figure stays short
+              enough to sit under its own label. */}
+          <button onClick={() => go('history')} className="w-full text-left px-3.5 py-3">
+            <div className="flex items-baseline justify-between gap-3 mb-2.5">
+              <span className="text-[15px] font-semibold truncate">{lastLog.name || 'Session'}</span>
+              <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {(() => {
+                const sets = (lastLog.sets || []).filter(s => s.done).length;
+                const kg = toDisplayWeight(Training.tonnage(lastLog), units);
+                const vol = kg >= 1000 ? (Math.round(kg / 100) / 10) + 'T' : Math.round(kg) + unitLabel(units);
+                const mins = lastLog.durationSec ? Math.round(lastLog.durationSec / 60) + 'M' : null;
+                return [['Sets', sets], ['Volume', vol]].concat(mins ? [['Time', mins]] : []).map(([l, v]) => (
+                  <div key={l} className="flex flex-col items-center gap-1 py-2 px-1" style={{ background: 'var(--surface2)', border: '2px solid var(--border)' }}>
+                    <span className="pf uppercase" style={{ fontSize: 8, letterSpacing: '0.1em', color: 'var(--muted)' }}>{l}</span>
+                    <span className="pf tnum" style={{ fontSize: 15, color: 'var(--good-ink)' }}>{v}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </button>
+        </Card>
       )}
 
       {/* ---- a draft in progress is a promise you made yourself, so it gets a real card ---- */}
@@ -598,7 +627,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               the way past. That is worth having and not worth advertising, so it lives with the
               block it is an exception to, and only shows once there is a block to be an exception
               to at all. ---- */}
-      <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1 py-1 text-[12px]">
+      <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-2 py-2 pf text-[10px] uppercase" style={{ letterSpacing: '0.08em' }}>
         <button onClick={() => go('history')} style={{ color: 'var(--accent-ink)' }}>History</button>
         <span style={{ color: 'var(--muted2)' }}>·</span>
         <button onClick={() => go('stats')} style={{ color: 'var(--accent-ink)' }}>Stats</button>
@@ -1088,7 +1117,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
               });
               showToast && showToast(adjust.action === 'trim' ? 'Trimmed for today.' : 'Eased off for today.');
               setAdjust(null);
-            }} className="pixel-btn flex-1 h-11 font-bold" style={{ background: '#fff', color: '#111' }}>
+            }} className="pixel-btn flex-1 h-11 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
               {adjust.action === 'trim' ? 'Trim it' : 'Ease off'}
             </button>
           </div>
@@ -1118,7 +1147,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
               });
               showToast && showToast('Swapped for what is here.');
               setUnavailable([]);
-            }} className="pixel-btn flex-1 h-11 font-bold" style={{ background: '#fff', color: '#111' }}>Swap them</button>
+            }} className="pixel-btn flex-1 h-11 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Swap them</button>
           </div>
         </Card>
       )}
@@ -2177,7 +2206,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </div>
       </Collapsible>
 
-      <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: '#fff', color: '#111' }}>
+      <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
         {busy ? 'Building...' : 'Build it'}
       </button>
 
@@ -2397,7 +2426,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
                 ))}
                 <button onClick={() => setPicking({ sessionId: s.id })} className="pixel-box w-full h-11 text-[11.5px] mt-3" style={{ background: 'var(--surface2)' }}>+ Add movement</button>
                 {onStart && !log && (
-                  <button onClick={() => onStart(s, block)} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: '#fff', color: '#111' }}>
+                  <button onClick={() => onStart(s, block)} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
                     Start this session
                   </button>
                 )}
@@ -2415,12 +2444,12 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
             <button onClick={() => save(true)} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
               Save for later
             </button>
-            <button onClick={() => save(false)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+            <button onClick={() => save(false)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
               Start it now
             </button>
           </div>
         ) : (
-          <button onClick={() => save(false)} className="pixel-btn w-full py-4 font-bold" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={() => save(false)} className="pixel-btn w-full py-4 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             Save changes
           </button>
         )}
@@ -2658,7 +2687,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
       )}
 
       <StickyAction>
-        <button onClick={onStart} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+        <button onClick={onStart} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
           {log ? 'Carry on with it' : 'Start ' + live.name.split(' - ')[0]}
         </button>
       </StickyAction>
@@ -2794,7 +2823,7 @@ function TargetSheet({ row, name, onChange, onClose }) {
             every tap above has already been written. Saying so is the difference between closing it
             confidently and closing it wondering. */}
         <div className="text-[11px] text-center mt-3 leading-snug" style={{ color: 'var(--muted2)' }}>Saved as you change it.</div>
-        <button onClick={onClose} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: '#fff', color: '#111' }}>Done</button>
+        <button onClick={onClose} className="pixel-btn w-full h-12 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Done</button>
       </div>
     </div>
   );
@@ -2852,7 +2881,7 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
           <div className="text-[12px] leading-snug mb-4" style={{ color: 'var(--muted)' }}>
             Build one from your kit and your days, or import a plan you already follow.
           </div>
-          <button onClick={onNew} className="pixel-btn w-full h-12 font-bold" style={{ background: '#fff', color: '#111' }}>Build a block</button>
+          <button onClick={onNew} className="pixel-btn w-full h-12 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
         </Card>
       )}
 
@@ -3018,7 +3047,7 @@ function CoverageScreen({ db, update, isPremium, onUpgrade, blockId, onBack }) {
               </div>
             </div>
           ))}
-          <button onClick={askAI} disabled={busy} className="pixel-btn w-full py-3 font-bold mt-1" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={askAI} disabled={busy} className="pixel-btn w-full py-3 font-bold mt-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             {busy ? 'Thinking...' : isPremium ? 'Ask what to change' : 'Ask what to change · Premium'}
           </button>
         </Card>
@@ -3187,7 +3216,7 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
           <button onClick={buildNext} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
             Build a new one
           </button>
-          <button onClick={() => onRerun(block.id)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={() => onRerun(block.id)} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             Run this again
           </button>
         </div>
@@ -3302,7 +3331,7 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
       )}
 
       <StickyAction>
-        <button onClick={build} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+        <button onClick={build} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
           Build it{accepted.length ? ' with ' + accepted.length + ' change' + (accepted.length === 1 ? '' : 's') : ' unchanged'}
         </button>
       </StickyAction>
@@ -4009,12 +4038,12 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
           {result.template.length >= 3 ? (
             <div className="flex gap-2">
               <button onClick={collect} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>Add to draft</button>
-              <button onClick={accept} className="pixel-btn flex-1 h-14 font-bold" style={{ background: '#fff', color: '#111' }}>Build the block</button>
+              <button onClick={accept} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Build the block</button>
             </div>
           ) : (
             <div className="flex gap-2">
               <button onClick={accept} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>Build now</button>
-              <button onClick={collect} className="pixel-btn flex-1 h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+              <button onClick={collect} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
                 Add to draft{draftDays ? ' (' + (draftDays + result.template.length) + ')' : ''}
               </button>
             </div>
@@ -4049,7 +4078,7 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
           <Field label="Instagram, TikTok or YouTube link" hint="Works best when the plan is written in the caption or said out loud. Pure music-over-clips will not read.">
             <TextInput value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste the link" />
           </Field>
-          <button onClick={importLink} disabled={!!busy || !url.trim()} className="pixel-btn w-full py-3 font-bold" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={importLink} disabled={!!busy || !url.trim()} className="pixel-btn w-full py-3 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             {busy || (isPremium ? 'Read it' : 'Read it · Premium')}
           </button>
         </Card>
@@ -4075,7 +4104,7 @@ function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, on
               placeholder={'Monday - Push\nBench press 4x6-8\nIncline DB press 3x10\n...'}
               className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
           </Field>
-          <button onClick={importText} disabled={!!busy || !text.trim()} className="pixel-btn w-full py-3 font-bold" style={{ background: '#fff', color: '#111' }}>
+          <button onClick={importText} disabled={!!busy || !text.trim()} className="pixel-btn w-full py-3 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
             {busy || (isPremium ? 'Read it' : 'Read it · Premium')}
           </button>
         </Card>
@@ -4314,7 +4343,7 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
       ))}
 
       <StickyAction>
-        <button onClick={() => { bumpPublicBlockRuns(pub.id); onAdopt(result.block); }} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+        <button onClick={() => { bumpPublicBlockRuns(pub.id); onAdopt(result.block); }} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
           Run this block
         </button>
       </StickyAction>
@@ -4383,7 +4412,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
           <div className="text-[12px] leading-snug mb-4" style={{ color: 'var(--muted)' }}>
             Import a session and choose "Add to draft" instead of building straight away. Do that for each day of someone's week and they stack up here.
           </div>
-          <button onClick={onImport} className="pixel-btn w-full h-12 font-bold" style={{ background: '#fff', color: '#111' }}>Import a session</button>
+          <button onClick={onImport} className="pixel-btn w-full h-12 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Import a session</button>
         </Card>
         {/* A draft can be empty and still exist: delete every day one by one and the basket itself is
             still there, named, holding nothing. Without this there is no way to be rid of it. */}
@@ -4517,7 +4546,7 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
       <button onClick={() => setConfirmClear(true)} className="w-full py-3 text-[12px]" style={{ color: 'var(--danger)' }}>Throw the draft away</button>
 
       <StickyAction>
-        <button onClick={() => onBuild(draft)} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>
+        <button onClick={() => onBuild(draft)} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
           Build the 4-week block
         </button>
       </StickyAction>
@@ -4935,7 +4964,7 @@ function SessionSignOff({ db, facts, units, onDone }) {
         <div className="text-[11px] text-center mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
           Today counts toward your streak.
         </div>
-        <button onClick={onDone} className="pixel-btn w-full h-14 font-bold" style={{ background: '#fff', color: '#111' }}>Done</button>
+        <button onClick={onDone} className="pixel-btn w-full h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Done</button>
       </div>
     </div>
   );

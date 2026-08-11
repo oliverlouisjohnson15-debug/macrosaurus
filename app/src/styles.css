@@ -313,6 +313,10 @@ input, select { color-scheme: light; }
 /* The same escape hatch for buttons. `.pixel-btn` carries its own `!important` border, so a tinted
    button needs its own rule rather than inheriting the box one (the nav's + is the caller). */
 .pixel-btn.box-tint   { border-color: var(--box-border, var(--border)) !important; }
+/* The field, per the import: inset surface, 2px frame, hard shadow, accent focus ring. Applied via
+   `inputCls` in app.jsx, so every input, select and textarea in the app picks it up at once. */
+.field-focus { background: var(--surface2); border: 2px solid var(--border); box-shadow: 3px 3px 0 var(--shadow); }
+.field-focus:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* `.box-double` (the doubled Game Boy textbox frame) lived here and had exactly one caller, the
    buddy's dialogue. It is gone with it: a doubled frame inside the card's own frame put four dark
    rules between the page and the sentence where every other panel spends one, which is the whole

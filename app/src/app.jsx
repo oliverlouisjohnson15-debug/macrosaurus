@@ -1685,7 +1685,12 @@ function effectiveTarget(db, date) {
 }
 
 /* ---------- primitives ---------- */
-const inputCls = "w-full bg-[#1E1E22] pixel-box px-4 py-3 text-[var(--text)] focus:outline-none";
+/* THE FIELD. The import gives every input the same treatment on every page it designed: the inset
+   surface rather than the card's, a 2px frame rather than the card's 3px, and the hard offset shadow
+   that says "you can put something here". The focus ring is the accent at 2px, which is the only
+   focus state in the design and the only one the app needs. `field-focus` is in styles.css because a
+   pseudo-class cannot be expressed in a Tailwind string. */
+const inputCls = "w-full field-focus px-3.5 py-3 text-[var(--text)]";
 // Select all on focus so a field showing a default "0" is replaced as soon as you type, no fiddly deleting.
 // Number field that's easy to overwrite: tapping a lone "0" clears it (select() alone is
 // unreliable on mobile), and selects the text otherwise. Empty coerces back to 0 on save.
@@ -1717,6 +1722,23 @@ function PhotoButton({ label = 'Add photo', multiple = false, onFiles, tone = 'r
   );
 }
 function Card({ children, className = '', ...rest }) { return <div className={`bg-[#161618] pixel-box ${className}`} {...rest}>{children}</div>; }
+/* THE CARD TITLE BAR. Every panel in the imported design opens with the same object: a filled ink
+   strip carrying the panel's name on the left and one accent-coloured fact on the right, with a 2px
+   rule under it and the divided interior below. It appears on Today's buddy card, the plan, Recovery,
+   the Food log's day and meal cards, the community cookbook, the training block, the last session -
+   so it is a component, not a pattern to retype. `right` is optional; `onRight` makes it a button.
+   Cards using this want `p-0 overflow-hidden`, since the bar is full-bleed. */
+function CardHead({ title, right, onRight, rightTone = 'accent' }) {
+  const rc = rightTone === 'muted' ? 'var(--cardhead-text)' : 'var(--accent)';
+  return (
+    <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+      <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>{title}</span>
+      {right != null && (onRight
+        ? <button onClick={onRight} className="hit pf text-[10px] uppercase shrink-0" style={{ color: rc, letterSpacing: '0.12em' }}>{right}</button>
+        : <span className="pf text-[10px] uppercase shrink-0" style={{ color: rc, letterSpacing: '0.12em' }}>{right}</span>)}
+    </div>
+  );
+}
 // A block that only wears a box when it is among other boxes. Nesting cards inside a card breaks
 // the mental model of what a card is, and a unit reads perfectly well without an enclosing border
 // given whitespace and a heading. On the Progress page these are cards; inside a full-screen sheet
@@ -4079,11 +4101,13 @@ function VerdictCard({ db, onWeigh }) {
   const mag = kg => (unit === 'st_lb' ? (Math.abs(kg) * 2.20462).toFixed(1) + ' lb' : Math.abs(kg).toFixed(1) + ' kg');
   const rateStr = v ? mag(v.rate) : '';
   const tgtStr = v ? mag(v.target) : '';
-  return (<Card className="p-4 mb-3">
-    <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">This cycle</div>
+  return (<Card className="p-0 mb-3 overflow-hidden">
+    <CardHead title="This cycle" right={v ? v.headline : null} />
+    <div className="p-3.5">
     {v ? <>
-      <div className="text-[19px] font-bold leading-tight" style={{ color }}>{v.headline}</div>
-      <div className="text-[12px] text-[#8A8A90] leading-relaxed mt-1.5">
+      {/* The headline moved onto the title bar, where the design puts the cycle's verdict. Repeating
+          it at 19px directly underneath was the card saying the same three words twice. */}
+      <div className="text-[12px] text-[#8A8A90] leading-relaxed">
         {v.goal === 'maintain'
           ? <>Your trend is moving {rateStr} a week. You are aiming to hold steady.</>
           : <>{v.rate < 0 ? 'Losing' : v.rate > 0 ? 'Gaining' : 'Holding at'} <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{rateStr}</span> a week against a target of <span style={{ color: 'var(--text)' }} className="tnum font-semibold">{tgtStr}</span>.</>}
@@ -4137,6 +4161,7 @@ function VerdictCard({ db, onWeigh }) {
         <div className="text-[10px] text-[#8A8A90] mt-0.5">trend weight{todays ? ' · weighed today' : ''}</div>
       </div>
       {onWeigh && !todays && <button onClick={onWeigh} className="pixel-btn px-3 py-2 text-[10px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WEIGH IN</button>}
+    </div>
     </div>
   </Card>);
 }
@@ -6401,7 +6426,14 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, i
           <div className="flex justify-between items-center mb-3"><h2 className="text-lg font-semibold">Play</h2><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button></div>
           {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
-          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-4">{[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => <button key={k} onClick={() => setView(k)} className={`flex-1 rounded-xl py-2 text-[11px] transition ${view === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+          <div className="grid grid-cols-3 mb-4" style={{ border: '2px solid var(--border)' }}>
+            {[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => (
+              <button key={k} onClick={() => setView(k)} className="pf uppercase"
+                style={{ padding: '9px 2px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
+                  background: view === k ? 'var(--accent)' : 'var(--card)',
+                  color: view === k ? 'var(--on-accent)' : 'var(--muted2)' }}>{l}</button>
+            ))}
+          </div>
 
           {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} onChat={() => setChatting(true)} isPremium={isPremium} />}
 
@@ -9000,14 +9032,19 @@ function FoodLog({ db, update, openLog, showToast }) {
       <div className="min-w-0">
       {/* Swipe left/right to change day, or tap the arrows. Tap the date for the month calendar; day-level
           actions (add a meal, copy the day) live behind the one day menu so nothing stacks below. */}
-      <div className="flex items-center gap-1 mb-4">
-        <button onClick={() => setDate(shiftISO(date, -1))} className="text-[#8A8A90] px-3 py-2 text-lg" aria-label="Previous day">‹</button>
-        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-full bg-[#1E1E22] border border-[#262629]">
-          <span className="text-sm font-semibold">{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-          <span className="text-[#8A8A90] text-[10px]">{showCal ? '▲' : '▼'}</span>
+      {/* The day picker, as the import draws it: three equal-height framed controls rather than two
+          bare chevrons flanking a pill. The middle one carries the offset shadow, so the thing you
+          press to change the WHOLE PAGE looks pressable and the two step buttons stay quiet. The ⋯
+          menu is not in the design but holds real day-level actions (add a meal, copy the day), so
+          it stays as a fourth slim column rather than being dropped. */}
+      <div className="grid items-stretch gap-2 mb-4" style={{ gridTemplateColumns: '38px 1fr 38px auto' }}>
+        <button onClick={() => setDate(shiftISO(date, -1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Previous day">‹</button>
+        <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="pixel-btn flex items-center justify-center gap-2 px-3 py-2.5" style={{ background: 'var(--card)', borderWidth: 2 }}>
+          <span className="text-[14px] font-semibold">{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+          <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{showCal ? '▲' : '▼'}</span>
         </button>
-        <button onClick={() => setDate(shiftISO(date, 1))} className="text-[#8A8A90] px-3 py-2 text-lg" aria-label="Next day">›</button>
-        <div className="relative">
+        <button onClick={() => setDate(shiftISO(date, 1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Next day">›</button>
+        <div className="relative flex items-center">
           <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="hit px-2 py-2 text-[#8A8A90]" aria-label="Day options">⋯</button>
           {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
             <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
@@ -9035,17 +9072,25 @@ function FoodLog({ db, update, openLog, showToast }) {
       {et && (() => {
         const rem = et.eff.kcal - tot.kcal;
         const over = rem < 0;
-        return <Card className="p-4 mb-4">
-          <div className="flex items-baseline justify-between mb-3">
-            <div className="flex items-baseline gap-1.5">
-              <span className="pf text-[8px] uppercase text-[#8A8A90]">{over ? 'Over by' : 'Kcal left'}</span>
-              <span className="text-2xl font-bold tnum" style={{ color: over ? 'var(--danger-ink)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
+        {/* DAY TOTAL, in the same construction as every other card in the app now: an ink title bar
+            carrying the target, then a divided interior. It leads with the same 34px figure and the
+            same hero meter as Today's energy band, so the number you are logging against looks
+            identical on both pages instead of being a smaller restatement of it. */}
+        return <Card className="p-0 mb-4 overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+            <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Day total</span>
+            <span className="pf text-[10px] uppercase tnum" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>of {et.eff.kcal} kcal</span>
+          </div>
+          <div className="px-3 pt-3.5 pb-3" style={{ borderBottom: '2px solid var(--border)' }}>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="pf tnum" style={{ fontSize: 34, lineHeight: 1, color: over ? 'var(--danger)' : 'var(--hero)' }}>{Math.abs(Math.round(rem))}</span>
+              <span className="pf uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)' }}>{over ? 'kcal over' : 'kcal left'}</span>
             </div>
-            <span className="text-[10px] text-[#8A8A90] tnum">of {et.eff.kcal}</span>
+            <PipMeter value={tot.kcal} target={et.eff.kcal} color={over ? 'var(--danger)' : 'var(--hero)'} cells={PLAN_CELLS} />
           </div>
           {/* The same blocks as Today, laid out on one line each because this card is a reminder of
               where the day stands rather than the place you study it. Same instrument, same reading. */}
-          <div className="space-y-2">
+          <div className="px-3 py-3 space-y-2">
             {[['PROT', tot.protein, et.eff.protein_g, PRO], ['CARB', tot.carbs, et.eff.carbs_g, CARB], ['FATS', tot.fat, et.eff.fat_g, FAT]].map(([l, e, t, c]) => (
               <div key={l} className="flex items-center gap-2.5">
                 <span className="pf text-[8px] w-8 shrink-0" style={{ color: 'var(--muted)' }}>{l}</span>
@@ -9103,16 +9148,21 @@ function FoodLog({ db, update, openLog, showToast }) {
         // empty. It stays a card rather than a bare row because it is still a drop target for
         // dragging food between meals.
         return (
-          <Card key={m.id} className={(me.length ? 'p-4' : 'px-4 py-2.5') + ' mb-3'} data-meal-drop={m.id} style={drag && dropAt && dropAt.mealId === m.id ? { outline: '4px solid var(--accent)', outlineOffset: '-4px', boxShadow: '4px 4px 0 0 var(--accent)' } : undefined}>
-            <div className="flex justify-between items-start">
+          /* A MEAL IS A TITLED PANEL. It used to be a padded card whose name was simply the first
+             thing inside it, which made a day of meals read as a stack of loose boxes. The import
+             gives each one an ink title bar carrying the name and the meal's calories in accent, so
+             the diary reads as a set of labelled drawers - and it matches the day card directly
+             above and the cards on Today. */
+          <Card key={m.id} className="p-0 mb-3 overflow-hidden" data-meal-drop={m.id} style={drag && dropAt && dropAt.mealId === m.id ? { outline: '3px solid var(--accent)', outlineOffset: '-3px', boxShadow: '3px 3px 0 0 var(--accent)' } : undefined}>
+            <div className="flex justify-between items-center gap-2 px-2.5 py-[6px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="flex flex-col -my-1 shrink-0">
-                  <button onClick={() => moveMeal(m, -1)} disabled={mi === 0} style={{ opacity: mi === 0 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none text-[10px] px-1 py-1.5" title="Move up">▲</button>
-                  <button onClick={() => moveMeal(m, 1)} disabled={mi === meals.length - 1} style={{ opacity: mi === meals.length - 1 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none text-[10px] px-1 py-1.5" title="Move down">▼</button>
+                  <button onClick={() => moveMeal(m, -1)} disabled={mi === 0} style={{ opacity: mi === 0 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none text-[9px] px-1 py-1" title="Move up">▲</button>
+                  <button onClick={() => moveMeal(m, 1)} disabled={mi === meals.length - 1} style={{ opacity: mi === meals.length - 1 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none text-[9px] px-1 py-1" title="Move down">▼</button>
                 </div>
                 {editMeal === m.id
-                  ? <input autoFocus value={mealName} onChange={e => setMealName(e.target.value)} onBlur={() => { renameMeal(m, mealName); setEditMeal(null); }} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} className="bg-[#1E1E22] border border-[#262629] rounded-lg px-2 py-1 text-sm font-semibold w-40" />
-                  : <button onClick={() => { setEditMeal(m.id); setMealName(m.name); }} className="hit font-semibold flex items-center gap-1.5 pt-0.5 min-w-0" title="Rename meal"><span className="truncate">{m.name}</span><span className="text-[#5A5A62] text-[11px] shrink-0">✎</span></button>}
+                  ? <input autoFocus value={mealName} onChange={e => setMealName(e.target.value)} onBlur={() => { renameMeal(m, mealName); setEditMeal(null); }} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} className="px-2 py-1 text-sm font-semibold w-40" style={{ background: 'var(--card)', color: 'var(--text)', border: '2px solid var(--border)' }} />
+                  : <button onClick={() => { setEditMeal(m.id); setMealName(m.name); }} className="hit pf text-[10px] uppercase flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }} title="Rename meal"><span className="truncate">{m.name}</span><span className="text-[10px] shrink-0" style={{ opacity: 0.6 }}>✎</span></button>}
               </div>
               <div className="flex items-start gap-1.5">
                 {/* The meal's calories, and nothing else. Its protein/carbs/fat used to sit here in
@@ -9126,11 +9176,11 @@ function FoodLog({ db, update, openLog, showToast }) {
                     placeholder the empty-state literature warns about: it states a fact nobody
                     needed and makes an ordinary mid-afternoon look like a failure. The dash is
                     quieter and truer, and the add action right below it is the way out. */}
-                <div className="text-[12px] tnum text-right leading-tight pt-0.5" style={{ color: me.length ? 'var(--text2)' : 'var(--muted2)' }}>
+                <div className="pf text-[10px] tnum text-right leading-tight" style={{ color: me.length ? 'var(--accent)' : 'var(--cardhead-text)', opacity: me.length ? 1 : 0.55, letterSpacing: '0.1em' }}>
                   {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
                 </div>
                 <div className="relative">
-                  <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu === m.id ? null : m.id); }} className="hit px-1 text-[#8A8A90]" aria-label="Meal options">⋯</button>
+                  <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu === m.id ? null : m.id); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options">⋯</button>
                   {mealMenu === m.id && <div className="absolute right-0 top-7 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-40" onClick={ev => ev.stopPropagation()}>
                     {me.length > 0 && <button onClick={() => saveMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Save as meal</button>}
                     {me.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>}
@@ -9140,8 +9190,11 @@ function FoodLog({ db, update, openLog, showToast }) {
                 </div>
               </div>
             </div>
-            {me.map(e => renderEntry(e, m, mc))}
-            {drag && me.length === 0 && <div className="mt-2 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
+            <div className="px-3 pt-2 pb-1">
+              {me.map(e => renderEntry(e, m, mc))}
+              {!me.length && !drag && <div className="py-2 text-[12px]" style={{ color: 'var(--muted)' }}>Nothing logged yet.</div>}
+              {drag && me.length === 0 && <div className="my-2 py-4 text-center text-[11px] pf uppercase" style={{ color: 'var(--accent-ink)', border: '2px dashed var(--accent)' }}>Drop here</div>}
+            </div>
             {/* An empty meal is an invitation, not a report, so it gets the one thing you would want
                 to do with it and no divider above it. A full meal keeps the rule, because there the
                 button is separating the add action from a list of food. */}
@@ -9150,8 +9203,8 @@ function FoodLog({ db, update, openLog, showToast }) {
                 under the 44px anyone can actually hit; the row is full width and 44px tall in both
                 states now, and only the divider still tells the two apart. */}
             <button onClick={() => openLog({ date, mealId: m.id })}
-              className={'text-[13px] font-medium w-full text-left flex items-center ' + (me.length ? 'mt-2 pt-2 border-t border-[#262629]' : 'mt-1')}
-              style={{ color: 'var(--accent-ink)', minHeight: 44 }}>+ Add food</button>
+              className="pf text-[10px] uppercase w-full text-left flex items-center px-3"
+              style={{ color: 'var(--accent-ink)', minHeight: 44, letterSpacing: '0.1em', background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>+ Add food</button>
           </Card>);
       })}
       {(() => {
@@ -9750,9 +9803,17 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
               <h2 className="text-lg font-semibold leading-tight">Log {isAlc ? 'alcohol' : 'food'}</h2>
               <Dropdown compact value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />
             </div>
-            <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none shrink-0" aria-label="Close">×</button>
+            <button onClick={onClose} className="pixel-btn w-10 h-10 flex items-center justify-center shrink-0 pf text-[11px]" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Close">✕</button>
           </div>
-          <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl">{tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 px-0.5 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
+          {/* The sheet's tabs, in the import's shape: one frame around the whole strip, segments butted
+              together, the pixel face because they are chrome. Same grammar as the LEFT/EATEN switch
+              on Today, so a segmented control means one thing everywhere in the app. */}
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(' + tabs.length + ', 1fr)', border: '2px solid var(--border)' }}>
+            {tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className="pf uppercase"
+              style={{ padding: '9px 2px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
+                background: tab === k ? 'var(--accent)' : 'var(--card)',
+                color: tab === k ? 'var(--on-accent)' : 'var(--muted2)' }}>{l}</button>)}
+          </div>
         </div>
         <div className="px-5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
           {!isPremium && (tab === 'photo' || tab === 'describe') && (() => {
@@ -10833,7 +10894,7 @@ function BlurPrompt({ what, onRetake, onUse }) {
   return (<div className="absolute inset-0 z-10 bg-black/80 flex flex-col items-center justify-center px-8 text-center">
     <div className="text-white font-semibold text-[15px] mb-1">That photo looks blurry</div>
     <div className="text-white/70 text-[13px] leading-snug mb-5">A sharp, well-lit shot reads the {what} far more accurately. Hold steady (or turn on the flash) and try again.</div>
-    <button onClick={onRetake} className="w-full max-w-xs pixel-btn py-3 text-[13px] font-bold mb-2" style={{ background: '#fff', color: '#111' }}>Retake</button>
+    <button onClick={onRetake} className="w-full max-w-xs pixel-btn py-3 text-[13px] font-bold mb-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Retake</button>
     <button onClick={onUse} className="hit text-white/80 text-[13px] underline">Use this photo anyway</button>
   </div>);
 }
@@ -12147,16 +12208,19 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
       </SettingsGroup>
     ))}
 
-    {appearanceMatches && <div className="mb-5">
-      <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2 px-1">Appearance</div>
-      <div className="pixel-box p-4" style={{ background: 'var(--card)' }}>
-        <Field label="Theme" hint="Dark is neon-on-black; Light is Game Boy Color.">
-          <Seg value={p.theme || 'light'} onChange={v => commit(d => { d.profile.theme = v; })} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> GB Color</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark GB</span> }]} />
+    {appearanceMatches && <Card className="p-0 mb-5 overflow-hidden">
+      <CardHead title="Appearance" />
+      <div className="p-3.5">
+        {/* The theme names describe what the two themes ARE now. "Game Boy Color" was accurate when
+            light meant a gold-on-white handheld; the light theme is warm paper with a purple bar and
+            an ink frame, and calling it Game Boy Color sends people looking for something else. */}
+        <Field label="Theme" hint="Paper is warm and printed; Dark is neon on black.">
+          <Seg value={p.theme || 'light'} onChange={v => commit(d => { d.profile.theme = v; })} options={[{ v: 'light', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="sun" color="currentColor" size={12} /> Paper</span> }, { v: 'dark', l: <span className="inline-flex items-center justify-center gap-1.5"><PixelGlyph kind="moon" color="currentColor" size={12} /> Dark</span> }]} />
         </Field>
         <Field label="Weight units"><Seg value={unit} onChange={v => commit(d => { d.profile.weight_unit = v; })} options={[{ v: 'st_lb', l: 'st / lb' }, { v: 'kg', l: 'kg' }]} /></Field>
         <Field label="Height units"><Seg value={p.height_unit} onChange={v => commit(d => { d.profile.height_unit = v; })} options={[{ v: 'cm', l: 'cm' }, { v: 'ft_in', l: 'ft / in' }]} /></Field>
       </div>
-    </div>}
+    </Card>}
 
     {!shown.length && !appearanceMatches && <div className="text-[12px] text-[#8A8A90] px-1 py-6 text-center">Nothing matches "{q}". Account, subscription and your data are on the Account tab.</div>}
   </div>);
@@ -14178,19 +14242,24 @@ function ChefCard({ db }) {
   const nextName = CONTRIB_LEVELS[Math.min(bt.level + 1, CONTRIB_LEVELS.length - 1)];
   const toGo = bt.next != null ? bt.next - shared : 0;
   return (
-    <div className="pixel-box p-3.5 mb-4" style={{ background: 'var(--card)' }}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="min-w-0">
-          <div className="pf text-[8px] uppercase tracking-widest text-[#8A8A90]">Community cookbook · Lvl {bt.level}</div>
-          <div className="text-sm font-bold truncate">{name}</div>
-        </div>
-        <div className="text-right shrink-0 pl-3"><div className="text-lg font-bold tnum leading-none" style={{ color: 'var(--accent-ink)' }}>{shared}</div><div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">shared{cooked ? ' · ' + cooked + ' cooked' : ''}</div></div>
+    /* The contributor panel takes the house construction: the level goes on the ink title bar with
+       the shared count in accent beside it, and the interior carries the rank, the bar and the one
+       sentence of explanation. It used to spend its top-right corner on a big number that duplicated
+       what the title bar now says in a quarter of the space. */
+    <Card className="p-0 mb-4 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-2.5 py-[7px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+        <span className="pf text-[10px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Community cookbook · Lvl {bt.level}</span>
+        <span className="pf text-[10px] uppercase shrink-0 tnum" style={{ color: 'var(--accent)', letterSpacing: '0.12em' }}>{shared} shared</span>
       </div>
-      {bt.next != null ? <>
-        <PipLine className="mb-1.5" pct={(bt.progress || 0) * 100} color="var(--accent)" height={7} />
-        <div className="text-[10px] text-[#8A8A90] leading-snug">{toGo} more to <b style={{ color: 'var(--text)' }}>{nextName}</b>. Every import joins the shared cookbook, always credited to its creator.</div>
-      </> : <div className="text-[10px] text-[#8A8A90] leading-snug">{shared} recipes shared. You're keeping the whole cookbook stocked.</div>}
-    </div>
+      <div className="px-3 py-3 flex flex-col gap-2.5">
+        <div className="flex justify-between items-baseline gap-2">
+          <span className="text-[15px] font-semibold truncate">{name}</span>
+          {bt.next != null && <span className="pf text-[9px] uppercase shrink-0" style={{ color: 'var(--muted)', letterSpacing: '0.1em' }}>{toGo} to {nextName}</span>}
+        </div>
+        {bt.next != null && <PipLine pct={(bt.progress || 0) * 100} color="var(--accent)" height={9} />}
+        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{bt.next != null ? 'Every import joins the shared cookbook, always credited to its creator.' : shared + ' recipes shared. You\'re keeping the whole cookbook stocked.'}</div>
+      </div>
+    </Card>
   );
 }
 // Format the original creator's credit: Instagram handles get an @, YouTube channels shown as-is.
@@ -14792,9 +14861,16 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
       </button>
       <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
-      <div className="flex gap-1 mb-4 pixel-box p-1 text-[12px]" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-        <button onClick={() => setHubTab('discover')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 ${hubTab === 'discover' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>Discover{!isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}</button>
-        <button onClick={() => setHubTab('mine')} className={`flex-1 py-2 ${hubTab === 'mine' ? 'bg-white text-black font-bold' : 'text-[#8A8A90]'}`}>Cookbook</button>
+      {/* The house segmented control again: one frame, butted segments, pixel face. */}
+      <div className="grid grid-cols-2 mb-4" style={{ border: '2px solid var(--border)' }}>
+        {[['discover', 'Discover'], ['mine', 'Cookbook']].map(([k, l]) => (
+          <button key={k} onClick={() => setHubTab(k)} className="pf uppercase flex items-center justify-center gap-1.5"
+            style={{ padding: '9px 4px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
+              background: hubTab === k ? 'var(--accent)' : 'var(--card)',
+              color: hubTab === k ? 'var(--on-accent)' : 'var(--muted2)' }}>
+            {l}{k === 'discover' && !isPremium && <span style={{ opacity: 0.7 }}>🔒</span>}
+          </button>
+        ))}
       </div>
       {hubTab === 'discover'
         ? <RecipeHub db={db} isPremium={isPremium} onSaveCopy={saveCopyFromPublic} onCook={cookPublic} onConsent={setShareConsent} showToast={showToast} onImport={() => setScreen('import')} onGoMine={() => setHubTab('mine')} />
