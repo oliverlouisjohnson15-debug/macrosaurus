@@ -1789,7 +1789,10 @@ function SheetLabel({ children, className = '' }) {
    `actions` is an array of { icon, label, onClick, tone }. */
 function SubHeader({ back, backLabel = 'Back', title, actions = [] }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5 -mx-4 mb-4 border-b-[3px]"
+    // -mx-5 -mt-6 cancels the page shell's own `px-5 pt-6`, so the bar is flush against the app
+    // header with no strip of paper showing above or beside it. Chrome that does not reach the edge
+    // of the screen reads as a wide button, not as chrome.
+    <div className="flex items-center gap-2 px-3 py-2.5 -mx-5 -mt-6 mb-4 border-b-[3px]"
       style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
       {back
         ? <button onClick={back} className="hit pf text-[9px] uppercase shrink-0 truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em', maxWidth: '30%' }}>&lsaquo; {backLabel}</button>

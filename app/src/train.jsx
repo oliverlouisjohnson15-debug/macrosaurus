@@ -3435,7 +3435,8 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <SubHeader back={onBack} backLabel="Train" title="History" />
+      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>Every lift you have logged</div>
       <h1 className="pf text-lg mb-4">History</h1>
 
       <div className="mb-4"><Pill value={tab} onChange={setTab} options={[{ v: 'lifts', l: 'Your lifts' }, { v: 'sessions', l: 'Sessions' }]} /></div>
@@ -3460,31 +3461,37 @@ function TrainHistory({ db, update, onBack, onOpenExercise }) {
             </div>
           )}
 
-          {/* Name on its own line, wrapping rather than truncating: "Seated cab..." tells you nothing,
-              and the pixel font eats horizontal space fast. The numbers then get a row to themselves
-              instead of fighting the name for the same one. */}
-          {shown.map(l => (
-            <button key={l.exerciseId} onClick={() => onOpenExercise(l.exerciseId)}
-              className="w-full text-left pixel-box p-4 mb-2" style={{ background: 'var(--card)' }}>
-              <div className="text-[13.5px] font-semibold leading-tight mb-2">{l.name}</div>
-              <div className="flex items-end justify-between gap-3">
-                <span className="text-[11px] min-w-0" style={{ color: 'var(--muted2)' }}>
-                  {relativeDay(l.lastISO, Store.todayISO())} · {l.sessions} {l.sessions === 1 ? 'session' : 'sessions'}
+          {/* ONE panel with ruled rows, per `Train Subscreens.dc.html`. Twenty-five separately framed
+              cards each with their own offset shadow is the "box soup" this whole overhaul is against:
+              a list of lifts is one object, and the rules between its rows say so at a fraction of the
+              ink. The name still gets its own line - "Seated cab..." tells you nothing, and the pixel
+              font eats horizontal space fast - so the numbers keep a row to themselves. */}
+          {shown.length > 0 && <Card className="p-0 overflow-hidden">
+            <CardHead title="Your lifts" right="Best set shown" />
+            {shown.map((l, i) => (
+              <button key={l.exerciseId} onClick={() => onOpenExercise(l.exerciseId)}
+                className="w-full text-left px-3.5 py-3 flex items-start justify-between gap-3"
+                style={i ? { borderTop: '2px solid var(--border)' } : null}>
+                <span className="min-w-0">
+                  <span className="block text-[13.5px] font-semibold leading-tight">{l.name}</span>
+                  <span className="block text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                    {relativeDay(l.lastISO, Store.todayISO())} · {l.sessions} {l.sessions === 1 ? 'session' : 'sessions'}
+                  </span>
                 </span>
                 {/* The best, which is the whole reason for coming to this screen. */}
                 <span className="text-right shrink-0">
-                  <span className="block pf text-[11px] tnum" style={{ color: 'var(--accent-ink)' }}>
+                  <span className="block pf text-[10px] tnum" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>
                     {toDisplayWeight(l.topKg, units)}{unitLabel(units)} × {l.topReps}
                   </span>
                   {l.e1rm > 0 && (
-                    <span className="block text-[10px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
+                    <span className="block text-[11px] tnum mt-0.5" style={{ color: 'var(--muted)' }}>
                       {toDisplayWeight(l.e1rm, units)}{unitLabel(units)} est. 1RM
                     </span>
                   )}
                 </span>
-              </div>
-            </button>
-          ))}
+              </button>
+            ))}
+          </Card>}
         </div>
       )}
 
@@ -5056,18 +5063,22 @@ function StatSheet({ db, onBack }) {
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+      <SubHeader back={onBack} backLabel="Train" title="Stats" />
+      <div className="pf text-[9px] uppercase mb-1.5" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>What the training adds up to</div>
+      <h1 className="pf text-lg mb-4">Stats</h1>
 
-      <Card className="p-5 mb-4 text-center">
-        {/* The character sheet is the buddy's own screen, so it shows the buddy: its stage, its
-            colourway and its terrarium, not a stage-3 stand-in with the cosmetics stripped off. */}
-        <div className="flex justify-center mb-3">
-          <BuddyScene buddy={buddy} stageIndex={Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)}
-            px={4} w={150} h={112} floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
+      <Card className="p-0 overflow-hidden mb-4">
+        <CardHead title={name + ' · overall'} />
+        <div className="p-4 text-center">
+          {/* The character sheet is the buddy's own screen, so it shows the buddy: its stage, its
+              colourway and its terrarium, not a stage-3 stand-in with the cosmetics stripped off. */}
+          <div className="flex justify-center mb-2">
+            <BuddyScene buddy={buddy} stageIndex={Math.min(buddy.stage || 0, BUDDY_STAGES.length - 1)}
+              px={4} w={150} h={112} floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
+          </div>
+          <div className="pf text-[30px] mb-2" style={{ color: 'var(--accent-ink)' }}>{stats.overall}</div>
+          <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>Worked out from what you have actually lifted, against your bodyweight. It moves slowly and it does not lie.</div>
         </div>
-        <div className="pf text-[13px] mb-1">{name.toUpperCase()}</div>
-        <div className="pf text-[26px] mb-1" style={{ color: 'var(--accent-ink)' }}>{stats.overall}</div>
-        <div className="text-[11px]" style={{ color: 'var(--muted)' }}>overall, from what you have lifted</div>
       </Card>
 
       {untrained ? (
@@ -5078,42 +5089,45 @@ function StatSheet({ db, onBack }) {
           </div>
         </Card>
       ) : (
-        <Card className="p-4 mb-4">
-          {rows.map(([k, label, why]) => (
-            <div key={k} className="mb-4 last:mb-0">
+        // Ruled between the four, per the design. Stacked with nothing but whitespace, a bar and its
+        // explanation drifted towards the bar below it and the four read as one long column.
+        <Card className="p-0 overflow-hidden mb-4">
+          {rows.map(([k, label, why], i) => (
+            <div key={k} className="p-3.5" style={i ? { borderTop: '2px solid var(--border)' } : null}>
               <div className="flex items-baseline justify-between gap-2 mb-2">
-                <span className="pf text-[9px] uppercase">{label}</span>
+                <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.14em' }}>{label}</span>
                 <span className="pf text-[13px] tnum" style={{ color: 'var(--accent-ink)' }}>{stats[k]}</span>
               </div>
-              {/* Segmented, so it reads as a Game Boy power bar rather than a progress spinner. */}
-              <div className="flex gap-0.5 mb-2">
-                {Array.from({ length: 20 }, (_, i) => (
-                  <span key={i} className="flex-1 h-2.5" style={{ background: i * 5 < stats[k] ? 'var(--accent)' : 'var(--track)' }} />
+              {/* Segmented, so it reads as a Game Boy power bar rather than a progress spinner. The
+                  frame and the ink hairlines are the house meter, same as everywhere else. */}
+              <div className="flex gap-[1px] mb-2" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
+                {Array.from({ length: 20 }, (_, j) => (
+                  <span key={j} className="flex-1" style={{ height: 11, background: j * 5 < stats[k] ? 'var(--accent)' : 'var(--track)' }} />
                 ))}
               </div>
-              <div className="text-[11px] leading-snug" style={{ color: 'var(--muted2)' }}>{why}</div>
+              <div className="text-[11.5px] leading-snug" style={{ color: 'var(--muted)' }}>{why}</div>
             </div>
           ))}
         </Card>
       )}
 
       {!untrained && (
-        <Card className="p-4">
-          <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Behind the numbers</div>
-          <div className="flex items-baseline justify-between py-1 text-[12px]">
-            <span style={{ color: 'var(--text2)' }}>Best single lift</span>
-            <span className="tnum" style={{ color: 'var(--muted)' }}>{toDisplayWeight(stats.bestLiftKg, units)}{unitLabel(units)} est. 1RM</span>
+        <Card className="p-0 overflow-hidden">
+          <CardHead title="Behind the numbers" />
+          <div className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-[13px]">
+            <span>Best single lift</span>
+            <span className="pf text-[10px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{toDisplayWeight(stats.bestLiftKg, units)}{unitLabel(units)} est. 1RM</span>
           </div>
-          <div className="flex items-baseline justify-between py-1 text-[12px]">
-            <span style={{ color: 'var(--text2)' }}>Hard sets a week</span>
-            <span className="tnum" style={{ color: 'var(--muted)' }}>{stats.setsPerWeek}</span>
+          <div className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-[13px]" style={{ borderTop: '2px solid var(--border)' }}>
+            <span>Hard sets a week</span>
+            <span className="pf text-[10px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{stats.setsPerWeek}</span>
           </div>
           {Object.keys(stats.patterns).length > 0 && Object.keys(stats.patterns).map(p => (
-            <div key={p} className="flex items-baseline justify-between py-1 text-[12px]">
-              <span style={{ color: 'var(--text2)' }}>
+            <div key={p} className="flex items-baseline justify-between gap-3 px-3.5 py-2.5 text-[13px]" style={{ borderTop: '2px solid var(--border)' }}>
+              <span>
                 {{ squat: 'Best squat pattern', hinge: 'Best hinge', horizPress: 'Best press', vertPull: 'Best pull-up or pulldown' }[p] || p}
               </span>
-              <span className="tnum" style={{ color: 'var(--muted)' }}>{toDisplayWeight(stats.patterns[p], units)}{unitLabel(units)}</span>
+              <span className="pf text-[10px] tnum shrink-0" style={{ color: 'var(--accent-ink)', letterSpacing: '0.06em' }}>{toDisplayWeight(stats.patterns[p], units)}{unitLabel(units)}</span>
             </div>
           ))}
         </Card>
