@@ -1,6 +1,7 @@
 # Handover — Paper Terrarium overhaul, 2026-08-11 (second pass)
 
-Everything is committed to the local branch `buddy-talk`. **Nothing since sw 275 is deployed.**
+**DEPLOYED 2026-08-11 as sw 276** (commit 393dac1), verified live on app.macrosaurus.com: the
+served bundle is byte-identical to the local build. `buddy-talk` and `main` are level.
 Supersedes `18-handover.md`; the parts of that document still worth reading are marked below.
 
 ## Read these first
