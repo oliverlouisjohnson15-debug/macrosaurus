@@ -1756,6 +1756,48 @@ function PhotoButton({ label = 'Add photo', multiple = false, onFiles, tone = 'r
   );
 }
 function Card({ children, className = '', ...rest }) { return <div className={`bg-[#161618] pixel-box ${className}`} {...rest}>{children}</div>; }
+/* A ⋯ MENU THAT ESCAPES ITS CARD. An absolutely positioned pop-up is clipped by the first ancestor
+   with `overflow: hidden`, and every panel in this app has one (the full-bleed title bar needs it),
+   so a menu opened on the last row of a meal simply lost its bottom items - Delete included. It is
+   rendered into <body> instead and positioned against the button's own rect, flipping above the
+   button when there isn't room below and staying inside both side edges.
+   `rect` is the anchor's bounding box in viewport coordinates, taken when the menu opens; the menu
+   closes on scroll rather than trying to follow the anchor around. */
+function AnchoredMenu({ rect, onClose, className = '', children }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current; if (!el || !rect) return;
+    const gap = 6, edge = 8;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let top = rect.bottom + gap;
+    // Flip above only if that actually helps: on a short viewport, clamping is the better answer.
+    if (top + h > window.innerHeight - edge) {
+      const above = rect.top - gap - h;
+      top = above >= edge ? above : Math.max(edge, window.innerHeight - edge - h);
+    }
+    const left = Math.min(Math.max(edge, rect.right - w), Math.max(edge, window.innerWidth - w - edge));
+    setPos({ top, left });
+  }, [rect]);
+  useEffect(() => {
+    if (!onClose) return;
+    const close = () => onClose();
+    // Capture phase: the page scrolls on <body>, but a sheet or list inside could scroll too.
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [onClose]);
+  if (!rect) return null;
+  return ReactDOM.createPortal(
+    /* Clicks are stopped here so the page's own "tap anywhere to close" handler doesn't fire first.
+       A portal still bubbles through the REACT tree, so that handler would otherwise see every tap
+       on the menu itself. */
+    <div ref={ref} onClick={ev => ev.stopPropagation()}
+      className={`fixed z-[90] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl ${className}`}
+      style={{ top: pos ? pos.top : rect.bottom + 6, left: pos ? pos.left : rect.left, visibility: pos ? 'visible' : 'hidden' }}>
+      {children}
+    </div>, document.body);
+}
 /* THE CARD TITLE BAR. Every panel in the imported design opens with the same object: a filled ink
    strip carrying the panel's name on the left and one accent-coloured fact on the right, with a 2px
    rule under it and the divided interior below. It appears on Today's buddy card, the plan, Recovery,
@@ -9185,33 +9227,48 @@ function FoodLog({ db, update, openLog, showToast }) {
       if (mealEl) return { mealId: mealEl.getAttribute('data-meal-drop'), beforeId: null };
       return null;
     };
+    // The last target the finger was actually over, so a drag the BROWSER cancels still drops where
+    // the user was told it would.
+    let lastDrop = null;
     const move = (ev) => {
-      const x = ev.clientX, y = ev.clientY; setGhost({ x, y }); setDropAt(computeDrop(x, y));
+      const x = ev.clientX, y = ev.clientY; setGhost({ x, y }); lastDrop = computeDrop(x, y); setDropAt(lastDrop);
       const es = y < 100 ? -14 : y > window.innerHeight - 130 ? 14 : 0; if (es) window.scrollBy(0, es);
-      ev.preventDefault();
+      if (ev.cancelable) ev.preventDefault();
     };
-    const up = (ev) => {
+    const finish = (t) => {
       // Re-stamp on the drop, not just when the drag armed: a long drag can easily outlast the
       // window measured from the press, and it is the click after the DROP that has to be ignored.
       draggedAt.current = Date.now();
-      const t = computeDrop(ev.clientX, ev.clientY);
       if (t && t.beforeId !== drag.id) moveEntry(drag.id, t.mealId, t.beforeId);
       setDrag(null); setDropAt(null); setGhost(null);
     };
+    const up = (ev) => finish(computeDrop(ev.clientX, ev.clientY) || lastDrop);
+    const cancel = () => finish(lastDrop);
+    // THE REASON PRESS-AND-HOLD DID NOTHING ON A PHONE. `preventDefault` on a pointermove is a
+    // no-op for touch - those events aren't cancelable once the browser owns the gesture - so the
+    // first millimetre of the drag scrolled the page instead, and the scroll fired `pointercancel`,
+    // which tore the drag down again. The row you were dragging just sat there. Blocking `touchmove`
+    // itself is what actually keeps the gesture: at this point the finger has been still for 450ms,
+    // so no scroll has begun and the browser will honour the preventDefault.
+    const blockTouch = (ev) => { if (ev.cancelable) ev.preventDefault(); };
+    window.addEventListener('touchmove', blockTouch, { passive: false });
     window.addEventListener('pointermove', move, { passive: false });
-    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel);
     const prevSel = document.body.style.userSelect; document.body.style.userSelect = 'none';
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); document.body.style.userSelect = prevSel; };
+    const prevTouch = document.body.style.touchAction; document.body.style.touchAction = 'none';
+    return () => { window.removeEventListener('touchmove', blockTouch); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); document.body.style.userSelect = prevSel; document.body.style.touchAction = prevTouch; };
   }, [drag]);
 
-  const renderEntry = (e, m, mc) => { const dragging = drag && drag.id === e.id; return (
+  // A held row says so. Nothing marked the 450ms between the press and the pick-up, so a hold that
+  // was working looked exactly like a hold that wasn't, and the natural response is to let go early.
+  const renderEntry = (e, m, mc) => { const dragging = drag && drag.id === e.id; const armed = arming === e.id && !dragging; return (
     /* THE ROW, as the design draws it: a 34px tile, the name and its support line, and the numbers
        right-aligned in a column of their own. It used to hang off a 4px coloured stripe in the meal's
        hue - a fifth thing competing for the left edge on a card that now has an ink frame and an ink
        title bar - and it separated rows with a 1px hairline in the surface colour. Rows are divided
        by the card's own 2px rule instead, and the stripe is gone: the tile already carries colour,
        and it carries a colour that MEANS something (the Density Score) rather than the meal's index. */
-    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="grid items-center gap-2.5 relative" style={{ gridTemplateColumns: 'auto 1fr auto auto', padding: '10px 12px', borderBottom: '2px solid var(--border)', opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging ? 'var(--surface2)' : undefined }}>
+    <div key={e.id} data-entry-id={e.id} data-meal-id={m.id} className="grid items-center gap-2.5 relative" style={{ gridTemplateColumns: 'auto 1fr auto auto', padding: '10px 12px', borderBottom: '2px solid var(--border)', opacity: dragging ? 0.45 : 1, outline: dragging ? '2px dashed var(--muted)' : 'none', outlineOffset: '-2px', background: dragging || armed ? 'var(--surface2)' : undefined, transition: 'background .18s linear' }}>
       {drag && dropAt && dropAt.mealId === m.id && dropAt.beforeId === e.id && <div className="absolute -top-1 left-0 right-0 h-1.5 pointer-events-none" style={{ background: 'var(--accent)', boxShadow: '2px 2px 0 0 var(--shadow)' }} />}
       {/* The food tile: a pixel glyph of what this is, in the colour of how good it is.
           It came back, smaller and re-pointed, after being cut entirely. Cutting it was half right:
@@ -9282,14 +9339,14 @@ function FoodLog({ db, update, openLog, showToast }) {
         </span>
       </div>
       </button>
-      <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu === e.id ? null : e.id); }} className="hit px-1 shrink-0" style={{ color: 'var(--muted2)' }} aria-label="Entry options">⋯</button>
-      {menu === e.id && (<div className="absolute right-2 top-9 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl" onClick={ev => ev.stopPropagation()}>
+      <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu && menu.id === e.id ? null : { id: e.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1 shrink-0" style={{ color: 'var(--muted2)' }} aria-label="Entry options">⋯</button>
+      {menu && menu.id === e.id && (<AnchoredMenu rect={menu.rect} onClose={() => setMenu(null)} className="w-44">
         <button onClick={() => { setEditing(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Edit</button>
         {E.photoUpdatable(e) && <button onClick={() => { setPhotoUp(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Update with a photo</button>}
         <button onClick={() => dup(e)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Duplicate</button>
         <button onClick={() => { setCopyTo({ title: 'Copy ' + e.name, entries: [e], srcDate: date, pickMeal: true, meal: e.meal_id }); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>
         <button onClick={() => del(e)} className="block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]">Delete</button>
-      </div>)}
+      </AnchoredMenu>)}
     </div>); };
 
   const first = new Date(calMonth.y, calMonth.m, 1); const startDow = (first.getDay() + 6) % 7; // Mon=0
@@ -9303,7 +9360,7 @@ function FoodLog({ db, update, openLog, showToast }) {
     <div className="max-w-md lg:max-w-5xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in"
       onClick={() => { if (menu) setMenu(null); if (mealMenu) setMealMenu(null); if (dayMenu) setDayMenu(false); }}
       onTouchStart={(e) => { if (drag || showCal) return; const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY }; }}
-      onTouchEnd={(e) => { if (!swipe.current || drag) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
+      onTouchEnd={(e) => { if (!swipe.current || drag || Date.now() - draggedAt.current < 500) { swipe.current = null; return; } const t = e.changedTouches[0]; const dx = t.clientX - swipe.current.x, dy = t.clientY - swipe.current.y; swipe.current = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) { setDate(shiftISO(date, dx < 0 ? 1 : -1)); setShowCal(false); } }}>
       {densityHelp && <DensityExplainer onClose={() => setDensityHelp(false)} />}
       <PageHeader kicker="Your food diary" title="Food log" />
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
@@ -9462,13 +9519,13 @@ function FoodLog({ db, update, openLog, showToast }) {
                   {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
                 </div>
                 <div className="relative">
-                  <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu === m.id ? null : m.id); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options">⋯</button>
-                  {mealMenu === m.id && <div className="absolute right-0 top-7 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-40" onClick={ev => ev.stopPropagation()}>
+                  <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options">⋯</button>
+                  {mealMenu && mealMenu.id === m.id && <AnchoredMenu rect={mealMenu.rect} onClose={() => setMealMenu(null)} className="w-40">
                     {me.length > 0 && <button onClick={() => saveMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Save as meal</button>}
                     {me.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>}
                     {me.length > 0 && <button onClick={() => clearMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Clear food</button>}
                     <button onClick={() => { setMealMenu(null); setConfirm({ title: 'Delete ' + m.name + '?', body: me.length ? `Its ${me.length} logged item${me.length === 1 ? '' : 's'} will move to the meal above so nothing is lost. Only ${date === today ? 'today' : 'this day'} changes.` : `Removes this meal from ${date === today ? 'today' : 'this day'} only.`, confirmLabel: 'Delete meal', onConfirm: () => deleteMeal(m) }); }} className="block w-full text-left px-4 py-2 text-[#ff6b6b] hover:bg-[#262629]">Delete meal</button>
-                  </div>}
+                  </AnchoredMenu>}
                 </div>
               </div>
             </div>
