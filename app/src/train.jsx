@@ -1080,23 +1080,31 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const codes = Training.sessionCodes(items);
 
   return (
-    // Clears the Finish bar AND the rest timer floating above it (96 + 56), plus a line of air, so
-    // the last movement can always be scrolled out from under both.
-    <div className="fade-in" style={{ paddingBottom: '176px' }}>
-      {/* ---- session bar ---- */}
-      <div className="sticky top-0 z-20 -mx-5 px-5 pt-1 pb-3" style={{ background: 'var(--bg)' }}>
+    // Clears the session footer. It is one bar now rather than a Finish button with a rest card
+    // stacked above it, so this is the footer's own height plus a line of air - and the extra when
+    // the rest row is showing, since that row appears mid-scroll without warning.
+    <div className="fade-in" style={{ paddingBottom: rest ? '184px' : '104px' }}>
+      {/* ---- SESSION BAR, per `Session.dc.html` ----
+          A live session is the one screen in the app that owns the phone for an hour, and the design
+          gives it its own chrome to say so: the header's purple, the session's name, the clock in
+          gold, and the whole session's progress drawn across the full width underneath with the two
+          counts that matter hanging off its ends. On the paper background this was a back link, a
+          title and a hairline, which read as a page heading rather than as an instrument you are
+          mid-way through. */}
+      <div className="sticky top-0 z-20 -mx-5 px-3 pt-2.5 pb-2 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 mb-2">
-          <button onClick={onExit} aria-label="Back to Train" className="pf text-[9px] uppercase hit shrink-0" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-          <div className="flex-1 min-w-0 text-center text-[13px] font-bold truncate">{session ? session.name : 'Empty session'}</div>
-          <div className="tnum text-[12px] shrink-0 w-12 text-right" style={{ color: 'var(--muted)' }}>{fmtClock(elapsed)}</div>
+          <button onClick={onExit} aria-label="Back to Train" className="pf text-[9px] uppercase hit shrink-0" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>&lsaquo; Train</button>
+          <div className="pf text-[10px] uppercase flex-1 min-w-0 text-center truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{session ? session.name : 'Empty session'}</div>
+          <div className="pf tnum text-[12px] shrink-0 text-right" style={{ color: 'var(--on-header-accent)' }}>{fmtClock(elapsed)}</div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-1.5" style={{ background: 'var(--track)' }}>
-            <div className="h-full transition-all" style={{ width: pct + '%', background: 'var(--accent)' }} />
-          </div>
-          <div className="tnum text-[11px] shrink-0" style={{ color: 'var(--muted)' }}>
-            {doneSets}/{totalSets} · {Math.round(toDisplayWeight(volume, units)).toLocaleString()}{unitLabel(units)}
-          </div>
+        <div className="flex gap-[1px] mb-1.5" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
+          {Array.from({ length: 24 }, (_, i) => (
+            <i key={i} className="flex-1" style={{ height: 9, background: i < Math.round(pct / 100 * 24) ? 'var(--accent)' : 'rgba(255,255,255,0.28)' }} />
+          ))}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{doneSets} / {totalSets} sets</span>
+          <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{Math.round(toDisplayWeight(volume, units)).toLocaleString()} {unitLabel(units)} moved</span>
         </div>
       </div>
 
@@ -1185,34 +1193,45 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         const hist = Training.exerciseHistory(t.logs, it.exerciseId);
         return (
           <div key={it.exerciseId + '_' + ii} className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
-            {/* ---- header, always visible ---- */}
+            {/* ---- header, always visible ----
+                The movement you are ON gets the design's filled ink title bar, the same object every
+                panel in this design opens with. The others stay as light rows. That one difference
+                is what says "this is the exercise you are doing"; before, six identical cream cards
+                said it with nothing but a chevron rotation. */}
             <button onClick={() => { setFocus(open ? -1 : ii); setPlateFor(null); setMenuOpen(false); }}
-              className="w-full flex items-start gap-3 p-3 text-left">
-              <span className="pf text-[10px] shrink-0 mt-0.5 w-6" style={{ color: done ? 'var(--good)' : 'var(--accent-ink)' }}>{codes[ii]}</span>
+              className={'w-full flex items-center gap-2.5 text-left ' + (open ? 'px-2.5 py-2' : 'p-3')}
+              style={open ? { background: 'var(--cardhead-bg)', borderBottom: '2px solid var(--border)' } : null}>
+              <span className="pf text-[10px] shrink-0 flex items-center justify-center"
+                style={open
+                  ? { color: 'var(--accent)' }
+                  : { width: 30, height: 30, border: '2px solid var(--border)', background: done ? 'var(--good)' : 'var(--card)', color: done ? '#fff' : 'var(--accent-ink)' }}>{codes[ii]}</span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-bold leading-tight" style={{ color: done ? 'var(--muted)' : 'var(--text)' }}>
+                <span className="block text-[14px] font-bold leading-tight" style={{ color: open ? 'var(--cardhead-text)' : done ? 'var(--muted)' : 'var(--text)' }}>
                   {ex ? ex.name : it.exerciseId}
                 </span>
-                <span className="block pf text-[8px] uppercase mt-2" style={{ color: done ? 'var(--good)' : 'var(--accent-ink)' }}>
+                {!open && <span className="block pf text-[8px] uppercase mt-1.5" style={{ color: done ? 'var(--good-ink)' : 'var(--accent-ink)', letterSpacing: '0.1em' }}>
                   {work.length} {work.length === 1 ? 'set' : 'sets'} / {tgt ? tgt.repLow + '-' + tgt.repHigh : '–'} reps
                   {tgt ? ' / ' + tgt.rir + ' RIR' : ''}
-                </span>
+                </span>}
               </span>
-              {done
-                ? <span className="shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={13} /></span>
-                : <span className="shrink-0 mt-1" style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="15" height="15" /></span>}
+              {open
+                ? <span className="shrink-0" style={{ color: 'var(--cardhead-text)' }}><Icon.chevron width="15" height="15" style={{ transform: 'rotate(90deg)' }} /></span>
+                : done
+                  ? <span className="shrink-0 w-6 h-6 flex items-center justify-center" style={{ background: 'var(--good)', color: '#fff' }}><Tick size={13} /></span>
+                  : <span className="shrink-0" style={{ color: 'var(--muted2)' }}><Icon.chevron width="15" height="15" /></span>}
             </button>
 
             {open && (
-              <div className="px-3 pb-3">
-                <div className="h-px mb-4" style={{ background: 'var(--accent)', opacity: 0.35 }} />
-
-                {/* ---- the prescription, with the jargon explained where it appears ---- */}
-                <div className="flex items-center gap-3 mb-4">
+              <div className="px-3 pb-3 pt-3">
+                {/* ---- the prescription, with the jargon explained where it appears.
+                     The design sets the cues as framed chips on the left and what you owe as plain
+                     text on the right, so the whole prescription is one line instead of three. ---- */}
+                <div className="flex items-center gap-2 mb-4">
                   {tgt && <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />}
                   {tgt && tgt.tempo && <MetaBit label={tgt.tempo} onHelp={() => setHelp('tempo:' + tgt.tempo)} hideHelp={t.prefs.hideHelp} />}
                   {tgt && <MetaBit label={fmtRest(tgt.restSec || 120)} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />}
-                  <span className="ml-auto shrink-0">
+                  <span className="ml-auto shrink-0 flex items-center gap-2">
+                    <span className="text-[11.5px] text-right" style={{ color: 'var(--muted)' }}>{work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? tgt.repLow + '–' + tgt.repHigh : '–'} reps</span>
                     <LiftBuddy db={db} pattern={ex && ex.pattern} trigger={lift.ii === ii ? lift.n : 0} />
                   </span>
                 </div>
@@ -1260,24 +1279,28 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   const type = s.type || 'work';
                   const tone = SET_TYPE_TONE[type];
                   const workIndex = it.sets.slice(0, si + 1).filter(x => (x.type || 'work') !== 'warmup').length;
-                  const cellStyle = { background: s.done ? 'color-mix(in srgb, var(--accent) 16%, var(--surface2))' : 'var(--surface2)', color: 'var(--text)' };
+                  const cellStyle = { background: 'var(--surface2)', color: s.done ? 'var(--text)' : 'var(--muted)' };
                   // 15px could not fit "62.5" in the weight box, and a clipped decimal reads as a
                   // different number rather than as truncation. 13px fits four characters at 375px.
                   // Taller and larger now the Prev column is not stealing the width.
                   const cell = 'h-12 pixel-box text-[15px] text-center tnum min-w-0 px-0.5';
                   return (
-                    <div key={si} className="mb-2 -mx-1 px-1 py-0.5" style={{ background: s.done ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent' }}>
+                    <div key={si} className="mb-2 -mx-1 px-1 py-0.5">
                       <div className="flex items-center gap-2">
                         {/* Tap the number to change what kind of set it is. Warm-ups stay out of the
                             volume maths; a drop set suppresses the rest timer. */}
                         <button onClick={() => setSetMenu(setMenu === ii + ':' + si ? null : ii + ':' + si)}
                           aria-label={'Set ' + workIndex + ' options. Currently ' + (SET_TYPES.find(x => x.v === type) || {}).full}
                           className="w-11 h-12 flex items-center justify-center shrink-0">
-                          <span className="w-7 h-7 flex items-center justify-center text-[12px] font-bold"
+                          <span className="w-7 h-7 flex items-center justify-center pf text-[11px] tnum"
                             style={{
-                              background: s.done ? 'var(--accent)' : 'transparent',
-                              color: s.done ? 'var(--on-accent)' : (tone || 'var(--muted)'),
-                              border: s.done ? 'none' : '2px solid ' + (tone || 'var(--border)'),
+                              // The set number reads green alongside its tick, so a completed row is
+                              // one colour from either end rather than a gold square and a gold tick
+                              // with a cream row between them. The frame stays either way: losing it
+                              // when done made the number jump a pixel as you ticked it.
+                              background: s.done ? 'var(--good)' : 'var(--card)',
+                              color: s.done ? '#ffffff' : (tone || 'var(--muted)'),
+                              border: '2px solid ' + (s.done ? 'var(--border)' : (tone || 'var(--border)')),
                             }}>
                             {type === 'work' ? workIndex : (SET_TYPES.find(x => x.v === type) || {}).label}
                           </span>
@@ -1303,8 +1326,11 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                           aria-label={s.done ? 'Set ' + (si + 1) + ' done, tap to undo' : 'Mark set ' + (si + 1) + ' done'}
                           className="w-11 h-11 pixel-box flex items-center justify-center text-[19px] font-bold shrink-0 transition-transform"
                           style={{
-                            background: s.done ? 'var(--accent)' : 'var(--surface2)',
-                            color: s.done ? 'var(--on-accent)' : 'var(--muted2)',
+                            // Green, not gold. The design keeps gold for the one thing you are being
+                            // asked to press next; a column of gold ticks for sets already behind you
+                            // competed with Finish for the loudest colour on the screen.
+                            background: s.done ? 'var(--good)' : 'var(--surface2)',
+                            color: s.done ? '#ffffff' : 'var(--muted2)',
                             opacity: s.done ? 1 : 0.85,
                             transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)',
                           }}>
@@ -1374,48 +1400,60 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
 
       <button onClick={() => setPicking(true)} className="pixel-box w-full h-12 text-[13px] mb-4" style={{ background: 'var(--surface2)' }}>+ Add an exercise</button>
 
-      <Collapsible label="Session notes" sub={notes ? 'Written' : 'Optional'} variant="inline" className="mb-4">
-        <textarea value={notes} onChange={e => { setNotes(e.target.value); persist(null, e.target.value); }} rows={3}
-          placeholder="Anything worth remembering next time"
-          className="w-full pixel-box px-3 py-3 text-[13px] mt-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-      </Collapsible>
-
-      {/* ---- rest timer, above the finish button, never shoving the list about ----
-           74px cleared the Finish button itself but not the 12px of padding above it, so the two
-           pixel-box shadows overlapped and the pair read as one cramped stack. Finish is 56 tall
-           inside 12 top and 12 bottom of padding, so 88 is the first value that clears it, plus 8
-           off the spacing scale to sit them apart. */}
-      {rest && (
-        <div className="fixed inset-x-0 max-w-md mx-auto px-3 z-30" style={{ bottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
-          <div className="pixel-box flex items-center gap-3 px-3 h-14" style={{ background: restLeft <= 0 ? 'color-mix(in srgb, var(--accent) 22%, var(--card))' : 'var(--card)' }}>
-            <RestRing left={restLeft} total={rest.seconds} db={db} />
-            <div className="flex-1 min-w-0">
-              <div className="pf text-[15px] tnum" role="timer" style={{ color: restLeft <= 10 ? 'var(--good)' : 'var(--accent-ink)' }}>
-                {restLeft <= 0 ? 'Go' : fmtClock(restLeft)}
-              </div>
-              <div className="text-[10px]" style={{ color: 'var(--muted2)' }}>rest</div>
-            </div>
-            {/* The timer finishing was announced by a beep and a colour, both of which are no use to
-                a screen reader. Only the transition is announced, never the count: a polite region
-                on a per-second value would read the whole two minutes out loud. */}
-            <span className="sr-only" aria-live="assertive">{restLeft <= 0 ? 'Rest over, next set' : ''}</span>
-            {/* Every control on this bar is now a full 44px box. These are pressed mid-set, one
-                handed, with the phone on a bench and chalk on your fingers, which is the worst
-                pointing conditions the app ever sees; Skip in particular was an 8px label with no
-                box around it at all. */}
-            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt - 15000 }))} className="pixel-box w-11 h-11 text-[11px] shrink-0" style={{ background: 'var(--surface2)' }}>-15</button>
-            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 15000, seconds: r.seconds + 15, alerted: false }))} className="pixel-box w-11 h-11 text-[11px] shrink-0" style={{ background: 'var(--surface2)' }}>+15</button>
-            <button onClick={() => setRest(null)} aria-label="Skip rest" className="pf text-[8px] uppercase h-11 px-2 shrink-0" style={{ color: 'var(--muted)' }}>Skip</button>
-          </div>
+      {/* Session notes as the design draws it: a titled panel, open, with the prompt IN the field.
+          Folded behind a disclosure it was a row of small print you had to know to look for, on the
+          one screen where "what hurt, what to change next week" is the most valuable thing you can
+          leave behind. Open it costs three lines and asks the question. */}
+      <Card className="p-0 overflow-hidden mb-4">
+        <CardHead title="Session notes" right={notes ? 'Written' : 'Optional'} />
+        <div className="p-3.5">
+          <textarea value={notes} onChange={e => { setNotes(e.target.value); persist(null, e.target.value); }} rows={2}
+            placeholder="How the session felt, anything that hurt, what to change next week."
+            className="w-full px-3 py-3 text-[13px]" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)' }} />
         </div>
-      )}
+      </Card>
 
-      <StickyAction clearsNav={false}>
-        <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 font-bold"
-          style={{ background: doneSets ? 'var(--accent)' : '#fff', color: doneSets ? 'var(--on-accent)' : '#111' }}>
-          {doneSets ? 'Finish · ' + doneSets + (doneSets === 1 ? ' set' : ' sets') : 'Finish session'}
-        </button>
-      </StickyAction>
+      {/* ---- THE SESSION FOOTER, per `Session.dc.html` ----
+          One purple bar at the bottom of the screen, matching the one at the top, with the rest timer
+          as a row INSIDE it rather than a second card floating above it. Two stacked pixel-boxes with
+          their own shadows read as a cramped pile and cost 56px of the list; one bar that grows a row
+          when you are resting costs nothing when you are not. */}
+      <div className="fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px]"
+        style={{ background: 'var(--header)', borderColor: 'var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {rest && (
+          <div className="px-3 pt-2.5 pb-1">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="pf text-[10px] uppercase tnum" role="timer" style={{ color: restLeft <= 0 ? 'var(--on-header-accent)' : 'var(--header-text)', letterSpacing: '0.1em' }}>
+                Rest · {restLeft <= 0 ? 'Go' : fmtClock(restLeft)}
+              </span>
+              {/* The timer finishing was announced by a beep and a colour, both of which are no use to
+                  a screen reader. Only the transition is announced, never the count: a polite region
+                  on a per-second value would read the whole two minutes out loud. */}
+              <span className="sr-only" aria-live="assertive">{restLeft <= 0 ? 'Rest over, next set' : ''}</span>
+              {/* These are pressed mid-set, one handed, with the phone on a bench and chalk on your
+                  fingers, which is the worst pointing conditions the app ever sees, so every one of
+                  them keeps a 44px tap target via `.hit` even at this size. */}
+              <span className="flex items-center gap-3 shrink-0">
+                <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt - 15000 }))} className="hit pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>−15</button>
+                <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 15000, seconds: r.seconds + 15, alerted: false }))} className="hit pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>+15</button>
+                <button onClick={() => setRest(null)} aria-label="Skip rest" className="hit pf text-[9px] uppercase" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.08em' }}>Skip &#9654;</button>
+              </span>
+            </div>
+            <div className="flex gap-[1px]" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
+              {Array.from({ length: 20 }, (_, i) => {
+                const gone = rest.seconds > 0 ? Math.round((1 - restLeft / rest.seconds) * 20) : 20;
+                return <i key={i} className="flex-1" style={{ height: 9, background: i < gone ? 'var(--accent)' : 'rgba(255,255,255,0.28)' }} />;
+              })}
+            </div>
+          </div>
+        )}
+        <div className="px-3 py-2.5">
+          <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 pf text-[12px] uppercase"
+            style={{ borderWidth: 2, letterSpacing: '0.06em', background: doneSets ? 'var(--accent)' : 'var(--card)', color: doneSets ? 'var(--on-accent)' : 'var(--text)' }}>
+            {doneSets ? 'Finish · ' + doneSets + (doneSets === 1 ? ' set' : ' sets') : 'Finish session'}
+          </button>
+        </div>
+      </div>
 
       {plateFor != null && (() => {
         const [pi, ps] = String(plateFor).split(':').map(Number);
@@ -1535,19 +1573,16 @@ function LiftBuddy({ db, pattern, trigger }) {
    The chip was also 20 square, which is under the 24 CSS pixel floor in WCAG 2.2 (SC 2.5.8) and
    well under the 44 that anything tapped mid-set should be. The visible mark stays small; `hit`
    grows the real target to 44 behind it. */
+/* One prescription cue. `Session.dc.html` draws these as framed chips - the box IS the affordance,
+   so the separate "?" bubble beside every one of them goes: three cues meant three labels and three
+   question marks fighting for a 375px row, and the pair wrapped "2 RIR" onto two lines. Tapping the
+   chip still opens the explainer, which is what the "?" was for. */
 function MetaBit({ label, onHelp, muted, hideHelp }) {
-  if (hideHelp) {
-    return (
-      <button onClick={onHelp} className="hit text-[12px] tnum py-2" style={{ color: muted ? 'var(--muted)' : 'var(--text2)' }}>{label}</button>
-    );
-  }
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="text-[12px] tnum" style={{ color: muted ? 'var(--muted)' : 'var(--text2)' }}>{label}</span>
-      <button onClick={onHelp} aria-label={'What does ' + label + ' mean?'}
-        className="hit w-5 h-5 flex items-center justify-center text-[10px] font-bold shrink-0"
-        style={{ background: 'transparent', color: 'var(--accent-ink)', border: '2px solid var(--accent)' }}>?</button>
-    </span>
+    <button onClick={hideHelp ? undefined : onHelp} aria-label={hideHelp ? label : 'What does ' + label + ' mean?'}
+      className="pf text-[9px] uppercase tnum shrink-0 whitespace-nowrap px-2 py-2"
+      style={{ letterSpacing: '0.08em', border: '2px solid var(--border)', background: 'var(--surface2)',
+        color: muted ? 'var(--muted)' : 'var(--text)' }}>{label}</button>
   );
 }
 
