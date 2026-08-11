@@ -2761,33 +2761,45 @@ function Auth() {
   }
   return (
     <div className="theme-light min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-      <div className="flex items-center gap-3 px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-        <div className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: '#111', borderColor: '#000' }}><PixelEgg size={20} color="#fff" /></div>
-        <span className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</span>
+      {/* The design's top bar carries the brand and nothing else: the egg is about to appear at 56px
+          six lines below, and a 20px copy of it directly above that is the same picture twice. */}
+      <div className="flex items-center justify-center px-5 py-3.5 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+        <span className="pf text-[11px] uppercase" style={{ color: 'var(--header-text)', letterSpacing: '0.14em' }}>Macrosaurus</span>
       </div>
-      <div className="flex-1 flex flex-col justify-center px-6 py-10">
+      <div className="flex-1 flex flex-col justify-center px-5 py-8">
       <div className="w-full max-w-sm mx-auto fade-in">
-        <div className="flex flex-col items-center text-center mb-6">
+        <div className="flex flex-col items-center text-center mb-5">
           <div className="pixel-box p-4 mb-4" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}><PixelEgg size={56} color="#fff" /></div>
-          <h1 className="pf text-lg" style={{ color: 'var(--header)' }}>MACROSAURUS</h1>
-          <p className="text-[12px] text-[#8A8A90] mt-3 leading-relaxed">Adaptive body-comp tracker. Log food, hit your macros, let your plan retune itself.</p>
+          <h1 className="pf text-[22px]" style={{ color: 'var(--header)', letterSpacing: '0.06em' }}>MACROSAURUS</h1>
+          <p className="text-[13px] mt-3 leading-relaxed" style={{ color: 'var(--muted)' }}>Log your food, hit your macros, and let the plan retune itself every week. Your dino grows on what you actually do.</p>
         </div>
-        <div className="pixel-box bg-[#161618] p-5" style={{ borderTopColor: 'var(--header)', borderTopWidth: '7px' }}>
+        {/* Log in / Create an account as a pair of buttons at the top, per the design. It was a line
+            of small print under the form, which is the last place a new arrival looks and the one
+            decision they have to make before anything else on this screen means anything. */}
+        {mode !== 'forgot' && <div className="grid grid-cols-2 gap-2.5 mb-4">
+          {[['login', 'Log in'], ['signup', 'Create an account']].map(([m, l]) => (
+            <button key={m} onClick={() => { setMode(m); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }}
+              className="pixel-btn py-3.5 px-2 pf text-[10px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em',
+                background: mode === m ? 'var(--accent)' : 'var(--card)', color: mode === m ? 'var(--on-accent)' : 'var(--text)' }}>{l}</button>
+          ))}
+        </div>}
+        <Card className="p-0 overflow-hidden">
+          <CardHead title={mode === 'signup' ? 'Create your account' : mode === 'forgot' ? 'Reset your password' : 'Welcome back'} />
+          <div className="p-4">
           <Field label="Email"><input type="email" autoComplete="email" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="you@email.com" /></Field>
           {mode !== 'forgot' && <Field label="Password"><input type="password" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} className={inputCls} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="at least 6 characters" /></Field>}
           {mode === 'signup' && <Field label="Confirm password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="type it again" /></Field>}
           {mode === 'forgot' && <div className="text-[11px] text-[#8A8A90] mb-3 leading-relaxed">Enter your account email and we'll send you a link to set a new password.</div>}
-          <button onClick={submit} className="w-full pixel-btn mt-1 py-3 text-[11px] pf" style={{ background: 'var(--header)', color: '#fff' }}>{busy ? 'PLEASE WAIT…' : (mode === 'signup' ? 'CREATE ACCOUNT' : (mode === 'forgot' ? 'SEND RESET LINK' : 'LOG IN'))}</button>
-          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[11px] mt-3 text-center' + (loginFailed ? ' underline font-semibold' : '')} style={{ color: 'var(--header)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
+          {/* Purple, not gold. This is the one screen where the brand is the whole point, and the
+              design spends the chrome colour on the button that gets you in. */}
+          <button onClick={submit} className="w-full pixel-btn mt-1 py-3.5 pf text-[11px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--header)', color: 'var(--header-text)' }}>{busy ? 'Please wait…' : (mode === 'signup' ? 'Create account' : (mode === 'forgot' ? 'Send reset link' : 'Log in'))}</button>
+          {mode === 'login' && <button onClick={() => { setMode('forgot'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className={'w-full text-[12px] mt-3 text-center underline' + (loginFailed ? ' font-semibold' : '')} style={{ color: 'var(--accent-ink)' }}>{loginFailed ? 'Reset your password' : 'Forgot your password?'}</button>}
           {msg && <div className="text-[11px] mt-3 text-center leading-relaxed" style={{ color: (existing || needsConfirm || loginFailed || mode === 'forgot') ? 'var(--header)' : 'var(--danger-ink)' }}>{msg}</div>}
           {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
-        </div>
-        {mode === 'forgot'
-          ? <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">← Back to log in</button>
-          : <button onClick={() => { setMode(mode === 'signup' ? 'login' : 'signup'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[11px] text-[#8A8A90] mt-5 text-center">
-            {mode === 'signup' ? <>Already have an account? <span className="font-semibold" style={{ color: 'var(--header)' }}>Log in</span></> : <>New here? <span className="font-semibold" style={{ color: 'var(--header)' }}>Create an account</span></>}
-          </button>}
-        <div className="text-[10px] text-[#8A8A90] text-center mt-8 leading-relaxed px-2">
+          </div>
+        </Card>
+        {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--accent-ink)' }}>← Back to log in</button>}
+        <div className="text-[11px] text-center mt-6 leading-relaxed px-2" style={{ color: 'var(--muted)' }}>
           {mode === 'signup' ? 'By creating an account you agree to our ' : 'By using Macrosaurus you agree to our '}
           <button onClick={() => setLegal('terms')} className="underline" style={{ color: 'var(--header)' }}>Terms</button> and <button onClick={() => setLegal('privacy')} className="underline" style={{ color: 'var(--header)' }}>Privacy Policy</button>, and understand it is <button onClick={() => setLegal('health')} className="underline" style={{ color: 'var(--header)' }}>not medical advice</button>. Your data stays private to your account.
         </div>
