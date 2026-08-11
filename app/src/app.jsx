@@ -1391,6 +1391,40 @@ function cycleStartISO(db, todayISO) {
   const checkedInOnLast = (db.checkins || []).some(c => c.date === db.last_checkin);
   return shiftISO(db.last_checkin, checkedInOnLast ? 1 : 0);
 }
+// ---- when the next check-in is, in one place ----
+// Every surface that offers a check-in (Progress, the buddy's ask, the Progress teaser, the
+// cadence setting) reads this, so they can't disagree about whether one is owed. Three surfaces
+// used to inline `daysSince >= 7` and NONE of them looked at profile.checkinDay, which is why the
+// day you picked in Settings could arrive with nothing on it.
+const CHECKIN_MIN_DAYS = 7;      // a full week: shorter cycles are too noisy to read a trend out of
+const CHECKIN_DAY_MIN_DAYS = 6;  // ...except on your chosen day, so a cycle that ran short snaps back
+// Would a check-in on `iso` be a long enough cycle to read? Either a full week has passed, or it's
+// the weekday you picked and we're within a day of one (that day exists to keep the rhythm, and
+// waiting a week to re-honour it is what makes check-ins drift ever later through the week).
+function checkinReadyOn(db, iso) {
+  if (!db.last_checkin) return true; // never checked in: the first one sets the baseline, no waiting
+  const days = daysBetween(db.last_checkin, iso);
+  if (days >= CHECKIN_MIN_DAYS) return true;
+  const day = (db.profile && db.profile.checkinDay != null) ? db.profile.checkinDay : 1;
+  return days >= CHECKIN_DAY_MIN_DAYS && new Date(iso + 'T00:00:00').getDay() === day;
+}
+// { due, daysSince, nextISO, daysUntil } for today. nextISO/daysUntil are null when one is due now.
+function checkinStatus(db, todayISO) {
+  const daysSince = db.last_checkin ? daysBetween(db.last_checkin, todayISO) : 999;
+  if (checkinReadyOn(db, todayISO)) return { due: true, daysSince, nextISO: null, daysUntil: 0 };
+  // Walk forward rather than solve it: the rule has two clauses and a fortnight of days is cheap.
+  for (let i = 1; i <= 14; i++) {
+    const iso = shiftISO(todayISO, i);
+    if (checkinReadyOn(db, iso)) return { due: false, daysSince, nextISO: iso, daysUntil: i };
+  }
+  return { due: false, daysSince, nextISO: null, daysUntil: null };
+}
+// "tomorrow" / "in 3 days" / "in 3 days · Monday" - the phrase every surface uses for the wait.
+function checkinWaitLabel(st) {
+  if (!st || st.due || st.daysUntil == null) return '';
+  const when = st.daysUntil === 1 ? 'Tomorrow' : 'In ' + st.daysUntil + ' days';
+  return when + ' · ' + DOW_FULL[new Date(st.nextISO + 'T00:00:00').getDay()];
+}
 // Planned kcal for a given day: base target plus that day's cycling delta (floor-aware). Used to
 // judge whether a logged day is "complete" (>= 60% of plan) without the circular carryover maths.
 function plannedKcalOn(db, dISO) {
@@ -4685,9 +4719,10 @@ function buddyRest(db, today, streak, asleep) {
 function buddyBreakout(db, today) {
   const dm = (db.profile && db.profile.nudgesDismissed) || {};
   const snoozed = (key, hrs) => dm[key] && (Date.now() - dm[key]) < hrs * 3600 * 1000;
-  const daysSince = db.last_checkin ? Game.daysBetween(db.last_checkin, today) : 999;
+  const st = checkinStatus(db, today);
+  const daysSince = st.daysSince;
   const checkedInToday = db.last_checkin === today;
-  if (!db.paused && !checkedInToday && daysSince >= 7 && !snoozed('breakout_checkin', 20)) {
+  if (!db.paused && !checkedInToday && st.due && !snoozed('breakout_checkin', 20)) {
     const howLong = daysSince >= 900 ? "It's been a while" : "It's been " + daysSince + ' days';
     // Once-a-week weighers do the weigh-in AS the check-in, so ask for the reading. Daily weighers
     // have already given me the week, so the ask is to come and read it, not to fetch the scales.
@@ -10945,10 +10980,19 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack }
       {!db.paused && (() => {
         // A full week, not five days. Offering the button at five is what produced cycles too short
         // to read: people check in when invited, and the shorter the window the more one salty day
-        // dominates it.
-        const daysSince = db.last_checkin ? daysBetween(db.last_checkin, today) : 999;
-        const ready = daysSince >= 7;
-        if (!ready) return null; // a "next in 3 days" card is a card that does nothing
+        // dominates it. checkinStatus holds that line and the chosen check-in day together.
+        const st = checkinStatus(db, today);
+        // When it isn't due this says WHEN, which is the one thing the page never told anyone: the
+        // card used to disappear entirely, so "no check-in today" was indistinguishable from a bug.
+        if (!st.due) return <Card className="p-3.5 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="pf text-[9px] uppercase text-[#8A8A90]">Next check-in</div>
+              <div className="text-[12.5px] font-bold mt-0.5">{checkinWaitLabel(st) || 'Not yet'}</div>
+            </div>
+            {st.nextISO && <div className="text-[11px] text-[#8A8A90] shrink-0 text-right">{fmtShortDay(st.nextISO)}</div>}
+          </div>
+        </Card>;
         return <Card className="p-3.5 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -11482,12 +11526,23 @@ function CheckinsScreen({ db, update, onBack }) {
   const checkinDay = p.checkinDay == null ? 1 : p.checkinDay;
   const weigh = p.weighCadence || 'daily';
   const weighDay = p.weighDay != null ? p.weighDay : checkinDay;
+  // The setting has to answer "so when is mine, then?" on the screen that sets it, from the same
+  // helper Progress and the buddy use. Stating the rule without the date is what left the chosen
+  // day looking broken on the weeks the cycle had drifted off it.
+  const st = checkinStatus(db, Store.todayISO());
   return (<SubScreen title="Check-ins & weigh-ins" onBack={onBack} intro="When your plan gets read, and how often you step on the scale. Your check-in reads the trend either way.">
     <SavedFlash tick={tick} />
-    <Field label="Check-in day" hint="Once a check-in unlocks (day 5 of the cycle), the dashboard nudges you on and after this day. The day-5 gate stays the source of truth.">
+    <Field label="Check-in day" hint={'I ask on this day, and on any day after a full week has passed. A cycle needs about a week in it to read a trend, so a check-in never comes round sooner than ' + CHECKIN_DAY_MIN_DAYS + ' days after the last one.'}>
       <div className="flex gap-1.5">{DOW.map((d, i) => (
         <button key={i} onClick={() => commit(x => { x.profile.checkinDay = i; })} className={`flex-1 pixel-box py-2 text-[11px] ${checkinDay === i ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>))}</div>
     </Field>
+    <div className="rounded-xl px-3 py-2.5 text-[12px] bg-[#1E1E22] border border-[#262629]">
+      {db.paused
+        ? <span className="text-[#8A8A90]">Your plan is paused, so check-ins are on hold until you resume.</span>
+        : st.due
+          ? <><span className="font-semibold">Your check-in is due now.</span> <span className="text-[#8A8A90]">Open Progress to run it.</span></>
+          : <><span className="font-semibold">Next check-in {st.daysUntil === 1 ? 'tomorrow' : 'in ' + st.daysUntil + ' days'}</span>{st.nextISO ? <span className="text-[#8A8A90]"> · {DOW_FULL[new Date(st.nextISO + 'T00:00:00').getDay()]} {fmtShortDay(st.nextISO)}</span> : null}{db.last_checkin ? <span className="text-[#8A8A90]"> · last one {fmtShortDay(db.last_checkin)}</span> : null}</>}
+    </div>
     <div className="h-px bg-[#262629] my-5" />
     <SubHead>Weigh-ins</SubHead>
     <Seg value={weigh} onChange={v => commit(x => { x.profile.weighCadence = v; if (v === 'single' && x.profile.weighDay == null) x.profile.weighDay = weighDay; })} options={[{ v: 'daily', l: 'Most mornings' }, { v: 'single', l: 'Once a week' }]} />
@@ -11831,9 +11886,9 @@ function HealthScreen({ db, update, onBack }) {
 // waiting. A row that just said "Progress" would read as another setting.
 function progressTeaser(db) {
   const t = Store.todayISO();
-  const daysSince = db.last_checkin ? daysBetween(db.last_checkin, t) : 999;
+  const st = checkinStatus(db, t);
   if (db.pending_adjustment) return 'A change is waiting for your say-so';
-  if (daysSince >= 7) return 'Your weekly check-in is due';
+  if (st.due) return 'Your weekly check-in is due';
   const series = E.trendSeries((db.weight_entries || []).filter(w => w.scale_weight != null));
   if (series.length >= 8) {
     const wk = series[series.length - 1].trend - series[Math.max(0, series.length - 8)].trend;
@@ -11841,6 +11896,8 @@ function progressTeaser(db) {
     if (Math.abs(wk) >= 0.1) return fmtWeight(Math.abs(wk), unit) + (wk < 0 ? ' down' : ' up') + ' over the last week';
     return 'Holding steady this week';
   }
+  // No trend to report yet, so say the one thing that is always knowable: when the next read is.
+  if (st.daysUntil != null) return 'Next check-in ' + (st.daysUntil === 1 ? 'tomorrow' : 'in ' + st.daysUntil + ' days');
   return 'How your weight and your burn are moving';
 }
 function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) {
