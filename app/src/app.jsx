@@ -2322,7 +2322,7 @@ function EnergyBand({ et, tot, mode }) {
    the figure right-aligned in a column wide enough that three rows of different lengths still line
    up. `hero` is the first row only - it gets the taller bar and the larger figure, because protein
    is the macro the app actually coaches on. */
-function MacroRow({ label, value, target, color, mode, unit = 'g', hero }) {
+function MacroRow({ label, value, target, color, ink, mode, unit = 'g', hero }) {
   const over = target > 0 && value > target;
   const isRem = mode === 'remaining';
   const left = Math.round(target - value);
@@ -2333,7 +2333,12 @@ function MacroRow({ label, value, target, color, mode, unit = 'g', hero }) {
       <span className="pf uppercase" style={{ fontSize: 9, letterSpacing: '0.1em', color: hero ? 'var(--text)' : 'var(--muted)' }}>{label}</span>
       <PipMeter value={value} target={target} color={color} cells={PLAN_CELLS} small={!hero} />
       <div className="flex items-baseline gap-1 justify-end" style={{ minWidth: 82 }}>
-        <span className="pf tnum" style={{ fontSize: hero ? 14 : 12, color: over ? 'var(--danger-ink)' : color }}>{num}</span>
+        {/* The INK, not the fill. This row broke the rule the token block sets out: a colour that
+            works as a 13px block on a meter can be unreadable as 12px type, and measured on the
+            built page the amber figure came out at 2.21:1 against the card - on the most-looked-at
+            number on the most-looked-at screen. `ink` falls back to `color` so a caller that has no
+            ink pair (fibre, on the purple) is unchanged. */}
+        <span className="pf tnum" style={{ fontSize: hero ? 14 : 12, color: over ? 'var(--danger-ink)' : (ink || color) }}>{num}</span>
         <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>{sub}</span>
       </div>
     </div>
@@ -8906,9 +8911,9 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
           <EnergyBand et={et} tot={tot} mode={mode} />
         </div>
         <div className="px-3 pt-3 pb-3.5 flex flex-col gap-2.5">
-          <MacroRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} mode={mode} hero />
-          <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} mode={mode} />
-          <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} mode={mode} />
+          <MacroRow label="PROT" value={tot.protein} target={et.eff.protein_g} color={PRO} ink={PRO_T} mode={mode} hero />
+          <MacroRow label="CARB" value={tot.carbs} target={et.eff.carbs_g} color={CARB} ink={CARB_T} mode={mode} />
+          <MacroRow label="FATS" value={tot.fat} target={et.eff.fat_g} color={FAT} ink={FAT_T} mode={mode} />
         </div>
         <div className="grid grid-cols-2" style={{ borderTop: '2px solid var(--border)' }}>
           <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ borderRight: '2px solid var(--border)' }}>
@@ -13752,7 +13757,11 @@ function BottomNav({ view, setView, onAdd }) {
   );
 }
 function navActive(view, k) { return view === k; }
-function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: navActive(view, k) ? 'var(--on-header-accent)' : 'var(--nav-off)' }}><Ic width="22" height="22" /><span className="pf text-[7px]">{l}</span></button>); }
+/* 9px with 0.08em of tracking, which is what four separate design files set on this exact label
+   (Food, You, Recipe, Train Subscreens all draw the bottom nav identically). The app was drawing its
+   PRIMARY NAVIGATION at 7px - below the 8px floor of the entire design set, and the smallest type
+   anywhere in the product. Measured on the built page, not guessed at. */
+function NavBtn({ k, l, Ic, view, setView }) { return (<button onClick={() => setView(k)} className="flex-1 self-stretch flex flex-col items-center justify-center gap-1.5" style={{ color: navActive(view, k) ? 'var(--on-header-accent)' : 'var(--nav-off)' }}><Ic width="22" height="22" /><span className="pf text-[9px]" style={{ letterSpacing: '0.08em' }}>{l}</span></button>); }
 function Sidebar({ view, setView, onAdd, onOpenPlay }) {
   // Desktop nav: the four functional tabs, then a Play button (the game hub lives behind the dino).
   const tabs = NAV_ITEMS.filter(([k]) => k !== 'more');

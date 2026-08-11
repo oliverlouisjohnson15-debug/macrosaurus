@@ -257,7 +257,23 @@ input, select { color-scheme: light; }
 /* Shadow keeps its translateX(-50%) centring while it scales/fades; smallest when the dino is highest. */
 @keyframes buddy-breathe { 0%, 100% { transform: translateX(-50%) scaleX(1); opacity: .5; } 50% { transform: translateX(-50%) scaleX(.82); opacity: .38; } }
 .buddy-shadow-breathe { animation: buddy-breathe 2.4s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .buddy-bob, .buddy-shadow-breathe { animation: none; } }
+/* REDUCED MOTION, for everything and not just the buddy.
+   This rule used to name two classes. The file defines twenty-six animations, and the ones it was
+   NOT covering are precisely the ones the vestibular guidance is about: full-viewport falling
+   confetti, a screen shake on a big hit, fighters sliding in from off-screen, scaling pops. Someone
+   who has asked their phone for less motion was getting all of it.
+   The standard recipe rather than a hand-written list: collapse every duration and cancel every
+   loop, so each animation lands on its final frame instantly. That is the right end state in every
+   case here - a sheet finishes up, a fade finishes opaque, and the confetti finishes below the fold,
+   which is to say it is never seen. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* ---- FIGHT easter-egg: Chrome-dino jump ---- */
 @keyframes dinojump { 0%, 100% { transform: translateY(0); } 32%, 58% { transform: translateY(-34px); } }
