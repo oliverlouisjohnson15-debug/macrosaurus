@@ -14965,30 +14965,47 @@ function Paywall({ reason, onCheckout, onClose }) {
             <div className="text-[10px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
             <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none">×</button>
           </div>
-          <h2 className="text-xl font-bold mb-1">{headline}</h2>
-          <div className="text-[12px] text-[#8A8A90] leading-relaxed mb-4">{blurb}</div>
-          <div className="space-y-2.5 mb-4">
+          <h2 className="text-[26px] font-bold mb-2 leading-tight" style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{headline}</h2>
+          <div className="text-base leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>{blurb}</div>
+          {/* The benefits are ONE framed panel divided by rules, not four floating rows. Each tick is
+              a filled accent chip rather than a bare glyph, which is what gives the list its weight:
+              four gold squares down the left edge read as a specification, and four loose ticks read
+              as a paragraph with bullets. */}
+          <div className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
             {benefits.map(([t, d], i) => (
-              <div key={i} className="flex gap-2.5 items-start">
-                <div className="mt-0.5 shrink-0 font-bold" style={{ color: 'var(--good-ink)' }}><Tick size={12} /></div>
-                <div><div className="text-[13px] font-semibold">{t}</div><div className="text-[11px] text-[#8A8A90] leading-snug">{d}</div></div>
+              <div key={i} className="flex gap-3 items-start p-3" style={i < benefits.length - 1 ? { borderBottom: '2px solid var(--border)' } : null}>
+                <span className="shrink-0 flex items-center justify-center" style={{ width: 26, height: 26, background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)' }}><Tick size={13} /></span>
+                <div className="min-w-0">
+                  <div className="text-[15px] font-semibold leading-tight">{t}</div>
+                  <div className="text-[12.5px] leading-snug mt-1" style={{ color: 'var(--muted)' }}>{d}</div>
+                </div>
               </div>
             ))}
           </div>
-          <div className="flex gap-2 mb-3">
+          <div className="grid grid-cols-2 gap-2.5 mb-3">
             {[['annual', PRICE_ANNUAL_LABEL, '/year', 'Save 33%'], ['monthly', PRICE_MONTHLY_LABEL, '/month', '']].map(([k, price, per, tag]) => (
-              <button key={k} onClick={() => setPlan(k)} className="flex-1 pixel-box p-3 text-left transition active:scale-[.99]"
-                style={{ background: plan === k ? 'var(--accent-dim)' : 'var(--card)', borderColor: plan === k ? 'var(--accent)' : 'var(--surface2)' }}>
-                <div className="flex items-baseline gap-1"><span className="text-lg font-bold">{price}</span><span className="text-[10px] text-[#8A8A90]">{per}</span></div>
-                {tag ? <div className="text-[9px] pf mt-1" style={{ color: 'var(--accent-ink)' }}>{tag}</div> : <div className="text-[9px] mt-1 text-[#8A8A90]">Billed monthly</div>}
+              <button key={k} onClick={() => setPlan(k)} className="pixel-box box-tint p-3 text-left transition active:scale-[.99]"
+                style={{ background: plan === k ? 'var(--accent-dim)' : 'var(--card)', '--box-border': plan === k ? 'var(--accent)' : 'var(--border)' }}>
+                <div className="pf text-[17px] leading-none mb-1.5">{price}</div>
+                <div className="text-[13px]" style={{ color: 'var(--text)' }}>{per}</div>
+                {tag ? <div className="pf text-[9px] uppercase mt-1.5" style={{ color: 'var(--accent-ink)', letterSpacing: '0.1em' }}>{tag}</div>
+                     : <div className="text-[12px] mt-1.5" style={{ color: 'var(--muted)' }}>Billed monthly</div>}
               </button>
             ))}
           </div>
-          <button onClick={go} disabled={busy} className="w-full pixel-btn py-3 text-[12px] pf disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            {busy ? 'STARTING…' : 'START 7-DAY FREE TRIAL'}
+          <button onClick={go} disabled={busy} className="w-full pixel-btn py-3.5 pf text-[12px] uppercase disabled:opacity-50" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
+            {busy ? 'Starting…' : 'Start 7-day free trial'}
           </button>
-          <div className="text-[10px] text-[#8A8A90] text-center mt-2 leading-relaxed">
+          <div className="text-[12.5px] text-center mt-2.5 leading-relaxed" style={{ color: 'var(--muted)' }}>
             7 days free, then {plan === 'annual' ? PRICE_ANNUAL_LABEL + '/year' : PRICE_MONTHLY_LABEL + '/month'}. Cancel anytime.
+          </div>
+          {/* The legal row, MINUS the design's "Restore". Restore is an App Store concept: it re-reads
+              receipts the store holds. Macrosaurus sells through Stripe on the web, where the
+              subscription is attached to the account, so signing in already restores it and the
+              control would have been a button that does nothing. Terms and Privacy are real links. */}
+          <div className="flex items-center justify-center gap-5 mt-3.5 pf text-[9px] uppercase" style={{ letterSpacing: '0.1em' }}>
+            <a href="https://macrosaurus.com/terms" target="_blank" rel="noopener" style={{ color: 'var(--accent-ink)' }}>Terms</a>
+            <a href="https://macrosaurus.com/privacy" target="_blank" rel="noopener" style={{ color: 'var(--accent-ink)' }}>Privacy</a>
           </div>
         </div>
       </div>
