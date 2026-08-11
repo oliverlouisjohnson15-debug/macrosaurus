@@ -6514,67 +6514,103 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
     setBusy(false);
     try { inputRef.current && inputRef.current.focus(); } catch (_) {}
   }
+  // The buddy's own portrait, repeated beside every thing it says. `Buddy.dc.html` puts it there on
+  // every turn rather than once at the top, which is most of what makes the thread read as a
+  // conversation with a character rather than as a log of replies.
+  const face = <div className="shrink-0 flex items-center justify-center" style={{ width: 34, height: 34, border: '2px solid var(--border)', background: 'var(--surface2)' }}><BuddyAvatar buddy={db.buddy || {}} px={1.3} /></div>;
+  const dayStamp = new Date(Store.todayISO() + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   return (
-    <Sheet title={who + (busy ? ' · thinking…' : '')} onClose={onClose} wide z={80} pad={false}
-      bodyClass="flex flex-col p-3.5" bodyStyle={{ height: '78vh', maxHeight: 620, paddingBottom: 'calc(0.875rem + env(safe-area-inset-bottom))' }}>
-        <div className="flex-1 overflow-y-auto -mx-1 px-1">
+    <div className="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4" style={{ zIndex: 80, background: 'rgba(20,17,26,0.62)' }} onClick={onClose}>
+      <BackClose onClose={onClose} />
+      <div className="w-full max-w-md sheet-panel sheet-up flex flex-col" style={{ height: '86vh', maxHeight: 680 }} onClick={e => e.stopPropagation()}>
+        {/* PURPLE, not ink. Every other sheet in the app opens with the ink title bar, and this one
+            does not, because it is not a panel of the app talking - it is the buddy. The design gives
+            the conversation the chrome colour at both ends and the paper page between them, so it
+            reads as its own place. */}
+        <div className="flex items-center gap-2.5 px-2.5 py-2 shrink-0 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+          <div className="shrink-0 flex items-center justify-center" style={{ width: 38, height: 38, border: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}><BuddyAvatar buddy={db.buddy || {}} px={1.5} /></div>
+          <div className="min-w-0 flex-1">
+            <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.1em' }}>{who}</div>
+            <div className="pf text-[7px] uppercase truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{busy ? 'Thinking…' : "Sees today's food, sleep and steps"}</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="shrink-0 flex items-center justify-center" style={{ width: 34, height: 34, border: '2px solid var(--border)', background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)' }}>✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-3" style={{ background: 'var(--bg)' }}>
+          <div className="pf text-[8px] uppercase text-center mb-3" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{dayStamp}</div>
           {!turns.length && (
-            <div className="text-center py-4">
-              <div className="text-[11px] text-[#8A8A90] leading-snug mb-4 max-w-[17rem] mx-auto">I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it.</div>
-              <div className="space-y-2">
-                {CHAT_OPENERS.map(o => <button key={o} onClick={() => send(o)} className="pixel-box w-full p-2.5 text-[11px] text-left active:opacity-60" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{o}</button>)}
-              </div>
+            <div className="text-center py-2">
+              <div className="text-[11.5px] leading-snug mb-3 max-w-[17rem] mx-auto" style={{ color: 'var(--muted)' }}>I can see today's food, your sleep and steps, and how your trend is tracking. Ask me about any of it.</div>
             </div>
           )}
           {turns.map((t, i) => t.role === 'card' ? (
-            <TalkCard key={i} card={t.card} db={db} mealName={mealName} done={t.done}
-              onDone={(label) => setTurns(ts => ts.map((x, j) => j === i ? Object.assign({}, x, { done: label }) : x))}
-              onAdd={onAdd} onAddItems={onAddItems} onAddMeal={onAddMeal} onSaveWeight={onSaveWeight} />
+            <div key={i} className="flex gap-2 items-start mb-2.5">
+              {face}
+              <div className="min-w-0 flex-1">
+                <TalkCard card={t.card} db={db} mealName={mealName} done={t.done}
+                  onDone={(label) => setTurns(ts => ts.map((x, j) => j === i ? Object.assign({}, x, { done: label }) : x))}
+                  onAdd={onAdd} onAddItems={onAddItems} onAddMeal={onAddMeal} onSaveWeight={onSaveWeight} />
+              </div>
+            </div>
           ) : (
-            <div key={i} className={'mb-2 flex ' + (t.role === 'user' ? 'justify-end' : 'justify-start')}>
-              <div className="pixel-box p-2.5 max-w-[85%] text-[11.5px] leading-snug" style={t.role === 'user'
-                ? { background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'none' }
-                : { background: 'var(--surface3)', boxShadow: 'none' }}>
+            <div key={i} className={'mb-2.5 flex gap-2 items-start ' + (t.role === 'user' ? 'justify-end' : 'justify-start')}>
+              {t.role !== 'user' && face}
+              {/* The bubbles keep their frame AND their offset shadow, which every other floating
+                  object in this design has. Flat bubbles on a flat page read as blocks of text. */}
+              <div className="pixel-box p-2.5 max-w-[80%] text-[12.5px] leading-snug" style={t.role === 'user'
+                ? { background: 'var(--accent)', color: 'var(--on-accent)' }
+                : { background: 'var(--card)' }}>
                 {t.pic && <img src={t.pic} alt="" className="w-20 h-20 object-cover mb-1.5" style={{ border: '2px solid var(--border)' }} />}
                 {t.text}
               </div>
             </div>
           ))}
-          {busy && <div className="mb-2 flex justify-start"><div className="pixel-box p-2.5 text-[11.5px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}><span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div></div>}
-          {err && <div className="text-[10px] leading-snug mb-2 px-1" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
+          {busy && <div className="mb-2.5 flex gap-2 items-start">{face}<div className="pixel-box p-2.5 text-[12.5px]" style={{ background: 'var(--card)' }}><span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div></div>}
+          {err && <div className="text-[11px] leading-snug mb-2 px-1" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
           <div ref={endRef} />
         </div>
+        {/* ---- THE COMPOSER, in the chrome's purple, per the design ---- */}
+        <div className="shrink-0 px-2.5 pt-2.5 border-t-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)', paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom))' }}>
+          {/* The openers move DOWN here and become a scrolling rail of chips. As a vertical stack on
+              the empty thread they were a menu you had to clear before you could type, and they
+              vanished the moment you said anything - which is exactly when a prompt is most useful. */}
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-2.5 px-2.5" style={{ scrollbarWidth: 'none' }}>
+            {CHAT_OPENERS.map(o => <button key={o} onClick={() => send(o)} disabled={busy}
+              className="shrink-0 text-[12px] px-3 py-2 whitespace-nowrap active:opacity-60"
+              style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}>{o}</button>)}
+          </div>
         {/* What a turn costs, where the turn is typed. One thing you say is one AI action however
             many times the buddy has to go and look something up, so this counts down at the pace a
             person would expect it to. Shown low and quiet: it is a fact about the tool, not a pitch. */}
         {!isPremium && (() => {
           const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
           return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: 'free_limit' }); } catch (_) {} }}
-            className="shrink-0 flex items-center justify-between gap-2 pt-2 text-left w-full">
-            <span className="text-[9px]" style={{ color: 'var(--muted)' }}>{left} of {FREE_AI_MONTHLY} free AI replies left this month</span>
-            <span className="pf text-[7px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Go unlimited ›</span>
+            className="shrink-0 flex items-center justify-between gap-2 pb-1.5 text-left w-full">
+            <span className="pf text-[8px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{left} of {FREE_AI_MONTHLY} free AI replies left</span>
+            <span className="pf text-[8px] uppercase shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.1em' }}>Go unlimited ›</span>
           </button>;
         })()}
         {/* A photo waits here until you say what it is. A picture with no words is the weakest thing
             you can hand the estimator, so the composer holds it and the next sentence goes with it. */}
-        {pic && <div className="shrink-0 flex items-center gap-2 pt-2">
+        {pic && <div className="shrink-0 flex items-center gap-2 pb-2">
           <img src={pic.url} alt="" className="w-10 h-10 object-cover" style={{ border: '2px solid var(--border)' }} />
-          <span className="text-[10px] flex-1" style={{ color: 'var(--muted)' }}>Photo ready. Say what it is.</span>
-          <button onClick={() => setPic(null)} aria-label="Remove photo" className="hit px-2 text-[#8A8A90] text-base leading-none">×</button>
+          <span className="text-[11px] flex-1" style={{ color: 'var(--nav-off)' }}>Photo ready. Say what it is.</span>
+          <button onClick={() => setPic(null)} aria-label="Remove photo" className="hit px-2 text-base leading-none" style={{ color: 'var(--nav-off)' }}>×</button>
         </div>}
-        <div className="shrink-0 pt-3 flex gap-2 items-end" style={{ borderTop: '2px solid var(--border)' }}>
+        <div className="shrink-0 flex gap-2 items-stretch">
           <button onClick={() => setCam(true)} disabled={busy} aria-label="Add a photo"
-            className="pixel-btn px-2.5 py-2.5 shrink-0" style={{ background: 'var(--surface2)', opacity: busy ? 0.5 : 1 }}><Icon.cam width="16" height="16" /></button>
+            className="shrink-0 flex items-center justify-center" style={{ width: 42, border: '2px solid var(--border)', background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)', opacity: busy ? 0.5 : 1 }}><Icon.cam width="16" height="16" /></button>
           <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value.slice(0, CHAT_MAX_CHARS))}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }}
             placeholder={'Ask ' + who + '…'} disabled={busy}
-            className="flex-1 min-w-0 pixel-box px-3 py-2.5 text-[12px] bg-transparent" style={{ boxShadow: 'none' }} />
-          <button onClick={() => send(draft)} disabled={busy || !draft.trim()} className="pixel-btn px-3 py-2.5 text-[9px] pf shrink-0"
-            style={{ background: 'var(--accent)', color: 'var(--on-accent)', opacity: (busy || !draft.trim()) ? 0.5 : 1 }}>SEND</button>
+            className="flex-1 min-w-0 px-3 py-3 text-[13px]" style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }} />
+          <button onClick={() => send(draft)} disabled={busy || !draft.trim()} className="pf text-[10px] uppercase shrink-0 px-4"
+            style={{ border: '2px solid var(--border)', letterSpacing: '0.08em', background: 'var(--accent)', color: 'var(--on-accent)', opacity: (busy || !draft.trim()) ? 0.5 : 1 }}>Send</button>
         </div>
-        <div className="text-[11px] mt-2 leading-snug shrink-0" style={{ color: 'var(--muted)' }}>{who} is an AI and can get things wrong. Nothing is logged until you tap to confirm it.</div>
+        <div className="text-[11px] mt-2 leading-snug shrink-0" style={{ color: 'var(--nav-off)' }}>{who} can get things wrong. Nothing is logged until you tap to confirm it.</div>
+        </div>
         {cam && <MealCamera onFiles={fs => { const f = fs && fs[0]; if (f) setPic({ file: f, url: URL.createObjectURL(f) }); setCam(false); }} onClose={() => setCam(false)} />}
-    </Sheet>
+      </div>
+    </div>
   );
 }
 function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, isPremium }) {
