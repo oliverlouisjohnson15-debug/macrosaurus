@@ -118,6 +118,63 @@ test('an uncapped boost still applies when the low days can afford it', () => {
   assert.equal(E.planDayDelta(pl, p, '2026-08-11', 2800, 1200), -175);
 });
 
+// ---- editing the shape of a window while it runs ---------------------------------------------
+// The shape inside a window is editable from Weekly shape, which makes this reachable: without a
+// dated record, adding Friday as a big day mid-trip would restate the Monday already eaten.
+test('with no history the whole window uses the live shape, exactly as before', () => {
+  const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.5 });
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-12', 2000), 500);
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-11', 2000), -125);
+  const seg = E.planShapeOn(pl, '2026-08-12');
+  assert.equal(seg.start, '2026-08-10');
+  assert.equal(seg.end, '2026-08-14');
+});
+
+test('a closed segment keeps the shape its days actually ran under', () => {
+  // Ran Mon-Tue with Tuesday big, then on Wednesday the shape was changed to Friday big.
+  const pl = plan({
+    acceptRateKgPerWeek: 0.5, deltaPct: 0.25, highDays: ['2026-08-14'],
+    shapeHistory: [{ from: '2026-08-10', to: '2026-08-12', highDays: ['2026-08-11'], deltaPct: 0.25 }],
+  });
+  // The days already eaten still read against the OLD shape: Tue up, Mon and Wed paying for it.
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-11', 2000), 500, 'the old big day is still big');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-10', 2000), -250, 'two low days split it');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-12', 2000), -250);
+  // ...and the new shape governs only the days from the edit onward.
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-14', 2000), 500, 'the new big day');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-13', 2000), -500, 'one low day left to pay for it');
+});
+
+test('each segment still nets to zero on its own, so the agreed rate survives an edit', () => {
+  const pl = plan({
+    acceptRateKgPerWeek: 0.5, deltaPct: 0.25, highDays: ['2026-08-14'],
+    shapeHistory: [{ from: '2026-08-10', to: '2026-08-12', highDays: ['2026-08-11'], deltaPct: 0.25 }],
+  });
+  const sum = (ds) => ds.reduce((s, d) => s + E.planDayDelta(pl, cutter, d, 2000), 0);
+  assert.equal(sum(['2026-08-10', '2026-08-11', '2026-08-12']), 0, 'the closed segment');
+  assert.equal(sum(['2026-08-13', '2026-08-14']), 0, 'the live segment');
+  assert.equal(sum(['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14']), 0, 'the window overall');
+});
+
+test('a high day is ignored by a segment it does not fall in', () => {
+  // The live shape still carries the old date; it must not keep being paid for after the edit.
+  const pl = plan({
+    acceptRateKgPerWeek: 0.5, deltaPct: 0.25, highDays: ['2026-08-11'],
+    shapeHistory: [{ from: '2026-08-10', to: '2026-08-12', highDays: ['2026-08-11'], deltaPct: 0.25 }],
+  });
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-13', 2000), 0, 'no big day in the live segment');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-14', 2000), 0);
+});
+
+test('the boost slider is read from the segment, not the live plan', () => {
+  const pl = plan({
+    acceptRateKgPerWeek: 0.5, deltaPct: 0.10, highDays: ['2026-08-14'],
+    shapeHistory: [{ from: '2026-08-10', to: '2026-08-12', highDays: ['2026-08-11'], deltaPct: 0.30 }],
+  });
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-11', 2000), 600, 'the old 30% boost');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-14', 2000), 200, 'the new 10% boost');
+});
+
 test('recovery runs for as long as the window did, capped at a week', () => {
   const ps = [plan()]; // 5 days, so a 5-day ease-back
   assert.ok(E.planRecoveryOn(ps, '2026-08-15'), 'day after the window');
