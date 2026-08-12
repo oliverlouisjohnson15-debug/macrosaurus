@@ -130,14 +130,58 @@ test('without a settle date the window still settles inside itself', () => {
   assert.equal(E.planDayDelta(pl, cutter, '2026-08-10', 2000, null, '2026-08-14'), bare, 'one on the last day');
 });
 
-test('the days settling up share the bill equally with the low days still away', () => {
+test('the days settling up pay in proportion to what they can spare', () => {
   // Away 10-14 easing to 0.25 kg/wk (+275/day), Wed 12 the big day, weigh-in after the 16th.
   const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.25 });
   const d = (iso) => E.planDayDelta(pl, cutter, iso, 2000, null, '2026-08-16');
+  const kcal = (iso) => 2000 + d(iso);
   assert.equal(d('2026-08-12'), 775, 'the big day takes the eased rate and the boost');
-  // Every day paying for it lands on the same number, whether it is a day away or a day home.
-  ['2026-08-10', '2026-08-11', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16']
-    .forEach(iso => assert.equal(d(iso), 100, iso + ' should match every other paying day'));
+  // The days away all match each other, and the days at home all match each other, but the two
+  // groups are NOT levelled onto one number: a day away has the eased rate underneath it and so has
+  // more room above the floor, and room above the floor is what a day is asked for.
+  ['2026-08-10', '2026-08-11', '2026-08-13', '2026-08-14']
+    .forEach(iso => assert.equal(d(iso), d('2026-08-10'), iso + ' should match every other day away'));
+  assert.equal(d('2026-08-16'), d('2026-08-15'), 'and the days at home match each other');
+  // THE point of the change: a day still on the trip is never dropped below a day sat at home.
+  ['2026-08-10', '2026-08-11', '2026-08-13', '2026-08-14'].forEach(iso =>
+    assert.ok(kcal(iso) > kcal('2026-08-15'), iso + ' (away) fell to ' + kcal(iso) + ', below a day at home'));
+  // A day away still ends up ABOVE its plain base, because the eased rate outweighs its share.
+  assert.ok(kcal('2026-08-10') > 2000, 'a day away keeps most of the rate it was promised');
+  assert.ok(kcal('2026-08-15') < 2000, 'and a day at home is the one actually giving something up');
+});
+
+test('a payer with no room above the floor is not asked for anything', () => {
+  // The case that made this worth changing: a base target already sat ON the floor, so the two days
+  // at home have literally nothing to give. Levelling every payer onto one number took 880 kcal off
+  // the last day of the trip to hand those two a rise nobody asked for.
+  const p = { goalType: 'cut', rateKgPerWeek: 0.9, sex: 'male' };
+  const pl = plan({
+    start: '2026-08-12', end: '2026-08-16', acceptRateKgPerWeek: 0, deltaPct: 0.11,
+    highDays: ['2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15'],
+  });
+  const span = ['2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16', '2026-08-17', '2026-08-18'];
+  const d = (iso) => E.planDayDelta(pl, p, iso, 1500, 1500, '2026-08-18');
+  assert.equal(d('2026-08-17'), 0, 'a home day already at the floor pays nothing');
+  assert.equal(d('2026-08-18'), 0, 'nor the next one');
+  assert.ok(1500 + d('2026-08-16') > 1700, 'the last day away keeps most of its maintenance, got ' + (1500 + d('2026-08-16')));
+  span.forEach(iso => assert.ok(1500 + d(iso) >= 1500, iso + ' fell below the floor at ' + (1500 + d(iso))));
+  assert.equal(span.reduce((s, iso) => s + d(iso), 0), 5 * E.planKcalDelta(pl, p), 'the span still nets to the agreed rate');
+});
+
+test('the boost is capped by the room the payers actually have, not by their count', () => {
+  // Same shape, but the payers are pinned to the floor, so the only slack in the span belongs to the
+  // one day away that is not a big day. The boost has to fit inside THAT and nothing else.
+  const p = { goalType: 'cut', rateKgPerWeek: 0.9, sex: 'male' };
+  const pl = plan({
+    start: '2026-08-12', end: '2026-08-16', acceptRateKgPerWeek: 0, deltaPct: 0.35,
+    highDays: ['2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15'],
+  });
+  const d = (iso) => E.planDayDelta(pl, p, iso, 1500, 1500, '2026-08-18');
+  const flat = E.planKcalDelta(pl, p);
+  const got = d('2026-08-12') - flat;
+  assert.ok(got > 0, 'a boost still lands rather than collapsing to nothing, got ' + got);
+  assert.ok(got < Math.round(1500 * 0.35), 'but it was cut down to what could be paid for');
+  assert.ok(1500 + d('2026-08-16') >= 1500, 'and the one day paying stayed on its feet');
 });
 
 test('spreading the bill wider does not change what the span adds up to', () => {
@@ -167,6 +211,60 @@ test('the boost gives way rather than pushing the settling days under the floor'
   span.forEach(iso => assert.ok(1400 + d(iso) >= 1200, iso + ' fell to ' + (1400 + d(iso))));
   assert.ok(d('2026-08-10') < Math.round(1400 * 0.35), 'the asked-for boost was cut down to fit');
   assert.ok(Math.abs(span.reduce((s, iso) => s + d(iso), 0)) <= 4, 'and it still nets out');
+});
+
+// ---- the carryover ledger has to know about the window ---------------------------------------
+// A day inside a trip is set base + the window's bend, and is eaten to THAT. The ledger reconstructs
+// each past day's target to work out the running surplus, and it only ever reconstructed cycling, so
+// a day followed perfectly booked the whole bend as an overspend and dispersed carryover clawed it
+// straight back off the rest of the trip. The plan took itself apart precisely when it was obeyed.
+test('eating exactly to a travel target books no surplus', () => {
+  const p = { goalType: 'cut', rateKgPerWeek: 0.9, sex: 'male' };
+  const pl = plan({
+    start: '2026-08-12', end: '2026-08-16', acceptRateKgPerWeek: 0, deltaPct: 0.11,
+    highDays: ['2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15'],
+  });
+  const bend = (iso) => E.planDayDelta(pl, p, iso, 1500, 1500, '2026-08-18');
+  const wed = 1500 + bend('2026-08-12');
+  assert.ok(wed > 2500, 'the fixture must actually be a big travel day, got ' + wed);
+  const compose = (windowDeltaOn) => E.composeDayTarget({
+    base: { kcal: 1500 + bend('2026-08-13'), protein_g: 180, fat_g: 50, carbs_g: 80 },
+    date: '2026-08-13', floorKcal: 1500,
+    cycling: null, cyclingHistory: null,
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    cycleStart: '2026-08-12', eatenByDate: { '2026-08-12': wed },
+    targets: [{ effective_date: '2026-07-01', kcal: 1500, protein_g: 180, fat_g: 50, carbs_g: 80 }],
+    windowDeltaOn: windowDeltaOn,
+  });
+  assert.equal(compose(bend).carry, 0, 'a day followed exactly must leave nothing to carry');
+  assert.equal(compose(bend).eff.kcal, 1500 + bend('2026-08-13'), 'so Thursday is left where the plan put it');
+  // And the ledger still reads a REAL overspend on a travel day, rather than ignoring the day.
+  const over = E.composeDayTarget({
+    base: { kcal: 1500 + bend('2026-08-13'), protein_g: 180, fat_g: 50, carbs_g: 80 },
+    date: '2026-08-13', floorKcal: 1500, cycling: null, cyclingHistory: null,
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    cycleStart: '2026-08-12', eatenByDate: { '2026-08-12': wed + 600 },
+    targets: [{ effective_date: '2026-07-01', kcal: 1500, protein_g: 180, fat_g: 50, carbs_g: 80 }],
+    windowDeltaOn: bend,
+  });
+  assert.ok(over.carry < 0, 'going 600 over on a travel day is still an overspend, got ' + over.carry);
+});
+
+test('without the window the ledger is unchanged for everybody else', () => {
+  // The regression guard: windowDeltaOn absent must be byte-identical to the day it did not exist.
+  const opts = () => ({
+    base: { kcal: 2000, protein_g: 180, fat_g: 60, carbs_g: 150 },
+    date: '2026-08-13', floorKcal: 1200,
+    cycling: { enabled: true, highDays: [6], deltaPct: 0.15 }, cyclingHistory: null,
+    carryover: { enabled: true, mode: 'dispersed', capKcal: 400 },
+    cycleStart: '2026-08-10', eatenByDate: { '2026-08-10': 1800, '2026-08-11': 2100, '2026-08-12': 1950 },
+    targets: [{ effective_date: '2026-07-01', kcal: 2000, protein_g: 180, fat_g: 60, carbs_g: 150 }],
+  });
+  const a = E.composeDayTarget(opts());
+  const b = E.composeDayTarget(Object.assign(opts(), { windowDeltaOn: null }));
+  const c = E.composeDayTarget(Object.assign(opts(), { windowDeltaOn: () => 0 }));
+  assert.deepEqual(b, a, 'an explicit null must match an absent key');
+  assert.deepEqual(c, a, 'and a window that bends nothing must change nothing');
 });
 
 // ---- editing the shape of a window while it runs ---------------------------------------------

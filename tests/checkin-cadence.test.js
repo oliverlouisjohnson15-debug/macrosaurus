@@ -48,6 +48,7 @@ const { checkinStatus, checkinWaitLabel } = sandbox;
 // 2026-08-10 is a Monday, so Monday is day 1 and the fixtures read as calendar dates.
 const MON = '2026-08-10', TUE = '2026-08-11', WED = '2026-08-12', SUN = '2026-08-09';
 const db = (last, day) => ({ last_checkin: last, profile: { checkinDay: day } });
+const shiftDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 
 test('a full week is due whatever weekday it lands on', () => {
   const st = checkinStatus(db('2026-08-04', 1), TUE); // Tue -> Tue, 7 days, but Monday is the day
@@ -55,11 +56,42 @@ test('a full week is due whatever weekday it lands on', () => {
   assert.strictEqual(st.daysSince, 7);
 });
 
-test('your chosen day is due at six, so a short cycle snaps back to it', () => {
+test('your chosen day is due early, so a short cycle snaps back to it', () => {
   // Checked in a day early last week (Tuesday), and Monday is the day you picked: six days.
   const st = checkinStatus(db('2026-08-04', 1), MON);
   assert.strictEqual(st.due, true, 'the day you picked in Settings arrived with nothing on it');
   assert.strictEqual(st.daysSince, 6);
+});
+
+test('the day you picked is always reachable, from every day the cycle can drift to', () => {
+  // The bug this constant exists to prevent, stated as the guarantee rather than the number: a
+  // cycle that has settled on a Wednesday puts Monday FIVE days out, every week, forever. At a
+  // six-day minimum a Monday check-in day was offered Wednesday and only Wednesday, so the setting
+  // silently did nothing and looked broken. Every (drifted-to day, chosen day) pair must be able to
+  // land on the chosen day within a fortnight, or the setting is a lie on some week of the year.
+  for (let from = 0; from <= 6; from++) {
+    for (let chosen = 0; chosen <= 6; chosen++) {
+      // 2026-08-09 is a Sunday, so `from` indexes straight off it.
+      const last = shiftDays('2026-08-09', from);
+      let landed = false;
+      for (let i = 1; i <= 14 && !landed; i++) {
+        const iso = shiftDays(last, i);
+        const st = checkinStatus(db(last, chosen), iso);
+        if (st.due) landed = new Date(iso + 'T00:00:00').getDay() === chosen;
+      }
+      assert.ok(landed, 'a cycle landing on day ' + from + ' can never reach chosen day ' + chosen);
+    }
+  }
+});
+
+test('a cycle still cannot be read after only a few days, chosen day or not', () => {
+  // The floor under the snap: five days is short but readable, four is not, on any weekday.
+  for (let chosen = 0; chosen <= 6; chosen++) {
+    for (let gap = 1; gap <= 4; gap++) {
+      const st = checkinStatus(db('2026-08-09', chosen), shiftDays('2026-08-09', gap));
+      assert.strictEqual(st.due, false, gap + ' days was offered as a check-in on day ' + chosen);
+    }
+  }
 });
 
 test('six days on any OTHER weekday is still too short to read', () => {
@@ -68,7 +100,7 @@ test('six days on any OTHER weekday is still too short to read', () => {
   assert.strictEqual(st.daysUntil, 1, 'it becomes due the next day on the full-week clause');
 });
 
-test('never sooner than six days, even on your day', () => {
+test('never sooner than the minimum, even on your day', () => {
   const st = checkinStatus(db(SUN, 1), MON); // one day
   assert.strictEqual(st.due, false);
 });

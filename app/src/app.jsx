@@ -2362,7 +2362,13 @@ function cycleStartISO(db, todayISO) {
 // used to inline `daysSince >= 7` and NONE of them looked at profile.checkinDay, which is why the
 // day you picked in Settings could arrive with nothing on it.
 const CHECKIN_MIN_DAYS = 7;      // a full week: shorter cycles are too noisy to read a trend out of
-const CHECKIN_DAY_MIN_DAYS = 6;  // ...except on your chosen day, so a cycle that ran short snaps back
+// ...except on your chosen day, so a cycle that ran short snaps back onto it. FIVE, not six: the
+// snap has to be able to reach BACKWARDS by two days or a chosen day can be permanently unreachable.
+// A cycle that has drifted to Wednesday puts Monday five days out, every week, forever - so someone
+// who set Monday as their check-in day was offered Wednesday and only Wednesday, and the setting
+// looked broken because it was. Five is the shortest cycle that still reads (checkInDecision holds
+// its own line on readability), and anything shorter is reachable by checking in early on purpose.
+const CHECKIN_DAY_MIN_DAYS = 5;
 // Would a check-in on `iso` be a long enough cycle to read? Either a full week has passed, or it's
 // the weekday you picked and we're within a day of one (that day exists to keep the rhythm, and
 // waiting a week to re-honour it is what makes check-ins drift ever later through the week).
@@ -2675,6 +2681,7 @@ function effectiveTarget(db, date) {
   // actually covers, so days outside the window are untouched.
   const sh = shapingPlanOn(db, date);
   const win = sh.away ? sh.plan : null;
+  const unbent = base;   // `base` is about to carry this day's bend; the ledger below needs it plain
   const planKcal = E.planDayDelta(sh.plan, p, date, base.kcal, E.kcalFloor(p), sh.settleEnd);
   if (planKcal) base = E.applyKcalDelta(base, planKcal);
   // ONE shape per day. Inside a window the window IS the shape: it already redistributes across its
@@ -2684,10 +2691,17 @@ function effectiveTarget(db, date) {
   // other big days of the same trip for no reason anybody chose. The rhythm is not lost, it is just
   // not in force while you are away, which is what the screen says and what the day strip edits.
   const shaped = sh.plan ? null : p.cycling;
+  // The carryover ledger scores the days ALREADY EATEN in this cycle, and any of those can have been
+  // inside a window with its own bend. Resolved per day rather than from `sh`, because the cycle can
+  // straddle the start or the end of a trip.
+  const windowDeltaOn = (iso) => {
+    const s = shapingPlanOn(db, iso);
+    return s.plan ? E.planDayDelta(s.plan, p, iso, (E.targetOn(db.targets, iso) || unbent).kcal, E.kcalFloor(p), s.settleEnd) : 0;
+  };
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
     cycling: shaped, cyclingHistory: shaped ? (p.cyclingHistory || null) : null, carryover: p.carryover,
-    cycleStart: cs, eatenByDate, targets: db.targets,
+    cycleStart: cs, eatenByDate, targets: db.targets, windowDeltaOn,
     cyclingChangedAt: p.cyclingChangedAt || null,
     overrideShiftKcal: (ov && ov.shiftKcal) || 0,
   });
@@ -4350,7 +4364,13 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       : lastOfKind.outcome === 'roughly' ? Math.round(Math.abs(p.rateKgPerWeek || 0.5) * 50) / 100
       : lastOfKind.acceptRateKgPerWeek)
     : null;
-  const draft = preset ? { start: range.start, end: range.end, hold: preset.hold, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25 } : null;
+  // `hold` is what they ANSWERED, not what the preset guessed. planRate reads hold before it reads
+  // the rate, so carrying the preset's default onto the saved plan threw the answer away: picking
+  // "Training block" (hold: true by default) and then "full 0.9 kg, no change" wrote both, and the
+  // engine returned 0 - a maintenance week nobody asked for, from a screen that had just offered
+  // the choice. The rate question is the one that moves calories, so it is the one that decides.
+  const holdAnswer = accept === 0;
+  const draft = preset ? { start: range.start, end: range.end, hold: holdAnswer, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25 } : null;
   const spanDays = datesBetween(range.start, range.end);
 
   async function parseFree() {
@@ -4376,7 +4396,7 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
   function save() {
     const plan = {
       id: Store.uid(), start: range.start, end: range.end, kind: kind,
-      label: preset.label, hold: preset.hold, eating: preset.eating, moving: preset.moving,
+      label: preset.label, hold: holdAnswer, eating: preset.eating, moving: preset.moving,
       data: preset.data, acceptRateKgPerWeek: accept, highDays: high, deltaPct: 0.25,
       createdAt: Date.now(), outcome: null,
     };
@@ -4452,15 +4472,23 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
     {clash && <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--fat-ink)' }}>
       You've already got {clash.label.toLowerCase()} down for {fmtRange(clash.start, clash.end)}. Pick days that don't overlap, or cancel that one first in Settings.
     </div>}
-    <Btn kind="accent" className="w-full" disabled={!!clash} style={{ opacity: clash ? 0.5 : 1 }} onClick={() => setStep(spanDays.length > 1 ? 'big' : 'rate')}>That's the one</Btn>
+    <Btn kind="accent" className="w-full" disabled={!!clash} style={{ opacity: clash ? 0.5 : 1 }} onClick={() => setStep('rate')}>That's the one</Btn>
     {bail}
   </div>);
 
   // 4. The big days inside it. This is the bit that makes a wedding one day up rather than a week
   //    written off: the other days pay for it, so the week still lands where it was meant to.
+  //    Asked AFTER the rate, which is the whole of the fix for the commonest complaint about this
+  //    screen. Asked first, it invited people to mark days out while still thinking in deficit
+  //    terms; they then said "just hold steady" one screen later and nothing ever went back. The
+  //    result was a maintenance week shaped like a crash diet - four days lifted and the rest
+  //    dragged down - from two answers that each made sense on their own. Now the rate sets the
+  //    level, this sets the shape on top of it, and the question knows which level it is shaping.
   if (step === 'big') return (<div className="fade-in">
-    <Bubble from="you">{fmtRange(range.start, range.end)}</Bubble>
-    <Bubble>Any days in there you want to eat more on? The others cover it, so the week still adds up.</Bubble>
+    <Bubble from="you">{accept === 0 ? 'Just hold steady' : accept + ' kg'}</Bubble>
+    <Bubble>{accept === 0
+      ? 'Right, every day of it sits at maintenance. Any days in there you want higher still? Only if you want them, and the others cover it.'
+      : 'Any days in there you want to eat more on? The others cover it, so the week still adds up.'}</Bubble>
     <div className="grid grid-cols-2 gap-2 mb-3">
       {spanDays.map(d => {
         const on = high.includes(d);
@@ -4471,23 +4499,23 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
         </button>;
       })}
     </div>
-    <Btn kind="accent" className="w-full" onClick={() => setStep('rate')}>{high.length ? 'That\'s them' : 'None of them'}</Btn>
+    <Btn kind="accent" className="w-full" onClick={() => setStep('done')}>{high.length ? 'That\'s them' : 'None of them'}</Btn>
     {bail}
   </div>);
 
-  // 5. What they'd be happy with. The one dial that actually moves calories.
+  // 5. What they'd be happy with. The one dial that actually moves calories, so it is asked first.
   if (step === 'rate') return (<div className="fade-in">
-    {high.length > 0 && <Bubble from="you">{high.length} big day{high.length === 1 ? '' : 's'}</Bubble>}
+    <Bubble from="you">{fmtRange(range.start, range.end)}</Bubble>
     <Bubble>I'd normally aim for {Math.abs(p.rateKgPerWeek || 0.5)} kg a week. On a week like this, what would you be happy with?</Bubble>
     {suggested != null && <Bubble>Last time you {lastOfKind.outcome === 'went_well' ? 'stuck to it' : lastOfKind.outcome === 'roughly' ? 'were roughly on it' : 'went off plan'}, so {suggested === 0 ? 'holding steady' : suggested + ' kg'} is probably the honest one.</Bubble>}
-    <Choices options={acceptOptions(p, suggested)} onPick={(v) => { setAccept(v); setStep('done'); }} />
+    <Choices options={acceptOptions(p, suggested)} onPick={(v) => { setAccept(v); setStep(spanDays.length > 1 ? 'big' : 'done'); }} />
     {bail}
   </div>);
 
   // 6. What it comes to, before committing.
   const dayKcal = (iso) => base ? Math.round(base.kcal + E.planDayDelta(draft, p, iso, base.kcal, E.kcalFloor(p))) : null;
   return (<div className="fade-in">
-    <Bubble from="you">{accept === 0 ? 'Just hold steady' : accept + ' kg'}</Bubble>
+    <Bubble from="you">{high.length ? high.length + ' big day' + (high.length === 1 ? '' : 's') : 'No big days'}</Bubble>
     <Bubble>
       Sorted. {fmtRange(range.start, range.end)}, {DATA_SAY[preset.data]}.{SCALE_SAY[preset.data] || ''}
     </Bubble>
@@ -12522,6 +12550,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack }
   const p = db.profile; const unit = p.weight_unit;
   const base = currentTargets(db);
   const today = Store.todayISO();
+  const [forceCheckin, setForceCheckin] = useState(false);
   // Progress is reached from You rather than from the tab bar, so it owns a back affordance. On
   // desktop it is still a sidebar destination, hence onBack being optional.
   useBackClose(onBack || null);
@@ -12541,6 +12570,12 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack }
         const st = checkinStatus(db, today);
         // When it isn't due this says WHEN, which is the one thing the page never told anyone: the
         // card used to disappear entirely, so "no check-in today" was indistinguishable from a bug.
+        // ...and it can be overridden. The clock is a default, not a rule: coming home from a trip on
+        // the Sunday and wanting to be read on the Monday is a perfectly good reason to be a couple
+        // of days early, and there was no way to say so - the button simply did not exist, on any
+        // screen. It is offered rather than hidden, with what it costs said plainly, because a short
+        // cycle is noisier rather than invalid, and checkInDecision already refuses to steer off a
+        // cycle it cannot read (see readReliability).
         if (!st.due) return <Card className="p-3.5 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -12549,6 +12584,7 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack }
             </div>
             {st.nextISO && <div className="text-[11px] text-[#8A8A90] shrink-0 text-right">{fmtShortDay(st.nextISO)}</div>}
           </div>
+          <div className="mt-2.5 pt-2.5 border-t border-[#262629]"><TextBtn onClick={() => setForceCheckin(true)}>Check in now anyway &rsaquo;</TextBtn></div>
         </Card>;
         return <Card className="p-3.5 mb-4">
           <div className="flex items-center justify-between gap-3">
@@ -12596,7 +12632,14 @@ function Goals({ db, update, showToast, onCheckIn, onWeigh, onEditPlan, onBack }
       <CoachTimeline db={db} />
       <Collapsible label="Weigh-in log"><WeighInLog db={db} update={update} bare /></Collapsible>
 
-
+      {forceCheckin && (() => {
+        const st = checkinStatus(db, today);
+        return <ConfirmDialog title="Check in early?"
+          body={'It has been ' + st.daysSince + ' day' + (st.daysSince === 1 ? '' : 's') + ' since your last one, so this cycle is shorter than the week I read best. I will still only move your numbers if the trend is clear enough to read; if it is not, I will hold them and say so. Your check-in day resets from today.'}
+          confirmLabel="Check in now" confirmKind="accent"
+          onConfirm={() => { setForceCheckin(false); onCheckIn && onCheckIn(); }}
+          onClose={() => setForceCheckin(false)} />;
+      })()}
     </div>
   );
 }
@@ -13066,14 +13109,16 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   // days, so it is what the controls edit; the standing rhythm is not in force until it ends.
   const stripWindow = (db.week_plans || []).filter(w => w && w.start && w.end && w.start <= shiftISO(today, 6) && w.end >= today)
     .sort((a, b) => (a.start < b.start ? -1 : 1))[0] || null;
-  // Seven days normally. While a window runs, the row carries the WHOLE of it plus three days the
-  // other side: a trip longer than a week otherwise fills the row end to end, so every number on
-  // screen is a travel number and there is nothing to read them against. Seeing it come back down
-  // is most of the point of showing the days at all. Capped so a month away cannot run away with it.
-  // The row runs to the end of the settle-up, plus two days so the return to normal is visible.
+  // Seven days normally. While a window runs, the row carries the trip and the days settling it up,
+  // and stops there. It used to run two days past the settle-up as well, "so you can see it come
+  // back down", which on the ordinary case - five days away, weigh-in the following Wednesday - made
+  // NINE tiles in a seven-wide grid: a full row, then two stragglers underneath reading the same
+  // number twice. The days that come back down are the settling days themselves, which are already
+  // in the row; the two after them are just the target, unshaped, said again. Capped at a fortnight
+  // so a month away is two readable rows rather than five.
   const settleEnd = stripWindow ? settleEndFor(db, stripWindow) : null;
   const stripEnd = stripWindow
-    ? [shiftISO(settleEnd || stripWindow.end, 2), shiftISO(today, 20)].sort()[0]
+    ? [settleEnd || stripWindow.end, shiftISO(today, 13)].sort()[0]
     : shiftISO(today, 6);
   const strip = []; for (let d = today; d <= stripEnd; d = shiftISO(d, 1)) strip.push(d);
   // Editing the shape of a running window is a DATED change, exactly as editing the standing rhythm
@@ -13104,8 +13149,17 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   return (<SubScreen title="Weekly shape" onBack={onBack} intro="Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.">
     <SavedFlash tick={tick} />
     <SubHead>Shape your week</SubHead>
-    <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => (
+    {/* These set the standing WEEKDAY rhythm, which app.jsx deliberately switches off while a
+        declared window runs (see effectiveTarget: one shape per day). Sitting live and highlighted
+        above a strip they were not driving, they read as the control for it - so "Custom" was lit
+        up while the days below it answered to the trip's dates, and tapping a preset changed
+        nothing on screen. They stay reachable, because setting up the rhythm you are coming back to
+        is a fair thing to do from here; they just no longer pretend to be in charge of the row. */}
+    <div className={`grid grid-cols-2 gap-2${stripWindow ? ' opacity-50' : ''}`}>{PLAN_PRESETS.map(pr => (
       <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>))}</div>
+    {stripWindow && <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">
+      Not in force while you're away: your trip is the shape until {fmtShortDay(shiftISO(settleEnd || stripWindow.end, 1))}. This is the rhythm you come back to.
+    </div>}
     {/* ONE strip for the week, always. A day is shaped either by the standing rhythm or by a declared
         window, and which one is a detail of the maths, not something to make somebody hold in their
         head: the row shows what each day actually comes to, and tapping a day edits whatever is
@@ -13136,6 +13190,20 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         ? Math.round((stripWindow.deltaPct == null ? 0.25 : stripWindow.deltaPct) * 100)
         : Math.round(cyc.deltaPct * 100);
       const setBoost = (v) => stripWindow ? setWindowShape({ deltaPct: v / 100 }) : setCyc({ enabled: true, deltaPct: v / 100 });
+      // What the boost slider actually BUYS, which can be less than it says. The engine caps the
+      // boost at what the paying days can give up without going through the floor (planDayDelta),
+      // and silently: the slider went on reading +30% while the big days stopped moving, so the one
+      // control on the screen that is supposed to be a real trade felt like it had come unplugged.
+      // Read back off a live big day rather than recomputed here, so it cannot drift from the maths.
+      const capPct = (() => {
+        if (!stripWindow) return null;
+        const hi = (stripWindow.highDays || []).filter(d => d >= today && d >= stripWindow.start && d <= stripEnd);
+        if (!hi.length) return null;
+        const flat = hi[0] <= stripWindow.end ? E.planKcalDelta(stripWindow, p) : 0;
+        const got = E.planDayDelta(stripWindow, p, hi[0], base.kcal, E.kcalFloor(p), settleEnd) - flat;
+        const asked = Math.round(base.kcal * (stripWindow.deltaPct == null ? 0.25 : stripWindow.deltaPct));
+        return got < asked ? Math.max(0, Math.round((got / base.kcal) * 100)) : null;
+      })();
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
           Tap a day to make it a big one. The rest come down to keep the total the same.
@@ -13159,10 +13227,13 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
           <Field label={`${stripWindow ? 'Big-day boost while you\'re away' : 'High-day boost'}: +${boostPct}%`}>
             <input type="range" min="5" max="35" value={boostPct} onChange={e => setBoost(+e.target.value)} className="w-full accent-[#4A9EEB]" />
           </Field>
+          {capPct != null && <div className="text-[11px] mt-1 leading-snug" style={{ color: 'var(--fat-ink)' }}>
+            Landing at +{capPct}%: that is everything the other days have left to give before they hit the floor. Drop a big day, or spread them out, to buy more.
+          </div>}
         </div>
         <div className="text-[11px] text-[#8A8A90] leading-snug">
           {stripWindow
-            ? 'Every day of it, and the first few after, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape.'
+            ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape. The days paying for a big one give up what they can spare, so a day still away is never dropped below a day at home.'
             : 'The next seven days, as they actually stand.'} Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
           {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
         </div>

@@ -1246,6 +1246,11 @@
   //   cyclingChangedAt: 'YYYY-MM-DD' | null              legacy fallback for state with no history:
   //                                                      day the plan was last edited; days eaten
   //                                                      before it are locked out of carryover
+  //   windowDeltaOn: (iso) => kcal | null                a declared window's shift for an EARLIER
+  //                                                      day of the cycle, so the carryover ledger
+  //                                                      scores a trip day against the target it
+  //                                                      actually ran under. `base` already carries
+  //                                                      it for `date` itself.
   // }
   // Returns { base, cyc, carry, eff, carryDetail, floorLimited }.
   function composeDayTarget(opts) {
@@ -1264,8 +1269,20 @@
       var t = targetOn(opts.targets, iso);
       return (t && t.kcal) || base.kcal;
     }
-    function planDelta(iso) { return cyclingDeltaOn(opts.cycling, cycHist, iso, baseKcalOn(iso), floor); }
-    var cyc = planDelta(date);
+    // ...and against the declared window in force on it, for the third time for the same reason. A
+    // day inside a trip was set base + the window's bend, ate to it, and was then scored by the
+    // carryover ledger against the bare stored target, because the bend is applied by the caller
+    // before it gets here and the ledger only ever reconstructed cycling. Eating exactly to a 2,655
+    // travel target booked an 1,155 kcal "surplus", which dispersed carryover then clawed straight
+    // back off the rest of the trip: the plan quietly took itself apart the moment it was followed.
+    var windowDeltaOn = opts.windowDeltaOn || null;
+    function planDelta(iso) {
+      return cyclingDeltaOn(opts.cycling, cycHist, iso, baseKcalOn(iso), floor)
+        + (windowDeltaOn ? (+windowDeltaOn(iso) || 0) : 0);
+    }
+    // The day being composed already carries its window bend inside `base` (the caller applies it,
+    // so the floor and the macro split see it), so only the LEDGER's past days need it added back.
+    var cyc = cyclingDeltaOn(opts.cycling, cycHist, date, baseKcalOn(date), floor);
     var carry = 0, carryDetail = null;
     var co = opts.carryover;
     if (co && co.enabled && opts.cycleStart) {
@@ -1744,36 +1761,49 @@
     var seg = planShapeOn(plan, iso);
     var hi = (seg.highDays || []).filter(function (d) { return d >= plan.start && d <= spanEnd; });
     if (!hi.length) return flat;
-    var span = Math.max(1, daysBetweenISO(plan.start, spanEnd) + 1);
-    var nLow = span - hi.length;
+    var base = baseKcal || 0;
+    var floor = floorKcal == null ? KCAL_FLOOR : floorKcal;
+    var awayFlat = planKcalDelta(plan, profile);
+    // What a day comes to with no big days at all: the agreed rate and nothing else. This is the
+    // number each payer is giving up FROM, and it differs between a day away and a day at home.
+    function natural(d) { return base + ((d >= plan.start && d <= plan.end) ? awayFlat : 0); }
+    // Every day of the span that is not a big day, in date order (the order fixes the rounding
+    // below, so a day's share never depends on which day happens to be asked for).
+    var lows = [];
+    for (var d = plan.start; d <= spanEnd; d = shiftISOdays(d, 1)) if (hi.indexOf(d) < 0) lows.push(d);
     // Nothing left to pay for the boost (every day is a big day), so drop it rather than hand out
     // free calories the agreed rate never accounted for.
-    if (nLow <= 0) return flat;
+    if (!lows.length) return flat;
 
-    // Worked as a BUDGET rather than a per-day bump and an offsetting per-day cut. The two are the
-    // same arithmetic while every day of the span is a day away, and they part company the moment
-    // settling days join it: a day away carries the eased rate underneath and a day at home does
-    // not, so "everyone else gives up the same amount" leaves the low days on different numbers and
-    // whichever is poorest hits the floor while the rest sit comfortably. Splitting what is LEFT,
-    // evenly, is what people mean by the others covering it, and it is what makes the boost slider
-    // mean something: every notch of it is a real trade against the days doing the paying.
-    var awayFlat = planKcalDelta(plan, profile);
-    var awaySpan = Math.max(0, daysBetweenISO(plan.start, plan.end) + 1);
-    var hiAway = 0;
-    for (var i = 0; i < hi.length; i++) if (hi[i] <= plan.end) hiAway++;
-    var base = baseKcal || 0;
-    var budget = span * base + awaySpan * awayFlat;      // the span's total at the agreed rate
-    var floor = floorKcal == null ? KCAL_FLOOR : floorKcal;
+    // Each payer gives up a share of its OWN room above the floor, rather than every payer landing
+    // on the same absolute number. Those are the same arithmetic while every day of the span is a
+    // day away, and they part company the moment settling days join it. Equalising the number is
+    // what people first reach for, and it is wrong in a way that is hard to unsee: on a plan whose
+    // base target already sits near the floor, a Sunday still abroad (base + the whole eased rate)
+    // and a Tuesday at home (base) get averaged, so the trip day is crushed by hundreds of calories
+    // to hand the home days a rise nobody asked for. Room above the floor is what a day can
+    // actually give, so it is what it is asked for: a day already at the floor pays nothing, and
+    // the days with the most slack carry the most. The span still nets to the agreed rate.
+    var room = 0, i;
+    for (i = 0; i < lows.length; i++) room += Math.max(0, natural(lows[i]) - floor);
+    if (!(room > 0)) return flat;                        // nobody has anything to give
     var boost = Math.round(base * (seg.deltaPct == null ? 0.25 : seg.deltaPct));
     // The days doing the paying have to stay above the safety floor. Rather than let them be driven
     // under and clamped back up by composeDayTarget - which silently puts the span ABOVE the rate
     // that was agreed for it, while the screen promises the others cover it - the boost gives way.
-    var maxBoost = Math.floor((budget - nLow * floor - hi.length * base - hiAway * awayFlat) / hi.length);
+    var maxBoost = Math.floor(room / hi.length);
     if (maxBoost < boost) boost = maxBoost;
     if (boost <= 0) return flat;
-    var lowValue = Math.round((budget - hi.length * (base + boost) - hiAway * awayFlat) / nLow);
     if (hi.indexOf(iso) >= 0) return flat + boost;
-    return lowValue - base;
+    // Shares are rounded off a RUNNING total rather than one at a time, so they add up to the cost
+    // exactly and the span nets to zero to the kcal instead of drifting by a few per payer.
+    var cost = boost * hi.length, cum = 0, before = 0;
+    for (i = 0; i < lows.length; i++) {
+      before = Math.round(cost * cum / room);
+      cum += Math.max(0, natural(lows[i]) - floor);
+      if (lows[i] === iso) return flat - (Math.round(cost * cum / room) - before);
+    }
+    return flat;
   }
   // After a window closes, the scale is still carrying travel water and salt. Ease back over a
   // stretch as long as the window was, capped at a week (the Oura Rest Mode model).
