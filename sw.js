@@ -10,7 +10,7 @@
    VERSION is also the deploy's identity: build.mjs stamps this same number into index.html as
    window.BUILD, and the app compares the two before it offers anyone a reload (see the message
    handler below). Keep it a plain increasing integer, because that comparison is numeric. */
-const VERSION = '291';
+const VERSION = '292';
 const CORE = 'macrosaurus-core-v' + VERSION;
 const RUNTIME = 'macrosaurus-rt-v' + VERSION;
 const CORE_ASSETS = [

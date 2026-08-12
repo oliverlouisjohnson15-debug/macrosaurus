@@ -1242,6 +1242,10 @@ const AI_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/ai-proxy
 // YouTube/Instagram/TikTok link server-side (the browser can't, due to CORS). It holds no key and calls no
 // paid API; we then hand its text to the normal ai-proxy to structure into a recipe.
 const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/recipe-extract';
+// menu-fetch reads the menu behind a pasted restaurant link server-side (the browser can't, due to
+// CORS). It holds no key and calls no paid API. It only ever answers with something it could PROVE
+// was a menu, so a miss is ordinary and lands us exactly where we were: ask for a photograph.
+const MENU_FETCH = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/menu-fetch';
 // nutrition-analyze turns ingredient LINES into per-ingredient + total macros via a real nutrition
 // database (Edamam), server-side. If it is not configured, the client falls back to an AI estimate.
 const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/nutrition-analyze';
@@ -1700,6 +1704,32 @@ async function buddyChatReply(db, history, runTool) {
 const MENU_IMG_MAX = 1568;
 const MENU_PDF_MAX_BYTES = 4.5 * 1024 * 1024;
 function isPdfFile(f) { return !!f && ((f.type || '').indexOf('pdf') !== -1 || /\.pdf$/i.test(f.name || '')); }
+/* The menu behind a pasted link, if there is one to be had. Returns the edge function's reply:
+   { ok, place, menuText, pdf_b64, pdf_mime, source, note }.
+   Never throws and never blocks the feature: every failure comes back ok:false, and the caller
+   carries on with the place name alone exactly as it did before this existed. That is the whole
+   safety argument for trying at all - the fetcher has to prove it found a menu (looksLikeMenu in
+   the function's parse.ts), so the downside of a site it cannot read is the behaviour we already
+   shipped, not a wrong menu. */
+async function fetchMenuFromLink(url) {
+  try {
+    const sess = supa ? (await supa.auth.getSession()).data.session : null;
+    const token = sess && sess.access_token;
+    if (!token) return { ok: false };
+    const res = await fetch(MENU_FETCH, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+      body: JSON.stringify({ url: url }),
+    });
+    return await res.json();
+  } catch (e) { return { ok: false }; }
+}
+// A menu PDF the fetcher brought back, as the File the rest of the path already handles.
+function pdfFromBase64(b64, mime, name) {
+  const bin = atob(b64); const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], name || 'menu.pdf', { type: mime || 'application/pdf' });
+}
 async function menuIdeasRequest(files, brief, menuGiven) {
   // Static instructions first and cached, so reading a second menu, or the same one again after a
   // better photo, hits the prompt cache rather than paying for the contract twice.
@@ -12159,14 +12189,34 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   async function run() {
     if (!canRun) { setErr('Photograph the menu, or tell me where you are eating.'); return; }
     setErr('');
-    setBusy('menu');
     try {
+      let text = menuTextAll;
+      let files = imgs.map(f => f.file);
+      let where = askedPlace;
+      /* A pasted link, tried properly before we fall back to the name in it. Most of the web hides
+         its menu behind JavaScript and this will come back empty, which is fine and is the case the
+         rest of this screen is already built for; independents on WordPress and Squarespace serve
+         theirs as text or hang a PDF off the page, and those are exactly the places we otherwise
+         have nothing for. The fetcher only answers when it can prove it found a menu, so a miss
+         costs one second and changes nothing. */
+      if (pasteIsLink && !menuGiven) {
+        setBusy('link');
+        const got = await fetchMenuFromLink(paste.trim());
+        if (got && got.ok) {
+          if (got.menuText) text = got.menuText;
+          else if (got.pdf_b64) { try { files = files.concat([pdfFromBase64(got.pdf_b64, got.pdf_mime, 'menu.pdf')]); } catch (_) { /* fall back to the name alone */ } }
+        }
+        // The page knows what the restaurant calls itself; placeFromUrl only ever had the domain.
+        if (got && got.place && !place.trim()) where = got.place;
+      }
+      const gotMenu = !!text || files.length > 0;
+      setBusy('menu');
       const brief = MenuIdeas.brief({
-        place: askedPlace,
+        place: where,
         mealName: mealName, remaining: rem, note: note.trim(),
-        menuText: menuTextAll, hasImages: imgs.length > 0
+        menuText: text, hasImages: files.length > 0
       });
-      const out = await menuIdeasRequest(imgs.map(f => f.file), brief, menuGiven);
+      const out = await menuIdeasRequest(files, brief, gotMenu);
       if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');
       else { setRes(out); setAll(false); setView(rem ? 'fit' : 'protein'); setErr(''); }
     } catch (e) { setErr('Could not read that menu: ' + e.message); }
@@ -12217,7 +12267,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       onCancel={() => { setEst(null); setPicked(null); }} />
     {err && <div className="text-[12px] mt-3" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
-  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : 'Reading the menu'} />;
+  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Looking for the menu' : 'Reading the menu'} />;
 
   // ---- the menu, ranked ----
   if (res) {
@@ -12333,7 +12383,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
           the difference between a helpful shortcut and a feature that seems to have ignored you. */}
       {pasteIsLink && <div className="text-[11px] mt-1.5 leading-snug" style={{ color: linkPlace ? 'var(--good-ink)' : 'var(--muted)' }}>
         {linkPlace
-          ? ('Got it, ' + linkPlace + '. A link only gives me the name: I cannot read the menu behind it. Photograph the menu to have the actual dishes priced.')
+          ? ('Got it, ' + linkPlace + '. I will try to read the menu on that page. Plenty of sites hide theirs from anything that is not a browser, so photograph it if I come back without one.')
           : 'That link does not name a restaurant. Add the place below, or photograph the menu.'}
       </div>}
     </div>}
@@ -12351,9 +12401,10 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       </Field>
     </div>}
 
-    {/* The button says which of the two things is about to happen. Promising to "read the menu" over
-        a place name and no menu is where the whole misunderstanding starts. */}
-    <Btn kind="accent" className="w-full" disabled={!canRun} style={{ opacity: canRun ? 1 : 0.5 }} onClick={run}>{menuGiven ? 'Read the menu' : 'Suggest what to order'}</Btn>
+    {/* The button says which of the three things is about to happen. Promising to "read the menu"
+        over a place name and no menu is where the whole misunderstanding starts, and a link is its
+        own case: we are about to go and look, and we might come back empty. */}
+    <Btn kind="accent" className="w-full" disabled={!canRun} style={{ opacity: canRun ? 1 : 0.5 }} onClick={run}>{menuGiven ? 'Read the menu' : pasteIsLink ? 'Try that link' : 'Suggest what to order'}</Btn>
     {onScan && <div className="flex items-center justify-between gap-2 p-3 mt-4" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
       <div className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Already eaten it? A photo is more accurate.</div>
       <button onClick={onScan} className="hit text-[12px] font-semibold shrink-0 px-3" style={{ color: 'var(--accent-ink)' }}>Estimate it</button>

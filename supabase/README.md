@@ -154,6 +154,61 @@ When it is set, each transcription's cost is recorded against the caller's month
 `add_ai_usage`, the same pot ai-proxy uses, so the fair-use ceiling stays meaningful. Downloads are
 capped at 25 MB.
 
+## Menu import (the `menu-fetch` function)
+
+Deploy with **`verify_jwt = true`** (`supabase functions deploy menu-fetch`). It holds no secret and
+calls no paid API.
+
+Pasting a restaurant link into the Menu tab used to give the app the restaurant's *name* and nothing
+else, because `placeFromUrl` (in `app/menu.js`) deliberately never fetched the page. The app then
+asked the model for dishes at a place it had no menu for, and got a card's worth of plausible
+invention back — the bug that started this. `menu-fetch` closes the gap for the sites where it can
+be closed: it fetches the pasted page server-side (the browser cannot, due to CORS) and tries three
+routes, most exact first.
+
+| Route | What it reads | Why it is worth trying |
+|---|---|---|
+| `jsonld` | `schema.org` `Menu` / `hasMenu` blocks | Dish names and prices exactly as the site declares them, no parsing guesswork |
+| `pdf` | a menu PDF linked from the page | Independents publish cards as PDFs constantly, and the client already sends menu PDFs as document blocks |
+| `page` | the page's own text, furniture stripped | WordPress/Squarespace/Wix sites serve their menu as text, because they need to be searchable |
+
+When the pasted page is not itself a menu, it will follow that page's **own** links one level, same
+origin only, to a menu page or a menu PDF. That is the "somebody pasted the homepage" case.
+
+**It has to prove it found a menu.** Everything it returns has passed `looksLikeMenu` in
+`menu-fetch/parse.ts`: prices in the shape a UK menu writes them over a real body of lines, or
+course headings over the same. A JavaScript shell, a cookie wall, a 403 and a homepage all fail it,
+and the function answers `ok:false`. The client then behaves exactly as it did before — the "I have
+not seen this menu" strip, dishes badged *Unconfirmed*, and a nudge to photograph the card. So the
+worst case of the whole feature is the previous behaviour; there is no route from here to a
+confidently wrong menu. Chains are unaffected and unimportant here: their sites are the ones that
+fail, and for them we want published nutrition anyway, which is measured rather than parsed.
+
+**It is not an open proxy, and this is the part to be careful with.** Unlike `recipe-extract`, which
+only ever fetches three named platforms, this takes whatever URL a signed-in user pastes. The guards
+live in `parse.ts` (`safeUrl`, `privateIPv4`, `privateIPv6`) and are unit-tested in
+`tests/menu-fetch.test.js`:
+
+- `http(s)` only; no credentials in the URL; no ports other than 80/443.
+- No loopback, private, link-local, CGNAT, multicast or reserved address, in either IP family,
+  including the `::ffff:` mapped forms the URL parser normalises to hex. `169.254.169.254` and
+  `metadata.google.internal` are refused by name and by number.
+- Bare hostnames and `.local` / `.internal` / `.lan` style suffixes are treated as intranet names.
+- Redirects are followed **by hand**, up to 4 hops, each one re-checked (`redirect: 'follow'` would
+  let a public URL bounce us somewhere private without our ever seeing the address).
+- Where the runtime exposes `Deno.resolveDns`, the hostname's A/AAAA records are checked too, so a
+  public name pointing at a private address is refused. An unavailable resolver is not treated as a
+  failure; it leaves us where the literal checks left us.
+- 2 MB per page, 4.5 MB per PDF (matching the client's cap), 12 s per fetch, 25 s per request, and a
+  content-type gate to HTML/PDF/plain text.
+- Failures are **indistinguishable to the caller**: a private address, a typo and a 404 all come
+  back as the same `ok:false`. The `diag` string that separates them goes to the function logs, not
+  the response body, so this cannot be used to probe anything.
+
+The residual risk is a DNS rebind between the resolve check and the fetch. It is accepted because
+the response is never anything the caller can address or act on: only text that goes to a model, or
+PDF bytes, and only when it looked like a menu.
+
 ## Outstanding security-advisor items (not code — needs a dashboard toggle)
 
 - **Leaked-password protection is disabled.** Enable it in *Auth → Providers → Password* (checks

@@ -29,7 +29,7 @@
 <meta name="twitter:title" content="Macrosaurus, the macro tracker that adapts (and is actually fun)" />
 <meta name="twitter:description" content="Science-based macro targets that adapt every week, AI food logging, macro-tuned recipes, and a game that keeps you coming back." />
 <meta name="twitter:image" content="https://macrosaurus.com/og.png?v=124" />
-<script>window.BUILD='291';</script>
+<script>window.BUILD='292';</script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(e){console.warn('SW registration failed:',e);});});}</script>
 <!-- Error monitoring: Sentry loader (error-only; Session Replay and Tracing are disabled in the project settings, so no screen data is recorded). -->
 <script src="https://js-de.sentry-cdn.com/29e6070c53aafda38874cf1fa649e03f.min.js" crossorigin="anonymous"></script>
@@ -9796,6 +9796,10 @@ const AI_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/ai-proxy
 // YouTube/Instagram/TikTok link server-side (the browser can't, due to CORS). It holds no key and calls no
 // paid API; we then hand its text to the normal ai-proxy to structure into a recipe.
 const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/recipe-extract';
+// menu-fetch reads the menu behind a pasted restaurant link server-side (the browser can't, due to
+// CORS). It holds no key and calls no paid API. It only ever answers with something it could PROVE
+// was a menu, so a miss is ordinary and lands us exactly where we were: ask for a photograph.
+const MENU_FETCH = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/menu-fetch';
 // nutrition-analyze turns ingredient LINES into per-ingredient + total macros via a real nutrition
 // database (Edamam), server-side. If it is not configured, the client falls back to an AI estimate.
 const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/nutrition-analyze';
@@ -10435,6 +10439,47 @@ const MENU_IMG_MAX = 1568;
 const MENU_PDF_MAX_BYTES = 4.5 * 1024 * 1024;
 function isPdfFile(f) {
   return !!f && ((f.type || '').indexOf('pdf') !== -1 || /\.pdf$/i.test(f.name || ''));
+}
+/* The menu behind a pasted link, if there is one to be had. Returns the edge function's reply:
+   { ok, place, menuText, pdf_b64, pdf_mime, source, note }.
+   Never throws and never blocks the feature: every failure comes back ok:false, and the caller
+   carries on with the place name alone exactly as it did before this existed. That is the whole
+   safety argument for trying at all - the fetcher has to prove it found a menu (looksLikeMenu in
+   the function's parse.ts), so the downside of a site it cannot read is the behaviour we already
+   shipped, not a wrong menu. */
+async function fetchMenuFromLink(url) {
+  try {
+    const sess = supa ? (await supa.auth.getSession()).data.session : null;
+    const token = sess && sess.access_token;
+    if (!token) return {
+      ok: false
+    };
+    const res = await fetch(MENU_FETCH, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': 'Bearer ' + token,
+        'apikey': SUPA_KEY
+      },
+      body: JSON.stringify({
+        url: url
+      })
+    });
+    return await res.json();
+  } catch (e) {
+    return {
+      ok: false
+    };
+  }
+}
+// A menu PDF the fetcher brought back, as the File the rest of the path already handles.
+function pdfFromBase64(b64, mime, name) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], name || 'menu.pdf', {
+    type: mime || 'application/pdf'
+  });
 }
 async function menuIdeasRequest(files, brief, menuGiven) {
   // Static instructions first and cached, so reading a second menu, or the same one again after a
@@ -32033,17 +32078,40 @@ function MenuTab({
       return;
     }
     setErr('');
-    setBusy('menu');
     try {
+      let text = menuTextAll;
+      let files = imgs.map(f => f.file);
+      let where = askedPlace;
+      /* A pasted link, tried properly before we fall back to the name in it. Most of the web hides
+         its menu behind JavaScript and this will come back empty, which is fine and is the case the
+         rest of this screen is already built for; independents on WordPress and Squarespace serve
+         theirs as text or hang a PDF off the page, and those are exactly the places we otherwise
+         have nothing for. The fetcher only answers when it can prove it found a menu, so a miss
+         costs one second and changes nothing. */
+      if (pasteIsLink && !menuGiven) {
+        setBusy('link');
+        const got = await fetchMenuFromLink(paste.trim());
+        if (got && got.ok) {
+          if (got.menuText) text = got.menuText;else if (got.pdf_b64) {
+            try {
+              files = files.concat([pdfFromBase64(got.pdf_b64, got.pdf_mime, 'menu.pdf')]);
+            } catch (_) {/* fall back to the name alone */}
+          }
+        }
+        // The page knows what the restaurant calls itself; placeFromUrl only ever had the domain.
+        if (got && got.place && !place.trim()) where = got.place;
+      }
+      const gotMenu = !!text || files.length > 0;
+      setBusy('menu');
       const brief = MenuIdeas.brief({
-        place: askedPlace,
+        place: where,
         mealName: mealName,
         remaining: rem,
         note: note.trim(),
-        menuText: menuTextAll,
-        hasImages: imgs.length > 0
+        menuText: text,
+        hasImages: files.length > 0
       });
-      const out = await menuIdeasRequest(imgs.map(f => f.file), brief, menuGiven);
+      const out = await menuIdeasRequest(files, brief, gotMenu);
       if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');else {
         setRes(out);
         setAll(false);
@@ -32151,7 +32219,7 @@ function MenuTab({
     }
   }, err));
   if (busy) return /*#__PURE__*/React.createElement(DinoLoader, {
-    label: busy === 'refine' ? 'Re-working it out' : 'Reading the menu'
+    label: busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Looking for the menu' : 'Reading the menu'
   });
 
   // ---- the menu, ranked ----
@@ -32393,7 +32461,7 @@ function MenuTab({
     style: {
       color: linkPlace ? 'var(--good-ink)' : 'var(--muted)'
     }
-  }, linkPlace ? 'Got it, ' + linkPlace + '. A link only gives me the name: I cannot read the menu behind it. Photograph the menu to have the actual dishes priced.' : 'That link does not name a restaurant. Add the place below, or photograph the menu.')), /*#__PURE__*/React.createElement("div", {
+  }, linkPlace ? 'Got it, ' + linkPlace + '. I will try to read the menu on that page. Plenty of sites hide theirs from anything that is not a browser, so photograph it if I come back without one.' : 'That link does not name a restaurant. Add the place below, or photograph the menu.')), /*#__PURE__*/React.createElement("div", {
     className: "mt-4"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Where are you eating?",
@@ -32425,7 +32493,7 @@ function MenuTab({
       opacity: canRun ? 1 : 0.5
     },
     onClick: run
-  }, menuGiven ? 'Read the menu' : 'Suggest what to order'), onScan && /*#__PURE__*/React.createElement("div", {
+  }, menuGiven ? 'Read the menu' : pasteIsLink ? 'Try that link' : 'Suggest what to order'), onScan && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2 p-3 mt-4",
     style: {
       border: '2px solid var(--border)',
