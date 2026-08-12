@@ -10,7 +10,7 @@
 //   ICONS.md            manifest: name, system, usage count, sizes in use, call sites
 //
 // Nothing here is imported by the app. Run: node tools/export-icons.mjs
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, globSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -242,9 +242,21 @@ art, so a stray 15 or 18 above is a bug rather than a preference.
 // Chrome prints the same contact sheet, so the PDF can never drift from the HTML. It is the one
 // piece here that needs a binary we do not ship, so a missing Chrome is a warning, not a failure —
 // the HTML is self-contained and shareable on its own.
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-if (existsSync(CHROME)) {
-  execFileSync(CHROME, ['--headless', '--disable-gpu', '--no-pdf-header-footer',
+// The binary lives somewhere different on each machine this runs on, so look through the places it
+// is actually installed rather than only the Mac one.
+const CHROME = [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/opt/pw-browsers/chromium/chrome-linux/chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+  process.env.CHROME_PATH,
+].find(p => p && existsSync(p))
+  // Playwright's own installs are versioned (chromium-1194), so glob for whatever version is here.
+  || globSync('/opt/pw-browsers/chromium*/chrome-linux/chrome')[0];
+if (CHROME) {
+  // --no-sandbox: the CI container runs as root, where Chrome refuses to start otherwise. The page
+  // being printed is a local file this script just wrote, so there is nothing to sandbox against.
+  execFileSync(CHROME, ['--headless', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer',
     `--print-to-pdf=${join(OUT, 'macrosaurus-icons.pdf')}`, 'file://' + join(OUT, 'index.html')],
     { stdio: 'ignore' });
   console.log('pdf: macrosaurus-icons.pdf');

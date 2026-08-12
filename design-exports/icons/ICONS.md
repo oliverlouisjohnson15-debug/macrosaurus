@@ -24,13 +24,13 @@ attribute or its `strokeLinecap`.
 
 16x16 grids of `'#'` (ink) and `'.'` (empty), rendered as one `<rect>` per run of ink at
 `shapeRendering: crispEdges`. Every row is exactly 16 characters. The editable master is
-`design-exports/icons/macrosaurus-icons-16.json` and `node tools/gen-px-icons.mjs` writes it into
+`design-exports/macrosaurus-icons-16.json` and `node tools/gen-px-icons.mjs` writes it into
 app.jsx; `px/<name>.txt` holds the same grid one glyph per file.
 
 **A zero here does not mean unused.** The food glyphs are chosen at runtime by `foodKind()` in
 `app/engine.js` and arrive as `kind={...}`, so they never appear as a literal at a call site — they
 are in fact the most-seen glyphs in the product, one on every logged food. 12 dynamic
-dispatch sites, at 16px: app.jsx:3036, 5226, 5480, 7257, 9103, 10281, 10489, 11208, 11732, 12104, 12379, 12602.
+dispatch sites, at 16px: app.jsx:3129, 5347, 5601, 7387, 9251, 10444, 10652, 11371, 11895, 12267, 12542, 12780.
 
 | Name | Uses | Sizes in use (px) | Call sites (app.jsx) | Notes |
 |---|---|---|---|---|
@@ -44,15 +44,15 @@ dispatch sites, at 16px: app.jsx:3036, 5226, 5480, 7257, 9103, 10281, 10489, 112
 | `caret_down` | 0 | — |  | **drawn, never rendered** |
 | `caret_up` | 0 | — |  | **drawn, never rendered** |
 | `cart` | 0 | — |  | **drawn, never rendered** |
-| `chat` | 1 | 16 | 7301 |  |
-| `check` | 18 | 16, 24 | 1071, 6556, 7354, 7806, 8225, 8655, 8690, 8699 … | via `<Tick>` |
+| `chat` | 1 | 16 | 7431 |  |
+| `check` | 18 | 16, 24 | 1071, 6677, 7484, 7936, 8373, 8803, 8838, 8847 … | via `<Tick>` |
 | `chevron` | 0 | — |  | **drawn, never rendered** |
 | `close` | 0 | — |  | **drawn, never rendered** |
 | `corner_arrow` | 0 | — |  | **drawn, never rendered** |
 | `dash` | 0 | — |  | **drawn, never rendered** |
 | `dino` | 0 | — |  | dispatched by `foodKind()` |
-| `dot` | 1 | 16 | 15318 |  |
-| `drink` | 1 | 16 | 10941 | dispatched by `foodKind()` |
+| `dot` | 1 | 16 | 15705 |  |
+| `drink` | 1 | 16 | 11104 | dispatched by `foodKind()` |
 | `drop` | 0 | — |  | **drawn, never rendered** |
 | `dumbbell` | 0 | — |  | **drawn, never rendered** |
 | `edit` | 0 | — |  | **drawn, never rendered** |
@@ -61,7 +61,7 @@ dispatch sites, at 16px: app.jsx:3036, 5226, 5480, 7257, 9103, 10281, 10489, 112
 | `flashlight` | 0 | — |  | **drawn, never rendered** |
 | `food` | 0 | — |  | **drawn, never rendered** |
 | `gear` | 0 | — |  | **drawn, never rendered** |
-| `glove` | 2 | 16 | 8223, 8235 |  |
+| `glove` | 2 | 16 | 8371, 8383 |  |
 | `goal` | 0 | — |  | **drawn, never rendered** |
 | `grain` | 0 | — |  | dispatched by `foodKind()` |
 | `heart_empty` | 0 | — |  | **drawn, never rendered** |
@@ -69,26 +69,26 @@ dispatch sites, at 16px: app.jsx:3036, 5226, 5480, 7257, 9103, 10281, 10489, 112
 | `lock` | 0 | — |  | **drawn, never rendered** |
 | `meat` | 0 | — |  | dispatched by `foodKind()` |
 | `mic` | 0 | — |  | **drawn, never rendered** |
-| `moon` | 1 | 16 | 13442 |  |
+| `moon` | 1 | 16 | 13829 |  |
 | `more` | 0 | — |  | **drawn, never rendered** |
 | `photo` | 0 | — |  | **drawn, never rendered** |
 | `plant` | 0 | — |  | dispatched by `foodKind()` |
 | `play` | 0 | — |  | **drawn, never rendered** |
 | `plus` | 0 | — |  | **drawn, never rendered** |
 | `recipe` | 0 | — |  | **drawn, never rendered** |
-| `scale` | 1 | 16 | 10492 |  |
+| `scale` | 1 | 16 | 10655 |  |
 | `share` | 0 | — |  | **drawn, never rendered** |
 | `sliders` | 0 | — |  | **drawn, never rendered** |
-| `snow` | 1 | 16 | 7289 |  |
+| `snow` | 1 | 16 | 7419 |  |
 | `square` | 0 | — |  | **drawn, never rendered** |
-| `star` | 12 | 16 | 1072, 7857, 7868, 7888, 8220, 8249, 9094, 9156 … | via `<Spark>` |
-| `sun` | 4 | 16 | 10928, 11519, 12280, 13442 |  |
+| `star` | 11 | 16 | 1072, 7987, 8002, 8368, 8397, 9242, 9304, 9358 | via `<Spark>` |
+| `sun` | 4 | 16 | 11091, 11682, 12443, 13829 |  |
 | `sweet` | 0 | — |  | dispatched by `foodKind()` |
 | `trend_down` | 0 | — |  | **drawn, never rendered** |
 | `trend_up` | 0 | — |  | **drawn, never rendered** |
 | `tri_down` | 0 | — |  | **drawn, never rendered** |
 | `tri_up` | 0 | — |  | **drawn, never rendered** |
-| `trophy` | 5 | 16 | 7304, 7773, 7804, 7811, 8196 |  |
+| `trophy` | 5 | 16 | 7434, 7903, 7934, 7941, 8344 |  |
 
 ## Emoji still rendering in the UI (3)
 
@@ -97,9 +97,9 @@ platform's emoji font, so they are the one thing in the app that looks different
 
 | Glyph | Codepoint | app.jsx lines |
 |---|---|---|
-| ✕ | U+2715 | 2748, 4804, 10696 |
-| → | U+2192 | 3440, 10082, 13888, 13888 |
-| ▼ | U+25BC | 6545 |
+| ✕ | U+2715 | 2841, 4925, 10859 |
+| → | U+2192 | 3533, 10230, 14275, 14275 |
+| ▼ | U+25BC | 6666 |
 
 ## Sizes in use
 
