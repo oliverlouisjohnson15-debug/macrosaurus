@@ -139,6 +139,48 @@ test('context reports water-high inside a window and through its recovery', () =
   assert.equal(E.weekPlanContext([], '2026-08-12').waterHigh, false, 'no plans');
 });
 
+// ---- declared but not started yet ------------------------------------------------------------
+// A window declared at check-in is nearly always for NEXT week. Nothing used to surface it until the
+// day it began, so the app looked like it had thrown the declaration away.
+test('upcomingPlanOn finds a declared window before it starts, and only before', () => {
+  const ps = [plan()];   // 2026-08-10 to 2026-08-14
+  assert.ok(E.upcomingPlanOn(ps, '2026-08-03'), 'a week out');
+  assert.ok(E.upcomingPlanOn(ps, '2026-08-09'), 'the day before');
+  assert.equal(E.upcomingPlanOn(ps, '2026-08-10'), null, 'the first day is running, not upcoming');
+  assert.equal(E.upcomingPlanOn(ps, '2026-08-12'), null, 'mid-window');
+  assert.equal(E.upcomingPlanOn(ps, '2026-08-20'), null, 'after');
+  assert.equal(E.upcomingPlanOn([], '2026-08-03'), null, 'no plans');
+  assert.equal(E.upcomingPlanOn(null, '2026-08-03'), null, 'null plans');
+});
+
+test('upcomingPlanOn stays quiet about windows too far off to act on', () => {
+  const ps = [plan()];
+  assert.ok(E.upcomingPlanOn(ps, '2026-07-27'), '14 days out is still worth saying');
+  assert.equal(E.upcomingPlanOn(ps, '2026-07-26'), null, '15 days out is not');
+  assert.ok(E.upcomingPlanOn(ps, '2026-07-26', 30), 'unless asked to look further');
+});
+
+test('upcomingPlanOn picks the nearest window, whatever order they were declared in', () => {
+  const near = plan({ id: 'near', start: '2026-08-10', end: '2026-08-14' });
+  const far = plan({ id: 'far', start: '2026-08-20', end: '2026-08-22' });
+  assert.equal(E.upcomingPlanOn([far, near], '2026-08-05', 30).id, 'near');
+  assert.equal(E.upcomingPlanOn([near, far], '2026-08-05', 30).id, 'near');
+  // Once the near one is running it is no longer "upcoming", but the far one still is.
+  assert.equal(E.upcomingPlanOn([near, far], '2026-08-12', 30).id, 'far');
+});
+
+test('context offers an upcoming window, but never over one that is actually running', () => {
+  const ps = [plan()];
+  const before = E.weekPlanContext(ps, '2026-08-08');
+  assert.ok(before.upcoming, 'declared and not started');
+  assert.equal(before.active, null);
+  const during = E.weekPlanContext(ps, '2026-08-12');
+  assert.ok(during.active, 'running');
+  assert.equal(during.upcoming, null, 'what is happening today wins');
+  assert.equal(E.weekPlanContext(ps, '2026-08-16').upcoming, null, 'recovering, nothing ahead');
+  assert.equal(E.weekPlanContext([], '2026-08-08').upcoming, null, 'no plans');
+});
+
 // ---- the protective guard, which is the whole point of phase 3 -------------------------------
 // Two under-reporting cycles running normally switch a user permanently onto weight-only steering.
 // A declared window is the likeliest cause of exactly that disagreement, so it must be exempt.

@@ -2580,6 +2580,20 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     return null;
   }
+  // The next window that hasn't started yet. A window declared at check-in is usually for NEXT week,
+  // so between declaring it and it starting there is a stretch where the app knows about it and says
+  // nothing anywhere. That gap is what makes people think the declaration didn't take.
+  function upcomingPlanOn(plans, iso, withinDays) {
+    var horizon = withinDays == null ? 14 : withinDays;
+    var best = null;
+    (plans || []).forEach(function (pl) {
+      if (!pl || !pl.start || !pl.end || pl.start <= iso) return;
+      var away = daysBetweenISO(iso, pl.start);
+      if (away > horizon) return;
+      if (!best || pl.start < best.start) best = pl;
+    });
+    return best;
+  }
   // Does this person keep doing the same thing? Only claims a pattern when there is one: at least
   // three windows of a kind, gaps that actually agree with each other, and a next date near enough
   // to be worth mentioning. Anything looser and the app would be guessing out loud, which is worse
@@ -2618,6 +2632,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var recovering = active ? null : planRecoveryOn(plans, iso);
     return {
       active: active, recovering: recovering,
+      // Declared but not started yet. Never competes with a window that is actually running: what
+      // is happening today is always the more useful thing to say.
+      upcoming: active ? null : upcomingPlanOn(plans, iso),
       // Both states mean the scale is untrustworthy in the same direction, so both reuse the
       // hold-rather-than-cut path the menstrual water-weight logic already drives.
       waterHigh: !!(active || recovering),
@@ -2627,7 +2644,8 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
-    planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planRecoveryOn: planRecoveryOn, weekPlanContext: weekPlanContext,
+    planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planRecoveryOn: planRecoveryOn,
+    upcomingPlanOn: upcomingPlanOn, weekPlanContext: weekPlanContext,
     recurringPlanHint: recurringPlanHint,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,
@@ -15470,14 +15488,22 @@ function WeekAheadFlow({
   }, "Sounds good")));
 }
 
-// The dashboard strip while a declared window is running or easing back.
+// How far off a declared window is, in words rather than a date subtraction the reader has to do.
+function startsInWords(todayISO, startISO) {
+  const n = daysBetween(todayISO, startISO);
+  return n <= 1 ? 'Starts tomorrow' : 'Starts in ' + n + ' days';
+}
+// The dashboard strip for a declared window: while it runs, while the scale eases back after it, and
+// (the quiet stretch that used to show nothing at all) between declaring it and it starting.
 function WeekPlanBanner({
   db,
   onOpen
 }) {
-  const ctx = E.weekPlanContext(db.week_plans, Store.todayISO());
-  const pl = ctx.active || ctx.recovering;
+  const today = Store.todayISO();
+  const ctx = E.weekPlanContext(db.week_plans, today);
+  const pl = ctx.active || ctx.recovering || ctx.upcoming;
   if (!pl) return null;
+  const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
   return /*#__PURE__*/React.createElement("button", {
     onClick: onOpen,
     className: "w-full pixel-box p-3.5 mb-4 text-left",
@@ -15490,16 +15516,16 @@ function WeekPlanBanner({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, ctx.active ? 'On now' : 'Easing back'), /*#__PURE__*/React.createElement("div", {
+  }, ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'), /*#__PURE__*/React.createElement("div", {
     className: "text-[13px] font-semibold"
-  }, pl.label, ctx.active ? ' · ' + fmtRange(pl.start, pl.end) : ''), dietBreakActive(db, Store.todayISO()) && /*#__PURE__*/React.createElement("div", {
+  }, pl.label, ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)), dietBreakActive(db, today) && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-0.5 leading-snug",
     style: {
       color: 'var(--warn)'
     }
   }, "Your diet break is running, so you're at maintenance and this is on hold underneath it."), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 leading-snug"
-  }, ctx.active ? pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.' : 'Your scale is still settling, so I\'m not reading much into it yet.'));
+  }, ctx.active ? pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.' : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.' : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.')));
 }
 function CheckInModal({
   db,
@@ -33681,11 +33707,22 @@ function CoachingScreen({
 function WeeklyShapeScreen({
   db,
   update,
-  onBack
+  onBack,
+  onOpen
 }) {
   const [commit, tick] = useCommit(update);
   const p = db.profile,
     base = currentTargets(db);
+  // Two things shape a week and they are not the same thing: this screen is the standing rhythm, and
+  // a declared window (see WeekAheadFlow) bends specific DATES on top of it. Someone who names their
+  // big days at check-in comes here expecting to see them, finds a shape that hasn't moved, and
+  // reasonably concludes nothing was saved. So the window says so here, in its own words.
+  const today = Store.todayISO();
+  const wpCtx = E.weekPlanContext(db.week_plans, today);
+  const window_ = wpCtx.active || wpCtx.upcoming;
+  // The seven-day preview below claims to be "a full week of the new shape". It isn't, on any day a
+  // window covers, so it only gets to say that when no window lands inside the coming week.
+  const overlapsWindow = !!window_ && window_.start <= shiftISO(today, 6) && window_.end >= today;
   const cyc = Object.assign({
     enabled: false,
     highDays: [],
@@ -33723,7 +33760,30 @@ function WeeklyShapeScreen({
     intro: "Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way."
   }, /*#__PURE__*/React.createElement(SavedFlash, {
     tick: tick
-  }), /*#__PURE__*/React.createElement(SubHead, null, "Shape your week"), /*#__PURE__*/React.createElement("div", {
+  }), window_ && (() => {
+    const hi = (window_.highDays || []).filter(d => d >= today);
+    const dayName = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric'
+    });
+    return /*#__PURE__*/React.createElement("button", {
+      onClick: () => onOpen && onOpen('weekplans'),
+      className: "w-full pixel-box p-3.5 mb-4 text-left",
+      style: {
+        background: 'var(--card)',
+        borderColor: 'var(--accent)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-1",
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, wpCtx.active ? 'On now' : 'Coming up'), /*#__PURE__*/React.createElement("div", {
+      className: "text-[13px] font-semibold"
+    }, window_.label, " · ", fmtRange(window_.start, window_.end)), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] mt-1 leading-snug"
+    }, hi.length ? 'The big days you named (' + hi.map(dayName).join(', ') + ') sit on top of the shape below, on those dates only. The rest of the window covers them, so the week still lands where you agreed.' : 'This bends those dates on top of the shape below. The shape below is your normal week, and it comes back after.', ' ', "Tap to change it."));
+  })(), /*#__PURE__*/React.createElement(SubHead, null, "Shape your week"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
   }, PLAN_PRESETS.map(pr => /*#__PURE__*/React.createElement("button", {
     key: pr.id,
@@ -33777,7 +33837,7 @@ function WeeklyShapeScreen({
     }, Math.round(k)));
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-3 leading-snug"
-  }, "This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.", spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : '')), /*#__PURE__*/React.createElement("div", {
+  }, "This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.", spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : '', overlapsWindow ? ` The days ${window_.label.toLowerCase()} covers won't read like this: that window moves them on top.` : '')), /*#__PURE__*/React.createElement("div", {
     className: "h-px bg-[#262629] my-5"
   }), /*#__PURE__*/React.createElement(SubHead, null, "Evening out an off day"), /*#__PURE__*/React.createElement(RowToggle, {
     label: "Even out over the week",
@@ -34774,8 +34834,14 @@ function SettingsOverview({
     }, {
       key: 'weekly',
       label: 'Weekly shape',
-      status: preset.label + (cyc.enabled ? ' · +' + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off'),
-      kw: 'weekly shape cycling high days refeed carryover even out banking calories'
+      status: preset.label + (cyc.enabled ? ' · +' + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off')
+      // A running or imminent window is the reason this row's numbers won't match what you're eating.
+      + (() => {
+        const w = E.weekPlanContext(db.week_plans, Store.todayISO());
+        const pl = w.active || w.upcoming;
+        return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : '';
+      })(),
+      kw: 'weekly shape cycling high days refeed carryover even out banking calories holiday travel away window'
     }, {
       key: 'checkins',
       label: 'Check-ins & weigh-ins',
@@ -35410,7 +35476,8 @@ function More({
     weekly: () => /*#__PURE__*/React.createElement(WeeklyShapeScreen, {
       db: db,
       update: update,
-      onBack: back
+      onBack: back,
+      onOpen: setScreen
     }),
     checkins: () => /*#__PURE__*/React.createElement(CheckinsScreen, {
       db: db,

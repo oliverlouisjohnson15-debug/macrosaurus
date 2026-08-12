@@ -1740,6 +1740,20 @@
     }
     return null;
   }
+  // The next window that hasn't started yet. A window declared at check-in is usually for NEXT week,
+  // so between declaring it and it starting there is a stretch where the app knows about it and says
+  // nothing anywhere. That gap is what makes people think the declaration didn't take.
+  function upcomingPlanOn(plans, iso, withinDays) {
+    var horizon = withinDays == null ? 14 : withinDays;
+    var best = null;
+    (plans || []).forEach(function (pl) {
+      if (!pl || !pl.start || !pl.end || pl.start <= iso) return;
+      var away = daysBetweenISO(iso, pl.start);
+      if (away > horizon) return;
+      if (!best || pl.start < best.start) best = pl;
+    });
+    return best;
+  }
   // Does this person keep doing the same thing? Only claims a pattern when there is one: at least
   // three windows of a kind, gaps that actually agree with each other, and a next date near enough
   // to be worth mentioning. Anything looser and the app would be guessing out loud, which is worse
@@ -1778,6 +1792,9 @@
     var recovering = active ? null : planRecoveryOn(plans, iso);
     return {
       active: active, recovering: recovering,
+      // Declared but not started yet. Never competes with a window that is actually running: what
+      // is happening today is always the more useful thing to say.
+      upcoming: active ? null : upcomingPlanOn(plans, iso),
       // Both states mean the scale is untrustworthy in the same direction, so both reuse the
       // hold-rather-than-cut path the menstrual water-weight logic already drives.
       waterHigh: !!(active || recovering),
@@ -1787,7 +1804,8 @@
   var Engine = {
     KCAL_PER_KG: KCAL_PER_KG, KCAL_PER_STEP_PER_KG: KCAL_PER_STEP_PER_KG, KCAL_PER_GYM_SESSION_PER_KG: KCAL_PER_GYM_SESSION_PER_KG,
     weekPlanOn: weekPlanOn, plannedDaysBetween: plannedDaysBetween, planRate: planRate,
-    planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planRecoveryOn: planRecoveryOn, weekPlanContext: weekPlanContext,
+    planKcalDelta: planKcalDelta, planDayDelta: planDayDelta, planRecoveryOn: planRecoveryOn,
+    upcomingPlanOn: upcomingPlanOn, weekPlanContext: weekPlanContext,
     recurringPlanHint: recurringPlanHint,
     linreg: linreg, theilSen: theilSen, liveExpenditure: liveExpenditure,
     mifflinBMR: mifflinBMR, tdeeBreakdown: tdeeBreakdown, tdeeFromProfile: tdeeFromProfile,

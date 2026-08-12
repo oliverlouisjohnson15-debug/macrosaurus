@@ -4467,18 +4467,27 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
   </div>);
 }
 
-// The dashboard strip while a declared window is running or easing back.
+// How far off a declared window is, in words rather than a date subtraction the reader has to do.
+function startsInWords(todayISO, startISO) {
+  const n = daysBetween(todayISO, startISO);
+  return n <= 1 ? 'Starts tomorrow' : 'Starts in ' + n + ' days';
+}
+// The dashboard strip for a declared window: while it runs, while the scale eases back after it, and
+// (the quiet stretch that used to show nothing at all) between declaring it and it starting.
 function WeekPlanBanner({ db, onOpen }) {
-  const ctx = E.weekPlanContext(db.week_plans, Store.todayISO());
-  const pl = ctx.active || ctx.recovering;
+  const today = Store.todayISO();
+  const ctx = E.weekPlanContext(db.week_plans, today);
+  const pl = ctx.active || ctx.recovering || ctx.upcoming;
   if (!pl) return null;
+  const hi = ((ctx.upcoming ? pl.highDays : null) || []).length;
   return (<button onClick={onOpen} className="w-full pixel-box p-3.5 mb-4 text-left" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
-    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : 'Easing back'}</div>
-    <div className="text-[13px] font-semibold">{pl.label}{ctx.active ? ' · ' + fmtRange(pl.start, pl.end) : ''}</div>
-    {dietBreakActive(db, Store.todayISO()) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
+    <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{ctx.active ? 'On now' : ctx.recovering ? 'Easing back' : 'Coming up'}</div>
+    <div className="text-[13px] font-semibold">{pl.label}{ctx.recovering ? '' : ' · ' + fmtRange(pl.start, pl.end)}</div>
+    {dietBreakActive(db, today) && <div className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--warn)' }}>Your diet break is running, so you're at maintenance and this is on hold underneath it.</div>}
     <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{ctx.active
       ? (pl.acceptRateKgPerWeek === 0 ? 'Holding steady while this runs, as agreed.' : 'Aiming at ' + pl.acceptRateKgPerWeek + ' kg a week while this runs, as agreed.')
-      : 'Your scale is still settling, so I\'m not reading much into it yet.'}</div>
+      : ctx.recovering ? 'Your scale is still settling, so I\'m not reading much into it yet.'
+      : startsInWords(today, pl.start) + '. ' + (hi ? hi + ' big day' + (hi === 1 ? '' : 's') + ' in there, and the rest of the window covers ' + (hi === 1 ? 'it' : 'them') + '.' : 'Your numbers bend on the day, not before.')}</div>
   </button>);
 }
 
@@ -12976,9 +12985,19 @@ function CoachingScreen({ db, update, onBack }) {
 
 // Two features, one screen: they answer the same question ("how do my calories sit across the
 // week?"), so they share a screen with a real heading between them.
-function WeeklyShapeScreen({ db, update, onBack }) {
+function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   const [commit, tick] = useCommit(update);
   const p = db.profile, base = currentTargets(db);
+  // Two things shape a week and they are not the same thing: this screen is the standing rhythm, and
+  // a declared window (see WeekAheadFlow) bends specific DATES on top of it. Someone who names their
+  // big days at check-in comes here expecting to see them, finds a shape that hasn't moved, and
+  // reasonably concludes nothing was saved. So the window says so here, in its own words.
+  const today = Store.todayISO();
+  const wpCtx = E.weekPlanContext(db.week_plans, today);
+  const window_ = wpCtx.active || wpCtx.upcoming;
+  // The seven-day preview below claims to be "a full week of the new shape". It isn't, on any day a
+  // window covers, so it only gets to say that when no window lands inside the coming week.
+  const overlapsWindow = !!window_ && window_.start <= shiftISO(today, 6) && window_.end >= today;
   const cyc = Object.assign({ enabled: false, highDays: [], deltaPct: 0.15 }, p.cycling);
   const carry = Object.assign({ enabled: false, mode: 'aggressive', capKcal: 400 }, p.carryover);
   const setCyc = (patch) => commit(d => applyCycling(d, Object.assign({}, cyc, patch)));
@@ -12992,6 +13011,20 @@ function WeeklyShapeScreen({ db, update, onBack }) {
   const spread = (() => { const pd = pendingCyclingChange(db, cyc, Store.todayISO(), cycWindowStart(db)); return pd ? pd.spreadKcal : 0; })();
   return (<SubScreen title="Weekly shape" onBack={onBack} intro="Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.">
     <SavedFlash tick={tick} />
+    {window_ && (() => {
+      const hi = (window_.highDays || []).filter(d => d >= today);
+      const dayName = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+      return (<button onClick={() => onOpen && onOpen('weekplans')} className="w-full pixel-box p-3.5 mb-4 text-left" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
+        <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{wpCtx.active ? 'On now' : 'Coming up'}</div>
+        <div className="text-[13px] font-semibold">{window_.label} · {fmtRange(window_.start, window_.end)}</div>
+        <div className="text-[11px] text-[#8A8A90] mt-1 leading-snug">
+          {hi.length
+            ? 'The big days you named (' + hi.map(dayName).join(', ') + ') sit on top of the shape below, on those dates only. The rest of the window covers them, so the week still lands where you agreed.'
+            : 'This bends those dates on top of the shape below. The shape below is your normal week, and it comes back after.'}
+          {' '}Tap to change it.
+        </div>
+      </button>);
+    })()}
     <SubHead>Shape your week</SubHead>
     <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => (
       <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>))}</div>
@@ -13010,7 +13043,7 @@ function WeeklyShapeScreen({ db, update, onBack }) {
         const hi = cyc.highDays.includes(i);
         return <div key={i} className="text-center"><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>;
       })}</div>}
-      <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}</div>
+      <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}{overlapsWindow ? ` The days ${window_.label.toLowerCase()} covers won't read like this: that window moves them on top.` : ''}</div>
     </div>}
 
     <div className="h-px bg-[#262629] my-5" />
@@ -13449,7 +13482,10 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
       })(), kw: 'coming up holiday travel trip away event wedding illness ill busy work training festive christmas plan week ahead vacation' },
       { key: 'goal', label: 'Goal', status: goalStatusLine(p, db.paused), kw: 'goal lose weight loss fat cut maintain gain bulk rate pace speed target weight faster slower kg per week' },
       { key: 'coaching', label: 'Coaching', status: mode.l + ' · ' + (p.program_mode === 'manual' ? 'your macros never change on their own' : p.program_mode === 'collaborative' ? 'suggests a change at each check-in' : 'adjusts at each check-in'), kw: 'coaching coached approve manual adapt adjust automatic' },
-      { key: 'weekly', label: 'Weekly shape', status: preset.label + (cyc.enabled ? ' · +' + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off'), kw: 'weekly shape cycling high days refeed carryover even out banking calories' },
+      { key: 'weekly', label: 'Weekly shape', status: preset.label + (cyc.enabled ? ' · +' + Math.round(cyc.deltaPct * 100) + '%' : '') + ' · evening out ' + (carry.enabled ? 'on' : 'off')
+        // A running or imminent window is the reason this row's numbers won't match what you're eating.
+        + ((() => { const w = E.weekPlanContext(db.week_plans, Store.todayISO()); const pl = w.active || w.upcoming; return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : ''; })()),
+        kw: 'weekly shape cycling high days refeed carryover even out banking calories holiday travel away window' },
       { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
       { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
     ] },
@@ -13687,7 +13723,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
     weekplans: () => <WeekPlansScreen db={db} update={update} onBack={back} showToast={showToast} isPremium={isPremium} />,
     goal: () => <GoalScreen db={db} update={update} onBack={back} showToast={showToast} />,
     coaching: () => <CoachingScreen db={db} update={update} onBack={back} />,
-    weekly: () => <WeeklyShapeScreen db={db} update={update} onBack={back} />,
+    weekly: () => <WeeklyShapeScreen db={db} update={update} onBack={back} onOpen={setScreen} />,
     checkins: () => <CheckinsScreen db={db} update={update} onBack={back} />,
     macros: () => <MacrosScreen db={db} update={update} onBack={back} />,
     body: () => <BodyDetailsScreen db={db} update={update} onBack={back} onFreshStart={onFreshStart} />,
