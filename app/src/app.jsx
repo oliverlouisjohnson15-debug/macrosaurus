@@ -4333,7 +4333,12 @@ function WeekAheadFlow({ db, update, onDone, showToast, compact, isPremium, onSk
       const r = await aiParseWeekPlan(t, Store.todayISO());
       setSource('ai'); setKind(r.kind); setRange({ start: r.start, end: r.end }); setHigh(r.highDays);
       setAiLabel(r.label); setAiData(r.data); setAiHold(r.hold);
-      setStep('rate');                              // the rate stays a human decision, always
+      // Land on the DATES, not past them. This used to jump to 'rate', which meant a model reading
+      // "away till Sunday" and picking the Sunday after next wrote a twelve-day window that was
+      // never put in front of anybody: the only mention of it was inside a sentence on the
+      // confirmation screen. Dates decide which days get bent and are the easiest thing in the
+      // sentence to get wrong, so they get the same confirm-or-correct step the tapped path has.
+      setStep('when');
     } catch (e) {
       if (!(e && e.aiError)) setAiErr(e.message || 'I could not make sense of that.');
     }
@@ -12941,6 +12946,28 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
   const past = plans.filter(w => w.end < today).slice(0, 5);
   const cancel = (w) => { update(d => { tombstone(d, [w.id]); d.week_plans = (d.week_plans || []).filter(x => x.id !== w.id); }); showToast && showToast('Cancelled ' + w.label); };
   const OUTCOME = { went_well: 'Went well', roughly: 'Roughly stuck to it', off_plan: 'Went off plan', didnt_happen: "Didn't happen" };
+  // Dates you cannot change are dates you have to cancel and retype, and until now that was the only
+  // way: a window got its range once, at the moment it was created, and a range that came out wrong
+  // (see parseFree, which used to skip the confirmation step) was stuck. Shortening one drops the big
+  // days that fall outside it, since a big day nobody is away for is not a big day.
+  const setDates = (w, patch) => {
+    const start = patch.start || w.start;
+    let end = patch.end || w.end;
+    if (end < start) end = start;
+    // Never let an edit swallow another window; the create flow refuses an overlap for the same
+    // reason, and says so rather than just snapping the field back at you.
+    const clash = (db.week_plans || []).find(y => y && y.id !== w.id && y.start && y.end && start <= y.end && end >= y.start);
+    if (clash) { showToast && showToast('That would run into ' + clash.label.toLowerCase()); return; }
+    const dropped = (w.highDays || []).filter(h => h < start || h > end).length;
+    update(d => {
+      const x = (d.week_plans || []).find(y => y.id === w.id);
+      if (!x) return;
+      x.start = start; x.end = end;
+      x.highDays = (x.highDays || []).filter(h => h >= start && h <= end);
+      (x.shapeHistory || []).forEach(h => { h.highDays = (h.highDays || []).filter(k => k >= start && k <= end); });
+    });
+    if (dropped) showToast && showToast(dropped + ' big day' + (dropped === 1 ? '' : 's') + ' fell outside, so ' + (dropped === 1 ? 'it is' : 'they are') + ' no longer big');
+  };
   return (<SubScreen title="What's coming up" onBack={onBack} intro="Tell me about a holiday, an event or a rough week and I'll bend your plan around it instead of marking you down for it.">
     {adding
       ? <WeekAheadFlow db={db} update={update} showToast={showToast} compact isPremium={isPremium} onDone={() => setAdding(false)} />
@@ -12950,10 +12977,14 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold">{w.label}</div>
-                <div className="text-[11.5px] text-[#8A8A90] mt-0.5">{fmtRange(w.start, w.end)}</div>
+                <div className="text-[11.5px] text-[#8A8A90] mt-0.5">{fmtRange(w.start, w.end)} &middot; {datesBetween(w.start, w.end).length} days</div>
                 <div className="text-[11.5px] mt-1" style={{ color: 'var(--accent-ink)' }}>{w.acceptRateKgPerWeek === 0 ? 'Holding steady' : 'Aiming at ' + w.acceptRateKgPerWeek + ' kg a week'}</div>
               </div>
               <button onClick={() => setConfirmDel(w)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0" title="Cancel">&times;</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2.5">
+              <Field label="From"><input type="date" className={inputCls} value={w.start} onChange={e => setDates(w, { start: e.target.value })} /></Field>
+              <Field label="To"><input type="date" className={inputCls} value={w.end} min={w.start} onChange={e => setDates(w, { end: e.target.value })} /></Field>
             </div>
           </div>))}</div>
           : <div className="text-[12px] text-[#8A8A90] mb-4">Nothing coming up. Your plan runs as normal.</div>}

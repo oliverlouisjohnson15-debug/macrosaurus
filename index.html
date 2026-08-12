@@ -15227,7 +15227,12 @@ function WeekAheadFlow({
       setAiLabel(r.label);
       setAiData(r.data);
       setAiHold(r.hold);
-      setStep('rate'); // the rate stays a human decision, always
+      // Land on the DATES, not past them. This used to jump to 'rate', which meant a model reading
+      // "away till Sunday" and picking the Sunday after next wrote a twelve-day window that was
+      // never put in front of anybody: the only mention of it was inside a sentence on the
+      // confirmation screen. Dates decide which days get bent and are the easiest thing in the
+      // sentence to get wrong, so they get the same confirm-or-correct step the tapped path has.
+      setStep('when');
     } catch (e) {
       if (!(e && e.aiError)) setAiErr(e.message || 'I could not make sense of that.');
     }
@@ -33613,6 +33618,34 @@ function WeekPlansScreen({
     off_plan: 'Went off plan',
     didnt_happen: "Didn't happen"
   };
+  // Dates you cannot change are dates you have to cancel and retype, and until now that was the only
+  // way: a window got its range once, at the moment it was created, and a range that came out wrong
+  // (see parseFree, which used to skip the confirmation step) was stuck. Shortening one drops the big
+  // days that fall outside it, since a big day nobody is away for is not a big day.
+  const setDates = (w, patch) => {
+    const start = patch.start || w.start;
+    let end = patch.end || w.end;
+    if (end < start) end = start;
+    // Never let an edit swallow another window; the create flow refuses an overlap for the same
+    // reason, and says so rather than just snapping the field back at you.
+    const clash = (db.week_plans || []).find(y => y && y.id !== w.id && y.start && y.end && start <= y.end && end >= y.start);
+    if (clash) {
+      showToast && showToast('That would run into ' + clash.label.toLowerCase());
+      return;
+    }
+    const dropped = (w.highDays || []).filter(h => h < start || h > end).length;
+    update(d => {
+      const x = (d.week_plans || []).find(y => y.id === w.id);
+      if (!x) return;
+      x.start = start;
+      x.end = end;
+      x.highDays = (x.highDays || []).filter(h => h >= start && h <= end);
+      (x.shapeHistory || []).forEach(h => {
+        h.highDays = (h.highDays || []).filter(k => k >= start && k <= end);
+      });
+    });
+    if (dropped) showToast && showToast(dropped + ' big day' + (dropped === 1 ? '' : 's') + ' fell outside, so ' + (dropped === 1 ? 'it is' : 'they are') + ' no longer big');
+  };
   return /*#__PURE__*/React.createElement(SubScreen, {
     title: "What's coming up",
     onBack: onBack,
@@ -33640,7 +33673,7 @@ function WeekPlansScreen({
     className: "text-sm font-semibold"
   }, w.label), /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] text-[#8A8A90] mt-0.5"
-  }, fmtRange(w.start, w.end)), /*#__PURE__*/React.createElement("div", {
+  }, fmtRange(w.start, w.end), " · ", datesBetween(w.start, w.end).length, " days"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11.5px] mt-1",
     style: {
       color: 'var(--accent-ink)'
@@ -33649,7 +33682,28 @@ function WeekPlansScreen({
     onClick: () => setConfirmDel(w),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0",
     title: "Cancel"
-  }, "×"))))) : /*#__PURE__*/React.createElement("div", {
+  }, "×")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2 mt-2.5"
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "From"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    className: inputCls,
+    value: w.start,
+    onChange: e => setDates(w, {
+      start: e.target.value
+    })
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "To"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    className: inputCls,
+    value: w.end,
+    min: w.start,
+    onChange: e => setDates(w, {
+      end: e.target.value
+    })
+  })))))) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Nothing coming up. Your plan runs as normal."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
