@@ -1706,36 +1706,35 @@
   // the user agreed to still lands; only the shape inside it changes.
   // The shape INSIDE a window can be edited while the window runs, so it needs the same protection
   // the standing rhythm gets from cyclingHistory: a day already eaten keeps the shape it ran under.
-  // `plan.shapeHistory` is the append-only record of outgoing shapes as closed segments, oldest
-  // first: [{ from, to, highDays, deltaPct }]. The live shape (plan.highDays/deltaPct) covers from
-  // the last segment's end + 1 through to plan.end. No history means the plan never changed, so the
-  // live shape covers the whole window, which is every window created before this existed.
-  // Redistribution runs WITHIN a segment, never across them, so adding a big day on Friday is paid
-  // for by the days still to come rather than by the Monday you have already eaten.
+  // `plan.shapeHistory` is the append-only record of outgoing shapes, oldest first:
+  // [{ from, to, highDays, deltaPct }], each covering the days it actually governed. A day outside
+  // every recorded stretch takes the live shape (plan.highDays/deltaPct), which is the whole window
+  // when there is no history at all: every window created before this existed.
+  //
+  // What this returns is only WHICH shape a day ran under. The redistribution span stays the whole
+  // window, deliberately. Narrowing it to the recorded stretch looks tidier and is wrong: Monday was
+  // paying for a Friday four days away, so scoring Monday against a Monday-to-Tuesday stretch drops
+  // that payment and restates the very day this exists to protect.
   function planShapeOn(plan, iso) {
-    var live = { start: plan.start, end: plan.end, highDays: plan.highDays || [], deltaPct: plan.deltaPct };
-    var hist = plan.shapeHistory;
-    if (!hist || !hist.length) return live;
-    for (var i = 0; i < hist.length; i++) {
-      var h = hist[i];
-      if (h && h.from && h.to && iso >= h.from && iso <= h.to) {
-        return { start: h.from, end: h.to, highDays: h.highDays || [], deltaPct: h.deltaPct };
+    var hist = plan && plan.shapeHistory;
+    if (hist && hist.length) {
+      for (var i = 0; i < hist.length; i++) {
+        var h = hist[i];
+        if (h && h.from && h.to && iso >= h.from && iso <= h.to) {
+          return { highDays: h.highDays || [], deltaPct: h.deltaPct };
+        }
       }
     }
-    var last = hist[hist.length - 1];
-    if (last && last.to) live.start = shiftISOdays(last.to, 1);
-    return live;
+    return { highDays: (plan && plan.highDays) || [], deltaPct: plan && plan.deltaPct };
   }
   function planDayDelta(plan, profile, iso, baseKcal, floorKcal) {
     var flat = planKcalDelta(plan, profile);
     if (!plan) return flat;
     if (!plan.start || !plan.end) return flat;
     var seg = planShapeOn(plan, iso);
-    // A high day only counts against the segment it falls in, or an edit would keep paying for big
-    // days that belong to a stretch already lived through.
-    var hi = (seg.highDays || []).filter(function (d) { return d >= seg.start && d <= seg.end; });
+    var hi = (seg.highDays || []).filter(function (d) { return d >= plan.start && d <= plan.end; });
     if (!hi.length) return flat;
-    var span = Math.max(1, daysBetweenISO(seg.start, seg.end) + 1);
+    var span = Math.max(1, daysBetweenISO(plan.start, plan.end) + 1);
     var others = span - hi.length;
     // Nothing left to pay for the boost (every day is a big day), so drop it rather than hand out
     // free calories the agreed rate never accounted for.

@@ -2546,36 +2546,35 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // the user agreed to still lands; only the shape inside it changes.
   // The shape INSIDE a window can be edited while the window runs, so it needs the same protection
   // the standing rhythm gets from cyclingHistory: a day already eaten keeps the shape it ran under.
-  // `plan.shapeHistory` is the append-only record of outgoing shapes as closed segments, oldest
-  // first: [{ from, to, highDays, deltaPct }]. The live shape (plan.highDays/deltaPct) covers from
-  // the last segment's end + 1 through to plan.end. No history means the plan never changed, so the
-  // live shape covers the whole window, which is every window created before this existed.
-  // Redistribution runs WITHIN a segment, never across them, so adding a big day on Friday is paid
-  // for by the days still to come rather than by the Monday you have already eaten.
+  // `plan.shapeHistory` is the append-only record of outgoing shapes, oldest first:
+  // [{ from, to, highDays, deltaPct }], each covering the days it actually governed. A day outside
+  // every recorded stretch takes the live shape (plan.highDays/deltaPct), which is the whole window
+  // when there is no history at all: every window created before this existed.
+  //
+  // What this returns is only WHICH shape a day ran under. The redistribution span stays the whole
+  // window, deliberately. Narrowing it to the recorded stretch looks tidier and is wrong: Monday was
+  // paying for a Friday four days away, so scoring Monday against a Monday-to-Tuesday stretch drops
+  // that payment and restates the very day this exists to protect.
   function planShapeOn(plan, iso) {
-    var live = { start: plan.start, end: plan.end, highDays: plan.highDays || [], deltaPct: plan.deltaPct };
-    var hist = plan.shapeHistory;
-    if (!hist || !hist.length) return live;
-    for (var i = 0; i < hist.length; i++) {
-      var h = hist[i];
-      if (h && h.from && h.to && iso >= h.from && iso <= h.to) {
-        return { start: h.from, end: h.to, highDays: h.highDays || [], deltaPct: h.deltaPct };
+    var hist = plan && plan.shapeHistory;
+    if (hist && hist.length) {
+      for (var i = 0; i < hist.length; i++) {
+        var h = hist[i];
+        if (h && h.from && h.to && iso >= h.from && iso <= h.to) {
+          return { highDays: h.highDays || [], deltaPct: h.deltaPct };
+        }
       }
     }
-    var last = hist[hist.length - 1];
-    if (last && last.to) live.start = shiftISOdays(last.to, 1);
-    return live;
+    return { highDays: (plan && plan.highDays) || [], deltaPct: plan && plan.deltaPct };
   }
   function planDayDelta(plan, profile, iso, baseKcal, floorKcal) {
     var flat = planKcalDelta(plan, profile);
     if (!plan) return flat;
     if (!plan.start || !plan.end) return flat;
     var seg = planShapeOn(plan, iso);
-    // A high day only counts against the segment it falls in, or an edit would keep paying for big
-    // days that belong to a stretch already lived through.
-    var hi = (seg.highDays || []).filter(function (d) { return d >= seg.start && d <= seg.end; });
+    var hi = (seg.highDays || []).filter(function (d) { return d >= plan.start && d <= plan.end; });
     if (!hi.length) return flat;
-    var span = Math.max(1, daysBetweenISO(seg.start, seg.end) + 1);
+    var span = Math.max(1, daysBetweenISO(plan.start, plan.end) + 1);
     var others = span - hi.length;
     // Nothing left to pay for the boost (every day is a big day), so drop it rather than hand out
     // free calories the agreed rate never accounted for.
@@ -33739,17 +33738,36 @@ function WeeklyShapeScreen({
   const [commit, tick] = useCommit(update);
   const p = db.profile,
     base = currentTargets(db);
-  // A declared window (see WeekAheadFlow) bends specific DATES; the shape below is the standing
-  // weekday rhythm. Different mechanisms, but the same question to the person looking at them, so a
-  // running or imminent window is EDITED HERE rather than described here and changed somewhere else:
-  // same tap-a-day-to-raise-it control, same boost slider, and the days carry the real composed
-  // numbers for those dates rather than a preview of a week that isn't the one being lived.
+  // A declared window (see WeekAheadFlow) bends specific DATES; the standing rhythm repeats by
+  // weekday. Two mechanisms, but one question to the person reading the screen, so they get one
+  // control: a single row of the next seven days carrying their real composed calories. Being away
+  // changes those numbers and the sentence above them, not what you tap or where you tap it.
   const today = Store.todayISO();
-  const wpCtx = E.weekPlanContext(db.week_plans, today);
-  const window_ = wpCtx.active || wpCtx.upcoming;
-  // The seven-day preview below claims to be "a full week of the new shape". It isn't, on any day a
-  // window covers, so it only gets to say that when no window lands inside the coming week.
-  const overlapsWindow = !!window_ && window_.start <= shiftISO(today, 6) && window_.end >= today;
+  const strip = [];
+  for (let i = 0; i < 7; i++) strip.push(shiftISO(today, i));
+  // The window overlapping the week on screen. When there is one it is what is actually shaping
+  // these days, so it is what the controls edit; the standing rhythm underneath is left alone and
+  // comes back on its own.
+  const stripWindow = (db.week_plans || []).filter(w => w && w.start && w.end && w.start <= strip[6] && w.end >= today).sort((a, b) => a.start < b.start ? -1 : 1)[0] || null;
+  // Editing the shape of a running window is a DATED change, exactly as editing the standing rhythm
+  // is (see applyCycling): the outgoing shape is recorded against the days it actually governed, so
+  // a day already eaten keeps its target and only the days still ahead are re-shaped.
+  const setWindowShape = patch => commit(d => {
+    const w = (d.week_plans || []).find(x => x.id === stripWindow.id);
+    if (!w) return;
+    const hist = (w.shapeHistory || []).slice();
+    const liveFrom = hist.length ? shiftISO(hist[hist.length - 1].to, 1) : w.start;
+    if (today > liveFrom) {
+      hist.push({
+        from: liveFrom,
+        to: shiftISO(today, -1),
+        highDays: (w.highDays || []).slice(),
+        deltaPct: w.deltaPct
+      });
+      w.shapeHistory = hist;
+    }
+    Object.assign(w, patch);
+  });
   const cyc = Object.assign({
     enabled: false,
     highDays: [],
@@ -33787,151 +33805,89 @@ function WeeklyShapeScreen({
     intro: "Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way."
   }, /*#__PURE__*/React.createElement(SavedFlash, {
     tick: tick
-  }), window_ && (() => {
-    const days = datesBetween(window_.start, window_.end);
-    const past = days.filter(d => d < today).length;
-    const ahead = days.filter(d => d >= today);
-    const shown = ahead.slice(0, 14);
-    const capped = ahead.length - shown.length;
-    const hiDays = window_.highDays || [];
-    const wDelta = window_.deltaPct == null ? 0.25 : window_.deltaPct;
-    // Editing the shape of a window is a DATED change, exactly as editing the standing rhythm is
-    // (see applyCycling): the outgoing shape is closed off over the days it actually ran, so a day
-    // already eaten keeps its target and only the days still ahead are re-shaped.
-    const setPlan = patch => commit(d => {
-      const w = (d.week_plans || []).find(x => x.id === window_.id);
-      if (!w) return;
-      const hist = (w.shapeHistory || []).slice();
-      const liveFrom = hist.length ? shiftISO(hist[hist.length - 1].to, 1) : w.start;
-      if (today > liveFrom) {
-        hist.push({
-          from: liveFrom,
-          to: shiftISO(today, -1),
-          highDays: (w.highDays || []).slice(),
-          deltaPct: w.deltaPct
-        });
-        w.shapeHistory = hist;
-      }
-      Object.assign(w, patch);
-    });
-    const toggle = iso => setPlan({
-      highDays: hiDays.includes(iso) ? hiDays.filter(x => x !== iso) : hiDays.concat([iso]).sort()
-    });
-    const cell = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', {
-      weekday: 'short',
-      day: 'numeric'
-    });
-    return /*#__PURE__*/React.createElement("div", {
-      className: "pixel-box p-3.5 mb-5",
-      style: {
-        background: 'var(--card)',
-        borderColor: 'var(--accent)'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[8px] uppercase mb-1",
-      style: {
-        color: 'var(--accent-ink)'
-      }
-    }, wpCtx.active ? 'On now' : 'Coming up'), /*#__PURE__*/React.createElement("div", {
-      className: "text-[13px] font-semibold"
-    }, window_.label, " · ", fmtRange(window_.start, window_.end)), /*#__PURE__*/React.createElement("div", {
-      className: "text-[11px] text-[#8A8A90] mt-1 mb-3 leading-snug"
-    }, "Tap a day to make it a big one. The rest of the window comes down to cover it, so this still lands at ", window_.acceptRateKgPerWeek === 0 ? 'holding steady' : window_.acceptRateKgPerWeek + ' kg a week', ", as agreed. These are the real numbers for those dates, not a preview."), /*#__PURE__*/React.createElement("div", {
-      className: "grid grid-cols-4 gap-1.5"
-    }, shown.map(iso => {
-      const on = hiDays.includes(iso);
-      const t = effectiveTarget(db, iso);
-      return /*#__PURE__*/React.createElement("button", {
-        key: iso,
-        onClick: () => toggle(iso),
-        className: "pixel-box py-2 px-1 text-center",
-        style: {
-          background: on ? 'var(--accent)' : 'var(--surface3)',
-          color: on ? 'var(--on-accent)' : 'var(--text)',
-          boxShadow: 'none'
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        className: "text-[9px] opacity-70"
-      }, cell(iso)), /*#__PURE__*/React.createElement("div", {
-        className: "text-[12px] tnum font-semibold"
-      }, t ? Math.round(t.eff.kcal) : '-'));
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "mt-3"
-    }, /*#__PURE__*/React.createElement(Field, {
-      label: `Big-day boost: +${Math.round(wDelta * 100)}%`
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "range",
-      min: "5",
-      max: "35",
-      value: Math.round(wDelta * 100),
-      onChange: e => setPlan({
-        deltaPct: +e.target.value / 100
-      }),
-      className: "w-full accent-[#4A9EEB]"
-    }))), /*#__PURE__*/React.createElement("div", {
-      className: "text-[11px] text-[#8A8A90] leading-snug"
-    }, "These dates only, and only the ones still ahead", past > 0 ? ' (' + past + ' ' + (past === 1 ? 'day has' : 'days have') + ' been and gone, and ' + (past === 1 ? 'it keeps' : 'they keep') + ' what ' + (past === 1 ? 'it' : 'they') + ' ran under)' : '', capped > 0 ? ', and the first fortnight of it' : '', ". Your normal week below is what you come back to."), /*#__PURE__*/React.createElement("button", {
-      onClick: () => onOpen && onOpen('weekplans'),
-      className: "text-[11px] mt-2 py-1 text-left",
-      style: {
-        color: 'var(--accent-ink)'
-      }
-    }, "Change the dates, the rate, or call it off ›"));
-  })(), /*#__PURE__*/React.createElement(SubHead, null, "Shape your week"), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement(SubHead, null, "Shape your week"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-2"
   }, PLAN_PRESETS.map(pr => /*#__PURE__*/React.createElement("button", {
     key: pr.id,
     onClick: () => pickPreset(pr.id),
     className: `pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`
-  }, pr.label))), !cyc.enabled && spread !== 0 && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mt-3 leading-snug"
-  }, "Days you've already eaten this week keep the plan they ran under, so the days you have left take ", spread > 0 ? '+' : '', spread, " kcal each to settle the week."), cyc.enabled && /*#__PURE__*/React.createElement("div", {
-    className: "mt-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mb-2"
-  }, "Your high days. The rest come down to keep the weekly total the same."), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 mb-3"
-  }, DOW.map((d, i) => {
-    const on = cyc.highDays.includes(i);
-    return /*#__PURE__*/React.createElement("button", {
-      key: i,
-      onClick: () => setCyc({
-        highDays: on ? cyc.highDays.filter(x => x !== i) : cyc.highDays.concat([i])
-      }),
-      className: `flex-1 pixel-box py-2 text-[11px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`,
-      style: {
-        boxShadow: 'none'
+  }, pr.label))), base && (() => {
+    const dow = iso => new Date(iso + 'T00:00:00').getDay();
+    const winOn = iso => E.weekPlanOn(db.week_plans, iso);
+    const isHigh = iso => {
+      const w = winOn(iso);
+      return w ? (w.highDays || []).includes(iso) : cyc.enabled && cyc.highDays.includes(dow(iso));
+    };
+    const toggle = iso => {
+      // A day already eaten keeps what it ran under, on either mechanism.
+      if (iso < today) return;
+      const w = winOn(iso);
+      if (w && stripWindow && w.id === stripWindow.id) {
+        const hi = w.highDays || [];
+        return setWindowShape({
+          highDays: hi.includes(iso) ? hi.filter(x => x !== iso) : hi.concat([iso]).sort()
+        });
       }
-    }, d[0]);
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: `High-day boost: +${Math.round(cyc.deltaPct * 100)}%`
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "range",
-    min: "5",
-    max: "35",
-    value: Math.round(cyc.deltaPct * 100),
-    onChange: e => setCyc({
-      deltaPct: +e.target.value / 100
-    }),
-    className: "w-full accent-[#4A9EEB]"
-  })), base && /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-7 gap-1 mt-1"
-  }, DOW.map((d, i) => {
-    const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, {
-      enabled: true
-    }), i, base.kcal);
-    const hi = cyc.highDays.includes(i);
+      if (w) return;
+      const i = dow(iso);
+      setCyc({
+        enabled: true,
+        highDays: cyc.highDays.includes(i) ? cyc.highDays.filter(x => x !== i) : cyc.highDays.concat([i])
+      });
+    };
+    const boostPct = stripWindow ? Math.round((stripWindow.deltaPct == null ? 0.25 : stripWindow.deltaPct) * 100) : Math.round(cyc.deltaPct * 100);
+    const setBoost = v => stripWindow ? setWindowShape({
+      deltaPct: v / 100
+    }) : setCyc({
+      enabled: true,
+      deltaPct: v / 100
+    });
     return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "text-center"
+      className: "mt-3"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "text-[10px] text-[#8A8A90]"
-    }, d[0]), /*#__PURE__*/React.createElement("div", {
-      className: `text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`
-    }, Math.round(k)));
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-[#8A8A90] mt-3 leading-snug"
-  }, "This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.", spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : '', overlapsWindow ? ` The days ${window_.label.toLowerCase()} covers won't read like this: that window moves them on top.` : '')), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] mb-2 leading-snug"
+    }, "Tap a day to make it a big one. The rest come down to keep the total the same.", stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end) + ', so those days are already lifted. Your normal week comes back after.' : ''), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-7 gap-1"
+    }, strip.map(iso => {
+      const on = isHigh(iso),
+        away = !!winOn(iso),
+        t = effectiveTarget(db, iso);
+      return /*#__PURE__*/React.createElement("button", {
+        key: iso,
+        onClick: () => toggle(iso),
+        className: "pixel-box py-2 px-0.5 text-center",
+        style: {
+          background: on ? 'var(--accent)' : 'var(--surface3)',
+          color: on ? 'var(--on-accent)' : 'var(--text)',
+          boxShadow: 'none',
+          borderColor: away ? 'var(--accent)' : undefined,
+          opacity: iso < today ? 0.5 : 1
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "text-[9px] opacity-70"
+      }, DOW[dow(iso)][0]), /*#__PURE__*/React.createElement("div", {
+        className: "text-[11px] tnum font-semibold"
+      }, t ? Math.round(t.eff.kcal) : '-'));
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "mt-3"
+    }, /*#__PURE__*/React.createElement(Field, {
+      label: `${stripWindow ? 'Big-day boost while you\'re away' : 'High-day boost'}: +${boostPct}%`
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "range",
+      min: "5",
+      max: "35",
+      value: boostPct,
+      onChange: e => setBoost(+e.target.value),
+      className: "w-full accent-[#4A9EEB]"
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11px] text-[#8A8A90] leading-snug"
+    }, "The next seven days, as they actually stand. Days you've already eaten keep the plan they ran under.", spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : '', stripWindow ? /*#__PURE__*/React.createElement(React.Fragment, null, " ", /*#__PURE__*/React.createElement("button", {
+      onClick: () => onOpen && onOpen('weekplans'),
+      style: {
+        color: 'var(--accent-ink)'
+      }
+    }, "Change the dates, the rate, or call it off ›")) : null));
+  })(), /*#__PURE__*/React.createElement("div", {
     className: "h-px bg-[#262629] my-5"
   }), /*#__PURE__*/React.createElement(SubHead, null, "Evening out an off day"), /*#__PURE__*/React.createElement(RowToggle, {
     label: "Even out over the week",

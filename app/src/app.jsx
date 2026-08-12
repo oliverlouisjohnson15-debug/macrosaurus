@@ -12988,17 +12988,31 @@ function CoachingScreen({ db, update, onBack }) {
 function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   const [commit, tick] = useCommit(update);
   const p = db.profile, base = currentTargets(db);
-  // A declared window (see WeekAheadFlow) bends specific DATES; the shape below is the standing
-  // weekday rhythm. Different mechanisms, but the same question to the person looking at them, so a
-  // running or imminent window is EDITED HERE rather than described here and changed somewhere else:
-  // same tap-a-day-to-raise-it control, same boost slider, and the days carry the real composed
-  // numbers for those dates rather than a preview of a week that isn't the one being lived.
+  // A declared window (see WeekAheadFlow) bends specific DATES; the standing rhythm repeats by
+  // weekday. Two mechanisms, but one question to the person reading the screen, so they get one
+  // control: a single row of the next seven days carrying their real composed calories. Being away
+  // changes those numbers and the sentence above them, not what you tap or where you tap it.
   const today = Store.todayISO();
-  const wpCtx = E.weekPlanContext(db.week_plans, today);
-  const window_ = wpCtx.active || wpCtx.upcoming;
-  // The seven-day preview below claims to be "a full week of the new shape". It isn't, on any day a
-  // window covers, so it only gets to say that when no window lands inside the coming week.
-  const overlapsWindow = !!window_ && window_.start <= shiftISO(today, 6) && window_.end >= today;
+  const strip = []; for (let i = 0; i < 7; i++) strip.push(shiftISO(today, i));
+  // The window overlapping the week on screen. When there is one it is what is actually shaping
+  // these days, so it is what the controls edit; the standing rhythm underneath is left alone and
+  // comes back on its own.
+  const stripWindow = (db.week_plans || []).filter(w => w && w.start && w.end && w.start <= strip[6] && w.end >= today)
+    .sort((a, b) => (a.start < b.start ? -1 : 1))[0] || null;
+  // Editing the shape of a running window is a DATED change, exactly as editing the standing rhythm
+  // is (see applyCycling): the outgoing shape is recorded against the days it actually governed, so
+  // a day already eaten keeps its target and only the days still ahead are re-shaped.
+  const setWindowShape = (patch) => commit(d => {
+    const w = (d.week_plans || []).find(x => x.id === stripWindow.id);
+    if (!w) return;
+    const hist = (w.shapeHistory || []).slice();
+    const liveFrom = hist.length ? shiftISO(hist[hist.length - 1].to, 1) : w.start;
+    if (today > liveFrom) {
+      hist.push({ from: liveFrom, to: shiftISO(today, -1), highDays: (w.highDays || []).slice(), deltaPct: w.deltaPct });
+      w.shapeHistory = hist;
+    }
+    Object.assign(w, patch);
+  });
   const cyc = Object.assign({ enabled: false, highDays: [], deltaPct: 0.15 }, p.cycling);
   const carry = Object.assign({ enabled: false, mode: 'aggressive', capKcal: 400 }, p.carryover);
   const setCyc = (patch) => commit(d => applyCycling(d, Object.assign({}, cyc, patch)));
@@ -13012,78 +13026,61 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   const spread = (() => { const pd = pendingCyclingChange(db, cyc, Store.todayISO(), cycWindowStart(db)); return pd ? pd.spreadKcal : 0; })();
   return (<SubScreen title="Weekly shape" onBack={onBack} intro="Shape how your calories sit across the week, and how an off day evens back out. Same weekly total either way.">
     <SavedFlash tick={tick} />
-    {window_ && (() => {
-      const days = datesBetween(window_.start, window_.end);
-      const past = days.filter(d => d < today).length;
-      const ahead = days.filter(d => d >= today);
-      const shown = ahead.slice(0, 14);
-      const capped = ahead.length - shown.length;
-      const hiDays = window_.highDays || [];
-      const wDelta = window_.deltaPct == null ? 0.25 : window_.deltaPct;
-      // Editing the shape of a window is a DATED change, exactly as editing the standing rhythm is
-      // (see applyCycling): the outgoing shape is closed off over the days it actually ran, so a day
-      // already eaten keeps its target and only the days still ahead are re-shaped.
-      const setPlan = (patch) => commit(d => {
-        const w = (d.week_plans || []).find(x => x.id === window_.id);
-        if (!w) return;
-        const hist = (w.shapeHistory || []).slice();
-        const liveFrom = hist.length ? shiftISO(hist[hist.length - 1].to, 1) : w.start;
-        if (today > liveFrom) {
-          hist.push({ from: liveFrom, to: shiftISO(today, -1), highDays: (w.highDays || []).slice(), deltaPct: w.deltaPct });
-          w.shapeHistory = hist;
-        }
-        Object.assign(w, patch);
-      });
-      const toggle = (iso) => setPlan({ highDays: hiDays.includes(iso) ? hiDays.filter(x => x !== iso) : hiDays.concat([iso]).sort() });
-      const cell = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
-      return (<div className="pixel-box p-3.5 mb-5" style={{ background: 'var(--card)', borderColor: 'var(--accent)' }}>
-        <div className="pf text-[8px] uppercase mb-1" style={{ color: 'var(--accent-ink)' }}>{wpCtx.active ? 'On now' : 'Coming up'}</div>
-        <div className="text-[13px] font-semibold">{window_.label} · {fmtRange(window_.start, window_.end)}</div>
-        <div className="text-[11px] text-[#8A8A90] mt-1 mb-3 leading-snug">
-          Tap a day to make it a big one. The rest of the window comes down to cover it, so this still lands at {window_.acceptRateKgPerWeek === 0 ? 'holding steady' : window_.acceptRateKgPerWeek + ' kg a week'}, as agreed. These are the real numbers for those dates, not a preview.
-        </div>
-        <div className="grid grid-cols-4 gap-1.5">{shown.map(iso => {
-          const on = hiDays.includes(iso);
-          const t = effectiveTarget(db, iso);
-          return (<button key={iso} onClick={() => toggle(iso)} className="pixel-box py-2 px-1 text-center"
-            style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', boxShadow: 'none' }}>
-            <div className="text-[9px] opacity-70">{cell(iso)}</div>
-            <div className="text-[12px] tnum font-semibold">{t ? Math.round(t.eff.kcal) : '-'}</div>
-          </button>);
-        })}</div>
-        <div className="mt-3">
-          <Field label={`Big-day boost: +${Math.round(wDelta * 100)}%`}>
-            <input type="range" min="5" max="35" value={Math.round(wDelta * 100)} onChange={e => setPlan({ deltaPct: +e.target.value / 100 })} className="w-full accent-[#4A9EEB]" />
-          </Field>
-        </div>
-        <div className="text-[11px] text-[#8A8A90] leading-snug">
-          {/* Only days still ahead are tappable: a day you've already eaten keeps the plan it ran under,
-              which is the same promise the standing shape makes a few lines further down. */}
-          These dates only, and only the ones still ahead{past > 0 ? ' (' + past + ' ' + (past === 1 ? 'day has' : 'days have') + ' been and gone, and ' + (past === 1 ? 'it keeps' : 'they keep') + ' what ' + (past === 1 ? 'it' : 'they') + ' ran under)' : ''}{capped > 0 ? ', and the first fortnight of it' : ''}. Your normal week below is what you come back to.
-        </div>
-        <button onClick={() => onOpen && onOpen('weekplans')} className="text-[11px] mt-2 py-1 text-left" style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button>
-      </div>);
-    })()}
     <SubHead>Shape your week</SubHead>
     <div className="grid grid-cols-2 gap-2">{PLAN_PRESETS.map(pr => (
       <button key={pr.id} onClick={() => pickPreset(pr.id)} className={`pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`}>{pr.label}</button>))}</div>
-    {!cyc.enabled && spread !== 0 && <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">Days you've already eaten this week keep the plan they ran under, so the days you have left take {spread > 0 ? '+' : ''}{spread} kcal each to settle the week.</div>}
-    {cyc.enabled && <div className="mt-3">
-      <div className="text-[11px] text-[#8A8A90] mb-2">Your high days. The rest come down to keep the weekly total the same.</div>
-      <div className="flex gap-1.5 mb-3">{DOW.map((d, i) => {
-        const on = cyc.highDays.includes(i);
-        return <button key={i} onClick={() => setCyc({ highDays: on ? cyc.highDays.filter(x => x !== i) : cyc.highDays.concat([i]) })} className={`flex-1 pixel-box py-2 text-[11px] ${on ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`} style={{ boxShadow: 'none' }}>{d[0]}</button>;
-      })}</div>
-      <Field label={`High-day boost: +${Math.round(cyc.deltaPct * 100)}%`}>
-        <input type="range" min="5" max="35" value={Math.round(cyc.deltaPct * 100)} onChange={e => setCyc({ deltaPct: +e.target.value / 100 })} className="w-full accent-[#4A9EEB]" />
-      </Field>
-      {base && <div className="grid grid-cols-7 gap-1 mt-1">{DOW.map((d, i) => {
-        const k = base.kcal + E.cyclingDelta(Object.assign({}, cyc, { enabled: true }), i, base.kcal);
-        const hi = cyc.highDays.includes(i);
-        return <div key={i} className="text-center"><div className="text-[10px] text-[#8A8A90]">{d[0]}</div><div className={`text-[11px] tnum ${hi ? 'text-[#4A9EEB]' : 'text-white'}`}>{Math.round(k)}</div></div>;
-      })}</div>}
-      <div className="text-[11px] text-[#8A8A90] mt-3 leading-snug">This is a full week of the new shape. Days you've already eaten this week keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}{overlapsWindow ? ` The days ${window_.label.toLowerCase()} covers won't read like this: that window moves them on top.` : ''}</div>
-    </div>}
+    {/* ONE strip for the week, always. A day is shaped either by the standing rhythm or by a declared
+        window, and which one is a detail of the maths, not something to make somebody hold in their
+        head: the row shows what each day actually comes to, and tapping a day edits whatever is
+        shaping it. Being away changes the numbers and the sentence above them, not the controls. */}
+    {base && (() => {
+      const dow = (iso) => new Date(iso + 'T00:00:00').getDay();
+      const winOn = (iso) => E.weekPlanOn(db.week_plans, iso);
+      const isHigh = (iso) => {
+        const w = winOn(iso);
+        return w ? (w.highDays || []).includes(iso) : (cyc.enabled && cyc.highDays.includes(dow(iso)));
+      };
+      const toggle = (iso) => {
+        // A day already eaten keeps what it ran under, on either mechanism.
+        if (iso < today) return;
+        const w = winOn(iso);
+        if (w && stripWindow && w.id === stripWindow.id) {
+          const hi = w.highDays || [];
+          return setWindowShape({ highDays: hi.includes(iso) ? hi.filter(x => x !== iso) : hi.concat([iso]).sort() });
+        }
+        if (w) return;
+        const i = dow(iso);
+        setCyc({ enabled: true, highDays: cyc.highDays.includes(i) ? cyc.highDays.filter(x => x !== i) : cyc.highDays.concat([i]) });
+      };
+      const boostPct = stripWindow
+        ? Math.round((stripWindow.deltaPct == null ? 0.25 : stripWindow.deltaPct) * 100)
+        : Math.round(cyc.deltaPct * 100);
+      const setBoost = (v) => stripWindow ? setWindowShape({ deltaPct: v / 100 }) : setCyc({ enabled: true, deltaPct: v / 100 });
+      return (<div className="mt-3">
+        <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
+          Tap a day to make it a big one. The rest come down to keep the total the same.
+          {stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end) + ', so those days are already lifted. Your normal week comes back after.' : ''}
+        </div>
+        <div className="grid grid-cols-7 gap-1">{strip.map(iso => {
+          const on = isHigh(iso), away = !!winOn(iso), t = effectiveTarget(db, iso);
+          return (<button key={iso} onClick={() => toggle(iso)} className="pixel-box py-2 px-0.5 text-center"
+            style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)',
+              boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined, opacity: iso < today ? 0.5 : 1 }}>
+            <div className="text-[9px] opacity-70">{DOW[dow(iso)][0]}</div>
+            <div className="text-[11px] tnum font-semibold">{t ? Math.round(t.eff.kcal) : '-'}</div>
+          </button>);
+        })}</div>
+        <div className="mt-3">
+          <Field label={`${stripWindow ? 'Big-day boost while you\'re away' : 'High-day boost'}: +${boostPct}%`}>
+            <input type="range" min="5" max="35" value={boostPct} onChange={e => setBoost(+e.target.value)} className="w-full accent-[#4A9EEB]" />
+          </Field>
+        </div>
+        <div className="text-[11px] text-[#8A8A90] leading-snug">
+          The next seven days, as they actually stand. Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
+          {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
+        </div>
+      </div>);
+    })()}
 
     <div className="h-px bg-[#262629] my-5" />
     <SubHead>Evening out an off day</SubHead>
