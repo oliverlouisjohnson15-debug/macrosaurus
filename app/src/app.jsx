@@ -2643,13 +2643,21 @@ function effectiveTarget(db, date) {
   }
   const ov = (db.day_overrides || {})[date];
   // A declared window (see WeekAheadFlow) rides the same per-day shift channel as a manual override,
-  // so the whole of the cycling, carryover and floor maths applies to it unchanged. The plan only
-  // ever shifts a day it actually covers, so days outside the window are untouched.
-  const planKcal = E.planDayDelta(E.weekPlanOn(db.week_plans, date), p, date, base.kcal, E.kcalFloor(p));
+  // so the carryover and floor maths applies to it unchanged. The plan only ever shifts a day it
+  // actually covers, so days outside the window are untouched.
+  const win = E.weekPlanOn(db.week_plans, date);
+  const planKcal = E.planDayDelta(win, p, date, base.kcal, E.kcalFloor(p));
   if (planKcal) base = E.applyKcalDelta(base, planKcal);
+  // ONE shape per day. Inside a window the window IS the shape: it already redistributes across its
+  // own days, so letting the standing weekday rhythm redistribute on top runs two net-zero schemes
+  // through each other. Every window day quietly carried the rhythm's low-day deduction, and any day
+  // both called high stacked both bumps, which is how a Friday abroad came out 400 kcal above the
+  // other big days of the same trip for no reason anybody chose. The rhythm is not lost, it is just
+  // not in force while you are away, which is what the screen says and what the day strip edits.
+  const shaped = win ? null : p.cycling;
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
-    cycling: p.cycling, cyclingHistory: p.cyclingHistory || null, carryover: p.carryover,
+    cycling: shaped, cyclingHistory: shaped ? (p.cyclingHistory || null) : null, carryover: p.carryover,
     cycleStart: cs, eatenByDate, targets: db.targets,
     cyclingChangedAt: p.cyclingChangedAt || null,
     overrideShiftKcal: (ov && ov.shiftKcal) || 0,
@@ -12790,9 +12798,10 @@ function SubScreen({ title, intro, onBack, children }) {
      the left and the screen's name in the middle, which is what tells you at a glance that you are a
      level down rather than on a page of the same rank. It replaces a bare "‹ Settings" text link
      floating above the title - the only navigation in the app that had no chrome at all.
-     Full-bleed: -mx pulls it out through the page's own 20px padding. */
+     Full-bleed: -mx pulls it out through the page's own 20px padding, and -mt up through its 24px of
+     top padding, so the bar sits against the app header instead of floating on a band of page. */
   return (<div className="fade-in">
-    <div className="flex items-center gap-2 px-3 py-2.5 -mx-5 mb-4" style={{ background: 'var(--header)', borderBottom: '3px solid var(--border)' }}>
+    <div className="flex items-center gap-2 px-3 py-2.5 -mx-5 -mt-6 mb-4" style={{ background: 'var(--header)', borderBottom: '3px solid var(--border)' }}>
       <button onClick={onBack} className="pf text-[10px] uppercase hit shrink-0" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>&lsaquo; You</button>
       <span className="pf text-[10px] uppercase flex-1 text-center truncate pr-8" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{title}</span>
     </div>
@@ -12993,12 +13002,18 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   // control: a single row of the next seven days carrying their real composed calories. Being away
   // changes those numbers and the sentence above them, not what you tap or where you tap it.
   const today = Store.todayISO();
-  const strip = []; for (let i = 0; i < 7; i++) strip.push(shiftISO(today, i));
-  // The window overlapping the week on screen. When there is one it is what is actually shaping
-  // these days, so it is what the controls edit; the standing rhythm underneath is left alone and
-  // comes back on its own.
-  const stripWindow = (db.week_plans || []).filter(w => w && w.start && w.end && w.start <= strip[6] && w.end >= today)
+  // The window overlapping the week ahead. When there is one it is what is actually shaping these
+  // days, so it is what the controls edit; the standing rhythm is not in force until it ends.
+  const stripWindow = (db.week_plans || []).filter(w => w && w.start && w.end && w.start <= shiftISO(today, 6) && w.end >= today)
     .sort((a, b) => (a.start < b.start ? -1 : 1))[0] || null;
+  // Seven days normally. While a window runs, the row carries the WHOLE of it plus three days the
+  // other side: a trip longer than a week otherwise fills the row end to end, so every number on
+  // screen is a travel number and there is nothing to read them against. Seeing it come back down
+  // is most of the point of showing the days at all. Capped so a month away cannot run away with it.
+  const stripEnd = stripWindow
+    ? [shiftISO(stripWindow.end, 3), shiftISO(today, 20)].sort()[0]
+    : shiftISO(today, 6);
+  const strip = []; for (let d = today; d <= stripEnd; d = shiftISO(d, 1)) strip.push(d);
   // Editing the shape of a running window is a DATED change, exactly as editing the standing rhythm
   // is (see applyCycling): the outgoing shape is recorded against the days it actually governed, so
   // a day already eaten keeps its target and only the days still ahead are re-shaped.
@@ -13065,8 +13080,10 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
           const on = isHigh(iso), away = !!winOn(iso), t = effectiveTarget(db, iso);
           return (<button key={iso} onClick={() => toggle(iso)} className="pixel-box py-2 px-0.5 text-center"
             style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)',
-              boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined, opacity: iso < today ? 0.5 : 1 }}>
-            <div className="text-[9px] opacity-70">{DOW[dow(iso)][0]}</div>
+              boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined }}>
+            {/* The date, not just the weekday: a trip runs past seven days, so "Monday" alone stops
+                telling you which Monday and whether it is still part of it. */}
+            <div className="text-[9px] opacity-70">{DOW[dow(iso)][0]}{' '}{+iso.slice(8)}</div>
             <div className="text-[11px] tnum font-semibold">{t ? Math.round(t.eff.kcal) : '-'}</div>
           </button>);
         })}</div>
@@ -13076,7 +13093,9 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
           </Field>
         </div>
         <div className="text-[11px] text-[#8A8A90] leading-snug">
-          The next seven days, as they actually stand. Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
+          {stripWindow
+            ? 'Every day of it, and the first few after, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape.'
+            : 'The next seven days, as they actually stand.'} Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
           {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
         </div>
       </div>);
