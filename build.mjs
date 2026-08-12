@@ -49,6 +49,7 @@ const recipeJs = read('app/recipe.js').trim();
 const cofidJs = read('app/cofid.js').trim();
 const trainingJs = read('app/training.js').trim();
 const talkJs = read('app/talk.js').trim();
+const menuJs = read('app/menu.js').trim();
 
 let html = read('index.html');
 
@@ -119,6 +120,17 @@ if (html.includes('<script>\n/*\n * talk.js')) {
   const tEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * training.js')) + '</script>'.length;
   if (tEnd < '</script>'.length) throw new Error('training block end not found for talk.js insertion');
   html = html.slice(0, tEnd) + '\n' + talkBlock + html.slice(tEnd);
+}
+
+// menu block (choosing what to order from a menu) - splice if present, else first-time insert after
+// talk. Load order only has to put it before the app script that calls MenuIdeas.
+const menuBlock = '<script>\n' + menuJs + '\n</script>';
+if (html.includes('<script>\n/*\n * menu.js')) {
+  spliceBlock('<script>\n/*\n * menu.js', menuBlock, '</script>');
+} else {
+  const kEnd = html.indexOf('</script>', html.indexOf('<script>\n/*\n * talk.js')) + '</script>'.length;
+  if (kEnd < '</script>'.length) throw new Error('talk block end not found for menu.js insertion');
+  html = html.slice(0, kEnd) + '\n' + menuBlock + html.slice(kEnd);
 }
 
 // app block (transpiled): the script holding the React app. Babel's output start can vary between

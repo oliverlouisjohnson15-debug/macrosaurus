@@ -1684,6 +1684,48 @@ async function buddyChatReply(db, history, runTool) {
   if (!said) throw new Error('I did not catch that, try asking again.');
   return said;
 }
+/* ---- Menu ideas: what to order, before you order it -------------------------------------------
+   The estimate path in this app has always started from something that already exists: a plate, a
+   label, a barcode. This one starts from a menu, which is the moment the decision is actually made,
+   and it is the only AI call in the app whose answer changes what the person eats rather than
+   describing what they ate. Everything about it is built to be handed straight back into the
+   existing machinery: the reply becomes a normal estimate on the normal confirm screen, it logs as
+   `ai_estimate`, and it is therefore eligible for "Update with a photo" when the food turns up,
+   which is the other half of the same idea. See app/menu.js for the numbers.
+
+   Menus are DENSE TEXT, which is the one thing the meal estimator's image handling is wrong for: it
+   downscales to 768px because a plate of food is a shape, and at 768px the line under a dish name
+   saying "served with skin-on fries and garlic aioli" is unreadable. These go up at 1568, the
+   largest edge Anthropic will use without downscaling it again itself. */
+const MENU_IMG_MAX = 1568;
+const MENU_PDF_MAX_BYTES = 4.5 * 1024 * 1024;
+function isPdfFile(f) { return !!f && ((f.type || '').indexOf('pdf') !== -1 || /\.pdf$/i.test(f.name || '')); }
+async function menuIdeasRequest(files, brief) {
+  // Static instructions first and cached, so reading a second menu, or the same one again after a
+  // better photo, hits the prompt cache rather than paying for the contract twice.
+  const content = [{ type: 'text', text: MENU_IDEAS_PROMPT, cache_control: { type: 'ephemeral' } }];
+  for (const f of (files || [])) {
+    if (isPdfFile(f)) {
+      // PDFs ride as a document block rather than being rasterised in the browser: menu PDFs are
+      // usually real text, and sending the text is both cheaper and far more accurate than sending
+      // a picture of it. The size cap is here rather than server-side because the useful failure
+      // message ("screenshot the pages you want") only makes sense next to the file picker.
+      if (f.size > MENU_PDF_MAX_BYTES) throw new Error('that PDF is too big to read. Screenshot the pages you want instead.');
+      const d = await fileToDataURL(f);
+      content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: String(d).split(',')[1] } });
+    } else {
+      const im = await imageToB64(f, MENU_IMG_MAX);
+      content.push({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.b64 } });
+    }
+  }
+  content.push({ type: 'text', text: brief });
+  // A deadline, because this is the one AI call someone makes while standing in a restaurant with a
+  // waiter next to them: several menu pages on a phone connection is exactly the request that hangs.
+  const j = await aiRequest({ model: AI_MODEL, max_tokens: 4000, messages: [{ role: 'user', content }] }, { timeoutMs: 120000 });
+  const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
+  if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
+  return MenuIdeas.normalise(parseModelJSON(txt));
+}
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
 // Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
@@ -11171,16 +11213,22 @@ let LAST_LOG_TAB = null;
 function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onClose, isPremium, aiCalls }) {
   // `Sheet` arms the back layer for us.
   const [isAlc, setIsAlc] = useState(!!target.alc);
-  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? 'recent' : (['food', 'photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
+  const [tab, setTabRaw] = useState(target.scan ? 'photo' : target.describe ? 'describe' : target.alc ? 'recent' : (['food', 'photo', 'describe', 'menu'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'));
   const setTab = (t) => { setTabRaw(t); setScanNow(0); if (!isAlc) LAST_LOG_TAB = t; };
   // Bumping this signal tells PhotoTab to jump straight into the barcode scanner.
   const [scanNow, setScanNow] = useState(target.scan ? 1 : 0);
   const [mealId, setMealId] = useState(target.mealId || suggestMealId(db, meals) || meals[0].id);
   const day = dayContextFor(db, target.date);
+  // What is already sat in the meal being logged into. Only the Menu tab uses it, and only to offer
+  // a pre-planned dinner as provisional rather than as a fact (see MenuTab).
+  const planned = useMemo(() => entriesOn(db, target.date).filter(e => e.meal_id === mealId), [db.log_entries, target.date, mealId]);
   // One stable food flow (Food / Scan / Estimate). Alcohol is a labelled DETOUR entered from inside
   // Food and left with the back button, not a persistent Type toggle that reshapes the whole tab bar.
-  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate']];
-  useEffect(() => { if (isAlc && tab === 'food') setTabRaw('recent'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw(['photo', 'describe'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'); }, [isAlc]);
+  // Ideas is the one tab that runs BEFORE the food exists, so it sits at the end: the three to its
+  // left all answer "what was that?", and it answers "what should it be?". It is absent from the
+  // alcohol detour on purpose, since nobody needs three ranked options for a pint.
+  const tabs = isAlc ? [['recent', 'Recents'], ['manual', 'New drink'], ['photo', 'Scan'], ['describe', 'Estimate']] : [['food', 'Food'], ['photo', 'Scan'], ['describe', 'Estimate'], ['menu', 'Menu']];
+  useEffect(() => { if (isAlc && tab === 'food') setTabRaw('recent'); if (!isAlc && (tab === 'recent' || tab === 'manual')) setTabRaw(['photo', 'describe', 'menu'].includes(LAST_LOG_TAB) ? LAST_LOG_TAB : 'food'); }, [isAlc]);
   return (
     <Sheet title={'Log ' + (isAlc ? 'alcohol' : 'food')} onClose={onClose} wide z={50} pad={false}
       bodyClass="flex flex-col" bodyStyle={{ maxHeight: '86vh' }}>
@@ -11211,7 +11259,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
           </div>
         </div>
         <div className="px-3.5 pt-1 overflow-y-auto flex-1 min-h-0" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
-          {!isPremium && (tab === 'photo' || tab === 'describe') && (() => {
+          {!isPremium && (tab === 'photo' || tab === 'describe' || tab === 'menu') && (() => {
             const left = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
             return <button onClick={() => { try { window.MPAYWALL && window.MPAYWALL({ type: left > 0 ? 'manual' : 'free_limit' }); } catch (_) {} }} className="w-full text-left mb-2 px-3 py-2 pixel-box flex items-center justify-between gap-2" style={{ background: 'var(--accent-dim)', borderColor: 'var(--accent)' }}>
               <span className="text-[11px]" style={{ color: 'var(--text)' }}>{left > 0 ? (left + ' of ' + FREE_AI_MONTHLY + ' free AI logs left this month') : 'No free AI logs left this month'}</span>
@@ -11223,6 +11271,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
           {tab === 'describe' && <DescribeTab db={db} onPick={i => onAdd(mealId, isAlc ? Object.assign({}, i, { is_alcohol: true }) : i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onScan={() => setTab('photo')} />}
           {tab === 'manual' && (isAlc ? <AlcoholTab onPick={i => onAdd(mealId, i)} /> : <ManualTab onPick={i => onAdd(mealId, i)} day={day} />)}
           {tab === 'photo' && <PhotoTab db={db} asAlcohol={isAlc} autoScan={scanNow} onPick={i => onAdd(mealId, i)} onAddItems={isAlc ? undefined : (its => onAddItems(mealId, its))} onAskAI={() => setTab('describe')} day={day} />}
+          {tab === 'menu' && <MenuTab db={db} day={day} mealName={(meals.find(m => m.id === mealId) || {}).name} planned={planned} onPick={i => onAdd(mealId, i)} onAddItems={(its, replaceIds) => onAddItems(mealId, its, replaceIds)} onScan={() => setTab('describe')} />}
         </div>
     </Sheet>
   );
@@ -11698,7 +11747,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
    one and had scrolled off the top entirely by the time the commit button was reachable, so the
    decision was being taken with only one of the two numbers on screen. Both left unset, an add
    flow renders exactly as it did. */
-function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb, compare }) {
+function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, refineCount, answered, verb, compare, preferOne }) {
   useBackClose(onCancel);
   const src = est || {};
   const [name, setName] = useState(src.name || 'Meal (AI estimate)');
@@ -11790,7 +11839,14 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
      into a single line threw away the one thing that made it correctable afterwards. Logged as parts,
      you can delete the chips you left at 9pm without re-running the estimate or editing a total by
      hand. The portion multiplier still applies, it just scales every component instead of the sum. */
-  const [asOne, setAsOne] = useState(false);
+  /* `preferOne` flips that default, and there is exactly one caller: a dish chosen off a menu. The
+     reasoning above holds for a photograph of a plate you assembled, where the parts are genuinely
+     separate things you can delete one of. A restaurant dish is not that. You ordered ONE thing, it
+     will arrive as one thing, and the way you will correct it is a photograph of the whole plate,
+     which cannot be applied to the third of five rows it half describes. Split into components it
+     also loses the name you would recognise it by in the diary. The toggle underneath still offers
+     the other behaviour to anyone who wants it. */
+  const [asOne, setAsOne] = useState(!!preferOne);
   // The estimator's own follow-up question, shown once. Dismissed as soon as it is answered or
   // skipped, and never re-shown for a refined estimate: being asked a second question after
   // correcting the first answer reads as an interrogation rather than help.
@@ -12005,6 +12061,280 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
       <button onClick={onScan} className="text-[12px] font-semibold shrink-0 px-3 min-h-[44px] rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--accent-ink)' }}>Scan instead</button>
     </div>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in">{err}</div>}
+  </div>);
+}
+/* MENU · what to order, asked BEFORE the food exists.
+   ----------------------------------------------------------------------------
+   Every other route into this sheet is retrospective. Food, Scan and Estimate all answer "what was
+   that?", and they answer it well, but by the time any of them can help, the decision that actually
+   moved the numbers has already been made, in a restaurant, from a menu, in about forty seconds.
+   That is the moment the app was absent from, and it is where a tracker either earns its place or
+   becomes a thing you feel bad in front of afterwards.
+
+   IT IS CALLED MENU, not Ideas. "Ideas" is what the Cook tab does, and it means recipes there; the
+   same word on two tabs meaning two different things is worse than a duller name. Menu says what you
+   give it and what it reads.
+
+   THE FORM IS THE FEATURE'S BIGGEST RISK, so it is nearly gone. The first version of this asked four
+   questions before it would do anything: where you are, how the menu is arriving, which of four
+   goals you wanted, and whether you had notes. Nielsen's rule for this is progressive disclosure -
+   defer secondary options to a subsidiary screen and let sensible defaults carry the majority case -
+   and the apps that already do menu reading well (Snackly and the menu-scanner crop) obey it
+   absolutely: they take a photo and give you the whole menu ranked, with the ranking as a control
+   ON the results rather than a question before them. So:
+
+     * The ranking lens moved AFTER the answer. The model returns a spread of the menu in one call
+       and app/menu.js sorts it here, which makes changing your mind free and instant instead of
+       another call, and means the question never has to be asked at all.
+     * Pasting text and pasting a link became one box, because you can tell which is which by looking
+       at it, and making the user classify their own input is work the app should be doing.
+     * The note field is behind a disclosure, where an optional field belongs.
+
+   What is left at rest: photograph the menu, name the place, go.
+
+   NOTHING IS FILTERED OUT FOR BEING TOO BIG. A person eating out may well want the thing that blows
+   the day apart, and an app that quietly drops it is lying by omission at the exact moment it was
+   asked a real question. Dishes that do not fit are ranked lower under the Fits lens, shown with
+   what they would actually cost, and never commented on.
+
+   THE PLANNED MEAL. Logging dinner before you eat it is a habit this app already supports, and it
+   collides with this screen: open a menu with a placeholder sat in the diary and every dish looks
+   like it busts the day, because the day has already been spent on the very thing you are stood
+   there reconsidering. So when the meal you are logging into already has something in it, this
+   offers to treat it as provisional: the remaining budget is worked out as though it were not there,
+   and choosing a dish swaps it out in one action, with one undo. */
+function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
+  const key = db.profile.aiKey || 'builtin';
+  const MAX_FILES = 4;
+  const SHOWN = 3;
+  const [swap, setSwap] = useState(true);   // a planned meal is provisional by default, see above
+  const plannedMacros = useMemo(() => (planned || []).reduce((a, e) => {
+    const m = e.computed_macros || {};
+    return { kcal: a.kcal + (+m.kcal || 0), protein: a.protein + (+m.protein || 0), carbs: a.carbs + (+m.carbs || 0), fat: a.fat + (+m.fat || 0) };
+  }, { kcal: 0, protein: 0, carbs: 0, fat: 0 }), [planned]);
+  const hasPlan = (planned || []).length > 0;
+  // The entries a pick would put aside, or null for "add alongside". Computed once so the confirm
+  // screen's commit and the sheet's wording can never disagree about what is about to happen.
+  const replacing = (hasPlan && swap) ? planned.map(e => e.id) : null;
+  const rem = useMemo(() => MenuIdeas.remaining(day, (hasPlan && swap) ? plannedMacros : null), [day, hasPlan, swap, plannedMacros]);
+
+  const [place, setPlace] = useState('');
+  const [imgs, setImgs] = useState([]);
+  // One box for "paste it", because a link and a menu are told apart by looking at them and making
+  // someone classify their own input is work the app should be doing.
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [paste, setPaste] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState('');           // '' | 'menu' | 'refine'
+  const [err, setErr] = useState('');
+  const [res, setRes] = useState(null);
+  const [view, setView] = useState('fit');
+  const [all, setAll] = useState(false);
+  const [picked, setPicked] = useState(null);
+  const [est, setEst] = useState(null);
+  const [ver, setVer] = useState(0);
+  const [refineCount, setRefineCount] = useState(0);
+
+  const pasteIsLink = /^\s*(https?:\/\/|www\.)\S+\s*$/i.test(paste);
+  function addFiles(list) {
+    const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, pdf: isPdfFile(f), name: f.name || 'menu', url: isPdfFile(f) ? '' : URL.createObjectURL(f) }));
+    setImgs(x => x.concat(arr).slice(0, MAX_FILES));
+  }
+  function remFile(id) { setImgs(x => x.filter(f => f.id !== id)); }
+  const menuTextAll = pasteIsLink ? '' : paste.trim();
+  // A pasted link names the restaurant, instantly and with no network call. See placeFromUrl in
+  // app/menu.js for why it does not try to fetch the menu behind it.
+  const linkPlace = pasteIsLink ? MenuIdeas.placeFromUrl(paste.trim()) : '';
+  const askedPlace = place.trim() || linkPlace;
+  const canRun = imgs.length > 0 || !!menuTextAll || !!askedPlace;
+
+  async function run() {
+    if (!canRun) { setErr('Photograph the menu, or tell me where you are eating.'); return; }
+    setErr('');
+    setBusy('menu');
+    try {
+      const brief = MenuIdeas.brief({
+        place: askedPlace,
+        mealName: mealName, remaining: rem, note: note.trim(),
+        menuText: menuTextAll, hasImages: imgs.length > 0
+      });
+      const out = await menuIdeasRequest(imgs.map(f => f.file), brief);
+      if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');
+      else { setRes(out); setAll(false); setView(rem ? 'fit' : 'protein'); setErr(''); }
+    } catch (e) { setErr('Could not read that menu: ' + e.message); }
+    setBusy('');
+  }
+
+  function choose(s) { setPicked(s); setEst(MenuIdeas.toEstimate(s)); setRefineCount(0); setVer(v => v + 1); }
+
+  /* Correcting a dish runs through the MEAL estimator, not this one. By the time someone is typing
+     "I had the large one, and chips", they are no longer choosing from a menu: they are describing a
+     specific plate, which is the other prompt's whole job and the one whose cache the rest of the app
+     keeps warm. */
+  async function refine(correction) {
+    setRefineCount(n => n + 1); setBusy('refine'); setErr('');
+    try {
+      const prompt = 'Revise this estimate for a single restaurant dish (eaten in England). Previous estimate JSON: ' + JSON.stringify(est)
+        + '\nThe dish: "' + (picked ? picked.name : '') + '"' + (place.trim() ? ' at ' + place.trim() : '') + '.'
+        + '\nThe user says: "' + correction + '". Return the SAME JSON structure, adjusted. Keep the totals equal to the sum of the items and stay calibrated: change only what their correction actually implies, and do not drift the other components to compensate. Set "question" to "" and "question_options" to []. Respond ONLY with the JSON.';
+      const out = await claudeVision(key, [], prompt, { model: AI_MODEL, maxTokens: 3000, cacheText: AI_PROMPT });
+      setEst(out); setVer(v => v + 1);
+    } catch (e) { setErr('Re-estimate failed: ' + e.message); }
+    setBusy('');
+  }
+
+  // The planned meal, offered as provisional. One line, one checkbox, stated in the terms it will act
+  // in: what is there now, and that picking something will put it aside.
+  const swapBar = hasPlan ? (
+    <button onClick={() => setSwap(v => !v)} className="w-full text-left flex items-start gap-2.5 p-2.5 mb-3" style={{ border: '2px solid var(--border)', background: swap ? 'var(--surface2)' : 'var(--card)' }}>
+      <span className="shrink-0 mt-0.5 flex items-center justify-center" style={{ width: 18, height: 18, border: '2px solid var(--border)', background: swap ? 'var(--accent)' : 'var(--card)' }}>
+        {swap && <span style={{ width: 6, height: 6, background: 'var(--on-accent)' }} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[12px] leading-snug" style={{ color: 'var(--text)' }}>
+          {mealName} already has {planned.length === 1 ? planned[0].name : planned.length + ' things'} <span className="tnum" style={{ color: 'var(--muted)' }}>({Math.round(plannedMacros.kcal)} kcal)</span>
+        </span>
+        <span className="block text-[11px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>
+          {swap ? 'Treating it as a plan you might change, so it is not counted against you here. Picking a dish swaps it out.' : 'Counted as eaten. Anything you pick is on top of it.'}
+        </span>
+      </span>
+    </button>
+  ) : null;
+
+  if (est) return (<div className="fade-in">
+    <AiConfirm key={ver} est={est} busy={busy === 'refine'} refineCount={refineCount} onRefine={refine} preferOne
+      verb={hasPlan && swap ? 'Swap in' : 'Add'}
+      onAdd={it => onPick(Object.assign({}, it, { replaceIds: replacing }))}
+      onAddItems={its => onAddItems(its, replacing)}
+      onCancel={() => { setEst(null); setPicked(null); }} />
+    {err && <div className="text-[12px] mt-3" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
+  </div>);
+  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : 'Reading the menu'} />;
+
+  // ---- the menu, ranked ----
+  if (res) {
+    const ranked = MenuIdeas.rank(res.dishes, view, rem);
+    const shown = all ? ranked : ranked.slice(0, SHOWN);
+    const lenses = MenuIdeas.LENSES.filter(l => rem || !l.needsDay);
+    return (<div className="fade-in">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <button onClick={() => setRes(null)} className="hit text-[13px] flex items-center gap-1" style={{ color: 'var(--muted)' }}><Icon.arrow_left width="16" /> Back</button>
+        {/* The lens, as the app's segmented switch: same object as LEFT/EATEN on Today, so a butted
+            segment strip means one thing everywhere. Free to flip, since the sorting is arithmetic. */}
+        <Pill value={view} options={lenses.map(l => ({ v: l.id, l: l.label }))} onChange={setView} />
+      </div>
+      {swapBar}
+      {res.note && <div className="text-[12px] mb-3 leading-relaxed" style={{ color: 'var(--muted)' }}>{res.note}</div>}
+      {/* ONE panel with ruled rows, not N cards. Three framed boxes with three shadows is the box
+          soup this app spent a redesign getting rid of, and it would make the options read as
+          separate offers rather than one ranked answer to one question. */}
+      <div className="pixel-box p-0 overflow-hidden mb-2">
+        <CardHead title={res.place || 'The menu'} right={ranked.length + ' dishes'} rightTone="muted" />
+        {shown.map((s, i) => {
+          const im = MenuIdeas.impact(s, rem);
+          return (<button key={s.name + i} onClick={() => choose(s)} className="w-full text-left p-3 block active:opacity-80"
+            style={{ borderTop: i === 0 ? 'none' : '2px solid var(--border)' }}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[13.5px] font-semibold leading-snug min-w-0">{s.name}</span>
+              {/* Measured or reasoned, said once per dish and never louder than the dish's own name.
+                  It is the most useful thing we can tell someone about a number they are about to act
+                  on, and it is the difference between a tool and a guess with a nice font. */}
+              <span className="pf text-[8px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : 'Estimate'}</span>
+            </div>
+            {s.description && <div className="text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</div>}
+            <div className="tnum text-[12.5px] mt-1.5">
+              <span className="font-bold" style={{ color: 'var(--text)' }}>{s.kcal}</span> <span style={{ color: 'var(--muted)' }}>kcal</span>
+              {' · '}<span style={{ color: PRO_T }}>{Math.round(s.protein_g)}g P</span>
+              {' · '}<span style={{ color: CARB_T }}>{Math.round(s.carbs_g)}g C</span>
+              {' · '}<span style={{ color: FAT_T }}>{Math.round(s.fat_g)}g F</span>
+            </div>
+            {/* What it would leave, in the day's own terms. The number people are deciding on is not
+                the dish's calories, it is whether there is any room after it. Stated flatly either
+                way: over budget is a fact about a plate, not a verdict on the person. */}
+            {im && im.known && <div className="tnum text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
+              {!im.fits ? (im.overBy + ' kcal over what is left today')
+                : im.proteinMet ? ('Leaves ' + im.leftKcal + ' kcal, and covers your protein')
+                  : ('Leaves ' + im.leftKcal + ' kcal and ' + im.leftProtein + ' g protein')}
+            </div>}
+            {s.why && <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--text2)' }}>{s.why}</div>}
+            {s.tweak && <div className="text-[11px] mt-1 leading-snug" style={{ color: 'var(--accent-ink)' }}><Icon.corner_arrow width="16" /> {s.tweak}</div>}
+          </button>);
+        })}
+      </div>
+      {ranked.length > SHOWN && <button onClick={() => setAll(v => !v)} className="w-full text-[12px] min-h-[44px] mb-2" style={{ color: 'var(--accent-ink)' }}>{all ? 'Show the top ' + SHOWN : 'Show all ' + ranked.length}</button>}
+      <div className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
+        Pick one to check the numbers and log it. When the food turns up, open it in your diary and tap Update with a photo to settle it properly.
+      </div>
+      {err && <div className="text-[12px] mt-3 fade-in" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
+    </div>);
+  }
+
+  // ---- the ask: photograph the menu, name the place, go ----
+  return (<div>
+    <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>Eating out? Show me the menu and I will price what is on it. Nothing is logged until you pick something and confirm it.</div>
+    {swapBar}
+    {rem && <SheetBox className="p-3 mb-4">
+      <SheetLabel>{rem.over ? 'Today is already full' : 'Left today'}</SheetLabel>
+      <div className="tnum text-[12.5px] mt-1.5">
+        {rem.over
+          ? <span style={{ color: 'var(--muted)' }}>About {rem.overBy} kcal past target. I will still show you the whole menu.</span>
+          : <React.Fragment>
+            <span className="font-bold" style={{ color: 'var(--text)' }}>{rem.kcal}</span> <span style={{ color: 'var(--muted)' }}>kcal</span>
+            {' · '}<span style={{ color: PRO_T }}>{rem.protein}g P</span>
+            {' · '}<span style={{ color: CARB_T }}>{rem.carbs}g C</span>
+            {' · '}<span style={{ color: FAT_T }}>{rem.fat}g F</span>
+          </React.Fragment>}
+      </div>
+    </SheetBox>}
+
+    {imgs.length < MAX_FILES && <label className="w-full flex items-center justify-center gap-2 pixel-btn py-3.5 text-[13px] cursor-pointer" style={{ borderWidth: 2, background: 'var(--surface2)', color: 'var(--text)' }}>
+      <Icon.cam width="16" height="16" /> {imgs.length ? 'Add another page' : 'Photograph the menu'}
+      <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
+    </label>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mt-2">{imgs.map(f => (
+      <div key={f.id} className="relative">
+        {f.pdf
+          ? <div className="w-16 h-16 flex items-center justify-center pf text-[8px] uppercase" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' }}>PDF</div>
+          : <img src={f.url} alt="" className="w-16 h-16 object-cover" style={{ border: '2px solid var(--border)' }} />}
+        <button onClick={() => remFile(f.id)} aria-label={'Remove ' + f.name} className="hit absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center" style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}><Icon.close width="16" /></button>
+      </div>))}</div>}
+    {/* Deferred, per progressive disclosure: a photo covers most of it, and the two paste routes are
+        one box because you can tell a link from a menu by looking at it. */}
+    {!pasteOpen && <button onClick={() => setPasteOpen(true)} className="hit text-[12px] mt-2" style={{ color: 'var(--accent-ink)' }}>or paste the menu, or a link to the place</button>}
+    {pasteOpen && <div className="mt-2 fade-in">
+      <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={pasteIsLink ? 2 : 4} className={inputCls + ' resize-y leading-relaxed'} placeholder="Paste the menu, or a link to the place" />
+      {/* A link is told the truth about what it did. Restaurant sites render their menus in
+          JavaScript and the delivery apps block anything that is not a browser, so there is no menu
+          to be had behind a URL; what there IS, for free and instantly, is the name of the place,
+          which for a chain unlocks its published nutrition. Saying which of those just happened is
+          the difference between a helpful shortcut and a feature that seems to have ignored you. */}
+      {pasteIsLink && <div className="text-[11px] mt-1.5 leading-snug" style={{ color: linkPlace ? 'var(--good-ink)' : 'var(--muted)' }}>
+        {linkPlace
+          ? ('Got it, ' + linkPlace + '. Photograph the menu too if you want the actual dishes priced.')
+          : 'That link does not name a restaurant. Add the place below, or photograph the menu.'}
+      </div>}
+    </div>}
+
+    <div className="mt-4">
+      <Field label="Where are you eating?" hint="A chain name alone is enough. If it publishes its nutrition, I will use the real figures.">
+        <TextInput value={place} onChange={e => setPlace(e.target.value)} placeholder={linkPlace || 'e.g. Dishoom, or the local Italian'} />
+      </Field>
+    </div>
+
+    {!noteOpen && <button onClick={() => setNoteOpen(true)} className="hit text-[12px] mb-4 block" style={{ color: 'var(--accent-ink)' }}>+ Add a note</button>}
+    {noteOpen && <div className="mb-4 fade-in">
+      <Field label="Anything else?" hint="Allergies, what you fancy, whether a pudding is happening.">
+        <TextInput value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. no dairy, and I want a starter too" />
+      </Field>
+    </div>}
+
+    <Btn kind="accent" className="w-full" disabled={!canRun} style={{ opacity: canRun ? 1 : 0.5 }} onClick={run}>Read the menu</Btn>
+    {onScan && <div className="flex items-center justify-between gap-2 p-3 mt-4" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+      <div className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Already eaten it? A photo is more accurate.</div>
+      <button onClick={onScan} className="hit text-[12px] font-semibold shrink-0 px-3" style={{ color: 'var(--accent-ink)' }}>Estimate it</button>
+    </div>}
+    {err && <div className="text-[12px] mt-3 fade-in" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
 }
 /* UPDATE WITH A PHOTO · a diary entry re-estimated from the food as it actually turned up.
@@ -14277,8 +14607,8 @@ function AdminAudit() {
     </div>))}
   </div>);
 }
-function aiFeatureLabel(f) { return f === 'meal' ? 'Meal estimate' : f === 'label' ? 'Label scan' : f === 'coach' ? 'Coach note' : f === 'other' ? 'Other' : f; }
-function aiFeatureColor(f) { return f === 'meal' ? 'var(--carb)' : f === 'label' ? 'var(--pro)' : f === 'coach' ? 'var(--good)' : 'var(--muted)'; }
+function aiFeatureLabel(f) { return f === 'meal' ? 'Meal estimate' : f === 'label' ? 'Label scan' : f === 'coach' ? 'Coach note' : f === 'ideas' ? 'Menu ideas' : f === 'other' ? 'Other' : f; }
+function aiFeatureColor(f) { return f === 'meal' ? 'var(--carb)' : f === 'label' ? 'var(--pro)' : f === 'coach' ? 'var(--good)' : f === 'ideas' ? 'var(--fat)' : 'var(--muted)'; }
 // Browse the AI proxy's request/response log so the owner can vet prompts, input images and results
 // and tune the AI features. Metadata comes back in the list; images/prompt/result load per-row on tap.
 function AdminAiLogs() {
@@ -17031,11 +17361,19 @@ function App() {
     setFresh(false);
     if (isNew) setShowWelcome(true);
   }
-  function addEntry(date, mealId, item) {
+  /* `item.replaceIds` is the Menu tab swapping out a pre-planned meal: you logged a placeholder for
+     dinner, then read the actual menu and chose something else. It has to be ONE action with ONE
+     undo, because a delete and an add that are separately undoable leave a person two taps away from
+     a diary in a state they never asked for. So the removal rides inside the same update and the
+     toast's Undo puts back exactly what was there. */
+  function addEntry(date, mealId, item, replaceIds) {
     const entryId = Store.uid();
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
     const macros = normalizeMacros(item.macros, item.is_alcohol);
+    const swapIds = (replaceIds || item.replaceIds || []).filter(Boolean);
+    const swapped = swapIds.length ? JSON.parse(JSON.stringify(db.log_entries.filter(e => swapIds.indexOf(e.id) !== -1))) : [];
     update(d => {
+      if (swapped.length) { tombstone(d, swapIds); d.log_entries = d.log_entries.filter(x => swapIds.indexOf(x.id) === -1); }
       const key = item.name.trim().toLowerCase(); let food = d.foods.find(x => x.name.trim().toLowerCase() === key && !!x.is_alcohol === !!item.is_alcohol);
       // nq is portion-independent, so one-tap re-logging a food you have logged before inherits the
       // nutrient record it already carries instead of landing in the log as unscored.
@@ -17066,8 +17404,12 @@ function App() {
       supa.rpc('submit_food_correction', { p_barcode: item.barcode, p_kcal: +b.kcal || 0, p_protein: +b.protein || 0, p_carbs: +b.carbs || 0, p_fat: +b.fat || 0, p_fiber: +b.fiber || 0, p_basis: item.baseKind || 'per100', p_serving_g: +item.savedServingG || 0, p_serving_label: item.savedServingLabel || '', p_name: item.name || '', p_source: item.source || '' }).then(function () {}, function () {});
     }
     setAdding(null);
-    window.MTRACK && MTRACK('food_logged', { count: 1, source: item.source || 'manual' });
-    showToast('Added ' + item.name, 'Undo', () => update(d => { tombstone(d, [entryId]); d.log_entries = d.log_entries.filter(x => x.id !== entryId); }), 'Adjust', () => setAdjusting(entryId));
+    window.MTRACK && MTRACK('food_logged', { count: 1, source: item.source || 'manual', swapped: swapped.length || undefined });
+    const undo = () => update(d => {
+      tombstone(d, [entryId]); d.log_entries = d.log_entries.filter(x => x.id !== entryId);
+      if (swapped.length) { untombstone(d, swapIds); swapped.forEach(e => d.log_entries.push(JSON.parse(JSON.stringify(e)))); }
+    });
+    showToast(swapped.length ? ('Swapped in ' + item.name) : ('Added ' + item.name), 'Undo', undo, 'Adjust', () => setAdjusting(entryId));
   }
   /* One diary entry PER item, with each item also becoming a reusable, gram-scalable smart food.
      Shared by the recipe "log itemised" path and by AI meal estimates, because both turn one
@@ -17090,13 +17432,23 @@ function App() {
     });
   }
   // An AI meal estimate logged as its components rather than as one "Meal (AI estimate)" line.
-  function addEstimateItems(date, mealId, items) {
+  function addEstimateItems(date, mealId, items, replaceIds) {
     const ids = items.map(() => Store.uid());
     if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
-    update(d => pushItemEntries(d, date, mealId, items, 'ai_estimate', ids));
+    // Same one-action swap as addEntry, for the case where someone itemises a dish they chose off a
+    // menu instead of logging it whole.
+    const swapIds = (replaceIds || []).filter(Boolean);
+    const swapped = swapIds.length ? JSON.parse(JSON.stringify(db.log_entries.filter(e => swapIds.indexOf(e.id) !== -1))) : [];
+    update(d => {
+      if (swapped.length) { tombstone(d, swapIds); d.log_entries = d.log_entries.filter(x => swapIds.indexOf(x.id) === -1); }
+      pushItemEntries(d, date, mealId, items, 'ai_estimate', ids);
+    });
     setAdding(null);
-    window.MTRACK && MTRACK('food_logged', { count: items.length, source: 'ai_estimate_items' });
-    showToast('Logged ' + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => { tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id)); }));
+    window.MTRACK && MTRACK('food_logged', { count: items.length, source: 'ai_estimate_items', swapped: swapped.length || undefined });
+    showToast((swapped.length ? 'Swapped in ' : 'Logged ') + items.length + ' item' + (items.length === 1 ? '' : 's'), 'Undo', () => update(d => {
+      tombstone(d, ids); const s = new Set(ids); d.log_entries = d.log_entries.filter(x => !s.has(x.id));
+      if (swapped.length) { untombstone(d, swapIds); swapped.forEach(e => d.log_entries.push(JSON.parse(JSON.stringify(e)))); }
+    }));
   }
   function addMeal(date, mealId, items) {
     const ids = items.map(() => Store.uid());
@@ -17237,7 +17589,7 @@ function App() {
           onSaveWeight={(kg) => { update(d => { const ex = d.weight_entries.find(x => x.date === tday); if (ex) ex.scale_weight = +kg.toFixed(2); else d.weight_entries.push({ id: Store.uid(), date: tday, scale_weight: +kg.toFixed(2) }); recomputeTrend(d); }); showToast('Logged ' + fmtWeight(kg, db.profile.weight_unit) + '. Nice one.'); }}
           onOpenScreen={(view) => { setTalking(false); if (view === 'checkin') { setView('goals'); setCheckingIn(true); } else if (view === 'weigh') { setView('dashboard'); setWeighing(true); } else if (view === 'play') { setDexOpen(true); } else setView(view); }} />
       ); })()}
-      {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onAddItems={(mealId, items) => addEstimateItems(adding.date, mealId, items)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
+      {adding && <LogSheet db={db} update={update} meals={mealsForDay(db, adding.date)} target={adding} onAdd={(mealId, item) => addEntry(adding.date, mealId, item)} onAddMeal={(mealId, items) => addMeal(adding.date, mealId, items)} onAddItems={(mealId, items, replaceIds) => addEstimateItems(adding.date, mealId, items, replaceIds)} onClose={() => setAdding(null)} isPremium={isPremium} aiCalls={aiCalls} />}
       {checkingIn && <CheckInModal db={db} update={update} onClose={() => setCheckingIn(false)} resume={checkingIn === 'review' ? db.pending_adjustment : null} isPremium={isPremium} />}
       {/* One quick weigh sheet for the whole app: the buddy's ask, the Progress button and the
           ?action=weigh shortcut all land here rather than each growing their own entry point. */}

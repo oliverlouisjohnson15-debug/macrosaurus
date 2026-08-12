@@ -74,6 +74,12 @@ function featureOf(prompt: string): string {
   // estimator" wording, so clients still running a cached bundle keep billing as 'meal' rather than
   // silently falling through to 'other'. Signature must stay in step with AI_PROMPT in app/src/prompts.jsx.
   if (p.includes('UK nutrition estimator')) return 'meal';
+  // Reading a menu and proposing three things to order. Deliberately NOT gated to Premium below: it
+  // spends from the free monthly allowance like a meal estimate, because it is part of logging a
+  // meal rather than a feature beside it. Classified so its spend is attributable in ai_logs, since
+  // it carries menu photographs and is the most expensive food call we make.
+  // Signature must stay in step with MENU_IDEAS_PROMPT in app/src/prompts.jsx.
+  if (p.includes('helping someone choose what to order')) return 'ideas';
   // The buddy conversation. Classified so its spend is attributable per feature in ai_logs, and so
   // the tool-loop hops of one turn all land under the same label. It is NOT Premium-gated (see the
   // access-control block below) - it spends from the free monthly allowance like a meal estimate.
