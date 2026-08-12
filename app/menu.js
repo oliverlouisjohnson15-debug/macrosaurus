@@ -161,7 +161,7 @@
     }
     if (opts.hasImages) lines.push('The menu is attached as image(s) and/or a PDF. Read every dish you can see on it.');
     if (!opts.menuText && !opts.hasImages) {
-      lines.push('NO MENU WAS PROVIDED. Work from what you know of this place: if it is a UK chain, use its real published menu and nutrition. If you do not know it, say so in "note" and suggest what a place of that kind reliably serves, making clear in each "why" that you are going on the type of restaurant rather than their actual menu.');
+      lines.push('NO MENU WAS PROVIDED, so you have not seen their menu and must not write as though you had. Set "menu_read" to false. If this is a UK chain whose published menu you actually know, use it and name the chain in "note". Otherwise name each dish for what it plainly is ("Grilled chicken breast with vegetables") rather than inventing the name it might carry on their card ("Pollo alla Griglia"), say in "note" that you are going on the kind of place this is, and make that clear in each "why" as well. They are stood in the restaurant holding the real menu: a dish they cannot find on it is worse than no dish at all.');
     }
     return lines.join('\n\n');
   }
@@ -251,10 +251,21 @@
 
   /* The reply, made safe. Deduplicated by name because a model asked to read a short menu will
      sometimes return the same dish twice under two spellings, and two identical rows read as a bug
-     in the app rather than a thin menu. */
-  function normalise(raw, limit) {
+     in the app rather than a thin menu.
+
+     `menuGiven` is the caller saying whether a menu was actually attached - photographs, a PDF, or
+     text pasted in. It is the one fact about this reply we KNOW rather than infer, and it decides
+     `menuRead`, because the model's own claim cannot be trusted in the direction that hurts. Asked
+     for dishes at a named place with no menu attached, a model will happily write a card's worth of
+     plausible Italian, name each dish the way a menu would, and the screen then reads as though we
+     had read theirs. Someone stood in the restaurant looks for "Pollo alla Griglia" and it is not
+     there. So: no menu attached means menuRead is false, whatever the reply says. When a menu WAS
+     attached the default flips, and only an explicit menu_read:false pulls it back down, since a
+     model that forgot the flag on a menu it plainly read should not put a warning over real dishes. */
+  function normalise(raw, opts) {
     raw = raw || {};
-    var cap = limit || 10;
+    opts = opts || {};
+    var cap = opts.limit || 10;
     var list = Array.isArray(raw.dishes) ? raw.dishes : (Array.isArray(raw.suggestions) ? raw.suggestions : []);
     var out = [], seen = {};
     for (var i = 0; i < list.length && out.length < cap; i++) {
@@ -267,7 +278,7 @@
     }
     return {
       place: String(raw.place || '').trim(),
-      menuRead: raw.menu_read === true,
+      menuRead: !!opts.menuGiven && raw.menu_read !== false,
       note: String(raw.note || '').trim(),
       dishes: out
     };

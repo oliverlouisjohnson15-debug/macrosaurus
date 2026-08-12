@@ -6,8 +6,11 @@
      so the app loads fully offline.
    - API traffic (Supabase, Anthropic, Open Food Facts): never cached — always straight to the
      network; offline reads/writes are handled by the app's own IndexedDB store.
-   Bump VERSION to force old caches to clear on the next activate. */
-const VERSION = '290';
+   Bump VERSION to force old caches to clear on the next activate.
+   VERSION is also the deploy's identity: build.mjs stamps this same number into index.html as
+   window.BUILD, and the app compares the two before it offers anyone a reload (see the message
+   handler below). Keep it a plain increasing integer, because that comparison is numeric. */
+const VERSION = '291';
 const CORE = 'macrosaurus-core-v' + VERSION;
 const RUNTIME = 'macrosaurus-rt-v' + VERSION;
 const CORE_ASSETS = [
@@ -34,6 +37,20 @@ self.addEventListener('activate', function (e) {
       .then(function (keys) { return Promise.all(keys.filter(function (k) { return k !== CORE && k !== RUNTIME; }).map(function (k) { return caches.delete(k); })); })
       .then(function () { return self.clients.claim(); })
   );
+});
+
+/* Which build is being served. The page asks this before it offers a reload, and the answer is the
+   only honest basis for that offer: the shell is served network-first below, so a page that has just
+   loaded is ALWAYS the newest build available, and a worker swapping in underneath it proves nothing
+   about the page. Compared numerically against the window.BUILD stamped into that page, so a reload
+   is offered when there is genuinely something newer to load and never merely because a worker
+   changed hands. */
+self.addEventListener('message', function (e) {
+  var d = e.data || {};
+  if (d.type !== 'version') return;
+  var reply = { type: 'version', version: VERSION };
+  if (e.ports && e.ports[0]) e.ports[0].postMessage(reply);
+  else if (e.source && e.source.postMessage) e.source.postMessage(reply);
 });
 
 // Web Push: the push-nudge edge function sends a JSON payload {title, body, url, tag}. Show it as a

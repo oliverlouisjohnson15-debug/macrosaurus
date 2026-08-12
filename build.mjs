@@ -53,6 +53,26 @@ const menuJs = read('app/menu.js').trim();
 
 let html = read('index.html');
 
+/* ---- the build stamp ------------------------------------------------------------------------
+   The page has to know which build it IS, or it cannot tell a deploy it is missing from a service
+   worker that has merely swapped in underneath it. sw.js's VERSION is already the deploy's identity
+   and is already bumped for every release, so it is the one number both halves read: stamped here
+   into the page, answered there over postMessage, compared in the app before a reload is offered. */
+const swVersion = (read('sw.js').match(/const VERSION = '([^']+)'/) || [])[1];
+if (!swVersion) throw new Error('sw.js VERSION not found');
+const buildBlock = "<script>window.BUILD='" + swVersion + "';</script>";
+const BUILD_RE = /<script>window\.BUILD='[^']*';<\/script>/;
+if (BUILD_RE.test(html)) {
+  html = html.replace(BUILD_RE, buildBlock);
+} else {
+  // First run: it belongs immediately before the registration, so the stamp is set whatever the
+  // worker goes on to do.
+  const swReg = "<script>if('serviceWorker' in navigator)";
+  const at = html.indexOf(swReg);
+  if (at === -1) throw new Error('service worker registration script not found for build stamp');
+  html = html.slice(0, at) + buildBlock + '\n' + html.slice(at);
+}
+
 function spliceBlock(startSig, replacement, endTag) {
   const start = html.indexOf(startSig);
   if (start === -1) throw new Error('signature not found: ' + startSig.slice(0, 60));

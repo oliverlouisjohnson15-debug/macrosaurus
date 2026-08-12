@@ -1700,7 +1700,7 @@ async function buddyChatReply(db, history, runTool) {
 const MENU_IMG_MAX = 1568;
 const MENU_PDF_MAX_BYTES = 4.5 * 1024 * 1024;
 function isPdfFile(f) { return !!f && ((f.type || '').indexOf('pdf') !== -1 || /\.pdf$/i.test(f.name || '')); }
-async function menuIdeasRequest(files, brief) {
+async function menuIdeasRequest(files, brief, menuGiven) {
   // Static instructions first and cached, so reading a second menu, or the same one again after a
   // better photo, hits the prompt cache rather than paying for the contract twice.
   const content = [{ type: 'text', text: MENU_IDEAS_PROMPT, cache_control: { type: 'ephemeral' } }];
@@ -1724,7 +1724,10 @@ async function menuIdeasRequest(files, brief) {
   const j = await aiRequest({ model: AI_MODEL, max_tokens: 4000, messages: [{ role: 'user', content }] }, { timeoutMs: 120000 });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
-  return MenuIdeas.normalise(parseModelJSON(txt));
+  // Whether a menu was actually attached is ours to state, not the model's to claim. See normalise
+  // in app/menu.js for why that distinction is the whole difference between reading a menu and
+  // guessing at one.
+  return MenuIdeas.normalise(parseModelJSON(txt), { menuGiven: !!menuGiven });
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
@@ -12147,7 +12150,11 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   // app/menu.js for why it does not try to fetch the menu behind it.
   const linkPlace = pasteIsLink ? MenuIdeas.placeFromUrl(paste.trim()) : '';
   const askedPlace = place.trim() || linkPlace;
-  const canRun = imgs.length > 0 || !!menuTextAll || !!askedPlace;
+  // A menu is a photograph, a PDF or text. A link is not one, and neither is the name of the place:
+  // both of those name a restaurant and nothing more. Keeping that distinction in one named value is
+  // what stops the screen implying it read something it never saw.
+  const menuGiven = imgs.length > 0 || !!menuTextAll;
+  const canRun = menuGiven || !!askedPlace;
 
   async function run() {
     if (!canRun) { setErr('Photograph the menu, or tell me where you are eating.'); return; }
@@ -12159,7 +12166,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         mealName: mealName, remaining: rem, note: note.trim(),
         menuText: menuTextAll, hasImages: imgs.length > 0
       });
-      const out = await menuIdeasRequest(imgs.map(f => f.file), brief);
+      const out = await menuIdeasRequest(imgs.map(f => f.file), brief, menuGiven);
       if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');
       else { setRes(out); setAll(false); setView(rem ? 'fit' : 'protein'); setErr(''); }
     } catch (e) { setErr('Could not read that menu: ' + e.message); }
@@ -12225,12 +12232,24 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         <Pill value={view} options={lenses.map(l => ({ v: l.id, l: l.label }))} onChange={setView} />
       </div>
       {swapBar}
+      {/* WHERE THESE DISHES CAME FROM, said by the app rather than left to the model's own note.
+          A link or a place name gets you a restaurant, never its menu (see placeFromUrl in
+          app/menu.js), so what comes back is what a place of that kind serves. Rendered the same as
+          a menu we actually read, that is a lie by presentation: the header carries the restaurant's
+          name, every row is priced to the calorie, and the person goes looking for a dish that was
+          never on the card. So it is stated first, above the list, in the app's own words. */}
+      {!res.menuRead && <div className="p-3 mb-3" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+        <div className="pf text-[8px] uppercase mb-1.5" style={{ color: 'var(--fat-ink)', letterSpacing: '0.1em' }}>I have not seen this menu</div>
+        <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--text2)' }}>
+          These are dishes a place like this usually serves, priced as estimates. They are not checked against the real menu, so some may not be on it. Photograph the menu and I will price what is actually there.
+        </div>
+      </div>}
       {res.note && <div className="text-[12px] mb-3 leading-relaxed" style={{ color: 'var(--muted)' }}>{res.note}</div>}
       {/* ONE panel with ruled rows, not N cards. Three framed boxes with three shadows is the box
           soup this app spent a redesign getting rid of, and it would make the options read as
           separate offers rather than one ranked answer to one question. */}
       <div className="pixel-box p-0 overflow-hidden mb-2">
-        <CardHead title={res.place || 'The menu'} right={ranked.length + ' dishes'} rightTone="muted" />
+        <CardHead title={res.menuRead ? (res.place || 'The menu') : (res.place ? 'Typical of ' + res.place : 'Typical dishes')} right={ranked.length + ' dishes'} rightTone="muted" />
         {shown.map((s, i) => {
           const im = MenuIdeas.impact(s, rem);
           return (<button key={s.name + i} onClick={() => choose(s)} className="w-full text-left p-3 block active:opacity-80"
@@ -12239,8 +12258,11 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
               <span className="text-[13.5px] font-semibold leading-snug min-w-0">{s.name}</span>
               {/* Measured or reasoned, said once per dish and never louder than the dish's own name.
                   It is the most useful thing we can tell someone about a number they are about to act
-                  on, and it is the difference between a tool and a guess with a nice font. */}
-              <span className="pf text-[8px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : 'Estimate'}</span>
+                  on, and it is the difference between a tool and a guess with a nice font. The third
+                  state is about the DISH rather than its numbers: when no menu reached us, we cannot
+                  say this is a thing they can order, only that a place like this tends to serve it,
+                  and that has to be legible on the row itself and not only in the strip above. */}
+              <span className="pf text-[8px] uppercase shrink-0" style={{ color: s.published ? 'var(--good-ink)' : 'var(--muted)', letterSpacing: '0.1em' }}>{s.published ? 'Published' : res.menuRead ? 'Estimate' : 'Unconfirmed'}</span>
             </div>
             {s.description && <div className="text-[11.5px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{s.description}</div>}
             <div className="tnum text-[12.5px] mt-1.5">
@@ -12311,7 +12333,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
           the difference between a helpful shortcut and a feature that seems to have ignored you. */}
       {pasteIsLink && <div className="text-[11px] mt-1.5 leading-snug" style={{ color: linkPlace ? 'var(--good-ink)' : 'var(--muted)' }}>
         {linkPlace
-          ? ('Got it, ' + linkPlace + '. Photograph the menu too if you want the actual dishes priced.')
+          ? ('Got it, ' + linkPlace + '. A link only gives me the name: I cannot read the menu behind it. Photograph the menu to have the actual dishes priced.')
           : 'That link does not name a restaurant. Add the place below, or photograph the menu.'}
       </div>}
     </div>}
@@ -12329,7 +12351,9 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       </Field>
     </div>}
 
-    <Btn kind="accent" className="w-full" disabled={!canRun} style={{ opacity: canRun ? 1 : 0.5 }} onClick={run}>Read the menu</Btn>
+    {/* The button says which of the two things is about to happen. Promising to "read the menu" over
+        a place name and no menu is where the whole misunderstanding starts. */}
+    <Btn kind="accent" className="w-full" disabled={!canRun} style={{ opacity: canRun ? 1 : 0.5 }} onClick={run}>{menuGiven ? 'Read the menu' : 'Suggest what to order'}</Btn>
     {onScan && <div className="flex items-center justify-between gap-2 p-3 mt-4" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
       <div className="text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>Already eaten it? A photo is more accurate.</div>
       <button onClick={onScan} className="hit text-[12px] font-semibold shrink-0 px-3" style={{ color: 'var(--accent-ink)' }}>Estimate it</button>
@@ -17204,20 +17228,47 @@ function App() {
     return function () { window.removeEventListener('online', flush); };
   }, [session]);
 
-  // Offer a reload when a freshly deployed service worker takes over. sw.js calls skipWaiting, so a
-  // new build activates immediately; a controllerchange after we already had a controller means the
-  // running page is now on old code. We also poll for a new deploy on load and on tab refocus.
+  /* Offer a reload when there is genuinely a newer build to load, and only then.
+     -------------------------------------------------------------------------
+     This used to fire on `controllerchange`, reasoning that a new worker taking over meant the
+     running page was on old code. That reasoning does not hold here, and the result was a banner
+     that turned up when nothing had changed. sw.js serves the app shell NETWORK-FIRST with
+     `cache: 'no-store'`, so a page that has just loaded is always the newest build available; when a
+     deploy lands, that same page then picks up the matching new worker moments later, control
+     changes hands, and the banner appeared over a page whose code was already current. Tapping
+     Reload got you the identical app back, which is exactly the thing a person notices.
+     So the question is asked properly instead: the worker in charge is asked which build it is
+     serving, and that is compared against the build this page was made from (window.BUILD, stamped
+     by build.mjs from sw.js's VERSION). Strictly newer means there is something to fetch; equal
+     means the worker has only caught up with a page that was already current, and nobody is
+     interrupted. A page too old to carry a stamp keeps the old behaviour, since it really is stale.
+     We still poll for a new deploy on load and on tab refocus. */
   const [updateReady, setUpdateReady] = useState(false);
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
+    var mine = +(window.BUILD || 0);
     var hadController = !!navigator.serviceWorker.controller;
-    function onChange() { if (hadController) setUpdateReady(true); }
+    var live = true;
+    function askVersion() {
+      var ctrl = navigator.serviceWorker.controller;
+      if (!ctrl) return;
+      try {
+        var ch = new MessageChannel();
+        ch.port1.onmessage = function (e) {
+          var theirs = +((e.data && e.data.version) || 0);
+          if (live && theirs > mine) setUpdateReady(true);
+        };
+        ctrl.postMessage({ type: 'version' }, [ch.port2]);
+      } catch (_) { /* a worker too old to answer is not evidence of anything newer */ }
+    }
+    function onChange() { if (!hadController) return; if (mine) askVersion(); else setUpdateReady(true); }
     navigator.serviceWorker.addEventListener('controllerchange', onChange);
     function check() { navigator.serviceWorker.getRegistration().then(function (r) { if (r) r.update().catch(function () {}); }, function () {}); }
+    if (mine) askVersion();   // catches a page served from the cache offline while a newer one waits
     check();
     function onVis() { if (document.visibilityState === 'visible') check(); }
     document.addEventListener('visibilitychange', onVis);
-    return function () { navigator.serviceWorker.removeEventListener('controllerchange', onChange); document.removeEventListener('visibilitychange', onVis); };
+    return function () { live = false; navigator.serviceWorker.removeEventListener('controllerchange', onChange); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
   // Handle launch intents once data is ready: home-screen shortcuts (?action=log/weigh) and Web

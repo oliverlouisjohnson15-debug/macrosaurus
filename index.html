@@ -29,6 +29,7 @@
 <meta name="twitter:title" content="Macrosaurus, the macro tracker that adapts (and is actually fun)" />
 <meta name="twitter:description" content="Science-based macro targets that adapt every week, AI food logging, macro-tuned recipes, and a game that keeps you coming back." />
 <meta name="twitter:image" content="https://macrosaurus.com/og.png?v=124" />
+<script>window.BUILD='291';</script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(e){console.warn('SW registration failed:',e);});});}</script>
 <!-- Error monitoring: Sentry loader (error-only; Session Replay and Tracing are disabled in the project settings, so no screen data is recorded). -->
 <script src="https://js-de.sentry-cdn.com/29e6070c53aafda38874cf1fa649e03f.min.js" crossorigin="anonymous"></script>
@@ -8773,7 +8774,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     if (opts.hasImages) lines.push('The menu is attached as image(s) and/or a PDF. Read every dish you can see on it.');
     if (!opts.menuText && !opts.hasImages) {
-      lines.push('NO MENU WAS PROVIDED. Work from what you know of this place: if it is a UK chain, use its real published menu and nutrition. If you do not know it, say so in "note" and suggest what a place of that kind reliably serves, making clear in each "why" that you are going on the type of restaurant rather than their actual menu.');
+      lines.push('NO MENU WAS PROVIDED, so you have not seen their menu and must not write as though you had. Set "menu_read" to false. If this is a UK chain whose published menu you actually know, use it and name the chain in "note". Otherwise name each dish for what it plainly is ("Grilled chicken breast with vegetables") rather than inventing the name it might carry on their card ("Pollo alla Griglia"), say in "note" that you are going on the kind of place this is, and make that clear in each "why" as well. They are stood in the restaurant holding the real menu: a dish they cannot find on it is worse than no dish at all.');
     }
     return lines.join('\n\n');
   }
@@ -8863,10 +8864,21 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
 
   /* The reply, made safe. Deduplicated by name because a model asked to read a short menu will
      sometimes return the same dish twice under two spellings, and two identical rows read as a bug
-     in the app rather than a thin menu. */
-  function normalise(raw, limit) {
+     in the app rather than a thin menu.
+
+     `menuGiven` is the caller saying whether a menu was actually attached - photographs, a PDF, or
+     text pasted in. It is the one fact about this reply we KNOW rather than infer, and it decides
+     `menuRead`, because the model's own claim cannot be trusted in the direction that hurts. Asked
+     for dishes at a named place with no menu attached, a model will happily write a card's worth of
+     plausible Italian, name each dish the way a menu would, and the screen then reads as though we
+     had read theirs. Someone stood in the restaurant looks for "Pollo alla Griglia" and it is not
+     there. So: no menu attached means menuRead is false, whatever the reply says. When a menu WAS
+     attached the default flips, and only an explicit menu_read:false pulls it back down, since a
+     model that forgot the flag on a menu it plainly read should not put a warning over real dishes. */
+  function normalise(raw, opts) {
     raw = raw || {};
-    var cap = limit || 10;
+    opts = opts || {};
+    var cap = opts.limit || 10;
     var list = Array.isArray(raw.dishes) ? raw.dishes : (Array.isArray(raw.suggestions) ? raw.suggestions : []);
     var out = [], seen = {};
     for (var i = 0; i < list.length && out.length < cap; i++) {
@@ -8879,7 +8891,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     return {
       place: String(raw.place || '').trim(),
-      menuRead: raw.menu_read === true,
+      menuRead: !!opts.menuGiven && raw.menu_read !== false,
       note: String(raw.note || '').trim(),
       dishes: out
     };
@@ -9091,7 +9103,7 @@ const RECIPE_PROMPT = 'You are a UK recipe parser for a macro-tracking app. You 
 // somebody a "lean" choice that was nothing of the sort. The second is `source`: a chain that
 // publishes its nutrition has been MEASURED, and saying which numbers are measured and which were
 // reasoned out of a menu description is the difference between a tool and a guess with a nice font.
-const MENU_IDEAS_PROMPT = 'You are helping someone choose what to order from a menu, before they eat it. They track their macros. Read the menu and price the dishes on it honestly. British English throughout.\n\nWHAT YOU ARE READING: the menu may arrive as photographs, a screenshot, a PDF, plain text pasted from a website, or nothing at all beyond the name of the place. Read every dish you can see, including the small print under a dish name, which is where the cheese, the butter, the aioli and the "served with fries" live.\n\nWHICH DISHES TO RETURN: pick between six and eight dishes that between them cover the whole useful range of this menu, and do NOT pre-filter by what suits their targets, because the app does the ranking itself. Make sure the set includes: the dish that best fits the calories they have left; the highest-protein dish; the lightest dish that is still a proper meal; the best protein per calorie; and at least one genuinely indulgent thing if the menu has one, priced honestly, because somebody eating out may well want it and hiding it helps nobody. Different dishes, not variations of one. If a menu was provided and you cannot read enough of it, say so in "note" and return whatever you could read.\n\nHARD RULES:\n1. ONLY return dishes that are genuinely on the menu you were given. Never invent a dish, never merge two into one that is not offered, and never suggest a substitution the menu does not indicate is possible.\n2. If NO menu was provided, work from the named place: for a UK chain use its real published menu, and set "menu_read" false so the app can tell the person these came from what you know rather than from their menu.\n3. Each dish is one complete thing to order: the dish, plus any side that comes with it as standard, plus anything the person said they also want. Do not silently drop the chips a dish is served with because they spoil the numbers; count them, and use "tweak" to say they can be swapped.\n\nWHERE THE NUMBERS COME FROM, which is the first thing to settle for each dish:\n- PUBLISHED: the dish is from a UK chain that publishes its nutrition (Nando\'s, Wagamama, Pret, Greggs, Pizza Express, Zizzi, Franco Manca, Five Guys, McDonald\'s, KFC, Wetherspoons and the pub groups, Itsu, Leon, Bella Italia, TGI Fridays, and so on) and you know the real figures for that item. Use them exactly, name the item you took them from in "assumption", and set "source" to "published". Measured figures always beat your own estimate, so reach for this first and never estimate a chain dish you actually know.\n- ESTIMATED: everything else. Set "source" to "estimated" and work it out as below. Never label an estimate as published: the app tells the person which is which, and that promise has to hold.\n\nESTIMATING, in this order:\n1. PORTION. Use the portion that restaurant actually serves, not a home portion. Typical UK restaurant servings: a chicken breast or fillet 150-200 g, a steak as sold by its stated weight, a portion of chips 150-250 g, a pizza 400-550 g, a curry 350-450 g plus 200-250 g rice, a burrito 400-500 g, a pub burger 250-350 g with the bun, a pasta main 350-450 g, a naan 90-130 g, a side salad 80-120 g.\n2. PRICE each component from a realistic per-100 g profile AS SERVED, then multiply by its grams. Anchors per 100 g: grilled chicken breast 165 kcal, cooked lean mince 250, battered fish 230, boiled rice 130, boiled pasta 160, roast potatoes 150, chips 270-310, white bread 260, naan 310, cooked lentils and beans 115-140, most cooked vegetables 25-60, salad leaves 20, cheddar 415, mayonnaise 680, double cream 450, butter 745, oil 900, pastry 400-500.\n3. THE FAT CHECK, which decides whether this feature is useful or actively harmful. For every component ask: was it fried, sauteed, roasted or griddled in oil or butter? finished with butter, ghee, cream or cheese? dressed, glazed, battered, breaded or bound with mayonnaise? was the pan or griddle oiled first? A professional kitchen does all of this as standard and none of it is written on the menu. Where the answer is yes and that fat is not already inside the per-100 g figure you priced from, add it and name it in that item\'s "assumption". Working amounts: a tablespoon of oil is 14 g and about 125 kcal, a knob of butter 10 g and 75 kcal, a restaurant dressing 20-30 g. This is a check for fat that IS there and goes uncounted, never a licence to add fat to something grilled, steamed, poached or served raw.\n4. BE HONEST ABOUT THE RANGE. You are pricing a plate nobody has seen yet, so kcal_low and kcal_high should be genuinely wide for an independent kitchen (often plus or minus a fifth) and tight only for a published chain item. Your headline kcal sits near the MIDDLE of that range, never at the bottom. Never shade an estimate downwards to make a dish look better against their targets: the whole value of this is that the numbers are real.\n\nRespond ONLY with compact JSON: {"place": string, "menu_read": boolean, "note": string, "dishes": [{"name": string, "description": string, "why": string, "tweak": string, "source": "published"|"estimated", "confidence": "low"|"medium"|"high", "kcal_low": number, "kcal_high": number, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number}]}. name = the dish as the menu writes it, so they can point at it. description = one short plain line on what it is, only when the name alone would not tell them. why = one short sentence, addressed to them, on what this dish is good for, in ordinary language and referring to the numbers rather than your method, e.g. "Most protein on the menu and it still leaves you room for a pudding." Where a dish is the indulgent one, say that plainly and without moralising: it is a night out, not a test. tweak = one specific thing they could ask for that changes the numbers meaningfully, only when the menu allows it, e.g. "Ask for the dressing on the side" or "Swap the fries for salad"; "" when there is nothing worth changing. items = the dish broken into its components with their estimated cooked weights, since that is what lets the person correct one part of it afterwards; the top-level totals MUST equal the sum of the items. ALWAYS estimate fiber_g, and carbs_g is carbohydrate EXCLUDING fibre exactly as UK labels declare it, so fibre is counted once. ALWAYS estimate satfat_g, sugars_g and salt_g too, since they decide how the meal is rated: restaurant food is consistently high in salt and that is worth being accurate about. note = one short plain sentence for the person, used only when something is genuinely worth telling them: that you could read only part of the menu, or that these came from the chain\'s published menu rather than the one they sent. "" when there is nothing to say. Write every text field in ordinary British English for someone sat in a restaurant, never narrating your method, and keep the JSON keys exactly as specified.';
+const MENU_IDEAS_PROMPT = 'You are helping someone choose what to order from a menu, before they eat it. They track their macros. Read the menu and price the dishes on it honestly. British English throughout.\n\nWHAT YOU ARE READING: the menu may arrive as photographs, a screenshot, a PDF, plain text pasted from a website, or nothing at all beyond the name of the place. Read every dish you can see, including the small print under a dish name, which is where the cheese, the butter, the aioli and the "served with fries" live.\n\nWHICH DISHES TO RETURN: pick between six and eight dishes that between them cover the whole useful range of this menu, and do NOT pre-filter by what suits their targets, because the app does the ranking itself. Make sure the set includes: the dish that best fits the calories they have left; the highest-protein dish; the lightest dish that is still a proper meal; the best protein per calorie; and at least one genuinely indulgent thing if the menu has one, priced honestly, because somebody eating out may well want it and hiding it helps nobody. Different dishes, not variations of one. If a menu was provided and you cannot read enough of it, say so in "note" and return whatever you could read.\n\nHARD RULES:\n1. ONLY return dishes that are genuinely on the menu you were given. Never invent a dish, never merge two into one that is not offered, and never suggest a substitution the menu does not indicate is possible.\n2. If NO menu was provided, set "menu_read" false and do not write as though you had seen one. For a UK chain whose menu you genuinely know, use its real published menu and name the chain in "note". For anywhere else, INCLUDING an independent restaurant whose name you recognise but whose current card you do not, you must not present specific dish names as though you were quoting it: name each dish for what it plainly is ("Grilled chicken breast with seasonal vegetables"), never in the style the menu itself would use ("Pollo alla Griglia"), and say in "note" that you are going on the kind of place this is. Inventing a plausible menu name is the single worst thing you can do here: it is indistinguishable from having read their menu, and the person is stood in the restaurant looking for a dish that is not on it.\n3. Each dish is one complete thing to order: the dish, plus any side that comes with it as standard, plus anything the person said they also want. Do not silently drop the chips a dish is served with because they spoil the numbers; count them, and use "tweak" to say they can be swapped.\n\nWHERE THE NUMBERS COME FROM, which is the first thing to settle for each dish:\n- PUBLISHED: the dish is from a UK chain that publishes its nutrition (Nando\'s, Wagamama, Pret, Greggs, Pizza Express, Zizzi, Franco Manca, Five Guys, McDonald\'s, KFC, Wetherspoons and the pub groups, Itsu, Leon, Bella Italia, TGI Fridays, and so on) and you know the real figures for that item. Use them exactly, name the item you took them from in "assumption", and set "source" to "published". Measured figures always beat your own estimate, so reach for this first and never estimate a chain dish you actually know.\n- ESTIMATED: everything else. Set "source" to "estimated" and work it out as below. Never label an estimate as published: the app tells the person which is which, and that promise has to hold.\n\nESTIMATING, in this order:\n1. PORTION. Use the portion that restaurant actually serves, not a home portion. Typical UK restaurant servings: a chicken breast or fillet 150-200 g, a steak as sold by its stated weight, a portion of chips 150-250 g, a pizza 400-550 g, a curry 350-450 g plus 200-250 g rice, a burrito 400-500 g, a pub burger 250-350 g with the bun, a pasta main 350-450 g, a naan 90-130 g, a side salad 80-120 g.\n2. PRICE each component from a realistic per-100 g profile AS SERVED, then multiply by its grams. Anchors per 100 g: grilled chicken breast 165 kcal, cooked lean mince 250, battered fish 230, boiled rice 130, boiled pasta 160, roast potatoes 150, chips 270-310, white bread 260, naan 310, cooked lentils and beans 115-140, most cooked vegetables 25-60, salad leaves 20, cheddar 415, mayonnaise 680, double cream 450, butter 745, oil 900, pastry 400-500.\n3. THE FAT CHECK, which decides whether this feature is useful or actively harmful. For every component ask: was it fried, sauteed, roasted or griddled in oil or butter? finished with butter, ghee, cream or cheese? dressed, glazed, battered, breaded or bound with mayonnaise? was the pan or griddle oiled first? A professional kitchen does all of this as standard and none of it is written on the menu. Where the answer is yes and that fat is not already inside the per-100 g figure you priced from, add it and name it in that item\'s "assumption". Working amounts: a tablespoon of oil is 14 g and about 125 kcal, a knob of butter 10 g and 75 kcal, a restaurant dressing 20-30 g. This is a check for fat that IS there and goes uncounted, never a licence to add fat to something grilled, steamed, poached or served raw.\n4. BE HONEST ABOUT THE RANGE. You are pricing a plate nobody has seen yet, so kcal_low and kcal_high should be genuinely wide for an independent kitchen (often plus or minus a fifth) and tight only for a published chain item. Your headline kcal sits near the MIDDLE of that range, never at the bottom. Never shade an estimate downwards to make a dish look better against their targets: the whole value of this is that the numbers are real.\n\nRespond ONLY with compact JSON: {"place": string, "menu_read": boolean, "note": string, "dishes": [{"name": string, "description": string, "why": string, "tweak": string, "source": "published"|"estimated", "confidence": "low"|"medium"|"high", "kcal_low": number, "kcal_high": number, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number}]}. name = the dish as the menu writes it, so they can point at it. description = one short plain line on what it is, only when the name alone would not tell them. why = one short sentence, addressed to them, on what this dish is good for, in ordinary language and referring to the numbers rather than your method, e.g. "Most protein on the menu and it still leaves you room for a pudding." Where a dish is the indulgent one, say that plainly and without moralising: it is a night out, not a test. tweak = one specific thing they could ask for that changes the numbers meaningfully, only when the menu allows it, e.g. "Ask for the dressing on the side" or "Swap the fries for salad"; "" when there is nothing worth changing. items = the dish broken into its components with their estimated cooked weights, since that is what lets the person correct one part of it afterwards; the top-level totals MUST equal the sum of the items. ALWAYS estimate fiber_g, and carbs_g is carbohydrate EXCLUDING fibre exactly as UK labels declare it, so fibre is counted once. ALWAYS estimate satfat_g, sugars_g and salt_g too, since they decide how the meal is rated: restaurant food is consistently high in salt and that is worth being accurate about. note = one short plain sentence for the person, used only when something is genuinely worth telling them: that you could read only part of the menu, or that these came from the chain\'s published menu rather than the one they sent. "" when there is nothing to say. Write every text field in ordinary British English for someone sat in a restaurant, never narrating your method, and keep the JSON keys exactly as specified.';
 
 /* ---- app/src/app.jsx ---- */
 const {
@@ -10424,7 +10436,7 @@ const MENU_PDF_MAX_BYTES = 4.5 * 1024 * 1024;
 function isPdfFile(f) {
   return !!f && ((f.type || '').indexOf('pdf') !== -1 || /\.pdf$/i.test(f.name || ''));
 }
-async function menuIdeasRequest(files, brief) {
+async function menuIdeasRequest(files, brief, menuGiven) {
   // Static instructions first and cached, so reading a second menu, or the same one again after a
   // better photo, hits the prompt cache rather than paying for the contract twice.
   const content = [{
@@ -10480,7 +10492,12 @@ async function menuIdeasRequest(files, brief) {
   });
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
-  return MenuIdeas.normalise(parseModelJSON(txt));
+  // Whether a menu was actually attached is ours to state, not the model's to claim. See normalise
+  // in app/menu.js for why that distinction is the whole difference between reading a menu and
+  // guessing at one.
+  return MenuIdeas.normalise(parseModelJSON(txt), {
+    menuGiven: !!menuGiven
+  });
 }
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
@@ -32005,7 +32022,11 @@ function MenuTab({
   // app/menu.js for why it does not try to fetch the menu behind it.
   const linkPlace = pasteIsLink ? MenuIdeas.placeFromUrl(paste.trim()) : '';
   const askedPlace = place.trim() || linkPlace;
-  const canRun = imgs.length > 0 || !!menuTextAll || !!askedPlace;
+  // A menu is a photograph, a PDF or text. A link is not one, and neither is the name of the place:
+  // both of those name a restaurant and nothing more. Keeping that distinction in one named value is
+  // what stops the screen implying it read something it never saw.
+  const menuGiven = imgs.length > 0 || !!menuTextAll;
+  const canRun = menuGiven || !!askedPlace;
   async function run() {
     if (!canRun) {
       setErr('Photograph the menu, or tell me where you are eating.');
@@ -32022,7 +32043,7 @@ function MenuTab({
         menuText: menuTextAll,
         hasImages: imgs.length > 0
       });
-      const out = await menuIdeasRequest(imgs.map(f => f.file), brief);
+      const out = await menuIdeasRequest(imgs.map(f => f.file), brief, menuGiven);
       if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');else {
         setRes(out);
         setAll(false);
@@ -32157,7 +32178,24 @@ function MenuTab({
         l: l.label
       })),
       onChange: setView
-    })), swapBar, res.note && /*#__PURE__*/React.createElement("div", {
+    })), swapBar, !res.menuRead && /*#__PURE__*/React.createElement("div", {
+      className: "p-3 mb-3",
+      style: {
+        border: '2px solid var(--border)',
+        background: 'var(--surface2)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "pf text-[8px] uppercase mb-1.5",
+      style: {
+        color: 'var(--fat-ink)',
+        letterSpacing: '0.1em'
+      }
+    }, "I have not seen this menu"), /*#__PURE__*/React.createElement("div", {
+      className: "text-[11.5px] leading-relaxed",
+      style: {
+        color: 'var(--text2)'
+      }
+    }, "These are dishes a place like this usually serves, priced as estimates. They are not checked against the real menu, so some may not be on it. Photograph the menu and I will price what is actually there.")), res.note && /*#__PURE__*/React.createElement("div", {
       className: "text-[12px] mb-3 leading-relaxed",
       style: {
         color: 'var(--muted)'
@@ -32165,7 +32203,7 @@ function MenuTab({
     }, res.note), /*#__PURE__*/React.createElement("div", {
       className: "pixel-box p-0 overflow-hidden mb-2"
     }, /*#__PURE__*/React.createElement(CardHead, {
-      title: res.place || 'The menu',
+      title: res.menuRead ? res.place || 'The menu' : res.place ? 'Typical of ' + res.place : 'Typical dishes',
       right: ranked.length + ' dishes',
       rightTone: "muted"
     }), shown.map((s, i) => {
@@ -32187,7 +32225,7 @@ function MenuTab({
           color: s.published ? 'var(--good-ink)' : 'var(--muted)',
           letterSpacing: '0.1em'
         }
-      }, s.published ? 'Published' : 'Estimate')), s.description && /*#__PURE__*/React.createElement("div", {
+      }, s.published ? 'Published' : res.menuRead ? 'Estimate' : 'Unconfirmed')), s.description && /*#__PURE__*/React.createElement("div", {
         className: "text-[11.5px] leading-snug mt-0.5",
         style: {
           color: 'var(--muted)'
@@ -32355,7 +32393,7 @@ function MenuTab({
     style: {
       color: linkPlace ? 'var(--good-ink)' : 'var(--muted)'
     }
-  }, linkPlace ? 'Got it, ' + linkPlace + '. Photograph the menu too if you want the actual dishes priced.' : 'That link does not name a restaurant. Add the place below, or photograph the menu.')), /*#__PURE__*/React.createElement("div", {
+  }, linkPlace ? 'Got it, ' + linkPlace + '. A link only gives me the name: I cannot read the menu behind it. Photograph the menu to have the actual dishes priced.' : 'That link does not name a restaurant. Add the place below, or photograph the menu.')), /*#__PURE__*/React.createElement("div", {
     className: "mt-4"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Where are you eating?",
@@ -32387,7 +32425,7 @@ function MenuTab({
       opacity: canRun ? 1 : 0.5
     },
     onClick: run
-  }, "Read the menu"), onScan && /*#__PURE__*/React.createElement("div", {
+  }, menuGiven ? 'Read the menu' : 'Suggest what to order'), onScan && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2 p-3 mt-4",
     style: {
       border: '2px solid var(--border)',
@@ -44638,15 +44676,44 @@ function App() {
     };
   }, [session]);
 
-  // Offer a reload when a freshly deployed service worker takes over. sw.js calls skipWaiting, so a
-  // new build activates immediately; a controllerchange after we already had a controller means the
-  // running page is now on old code. We also poll for a new deploy on load and on tab refocus.
+  /* Offer a reload when there is genuinely a newer build to load, and only then.
+     -------------------------------------------------------------------------
+     This used to fire on `controllerchange`, reasoning that a new worker taking over meant the
+     running page was on old code. That reasoning does not hold here, and the result was a banner
+     that turned up when nothing had changed. sw.js serves the app shell NETWORK-FIRST with
+     `cache: 'no-store'`, so a page that has just loaded is always the newest build available; when a
+     deploy lands, that same page then picks up the matching new worker moments later, control
+     changes hands, and the banner appeared over a page whose code was already current. Tapping
+     Reload got you the identical app back, which is exactly the thing a person notices.
+     So the question is asked properly instead: the worker in charge is asked which build it is
+     serving, and that is compared against the build this page was made from (window.BUILD, stamped
+     by build.mjs from sw.js's VERSION). Strictly newer means there is something to fetch; equal
+     means the worker has only caught up with a page that was already current, and nobody is
+     interrupted. A page too old to carry a stamp keeps the old behaviour, since it really is stale.
+     We still poll for a new deploy on load and on tab refocus. */
   const [updateReady, setUpdateReady] = useState(false);
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
+    var mine = +(window.BUILD || 0);
     var hadController = !!navigator.serviceWorker.controller;
+    var live = true;
+    function askVersion() {
+      var ctrl = navigator.serviceWorker.controller;
+      if (!ctrl) return;
+      try {
+        var ch = new MessageChannel();
+        ch.port1.onmessage = function (e) {
+          var theirs = +(e.data && e.data.version || 0);
+          if (live && theirs > mine) setUpdateReady(true);
+        };
+        ctrl.postMessage({
+          type: 'version'
+        }, [ch.port2]);
+      } catch (_) {/* a worker too old to answer is not evidence of anything newer */}
+    }
     function onChange() {
-      if (hadController) setUpdateReady(true);
+      if (!hadController) return;
+      if (mine) askVersion();else setUpdateReady(true);
     }
     navigator.serviceWorker.addEventListener('controllerchange', onChange);
     function check() {
@@ -44654,12 +44721,14 @@ function App() {
         if (r) r.update().catch(function () {});
       }, function () {});
     }
+    if (mine) askVersion(); // catches a page served from the cache offline while a newer one waits
     check();
     function onVis() {
       if (document.visibilityState === 'visible') check();
     }
     document.addEventListener('visibilitychange', onVis);
     return function () {
+      live = false;
       navigator.serviceWorker.removeEventListener('controllerchange', onChange);
       document.removeEventListener('visibilitychange', onVis);
     };

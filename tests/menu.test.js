@@ -74,7 +74,11 @@ test('brief: with no menu at all it says to work from the place, and to say so',
   const b = M.brief({ place: 'Nando\'s' });
   assert.match(b, /NO MENU WAS PROVIDED/);
   // The dishes must announce that they came from the type of place rather than their menu.
-  assert.match(b, /rather than their actual menu/);
+  assert.match(b, /going on the kind of place this is/);
+  assert.match(b, /menu_read" to false/);
+  // And the specific failure that sends someone hunting down a menu for a dish that is not on it:
+  // a plausible name in the style the card would use, invented whole.
+  assert.match(b, /rather than inventing the name/);
 });
 
 test('brief: the user note overrides what to include', () => {
@@ -142,6 +146,25 @@ test('normalise: caps the list and survives a junk reply', () => {
   assert.strictEqual(M.normalise(many).dishes.length, 10);
   assert.strictEqual(M.normalise(null).dishes.length, 0);
   assert.strictEqual(M.normalise({ suggestions: 'nope' }).dishes.length, 0);
+  assert.strictEqual(M.normalise(many, { limit: 3 }).dishes.length, 3);
+});
+
+/* Whether we read their menu is the claim the whole screen rests on: it decides whether a row is a
+   dish they can order or a guess at what a place like this serves. It is settled by what the app
+   attached, never by what the model says about itself. */
+
+test('normalise: no menu attached means no menu was read, whatever the reply claims', () => {
+  const claimed = { menu_read: true, place: 'Amici Port Stewart', dishes: [SUGGESTION] };
+  assert.strictEqual(M.normalise(claimed).menuRead, false);
+  assert.strictEqual(M.normalise(claimed, { menuGiven: false }).menuRead, false);
+});
+
+test('normalise: a menu that was attached is treated as read unless the model says otherwise', () => {
+  // A model that reads a photographed menu and forgets the flag must not put a warning over real
+  // dishes; one that says outright it could not read the menu is believed.
+  assert.strictEqual(M.normalise({ dishes: [SUGGESTION] }, { menuGiven: true }).menuRead, true);
+  assert.strictEqual(M.normalise({ menu_read: true, dishes: [SUGGESTION] }, { menuGiven: true }).menuRead, true);
+  assert.strictEqual(M.normalise({ menu_read: false, dishes: [SUGGESTION] }, { menuGiven: true }).menuRead, false);
 });
 
 // ---- the claim someone actually acts on --------------------------------------------------------
