@@ -13225,13 +13225,46 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         const asked = Math.round(base.kcal * (stripWindow.deltaPct == null ? 0.25 : stripWindow.deltaPct));
         return got < asked ? Math.max(0, Math.round((got / base.kcal) * 100)) : null;
       })();
+      // WHO IS ACTUALLY PAYING, named, rather than asserted. The old line promised the big days were
+      // "paid for right through to your weigh-in", which stopped being true the moment the payers
+      // started giving up what they could spare instead of all landing on one number: with a base
+      // target already at the floor, the days at home have nothing to give and one day still away
+      // quietly carries the whole bill. Both halves of that were invisible, so a Monday sitting on
+      // its own ordinary target read as a punishment and a Sunday down 780 read as a bug.
+      // Everything below is derived from planDayDelta rather than recomputed, so it cannot drift
+      // from the numbers on the tiles.
+      const w = stripWindow;
+      const natural = (iso) => base.kcal + ((w && iso >= w.start && iso <= w.end) ? E.planKcalDelta(w, p) : 0);
+      const shaped = (iso) => base.kcal + E.planDayDelta(w, p, iso, base.kcal, E.kcalFloor(p), settleEnd);
+      const paid = (iso) => Math.max(0, natural(iso) - shaped(iso));
+      const name = (iso) => DOW_FULL[dow(iso)] + ' ' + (+iso.slice(8));
+      const listOf = (a) => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+      const payNote = (() => {
+        if (!w || !base) return null;
+        const inSpan = strip.filter(d => d >= w.start && d <= (settleEnd || w.end));
+        const bigs = inSpan.filter(isHigh);
+        if (!bigs.length) return null;
+        const payers = inSpan.filter(d => !isHigh(d) && paid(d) > 0);
+        const idle = inSpan.filter(d => !isHigh(d) && paid(d) <= 0);
+        if (!payers.length) return null;
+        const many = bigs.length > 1;
+        const bill = payers.length === 1
+          ? name(payers[0]) + ' is covering ' + (many ? 'all ' + bigs.length + ' big days' : 'the big day') + ' on its own, giving up ' + paid(payers[0]) + ' kcal.'
+          : listOf(payers.map(name)) + ' are covering ' + (many ? 'the ' + bigs.length + ' big days' : 'the big day') + ' between them.';
+        // The days that look punished and are not. Their number IS their normal number.
+        const rest = idle.length
+          ? ' ' + listOf(idle.map(name)) + (idle.length === 1 ? ' is' : ' are') + ' on your usual ' + base.kcal
+            + ' kcal, the lowest I will take you, so ' + (idle.length === 1 ? 'it has' : 'they have') + ' nothing spare to give.'
+          : '';
+        return bill + rest;
+      })();
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
           Tap a day to make it a big one. The rest come down to keep the total the same.
           {stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end)
-            + (settleEnd && settleEnd > stripWindow.end
-              ? ', and the big days are paid for right through to your weigh-in on ' + new Date(shiftISO(settleEnd, 1) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) + ', not squeezed into the trip.'
-              : '.') : ''}
+            + ', at ' + (E.planRate(stripWindow, p) === 0 ? 'maintenance' : E.planRate(stripWindow, p) + ' kg a week')
+            + ', and the bill for any big day can be spread as far as your weigh-in on '
+            + new Date(shiftISO((settleEnd || stripWindow.end), 1) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) + '.' : ''}
         </div>
         <div className="grid grid-cols-7 gap-1">{strip.map(iso => {
           const on = isHigh(iso), away = awayOn(iso), t = effectiveTarget(db, iso);
@@ -13244,6 +13277,25 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
             <div className="text-[11px] tnum font-semibold">{t ? Math.round(t.eff.kcal) : '-'}</div>
           </button>);
         })}</div>
+        {/* Named, so the row stops being a set of numbers you have to reverse-engineer. */}
+        {payNote && <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--text2)' }}>{payNote}</div>}
+        {/* The way back out. "I picked maintenance, so shouldn't it be even?" is the right instinct
+            and there was no way to act on it: big days could be added a tap at a time and only
+            removed the same way, so a shape somebody had not chosen on purpose - the model's read of
+            their sentence, or four taps made before the rate was set - had to be dismantled by hand
+            before the flat week they were describing appeared. */}
+        {stripWindow && (stripWindow.highDays || []).some(d => d >= today) && (() => {
+          // A big day already eaten stays a big day: it really was eaten, and the days after it are
+          // genuinely covering it, so dropping it would hand back calories the week never had. Only
+          // the days still ahead are cleared, and the label says which of the two this is.
+          const kept = (stripWindow.highDays || []).filter(d => d < today);
+          return <button onClick={() => setWindowShape({ highDays: kept })}
+            className="text-[11px] mt-2 text-left" style={{ color: 'var(--accent-ink)' }}>
+            {kept.length
+              ? 'Even out the days still ahead ›'
+              : 'Even it out: no big days, every day of the trip the same ›'}
+          </button>;
+        })()}
         <div className="mt-3">
           <Field label={`${stripWindow ? 'Big-day boost while you\'re away' : 'High-day boost'}: +${boostPct}%`}>
             <input type="range" min="5" max="35" value={boostPct} onChange={e => setBoost(+e.target.value)} className="w-full accent-[#4A9EEB]" />
@@ -13254,7 +13306,7 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         </div>
         <div className="text-[11px] text-[#8A8A90] leading-snug">
           {stripWindow
-            ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape. The days paying for a big one give up what they can spare, so a day still away is never dropped below a day at home.'
+            ? 'Every day of it, and the days that settle it up, so you can see it come back down. While you\'re away your normal high days are not in force: the trip is the shape. A big day is paid for by the days with room to spare, never by a day already on your lowest number, so the week still lands on the rate you agreed.'
             : 'The next seven days, as they actually stand.'} Days you've already eaten keep the plan they ran under.{spread ? ` To land this week where it was meant to, the days you have left take ${spread > 0 ? '+' : ''}${spread} kcal each on top.` : ''}
           {stripWindow ? <> <button onClick={() => onOpen && onOpen('weekplans')} style={{ color: 'var(--accent-ink)' }}>Change the dates, the rate, or call it off &rsaquo;</button></> : null}
         </div>
