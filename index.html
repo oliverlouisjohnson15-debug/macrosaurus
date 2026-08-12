@@ -2567,30 +2567,53 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     return { highDays: (plan && plan.highDays) || [], deltaPct: plan && plan.deltaPct };
   }
-  function planDayDelta(plan, profile, iso, baseKcal, floorKcal) {
-    var flat = planKcalDelta(plan, profile);
-    if (!plan) return flat;
-    if (!plan.start || !plan.end) return flat;
+  // `settleEnd` is the last day the boost may be paid back over: the day before the next weigh-in.
+  // Without it the sums have to balance inside the window, which on a short trip is brutal - four
+  // big days of a five-day trip leave ONE day to pay for all four, and it lands on the floor with
+  // nothing anybody can do about it. The week, not the trip, is the accounting period people
+  // actually have in mind, so the days between coming home and weighing in take a share too.
+  // Omitted (or before the window ends) it settles inside the window, exactly as it always did.
+  function planDayDelta(plan, profile, iso, baseKcal, floorKcal, settleEnd) {
+    if (!plan || !plan.start || !plan.end) return planKcalDelta(plan, profile);
+    // The eased rate is the deal for the DAYS AWAY. A settling day is a normal day that happens to
+    // be helping pay for the trip, so it gets the share and not the lift.
+    var away = iso >= plan.start && iso <= plan.end;
+    var flat = away ? planKcalDelta(plan, profile) : 0;
+    var spanEnd = (settleEnd && settleEnd > plan.end) ? settleEnd : plan.end;
+    if (iso > spanEnd || iso < plan.start) return flat;
     var seg = planShapeOn(plan, iso);
-    var hi = (seg.highDays || []).filter(function (d) { return d >= plan.start && d <= plan.end; });
+    var hi = (seg.highDays || []).filter(function (d) { return d >= plan.start && d <= spanEnd; });
     if (!hi.length) return flat;
-    var span = Math.max(1, daysBetweenISO(plan.start, plan.end) + 1);
-    var others = span - hi.length;
+    var span = Math.max(1, daysBetweenISO(plan.start, spanEnd) + 1);
+    var nLow = span - hi.length;
     // Nothing left to pay for the boost (every day is a big day), so drop it rather than hand out
     // free calories the agreed rate never accounted for.
-    if (others <= 0) return flat;
-    var boost = Math.round((baseKcal || 0) * (seg.deltaPct == null ? 0.25 : seg.deltaPct));
-    // The low days have to actually be able to pay. Without this the redistribution can demand days
-    // below the safety floor; composeDayTarget then clamps them back up, and the week quietly ends
-    // up ABOVE the rate the user agreed to, while the screen promised "the others cover it".
-    // Capping the boost to what the low days can genuinely give up keeps that promise true.
+    if (nLow <= 0) return flat;
+
+    // Worked as a BUDGET rather than a per-day bump and an offsetting per-day cut. The two are the
+    // same arithmetic while every day of the span is a day away, and they part company the moment
+    // settling days join it: a day away carries the eased rate underneath and a day at home does
+    // not, so "everyone else gives up the same amount" leaves the low days on different numbers and
+    // whichever is poorest hits the floor while the rest sit comfortably. Splitting what is LEFT,
+    // evenly, is what people mean by the others covering it, and it is what makes the boost slider
+    // mean something: every notch of it is a real trade against the days doing the paying.
+    var awayFlat = planKcalDelta(plan, profile);
+    var awaySpan = Math.max(0, daysBetweenISO(plan.start, plan.end) + 1);
+    var hiAway = 0;
+    for (var i = 0; i < hi.length; i++) if (hi[i] <= plan.end) hiAway++;
+    var base = baseKcal || 0;
+    var budget = span * base + awaySpan * awayFlat;      // the span's total at the agreed rate
     var floor = floorKcal == null ? KCAL_FLOOR : floorKcal;
-    var room = Math.max(0, (baseKcal || 0) + flat - floor);
-    var payable = Math.floor((room * others) / hi.length);
-    if (payable < boost) boost = payable;
+    var boost = Math.round(base * (seg.deltaPct == null ? 0.25 : seg.deltaPct));
+    // The days doing the paying have to stay above the safety floor. Rather than let them be driven
+    // under and clamped back up by composeDayTarget - which silently puts the span ABOVE the rate
+    // that was agreed for it, while the screen promises the others cover it - the boost gives way.
+    var maxBoost = Math.floor((budget - nLow * floor - hi.length * base - hiAway * awayFlat) / hi.length);
+    if (maxBoost < boost) boost = maxBoost;
     if (boost <= 0) return flat;
+    var lowValue = Math.round((budget - hi.length * (base + boost) - hiAway * awayFlat) / nLow);
     if (hi.indexOf(iso) >= 0) return flat + boost;
-    return flat - Math.round((boost * hi.length) / others);
+    return lowValue - base;
   }
   // After a window closes, the scale is still carrying travel water and salt. Ease back over a
   // stretch as long as the window was, capped at a week (the Oura Rest Mode model).
@@ -11379,6 +11402,46 @@ function weekForecastTargets(db, days) {
   });
   return out;
 }
+// The last day a window's big days may be paid back over: the day before the next check-in that
+// could actually happen. A trip is declared against a week, and the week is the one that ends at the
+// weigh-in, so coming home on Sunday with a Wednesday weigh-in leaves Sunday, Monday and Tuesday to
+// share the bill rather than Sunday carrying it alone.
+function settleEndFor(db, plan) {
+  if (!plan || !plan.end) return null;
+  for (let i = 1; i <= 14; i++) {
+    const iso = shiftISO(plan.end, i);
+    if (checkinReadyOn(db, iso)) return shiftISO(iso, -1);
+  }
+  return plan.end;
+}
+// Which declared window is shaping a day, and whether the day is one of the days AWAY or one of the
+// days settling up afterwards. Only `away` days get the eased rate, the water-weight allowance and
+// the "no weigh-in while you're gone" promise; a settling day is an ordinary day at home that is
+// helping pay for the trip.
+function shapingPlanOn(db, iso) {
+  const active = E.weekPlanOn(db.week_plans, iso);
+  if (active) return {
+    plan: active,
+    away: true,
+    settleEnd: settleEndFor(db, active)
+  };
+  const list = db.week_plans || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const pl = list[i];
+    if (!pl || !pl.start || !pl.end || iso <= pl.end) continue;
+    const se = settleEndFor(db, pl);
+    if (se && iso <= se) return {
+      plan: pl,
+      away: false,
+      settleEnd: se
+    };
+  }
+  return {
+    plan: null,
+    away: false,
+    settleEnd: null
+  };
+}
 function effectiveTarget(db, date) {
   // The target in force ON this day, not the newest one. For today and any day ahead those are the
   // same; for a day already eaten it is the bar that day was actually set, which a target changed
@@ -11427,8 +11490,9 @@ function effectiveTarget(db, date) {
   // A declared window (see WeekAheadFlow) rides the same per-day shift channel as a manual override,
   // so the carryover and floor maths applies to it unchanged. The plan only ever shifts a day it
   // actually covers, so days outside the window are untouched.
-  const win = E.weekPlanOn(db.week_plans, date);
-  const planKcal = E.planDayDelta(win, p, date, base.kcal, E.kcalFloor(p));
+  const sh = shapingPlanOn(db, date);
+  const win = sh.away ? sh.plan : null;
+  const planKcal = E.planDayDelta(sh.plan, p, date, base.kcal, E.kcalFloor(p), sh.settleEnd);
   if (planKcal) base = E.applyKcalDelta(base, planKcal);
   // ONE shape per day. Inside a window the window IS the shape: it already redistributes across its
   // own days, so letting the standing weekday rhythm redistribute on top runs two net-zero schemes
@@ -11436,7 +11500,7 @@ function effectiveTarget(db, date) {
   // both called high stacked both bumps, which is how a Friday abroad came out 400 kcal above the
   // other big days of the same trip for no reason anybody chose. The rhythm is not lost, it is just
   // not in force while you are away, which is what the screen says and what the day strip edits.
-  const shaped = win ? null : p.cycling;
+  const shaped = sh.plan ? null : p.cycling;
   return E.composeDayTarget({
     base,
     date,
@@ -33813,7 +33877,9 @@ function WeeklyShapeScreen({
   // other side: a trip longer than a week otherwise fills the row end to end, so every number on
   // screen is a travel number and there is nothing to read them against. Seeing it come back down
   // is most of the point of showing the days at all. Capped so a month away cannot run away with it.
-  const stripEnd = stripWindow ? [shiftISO(stripWindow.end, 3), shiftISO(today, 20)].sort()[0] : shiftISO(today, 6);
+  // The row runs to the end of the settle-up, plus two days so the return to normal is visible.
+  const settleEnd = stripWindow ? settleEndFor(db, stripWindow) : null;
+  const stripEnd = stripWindow ? [shiftISO(settleEnd || stripWindow.end, 2), shiftISO(today, 20)].sort()[0] : shiftISO(today, 6);
   const strip = [];
   for (let d = today; d <= stripEnd; d = shiftISO(d, 1)) strip.push(d);
   // Editing the shape of a running window is a DATED change, exactly as editing the standing rhythm
@@ -33880,7 +33946,10 @@ function WeeklyShapeScreen({
     className: `pixel-box py-2.5 px-2 text-[13px] ${activePreset === pr.id ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#C9C9CF]'}`
   }, pr.label))), base && (() => {
     const dow = iso => new Date(iso + 'T00:00:00').getDay();
-    const winOn = iso => E.weekPlanOn(db.week_plans, iso);
+    // A settling day belongs to the trip's shape as much as a day away does: it is one of the days
+    // paying for the big ones, so it toggles and reads against the window, not the weekday rhythm.
+    const winOn = iso => shapingPlanOn(db, iso).plan;
+    const awayOn = iso => shapingPlanOn(db, iso).away;
     const isHigh = iso => {
       const w = winOn(iso);
       return w ? (w.highDays || []).includes(iso) : cyc.enabled && cyc.highDays.includes(dow(iso));
@@ -33913,11 +33982,13 @@ function WeeklyShapeScreen({
       className: "mt-3"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] text-[#8A8A90] mb-2 leading-snug"
-    }, "Tap a day to make it a big one. The rest come down to keep the total the same.", stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end) + ', so those days are already lifted. Your normal week comes back after.' : ''), /*#__PURE__*/React.createElement("div", {
+    }, "Tap a day to make it a big one. The rest come down to keep the total the same.", stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end) + (settleEnd && settleEnd > stripWindow.end ? ', and the big days are paid for right through to your weigh-in on ' + new Date(shiftISO(settleEnd, 1) + 'T00:00:00').toLocaleDateString('en-GB', {
+      weekday: 'long'
+    }) + ', not squeezed into the trip.' : '.') : ''), /*#__PURE__*/React.createElement("div", {
       className: "grid grid-cols-7 gap-1"
     }, strip.map(iso => {
       const on = isHigh(iso),
-        away = !!winOn(iso),
+        away = awayOn(iso),
         t = effectiveTarget(db, iso);
       return /*#__PURE__*/React.createElement("button", {
         key: iso,

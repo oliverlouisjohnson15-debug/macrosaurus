@@ -118,6 +118,57 @@ test('an uncapped boost still applies when the low days can afford it', () => {
   assert.equal(E.planDayDelta(pl, p, '2026-08-11', 2800, 1200), -175);
 });
 
+// ---- settling up after the trip, not inside it -----------------------------------------------
+// Four big days of a five-day trip leave ONE day to pay for all four, and it lands on the floor.
+// The accounting period people have in mind is the week that ends at the weigh-in, so the days
+// between coming home and standing on the scales take a share too.
+test('without a settle date the window still settles inside itself', () => {
+  const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.25 });
+  const bare = E.planDayDelta(pl, cutter, '2026-08-10', 2000);
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-10', 2000, null, null), bare, 'null settle date');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-10', 2000, null, '2026-08-13'), bare, 'one inside the window');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-10', 2000, null, '2026-08-14'), bare, 'one on the last day');
+});
+
+test('the days settling up share the bill equally with the low days still away', () => {
+  // Away 10-14 easing to 0.25 kg/wk (+275/day), Wed 12 the big day, weigh-in after the 16th.
+  const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.25 });
+  const d = (iso) => E.planDayDelta(pl, cutter, iso, 2000, null, '2026-08-16');
+  assert.equal(d('2026-08-12'), 775, 'the big day takes the eased rate and the boost');
+  // Every day paying for it lands on the same number, whether it is a day away or a day home.
+  ['2026-08-10', '2026-08-11', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16']
+    .forEach(iso => assert.equal(d(iso), 100, iso + ' should match every other paying day'));
+});
+
+test('spreading the bill wider does not change what the span adds up to', () => {
+  const pl = plan({ highDays: ['2026-08-12'], deltaPct: 0.25, acceptRateKgPerWeek: 0.25 });
+  const span = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16'];
+  const total = span.reduce((s, iso) => s + E.planDayDelta(pl, cutter, iso, 2000, null, '2026-08-16'), 0);
+  // Five days away at +275 is the whole of the deal; the shape moves it about and adds nothing.
+  assert.equal(total, 5 * 275);
+});
+
+test('a settling day is a day at home, so it never takes the eased rate on its own', () => {
+  // No big days at all: the days away are lifted and the days after are left entirely alone.
+  const pl = plan({ highDays: [], acceptRateKgPerWeek: 0.25 });
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-14', 2000, null, '2026-08-16'), 275, 'last day away');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-15', 2000, null, '2026-08-16'), 0, 'home, nothing to pay');
+  assert.equal(E.planDayDelta(pl, cutter, '2026-08-16', 2000, null, '2026-08-16'), 0);
+});
+
+test('the boost gives way rather than pushing the settling days under the floor', () => {
+  // Three days away, all three big, four days at home to pay for them on a 1400 base.
+  const pl = plan({
+    start: '2026-08-10', end: '2026-08-12', acceptRateKgPerWeek: 0.5, deltaPct: 0.35,
+    highDays: ['2026-08-10', '2026-08-11', '2026-08-12'],
+  });
+  const span = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16'];
+  const d = (iso) => E.planDayDelta(pl, cutter, iso, 1400, 1200, '2026-08-16');
+  span.forEach(iso => assert.ok(1400 + d(iso) >= 1200, iso + ' fell to ' + (1400 + d(iso))));
+  assert.ok(d('2026-08-10') < Math.round(1400 * 0.35), 'the asked-for boost was cut down to fit');
+  assert.ok(Math.abs(span.reduce((s, iso) => s + d(iso), 0)) <= 4, 'and it still nets out');
+});
+
 // ---- editing the shape of a window while it runs ---------------------------------------------
 // The shape inside a window is editable from Weekly shape, which is what makes this reachable at
 // all: before that, highDays were written once at check-in and never touched. The promise these

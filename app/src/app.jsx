@@ -2619,6 +2619,34 @@ function weekForecastTargets(db, days) {
   days.forEach(d => { if (!(d in out)) out[d] = effectiveTarget(db, d); });
   return out;
 }
+// The last day a window's big days may be paid back over: the day before the next check-in that
+// could actually happen. A trip is declared against a week, and the week is the one that ends at the
+// weigh-in, so coming home on Sunday with a Wednesday weigh-in leaves Sunday, Monday and Tuesday to
+// share the bill rather than Sunday carrying it alone.
+function settleEndFor(db, plan) {
+  if (!plan || !plan.end) return null;
+  for (let i = 1; i <= 14; i++) {
+    const iso = shiftISO(plan.end, i);
+    if (checkinReadyOn(db, iso)) return shiftISO(iso, -1);
+  }
+  return plan.end;
+}
+// Which declared window is shaping a day, and whether the day is one of the days AWAY or one of the
+// days settling up afterwards. Only `away` days get the eased rate, the water-weight allowance and
+// the "no weigh-in while you're gone" promise; a settling day is an ordinary day at home that is
+// helping pay for the trip.
+function shapingPlanOn(db, iso) {
+  const active = E.weekPlanOn(db.week_plans, iso);
+  if (active) return { plan: active, away: true, settleEnd: settleEndFor(db, active) };
+  const list = db.week_plans || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const pl = list[i];
+    if (!pl || !pl.start || !pl.end || iso <= pl.end) continue;
+    const se = settleEndFor(db, pl);
+    if (se && iso <= se) return { plan: pl, away: false, settleEnd: se };
+  }
+  return { plan: null, away: false, settleEnd: null };
+}
 function effectiveTarget(db, date) {
   // The target in force ON this day, not the newest one. For today and any day ahead those are the
   // same; for a day already eaten it is the bar that day was actually set, which a target changed
@@ -2645,8 +2673,9 @@ function effectiveTarget(db, date) {
   // A declared window (see WeekAheadFlow) rides the same per-day shift channel as a manual override,
   // so the carryover and floor maths applies to it unchanged. The plan only ever shifts a day it
   // actually covers, so days outside the window are untouched.
-  const win = E.weekPlanOn(db.week_plans, date);
-  const planKcal = E.planDayDelta(win, p, date, base.kcal, E.kcalFloor(p));
+  const sh = shapingPlanOn(db, date);
+  const win = sh.away ? sh.plan : null;
+  const planKcal = E.planDayDelta(sh.plan, p, date, base.kcal, E.kcalFloor(p), sh.settleEnd);
   if (planKcal) base = E.applyKcalDelta(base, planKcal);
   // ONE shape per day. Inside a window the window IS the shape: it already redistributes across its
   // own days, so letting the standing weekday rhythm redistribute on top runs two net-zero schemes
@@ -2654,7 +2683,7 @@ function effectiveTarget(db, date) {
   // both called high stacked both bumps, which is how a Friday abroad came out 400 kcal above the
   // other big days of the same trip for no reason anybody chose. The rhythm is not lost, it is just
   // not in force while you are away, which is what the screen says and what the day strip edits.
-  const shaped = win ? null : p.cycling;
+  const shaped = sh.plan ? null : p.cycling;
   return E.composeDayTarget({
     base, date, floorKcal: E.kcalFloor(p),
     cycling: shaped, cyclingHistory: shaped ? (p.cyclingHistory || null) : null, carryover: p.carryover,
@@ -13041,8 +13070,10 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
   // other side: a trip longer than a week otherwise fills the row end to end, so every number on
   // screen is a travel number and there is nothing to read them against. Seeing it come back down
   // is most of the point of showing the days at all. Capped so a month away cannot run away with it.
+  // The row runs to the end of the settle-up, plus two days so the return to normal is visible.
+  const settleEnd = stripWindow ? settleEndFor(db, stripWindow) : null;
   const stripEnd = stripWindow
-    ? [shiftISO(stripWindow.end, 3), shiftISO(today, 20)].sort()[0]
+    ? [shiftISO(settleEnd || stripWindow.end, 2), shiftISO(today, 20)].sort()[0]
     : shiftISO(today, 6);
   const strip = []; for (let d = today; d <= stripEnd; d = shiftISO(d, 1)) strip.push(d);
   // Editing the shape of a running window is a DATED change, exactly as editing the standing rhythm
@@ -13081,7 +13112,10 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
         shaping it. Being away changes the numbers and the sentence above them, not the controls. */}
     {base && (() => {
       const dow = (iso) => new Date(iso + 'T00:00:00').getDay();
-      const winOn = (iso) => E.weekPlanOn(db.week_plans, iso);
+      // A settling day belongs to the trip's shape as much as a day away does: it is one of the days
+      // paying for the big ones, so it toggles and reads against the window, not the weekday rhythm.
+      const winOn = (iso) => shapingPlanOn(db, iso).plan;
+      const awayOn = (iso) => shapingPlanOn(db, iso).away;
       const isHigh = (iso) => {
         const w = winOn(iso);
         return w ? (w.highDays || []).includes(iso) : (cyc.enabled && cyc.highDays.includes(dow(iso)));
@@ -13105,10 +13139,13 @@ function WeeklyShapeScreen({ db, update, onBack, onOpen }) {
       return (<div className="mt-3">
         <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">
           Tap a day to make it a big one. The rest come down to keep the total the same.
-          {stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end) + ', so those days are already lifted. Your normal week comes back after.' : ''}
+          {stripWindow ? ' You\'re ' + stripWindow.label.toLowerCase() + ' ' + fmtRange(stripWindow.start, stripWindow.end)
+            + (settleEnd && settleEnd > stripWindow.end
+              ? ', and the big days are paid for right through to your weigh-in on ' + new Date(shiftISO(settleEnd, 1) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' }) + ', not squeezed into the trip.'
+              : '.') : ''}
         </div>
         <div className="grid grid-cols-7 gap-1">{strip.map(iso => {
-          const on = isHigh(iso), away = !!winOn(iso), t = effectiveTarget(db, iso);
+          const on = isHigh(iso), away = awayOn(iso), t = effectiveTarget(db, iso);
           return (<button key={iso} onClick={() => toggle(iso)} className="pixel-box py-2 px-0.5 text-center"
             style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)',
               boxShadow: 'none', borderColor: away ? 'var(--accent)' : undefined }}>

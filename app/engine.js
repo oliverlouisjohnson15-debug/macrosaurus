@@ -1727,30 +1727,53 @@
     }
     return { highDays: (plan && plan.highDays) || [], deltaPct: plan && plan.deltaPct };
   }
-  function planDayDelta(plan, profile, iso, baseKcal, floorKcal) {
-    var flat = planKcalDelta(plan, profile);
-    if (!plan) return flat;
-    if (!plan.start || !plan.end) return flat;
+  // `settleEnd` is the last day the boost may be paid back over: the day before the next weigh-in.
+  // Without it the sums have to balance inside the window, which on a short trip is brutal - four
+  // big days of a five-day trip leave ONE day to pay for all four, and it lands on the floor with
+  // nothing anybody can do about it. The week, not the trip, is the accounting period people
+  // actually have in mind, so the days between coming home and weighing in take a share too.
+  // Omitted (or before the window ends) it settles inside the window, exactly as it always did.
+  function planDayDelta(plan, profile, iso, baseKcal, floorKcal, settleEnd) {
+    if (!plan || !plan.start || !plan.end) return planKcalDelta(plan, profile);
+    // The eased rate is the deal for the DAYS AWAY. A settling day is a normal day that happens to
+    // be helping pay for the trip, so it gets the share and not the lift.
+    var away = iso >= plan.start && iso <= plan.end;
+    var flat = away ? planKcalDelta(plan, profile) : 0;
+    var spanEnd = (settleEnd && settleEnd > plan.end) ? settleEnd : plan.end;
+    if (iso > spanEnd || iso < plan.start) return flat;
     var seg = planShapeOn(plan, iso);
-    var hi = (seg.highDays || []).filter(function (d) { return d >= plan.start && d <= plan.end; });
+    var hi = (seg.highDays || []).filter(function (d) { return d >= plan.start && d <= spanEnd; });
     if (!hi.length) return flat;
-    var span = Math.max(1, daysBetweenISO(plan.start, plan.end) + 1);
-    var others = span - hi.length;
+    var span = Math.max(1, daysBetweenISO(plan.start, spanEnd) + 1);
+    var nLow = span - hi.length;
     // Nothing left to pay for the boost (every day is a big day), so drop it rather than hand out
     // free calories the agreed rate never accounted for.
-    if (others <= 0) return flat;
-    var boost = Math.round((baseKcal || 0) * (seg.deltaPct == null ? 0.25 : seg.deltaPct));
-    // The low days have to actually be able to pay. Without this the redistribution can demand days
-    // below the safety floor; composeDayTarget then clamps them back up, and the week quietly ends
-    // up ABOVE the rate the user agreed to, while the screen promised "the others cover it".
-    // Capping the boost to what the low days can genuinely give up keeps that promise true.
+    if (nLow <= 0) return flat;
+
+    // Worked as a BUDGET rather than a per-day bump and an offsetting per-day cut. The two are the
+    // same arithmetic while every day of the span is a day away, and they part company the moment
+    // settling days join it: a day away carries the eased rate underneath and a day at home does
+    // not, so "everyone else gives up the same amount" leaves the low days on different numbers and
+    // whichever is poorest hits the floor while the rest sit comfortably. Splitting what is LEFT,
+    // evenly, is what people mean by the others covering it, and it is what makes the boost slider
+    // mean something: every notch of it is a real trade against the days doing the paying.
+    var awayFlat = planKcalDelta(plan, profile);
+    var awaySpan = Math.max(0, daysBetweenISO(plan.start, plan.end) + 1);
+    var hiAway = 0;
+    for (var i = 0; i < hi.length; i++) if (hi[i] <= plan.end) hiAway++;
+    var base = baseKcal || 0;
+    var budget = span * base + awaySpan * awayFlat;      // the span's total at the agreed rate
     var floor = floorKcal == null ? KCAL_FLOOR : floorKcal;
-    var room = Math.max(0, (baseKcal || 0) + flat - floor);
-    var payable = Math.floor((room * others) / hi.length);
-    if (payable < boost) boost = payable;
+    var boost = Math.round(base * (seg.deltaPct == null ? 0.25 : seg.deltaPct));
+    // The days doing the paying have to stay above the safety floor. Rather than let them be driven
+    // under and clamped back up by composeDayTarget - which silently puts the span ABOVE the rate
+    // that was agreed for it, while the screen promises the others cover it - the boost gives way.
+    var maxBoost = Math.floor((budget - nLow * floor - hi.length * base - hiAway * awayFlat) / hi.length);
+    if (maxBoost < boost) boost = maxBoost;
     if (boost <= 0) return flat;
+    var lowValue = Math.round((budget - hi.length * (base + boost) - hiAway * awayFlat) / nLow);
     if (hi.indexOf(iso) >= 0) return flat + boost;
-    return flat - Math.round((boost * hi.length) / others);
+    return lowValue - base;
   }
   // After a window closes, the scale is still carrying travel water and salt. Ease back over a
   // stretch as long as the window was, capped at a week (the Oura Rest Mode model).
