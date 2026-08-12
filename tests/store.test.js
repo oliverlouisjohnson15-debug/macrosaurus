@@ -558,3 +558,57 @@ test('mergeStates: an untombstoned training session still survives a merge', () 
   const m = Store.mergeStates(laptop, phone);
   assert.deepStrictEqual(m.training.logs.map(l => l.id).sort(), ['desk1', 'gym1']);
 });
+
+// ---- windows whose rate the preset was throwing away ------------------------------------------
+// Engine.planRate reads `hold` before it reads acceptRateKgPerWeek, and the create flow used to
+// write the PRESET's hold onto the saved window. So "Training block" (hold by default) answered with
+// "full 0.9 kg, no change" wrote both, the engine returned 0, and the window ran at maintenance
+// while the What's-coming-up card read the rate straight off the field being ignored.
+const plansToday = () => new Date().toISOString().slice(0, 10);
+const win = (o) => Object.assign({ id: 'w1', kind: 'training', label: 'Training block', start: shiftISO(plansToday(), 3), end: shiftISO(plansToday(), 9) }, o);
+const migPlans = (list) => Store.migrate({ profile: { goalType: 'cut', rateKgPerWeek: 0.9 }, week_plans: list }).week_plans;
+
+test('a future window keeps the rate that was answered, not the preset hold', () => {
+  const [w] = migPlans([win({ hold: true, acceptRateKgPerWeek: 0.9 })]);
+  assert.strictEqual(w.hold, false, 'the hold was the preset talking, and the answer wins');
+  assert.strictEqual(w.acceptRateKgPerWeek, 0.9, 'and the answer itself is untouched');
+  assert.strictEqual(E.planRate(w, { goalType: 'cut', rateKgPerWeek: 0.9 }), 0.9, 'so the engine finally reads it');
+});
+
+test('the legacy intent flag is corrected the same way, and cleared', () => {
+  const [w] = migPlans([win({ intent: 'hold', acceptRateKgPerWeek: 0.45 })]);
+  assert.strictEqual(w.hold, false);
+  assert.ok(!('intent' in w), 'the legacy flag must not survive to out-vote the answer again');
+});
+
+test('"just hold steady" is a real answer and is left exactly alone', () => {
+  const [w] = migPlans([win({ hold: true, acceptRateKgPerWeek: 0 })]);
+  assert.strictEqual(w.hold, true, 'a rate of 0 IS the hold, not a preset default');
+  assert.strictEqual(E.planRate(w, { goalType: 'cut', rateKgPerWeek: 0.9 }), 0);
+  // ...as is a window that never recorded a rate at all.
+  const [u] = migPlans([win({ hold: true })]);
+  assert.strictEqual(u.hold, true);
+});
+
+test('a window already running is never restated', () => {
+  // Its days were eaten under the rate it actually had. Moving the rate under them would have the
+  // carryover ledger read the difference as a surplus and claw it back off the days that are left.
+  const started = win({ start: shiftISO(plansToday(), -2), end: shiftISO(plansToday(), 3), hold: true, acceptRateKgPerWeek: 0.9 });
+  assert.strictEqual(migPlans([started])[0].hold, true, 'a running window keeps what it ran under');
+  const done = win({ start: shiftISO(plansToday(), -9), end: shiftISO(plansToday(), -3), hold: true, acceptRateKgPerWeek: 0.9 });
+  assert.strictEqual(migPlans([done])[0].hold, true, 'and so does one already over');
+  // Today is the boundary: a window starting today has a day in play.
+  const now = win({ start: plansToday(), end: shiftISO(plansToday(), 5), hold: true, acceptRateKgPerWeek: 0.9 });
+  assert.strictEqual(migPlans([now])[0].hold, true);
+});
+
+test('the correction does not run twice on the same window', () => {
+  const once = migPlans([win({ hold: true, acceptRateKgPerWeek: 0.9 })]);
+  const twice = Store.migrate({ profile: { goalType: 'cut', rateKgPerWeek: 0.9 }, week_plans: once }).week_plans;
+  assert.deepStrictEqual(twice, once);
+});
+
+test('a user with no week plans is untouched by any of it', () => {
+  assert.deepStrictEqual(migPlans([]), []);
+  assert.ok(Array.isArray(Store.migrate({ profile: { goalType: 'cut' } }).week_plans));
+});

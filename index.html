@@ -2897,6 +2897,26 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         newest.spreadUntil = sp.until;
       }
     }
+    // The rate you ANSWERED beats the preset's guess (see WeekAheadFlow). Windows written before that
+    // carry the preset's `hold` next to an explicit rate, and Engine.planRate reads hold FIRST, so a
+    // window declared as "Training block" (hold by default) and then answered "full 0.9 kg, no
+    // change" ran at maintenance - while the What's-coming-up card read "Aiming at 0.9 kg a week"
+    // off the very field being ignored. A rate of 0 is a real answer ("just hold steady") and is
+    // left exactly as it is; only a non-zero rate is evidence the hold was the preset talking.
+    //
+    // Only windows that have NOT STARTED are corrected. A window already running has days that were
+    // eaten under the rate it actually had, and restating those is what the rest of this file exists
+    // to prevent: the carryover ledger reconstructs a past day from the plan as it stands, so moving
+    // the rate under it would read those days as surpluses and claw the difference back off the days
+    // that are left. Those are corrected by hand, from the rate control on What's coming up.
+    var planToday = todayISO();
+    (s.week_plans || []).forEach(function (w) {
+      if (!w || !w.start || w.start <= planToday) return;
+      if (!(w.hold === true || w.intent === 'hold')) return;
+      if (w.acceptRateKgPerWeek == null || w.acceptRateKgPerWeek === 0) return;
+      w.hold = false;                       // and so this cannot run twice on the same window
+      if (w.intent === 'hold') delete w.intent;
+    });
     // Reconcile the last_checkin pointer to the append-only checkins ledger on every load. A cross-device
     // merge can leave the scalar stale while the union preserves a newer check-in (see mergeStates), which
     // makes the app read "check-in due" despite a saved check-in. Healing here covers the single-copy load
@@ -33747,6 +33767,7 @@ function WeekPlansScreen({
   const [adding, setAdding] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
   const today = Store.todayISO();
+  const p = db.profile;
   const plans = (db.week_plans || []).slice().sort((a, b) => a.start < b.start ? 1 : -1);
   const upcoming = plans.filter(w => w.end >= today);
   const past = plans.filter(w => w.end < today).slice(0, 5);
@@ -33790,6 +33811,20 @@ function WeekPlansScreen({
       });
     });
     if (dropped) showToast && showToast(dropped + ' big day' + (dropped === 1 ? '' : 's') + ' fell outside, so ' + (dropped === 1 ? 'it is' : 'they are') + ' no longer big');
+  };
+  // The rate is the only dial that moves calories, and it was the one thing a declared window would
+  // not let you change: the card stated it and there was no control under it. Offered only BEFORE a
+  // window starts, for the reason the store's migration gives - once days have been eaten under a
+  // rate, moving it restates them, and the carryover ledger reads the difference as a surplus.
+  const setRate = (w, v) => {
+    update(d => {
+      const x = (d.week_plans || []).find(y => y.id === w.id);
+      if (!x) return;
+      x.acceptRateKgPerWeek = v;
+      x.hold = v === 0; // what they answered, never what the preset guessed
+      if (x.intent) delete x.intent;
+    });
+    showToast && showToast(v === 0 ? 'Holding steady for that one' : 'Aiming at ' + v + ' kg a week');
   };
   return /*#__PURE__*/React.createElement(SubScreen, {
     title: "What's coming up",
@@ -33848,7 +33883,18 @@ function WeekPlansScreen({
     onChange: e => setDates(w, {
       end: e.target.value
     })
-  })))))) : /*#__PURE__*/React.createElement("div", {
+  }))), w.start > today ? /*#__PURE__*/React.createElement(Field, {
+    label: "Aiming at"
+  }, /*#__PURE__*/React.createElement(Dropdown, {
+    value: String(w.acceptRateKgPerWeek),
+    onChange: v => setRate(w, +v),
+    options: acceptOptions(p, null).map(o => ({
+      v: String(o.v),
+      l: o.l
+    }))
+  })) : /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-[#8A8A90] mt-2 leading-snug"
+  }, "This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change.")))) : /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Nothing coming up. Your plan runs as normal."), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",

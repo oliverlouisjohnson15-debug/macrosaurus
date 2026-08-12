@@ -145,6 +145,26 @@
         newest.spreadUntil = sp.until;
       }
     }
+    // The rate you ANSWERED beats the preset's guess (see WeekAheadFlow). Windows written before that
+    // carry the preset's `hold` next to an explicit rate, and Engine.planRate reads hold FIRST, so a
+    // window declared as "Training block" (hold by default) and then answered "full 0.9 kg, no
+    // change" ran at maintenance - while the What's-coming-up card read "Aiming at 0.9 kg a week"
+    // off the very field being ignored. A rate of 0 is a real answer ("just hold steady") and is
+    // left exactly as it is; only a non-zero rate is evidence the hold was the preset talking.
+    //
+    // Only windows that have NOT STARTED are corrected. A window already running has days that were
+    // eaten under the rate it actually had, and restating those is what the rest of this file exists
+    // to prevent: the carryover ledger reconstructs a past day from the plan as it stands, so moving
+    // the rate under it would read those days as surpluses and claw the difference back off the days
+    // that are left. Those are corrected by hand, from the rate control on What's coming up.
+    var planToday = todayISO();
+    (s.week_plans || []).forEach(function (w) {
+      if (!w || !w.start || w.start <= planToday) return;
+      if (!(w.hold === true || w.intent === 'hold')) return;
+      if (w.acceptRateKgPerWeek == null || w.acceptRateKgPerWeek === 0) return;
+      w.hold = false;                       // and so this cannot run twice on the same window
+      if (w.intent === 'hold') delete w.intent;
+    });
     // Reconcile the last_checkin pointer to the append-only checkins ledger on every load. A cross-device
     // merge can leave the scalar stale while the union preserves a newer check-in (see mergeStates), which
     // makes the app read "check-in due" despite a saved check-in. Healing here covers the single-copy load

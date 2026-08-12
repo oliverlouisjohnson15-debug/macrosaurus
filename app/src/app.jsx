@@ -13013,6 +13013,7 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
   const [adding, setAdding] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
   const today = Store.todayISO();
+  const p = db.profile;
   const plans = (db.week_plans || []).slice().sort((a, b) => (a.start < b.start ? 1 : -1));
   const upcoming = plans.filter(w => w.end >= today);
   const past = plans.filter(w => w.end < today).slice(0, 5);
@@ -13040,6 +13041,20 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
     });
     if (dropped) showToast && showToast(dropped + ' big day' + (dropped === 1 ? '' : 's') + ' fell outside, so ' + (dropped === 1 ? 'it is' : 'they are') + ' no longer big');
   };
+  // The rate is the only dial that moves calories, and it was the one thing a declared window would
+  // not let you change: the card stated it and there was no control under it. Offered only BEFORE a
+  // window starts, for the reason the store's migration gives - once days have been eaten under a
+  // rate, moving it restates them, and the carryover ledger reads the difference as a surplus.
+  const setRate = (w, v) => {
+    update(d => {
+      const x = (d.week_plans || []).find(y => y.id === w.id);
+      if (!x) return;
+      x.acceptRateKgPerWeek = v;
+      x.hold = v === 0;              // what they answered, never what the preset guessed
+      if (x.intent) delete x.intent;
+    });
+    showToast && showToast(v === 0 ? 'Holding steady for that one' : 'Aiming at ' + v + ' kg a week');
+  };
   return (<SubScreen title="What's coming up" onBack={onBack} intro="Tell me about a holiday, an event or a rough week and I'll bend your plan around it instead of marking you down for it.">
     {adding
       ? <WeekAheadFlow db={db} update={update} showToast={showToast} compact isPremium={isPremium} onDone={() => setAdding(false)} />
@@ -13058,6 +13073,12 @@ function WeekPlansScreen({ db, update, onBack, showToast, isPremium }) {
               <Field label="From"><input type="date" className={inputCls} value={w.start} onChange={e => setDates(w, { start: e.target.value })} /></Field>
               <Field label="To"><input type="date" className={inputCls} value={w.end} min={w.start} onChange={e => setDates(w, { end: e.target.value })} /></Field>
             </div>
+            {w.start > today
+              ? <Field label="Aiming at">
+                  <Dropdown value={String(w.acceptRateKgPerWeek)} onChange={v => setRate(w, +v)}
+                    options={acceptOptions(p, null).map(o => ({ v: String(o.v), l: o.l }))} />
+                </Field>
+              : <div className="text-[11px] text-[#8A8A90] mt-2 leading-snug">This one is running, so its rate is fixed now: the days you have already eaten keep what they ran under. Cancel it and declare a new one if it needs to change.</div>}
           </div>))}</div>
           : <div className="text-[12px] text-[#8A8A90] mb-4">Nothing coming up. Your plan runs as normal.</div>}
         <Btn kind="accent" className="w-full" onClick={() => setAdding(true)}>Tell me what's coming up</Btn>
