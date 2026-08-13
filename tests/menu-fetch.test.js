@@ -247,6 +247,151 @@ test('a platform reply that is an error, or empty, is not a menu', async () => {
   assert.strictEqual(placeFromRedbox({ data: null }), '');
 });
 
+// ---- rung 2d: the menu is in the HTML, just not as data --------------------------------------------
+// Shaped like the second real failure: a server-rendered ordering page (hungrrr) whose whole menu is
+// ordinary markup with self-describing class names, wrapped - as ordering pages always are - in a
+// <form>. It was reported as "not a menu" for two independent reasons, and both are asserted here.
+
+const MARKUP_PAGE = `<!doctype html><html><head><title>Fyred Pizza</title></head><body>
+<form id="orderForm" method="post">
+  <div class="menuCategory" data-id="700215">
+    <h2 class="categoryTitle"><span>Popular</span></h2>
+    <div class="menuCategoryContent">
+      <a href="#" class="orderMenuItem" data-id="2565249" data-price="8.5">
+        <div class="orderMenuItemContent">
+          <div class="orderMenuItemName"><strong>Margherita</strong></div>
+          <div class="orderMenuItemDesc">Tomato base, Mozzarella, Basil</div>
+          <div class="orderMenuItemPrice">&pound;8.50</div>
+        </div>
+      </a>
+      <a href="#" class="orderMenuItem" data-id="2327113" data-price="12.5">
+        <div class="orderMenuItemContent">
+          <div class="orderMenuItemName"><strong>Sausage &amp; Onion</strong></div>
+          <div class="orderMenuItemDesc">Tomato base, Mozzarella, Sausage, Red Onion, Basil, Parmesan, Chilli Honey</div>
+          <div class="orderMenuItemPrice">&pound;12.50</div>
+        </div>
+      </a>
+    </div>
+  </div>
+  <div class="menuCategory">
+    <h2 class="categoryTitle"><span>Sides</span></h2>
+    <div class="menuCategoryContent">
+      <a href="#" class="orderMenuItem" data-price="4"><div class="orderMenuItemName"><strong>Garlic Bread</strong></div>
+        <div class="orderMenuItemDesc">With mozzarella</div><div class="orderMenuItemPrice">&pound;4.00</div></a>
+      <a href="#" class="orderMenuItem" data-price="3.5"><div class="orderMenuItemName"><strong>Dough Balls</strong></div>
+        <div class="orderMenuItemDesc">Six, with garlic butter</div><div class="orderMenuItemPrice">&pound;3.50</div></a>
+      <a href="#" class="orderMenuItem" data-price="2.5"><div class="orderMenuItemName"><strong>Skin On Fries</strong></div>
+        <div class="orderMenuItemDesc">Regular portion</div><div class="orderMenuItemPrice">&pound;2.50</div></a>
+    </div>
+  </div>
+</form></body></html>`;
+
+test('a server-rendered markup menu is read, with its sections and prices', async () => {
+  const { dishesFromMarkup, menuText } = await load();
+  const dishes = dishesFromMarkup(MARKUP_PAGE);
+  assert.strictEqual(dishes.length, 5);
+  assert.strictEqual(dishes[0].name, 'Margherita');
+  assert.strictEqual(dishes[0].section, 'Popular');
+  assert.strictEqual(dishes[0].price, '£8.50');
+  assert.strictEqual(dishes[1].description, 'Tomato base, Mozzarella, Sausage, Red Onion, Basil, Parmesan, Chilli Honey');
+  assert.strictEqual(dishes[4].section, 'Sides');
+  assert.match(menuText(dishes), /SIDES[\s\S]*Garlic Bread {2}£4\.00/);
+});
+
+test('stripping page furniture must never take the menu with it', async () => {
+  const { visibleText } = await load();
+  /* The real bug: <form>, <header> and <nav> were stripped whole, and an ordering page wraps its
+     entire menu in a <form>. A 219 KB menu page came out as 6 KB with every dish gone, then
+     reported itself as "not a menu" - a miss nothing downstream could see. Navigation left in is
+     noise the model ignores; a deleted menu is unrecoverable. */
+  const text = visibleText(MARKUP_PAGE);
+  assert.match(text, /Margherita/);
+  assert.match(text, /Sausage & Onion/);
+  assert.match(text, /Skin On Fries/);
+  // Scripts and styles are still removed, because those are never content.
+  assert.doesNotMatch(visibleText('<html><body><form><script>var x="Ghost Dish"</script><p>Hi</p></form></body></html>'), /Ghost Dish/);
+});
+
+test('markup that is a navigation list is still not a menu', async () => {
+  const { dishesFromMarkup } = await load();
+  // Names with neither a price nor a description are links, headings or breadcrumbs.
+  const nav = `<html><body><ul>
+    <li><div class="product-title">Home</div></li>
+    <li><div class="product-title">Our Story</div></li>
+    <li><div class="product-title">Find Us</div></li></ul></body></html>`;
+  assert.strictEqual(dishesFromMarkup(nav).length, 0);
+});
+
+// ---- rung 2c: asking an unknown platform, generically ----------------------------------------------
+
+test('pickMenuQuery finds the menu query in a schema it has never seen', async () => {
+  const { pickMenuQuery } = await load();
+  // The real Redbox schema, trimmed to the candidates that actually compete.
+  const schema = { data: { __schema: { queryType: { fields: [
+    { name: 'ping', args: [] },
+    { name: 'marketplace', args: [] },
+    { name: 'menuItemTextSearch', args: [
+      { name: 'outletId', type: { kind: 'NON_NULL', name: null } },
+      { name: 'searchQuery', type: { kind: 'NON_NULL', name: null } } ] },
+    { name: 'addOnMenuItems', args: [
+      { name: 'outletId', type: { kind: 'NON_NULL', name: null } },
+      { name: 'fulfilmentMethods', type: { kind: 'NON_NULL', name: null } } ] },
+    { name: 'menuItemGroupsForOutlet', args: [
+      { name: 'outletId', type: { kind: 'NON_NULL', name: null } },
+      { name: 'narrowFulfilmentMethods', type: { kind: 'LIST', name: null } } ] },
+  ] } } } };
+  const pick = pickMenuQuery(schema);
+  // Not the text search (needs a term we do not have), not the add-ons: the grouped outlet menu.
+  assert.strictEqual(pick.field, 'menuItemGroupsForOutlet');
+  assert.strictEqual(pick.idArg, 'outletId');
+  // A schema with nothing menu-shaped must return nothing rather than a hopeful guess.
+  assert.strictEqual(pickMenuQuery({ data: { __schema: { queryType: { fields: [{ name: 'user', args: [] }] } } } }), null);
+  assert.strictEqual(pickMenuQuery({}), null);
+});
+
+test('buildMenuQuery asks only for fields the schema says exist', async () => {
+  const { buildMenuQuery } = await load();
+  // One unknown field rejects the whole GraphQL query, so this may never guess.
+  const q = buildMenuQuery(
+    { field: 'menuItemGroupsForOutlet', idArg: 'outletId', extraArgs: ['narrowFulfilmentMethods'] },
+    ['id', 'name', 'description', 'price'], ['id', 'name', 'menuItems']);
+  assert.match(q, /menuItemGroupsForOutlet\(outletId: \$id, narrowFulfilmentMethods: \[DELIVERY, COLLECTION\]\)/);
+  assert.match(q, /menuItems \{ name description price \}/);
+  assert.doesNotMatch(q, /title/);
+  assert.strictEqual(buildMenuQuery({ field: 'x', idArg: 'id', extraArgs: [] }, [], []), '');
+});
+
+test('ids and API paths are read out of the page and its bundle', async () => {
+  const { idsFromPath, apiPathsFromBundle, fillPath, bundleUrl } = await load();
+  assert.deepStrictEqual(idsFromPath('/takeaways/clrafoiq9963n0824lm3d17g1/coast/menu'), ['clrafoiq9963n0824lm3d17g1']);
+  assert.deepStrictEqual(idsFromPath('/restaurant/1043829/kebab-house'), ['1043829']);
+  assert.deepStrictEqual(idsFromPath('/about/us'), []);
+  const js = 'fetch("/api/outlets/:id/menu");fetch("/api/analytics/track");x="/v1/restaurant/${id}/products"';
+  assert.deepStrictEqual(apiPathsFromBundle(js), ['/api/outlets/:id/menu', '/v1/restaurant/${id}/products']);
+  assert.strictEqual(fillPath('/api/outlets/:id/menu', 'abc123'), '/api/outlets/abc123/menu');
+  assert.strictEqual(fillPath('/api/outlets', 'abc123'), '/api/outlets/abc123');
+  assert.strictEqual(
+    bundleUrl('<script type="module" crossorigin src="/assets/index.0887bb32.js"></script>', 'https://x.co.uk/a/b'),
+    'https://x.co.uk/assets/index.0887bb32.js');
+});
+
+test('menuPageLinks follows courses, and only on the same site', async () => {
+  const { menuPageLinks } = await load();
+  const html = `<html><body>
+    <a href="/menu/starters">Starters</a>
+    <a href="/menu/mains">Mains</a>
+    <a href="/menu/puddings">Puddings</a>
+    <a href="https://deliveroo.co.uk/x">Order on Deliveroo</a>
+    <a href="/about">About us</a>
+    <a href="/contact">Contact</a></body></html>`;
+  const out = menuPageLinks(html, 'https://theanchor.pub/menu');
+  assert.deepStrictEqual(out, [
+    'https://theanchor.pub/menu/starters',
+    'https://theanchor.pub/menu/mains',
+    'https://theanchor.pub/menu/puddings',
+  ]);
+});
+
 // ---- the half that matters more: refusing to claim a menu ---------------------------------------
 
 test('an SPA shell that renders its menu in JavaScript yields nothing', async () => {

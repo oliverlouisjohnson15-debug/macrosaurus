@@ -32,6 +32,8 @@ import {
   clip, MAX_MENU_TEXT, jsonLdBlocks, dishesFromJsonLd, placeFromJsonLd, stateBlobs, dishesFromState,
   visibleText, looksLikeMenu, menuText, pdfMenuLinks, placeFromMeta, isBlockedHost, dedupeDishes,
   redboxOutletId, dishesFromRedbox, placeFromRedbox, REDBOX_PATH, REDBOX_QUERY,
+  dishesFromMarkup, menuPageLinks, idsFromPath, bundleUrl, apiPathsFromBundle, fillPath,
+  GRAPHQL_PATHS, INTROSPECT_QUERY, pickMenuQuery, buildMenuQuery, dishesFromGraphql,
   type Dish,
 } from './parse.ts';
 
@@ -176,6 +178,147 @@ async function fetchRedbox(origin: string, outletId: string): Promise<any | null
   } catch { clearTimeout(timer); return null; }
 }
 
+/* ---- asking an unknown platform's API, the way Redbox was worked out by hand ---------------------
+   Same shape as fetchRedbox and the same limits: same-origin with the page we already fetched and
+   host-checked, ids taken from that page's own URL, nothing believed unless it walks into real
+   dishes. The difference is that nothing here knows the platform in advance. */
+async function postJson(url: string, body: unknown): Promise<any | null> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'content-type': 'application/json', 'user-agent': UA, accept: 'application/json' },
+      body: JSON.stringify(body),
+    });
+    clearTimeout(timer);
+    if (!r.ok) { try { await r.body?.cancel(); } catch { /* ignore */ } return null; }
+    const t = await r.text();
+    return t.length > 3_000_000 ? null : JSON.parse(t);
+  } catch { clearTimeout(timer); return null; }
+}
+async function getJson(url: string): Promise<any | null> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, headers: { 'user-agent': UA, accept: 'application/json' } });
+    clearTimeout(timer);
+    if (!r.ok) { try { await r.body?.cancel(); } catch { /* ignore */ } return null; }
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!/json/.test(ct)) { try { await r.body?.cancel(); } catch { /* ignore */ } return null; }
+    const t = await r.text();
+    return t.length > 3_000_000 ? null : JSON.parse(t);
+  } catch { clearTimeout(timer); return null; }
+}
+async function getText(url: string, cap = 3_000_000): Promise<string> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, headers: { 'user-agent': UA } });
+    clearTimeout(timer);
+    if (!r.ok) { try { await r.body?.cancel(); } catch { /* ignore */ } return ''; }
+    const t = await r.text();
+    return t.length > cap ? t.slice(0, cap) : t;
+  } catch { clearTimeout(timer); return ''; }
+}
+
+/* A GraphQL server can be ASKED what it can do, which is the whole reason this generalises: find the
+   endpoint, introspect it, pick the query that means "the menu of this place", ask for the fields a
+   dish has. No prior knowledge of the platform is needed at any step. */
+async function tryGraphql(origin: string, ids: string[]): Promise<{ dishes: Dish[]; diag: string }> {
+  for (const path of GRAPHQL_PATHS) {
+    const schema = await postJson(origin + path, { query: INTROSPECT_QUERY });
+    if (!schema?.data?.__schema) continue;
+    const pick = pickMenuQuery(schema);
+    if (!pick) return { dishes: [], diag: 'gql:' + path + '/no-query' };
+
+    // What a dish is called here: ask the schema for the field's own return type before querying it,
+    // because one unknown field rejects the entire query.
+    const typeQ = await postJson(origin + path, {
+      query: '{ __schema { queryType { fields { name type { name kind ofType { name kind ofType { name } } } } } } }',
+    });
+    const field = (typeQ?.data?.__schema?.queryType?.fields || []).find((f: any) => f?.name === pick.field);
+    const typeName = field?.type?.name || field?.type?.ofType?.name || field?.type?.ofType?.ofType?.name;
+    if (!typeName) return { dishes: [], diag: 'gql:' + path + '/no-type' };
+    const shape = await postJson(origin + path, { query: '{ __type(name:"' + typeName + '"){ fields { name type { name kind ofType { name } } } } }' });
+    const groupFields = (shape?.data?.__type?.fields || []).map((f: any) => f?.name).filter(Boolean);
+    const childType = (shape?.data?.__type?.fields || []).find((f: any) => /^(menuItems|items|products|dishes|children)$/.test(f?.name || ''));
+    let itemFields = groupFields;
+    if (childType) {
+      const inner = childType?.type?.ofType?.name || childType?.type?.name;
+      const kid = inner ? await postJson(origin + path, { query: '{ __type(name:"' + inner + '"){ fields { name } } }' }) : null;
+      itemFields = (kid?.data?.__type?.fields || []).map((f: any) => f?.name).filter(Boolean);
+    }
+    const query = buildMenuQuery(pick, itemFields, groupFields);
+    if (!query) return { dishes: [], diag: 'gql:' + path + '/no-fields' };
+
+    for (const id of ids.slice(0, 2)) {
+      const reply = await postJson(origin + path, { query, variables: { id } });
+      const dishes = dishesFromGraphql(reply);
+      if (dishes.length >= MIN_DISHES) return { dishes, diag: 'gql:' + path + '/' + pick.field + '/' + dishes.length };
+    }
+    return { dishes: [], diag: 'gql:' + path + '/' + pick.field + '/0' };
+  }
+  return { dishes: [], diag: 'gql:none' };
+}
+
+// No schema to ask, so: mine the bundle for path templates, put the page's own id in, and let the
+// shape-blind walker judge whatever comes back.
+async function tryRest(origin: string, html: string, base: string, ids: string[]): Promise<{ dishes: Dish[]; diag: string }> {
+  const bundle = bundleUrl(html, base);
+  if (!bundle) return { dishes: [], diag: 'rest:no-bundle' };
+  const js = await getText(bundle);
+  const paths = apiPathsFromBundle(js);
+  if (!paths.length) return { dishes: [], diag: 'rest:0-paths' };
+  let tried = 0;
+  for (const p of paths) {
+    for (const id of ids.slice(0, 1)) {
+      if (tried++ >= 6) return { dishes: [], diag: 'rest:' + paths.length + '/capped' };
+      const payload = await getJson(origin + fillPath(p, id));
+      if (!payload) continue;
+      const dishes = dishesFromState([payload]);
+      if (dishes.length >= MIN_DISHES) return { dishes, diag: 'rest:' + p + '/' + dishes.length };
+    }
+  }
+  return { dishes: [], diag: 'rest:' + paths.length + '/0' };
+}
+
+/* ---- the shared cache and the coverage log ------------------------------------------------------
+   Both best effort and both fire-and-forget: this feature must never fail because a bookkeeping
+   write did. See the migration for why they exist. */
+const SB_URL = Deno.env.get('SUPABASE_URL') || '';
+const SB_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const sbHeaders = { 'content-type': 'application/json', apikey: SB_KEY, authorization: 'Bearer ' + SB_KEY };
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function cacheGet(url: string): Promise<any | null> {
+  if (!SB_URL || !SB_KEY) return null;
+  try {
+    const r = await fetch(SB_URL + '/rest/v1/menu_cache?url=eq.' + encodeURIComponent(url) + '&select=*', { headers: sbHeaders });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row || (Date.now() - new Date(row.fetched_at).getTime()) > CACHE_TTL_MS) return null;
+    return row;
+  } catch { return null; }
+}
+async function cachePut(url: string, row: Record<string, unknown>) {
+  if (!SB_URL || !SB_KEY) return;
+  try {
+    await fetch(SB_URL + '/rest/v1/menu_cache?on_conflict=url', {
+      method: 'POST',
+      headers: { ...sbHeaders, prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ url, fetched_at: new Date().toISOString(), ...row }),
+    });
+  } catch { /* non-fatal */ }
+}
+async function logAttempt(row: Record<string, unknown>) {
+  if (!SB_URL || !SB_KEY) return;
+  try {
+    await fetch(SB_URL + '/rest/v1/menu_fetch_log', { method: 'POST', headers: sbHeaders, body: JSON.stringify(row) });
+  } catch { /* non-fatal */ }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ ok: false, note: 'Method not allowed' }, 405);
@@ -193,11 +336,27 @@ Deno.serve(async (req) => {
   // this function could be made to authenticate to something on someone else's behalf.
   u.username = ''; u.password = '';
 
+  const started = Date.now();
   try {
+    /* Somebody already asked this question. A restaurant's menu does not change between one person
+       opening the app in the car park and the next opening it at the table, and asking a small
+       takeaway's website once rather than once per customer is simply the polite way to do this. */
+    const hit = await cacheGet(u.toString());
+    if (hit) {
+      return json({
+        ok: !!hit.ok, place: hit.place || '', menuText: hit.menu_text || '', dishCount: hit.dish_count || 0,
+        via: hit.via || '', pdf_b64: '', source_url: raw, cached: true,
+        reason: hit.ok ? undefined : 'no_menu',
+        note: hit.ok ? '' : 'That page does not publish its menu in a form I can read.',
+        diag: 'cache',
+      });
+    }
+
     const page = await fetchPage(u);
     const host = page.url.hostname.replace(/^www\./, '');
     if (!page.html) {
       console.log('menu-fetch miss', host, page.diag);
+      await logAttempt({ host, url: raw, ok: false, via: '', dish_count: 0, ms: Date.now() - started, diag: page.diag });
       return json({ ok: false, reason: 'unreadable', note: 'Could not open that page.', diag: page.diag, source_url: raw });
     }
 
@@ -232,6 +391,53 @@ Deno.serve(async (req) => {
       }
     }
 
+    /* The menu is in the HTML after all, just as markup rather than as data. This is the commonest
+       shape on the open web and the one no amount of JSON-hunting was ever going to find. */
+    if (dishes.length < MIN_DISHES) {
+      const fromMarkup = dishesFromMarkup(page.html);
+      diag += ' | markup:' + fromMarkup.length;
+      if (fromMarkup.length > dishes.length) { dishes = fromMarkup; via = 'markup'; }
+    }
+
+    /* Still nothing, so the page fetches its menu after boot. Ask its backend the way Redbox's was
+       worked out by hand - but without knowing the platform. GraphQL first, because a GraphQL server
+       will describe itself if asked, and that makes it general rather than a lucky guess. */
+    if (dishes.length < MIN_DISHES) {
+      const ids = idsFromPath(page.url.pathname);
+      if (ids.length) {
+        const g = await tryGraphql(page.url.origin, ids);
+        diag += ' | ' + g.diag;
+        if (g.dishes.length > dishes.length) { dishes = g.dishes; via = 'graphql'; }
+        if (dishes.length < MIN_DISHES) {
+          const rest = await tryRest(page.url.origin, page.html, page.url.toString(), ids);
+          diag += ' | ' + rest.diag;
+          if (rest.dishes.length > dishes.length) { dishes = rest.dishes; via = 'rest'; }
+        }
+      } else {
+        diag += ' | api:no-id';
+      }
+    }
+
+    /* A menu split over several pages: reading one and calling it "the menu" is the quiet failure
+       this whole file exists to avoid, because the model would return six starters and never
+       mention it had not seen a main course. Only worth doing once we have SOMETHING, since that is
+       what tells us these links are courses rather than navigation. */
+    if (dishes.length >= MIN_DISHES) {
+      const links = menuPageLinks(page.html, page.url.toString());
+      if (links.length) {
+        let added = 0;
+        for (const link of links.slice(0, 4)) {
+          const sub = await fetchPage(new URL(link));
+          if (!sub.html) continue;
+          const more = dedupeDishes(dishesFromJsonLd(jsonLdBlocks(sub.html)).concat(dishesFromMarkup(sub.html)));
+          const before = dishes.length;
+          dishes = dedupeDishes(dishes.concat(more));
+          added += dishes.length - before;
+        }
+        if (added) diag += ' | pages:' + links.length + '/+' + added;
+      }
+    }
+
     // A structured read is trusted on its own count: these are labelled records, not a guess about
     // what a line of text meant. The text rungs have to prove themselves instead.
     let text = dishes.length >= MIN_DISHES ? menuText(dishes) : '';
@@ -263,6 +469,10 @@ Deno.serve(async (req) => {
 
     if (!text && !pdfB64) {
       console.log('menu-fetch miss', host, diag);
+      await logAttempt({ host, url: raw, ok: false, via: '', dish_count: 0, ms: Date.now() - started, diag });
+      // A miss is cached too: the tenth person to paste a link we cannot read deserves to be told
+      // instantly rather than waiting for the same no.
+      await cachePut(u.toString(), { ok: false, place, via: '', dish_count: 0, menu_text: '' });
       return json({
         ok: false, reason: 'no_menu', place, source_url: raw, diag,
         note: 'That page does not publish its menu in a form I can read.',
@@ -282,6 +492,10 @@ Deno.serve(async (req) => {
       note: '',
     };
     console.log('menu-fetch', host, out.via, out.dishCount + ' dishes', out.menuText.length + 'ch', diag);
+    await logAttempt({ host, url: raw, ok: true, via: out.via, dish_count: out.dishCount, ms: Date.now() - started, diag });
+    // The PDF is deliberately not cached: megabytes of base64 per row would make this table the
+    // biggest thing in the database inside a week, for a rung that fires rarely.
+    if (text) await cachePut(u.toString(), { ok: true, place, via, dish_count: dishes.length, menu_text: out.menuText });
     return json(out);
   } catch (e) {
     return json({ ok: false, note: 'Could not read that link: ' + (e as Error).message, source_url: raw });

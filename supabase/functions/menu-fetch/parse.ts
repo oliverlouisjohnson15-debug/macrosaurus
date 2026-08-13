@@ -386,6 +386,268 @@ export function placeFromRedbox(payload: any): string {
   return (r || n).slice(0, 80);
 }
 
+// ---- rung 2c: the same idea as Redbox, without knowing the platform --------------------------------
+
+/* Redbox was solved by hand: read its bundle, find its endpoint, learn its query. That worked, and
+   it does not scale - there are hundreds of these platforms and we cannot hand-write one rung each.
+   But almost nothing about that investigation was actually Redbox-specific. An empty shell means the
+   menu is fetched after boot; the thing that fetches it is in the bundle; and the endpoint it calls
+   is nearly always either GraphQL (which can be ASKED what it can do) or a REST path with the same
+   record id that is already in the URL. So this section does what was done by hand, automatically.
+
+   GRAPHQL is the good case, because a GraphQL server is self-describing: introspection returns the
+   list of queries and their arguments, so we can find the one that means "the menu for this outlet"
+   by its name and its shape - no prior knowledge of the platform at all - and then ask for the
+   fields a dish has. That is what `pickMenuQuery` does, and it is why the Redbox rung can stay a
+   narrow special case while everything else is handled generically.
+
+   REST is the messier case: no schema to ask, so we mine the bundle for path templates, put the
+   URL's id into them, and let the shape-blind walker judge whatever JSON comes back. Lower hit rate,
+   but it costs one regex over a file we may already have.
+
+   The safety story is unchanged and is the reason this is not "poke at any API you can find":
+   every endpoint tried is same-origin with the page we already fetched and host-checked, the ids
+   come from that page's own URL, and nothing is believed unless it walks into MIN_DISHES dishes. */
+
+// The paths a same-origin GraphQL endpoint actually lives at, commonest first. /gqlv2 is in here
+// because Redbox taught us that platforms version these, and it costs nothing to try.
+export const GRAPHQL_PATHS = ['/graphql', '/gqlv2', '/api/graphql', '/graphql/v1', '/query', '/api/gql'];
+
+export const INTROSPECT_QUERY =
+  '{ __schema { queryType { fields { name args { name type { kind name ofType { kind name } } } } } } }';
+
+/* An id-shaped path segment: the record the page is about. Same idea as app/menu.js's ID_SEG - a
+   restaurant's own site has no reason to carry one - but here it is what we substitute into a
+   candidate endpoint rather than what tells us to read the path for a name. */
+export function idsFromPath(pathname: string): string[] {
+  const out: string[] = [];
+  for (const seg of String(pathname || '').split('/').filter(Boolean)) {
+    if (/^(\d{4,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?=[a-z0-9]*\d)(?=[a-z0-9]*[a-z])[a-z0-9]{12,})$/i.test(seg)) {
+      if (!out.includes(seg)) out.push(seg);
+    }
+  }
+  return out;
+}
+
+const MENUISH = /(menu|dish|product|item|catalog)/i;
+const OUTLETISH = /(outlet|restaurant|store|shop|venue|location|branch|merchant|business|takeaway|vendor)/i;
+
+/* Out of an introspected schema, the query most likely to be "the menu of this place", plus the
+   name of its id argument. Scored rather than matched, because platforms name things differently
+   and the best candidate is the one that is menu-shaped AND takes a single id: a query called
+   `menuItemGroupsForOutlet(outletId:)` should beat `menuItemTextSearch(outletId:, searchQuery:)`,
+   which needs a search term we do not have, and beat `menu` with no arguments at all, which is
+   usually the marketplace's own navigation. */
+export function pickMenuQuery(schema: any): { field: string; idArg: string; extraArgs: string[] } | null {
+  const fields = schema?.data?.__schema?.queryType?.fields;
+  if (!Array.isArray(fields)) return null;
+  let best: { field: string; idArg: string; extraArgs: string[]; score: number } | null = null;
+
+  for (const f of fields) {
+    const name = typeof f?.name === 'string' ? f.name : '';
+    if (!name || !MENUISH.test(name)) continue;
+    const args = Array.isArray(f.args) ? f.args : [];
+    // The id argument: named like an id, and scalar.
+    const idArg = args.find((a: any) => /^(outletId|restaurantId|storeId|shopId|venueId|locationId|merchantId|businessId|vendorId|id)$/i.test(a?.name || ''));
+    if (!idArg) continue;
+    // Anything else that is NON_NULL is an argument we cannot supply, so this query is unusable.
+    const required = args.filter((a: any) =>
+      a !== idArg && (a?.type?.kind === 'NON_NULL') && !/fulfil|fulfill|method|type|channel/i.test(a?.name || ''));
+    if (required.length) continue;
+
+    let score = 0;
+    if (/menu/i.test(name)) score += 3;
+    if (OUTLETISH.test(name)) score += 2;                       // "...ForOutlet" is the shape we want
+    if (/group|section|categor/i.test(name)) score += 2;        // grouped menus carry their sections
+    if (/search|text|single|addon|add_on|paginated/i.test(name)) score -= 4; // needs input we lack
+    if (/^menu$/i.test(name)) score -= 1;                       // often site navigation, not food
+    if (args.length <= 4) score += 1;
+
+    if (score > 0 && (!best || score > best.score)) {
+      best = {
+        field: name,
+        idArg: idArg.name,
+        // Fulfilment-style enums are frequently NON_NULL and unguessable in general, but they only
+        // ever mean "delivery or collection", so they are filled in rather than disqualifying.
+        extraArgs: args.filter((a: any) => a !== idArg && a?.type?.kind === 'NON_NULL').map((a: any) => a.name),
+        score,
+      };
+    }
+  }
+  return best ? { field: best.field, idArg: best.idArg, extraArgs: best.extraArgs } : null;
+}
+
+/* The query text for the chosen field. Asks for a generous spread of the names a dish's parts go
+   under, because we do not know the platform's vocabulary - but only for fields the schema says
+   exist, since a GraphQL server rejects the whole query over one unknown field. */
+export function buildMenuQuery(pick: { field: string; idArg: string; extraArgs: string[] }, itemFields: string[], groupFields: string[]): string {
+  const want = (have: string[], names: string[]) => names.filter((n) => have.includes(n));
+  const item = want(itemFields, ['name', 'title', 'description', 'price', 'basePrice']);
+  const group = want(groupFields, ['name', 'title']);
+  const kids = groupFields.find((f) => /^(menuItems|items|products|dishes|children)$/.test(f));
+  if (!item.length && !group.length) return '';
+  const inner = kids && item.length
+    ? group.join(' ') + ' ' + kids + ' { ' + item.join(' ') + ' }'
+    : (item.length ? item.join(' ') : group.join(' '));
+  const extra = pick.extraArgs.map((a) => a + ': [DELIVERY, COLLECTION]').join(', ');
+  return 'query($id: ID!){ ' + pick.field + '(' + pick.idArg + ': $id' + (extra ? ', ' + extra : '') + '){ ' + inner + ' } }';
+}
+
+/* Dishes out of any GraphQL reply. The payload shape is unknown by construction, so this hands the
+   whole thing to the shape-blind walker that already reads unknown page state - the same judgement
+   ("a name, plus a price or a description") applied to a different source. */
+export function dishesFromGraphql(payload: any): Dish[] {
+  if (!payload || typeof payload !== 'object' || !payload.data) return [];
+  return dishesFromState([payload.data]);
+}
+
+/* REST endpoints mentioned in a JavaScript bundle, as templates we can fill in. Only same-origin
+   paths, only ones that look like they are about a place or its menu, so this does not fire off
+   requests at every analytics endpoint a bundle mentions. */
+export function apiPathsFromBundle(js: string, limit = 8): string[] {
+  const out: string[] = [];
+  const re = /["'`](\/(?:api|v\d|rest)\/[a-zA-Z0-9/_.$:{}-]{2,80})["'`]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(js || '')) && out.length < limit) {
+    const p = m[1];
+    if (!MENUISH.test(p) && !OUTLETISH.test(p)) continue;
+    if (/\.(js|css|png|jpg|svg|woff2?)$/i.test(p)) continue;
+    if (!out.includes(p)) out.push(p);
+  }
+  return out;
+}
+
+// Fill a path template's placeholder - :id, {id}, ${id} - with the id from the page's own URL.
+export function fillPath(template: string, id: string): string {
+  if (/[:{$]/.test(template)) {
+    return template.replace(/\$?\{[^}]*\}|:[a-zA-Z_]+/g, id);
+  }
+  return template.replace(/\/$/, '') + '/' + id;
+}
+
+// The first <script src> that looks like the app bundle, absolute.
+export function bundleUrl(html: string, base: string): string {
+  const m = (html || '').match(/<script[^>]+src\s*=\s*["']([^"']+\.js(?:\?[^"']*)?)["']/i);
+  if (!m) return '';
+  try { return new URL(decodeEntities(m[1]), base).toString(); } catch { return ''; }
+}
+
+// ---- rung 2d: the menu is in the HTML, just not as data ---------------------------------------------
+
+/* The third failure mode, and the most common one on the open web: a page that server-renders its
+   whole menu as ordinary markup. No JSON-LD, no state blob, no API to ask - just divs, with class
+   names that say exactly what each one is:
+
+     <h2 class="categoryTitle">Pizzas</h2>
+     <div class="orderMenuItemName"><strong>Sausage & Onion</strong></div>
+     <div class="orderMenuItemDesc">Tomato base, Mozzarella, Sausage, Red Onion, Basil</div>
+     <div class="orderMenuItemPrice">&pound;8.50</div>
+
+   That is one platform's markup, but the SHAPE is near-universal - WordPress restaurant themes, Wix
+   and Squarespace food menus, and most bespoke sites all end up with a name element, a description
+   element and a price element, whatever they call them. So this rung matches on what the class name
+   MEANS rather than what it is: something that is an item/dish/product AND a name/title, then the
+   description and price that follow it. It reads hyphens, underscores and camelCase alike, because
+   the same three words are spelled four ways across the web.
+
+   This is a structured rung, not a text one: it produces labelled dishes, so it is trusted on its
+   own dish count like the others rather than having to satisfy looksLikeMenu. */
+
+const NAME_CLASS = /class\s*=\s*["'][^"']*\b[a-z0-9_-]*(?:item|dish|product|food)[a-z0-9_-]*[-_]?(?:name|title)[a-z0-9_-]*\b[^"']*["']/i;
+const DESC_CLASS = /class\s*=\s*["'][^"']*(?:desc|description|ingredient|summary)[^"']*["']/i;
+const PRICE_CLASS = /class\s*=\s*["'][^"']*price[^"']*["']/i;
+const HEADING = /<h[1-4]\b[^>]*>([\s\S]{0,200}?)<\/h[1-4]>/gi;
+
+// The text immediately inside an element, read shallowly: enough for a name or a one-line
+// description, and bounded so a malformed page cannot make this walk the whole document.
+function innerText(html: string, from: number, span = 400): string {
+  const open = html.indexOf('>', from);
+  if (open < 0) return '';
+  const chunk = html.slice(open + 1, open + 1 + span);
+  const end = chunk.search(/<\/(?:div|h[1-4]|span|p|li|a|td)>/i);
+  const body = end > 0 ? chunk.slice(0, end) : chunk;
+  return decodeEntities(body.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+export function dishesFromMarkup(html: string): Dish[] {
+  const doc = html || '';
+  if (doc.length < 200) return [];
+
+  // Section headings, with where they sit, so each dish can take the last one above it.
+  const heads: Array<{ at: number; text: string }> = [];
+  HEADING.lastIndex = 0;
+  let h: RegExpExecArray | null;
+  while ((h = HEADING.exec(doc)) && heads.length < 200) {
+    const t = decodeEntities(h[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    if (t && t.length <= 60) heads.push({ at: h.index, text: t });
+  }
+
+  const out: Dish[] = [];
+  // Every element that declares itself the name of an item.
+  const tag = /<([a-z][a-z0-9]*)\b([^>]*)>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = tag.exec(doc)) && out.length < 400) {
+    const attrs = m[2] || '';
+    if (!NAME_CLASS.test(attrs)) continue;
+    const name = innerText(doc, m.index, 300);
+    if (!isDishName(name)) continue;
+
+    // The description and price that belong to this dish are the next ones before the following
+    // dish starts, so the window is bounded rather than "search the rest of the page".
+    const window = doc.slice(m.index, m.index + 2500);
+    let description = '';
+    let price = '';
+    const dm = window.match(new RegExp('<[a-z][a-z0-9]*\\b[^>]*' + DESC_CLASS.source.replace(/^\/|\/i$/g, '') + '[^>]*>', 'i'));
+    if (dm && dm.index != null) description = innerText(window, dm.index, 400);
+    const pm = window.match(new RegExp('<[a-z][a-z0-9]*\\b[^>]*' + PRICE_CLASS.source.replace(/^\/|\/i$/g, '') + '[^>]*>', 'i'));
+    if (pm && pm.index != null) price = priceText(innerText(window, pm.index, 120));
+    if (!price) {
+      // Prices also live in data attributes, with no currency symbol anywhere near them - which is
+      // exactly the page that looked price-free to every text-based test.
+      const da = window.match(/data-(?:price|item-price|base-price)\s*=\s*["']([\d.,]+)["']/i);
+      if (da) price = priceText(da[1]);
+    }
+    if (!price && !description) continue; // a bare name is a heading or a link, not a dish
+
+    let section = '';
+    for (const head of heads) { if (head.at < m.index) section = head.text; else break; }
+    out.push({ section, name, description: description.slice(0, 300), price });
+  }
+  return dedupeDishes(out);
+}
+
+// ---- following a menu that is spread over several pages --------------------------------------------
+
+/* Plenty of sites split the menu up: /menu/starters, /menu/mains, /drinks. Reading one of them and
+   calling it "the menu" is the quiet failure this whole file is built to avoid - the model would
+   dutifully return six starters and never mention that it never saw a main course. So when a page
+   reads like a menu but links to more of itself, the siblings are read too and merged.
+
+   Bounded hard, and same-origin only: this is a menu, not a crawl. */
+const MENU_LINK_TEXT = /^(starters?|mains?|main courses?|sides?|desserts?|puddings?|drinks?|lunch|dinner|breakfast|brunch|specials?|pizzas?|burgers?|curries|grill|small plates|sharing|kids|children'?s|vegan|vegetarian|set menu|a ?la ?carte|wine|cocktails?)$/i;
+
+export function menuPageLinks(html: string, base: string, limit = 5): string[] {
+  const out: string[] = [];
+  const re = /<a\b[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  let origin = '';
+  try { origin = new URL(base).origin; } catch { return out; }
+  while ((m = re.exec(html || '')) && out.length < limit) {
+    const label = decodeEntities(m[2].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    let abs: URL;
+    try { abs = new URL(decodeEntities(m[1]), base); } catch { continue; }
+    if (abs.origin !== origin) continue;
+    if (abs.toString().split('#')[0] === String(base).split('#')[0]) continue;
+    // Either the link is named after a course, or its path is menu-shaped and one level deeper.
+    const named = MENU_LINK_TEXT.test(label);
+    const pathy = /\/menus?\//i.test(abs.pathname) && abs.pathname.split('/').filter(Boolean).length >= 2;
+    if (!named && !pathy) continue;
+    const clean = abs.toString().split('#')[0];
+    if (!out.includes(clean)) out.push(clean);
+  }
+  return out;
+}
+
 // ---- rung 3: the visible text ----------------------------------------------------------------------
 
 /* The page with everything that is not content taken out. A blunt instrument on purpose: it is the
@@ -396,7 +658,12 @@ export function visibleText(html: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
-    .replace(/<(nav|header|footer|form|aside|svg)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+    /* nav/header/footer/form/aside used to be stripped here too, and it was quietly destroying the
+       thing we came for. An ordering page wraps its entire menu in a <form>, and a lazy match from
+       the first <form> to its close takes the menu with it: one real 219 KB menu page came out as
+       6 KB of text with every dish gone, and reported itself as "not a menu". Navigation left in is
+       noise the model ignores; a deleted menu is a failure nothing downstream can see. */
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|h[1-6]|td|tr|section)>/gi, '\n')
     .replace(/<[^>]+>/g, ' ');
