@@ -282,6 +282,29 @@ test('placeFromUrl: a delivery link gives the restaurant, not the aggregator', (
   assert.strictEqual(M.placeFromUrl('https://www.just-eat.co.uk/restaurants-kricket-soho/menu'), 'Restaurants Kricket Soho');
 });
 
+test('placeFromUrl: a local ordering platform gives the restaurant, not the platform', () => {
+  // The link that prompted this: a regional takeaway-ordering site nobody has an allowlist entry
+  // for. Reading the domain gave "Causeway Eats", which cooks nothing, and the model was then sent
+  // off to price the menu of a company that does not have one. The record id in the path is the
+  // giveaway that this is a listing rather than a restaurant's own site.
+  assert.strictEqual(
+    M.placeFromUrl('https://www.causeway-eats.co.uk/takeaways/clrafoiq9963n0824lm3d17g1/coast/menu'),
+    'Coast'
+  );
+  assert.strictEqual(M.placeFromUrl('https://order.foodhub.co.uk/restaurant/1043829/kebab-house'), 'Kebab House');
+  assert.strictEqual(
+    M.placeFromUrl('https://www.example-eats.com/store/3f1c8a2e-19b4-4c7d-9f2a-8b6e5d4c3a21/the-curry-house'),
+    'The Curry House'
+  );
+});
+
+test('placeFromUrl: an id on a restaurant own site does not turn the site furniture into the name', () => {
+  // Only what sits AFTER the id counts. A date or an order number on a place's own site leaves
+  // nothing after it, so the domain stays the answer rather than "Booking".
+  assert.strictEqual(M.placeFromUrl('https://thequalitychophouse.com/booking/20260813'), 'thequalitychophouse.com');
+  assert.strictEqual(M.placeFromUrl('https://franco-manca.co.uk/menus/'), 'Franco Manca');
+});
+
 test('placeFromUrl: maps and reviews links give the place', () => {
   assert.strictEqual(M.placeFromUrl('https://www.google.com/maps/place/Padella+Borough+Market/@51.5,-0.09,17z'), 'Padella Borough Market');
   assert.strictEqual(M.placeFromUrl('https://www.tripadvisor.co.uk/Restaurant_Review-g186338-d1234-Reviews-Kricket_Soho-London.html'), 'Kricket Soho');

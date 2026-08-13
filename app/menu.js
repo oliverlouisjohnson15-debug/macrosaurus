@@ -60,8 +60,24 @@
   var AGG_HOSTS = /^(deliveroo|just-?eat|ubereats|uber|opentable|thefork|resy|sevenrooms|yelp|quandoo|bookatable)\./i;
   var MAP_HOSTS = /^(google|maps\.google|bing|tripadvisor|yell)\./i;
   var SOCIAL_HOSTS = /^(instagram|facebook|tiktok|twitter|x|threads|youtube|youtu)\./i;
-  var SKIP_SEG = /^(menu|menus|food|order|place|restaurant|restaurants|shop|uk|gb|en|en gb|london|home|index|maps|dir|search|p|reel)$/i;
+  var SKIP_SEG = /^(menu|menus|food|order|ordering|place|restaurant|restaurants|takeaway|takeaways|store|stores|shop|listing|listings|delivery|collection|uk|gb|en|en gb|london|home|index|maps|dir|search|p|reel)$/i;
   var TLD = /\.(co\.uk|org\.uk|com|co|uk|net|london|restaurant|cafe|kitchen|bar|pub|eu|io)$/i;
+
+  /* A path segment that is a database id rather than a word: a cuid/uuid, or a bare number. It is
+     never part of a name, and - this is the useful half - a restaurant's OWN site has no reason to
+     carry one, so seeing one is how we know a link belongs to a platform listing many restaurants
+     even when its hostname is not one we have heard of. */
+  var ID_SEG = /^(\d{4,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?=[a-z0-9]*\d)(?=[a-z0-9]*[a-z])[a-z0-9]{12,})$/i;
+
+  /* The restaurant, read out of the path of a listing page. Ids, numbers and the platform's own
+     furniture ("takeaways", "menu") are dropped, and what is left last is the place: these URLs read
+     as <what it is>/<id>/<who it is>/<what you are looking at>. */
+  function nameFromPath(segs) {
+    var cand = segs.filter(function (s) { return !ID_SEG.test(s); })
+      .map(words)
+      .filter(function (s) { return s.length > 2 && !SKIP_SEG.test(s); });
+    return cand.length ? titleCase(cand[cand.length - 1]) : '';
+  }
 
   function words(s) {
     try { s = decodeURIComponent(s); } catch (e) { /* leave it as it came */ }
@@ -98,11 +114,25 @@
       return '';
     }
 
-    if (AGG_HOSTS.test(host)) {
-      // A delivery link's last meaningful path segment is the restaurant.
-      var cand = segs.map(words).filter(function (s) { return s.length > 2 && !SKIP_SEG.test(s) && !/^\d+$/.test(s); });
-      var pick = cand.length ? cand[cand.length - 1] : '';
-      return pick ? titleCase(pick) : '';
+    // A delivery link's last meaningful path segment is the restaurant.
+    if (AGG_HOSTS.test(host)) return nameFromPath(segs);
+
+    /* A platform we have never heard of, giving itself away with a record id in the path. There are
+       hundreds of these - every town has a local ordering site, and the white-label platforms behind
+       them turn one codebase into a new hostname per region - so an allowlist of hostnames was never
+       going to hold. Reading the domain here is the worst possible answer: it names the PLATFORM, so
+       the model is sent off to price a menu at a company that does not cook anything, confidently
+       and with the name shown back to the user as if it had understood. The restaurant is sat in the
+       path immediately AFTER the id: these read as <what it is>/<id>/<who it is>/<what you are
+       looking at>. Only what follows the id counts, so that a date or an order number on a
+       restaurant's own site ("/booking/20260813") cannot promote some piece of that site's furniture
+       into the name of the place - with nothing after the id this is not a listing, and the domain
+       is still the best answer available. */
+    for (var s = 0; s < segs.length; s++) {
+      if (!ID_SEG.test(segs[s])) continue;
+      var listed = nameFromPath(segs.slice(s + 1));
+      if (listed) return listed;
+      break;
     }
 
     // The restaurant's own site: the domain IS the name. A hostname with no separators cannot be
