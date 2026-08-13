@@ -17781,20 +17781,70 @@ function App() {
     return function () { window.removeEventListener('online', flush); };
   }, [session]);
 
-  // Offer a reload when a freshly deployed service worker takes over. sw.js calls skipWaiting, so a
-  // new build activates immediately; a controllerchange after we already had a controller means the
-  // running page is now on old code. We also poll for a new deploy on load and on tab refocus.
+  // Offer a reload when a freshly deployed service worker takes over. This used to fire on any
+  // controllerchange, which is not the same question: the worker also changes hands when it is torn
+  // down and restarted, when the browser evicts the registration and re-registers it, and when it
+  // re-claims the page on resume. None of those are a new build, and all of them are routine on an
+  // installed PWA, which is why the banner kept appearing on days with no deploy. So ask the worker
+  // which build it is (sw.js answers with its VERSION) and only offer the reload when the answer has
+  // actually moved on from the one this page booted with.
   const [updateReady, setUpdateReady] = useState(false);
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
-    var hadController = !!navigator.serviceWorker.controller;
-    function onChange() { if (hadController) setUpdateReady(true); }
+    var cancelled = false;
+    var booted = null;      // the build this page started on; null until we get a first answer
+    var lastCheck = 0;      // ms, throttles the network poll for a new sw.js
+    var queue = Promise.resolve(); // one comparison at a time, so two can't both claim the baseline
+
+    // Ask the controlling worker for its VERSION over a private port. Resolves null if there is no
+    // controller, if it never answers, or if it predates the message handler.
+    function askVersion() {
+      var worker = navigator.serviceWorker.controller;
+      if (!worker) return Promise.resolve(null);
+      return new Promise(function (resolve) {
+        var ch = new MessageChannel(), settled = false;
+        function finish(v) { if (settled) return; settled = true; clearTimeout(timer); resolve(v); }
+        var timer = setTimeout(function () { finish(null); }, 3000);
+        ch.port1.onmessage = function (ev) { finish(ev.data && ev.data.version ? String(ev.data.version) : null); };
+        try { worker.postMessage({ type: 'VERSION' }, [ch.port2]); } catch (_) { finish(null); }
+      });
+    }
+
+    function compare() {
+      return askVersion().then(function (v) {
+        if (cancelled) return;
+        if (booted === null) {
+          // First answer wins the baseline. A controller that won't answer is a build from before
+          // this handler existed, so record it as such: the next worker to take over is genuinely
+          // newer and should raise the banner.
+          if (v) booted = v;
+          else if (navigator.serviceWorker.controller) booted = 'legacy';
+          return;
+        }
+        // No answer later on is a silent worker or a slow device, never evidence of a new build.
+        if (v && v !== booted) setUpdateReady(true);
+      });
+    }
+    function schedule() { queue = queue.then(compare); }
+
+    function onChange() { schedule(); }
     navigator.serviceWorker.addEventListener('controllerchange', onChange);
-    function check() { navigator.serviceWorker.getRegistration().then(function (r) { if (r) r.update().catch(function () {}); }, function () {}); }
+
+    // Poll for a fresh sw.js, but not on every single refocus: on an installed PWA that fires on
+    // every app switch and screen unlock, which is a lot of network for a build that changes daily.
+    function check() {
+      var now = Date.now();
+      if (now - lastCheck < 15 * 60 * 1000) return;
+      lastCheck = now;
+      navigator.serviceWorker.getRegistration().then(function (r) {
+        if (r) r.update().catch(function () {});
+      }, function () {}).then(schedule, schedule);
+    }
+    schedule();
     check();
     function onVis() { if (document.visibilityState === 'visible') check(); }
     document.addEventListener('visibilitychange', onVis);
-    return function () { navigator.serviceWorker.removeEventListener('controllerchange', onChange); document.removeEventListener('visibilitychange', onVis); };
+    return function () { cancelled = true; navigator.serviceWorker.removeEventListener('controllerchange', onChange); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
   // Handle launch intents once data is ready: home-screen shortcuts (?action=log/weigh) and Web

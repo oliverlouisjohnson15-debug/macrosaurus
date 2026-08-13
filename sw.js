@@ -7,7 +7,7 @@
    - API traffic (Supabase, Anthropic, Open Food Facts): never cached — always straight to the
      network; offline reads/writes are handled by the app's own IndexedDB store.
    Bump VERSION to force old caches to clear on the next activate. */
-const VERSION = '295';
+const VERSION = '296';
 const CORE = 'macrosaurus-core-v' + VERSION;
 const RUNTIME = 'macrosaurus-rt-v' + VERSION;
 const CORE_ASSETS = [
@@ -34,6 +34,16 @@ self.addEventListener('activate', function (e) {
       .then(function (keys) { return Promise.all(keys.filter(function (k) { return k !== CORE && k !== RUNTIME; }).map(function (k) { return caches.delete(k); })); })
       .then(function () { return self.clients.claim(); })
   );
+});
+
+// Which build is controlling this page? The app asks on load and again whenever the controller
+// changes, and only offers a reload when the answer actually differs from the one it booted with.
+// A controller change on its own means nothing: the worker gets torn down and restarted, evicted
+// and re-registered, or re-claims the page, all without a line of code having changed.
+self.addEventListener('message', function (e) {
+  if (!e.data || e.data.type !== 'VERSION') return;
+  var port = e.ports && e.ports[0];
+  if (port) port.postMessage({ type: 'VERSION', version: VERSION });
 });
 
 // Web Push: the push-nudge edge function sends a JSON payload {title, body, url, tag}. Show it as a
