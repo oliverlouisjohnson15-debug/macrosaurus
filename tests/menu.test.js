@@ -63,6 +63,16 @@ test('brief: the day is stated as numbers, and explicitly as context rather than
   assert.doesNotMatch(b, /RANK BY/);
 });
 
+test('brief: a menu fetched from their own page is said to be current', () => {
+  // Without this the model hedges the menu it was handed against a half-remembered version of the
+  // same restaurant, which shows up as prices belonging to no menu in particular.
+  const b = M.brief({ place: 'Coast', menuText: 'Cod and Chips £10.50', menuFrom: 'causeway-eats.co.uk' });
+  assert.match(b, /taken from their own page at causeway-eats\.co\.uk just now, so it is current/);
+  assert.match(b, /Cod and Chips/);
+  // A menu the person typed or photographed carries no such claim.
+  assert.doesNotMatch(M.brief({ menuText: 'Cod and Chips £10.50' }), /taken from their own page/);
+});
+
 test('brief: an overspent day is stated without asking the model to refuse or lecture', () => {
   const b = M.brief({ remaining: M.remaining(day({ kcal: 2700 }, { kcal: 2400 })) });
   assert.match(b, /already about 300 kcal past/);
@@ -280,6 +290,29 @@ test('placeFromUrl: a restaurant own-domain link gives the place', () => {
 test('placeFromUrl: a delivery link gives the restaurant, not the aggregator', () => {
   assert.strictEqual(M.placeFromUrl('https://deliveroo.co.uk/menu/london/soho/dishoom-carnaby'), 'Dishoom Carnaby');
   assert.strictEqual(M.placeFromUrl('https://www.just-eat.co.uk/restaurants-kricket-soho/menu'), 'Restaurants Kricket Soho');
+});
+
+test('placeFromUrl: a local ordering platform gives the restaurant, not the platform', () => {
+  // The link that prompted this: a regional takeaway-ordering site nobody has an allowlist entry
+  // for. Reading the domain gave "Causeway Eats", which cooks nothing, and the model was then sent
+  // off to price the menu of a company that does not have one. The record id in the path is the
+  // giveaway that this is a listing rather than a restaurant's own site.
+  assert.strictEqual(
+    M.placeFromUrl('https://www.causeway-eats.co.uk/takeaways/clrafoiq9963n0824lm3d17g1/coast/menu'),
+    'Coast'
+  );
+  assert.strictEqual(M.placeFromUrl('https://order.foodhub.co.uk/restaurant/1043829/kebab-house'), 'Kebab House');
+  assert.strictEqual(
+    M.placeFromUrl('https://www.example-eats.com/store/3f1c8a2e-19b4-4c7d-9f2a-8b6e5d4c3a21/the-curry-house'),
+    'The Curry House'
+  );
+});
+
+test('placeFromUrl: an id on a restaurant own site does not turn the site furniture into the name', () => {
+  // Only what sits AFTER the id counts. A date or an order number on a place's own site leaves
+  // nothing after it, so the domain stays the answer rather than "Booking".
+  assert.strictEqual(M.placeFromUrl('https://thequalitychophouse.com/booking/20260813'), 'thequalitychophouse.com');
+  assert.strictEqual(M.placeFromUrl('https://franco-manca.co.uk/menus/'), 'Franco Manca');
 });
 
 test('placeFromUrl: maps and reviews links give the place', () => {
