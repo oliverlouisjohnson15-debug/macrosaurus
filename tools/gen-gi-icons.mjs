@@ -17,7 +17,8 @@ const names = Object.keys(art.icons).sort();
 const body = names.map(n => {
   const i = art.icons[n];
   if (i.d.includes("'")) throw new Error(`${n}: path contains a quote`);
-  return `  ${n}: { by: '${i.author}', of: '${i.slug}', d: '${i.d}' },`;
+  const rot = i.rot ? `, rot: ${i.rot}` : '';
+  return `  ${n}: { by: '${i.author}', of: '${i.slug}'${rot}, d: '${i.d}' },`;
 }).join('\n');
 
 const src = readFileSync(APP, 'utf8');

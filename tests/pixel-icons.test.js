@@ -168,6 +168,30 @@ test('check and star halve cleanly, because they render inline at 12px', () => {
   }
 });
 
+test('every glyph in the set is drawn by game-icons artwork', () => {
+  // Every icon the app renders now comes from game-icons.net: `PixelGlyph` checks `GI_ICONS` first
+  // and only falls through to the pixel grid for a name it does not know. So the invariant that
+  // matters is coverage - a name in the pixel set with no game-icons entry is a glyph that would
+  // silently render in the old style, which is exactly the mixed look this replaced.
+  const block = SRC.match(/const GI_ICONS = \{[\s\S]*?\n\};/);
+  assert.ok(block, 'GI_ICONS block not found in app.jsx');
+  const gi = new Set([...block[0].matchAll(/^\s{2}(\w+): \{ by:/gm)].map(m => m[1]));
+  assert.ok(gi.size >= 56, `only ${gi.size} game-icons glyphs`);
+  for (const name of Object.keys(ICONS)) {
+    assert.ok(gi.has(name), `${name} has no game-icons artwork, so it would render as pixel art`);
+  }
+});
+
+test('every game-icons glyph carries the credit it is licensed under', () => {
+  // CC BY 3.0 is an attribution licence and the Credits page is built from these fields, so a glyph
+  // without an author is a licence problem, not a cosmetic one.
+  const block = SRC.match(/const GI_ICONS = \{[\s\S]*?\n\};/)[0];
+  for (const m of block.matchAll(/^\s{2}(\w+): \{ by: '([^']*)', of: '([^']*)'/gm)) {
+    assert.ok(m[2], `${m[1]} has no author`);
+    assert.ok(m[3], `${m[1]} has no source icon name`);
+  }
+});
+
 test('the app only ever asks for a size the grid lands on', () => {
   // 24 and 48 are whole multiples of the grid; 12 is the exact half the two inline glyphs are
   // drawn for. Anything else puts the art on fractional pixels, which is what the redraw was for.
