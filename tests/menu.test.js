@@ -273,6 +273,61 @@ test('published is only ever claimed when the model says so', () => {
   });
 });
 
+// ---- browsing the whole menu ---------------------------------------------------------------------
+// The ranked six answer "what should I have?". They are the wrong tool for "what IS there?", which
+// is the question you ask when none of them appeal, or when you already know you want a burger. The
+// fetched menu arrives as text in a shape we defined, so reading it back into sections is free.
+
+const MENU_TEXT = [
+  'STARTERS',
+  '- Cullen Skink  £7.50',
+  '    Smoked haddock, potato and leek chowder',
+  '- Salt and Chilli Squid  £8.95',
+  '    With lime aioli',
+  '',
+  'MAINS',
+  '- Beer Battered Haddock  £16.50',
+  '    Hand cut chips, mushy peas, tartare',
+  '- Harbour Fish Pie',
+  '- 8oz Sirloin  £26.00',
+].join('\n');
+
+test('parseMenuText reads the fetched menu back into its courses', () => {
+  const s = M.parseMenuText(MENU_TEXT);
+  assert.strictEqual(s.length, 2);
+  // Headings arrive upper-case so the model can see the structure; shouting at someone reading a
+  // menu is a different thing entirely.
+  assert.strictEqual(s[0].name, 'Starters');
+  assert.strictEqual(s[1].name, 'Mains');
+  assert.strictEqual(s[0].items.length, 2);
+  assert.strictEqual(s[1].items.length, 3);
+  assert.deepStrictEqual(s[0].items[0], {
+    name: 'Cullen Skink', description: 'Smoked haddock, potato and leek chowder', price: '£7.50',
+  });
+  // A dish with no price is still a dish: plenty of set menus print none.
+  assert.deepStrictEqual(s[1].items[1], { name: 'Harbour Fish Pie', description: '', price: '' });
+  assert.strictEqual(M.countItems(s), 5);
+});
+
+test('parseMenuText survives a menu with no sections, and empty input', () => {
+  const s = M.parseMenuText('- Chips  £3.20\n- Curry Sauce  £1.50');
+  assert.strictEqual(s.length, 1);
+  assert.strictEqual(s[0].name, '');
+  assert.strictEqual(s[0].items.length, 2);
+  assert.strictEqual(s[0].items[1].price, '£1.50');
+  assert.deepStrictEqual(M.parseMenuText(''), []);
+  assert.deepStrictEqual(M.parseMenuText(null), []);
+  assert.strictEqual(M.countItems(null), 0);
+});
+
+test('parseMenuText does not mistake a price inside a dish name for the price', () => {
+  // "£1 Chicken Wings" is a real dish name off a real menu. The price is the one at the END, and
+  // only when it is set apart by the two spaces menuText puts there.
+  const s = M.parseMenuText('POPULAR\n- £1 Chicken Wings  £6.00\n    Pick 6, 9 or 12');
+  assert.strictEqual(s[0].items[0].name, '£1 Chicken Wings');
+  assert.strictEqual(s[0].items[0].price, '£6.00');
+});
+
 // ---- what a pasted link is worth -----------------------------------------------------------------
 // Measured against real UK restaurant pages in August 2026: fetching the page behind a link returned
 // a usable menu for NONE of sixteen tried. Chains render menus in JavaScript, aggregators 403

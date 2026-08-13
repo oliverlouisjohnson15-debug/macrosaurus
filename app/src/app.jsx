@@ -12987,6 +12987,8 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   const [est, setEst] = useState(null);
   const [ver, setVer] = useState(0);
   const [refineCount, setRefineCount] = useState(0);
+  const [browse, setBrowse] = useState(false);  // is the whole menu open under the shortlist
+  const [openSec, setOpenSec] = useState('');   // which course is expanded, '' for none
 
   /* A LINK IS A LINK WHEREVER IT WAS TYPED. This started out only reading the paste box, and that
      was wrong in the way that only shows up once someone uses it: "Where are you eating?" is the
@@ -13097,7 +13099,9 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
            the model still could not read enough of it, the prompt has it say so in `note`, which is
            rendered directly above. */
         const sentMenu = !!(text || files.length);
-        setRes(Object.assign({}, out, { menuRead: out.menuRead || sentMenu }));
+        // The menu itself is kept alongside the ranked answer, because the shortlist is not the
+        // menu and someone who does not fancy any of the six needs to be able to see the rest.
+        setRes(Object.assign({}, out, { menuRead: out.menuRead || sentMenu, sourceMenu: text || '' }));
         setAll(false); setView(rem ? 'fit' : 'protein'); setErr('');
       }
     } catch (e) { setErr('Could not read that menu: ' + e.message); }
@@ -13105,6 +13109,37 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   }
 
   function choose(s) { setPicked(s); setEst(MenuIdeas.toEstimate(s)); setRefineCount(0); setVer(v => v + 1); }
+
+  /* ---- the rest of the menu, priced only when someone actually wants it ------------------------
+     Pricing forty dishes up front would be a minute of waiting and a bill to match, for a screen
+     where thirty-nine of them will never be tapped. So the ranked six are priced in the one call
+     that already happens, and everything else is listed unpriced until it is chosen - at which point
+     it costs one small call for that dish alone.
+
+     The reply lands in exactly the shape the confirm screen already takes, so a dish picked out of
+     the browse list is indistinguishable from one picked off the shortlist from here on: same review,
+     same portion controls, same UK food-tables check, same logging. */
+  async function priceOne(item, section) {
+    setBusy('one');
+    setErr('');
+    try {
+      const where = place.trim() || (res && res.place) || linkPlace;
+      const prompt = 'Estimate the macros for ONE dish as a restaurant would serve it (eaten in England).'
+        + '\nThe dish, exactly as their menu lists it: "' + item.name + '"'
+        + (item.description ? '\nThe menu\'s own description: "' + item.description + '"' : '')
+        + (section ? '\nIt is under "' + section + '" on the menu, which tells you the course and so the likely portion.' : '')
+        + (item.price ? '\nIts menu price is ' + item.price + ', which is a clue to the size.' : '')
+        + (where ? '\nThe restaurant: ' + where + '. If that is a UK chain, use its published nutrition.' : '')
+        + '\nAssume the dish comes as described, including anything the description says it is served with.'
+        + ' Name it as the menu names it. Respond ONLY with the JSON.';
+      const est = await claudeVision(key, [], prompt, { model: AI_MODEL, maxTokens: 2500, cacheText: AI_PROMPT });
+      setPicked({ name: item.name });
+      setEst(est);
+      setRefineCount(0);
+      setVer(v => v + 1);
+    } catch (e) { setErr('Could not price that dish: ' + e.message); }
+    setBusy('');
+  }
 
   /* Correcting a dish runs through the MEAL estimator, not this one. By the time someone is typing
      "I had the large one, and chips", they are no longer choosing from a menu: they are describing a
@@ -13148,13 +13183,19 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       onCancel={() => { setEst(null); setPicked(null); }} />
     {err && <div className="text-[12px] mt-3" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
-  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : 'Reading the menu'} />;
+  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : busy === 'one' ? 'Working out that dish' : 'Reading the menu'} />;
 
   // ---- the menu, ranked ----
   if (res) {
     const ranked = MenuIdeas.rank(res.dishes, view, rem);
     const shown = all ? ranked : ranked.slice(0, SHOWN);
     const lenses = MenuIdeas.LENSES.filter(l => rem || !l.needsDay);
+    /* The menu we were given, read back into its courses. Only offered when it is meaningfully
+       bigger than the shortlist: parsing a photographed menu yields nothing useful, and a browse
+       list of five dishes next to a shortlist of six is furniture rather than an answer. */
+    const menuSections = MenuIdeas.parseMenuText(res.sourceMenu);
+    const menuCount = MenuIdeas.countItems(menuSections);
+    if (menuCount < ranked.length + 3) { menuSections.length = 0; }
     return (<div className="fade-in">
       <div className="flex items-center justify-between gap-2 mb-3">
         <button onClick={() => setRes(null)} className="hit text-[13px] flex items-center gap-1" style={{ color: 'var(--muted)' }}><Icon.arrow_left width="16" /> Back</button>
@@ -13215,6 +13256,52 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         })}
       </div>
       {ranked.length > SHOWN && <button onClick={() => setAll(v => !v)} className="w-full text-[12px] min-h-[44px] mb-2" style={{ color: 'var(--accent-ink)' }}>{all ? 'Show the top ' + SHOWN : 'Show all ' + ranked.length}</button>}
+
+      {/* THE REST OF THE MENU. Six dishes off a forty-dish menu, with the other thirty-four
+          invisible, is a shortlist presented as though it were the menu - and the moment someone
+          does not fancy any of the six, the app has nothing to say. This is the answer to "what IS
+          there?", which is a different question from "what should I have?" and deserves a different
+          shape: their courses, in their order, reading like the menu in front of them.
+
+          Deliberately unpriced until tapped. Pricing forty dishes up front is a minute of waiting
+          and a bill to match, for a screen where thirty-nine will never be chosen. */}
+      {menuSections.length > 0 && (<div className="mb-2">
+        <button onClick={() => setBrowse(v => !v)} className="w-full flex items-center justify-between gap-2 p-3" style={{ border: '2px solid var(--border)', background: browse ? 'var(--surface2)' : 'var(--card)' }}>
+          <span className="text-[12.5px] font-semibold" style={{ color: 'var(--text)' }}>
+            {browse ? 'Hide the menu' : 'None of these? Browse all ' + menuCount + ' dishes'}
+          </span>
+          <Icon.chevron width="16" style={{ transform: browse ? 'rotate(180deg)' : 'none', color: 'var(--muted)' }} />
+        </button>
+        {browse && <div className="fade-in">
+          <div className="text-[11px] leading-snug p-2.5" style={{ color: 'var(--muted)', borderLeft: '2px solid var(--border)', borderRight: '2px solid var(--border)', background: 'var(--surface2)' }}>
+            Their full menu. Tap anything and I will work out what it costs you.
+          </div>
+          {menuSections.map((sec, si) => {
+            const open = openSec === (sec.name || String(si));
+            return (<div key={sec.name + si} style={{ borderLeft: '2px solid var(--border)', borderRight: '2px solid var(--border)', borderBottom: si === menuSections.length - 1 ? '2px solid var(--border)' : 'none' }}>
+              <button onClick={() => setOpenSec(open ? '' : (sec.name || String(si)))}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left" style={{ borderTop: '2px solid var(--border)', background: 'var(--card)' }}>
+                <span className="text-[12.5px] font-semibold" style={{ color: 'var(--text)' }}>{sec.name || 'The menu'}</span>
+                <span className="tnum text-[11px]" style={{ color: 'var(--muted)' }}>{sec.items.length}</span>
+              </button>
+              {open && sec.items.map((it, ii) => (
+                <button key={it.name + ii} onClick={() => priceOne(it, sec.name)}
+                  className="w-full text-left px-3 py-2.5 block active:opacity-80" style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[12.5px] leading-snug min-w-0" style={{ color: 'var(--text)' }}>{it.name}</span>
+                    {/* Their price, exactly as they printed it. It is not a macro and we do nothing
+                        arithmetic with it - it is how someone recognises the thing they were about
+                        to order. */}
+                    {it.price && <span className="tnum text-[11.5px] shrink-0" style={{ color: 'var(--muted)' }}>{it.price}</span>}
+                  </div>
+                  {it.description && <div className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--muted)' }}>{it.description}</div>}
+                </button>
+              ))}
+            </div>);
+          })}
+        </div>}
+      </div>)}
+
       <div className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
         Pick one to check the numbers and log it. When the food turns up, open it in your diary and tap Update with a photo to settle it properly.
       </div>

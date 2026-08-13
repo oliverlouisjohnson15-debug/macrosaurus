@@ -315,6 +315,59 @@
     };
   }
 
+  /* ---- the whole menu, for when none of the six are what you fancy -----------------------------
+     The ranked shortlist answers "what should I have?", which is the question most people arrive
+     with. It is the wrong tool for "what IS there?" - and that is the question you ask when none of
+     the six appeal, or when you already know you want a burger, or when you are deciding between a
+     starter and a pudding rather than between six mains. Six dishes off a forty-dish menu, with the
+     other thirty-four invisible, is a shortlist presented as if it were the menu.
+
+     So the fetched menu is parsed back into its sections and shown underneath. This costs nothing:
+     menu-fetch already sent the text in a shape we defined, so this is reading our own format rather
+     than parsing the web again, and it needs no second call, no second wait and no AI at all.
+
+     Prices are kept as the string the restaurant printed. They are not macros and we do nothing
+     arithmetic with them - but "£6.50" next to a dish is how a person recognises the thing they were
+     about to order, and dropping it would make our menu look less like their menu. */
+  function parseMenuText(text) {
+    var lines = String(text || '').split('\n');
+    var out = [], cur = null, last = null;
+    for (var i = 0; i < lines.length; i++) {
+      var raw = lines[i];
+      if (!raw || !raw.trim()) continue;
+      // A description is indented under the dish it belongs to; anything else is a dish or a heading.
+      if (/^\s{4,}\S/.test(raw) && last) { last.description = (last.description ? last.description + ' ' : '') + raw.trim(); continue; }
+      var line = raw.trim();
+      var item = line.match(/^-\s+(.*)$/);
+      if (!item) {
+        // A heading. Title-cased for display: the text carries them upper-case so the model can see
+        // the structure, and SHOUTING AT SOMEONE reading a menu is a different thing entirely.
+        if (line.length > 60) continue;
+        cur = { name: titleCase(line.toLowerCase()), items: [] };
+        out.push(cur);
+        last = null;
+        continue;
+      }
+      var body = item[1];
+      var price = '';
+      var pm = body.match(/\s{2,}(£[\d.,]+)\s*$/);
+      if (pm) { price = pm[1]; body = body.slice(0, pm.index).trim(); }
+      if (!body) continue;
+      if (!cur) { cur = { name: '', items: [] }; out.push(cur); }
+      last = { name: body, description: '', price: price };
+      cur.items.push(last);
+    }
+    return out.filter(function (s) { return s.items.length; });
+  }
+
+  // How many dishes are actually on offer, for the one line that tells someone the shortlist is not
+  // the whole story.
+  function countItems(sections) {
+    var n = 0;
+    for (var i = 0; i < (sections || []).length; i++) n += (sections[i].items || []).length;
+    return n;
+  }
+
   /* Ranking, on the device. Nothing is ever REMOVED here, only ordered: a dish that busts the day is
      still on the menu, and someone who wants it is entitled to see what it costs rather than have
      the app decide on their behalf that they did not mean it. */
@@ -396,7 +449,8 @@
 
   var MenuIdeas = {
     LENSES: LENSES, lens: lens, remaining: remaining, brief: brief, placeFromUrl: placeFromUrl,
-    normalise: normalise, rank: rank, impact: impact, toEstimate: toEstimate, totalOf: totalOf
+    normalise: normalise, rank: rank, impact: impact, toEstimate: toEstimate, totalOf: totalOf,
+    parseMenuText: parseMenuText, countItems: countItems
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = MenuIdeas;
   root.MenuIdeas = MenuIdeas;
