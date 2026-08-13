@@ -9307,6 +9307,7 @@ const GI_ICONS = {
   bolt: {
     by: 'badges',
     of: 'bolt',
+    box: '0 0 256 256',
     d: 'M101.265 58.881h53.377l-28.835 51.29 53.1 5.232-78.643 81.716 24.95-62.497-48.121-5.661z'
   },
   calendar: {
@@ -9439,11 +9440,13 @@ const GI_ICONS = {
   heart_empty: {
     by: 'badges',
     of: 'heart',
+    box: '0 0 256 256',
     d: 'M128 204c16-24 68-78 68-94 0-24-20-39.824-36-40-16 0-32 10-32 30 0-20-16-30-32-30-16-.176-36 16-36 40 0 16 52 70 68 94z'
   },
   heart_full: {
     by: 'badges',
     of: 'heart',
+    box: '0 0 256 256',
     d: 'M128 204c16-24 68-78 68-94 0-24-20-39.824-36-40-16 0-32 10-32 30 0-20-16-30-32-30-16-.176-36 16-36 40 0 16 52 70 68 94z'
   },
   info: {
@@ -9494,6 +9497,7 @@ const GI_ICONS = {
   plus: {
     by: 'badges',
     of: 'plus',
+    box: '0 0 256 256',
     d: 'M119 64v55H64v18h55v55h18v-55h55v-18h-55V64h-18z'
   },
   recipe: {
@@ -9529,6 +9533,7 @@ const GI_ICONS = {
   star: {
     by: 'badges',
     of: 'star',
+    box: '0 0 256 256',
     d: 'M128 53.524l-17.354 51.819-54.646.492 43.92 32.518-16.418 52.123L128 158.754l44.498 31.722-16.418-52.123L200 105.835l-54.646-.492z'
   },
   sun: {
@@ -9590,9 +9595,13 @@ function PixelGlyph({
     // same amount, in one place, rather than second-guessing 161 call sites.
     // ...but only where the icon sits beside something. At 32px and up it is a hero in its own
     // box - the add button, an empty state - and the inset just makes it timid.
-    const pad = s >= 32 ? 0 : 52;
+    // The box is per glyph: most of the library is drawn on 512, the badges/* family on 256, and
+    // assuming one of them renders the other at half scale in a corner.
+    const side = gi.box ? +gi.box.split(' ')[2] : 512;
+    const pad = s >= 32 ? 0 : Math.round(side * 0.1);
+    const mid = side / 2;
     return /*#__PURE__*/React.createElement("svg", {
-      viewBox: -pad + ' ' + -pad + ' ' + (512 + pad * 2) + ' ' + (512 + pad * 2),
+      viewBox: -pad + ' ' + -pad + ' ' + (side + pad * 2) + ' ' + (side + pad * 2),
       width: s,
       height: s,
       fill: color || 'currentColor',
@@ -9606,7 +9615,7 @@ function PixelGlyph({
       }, style)
     }, title ? /*#__PURE__*/React.createElement("title", null, title) : null, /*#__PURE__*/React.createElement("path", {
       d: gi.d,
-      transform: gi.rot ? 'rotate(' + gi.rot + ' 256 256)' : undefined
+      transform: gi.rot ? 'rotate(' + gi.rot + ' ' + mid + ' ' + mid + ')' : undefined
     }));
   }
   const g = PX_ICONS[kind] || PX_ICONS.dino;

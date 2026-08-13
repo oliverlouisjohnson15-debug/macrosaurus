@@ -72,10 +72,11 @@ for (const [name, [slug, rot]] of Object.entries(MAP)) {
     ? readFileSync(file, 'utf8')
     : await (await fetch(`${RAW}${author}/${slug}.svg`)).text();
   writeFileSync(file, svg);
+  const box = (svg.match(/viewBox="([^"]+)"/) || [])[1] || '0 0 512 512';
   const paths = [...svg.matchAll(/<path([^>]*)d="([^"]+)"/g)]
-    .map(m => m[2]).filter(d => !/^M0 0h512v512H0z$/.test(d.trim()));
+    .map(m => m[2]).filter(d => !/^M0 0h(512v512|256v256)H0z$/.test(d.trim()));
   if (!paths.length) { missing.push(`${name} -> ${slug} (no artwork path)`); continue; }
-  icons[name] = { author, slug, d: paths.join(' ') };
+  icons[name] = { author, slug, box, d: paths.join(' ') };
   if (rot) icons[name].rot = rot;
 }
 
@@ -84,7 +85,7 @@ writeFileSync('design-exports/game-icons.json', JSON.stringify({
     source: 'https://game-icons.net',
     repo: 'https://github.com/game-icons/icons',
     licence: 'CC BY 3.0',
-    viewBox: '0 0 512 512',
+    note2: 'Each glyph carries its own viewBox: most are 512, the badges/* family is 256.',
     note: 'Artwork as delivered. Background plate removed; paths inherit currentColor. `rot` turns a drawing about the centre of the box, so one arrow serves several directions. Authors are credited in the app.',
   },
   icons,
