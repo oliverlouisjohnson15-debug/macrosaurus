@@ -506,9 +506,24 @@
     var note = dish.tweak
       ? (dish.description ? dish.description + ' ' + dish.tweak : dish.tweak)
       : dish.description;
+    /* The ranking call no longer returns a component breakdown, and that is a deliberate trade: it
+       was over half the reply, for seven dishes out of eight that nobody goes on to pick, and it is
+       what made reading a menu take the best part of a minute. So a dish arrives as its totals, and
+       becomes ONE item here - the plate as ordered.
+
+       Nothing downstream loses its footing: the confirm screen sums items, so a single item sums to
+       the same numbers that were on the card, and scaling the portion still works exactly as it did.
+       The one thing that goes is editing a component in isolation, and the route to that is already
+       there and better - "tell the AI what's wrong" re-estimates the dish properly, with the parts
+       broken out, at the point where somebody actually cares about them. */
+    var items = dish.items.length ? dish.items : [{
+      name: dish.name, grams: 0, kcal: dish.kcal,
+      protein_g: dish.protein_g, carbs_g: dish.carbs_g, fat_g: dish.fat_g, fiber_g: dish.fiber_g,
+      satfat_g: dish.satfat_g, sugars_g: dish.sugars_g, salt_g: dish.salt_g, assumption: ''
+    }];
     return {
       name: dish.name,
-      items: dish.items.map(function (it) {
+      items: items.map(function (it) {
         return {
           name: it.name, grams: it.grams, kcal: it.kcal,
           protein_g: it.protein_g, carbs_g: it.carbs_g, fat_g: it.fat_g, fiber_g: it.fiber_g,

@@ -273,6 +273,35 @@ test('published is only ever claimed when the model says so', () => {
   });
 });
 
+test('toEstimate: a dish with no breakdown still becomes a whole plate', () => {
+  // The ranking call stopped returning components: it was over half the reply, for seven dishes out
+  // of eight nobody picks. The confirm screen sums items, so one item has to carry the dish exactly
+  // or the numbers would visibly change the moment it opened.
+  const dish = M.normalise({ dishes: [{ name: 'Beer Battered Haddock', kcal: 980, protein_g: 44, carbs_g: 92, fat_g: 46, fiber_g: 7, satfat_g: 9, sugars_g: 4, salt_g: 3.1 }] }).dishes[0];
+  assert.strictEqual(dish.items.length, 0);
+  const est = M.toEstimate(dish);
+  assert.strictEqual(est.items.length, 1);
+  assert.strictEqual(est.items[0].name, 'Beer Battered Haddock');
+  assert.strictEqual(est.kcal, 980);
+  // The sum of the items must equal the headline, or the confirm screen contradicts the card.
+  const t = M.totalOf(est.items);
+  assert.strictEqual(t.kcal, 980);
+  assert.strictEqual(t.protein_g, 44);
+  assert.strictEqual(t.salt_g, 3.1);
+});
+
+test('toEstimate: a breakdown is still used when one is given', () => {
+  // The single-dish path and the photo estimator both still return components.
+  const dish = M.normalise({ dishes: [{ name: 'Fish and chips', items: [
+    { name: 'Haddock', grams: 200, kcal: 460, protein_g: 30 },
+    { name: 'Chips', grams: 250, kcal: 520, protein_g: 8 },
+  ] }] }).dishes[0];
+  const est = M.toEstimate(dish);
+  assert.strictEqual(est.items.length, 2);
+  assert.strictEqual(est.kcal, 980);
+  assert.strictEqual(est.items[1].grams, 250);
+});
+
 // ---- browsing the whole menu ---------------------------------------------------------------------
 // The ranked six answer "what should I have?". They are the wrong tool for "what IS there?", which
 // is the question you ask when none of them appeal, or when you already know you want a burger. The

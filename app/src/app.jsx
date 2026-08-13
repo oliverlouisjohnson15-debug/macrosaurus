@@ -7713,9 +7713,16 @@ const ITEMS = {
 function DinoLoader({ label }) {
   const cr = CR_BY_ID['carbo'] || CREATURES[1];
   const text = String(label || 'Working').replace(/[.…\s]+$/, '');
-  // Safety net: if a fetch hangs, say so instead of hopping forever with no way out.
+  /* Safety net: if a fetch hangs, say so instead of hopping forever with no way out.
+
+     This used to fire at ten seconds, which was below the MEDIAN for every reasoning call the app
+     makes - a menu read averages a couple of thousand output tokens and those are generated one at a
+     time, so half a minute is the honest cost, not a fault. The warning was therefore nearly always
+     wrong, which is worse than not having one: it taught people that the app is broken whenever it
+     is merely thinking, and it would have been the first thing they distrusted on the day something
+     really did hang. Twenty-five seconds is past where a normal call lands and short of giving up. */
   const [slow, setSlow] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setSlow(true), 10000); return () => clearTimeout(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 25000); return () => clearTimeout(t); }, []);
   return (
     <div className="flex flex-col items-center justify-center py-10 fade-in">
       <div className="dino-hop"><Sprite art={cr.art} colors={cr.colors} px={7} /></div>
