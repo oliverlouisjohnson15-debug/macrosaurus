@@ -29,7 +29,9 @@ const twCss = read('.build/tw.css').trim();
 // train.jsx sits AFTER app.jsx: everything it exposes is a function declaration, which hoists across
 // the whole concatenated script, so app.jsx can render <TrainTab/> while train.jsx is free to use
 // app.jsx's `const` helpers (Icon, Card, Pill, Field) at call time.
-const APP_SOURCES = ['app/src/prompts.jsx', 'app/src/app.jsx', 'app/src/train.jsx'];
+// sprite-manifest.js is GENERATED (tools/gen-anim.mjs) and must come first: it is a `const`, which
+// does not hoist, and app.jsx reads it at module scope.
+const APP_SOURCES = ['app/src/sprite-manifest.js', 'app/src/prompts.jsx', 'app/src/app.jsx', 'app/src/train.jsx'];
 const appSrc = APP_SOURCES.map(f => '/* ---- ' + f + ' ---- */\n' + read(f)).join('\n');
 const transpiled = transformSync(appSrc, {
   presets: [['@babel/preset-react', { runtime: 'classic' }]],

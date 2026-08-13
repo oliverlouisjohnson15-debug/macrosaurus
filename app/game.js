@@ -917,6 +917,82 @@
     return { weeks: weeks, remainingKg: Math.round(remaining * 10) / 10 };
   }
 
+  /* ---------- what the buddy is doing ----------
+     One place decides which animation plays. It used to be four: a DAY_FLOURISH table in the
+     terrarium, buddyStageSprite for the egg, the fight's own switch and the avatar's default, each
+     with its own idea of what to do when a strip was missing. Splitting the DECISION (here, pure and
+     tested) from the RESOLUTION (the component, which knows what art the chosen species actually
+     has) means a new animation is a line in a table rather than a change in four components.
+
+     `rest` is what plays continuously; `flourish` is the occasional one-shot the terrarium breaks
+     the rest with. A resting animation that IS the situation (asleep, stuffed) suppresses the
+     flourish - a buddy on its back should stay on its back, not periodically jog on the spot. */
+  var DAY_FLOURISH = {
+    hungry: 'scan',    // nothing logged: it is looking for food. The ask, without a word.
+    open: 'move',      // part-fed, loop still open: alive, unbothered, not nagging.
+    done: 'cheer',     // the day's loop closed: the reaction to what you just did.
+    back: 'dash',      // first day back after a lapse: glad to see you.
+    full: null,        // over on calories: the `coma` rest below already says it.
+  };
+  // Every animation degrades to something that exists, so a missing strip never stalls a rotation
+  // waiting for an onEnd that cannot fire. Walked until a strip is present; 'idle' always is.
+  var ANIM_FALLBACK = {
+    cheer: 'jump', eat: 'move', carry: 'move', wake: 'idle', sleep: 'idle', coma: 'idle',
+    sad: 'idle', talk: 'idle', blink: 'idle', nod: 'idle', shake: 'idle', tilt: 'idle',
+    point: 'idle', wave: 'idle', yawn: 'idle', dash: 'move', move: 'idle', scan: 'idle', jump: 'idle',
+  };
+  // The chain a requested animation degrades along, ending at 'idle'. Cycle-safe.
+  function animChain(anim) {
+    var out = [], seen = {}, cur = anim || 'idle';
+    while (cur && !seen[cur]) { seen[cur] = 1; out.push(cur); cur = ANIM_FALLBACK[cur]; }
+    if (out.indexOf('idle') === -1) out.push('idle');
+    return out;
+  }
+  /* NIGHT is not the same thing as `asleep`. `asleep` is the LAPSE state from buddyView: the buddy
+     naps at its best-ever stage after a broken streak and wakes after WAKE_DAYS, and the copy that
+     goes with it says so ("I wake up when there is something to eat"). Night is just the hour on the
+     clock, carries no judgement, and must never reach buddyMood or the coach line - a buddy that
+     told you at 10pm on a perfect day that you had lapsed would be lying. Only the animation
+     changes. */
+  var NIGHT_FROM = 22, NIGHT_TO = 6;
+  function isNight(hour) {
+    var h = typeof hour === 'number' ? hour : new Date().getHours();
+    return h >= NIGHT_FROM || h < NIGHT_TO;
+  }
+  /* st: { asleep, night, sad, stuffed, speaking, asking, pointing, dayState, reaction }.
+     Returns the resting animation, the flourish to break it with, the micro-idle, and whether the
+     buddy should hold still.
+
+     The FLOURISH slot is where the buddy responds to what is on screen next to it. An unanswered
+     question gets `tilt` and a message with a button gets `point`, both ahead of the ambient
+     day-state flourish, because a buddy that tilts its head at you while its own question sits
+     unanswered underneath it is doing something a caption cannot: it is waiting for you.
+
+     MICRO is a separate, faster channel for `blink` alone. The pose is only an eye closing, which is
+     too small to spend a 7-15s flourish slot on and too frequent to share one. Design built the hold
+     into the frame order (five open frames, one shut), so it plays as a one-shot and lands as a
+     single blink rather than a flutter. Only ever over a plain idle: a sleeping buddy has its eye
+     shut already, and blinking through a chomp would fight the animation that matters. */
+  function buddyAnim(st) {
+    st = st || {};
+    var out = function (rest, opts) {
+      opts = opts || {};
+      return { rest: rest, flourish: opts.flourish || null, micro: opts.micro || null,
+        still: !!opts.still, once: !!opts.once };
+    };
+    // A reaction outranks the night on purpose: log a late dinner and the buddy gets up, eats it and
+    // settles back. The one moment the eat animation exists for is not one to sleep through.
+    if (st.reaction) return out(st.reaction, { once: true });
+    if (st.asleep || st.night) return out('sleep', { still: true });
+    // Paused or genuinely lapsed. Deliberately NOT "you had a bad day": see design-plans/17.
+    if (st.sad) return out('sad', { still: true });
+    if (st.stuffed) return out('coma', { still: true });
+    // Speaking is a rest, not a one-shot: the jaw moves for as long as the line is fresh.
+    if (st.speaking) return out('talk');
+    var fl = st.asking ? 'tilt' : st.pointing ? 'point' : (DAY_FLOURISH[st.dayState || 'open'] || null);
+    return out('idle', { flourish: fl, micro: 'blink' });
+  }
+
   var Game = {
     shiftISO: shiftISO,
     daysBetween: daysBetween,
@@ -1025,6 +1101,13 @@
     goalMilestone: goalMilestone,
     trendRatePerWeek: trendRatePerWeek,
     goalETA: goalETA,
+    DAY_FLOURISH: DAY_FLOURISH,
+    NIGHT_FROM: NIGHT_FROM,
+    NIGHT_TO: NIGHT_TO,
+    isNight: isNight,
+    ANIM_FALLBACK: ANIM_FALLBACK,
+    buddyAnim: buddyAnim,
+    animChain: animChain,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Game;

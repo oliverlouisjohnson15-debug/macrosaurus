@@ -6438,14 +6438,17 @@ function Sprite({ art, colors, px = 6 }) {
    one strip with a single frame-count-agnostic CSS keyframe (`sprite-play` in styles.css):
    translateX(-100%) of the strip's own width, stepped into `frames` whole-frame jumps. This is the
    ONE rich, animated element inside the otherwise-pixel UI. */
-const SPRITE_FRAMES = {
-  base: { idle: 3, move: 6, jump: 4, dash: 6, bite: 3, kick: 3, avoid: 3, hurt: 4, scan: 6, dead: 5 },
-  egg: { crack: 4, hatch: 4, move: 4 },
-  ghost: { idle: 3, move: 4 },
-};
-// The male palettes of these species are missing idle/move/dash/hurt/kick; the customize step uses
-// this to hide those species+palette combos so we never request a 404 strip.
-const SPRITE_INCOMPLETE_MALE = ['doux', 'mort', 'tard', 'vita'];
+// Frame counts, playback hints and per-variant gaps all come from SPRITE_MANIFEST, which
+// tools/gen-anim.mjs generates by reading the PNGs themselves. This used to be three hand-written
+// constants describing files on disk from memory, which is a claim that silently goes stale every
+// time the art changes; now adding an animation is a regenerate, not an edit in two places.
+function spriteFrames(group, anim) { return SPRITE_MANIFEST.frames[group + '/' + anim] || 1; }
+function spriteMeta(group, anim) { return SPRITE_MANIFEST.meta[group + '/' + anim] || null; }
+// The four species whose male colourway never shipped a body: no idle to sample, so the forge
+// cannot generate for them either. Derived rather than listed, so it stays true as art lands.
+const SPRITE_INCOMPLETE_MALE = Object.keys(SPRITE_MANIFEST.missing)
+  .filter(v => v.startsWith('male/') && (SPRITE_MANIFEST.missing[v] || []).includes('base/idle'))
+  .map(v => v.slice(5));
 // The 12 buddy species from the art pack, offered in the hatch/customize step. Labels are cosmetic
 // (the user names their own buddy); every species has a complete 'female' colourway, so grid
 // thumbnails use it and spritePalettes() decides which colourways a given species can offer.
@@ -6457,14 +6460,15 @@ const SPRITE_SPECIES = [
 ];
 function spritePalettes(species) { return SPRITE_INCOMPLETE_MALE.includes(species) ? ['female'] : ['female', 'male']; }
 function spriteHasAnim(palette, species, group, anim) {
-  if (palette === 'male' && group === 'base' && SPRITE_INCOMPLETE_MALE.includes(species)
-    && ['idle', 'move', 'dash', 'hurt', 'kick'].includes(anim)) return false;
-  return !!((SPRITE_FRAMES[group] || {})[anim]);
+  const strip = group + '/' + anim;
+  if (!SPRITE_MANIFEST.frames[strip]) return false;
+  const gaps = SPRITE_MANIFEST.missing[palette + '/' + species];
+  return !(gaps && gaps.includes(strip));
 }
 // One animated 24x24 sprite. `px` is the integer pixel scale (rendered size = 24*px square).
 // loop=false plays once and fires onEnd (used for the hatch sequence and one-shot reactions).
 function SpriteSheet({ palette = 'female', species = 'doux', group = 'base', anim = 'idle', px = 5, fps = 6, loop = true, onEnd, className, style }) {
-  const frames = (SPRITE_FRAMES[group] || {})[anim] || 1;
+  const frames = spriteFrames(group, anim);
   const size = 24 * px;
   const dur = Math.max(0.1, frames / fps);
   const url = '/sprites/' + palette + '/' + species + '/' + group + '/' + anim + '.png';
@@ -6498,7 +6502,7 @@ function buddyStageSprite(stageIndex, buddy) {
         its terrarium as it grows. Non-integer scales are fine: SpriteSheet renders image-rendering:
         pixelated, so the art stays crisp.
      2. MOVEMENT. Each stage idles with its own occasional one-shot flourish, drawn from animations
-        SPRITE_FRAMES.base already ships. A hatchling hops, the middle stages pace and dash, the apex
+        the art pack already ships. A hatchling hops, the middle stages pace and dash, the apex
         scans the horizon.
    Stage 0 is the egg and is excluded from both: it has its own sprite group and should not grow. */
 const STAGE_PX = [1, 0.72, 0.82, 0.92, 1, 1.12];
@@ -6522,13 +6526,23 @@ const BUDDY_IDLE_FPS = 5;
    is doing now, not what rank it holds.
    Keyed on the day instead. Every strip here already ships with the sprite pack (idle, move, dash,
    jump, scan, and the combat frames the Fight uses); Today was drawing one of them. */
-const DAY_FLOURISH = {
-  hungry: 'scan',     // nothing logged: it is looking for food. The ask, without a word.
-  open: 'move',       // part-fed, loop still open: alive, unbothered, not nagging.
-  done: 'jump',       // the day's loop closed: the reaction to what you just did.
-  back: 'dash',       // first day back after a lapse: glad to see you.
-  full: null,         // over on calories: stuffed, going nowhere. Stillness IS the state.
-};
+// DAY_FLOURISH and the rest of the decision now live in Game.buddyAnim (game.js), where they are
+// unit-tested. What stays here is RESOLUTION: which of those animations this particular species and
+// colourway actually owns. Walks Game.animChain until a strip exists, so a buddy on one of the
+// four incomplete male colourways degrades (cheer -> jump -> idle) instead of stalling on a 404.
+// Two fallbacks, because a variant can be short of BOTH. Walk the animation chain first (cheer ->
+// jump -> idle); if this colourway owns none of it, drop to the female colourway, which is complete
+// for every species - the same escape the fight arena has always used for the four male bodies that
+// never shipped. Without that second step male/doux resolves 'eat' to 'idle', which it also lacks,
+// and the buddy renders as a 404: an empty box where the character should be.
+function resolveSprite(palette, species, anim, group) {
+  const g = group || 'base';
+  const tries = palette === 'female' ? ['female'] : [palette, 'female'];
+  for (const pal of tries) {
+    for (const a of Game.animChain(anim)) if (spriteHasAnim(pal, species, g, a)) return { palette: pal, anim: a };
+  }
+  return { palette: 'female', anim: 'idle' };
+}
 const FLOURISH_MIN_MS = 7000;     // at most one flourish per 7s, so it reads as ambient not busy
 const FLOURISH_JITTER_MS = 8000;  // plus jitter, so two buddies on one screen never march in step
 function prefersReducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } }
@@ -6537,17 +6551,67 @@ function prefersReducedMotion() { try { return window.matchMedia('(prefers-reduc
 // pass true when the strip actually exists for this palette (see spriteHasAnim), because a flourish
 // that never renders would never fire onEnd and the rotation would stall on a sprite it cannot show.
 // Honours prefers-reduced-motion, which the terrarium's bob and shadow already respect in CSS.
-function useIdleFlourish(anim, active) {
+/* One-shot reactions. Anything in the app can ask the buddy to react to what just happened -
+   `buddyReact('eat')` when a meal is logged, 'cheer' when Amber lands - and the terrarium plays it
+   once, then returns to whatever the intent layer says the buddy should be doing now.
+   A QUEUE rather than a flag: reactions arrive from independent handlers and two in the same second
+   would otherwise race, with the second silently lost. Capped, because a burst of six logged items
+   should read as one acknowledgement and not six seconds of chewing. */
+const BUDDY_REACT = { subs: [] };
+const REACT_QUEUE_MAX = 2;
+function buddyReact(anim) { BUDDY_REACT.subs.forEach(fn => fn(anim)); }
+// Under ?demo only: fire a reaction by hand from the console, so a pose can be checked in its real
+// home (the terrarium, at its real size, over the real background) without having to reproduce the
+// state that triggers it. MBUDDYREACT('eat'), MBUDDYREACT('cheer').
+if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')) window.MBUDDYREACT = buddyReact;
+function useBuddyReaction() {
+  const [queue, setQueue] = useState([]);
+  useEffect(() => {
+    const fn = (anim) => setQueue(q => (q.length >= REACT_QUEUE_MAX || q[q.length - 1] === anim ? q : q.concat(anim)));
+    BUDDY_REACT.subs.push(fn);
+    return () => { const i = BUDDY_REACT.subs.indexOf(fn); if (i >= 0) BUDDY_REACT.subs.splice(i, 1); };
+  }, []);
+  /* Draining is keyed on WHICH animation finished, so it is idempotent. Two things can report a
+     reaction over - the sprite's own animationend and the watchdog below - and an unconditional
+     slice would let them consume two reactions between them, swallowing the next one. */
+  const done = useCallback((anim) => setQueue(q => (!q.length || (anim && q[0] !== anim) ? q : q.slice(1))), []);
+  return { reaction: queue[0] || null, reactionDone: done };
+}
+function useIdleFlourish(anim, active, minMs, jitterMs) {
   const move = active ? (anim || null) : null;
   const [playing, setPlaying] = useState(false);
+  const lo = minMs || FLOURISH_MIN_MS, jit = jitterMs == null ? FLOURISH_JITTER_MS : jitterMs;
   useEffect(() => {
     if (!move) { setPlaying(false); return; }
     if (playing || prefersReducedMotion()) return;   // on screen now, or motion is off: nothing to arm
-    const t = setTimeout(() => setPlaying(true), FLOURISH_MIN_MS + Math.random() * FLOURISH_JITTER_MS);
+    const t = setTimeout(() => setPlaying(true), lo + Math.random() * jit);
     return () => clearTimeout(t);
-  }, [move, playing]);
+  }, [move, playing, lo, jit]);
   const on = playing && !!move;
   return { anim: on ? move : 'idle', loop: !on, onEnd: on ? () => setPlaying(false) : undefined };
+}
+// The MICRO channel: a blink every few seconds over a plain idle. Same machinery as the flourish,
+// tuned to a human blink rate rather than an ambient-gesture rate.
+const BLINK_MIN_MS = 3000, BLINK_JITTER_MS = 3500;
+/* A line is "fresh" for SPEAK_MS after it changes, and the buddy's jaw moves for exactly that long.
+   Looping `talk` for as long as a message is on screen would leave it flapping at a sentence you
+   read ten minutes ago, which reads as a glitch; stopping makes the movement mean "this just got
+   said". Keyed on the text so a genuinely new line speaks again and a re-render does not. */
+const SPEAK_MS = 3000;
+function useSpeaking(text) {
+  const [speaking, setSpeaking] = useState(false);
+  const first = useRef(true);
+  useEffect(() => {
+    if (!text) { setSpeaking(false); return; }
+    // Do not speak the line that was already on screen when the card mounted: arriving mid-sentence
+    // is not the same event as being told something.
+    if (first.current) { first.current = false; return; }
+    if (prefersReducedMotion()) return;
+    setSpeaking(true);
+    const t = setTimeout(() => setSpeaking(false), SPEAK_MS);
+    return () => clearTimeout(t);
+  }, [text]);
+  return speaking;
 }
 // The buddy in the fight arena, using its real animated sprite (bite/hurt/dead/idle). Species/palette
 // default to doux/female exactly like the buddy avatar everywhere else, so even legacy accounts (which
@@ -7279,7 +7343,14 @@ function StatusStrip({ stats, streak }) {
 function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, away }) {
   const st = BUDDY_STAGES[Math.min(buddy.stage, BUDDY_STAGES.length - 1)];
   const asleep = bp.mood === 'asleep' || buddy.asleep;
-  const stuffed = !asleep && bp.mood === 'stuffed';
+  /* `stuffed` keys off dayState, NOT off the mood. buddyMood ranks 'content' above 'stuffed', so a
+     day that went over calories but hit its protein returned 'content' and the coma pose never
+     played on exactly the kind of big day it was drawn for. dayState.full is the honest test: over
+     on calories, whatever else went right. */
+  const stuffed = !asleep && bp.dayState === 'full';
+  // Paused, not lapsed. The buddy is downcast because the account is on hold, which is a state the
+  // user chose and can undo, and never because a single day went badly.
+  const sad = !asleep && !!db.paused;
   const mood = MOOD_META[bp.mood] || MOOD_META.content;
   const incubating = !!(db.buddy && db.buddy.hatched === false);
   const eq = equippedCosmetics(db.buddy);
@@ -7304,6 +7375,18 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
   const bare = !!(msg && !(msg.primary && msg.primary.onClick) && !(msg.secondary && msg.secondary.onClick)
     && !msg.weigh && !(msg.choices || []).length);
   const speaking = !!(msg || (incubating && tasks));
+  /* ASKING vs POINTING. An ask is a question the buddy put to you and is now waiting on: a weigh-in
+     field, a row of day choices, or a yes/no pair. Pointing is the weaker case - it has said
+     something and there is one button to press. Both are read off the message the box is already
+     rendering rather than a new flag, so a new rung in buddyMessage gets the right gesture without
+     anyone remembering to label it. */
+  const asking = !incubating && !!(msg && (msg.weigh || (msg.choices || []).length
+    || (msg.primary && msg.primary.onClick && msg.secondary && msg.secondary.onClick)));
+  const pointing = !incubating && !asking && !!(msg && msg.primary && msg.primary.onClick);
+  /* Answering gets an answer back. `nod` for yes, `shake` for "not now" - the two poses Design drew
+     for exactly this, wrapped around the handlers the box already had so the reaction cannot drift
+     out of step with what the button actually does. */
+  const answered = (fn, anim) => fn ? () => { buddyReact(anim); fn(); } : fn;
   /* THE ACCENT RING LIVES ON THIS CARD NOW. It used to ring the macro card, from when that card was
      the page's one hero. The buddy box carries the day's figures in its status strip and is the
      thing the page is built around, so the ring follows the hero rather than staying where the hero
@@ -7356,8 +7439,12 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
       </div>
       <div className="relative">
         <button onClick={onOpenPlay} aria-label="Open Buddy and Play" className="block w-full text-left" style={{ lineHeight: 0 }}>
+          {/* `asking` and `pointing` are what the sprite knows about the box directly beneath it:
+              a question still to answer, or a line with a button on it. They drive the tilt and the
+              point, which is what turns a picture above a caption into something addressing you. */}
           <BuddyScene buddy={db.buddy} stageIndex={buddy.stage} px={WORLD_PX} w="100%" h={WORLD_H} terrarium away={away}
-            floor={WORLD_FLOOR} plant shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} dayState={bp.dayState} />
+            floor={WORLD_FLOOR} plant shadowW={44} eq={eq} asleep={asleep} stuffed={stuffed} sad={sad}
+            dayState={bp.dayState} say={msg && !incubating ? msg.text : null} asking={asking} pointing={pointing} />
         </button>
         {/* THE FALLBACK, and only that. buddyMessage's ladder is total - buddyRest cannot return
             null - so a hatched buddy always has a box and an incubating one always has its hatch
@@ -7387,18 +7474,18 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
         <div className="text-base">{msg.text}</div>
         {msg.meter && <div className="mt-2"><PipMeter value={msg.meter.pct} target={100} color={msg.meter.color} small overIsFine /></div>}
         {/* The weigh-in answers itself: the scale number goes in on the spot. */}
-        {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={msg.weigh.onSave} />}
+        {msg.weigh && <WeighInline unit={msg.weigh.unit} seedKg={msg.weigh.seedKg} onSave={answered(msg.weigh.onSave, 'nod')} />}
         {/* A wider set of one-tap answers (the weekly weigh day) than primary/secondary allows. */}
         {msg.choices && msg.choices.length > 0 && (
           // One row, however many answers: a week of days must not wrap onto a stray second line.
           <div className="grid gap-1 mt-2" style={{ gridTemplateColumns: 'repeat(' + msg.choices.length + ', minmax(0, 1fr))' }}>
-            {msg.choices.map(c => <button key={c.label} onClick={c.onClick} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[8px]">{c.label}</span></button>)}
+            {msg.choices.map(c => <button key={c.label} onClick={answered(c.onClick, 'nod')} className="pixel-btn py-2 px-0" style={{ background: 'var(--surface2)' }}><span className="pf text-[8px]">{c.label}</span></button>)}
           </div>
         )}
         {((msg.primary && msg.primary.onClick) || (msg.secondary && msg.secondary.onClick)) && (
           <div className="flex gap-2 mt-2">
-            {msg.primary && msg.primary.onClick && <button onClick={msg.primary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
-            {msg.secondary && msg.secondary.onClick && <button onClick={msg.secondary.onClick} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
+            {msg.primary && msg.primary.onClick && <button onClick={answered(msg.primary.onClick, 'nod')} className="pixel-btn py-1.5 px-3 text-[8px] pf inline-flex items-center gap-1.5" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{msg.primary.label} ›</button>}
+            {msg.secondary && msg.secondary.onClick && <button onClick={answered(msg.secondary.onClick, 'shake')} className="pixel-btn py-1.5 px-3 text-[8px] pf" style={{ background: 'var(--surface2)' }}>{msg.secondary.label}</button>}
           </div>
         )}
       </>, kind)}
@@ -7987,18 +8074,74 @@ function TerrariumCanvas({ h, still, scene }) {
     style={{ width: '100%', height: h, imageRendering: 'pixelated', display: 'block' }} />;
 }
 
-function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, shadowW, eq, asleep, stuffed, dayState, className, style, terrarium, away }) {
+/* The buddy sleeps on the clock, not only on a lapse. Re-checked once a minute rather than read once
+   at render: the app is a PWA that people leave open on the counter, and a buddy that only noticed
+   bedtime when you happened to tap something would stay wide awake all night on the one screen most
+   likely to be sitting there. A minute is far finer than the hour boundary it is watching for, and
+   the state only changes twice a day, so React re-renders on the transition and not on the tick. */
+function useNight() {
+  const [night, setNight] = useState(() => Game.isNight());
+  useEffect(() => {
+    const check = () => setNight(Game.isNight());
+    const id = setInterval(check, 60000);
+    // A phone does not run timers reliably while the app is backgrounded, and this is a PWA people
+    // reopen rather than reload. Without the visibility check, opening it at 11pm after leaving it on
+    // screen at teatime shows a wide-awake buddy until the next tick fires.
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', check); window.removeEventListener('focus', check); };
+  }, []);
+  return night;
+}
+function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, shadowW, eq, asleep, stuffed, sad, dayState, say, asking, pointing, className, style, terrarium, away }) {
   const s = buddyStageSprite(stageIndex, buddy);
   const scene = (eq && eq.scene) ? SCENE_ART[eq.scene] : null;
   const prop = (eq && eq.prop) ? PROP_ART[eq.prop] : null;
-  const still = !!asleep;                      // a nap is the only thing that stops the buddy moving
+  const night = useNight();
+  // The egg does not keep hours: it is incubating, and a sleeping egg is just an egg.
+  const dozing = !!asleep || (night && s.group === 'base');
+  const still = dozing;                        // sleep is the only thing that stops the buddy moving
   const grown = s.group === 'base';            // the egg neither grows nor flourishes
-  const move = grown ? (DAY_FLOURISH[dayState || 'open'] || null) : null;
-  // Only arm the flourish when this palette genuinely has the strip, so the rotation can't stall on a
-  // sprite that would never render (some male colourways are missing the locomotion frames).
-  const canFlourish = !!(move && !still && spriteHasAnim(s.palette, s.species, 'base', move));
-  const fl = useIdleFlourish(move, canFlourish);
+  // WHAT the buddy is doing is decided in one tested place (Game.buddyAnim); what it can SHOW is
+  // resolved here, against the art this particular species and colourway actually owns.
+  const { reaction, reactionDone } = useBuddyReaction();
+  const speaking = useSpeaking(grown ? say : null);
+  const intent = Game.buddyAnim({ asleep, night: night && grown, sad, stuffed, speaking, asking, pointing,
+    dayState, reaction: grown ? reaction : null });
+  const rest = grown ? resolveSprite(s.palette, s.species, intent.rest) : { palette: s.palette, anim: s.anim };
+  const restAnim = rest.anim;
+  const flAnim = grown && intent.flourish ? resolveSprite(s.palette, s.species, intent.flourish).anim : null;
+  // A flourish that degraded all the way to idle is not a flourish: don't arm the rotation for it, or
+  // it would wait forever for an onEnd that a looping idle never fires.
+  const canFlourish = !!(flAnim && flAnim !== 'idle' && !intent.still && !intent.once);
+  const fl = useIdleFlourish(canFlourish ? flAnim : null, canFlourish);
   const flourishing = fl.anim !== 'idle';
+  // The blink sits UNDER the flourish: it fills the quiet between gestures, and two one-shots
+  // competing for the same sprite would cut each other off mid-frame.
+  const microAnim = grown && intent.micro ? resolveSprite(s.palette, s.species, intent.micro).anim : null;
+  const canBlink = !!(microAnim && microAnim !== 'idle' && !intent.still && !intent.once && !flourishing);
+  const mi = useIdleFlourish(canBlink ? microAnim : null, canBlink, BLINK_MIN_MS, BLINK_JITTER_MS);
+  const blinking = mi.anim !== 'idle';
+  const playAnim = intent.once ? restAnim : (flourishing ? fl.anim : blinking ? mi.anim : restAnim);
+  const playMeta = spriteMeta('base', playAnim);
+  // A blink plays at its own authored rate, not the flourish's 8fps: the whole pose is one eye
+  // closing, and rushing it turns a blink into a twitch.
+  const playFps = intent.once ? (playMeta ? playMeta.fps : 8)
+    : (flourishing ? 8 : (playMeta ? playMeta.fps : s.fps));
+  const holdStill = still || intent.still;     // a sleeping or stuffed buddy does not bob
+  /* WATCHDOG. A one-shot reaction ends when the sprite fires animationend - except when it doesn't.
+     The browser drops the event if the element is offscreen or the tab is backgrounded when the
+     animation completes, and because the sprite is keyed on the animation NAME, a stuck reaction can
+     never replay to fire a second one: the buddy freezes mid-pose until something unrelated
+     re-renders it. Seen in testing, holding a `nod` indefinitely after answering a question.
+     So the timer is the authority and the event is the fast path. Both call the same idempotent
+     drain, so whichever lands first wins and the other is a no-op. */
+  useEffect(() => {
+    if (!intent.once || !playAnim) return;
+    const ms = Math.round((spriteFrames('base', playAnim) / (playFps || 8)) * 1000) + 400;
+    const t = setTimeout(() => reactionDone(reaction), ms);
+    return () => clearTimeout(t);
+  }, [intent.once, playAnim, playFps, reaction, reactionDone]);
   const scale = grown ? stageScale(stageIndex) : 1;
   const size = px * scale;
   // Pin the shadow to the sprite's real foot line (and shrink it with the sprite), so the two move
@@ -8043,7 +8186,7 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, s
           </>
         : <div className="absolute left-0 right-0 bottom-0" style={{ height: floor, background: scene ? scene.ground : 'var(--scene-ground)', borderTop: '2px solid ' + (scene ? scene.line : 'var(--scene-line)') }} />}
       {/* The prop stands ON the floor, behind the buddy, and dims with it when the buddy is asleep. */}
-      {prop && <div className="absolute" style={{ left: (prop.at * 100) + '%', bottom: Math.max(2, floor - 6), transform: 'translateX(-50%)', opacity: asleep ? 0.45 : 0.9, lineHeight: 0 }}>
+      {prop && <div className="absolute" style={{ left: (prop.at * 100) + '%', bottom: Math.max(2, floor - 6), transform: 'translateX(-50%)', opacity: dozing ? 0.45 : 0.9, lineHeight: 0 }}>
         <Sprite art={prop.art} colors={prop.colors} px={prop.px} />
       </div>}
       {/* AWAY. Foraging is only worth anything if the buddy is genuinely gone, so the world renders
@@ -8052,17 +8195,26 @@ function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, s
       {!away && <>
         <div className={'absolute' + (still ? '' : ' buddy-shadow-breathe')} style={{ left: '50%', bottom: Math.round(footY - SHADOW_H / 2), width: Math.round(shadowW * scale), height: SHADOW_H, transform: 'translateX(-50%)', background: scene ? '#000' : 'var(--border)', opacity: 0.5, borderRadius: '50%' }} />
         <div className="absolute" style={Object.assign({ left: '50%', bottom: spriteY, transform: 'translateX(-50%)' },
-          asleep ? { filter: 'grayscale(0.85)', opacity: 0.5 } : stuffed ? { filter: 'saturate(0.9)' } : null)}>
-          {/* Bobbing is the resting state; while a flourish plays, the animation itself carries the motion. */}
-          <div className={'inline-block leading-none' + (still || flourishing ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
-            <SpriteSheet key={flourishing ? fl.anim : s.anim} palette={s.palette} species={s.species} group={s.group}
-              anim={flourishing ? fl.anim : s.anim} px={size} fps={flourishing ? 8 : s.fps}
-              loop={!flourishing} onEnd={fl.onEnd} />
+          // A real sleep pose carries the state now, so the old heavy grey-out (which existed to say
+          // "asleep" over a wide-awake idle) drops to a gentle night dim.
+          dozing ? (restAnim === 'sleep' ? { filter: 'saturate(0.75) brightness(0.9)' } : { filter: 'grayscale(0.85)', opacity: 0.5 })
+            : stuffed ? { filter: 'saturate(0.9)' } : null)}>
+          {/* Bobbing is the resting state; while a flourish or a reaction plays, the animation itself
+              carries the motion. */}
+          <div className={'inline-block leading-none' + (holdStill || flourishing || intent.once ? '' : ' buddy-bob')} style={{ filter: auraFilter(eq) || undefined }}>
+            <SpriteSheet key={playAnim} palette={rest.palette} species={s.species} group={s.group}
+              anim={playAnim} px={size} fps={playFps}
+              loop={!flourishing && !blinking && !intent.once}
+              onEnd={intent.once ? () => reactionDone(reaction) : flourishing ? fl.onEnd : mi.onEnd} />
           </div>
         </div>
       </>}
-      {asleep && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb-ink)' }}>Zz</span>}
-      {stuffed && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--warn)' }}>z</span>}
+      {/* The "Zz" and "z" text badges are gone: both states are now animations that say it themselves
+          (sleep draws its own drifting Z, coma is flat on its back), and a label on top of a pose
+          that already reads is the box-soup this screen keeps being cleaned of. They come back only
+          for a buddy whose colourway lacks the strip and is therefore resting on plain idle. */}
+      {dozing && restAnim !== 'sleep' && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--carb-ink)' }}>Zz</span>}
+      {stuffed && restAnim !== 'coma' && <span className="pf absolute" style={{ top: 5, right: 6, fontSize: 9, color: 'var(--warn)' }}>z</span>}
     </div>
   );
 }
@@ -8885,6 +9037,9 @@ function FightModal({ db, update, streak, onClose, embedded }) {
   const [log, setLog] = useState([]); const [winner, setWinner] = useState(null); const [drops, setDrops] = useState([]);
   const [lungeA, setLungeA] = useState(false); const [lungeB, setLungeB] = useState(false);
   const [pop, setPop] = useState(null); const [shake, setShake] = useState(false); const [intro, setIntro] = useState(false);
+  // Which fighter just slipped a blow ('a' the buddy, 'b' the enemy, null nobody), and the round
+  // parity that alternates bite with kick so a long bout is not one frame over and over.
+  const [dodged, setDodged] = useState(null); const [strikeRound, setStrikeRound] = useState(0);
   const rewarded = useRef(false); const timers = useRef([]);
   const effRef = useRef(null);          // buddy's effective stats for the current fight (type/weakness applied)
   const [lastMult, setLastMult] = useState(1);
@@ -8922,6 +9077,9 @@ function FightModal({ db, update, streak, onClose, embedded }) {
       const atk = aAtk ? my : rv, def = aAtk ? rv : my;
       const defAbil = aAtk ? rv.ability : my.ability;
       if (defAbil === 'dodge' && Math.random() < 0.22) {
+        // The dodge has existed in the engine since the fight was built and has only ever been a
+        // line of text. `avoid` is the pose for it, and it was already in the bought pack.
+        setDodged(aAtk ? 'b' : 'a'); const dt = setTimeout(() => setDodged(null), 420); timers.current.push(dt);
         setLog(l => [(aAtk ? opp.name : fighter.name) + ' darts aside!', ...l].slice(0, 5));
       } else {
         let dmg = Math.max(3, atk.atk - Math.round(def.def / 2) + rnd(7));
@@ -8930,6 +9088,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
         const big = dmg >= 22;
         const hitTxt = big ? 'CRUNCH!' : (round % 3 === 0 ? 'CHOMP!' : round % 3 === 1 ? 'SMASH!' : 'THWACK!');
         if (big) { setShake(true); const shk = setTimeout(() => setShake(false), 320); timers.current.push(shk); }
+        setStrikeRound(round);
         if (aAtk) { d2 = Math.max(0, d2 - dmg); setHpB(d2); setLungeA(true); const lt = setTimeout(() => setLungeA(false), 350); timers.current.push(lt); setPop({ side: 'r', text: hitTxt, num: dmg, big, id: round }); }
         else { a = Math.max(0, a - dmg); setHpA(a); setLungeB(true); const lt = setTimeout(() => setLungeB(false), 350); timers.current.push(lt); setPop({ side: 'l', text: hitTxt, num: dmg, big, id: round }); }
         const nm = aAtk ? fighter.name : opp.name;
@@ -8980,8 +9139,13 @@ function FightModal({ db, update, streak, onClose, embedded }) {
   );
   // The buddy's combat animation, driven by the auto-battle state: it bites when it strikes, flinches
   // when hit, faints on a loss and bounces on a win. (Falls back to a static pose for legacy buddies.)
-  const buddyAnim = winner === 'them' ? 'dead' : winner === 'you' ? 'jump' : lungeA ? 'bite' : lungeB ? 'hurt' : 'idle';
-  const enemyAnim = winner === 'you' ? 'dead' : winner === 'them' ? 'jump' : lungeB ? 'bite' : lungeA ? 'hurt' : 'idle';
+  // Strikes alternate bite/kick on round parity; a dodged blow plays `avoid` on the defender instead
+  // of `hurt`, because nothing landed. Both strips shipped with the pack and neither had a job.
+  const strike = strikeRound % 2 === 0 ? 'bite' : 'kick';
+  const buddyAnim = winner === 'them' ? 'dead' : winner === 'you' ? 'jump'
+    : dodged === 'a' ? 'avoid' : lungeA ? strike : lungeB ? 'hurt' : 'idle';
+  const enemyAnim = winner === 'you' ? 'dead' : winner === 'them' ? 'jump'
+    : dodged === 'b' ? 'avoid' : lungeB ? strike : lungeA ? 'hurt' : 'idle';
   // Each fighter is a unit: the sprite with an oval shadow pinned to its feet, so it always stands ON
   // its shadow no matter where the unit sits in the ring (fixes the sprites floating off the platforms).
   const Stage = ({ px, shadowW, children }) => (
@@ -10379,14 +10543,37 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     if (!(db.log_entries || []).some(e => e.date === today)) return;
     if ((db.amber_ledger || []).some(e => e.id === key)) return;
     update(d => { d.amber_ledger = d.amber_ledger || []; if (d.amber_ledger.some(e => e.id === key)) return; d.amber_ledger.push({ id: key, date: today, delta: Game.AMBER_REWARDS.dailyLog, reason: 'Logged today' }); });
+    buddyReact('cheer');
     if (showToast) showToast(((db.buddy && db.buddy.name) || 'Your buddy') + ' found ' + Game.AMBER_REWARDS.dailyLog + ' Amber for today’s log', 'Shop', () => onOpenPlay && onOpenPlay());
   }, [db.log_entries, today]);
+  /* THE ARRIVAL. Once a day, the buddy notices you turning up, and what it does depends on when you
+     came and how you slept: a stretch first thing, a yawn after a bad night, a wave the rest of the
+     day. Gated on a stored date rather than a mount, because this component remounts on every tab
+     change and a buddy that waved each time you came back from Food would be a tic, not a greeting.
+     Deliberately silent: no toast, no card, nothing to dismiss. It is the one moment in the app that
+     exists purely to be noticed rather than acted on. */
+  // NB the incubating test is computed here rather than reusing `eggIncubating`, which is declared
+  // further down this component: a dependency array is evaluated during render, so naming a `const`
+  // from below it throws on its temporal dead zone and blanks the entire app with no console error.
+  const hatchedYet = !(db.buddy && db.buddy.hatched === false);
+  useEffect(() => {
+    if (!hatchedYet) return;
+    if ((db.profile || {}).greetedDate === today) return;
+    const h = new Date().getHours();
+    const slept = (readinessInputsFor(db, today) || {}).sleepScore;
+    // 60 is the bottom of the app's "Steady" band: below it the night genuinely was poor, and the
+    // yawn is a remark about the night rather than a comment on the person.
+    const tired = h < 12 && isFinite(slept) && slept < 60;
+    buddyReact(tired ? 'yawn' : h < 10 ? 'wake' : 'wave');
+    update(d => { d.profile = d.profile || {}; d.profile.greetedDate = today; });
+  }, [today, hatchedYet]);
   // Trophy award pass: mint any newly-earned achievement trophies (idempotent via game_awards) + toast.
   useEffect(() => {
     const ga = db.game_awards || {};
     const earned = TROPHIES.filter(t => !ga['trophy:' + t.id] && t.earned(db, { streak, isPremium }));
     if (!earned.length) return;
     update(d => { d.game_awards = d.game_awards || {}; earned.forEach(t => { if (!d.game_awards['trophy:' + t.id]) d.game_awards['trophy:' + t.id] = today; }); });
+    buddyReact('cheer');
     if (showToast) showToast(earned.length === 1 ? 'Trophy unlocked: ' + earned[0].name : earned.length + ' new trophies unlocked', 'See', () => onOpenPlay && onOpenPlay());
   }, [streak, isPremium, today, db.log_entries, db.buddy && db.buddy.stage, db.fight && db.fight.prestige]);
   // PERSONAL BESTS: say it the moment a finished week beats one. Rewarding improvement rather than
@@ -10408,6 +10595,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
       d.game_awards[checked] = today;
       beaten.forEach(x => { d.game_awards['best:' + last.weekKey + ':' + x.key] = today; });
     });
+    if (beaten.length) buddyReact('cheer');
     if (beaten.length && showToast) {
       const top = beaten[0];
       showToast('Best week yet · ' + BEST_LABEL[top.key].label.toLowerCase() + ' ' + top.value + '/7', 'Bests', () => onOpenPlay && onOpenPlay());
@@ -10623,6 +10811,9 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
             showToast && showToast(((db.buddy && db.buddy.name) || 'Your buddy') + ' has gone foraging. Back in a few hours.');
           }
         : a === 'forage_claim' ? () => {
+            // It walks back in with the bag. `carry` is the only animation drawn for a specific
+            // moment in a specific loop, and this is that moment.
+            buddyReact('carry');
             const key = 'amber:forage:' + today;
             update(d => {
               d.buddy = d.buddy || { stage: 0 };
@@ -15835,6 +16026,61 @@ let _saveTimer = null;
 // Demo mode: ?demo seeds a local sample account and bypasses sign-in. It NEVER touches the cloud
 // (cloudSave is a hard no-op below), so real accounts are completely unaffected. For previews + tests.
 const DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
+const SPRITE_LAB = DEMO && new URLSearchParams(window.location.search).has('sprites');
+/* The sprite lab (?demo&sprites). Every strip a variant owns, playing at its real frame rate, at
+   both review size and the size it actually ships at - because the two disagree more often than not,
+   and the gap is where "this reads as a chomp" turns into "this reads as a flicker". Switch species
+   and colourway to check a pose survives being recoloured: the forge derives 20 variants from one
+   drawing, so a pose that only works in green is a pose that is wrong. */
+function SpriteLab() {
+  const [species, setSpecies] = useState('olaf');
+  const [palette, setPalette] = useState('female');
+  const [px, setPx] = useState(5);
+  const strips = Object.keys(SPRITE_MANIFEST.frames)
+    .filter(s => spriteHasAnim(palette, species, s.split('/')[0], s.split('/')[1]))
+    .sort();
+  const missing = (SPRITE_MANIFEST.missing[palette + '/' + species] || []).length;
+  return (
+    <div className="min-h-screen p-4" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
+      <div className="pf text-[13px] mb-1">Sprite lab</div>
+      <div className="text-[11px] mb-3" style={{ color: 'var(--ink-dim)' }}>
+        {strips.length} strips for {palette}/{species}{missing ? ' (' + missing + ' missing, falls back to female)' : ''}
+      </div>
+      <div className="flex gap-2 flex-wrap mb-3">
+        <select className="pixel-box px-2 py-1 text-[11px]" value={species} onChange={e => setSpecies(e.target.value)}
+          style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>
+          {SPRITE_SPECIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+        <select className="pixel-box px-2 py-1 text-[11px]" value={palette} onChange={e => setPalette(e.target.value)}
+          style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>
+          <option value="female">female</option><option value="male">male</option>
+        </select>
+        <button className="pixel-box px-2 py-1 text-[11px]" onClick={() => setPx(p => (p >= 7 ? 3 : p + 1))}
+          style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>scale {px}x</button>
+      </div>
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))' }}>
+        {strips.map(strip => {
+          const [group, anim] = strip.split('/');
+          const meta = spriteMeta(group, anim);
+          return (
+            <div key={strip} className="pixel-box p-2 flex flex-col items-center gap-1" style={{ background: 'var(--surface2)' }}>
+              <div className="buddy-scene flex items-end justify-center" style={{ height: 24 * 7 + 8, width: '100%' }}>
+                <SpriteSheet palette={palette} species={species} group={group} anim={anim}
+                  px={px} fps={meta ? meta.fps : 6} loop={true} />
+              </div>
+              <SpriteSheet palette={palette} species={species} group={group} anim={anim}
+                px={1} fps={meta ? meta.fps : 6} loop={true} />
+              <div className="pf text-[10px] text-center">{anim}</div>
+              <div className="text-[9px]" style={{ color: 'var(--ink-dim)' }}>
+                {group} · {spriteFrames(group, anim)}f{meta ? ' · ' + meta.fps + 'fps' : ''}{meta && meta.loop === false ? ' · once' : ''}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 // Stable stringify (keys sorted at every level) so a merged state can be compared against the copy
 // already in the cloud. Postgres returns jsonb in its own key order, so a plain JSON.stringify would
 // report "changed" on every save even when nothing did. Anything it can't represent canonicalises to
@@ -17765,6 +18011,11 @@ function Paywall({ reason, onCheckout, onClose }) {
   );
 }
 function App() {
+  // ?demo&sprites - the sprite lab. Reviewing animation from static PNGs is guesswork: a pose can
+  // look right in a contact sheet and read as a twitch in motion, at the size it actually ships at.
+  // Returned before any hook runs, and the flag cannot change within a session, so the hook order
+  // stays consistent.
+  if (SPRITE_LAB) return <SpriteLab />;
   const [session, setSession] = useState(undefined);
   const [db, setDb] = useState(null);
   const [view, setView] = useState('dashboard');
@@ -18202,7 +18453,11 @@ function App() {
      toast's Undo puts back exactly what was there. */
   function addEntry(date, mealId, item, replaceIds) {
     const entryId = Store.uid();
-    if (date === Store.todayISO()) LAST_MEAL = { id: mealId, t: Date.now() };
+    // The most repeated action in the app finally gets an answer from the character it feeds. Only
+    // for today: back-filling Tuesday's lunch on Thursday is bookkeeping, not a meal, and a buddy
+    // that chews over it is reacting to the wrong thing. The queue collapses repeats, so logging a
+    // six-ingredient recipe reads as one acknowledgement.
+    if (date === Store.todayISO()) { LAST_MEAL = { id: mealId, t: Date.now() }; buddyReact('eat'); }
     const macros = normalizeMacros(item.macros, item.is_alcohol);
     const swapIds = (replaceIds || item.replaceIds || []).filter(Boolean);
     const swapped = swapIds.length ? JSON.parse(JSON.stringify(db.log_entries.filter(e => swapIds.indexOf(e.id) !== -1))) : [];

@@ -48,6 +48,8 @@
     newToTracking: false,   // set at onboarding; true = the buddy runs its teaching curriculum
     lessonState: { seen: [], lastAck: null }, // curriculum progress: lesson keys learnt + last ack date
     readAckDate: null,      // ISO date the buddy's morning read was dismissed, so it shows once a day
+    greetedDate: null,      // ISO date the buddy last greeted an arrival (wave/wake/yawn), so the
+                            // hello happens once a day and not on every render or tab switch
     premiumSince: null,     // ISO date the current Premium run began; null while free. Bounds how far
                             // back food-quality scoring will fill in missing nutrients, so nothing
                             // logged as a free user is ever rewritten (see useNutrientBackfill).
