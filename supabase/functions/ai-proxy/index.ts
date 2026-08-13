@@ -273,6 +273,16 @@ Deno.serve(async (req) => {
   if (toolChoice) anthBody.tool_choice = toolChoice;
   if (system) anthBody.system = system;
   if (thinking) anthBody.thinking = thinking;
+  /* STREAMING. The app is output-bound - a menu read generates a couple of thousand tokens one at a
+     time - so the wait is real and no amount of prompt trimming removes it entirely. What CAN be
+     removed is the part where the person sits in front of a hopping dinosaur with no evidence that
+     anything is happening, and then everything appears at once. Streamed, the first dish lands in a
+     few seconds and the rest fill in behind it.
+
+     Every gate above still runs first and unchanged: signed in, model allowed, tier and fair-use
+     checked. Streaming only changes how the answer comes BACK. */
+  const wantsStream = payload?.stream === true;
+  if (wantsStream) anthBody.stream = true;
 
   // Forward to Anthropic with the SERVER key.
   let aRes: Response;
@@ -284,6 +294,64 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     return json({ error: { message: 'Upstream AI request failed: ' + (e as Error).message } }, 502);
+  }
+
+  /* A streamed reply is handed straight back to the browser as it arrives, while a tee watches it go
+     past. The accounting is the reason for the tee: usage arrives INSIDE the stream (input tokens in
+     message_start, output tokens in message_delta), so without reading it we would bill nothing and
+     log nothing, and the fair-use ceiling would quietly stop meaning anything. Nothing is buffered -
+     each chunk is forwarded first and inspected second - so the tee costs the person no latency,
+     which was the entire point of streaming in the first place. */
+  if (wantsStream && aRes.ok && aRes.body) {
+    let acc = '', sseBuf = '', inTok = 0, outTok = 0;
+    const dec = new TextDecoder();
+    const settle = async () => {
+      const price = PRICES[model];
+      const c = inTok * price.in + outTok * price.out;
+      try {
+        if (hop === 0) await admin.rpc('add_ai_usage', { p_user: userId, p_period: period, p_cost: c });
+        else await admin.rpc('add_ai_spend', { p_user: userId, p_period: period, p_cost: c });
+        if (c > 0) await admin.rpc('add_ai_usage_model', { p_user: userId, p_period: period, p_model: model, p_cost: c });
+        if (usedBonus) await admin.rpc('consume_referral_bonus', { p_user: userId });
+      } catch (_) { /* non-fatal */ }
+      try {
+        if (feature !== 'bodyfat') {
+          await admin.from('ai_logs').insert({
+            user_id: userId, feature, model,
+            prompt: String(prompt || '').slice(0, 20000),
+            result: String(acc || '').slice(0, 20000),
+            input_tokens: inTok || null, output_tokens: outTok || null, cost_usd: c || null,
+            image_count: images.length, images: images.slice(0, 6),
+            status: acc ? 'ok' : 'error',
+          });
+        }
+      } catch (_) { /* logging must never affect the response */ }
+    };
+    const tee = new TransformStream({
+      transform(chunk, ctl) {
+        ctl.enqueue(chunk);                       // forward FIRST, always
+        sseBuf += dec.decode(chunk, { stream: true });
+        const lines = sseBuf.split('\n');
+        sseBuf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          let ev: any;
+          try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+          if (ev.type === 'message_start') inTok = Number(ev.message?.usage?.input_tokens) || 0;
+          else if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') acc += ev.delta.text || '';
+          else if (ev.type === 'message_delta') outTok = Number(ev.usage?.output_tokens) || outTok;
+        }
+      },
+      flush() {
+        // @ts-ignore EdgeRuntime is provided by the Supabase edge runtime
+        if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) EdgeRuntime.waitUntil(settle());
+        else settle();
+      },
+    });
+    return new Response(aRes.body.pipeThrough(tee), {
+      status: 200,
+      headers: { ...cors, 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' },
+    });
   }
 
   const data = await aRes.json();

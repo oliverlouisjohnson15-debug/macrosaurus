@@ -315,6 +315,41 @@
     };
   }
 
+  /* ---- reading a reply that has not finished arriving --------------------------------------------
+     The reply is one JSON object and the dishes are an array inside it, so for most of the wait the
+     text on the wire is a truncated document that no JSON parser will touch. But each dish inside
+     that array IS complete the moment its closing brace lands, and a dish someone can already read
+     is worth more than a screen of nothing.
+
+     So this walks the partial text, finds "dishes":[ and pulls out every balanced {...} after it,
+     ignoring braces inside strings. Whatever it returns is fed through the same normalise() as the
+     finished reply, so a dish shown early is the same object it will be at the end - no re-render
+     with different numbers, and no shape the rest of the app has not already seen. */
+  function partialDishes(text) {
+    var s = String(text || '');
+    var at = s.indexOf('"dishes"');
+    if (at === -1) return [];
+    var start = s.indexOf('[', at);
+    if (start === -1) return [];
+    var out = [], depth = 0, from = -1, inStr = false, esc = false;
+    for (var i = start + 1; i < s.length; i++) {
+      var c = s.charAt(i);
+      if (esc) { esc = false; continue; }
+      if (c === '\\') { esc = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === '{') { if (depth === 0) from = i; depth++; }
+      else if (c === '}') {
+        depth--;
+        if (depth === 0 && from !== -1) {
+          try { out.push(JSON.parse(s.slice(from, i + 1))); } catch (e) { /* not a dish yet */ }
+          from = -1;
+        }
+      } else if (c === ']' && depth === 0) break;
+    }
+    return out;
+  }
+
   /* ---- the whole menu, for when none of the six are what you fancy -----------------------------
      The ranked shortlist answers "what should I have?", which is the question most people arrive
      with. It is the wrong tool for "what IS there?" - and that is the question you ask when none of
@@ -545,7 +580,7 @@
   var MenuIdeas = {
     LENSES: LENSES, lens: lens, remaining: remaining, brief: brief, placeFromUrl: placeFromUrl,
     normalise: normalise, rank: rank, impact: impact, toEstimate: toEstimate, totalOf: totalOf,
-    parseMenuText: parseMenuText, countItems: countItems,
+    parseMenuText: parseMenuText, countItems: countItems, partialDishes: partialDishes,
     FOOD_TYPES: FOOD_TYPES, menuTypes: menuTypes, filterMenu: filterMenu
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = MenuIdeas;

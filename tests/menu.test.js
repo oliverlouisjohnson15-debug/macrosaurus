@@ -302,6 +302,45 @@ test('toEstimate: a breakdown is still used when one is given', () => {
   assert.strictEqual(est.items[1].grams, 250);
 });
 
+// ---- reading a reply that has not finished arriving ------------------------------------------------
+// Streamed, the reply is a truncated JSON document for most of the wait, and no parser will touch it.
+// Each dish inside the array is complete the moment its closing brace lands, though, and a dish
+// someone can already read beats a screen of nothing.
+
+test('partialDishes pulls finished dishes out of a half-arrived reply', () => {
+  const head = '{"place":"Coast","menu_read":true,"note":"","dishes":[';
+  const one = '{"name":"Cullen Skink","kcal":420,"protein_g":22}';
+  const two = '{"name":"Beer Battered Haddock","kcal":980,"protein_g":44}';
+  // Nothing usable yet.
+  assert.deepStrictEqual(M.partialDishes(head), []);
+  // One complete dish, the second still being written.
+  assert.deepStrictEqual(M.partialDishes(head + one + ',{"name":"Beer Batt').map(d => d.name), ['Cullen Skink']);
+  // Both, still unterminated overall.
+  assert.deepStrictEqual(M.partialDishes(head + one + ',' + two).map(d => d.name), ['Cullen Skink', 'Beer Battered Haddock']);
+  // And the finished document reads the same.
+  assert.strictEqual(M.partialDishes(head + one + ',' + two + ']}').length, 2);
+});
+
+test('partialDishes is not fooled by braces inside a dish description', () => {
+  // A why or a description can legitimately contain braces and quotes; counting them as structure
+  // would cut a dish in half and show half a name.
+  const s = '{"dishes":[{"name":"Curry","why":"Rich {and} \\"proper\\" heat","kcal":700},{"name":"Rice"';
+  const got = M.partialDishes(s);
+  assert.deepStrictEqual(got.map(d => d.name), ['Curry']);
+  assert.strictEqual(got[0].why, 'Rich {and} "proper" heat');
+});
+
+test('partialDishes gives nothing rather than guessing', () => {
+  assert.deepStrictEqual(M.partialDishes(''), []);
+  assert.deepStrictEqual(M.partialDishes(null), []);
+  assert.deepStrictEqual(M.partialDishes('{"place":"Coast"'), []);
+  // What it returns must survive normalise, since that is what the screen actually renders.
+  const dishes = M.partialDishes('{"dishes":[{"name":"Chips","kcal":540,"protein_g":6,"carbs_g":70,"fat_g":26}');
+  const clean = M.normalise({ dishes: dishes });
+  assert.strictEqual(clean.dishes.length, 1);
+  assert.strictEqual(clean.dishes[0].kcal, 540);
+});
+
 // ---- browsing the whole menu ---------------------------------------------------------------------
 // The ranked six answer "what should I have?". They are the wrong tool for "what IS there?", which
 // is the question you ask when none of them appeal, or when you already know you want a burger. The

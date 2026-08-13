@@ -1884,6 +1884,66 @@ async function aiRequest(body, opts) {
   }
   return j;
 }
+/* The same request, streamed. Returns the assembled reply in exactly the shape aiRequest returns, so
+   a caller that does not care about progress is unaffected, and calls `onText` with the running text
+   as it arrives for one that does.
+
+   Worth being clear about what this does and does not buy: the model still generates at the same
+   speed, so the total wait is unchanged. What changes is that the wait stops being a blank one. The
+   first dish can be on screen in a few seconds instead of everything landing at once at the end, and
+   that is the difference between "this is thinking" and "this is broken".
+
+   Any failure falls back to the ordinary request rather than breaking the feature: a proxy that has
+   not been updated, an old browser without streams, a response that arrives as plain JSON anyway. */
+async function aiRequestStream(body, opts) {
+  opts = opts || {};
+  const sess = supa ? (await supa.auth.getSession()).data.session : null;
+  const token = sess && sess.access_token;
+  if (!token) throw new Error('Please sign in to use AI features.');
+  const think = body.thinking || thinkingFor(body.model);
+  const payload = Object.assign({}, body, think ? { thinking: think } : null, { stream: true });
+
+  let res;
+  try {
+    res = await fetch(AI_PROXY, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) { return aiRequest(body, opts); }
+
+  const ctype = (res.headers.get('content-type') || '').toLowerCase();
+  if (!res.ok || ctype.indexOf('event-stream') === -1 || !res.body || !res.body.getReader) {
+    // Not a stream: either an error the normal path knows how to route (paywall, fair use), or a
+    // proxy that does not stream yet. Either way the ordinary request handles it properly.
+    return aiRequest(body, opts);
+  }
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', text = '', stop = '';
+  for (;;) {
+    const r = await reader.read();
+    if (r.done) break;
+    buf += dec.decode(r.value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.indexOf('data:') !== 0) continue;
+      let ev;
+      try { ev = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+      if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') {
+        text += ev.delta.text || '';
+        if (opts.onText) { try { opts.onText(text); } catch (e) { /* a progress render must never break the call */ } }
+      } else if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason;
+      else if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || 'AI error');
+    }
+  }
+  if (!text.trim()) return aiRequest(body, opts);
+  return { content: [{ type: 'text', text: text }], stop_reason: stop };
+}
+
 // ---- Google Health steps sync (client half) -------------------------------------------------
 // The Google secret lives only in the edge function. Here we run the PKCE OAuth redirect, then hand
 // the returned one-time code to the proxy, which exchanges it and returns step counts. Steps only.
@@ -2262,7 +2322,7 @@ async function buddyChatReply(db, history, runTool) {
 const MENU_IMG_MAX = 1568;
 const MENU_PDF_MAX_BYTES = 4.5 * 1024 * 1024;
 function isPdfFile(f) { return !!f && ((f.type || '').indexOf('pdf') !== -1 || /\.pdf$/i.test(f.name || '')); }
-async function menuIdeasRequest(files, brief) {
+async function menuIdeasRequest(files, brief, onProgress) {
   // Static instructions first and cached, so reading a second menu, or the same one again after a
   // better photo, hits the prompt cache rather than paying for the contract twice.
   const content = [{ type: 'text', text: MENU_IDEAS_PROMPT, cache_control: { type: 'ephemeral' } }];
@@ -2283,7 +2343,17 @@ async function menuIdeasRequest(files, brief) {
   content.push({ type: 'text', text: brief });
   // A deadline, because this is the one AI call someone makes while standing in a restaurant with a
   // waiter next to them: several menu pages on a phone connection is exactly the request that hangs.
-  const j = await aiRequest({ model: AI_MODEL, max_tokens: 4000, messages: [{ role: 'user', content }] }, { timeoutMs: 120000 });
+  /* Streamed, with the dishes handed up as they finish so the screen can fill in rather than sit
+     blank for the whole generation. `onDish` is optional; without it this behaves exactly as before. */
+  const j = await aiRequestStream(
+    { model: AI_MODEL, max_tokens: 4000, messages: [{ role: 'user', content }] },
+    {
+      timeoutMs: 120000,
+      onText: onProgress ? (text => {
+        try { onProgress(MenuIdeas.normalise({ dishes: MenuIdeas.partialDishes(text) }).dishes); } catch (e) { /* keep streaming */ }
+      }) : null,
+    }
+  );
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
   return MenuIdeas.normalise(parseModelJSON(txt));
@@ -13090,6 +13160,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   const [refineCount, setRefineCount] = useState(0);
   const [browse, setBrowse] = useState(false);  // is the whole menu open under the shortlist
   const [openSec, setOpenSec] = useState('');   // which course is expanded, '' for none
+  const [streamed, setStreamed] = useState(0);  // dishes that have arrived so far, while streaming
   const [q, setQ] = useState('');               // what they are looking for
   const [ftype, setFtype] = useState('');       // which kind of food they fancy, '' for all
 
@@ -13192,7 +13263,10 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         mealName: mealName, remaining: rem, note: note.trim(),
         menuText: text, menuFrom: text && text === g.menu ? linkHost : '', hasImages: files.length > 0
       });
-      const out = await menuIdeasRequest(files, brief);
+      // Dishes arrive one at a time now, so the count can be shown filling in rather than the
+      // person watching a dinosaur hop for half a minute with no evidence of progress.
+      setStreamed(0);
+      const out = await menuIdeasRequest(files, brief, list => setStreamed(list.length));
       if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');
       else {
         /* Whether a menu was actually in front of the model is something WE know for certain and it
@@ -13286,7 +13360,10 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       onCancel={() => { setEst(null); setPicked(null); }} />
     {err && <div className="text-[12px] mt-3" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
-  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : busy === 'one' ? 'Working out that dish' : 'Reading the menu'} buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />;
+  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : busy === 'one' ? 'Working out that dish'
+    // Real progress, not a spinner's worth of reassurance: the count is dishes actually priced
+    // and on their way, which is the honest thing to show while the rest are still coming.
+    : streamed > 0 ? ('Priced ' + streamed + (streamed === 1 ? ' dish' : ' dishes')) : 'Reading the menu'} buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />;
 
   // ---- the menu, ranked ----
   if (res) {
