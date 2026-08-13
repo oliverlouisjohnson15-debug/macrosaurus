@@ -193,10 +193,12 @@ test('every game-icons glyph carries the credit it is licensed under', () => {
 });
 
 test('the app only ever asks for a size the grid lands on', () => {
-  // 24 and 48 are whole multiples of the grid; 12 is the exact half the two inline glyphs are
-  // drawn for. Anything else puts the art on fractional pixels, which is what the redraw was for.
+  // The old ladder existed because a 24x24 pixel grid only lands on whole pixels at multiples of
+  // 24. These are vectors now, so the sizes follow the job instead: 16 for an affordance sitting
+  // beside text, 24 for a control or a nav item, 32/48 for a hero. The list stays short on purpose -
+  // eleven different widths is how the set looked incoherent in the first place.
   const TRAIN = readFileSync(path.join(__dirname, '..', 'app', 'src', 'train.jsx'), 'utf8');
-  const ALLOWED = new Set([12, 24, 48]);
+  const ALLOWED = new Set([12, 16, 24, 32, 48]);
   for (const [file, src] of [['app.jsx', SRC], ['train.jsx', TRAIN]]) {
     for (const m of src.matchAll(/<Icon\.[a-z_]+\s(?:[a-zA-Z-]+=(?:"[^"]*"|\{(?:[^{}]|\{[^{}]*\})*\})\s*)*?width="(\d+)"/g)) {
       assert.ok(ALLOWED.has(+m[1]), `${file} renders an icon at ${m[1]}px`);

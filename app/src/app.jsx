@@ -1595,7 +1595,14 @@ function PixelGlyph({ kind, color, size, className, style, title }) {
   const s = size || 24;
   const gi = GI_ICONS[kind];
   if (gi) {
-    return <svg viewBox="0 0 512 512" width={s} height={s} fill={color || 'currentColor'} className={className}
+    // The artwork fills its 512 box edge to edge, while the pixel set it replaced carried a 2/24
+    // margin - so a 24px game-icon reads about a fifth larger than the glyph it replaced, which is
+    // most of why the chrome started shouting. Widening the viewBox insets every drawing by the
+    // same amount, in one place, rather than second-guessing 161 call sites.
+    // ...but only where the icon sits beside something. At 32px and up it is a hero in its own
+    // box - the add button, an empty state - and the inset just makes it timid.
+    const pad = s >= 32 ? 0 : 52;
+    return <svg viewBox={(-pad) + ' ' + (-pad) + ' ' + (512 + pad * 2) + ' ' + (512 + pad * 2)} width={s} height={s} fill={color || 'currentColor'} className={className}
       role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : 'true'}
       style={Object.assign({ display: 'inline-block', verticalAlign: 'middle' }, style)}>
       {title ? <title>{title}</title> : null}
@@ -1696,7 +1703,7 @@ function IOSInstallSheet({ onClose }) {
   ];
   return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
     <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Add to Home Screen</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none" aria-label="Close"><Icon.close width="24" /></button></div>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Add to Home Screen</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none" aria-label="Close"><Icon.close width="16" /></button></div>
       <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon.</div>
       <div className="space-y-3">
         {steps.map(([n, body]) => (<div key={n} className="flex items-start gap-3">
@@ -1725,7 +1732,7 @@ function InstallCard() {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-bold">Add Macrosaurus to your home screen</div>
-          <button onClick={dismiss} aria-label="Dismiss" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0"><Icon.close width="24" /></button>
+          <button onClick={dismiss} aria-label="Dismiss" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0"><Icon.close width="16" /></button>
         </div>
         <div className="text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug">{isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'}</div>
         <button onClick={onInstall} className="pixel-btn px-4 py-2.5 text-[10px] pf" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{isIOS ? 'SHOW ME HOW' : 'INSTALL APP'}</button>
@@ -3434,7 +3441,7 @@ function Sheet({ title, onClose, children, wide, z = 80, pad = true, bodyClass =
     <div className="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4" style={{ zIndex: z, background: 'rgba(20,17,26,0.62)' }} onClick={onClose}>
       <div className={'w-full sheet-panel sheet-up flex flex-col ' + (wide ? 'max-w-md' : 'max-w-sm')}
         style={{ maxHeight: '92vh' }} onClick={e => e.stopPropagation()}>
-        <CardHead title={title} right={<Icon.close width="24" aria-label="Close" />} onRight={onClose} rightTone="muted" />
+        <CardHead title={title} right={<Icon.close width="16" aria-label="Close" />} onRight={onClose} rightTone="muted" />
         <div className={'overflow-y-auto ' + (pad ? 'p-3.5 flex flex-col gap-3.5 ' : '') + bodyClass}
           style={{ paddingBottom: pad ? 'calc(0.875rem + env(safe-area-inset-bottom))' : undefined, ...bodyStyle }}>{children}</div>
       </div>
@@ -3573,10 +3580,10 @@ function Dropdown({ value, options, onChange, compact }) {
   const [open, setOpen] = useState(false); const cur = options.find(o => o.v === value);
   if (compact) return (<div className="relative">
     <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-[13px] text-left max-w-full" style={{ color: 'var(--accent-ink)', minHeight: 32 }}>
-      <span className="truncate">{cur ? cur.l : 'Select'}</span><span className="shrink-0"><Icon.caret_down width="24" /></span></button>
+      <span className="truncate">{cur ? cur.l : 'Select'}</span><span className="shrink-0"><Icon.caret_down width="16" /></span></button>
     {open && <div className="absolute z-40 mt-1 min-w-[10rem] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}
   </div>);
-  return (<div className="relative"><button onClick={() => setOpen(o => !o)} className={inputCls + ' flex justify-between items-center text-left'}><span className="truncate">{cur ? cur.l : 'Select'}</span><span className="text-[#8A8A90] ml-2"><Icon.caret_down width="24" /></span></button>
+  return (<div className="relative"><button onClick={() => setOpen(o => !o)} className={inputCls + ' flex justify-between items-center text-left'}><span className="truncate">{cur ? cur.l : 'Select'}</span><span className="text-[#8A8A90] ml-2"><Icon.caret_down width="16" /></span></button>
     {open && <div className="absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl">{options.map(o => <button key={o.v} onClick={() => { onChange(o.v); setOpen(false); }} className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-[#262629] ${o.v === value ? 'text-[#4A9EEB]' : 'text-white'}`}>{o.l}</button>)}</div>}</div>);
 }
 // Every text-only control in the app looks like this, and nothing that is not a control looks like
@@ -4493,7 +4500,7 @@ function Auth() {
           {needsConfirm && <button onClick={resendConfirm} disabled={busy} className="hit w-full text-[11px] mt-3 text-center underline" style={{ color: 'var(--header)' }}>Didn't get the email? Resend confirmation link</button>}
           </div>
         </Card>
-        {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="24" /> Back to log in</button>}
+        {mode === 'forgot' && <button onClick={() => { setMode('login'); setMsg(''); setNeedsConfirm(false); setLoginFailed(false); setExisting(false); }} className="w-full text-[12px] mt-4 text-center underline" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="16" /> Back to log in</button>}
         <div className="text-[11px] text-center mt-6 leading-relaxed px-2" style={{ color: 'var(--muted)' }}>
           {mode === 'signup' ? 'By creating an account you agree to our ' : 'By using Macrosaurus you agree to our '}
           <button onClick={() => setLegal('terms')} className="underline" style={{ color: 'var(--header)' }}>Terms</button> and <button onClick={() => setLegal('privacy')} className="underline" style={{ color: 'var(--header)' }}>Privacy Policy</button>, and understand it is <button onClick={() => setLegal('health')} className="underline" style={{ color: 'var(--header)' }}>not medical advice</button>. Your data stays private to your account.
@@ -4552,7 +4559,7 @@ function BodyFatPicker({ sex, apiKey, prevBf, onPick, onClose }) {
             <div className="flex gap-2"><Btn kind="accent" className="flex-1" onClick={() => { onPick(result.pct); onClose(); }}>Use {result.pct}%</Btn><Btn kind="ghost" onClick={() => { setResult(null); }}>Retake</Btn></div>
           </div>
         ) : busy ? (<DinoLoader label="Reading your photos" />) : (<>
-          <button onClick={() => setMode('bands')} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Back</button>
+          <button onClick={() => setMode('bands')} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
           <div className="text-[12px] text-[#8A8A90] mb-4">Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and <span className="text-white">never stored</span>.</div>
           <div className="grid grid-cols-3 gap-2 mb-4">{SLOTS.map(([s, l]) => (
             <label key={s} className="aspect-square rounded-2xl bg-[#1E1E22] border border-[#262629] flex flex-col items-center justify-center cursor-pointer overflow-hidden relative">
@@ -5738,7 +5745,7 @@ function WeighInEditModal({ db, update, entry, onClose }) {
         <Field label="Body fat %" hint="Optional. Sets your protein target and lean-mass trend.">
           <div className="flex gap-2 items-center"><NumInput value={bf} onChange={e => setBf(e.target.value)} placeholder={bfState ? bfState.pct.toFixed(1) : 'optional'} /><span className="text-[#8A8A90]">%</span></div>
           {bf !== '' && <div className="mt-2"><Seg value={bfSrc} onChange={setBfSrc} options={[{ v: 'scale', l: 'Smart scale' }, { v: 'photo', l: 'Photo' }, { v: 'manual', l: 'DEXA / calipers' }]} /></div>}
-          <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it from photos <Icon.arrow_right width="24" /></button>
+          <button onClick={() => setBfPick(true)} className="text-[12px] text-[#4A9EEB] mt-1.5">Not sure? Estimate it from photos <Icon.arrow_right width="16" /></button>
         </Field>
         <SheetBtn onClick={save}>Save</SheetBtn>
       </div>
@@ -5775,7 +5782,7 @@ function WeighInLog({ db, update, bare }) {
                 </div>
                 {e.bodyfat != null && <div className="text-[11px] text-[#8A8A90] tnum mt-0.5">{e.bodyfat}% bf · {BF_SOURCE_LABEL[e.bf_source || 'manual']} · lean {fmtWeight(lean, unit)}</div>}
               </button>
-              <button onClick={() => setConfirmDel(e)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0" aria-label="Delete"><Icon.close width="24" /></button>
+              <button onClick={() => setConfirmDel(e)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0" aria-label="Delete"><Icon.close width="16" /></button>
             </div>
           );
         })}
@@ -6131,7 +6138,7 @@ function FullSheet({ title, onClose, children }) {
   useBackClose(onClose);
   return (<div className="fixed inset-0 z-[85] flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
     <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-      <button onClick={onClose} className="hit pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}><Icon.arrow_left width="24" /> Back</button>
+      <button onClick={onClose} className="hit pf text-[9px] uppercase" style={{ color: 'var(--header-text)' }}><Icon.arrow_left width="16" /> Back</button>
       <div className="pf text-[10px] uppercase" style={{ color: 'var(--header-text)' }}>{title}</div>
       <span className="w-10" />
     </div>
@@ -6205,7 +6212,7 @@ function ExpenditureCard({ db, plan }) {
         return <>
           <button onClick={() => setShowMath(v => !v)} className="hit text-[10px] text-[#8A8A90] mt-2 inline-flex items-center gap-1" aria-expanded={showMath}>
             <span style={{ color: 'var(--good-ink)' }}>how this was worked out</span>
-            <PixelGlyph kind={showMath ? 'caret_up' : 'caret_down'} size={24} />
+            <PixelGlyph kind={showMath ? 'caret_up' : 'caret_down'} size={16} />
           </button>
           {showMath && <div className="fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5">
             <div>Over the last {est.windowDays} days you ate about <span className="text-[var(--text)] tnum">{est.avgKcal.toLocaleString()}</span> kcal a day, across {est.loggedDays} logged days.</div>
@@ -7236,10 +7243,10 @@ function BuddyHabitat({ db, buddy, bp, streak, onOpenPlay, tasks, msg, stats, aw
       style={{ borderTop: '2px solid var(--border)', background: 'var(--surface2)' }}>
       <div className="flex items-center justify-between gap-2 mb-2.5">
         <span className="pf px-1.5 py-[2px] text-[9px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', lineHeight: 1.4, letterSpacing: '0.12em' }}>{plate}</span>
-        {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit flex items-center justify-center text-[14px] active:opacity-60" style={{ color: 'var(--muted2)' }}><Icon.close width="24" /></button>}
+        {msg && msg.dismiss && <button onClick={msg.dismiss} aria-label="Dismiss" className="hit flex items-center justify-center text-[14px] active:opacity-60" style={{ color: 'var(--muted2)' }}><Icon.close width="16" /></button>}
       </div>
       {body}
-      {bare && <span className="blink absolute pf" style={{ right: 8, bottom: 4, fontSize: 10, color: 'var(--accent-ink)' }}><Icon.tri_down width="24" /></span>}
+      {bare && <span className="blink absolute pf" style={{ right: 8, bottom: 4, fontSize: 10, color: 'var(--accent-ink)' }}><Icon.tri_down width="16" /></span>}
     </div>
   );
   return (
@@ -8280,7 +8287,7 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
             <div className="pf text-[11px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.1em' }}>{who}</div>
             <div className="pf text-[7px] uppercase truncate" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{busy ? 'Thinking…' : "Sees today's food, sleep and steps"}</div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="shrink-0 flex items-center justify-center" style={{ width: 34, height: 34, border: '2px solid var(--border)', background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)' }}><Icon.close width="24" /></button>
+          <button onClick={onClose} aria-label="Close" className="shrink-0 flex items-center justify-center" style={{ width: 34, height: 34, border: '2px solid var(--border)', background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)' }}><Icon.close width="16" /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-3" style={{ background: 'var(--bg)' }}>
           <div className="pf text-[8px] uppercase text-center mb-3" style={{ color: 'var(--muted)', letterSpacing: '0.14em' }}>{dayStamp}</div>
@@ -8341,7 +8348,7 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
         {pic && <div className="shrink-0 flex items-center gap-2 pb-2">
           <img src={pic.url} alt="" className="w-10 h-10 object-cover" style={{ border: '2px solid var(--border)' }} />
           <span className="text-[11px] flex-1" style={{ color: 'var(--nav-off)' }}>Photo ready. Say what it is.</span>
-          <button onClick={() => setPic(null)} aria-label="Remove photo" className="hit px-2 text-base leading-none" style={{ color: 'var(--nav-off)' }}><Icon.close width="24" /></button>
+          <button onClick={() => setPic(null)} aria-label="Remove photo" className="hit px-2 text-base leading-none" style={{ color: 'var(--nav-off)' }}><Icon.close width="16" /></button>
         </div>}
         <div className="shrink-0 flex gap-2 items-stretch">
           <button onClick={() => setCam(true)} disabled={busy} aria-label="Add a photo"
@@ -8506,7 +8513,7 @@ function TrophyCabinet({ db, streak, onBack }) {
     </div>;
   };
   return <div className="fade-in">
-    <button onClick={onBack} className="hit text-[11px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Back</button>
+    <button onClick={onBack} className="hit text-[11px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
     <div className="flex items-center gap-2 mb-3"><PixelGlyph kind="trophy" color="var(--fat)" size={24} /><h2 className="text-lg font-semibold">Trophy cabinet</h2></div>
     <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Streak records</div>
     <div className="grid grid-cols-2 gap-2 mb-4">
@@ -8605,7 +8612,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   return (
     <div className="fade-in">
       <div className="flex items-center justify-between mb-3">
-        {onBack ? <button onClick={onBack} className="hit text-[11px] text-[#8A8A90]"><Icon.arrow_left width="24" /> Back</button> : <span />}
+        {onBack ? <button onClick={onBack} className="hit text-[11px] text-[#8A8A90]"><Icon.arrow_left width="16" /> Back</button> : <span />}
         <div className="pf text-[10px]" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</div>
       </div>
       <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
@@ -8972,7 +8979,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
           {/* Daily Hunt: the quick everyday fight for Amber. */}
           <FightCard tag="Daily Hunt" tagColor="var(--accent)" border={dailyReady ? 'var(--accent)' : 'var(--border)'} enemy={daily}
             attemptTag={dailyReady ? (loggedToday ? 'ready' : 'log to arm') : 'cleared today'}
-            reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat-ink)' }}><Icon.trend_up width="24" /> {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
+            reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat-ink)' }}><Icon.trend_up width="16" /> {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
             action={dailyReady
               ? (loggedToday
                   ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={24} /> Hunt</Btn>
@@ -8985,7 +8992,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
             attemptTag={ladderCleared ? null : (gate.can ? '1 attempt today' : gate.reason === 'used' ? 'used today' : 'log to unlock')}
             reward="Climb the bosses for Amber, loot and the Champion Belt. Losing only teaches, never sets you back."
             action={ladderCleared
-              ? <Btn kind="accent" className="w-full" onClick={prestige}><Icon.arrow_up width="24" /> Prestige · tougher climb, better drops</Btn>
+              ? <Btn kind="accent" className="w-full" onClick={prestige}><Icon.arrow_up width="16" /> Prestige · tougher climb, better drops</Btn>
               : gate.can
                 ? <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}><PixelGlyph kind="glove" color="currentColor" size={24} /> Fight</Btn>
                 : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used, a fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.'}</div>} />
@@ -9693,7 +9700,7 @@ function MetricBreakdownSheet({ metric, db, onClose, onOpenPlay }) {
           Readiness is baseline-relative: each signal is judged against your own rolling average, not a fixed target.
         </p>
         {onOpenPlay && parts.score != null && (
-          <button onClick={() => { onClose(); onOpenPlay(); }} className="w-full mt-4 pixel-box py-3 text-[13px] font-semibold" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>See today's Fight buff <Icon.arrow_right width="24" /></button>
+          <button onClick={() => { onClose(); onOpenPlay(); }} className="w-full mt-4 pixel-box py-3 text-[13px] font-semibold" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>See today's Fight buff <Icon.arrow_right width="16" /></button>
         )}
       </div>
     );
@@ -9976,7 +9983,7 @@ function StageUpCelebration({ db, stage, onClose }) {
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={fromPx * 0.5} fps={s.fps} />
               <div className="pf text-[7px] uppercase text-[#8A8A90] mt-1">{prev.name}</div>
             </div>
-            <span className="pb-4" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="24" /></span>
+            <span className="pb-4" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="16" /></span>
             <div className="text-center">
               <SpriteSheet palette={s.palette} species={s.species} group={s.group} anim="idle" px={toPx * 0.5} fps={s.fps} />
               <div className="pf text-[7px] uppercase mt-1" style={{ color: 'var(--accent-ink)' }}>{st.name}</div>
@@ -10153,7 +10160,7 @@ function LeftoversStrip({ db, onOpenRecipe }) {
           <span className="pf text-[8px] uppercase px-1.5 py-1 rounded shrink-0" style={{ background: 'var(--good)', color: '#111' }}>{Rcp.batchLeft(r)} left</span>
           <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
           {r.macros_per_serving && r.macros_per_serving.kcal > 0 && <span className="text-[11px] text-[#8A8A90] tnum shrink-0">{Math.round(r.macros_per_serving.kcal)} kcal</span>}
-          <Icon.chevron width="24" height="24" style={{ color: 'var(--muted)' }} />
+          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted)' }} />
         </button>))}
     </div>
   </div>);
@@ -10179,7 +10186,7 @@ function PremiumNudge({ db, update, headline, blurb, reason, trackKey, className
       <div className="text-sm font-bold mb-1 pr-6">{headline}</div>
       <div className="text-[11px] text-[#8A8A90] leading-snug mb-2.5">{blurb}</div>
       <div className="pf text-[8px] uppercase" style={{ color: 'var(--accent-ink)' }}>Try Premium free ›</div>
-      <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5" aria-label="Not now"><Icon.close width="24" /></button>
+      <button onClick={dismiss} className="hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5" aria-label="Not now"><Icon.close width="16" /></button>
     </div>
   );
 }
@@ -10734,8 +10741,8 @@ function CarryoverSheet({ et, onClose }) {
             {cd.days.map((d, i) => <div key={i} className="flex-1 text-center pf text-[7px] text-[#8A8A90]">{dShort(d.date)}</div>)}
           </div>
           <div className="flex justify-between text-[9px] text-[#8A8A90] mb-4">
-            <span><Icon.square width="24" style={{ color: 'var(--good-ink)' }} /> under target</span>
-            <span><Icon.square width="24" style={{ color: 'var(--fat-ink)' }} /> over target</span>
+            <span><Icon.square width="16" style={{ color: 'var(--good-ink)' }} /> under target</span>
+            <span><Icon.square width="16" style={{ color: 'var(--fat-ink)' }} /> over target</span>
           </div>
 
           <div className="pixel-box p-3 mb-3 flex justify-between items-center tnum text-[11px]" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
@@ -11011,7 +11018,7 @@ function FoodLog({ db, update, openLog, showToast }) {
         </span>
       </div>
       </button>
-      <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu && menu.id === e.id ? null : { id: e.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1 shrink-0" style={{ color: 'var(--muted2)' }} aria-label="Entry options"><Icon.more width="24" /></button>
+      <button onClick={(ev) => { ev.stopPropagation(); setMealMenu(null); setMenu(menu && menu.id === e.id ? null : { id: e.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1 shrink-0" style={{ color: 'var(--muted2)' }} aria-label="Entry options"><Icon.more width="16" /></button>
       {menu && menu.id === e.id && (<AnchoredMenu rect={menu.rect} onClose={() => setMenu(null)} className="w-44">
         <button onClick={() => { setEditing(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Edit</button>
         {E.photoUpdatable(e) && <button onClick={() => { setPhotoUp(e); setMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Update with a photo</button>}
@@ -11045,14 +11052,14 @@ function FoodLog({ db, update, openLog, showToast }) {
           menu is not in the design but holds real day-level actions (add a meal, copy the day), so
           it stays as a fourth slim column rather than being dropped. */}
       <div className="grid items-stretch gap-2 mb-4" style={{ gridTemplateColumns: '38px 1fr 38px auto' }}>
-        <button onClick={() => setDate(shiftISO(date, -1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Previous day"><Icon.chevron width="24" style={{ transform: 'scaleX(-1)' }} /></button>
+        <button onClick={() => setDate(shiftISO(date, -1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Previous day"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
         <button onClick={() => { if (!showCal) { const d = new Date(date + 'T00:00:00'); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); } setShowCal(s => !s); }} className="pixel-btn flex items-center justify-center gap-2 px-3 py-2.5" style={{ background: 'var(--card)', borderWidth: 2 }}>
           <span className="text-[14px] font-semibold">{date === today ? 'Today' : date === shiftISO(today, 1) ? 'Tomorrow' : new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-          <span className="text-[10px]" style={{ color: 'var(--muted)' }}><PixelGlyph kind={showCal ? 'caret_up' : 'caret_down'} size={24} /></span>
+          <span className="text-[10px]" style={{ color: 'var(--muted)' }}><PixelGlyph kind={showCal ? 'caret_up' : 'caret_down'} size={16} /></span>
         </button>
-        <button onClick={() => setDate(shiftISO(date, 1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Next day"><Icon.chevron width="24" /></button>
+        <button onClick={() => setDate(shiftISO(date, 1))} className="pixel-btn pf text-[12px] flex items-center justify-center" style={{ background: 'var(--card)', boxShadow: 'none', borderWidth: 2 }} aria-label="Next day"><Icon.chevron width="16" /></button>
         <div className="relative flex items-center">
-          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="hit px-2 py-2 text-[#8A8A90]" aria-label="Day options"><Icon.more width="24" /></button>
+          <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(null); setDayMenu(v => !v); }} className="hit px-2 py-2 text-[#8A8A90]" aria-label="Day options"><Icon.more width="16" /></button>
           {dayMenu && <div className="absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44" onClick={ev => ev.stopPropagation()}>
             <button onClick={() => { addDayMeal(); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Add a meal</button>
             {day.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy this whole day', entries: day, srcDate: date }); setDayMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy this day to…</button>}
@@ -11064,9 +11071,9 @@ function FoodLog({ db, update, openLog, showToast }) {
       </div>
       {showCal && <Card className="p-4 mb-4 fade-in">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="24" style={{ transform: 'scaleX(-1)' }} /></button>
+          <button onClick={() => setCalMonth(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
           <div className="text-sm font-semibold">{monthName}</div>
-          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="24" /></button>
+          <button onClick={() => setCalMonth(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" /></button>
         </div>
         <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
         <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
@@ -11168,12 +11175,12 @@ function FoodLog({ db, update, openLog, showToast }) {
             <div className="flex justify-between items-center gap-2 px-2.5 py-[6px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="flex flex-col -my-2 shrink-0">
-                  <button onClick={() => moveMeal(m, -1)} disabled={mi === 0} style={{ opacity: mi === 0 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none px-1 py-0 -my-1" title="Move up"><Icon.caret_up width="24" /></button>
-                  <button onClick={() => moveMeal(m, 1)} disabled={mi === meals.length - 1} style={{ opacity: mi === meals.length - 1 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none px-1 py-0 -my-1" title="Move down"><Icon.caret_down width="24" /></button>
+                  <button onClick={() => moveMeal(m, -1)} disabled={mi === 0} style={{ opacity: mi === 0 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none px-1 py-0 -my-1" title="Move up"><Icon.caret_up width="16" /></button>
+                  <button onClick={() => moveMeal(m, 1)} disabled={mi === meals.length - 1} style={{ opacity: mi === meals.length - 1 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none px-1 py-0 -my-1" title="Move down"><Icon.caret_down width="16" /></button>
                 </div>
                 {editMeal === m.id
                   ? <input autoFocus value={mealName} onChange={e => setMealName(e.target.value)} onBlur={() => { renameMeal(m, mealName); setEditMeal(null); }} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} className="px-2 py-1 text-sm font-semibold w-40" style={{ background: 'var(--card)', color: 'var(--text)', border: '2px solid var(--border)' }} />
-                  : <button onClick={() => { setEditMeal(m.id); setMealName(m.name); }} className="hit pf text-[10px] uppercase flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }} title="Rename meal"><span className="truncate">{m.name}</span><span className="shrink-0" style={{ opacity: 0.6 }}><Icon.edit width="24" /></span></button>}
+                  : <button onClick={() => { setEditMeal(m.id); setMealName(m.name); }} className="hit pf text-[10px] uppercase flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }} title="Rename meal"><span className="truncate">{m.name}</span><span className="shrink-0" style={{ opacity: 0.6 }}><Icon.edit width="16" /></span></button>}
               </div>
               <div className="flex items-start gap-1.5">
                 {/* The meal's calories, and nothing else. Its protein/carbs/fat used to sit here in
@@ -11191,7 +11198,7 @@ function FoodLog({ db, update, openLog, showToast }) {
                   {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
                 </div>
                 <div className="relative">
-                  <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options"><Icon.more width="24" /></button>
+                  <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options"><Icon.more width="16" /></button>
                   {mealMenu && mealMenu.id === m.id && <AnchoredMenu rect={mealMenu.rect} onClose={() => setMealMenu(null)} className="w-40">
                     {me.length > 0 && <button onClick={() => saveMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Save as meal</button>}
                     {me.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>}
@@ -11502,9 +11509,9 @@ function CopyToModal({ title, srcDate, entries, loggedDates, meals, defaultMeal,
       <div className="flex gap-1.5 mb-3">{quick.map(q => <button key={q.iso} onClick={() => pick(q.iso)} className={`flex-1 pixel-box px-2 py-2 text-[11px] font-bold ${q.iso === srcDate ? 'bg-[#262629] text-[#8A8A90]' : 'bg-[#1E1E22] text-white'}`} style={{ boxShadow: 'none' }}>{q.label}</button>)}</div>
       <div className="pf text-[9px] uppercase text-[#8A8A90] mb-1.5">Or pick a day</div>
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="24" style={{ transform: 'scaleX(-1)' }} /></button>
+        <button onClick={() => setCm(c => { const m = c.m - 1; return m < 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
         <div className="text-sm font-semibold">{monthName}</div>
-        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="24" /></button>
+        <button onClick={() => setCm(c => { const m = c.m + 1; return m > 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m }; })} className="text-[#8A8A90] px-2 py-1"><Icon.chevron width="16" /></button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}</div>
       <div className="grid grid-cols-7 gap-1">{cells.map((c, i) => c ? (
@@ -11662,7 +11669,7 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
   if (manual) return <ManualTab onPick={onPick} onCancel={() => setManual(false)} />;
   const MyRow = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
     <button onClick={() => pickMine(f)} className="text-left min-w-0 flex-1"><div className="flex items-center gap-1.5 min-w-0"><span className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</span><DensityChip nq={f.nq} /></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{f.macros.protein} C{f.macros.carbs} F{f.macros.fat}</div></button>
-    <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="24" height="24" fill="currentColor" /></button></div>);
+    <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="16" height="16" fill="currentColor" /></button></div>);
   const Head = (t) => <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] mt-4 mb-2">{t}</div>;
   return (<div>
     {/* Focused on open. Searching is what this tab is for, and making the first move a tap on the
@@ -11671,7 +11678,7 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
     {!query && <>
       {favs.length > 0 && <>{Head('Favourites')}<div className="space-y-2">{favs.map(MyRow)}</div></>}
       {myShown.length > 0 && <>{Head('Recent')}<div className="space-y-2">{myShown.map(MyRow)}</div></>}
-      {savedMeals.length > 0 && <>{Head('Saved meals')}<div className="space-y-2">{savedMeals.map(sm => { const t = mealTotal(sm.items); return (<div key={sm.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5"><button onClick={() => onLogMeal(sm.items)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{sm.name} <span className="text-[#8A8A90]">· {sm.items.length} item{sm.items.length === 1 ? '' : 's'}</span></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(t.kcal)} kcal · P{Math.round(t.protein)} C{Math.round(t.carbs)} F{Math.round(t.fat)}</div></button><button onClick={() => setConfirmDel(sm)} className="w-11 h-11 flex items-center justify-center shrink-0 shrink-0 text-[#8A8A90] text-lg leading-none" aria-label="Delete saved meal"><Icon.close width="24" /></button></div>); })}</div></>}
+      {savedMeals.length > 0 && <>{Head('Saved meals')}<div className="space-y-2">{savedMeals.map(sm => { const t = mealTotal(sm.items); return (<div key={sm.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5"><button onClick={() => onLogMeal(sm.items)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{sm.name} <span className="text-[#8A8A90]">· {sm.items.length} item{sm.items.length === 1 ? '' : 's'}</span></div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(t.kcal)} kcal · P{Math.round(t.protein)} C{Math.round(t.carbs)} F{Math.round(t.fat)}</div></button><button onClick={() => setConfirmDel(sm)} className="w-11 h-11 flex items-center justify-center shrink-0 shrink-0 text-[#8A8A90] text-lg leading-none" aria-label="Delete saved meal"><Icon.close width="16" /></button></div>); })}</div></>}
       {!favs.length && !myShown.length && !savedMeals.length && <div className="text-center text-[#8A8A90] text-sm py-8"><div className="flex justify-center mb-3"><PixelEgg size={40} color="var(--muted)" /></div>Search for a food above, scan a barcode, or estimate a meal. Anything you log appears here for one-tap logging next time.</div>}
     </>}
     {query && <>
@@ -11683,11 +11690,11 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
         <button key={'gen' + idx} onClick={() => setSel({ generic: g })} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left">
           <div className="min-w-0"><div className="text-sm truncate">{g.name}</div>
             <div className="text-[11px] text-[#8A8A90] tnum">{Math.round(g.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(g.per100.protein)}g</span> / 100 g</div></div>
-          <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="24" /></span>
+          <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
         </button>))}</div></>}
       {Head('Brands and packets')}
       {dbLoading && <div className="text-[12px] text-[#4A9EEB] py-2">Searching…</div>}
-      {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0"><Icon.chevron width="24" /></span></button>))}</div>}
+      {!dbLoading && dbResults.length > 0 && <div className="space-y-2">{dbResults.map((r, idx) => (<button key={'db' + idx} onClick={() => setSel(r)} className="w-full flex items-center justify-between gap-2 bg-[#1E1E22] rounded-2xl px-3 py-2.5 text-left"><div className="min-w-0"><div className="text-sm truncate">{r.name}{r.brand ? <span className="text-[#8A8A90]"> · {r.brand.split(',')[0]}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(r.per100.kcal)} kcal · <span style={{ color: PRO_T }}>P {Math.round(r.per100.protein)}g</span> / 100 g</div></div><span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span></button>))}</div>}
       {!dbLoading && !dbResults.length && !dbErr && <div className="text-[12px] text-[#8A8A90] py-1">No database matches.</div>}
       {dbErr && <div className="text-[12px] text-[#F5C542] py-1">{dbErr}</div>}
       {genericErr && <div className="text-[12px] text-[#8A8A90] py-1">Only branded products are showing just now.</div>}
@@ -11697,12 +11704,12 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
       {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mb-2">
         <div className="w-9 h-9 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Estimate a meal from text, voice or a photo</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="24" /></span>
+        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
       <button onClick={() => setManual(true)} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><Icon.plus width="24" height="24" style={{ color: 'var(--muted)' }} /></div>
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Enter it manually</div><div className="text-[11px] text-[#8A8A90]">Type in the macros yourself</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="24" /></span>
+        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>
       {/* Where the Food/Alcohol toggle used to live. A drink is an occasional detour, not a mode you
           pick before every single log, so it waits down here with the other "it isn't in the list"
@@ -11710,7 +11717,7 @@ function FoodTab({ db, update, mealName, onPick, onLogMeal, onAskAI, onAlcohol, 
       {onAlcohol && <button onClick={onAlcohol} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.05)' }}><PixelGlyph kind="drink" color="var(--muted)" size={24} /></div>
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Log a drink</div><div className="text-[11px] text-[#8A8A90]">Beer, wine or spirits, with the units</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="24" /></span>
+        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
     </div>
     {confirmDel && <ConfirmDialog title={'Delete "' + confirmDel.name + '"?'} body="This removes the saved meal. Food already logged from it stays in your diary." confirmLabel="Delete" onConfirm={() => delMeal(confirmDel.id)} onClose={() => setConfirmDel(null)} />}
@@ -11809,7 +11816,7 @@ function LogSheet({ db, update, meals, target, onAdd, onAddMeal, onAddItems, onC
               {/* Alcohol as the labelled detour the comment below always described: entered from
                   the bottom of the Food tab, left by this link. The meal picker stays put either
                   way, so a drink still lands where you want it. */}
-              {isAlc && <button onClick={() => setIsAlc(false)} className="block text-[11px] mb-0.5" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="24" /> Back to food</button>}
+              {isAlc && <button onClick={() => setIsAlc(false)} className="block text-[11px] mb-0.5" style={{ color: 'var(--accent-ink)' }}><Icon.arrow_left width="16" /> Back to food</button>}
               <Dropdown compact value={mealId} onChange={setMealId} options={meals.map(m => ({ v: m.id, l: m.name }))} />
             </div>
           </div>
@@ -11868,7 +11875,7 @@ function RecentTab({ db, update, isAlc, mealName, onPick, day }) {
   const pick = (f) => onPick({ name: f.name, source: f.source, is_alcohol: f.is_alcohol, macros: f.macros, alcohol_split: f.alcohol_split, qtyLabel: f.last_qty });
   const Row = (f) => (<div key={f.id} className="flex items-center justify-between bg-[#1E1E22] rounded-2xl px-3 py-2.5">
     <button onClick={() => pick(f)} className="text-left min-w-0 flex-1"><div className="text-sm truncate">{f.name}{f.last_qty ? <span onClick={ev => { ev.stopPropagation(); setQtyFor(f); }} className="text-[#8A8A90]" style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }} title="Adjust the amount"> · {f.last_qty}</span> : ''}</div><div className="text-[11px] text-[#8A8A90] tnum">{Math.round(f.macros.kcal)} kcal · P{f.macros.protein} C{f.macros.carbs} F{f.macros.fat}</div></button>
-    <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="24" height="24" fill="currentColor" /></button></div>);
+    <button onClick={() => star(f)} className="hit px-2 shrink-0" style={{ color: f.is_favorite ? FAT : '#3A3A42' }}><Icon.star width="16" height="16" fill="currentColor" /></button></div>);
   return (<div>
     <TextInput placeholder="Search your foods…" value={q} onChange={e => setQ(e.target.value)} />
     <div className="text-[11px] text-[#8A8A90] mt-2 mb-3">Tap any {isAlc ? 'drink' : 'food'} to add it again with the amount you had last time, or tap the underlined amount to change it first.</div>
@@ -11893,7 +11900,7 @@ function ManualTab({ onPick, onCancel, day }) {
   }
   if (parsed) return <ConfirmFood {...parsed} onAdd={onPick} onCancel={() => setParsed(null)} dayRest={day && day.rest} dayTarget={day && day.target} />;
   return (<div>
-    {onCancel && <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Back</button>}
+    {onCancel && <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>}
     <Field label="Name"><TextInput value={v.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Baked beans" /></Field>
     <div className="pf text-[9px] uppercase text-[#8A8A90] mb-2">These numbers are per</div>
     <div className="mb-3"><Seg value={v.basis} onChange={x => set('basis', x)} options={[{ v: '100g', l: '100 g' }, { v: 'serving', l: 'A serving' }]} /></div>
@@ -12254,7 +12261,7 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   return (<div className="fade-in" ref={topRef}>
     {explain && <DensityExplainer onClose={() => setExplain(false)} />}
-    <TextBtn onClick={onCancel} tone="quiet" className="mb-2"><Icon.arrow_left width="24" /> Back</TextBtn>
+    <TextBtn onClick={onCancel} tone="quiet" className="mb-2"><Icon.arrow_left width="16" /> Back</TextBtn>
     {estimated
       ? <div className="pixel-box p-2.5 mb-3 text-[11px] leading-snug" style={{ background: 'var(--accent-dim)', boxShadow: 'none', borderColor: 'var(--fat)' }}><span className="pf text-[8px] mr-1.5" style={{ color: 'var(--fat-ink)' }}>ESTIMATE</span>{note}</div>
       : saved
@@ -12290,12 +12297,12 @@ function ConfirmFood({ note, per100, source, initial, servingG, servingLabel, br
       {onRescan && <button onClick={onRescan} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mb-2">
         <div className="w-9 h-9 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"><Icon.cam width="24" height="24" style={{ color: CAL_T }} /></div>
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Scan the label instead</div><div className="text-[11px] text-[#8A8A90]">Wrong product, or the numbers look off</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="24" /></span>
+        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
       {onAskAI && <button onClick={onAskAI} className="w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition">
         <div className="w-9 h-9 rounded-xl bg-[#F5C542]/15 flex items-center justify-center shrink-0"><PixelGlyph kind="sun" color={FAT} size={24} /></div>
         <div className="min-w-0 flex-1"><div className="text-[13px] font-medium">Describe it to the AI</div><div className="text-[11px] text-[#8A8A90]">Not packaged, or nothing to scan</div></div>
-        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="24" /></span>
+        <span className="text-[#8A8A90] shrink-0"><Icon.chevron width="16" /></span>
       </button>}
     </div>}
     {kcalHigh && <div className="pixel-box p-3 mt-3 mb-2" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: 'var(--fat)' }}>
@@ -12440,7 +12447,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
   const portionLabel = single ? (fmtCount(+(only && only.grams) || 0) + ' g') : (p === 1 ? 'the whole meal' : (fmtCount(p) + ' of the meal'));
   const qtyLabel = p === 1 ? '' : (fmtCount(p) + ' portion');
   return (<div className="fade-in">
-    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] min-h-[44px] -ml-1 px-1 flex items-center"><Icon.arrow_left width="24" /> Start over</button>
+    <button onClick={onCancel} className="text-[13px] text-[#8A8A90] min-h-[44px] -ml-1 px-1 flex items-center"><Icon.arrow_left width="16" /> Start over</button>
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="text-[12px] text-[#8A8A90] leading-snug">Check it over, then {verb ? verb.toLowerCase() + ' it' : 'log it'}.</div>
       {conf !== 'high' && <span className="text-[11px] shrink-0" style={{ color: confColor }}>{conf === 'low' ? 'Rough guess' : 'Fair guess'}</span>}
@@ -12513,7 +12520,7 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
         a misidentification instantly; the grams, notes and remove buttons stay behind the tap,
         because those are for correcting rather than checking. */}
     {hadItems && !single && <button onClick={() => setEdit(e => !e)} className="text-[12px] text-[#8A8A90] min-h-[44px] flex items-start text-left w-full leading-snug py-1.5">
-      <span className="shrink-0 mr-1"><PixelGlyph kind={edit ? 'caret_up' : 'caret_down'} size={24} /></span>
+      <span className="shrink-0 mr-1"><PixelGlyph kind={edit ? 'caret_up' : 'caret_down'} size={16} /></span>
       <span className="min-w-0">{edit ? 'Hide items' : items.map(it => it.name).join(' · ')}</span>
     </button>}
     {hadItems && !single && edit && <div className="fade-in space-y-2 mb-3">
@@ -12523,9 +12530,9 @@ function AiConfirm({ est, photos, onAdd, onAddItems, onCancel, onRefine, busy, r
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1"><div className="text-[13px] truncate">{it.name}{it.userSpecified && <span className="ml-1.5 text-[8px] px-1 py-0.5 rounded" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>YOU SAID</span>}</div><div className="text-[10px] text-[#8A8A90] tnum">{Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} F{it.fat}</div></div>
             <input type="number" inputMode="decimal" value={it.grams} onChange={e => setGrams(i, e.target.value)} className="w-16 h-11 bg-[#0F0F12] rounded-lg border border-[#262629] px-2 text-[13px] text-[var(--text)] text-right" /><span className="text-[10px] text-[#8A8A90]">g</span>
-            <button onClick={() => removeItem(i)} className="w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}><Icon.close width="24" /></button>
+            <button onClick={() => removeItem(i)} className="w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0" aria-label={`Remove ${it.name}`}><Icon.close width="16" /></button>
           </div>
-          {it.assumption && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug"><Icon.corner_arrow width="24" /> {it.assumption}</div>}
+          {it.assumption && <div className="text-[10px] text-[#8A8A90] mt-1 leading-snug"><Icon.corner_arrow width="16" /> {it.assumption}</div>}
         </div>))}
       {items.length === 0 && <div className="text-[11px] text-[#8A8A90] py-1">All items removed. Tell the AI what to fix below, or start over.</div>}
     </div>}
@@ -12607,10 +12614,10 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
   if (busy) return <DinoLoader label="Working out your meal" />;
   return (<div>
-    {onBack && <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-2 flex items-center"><Icon.arrow_left width="24" /> Back</button>}
+    {onBack && <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-2 flex items-center"><Icon.arrow_left width="16" /> Back</button>}
     <div className="text-[12px] text-[#8A8A90] mb-3">Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm.</div>
     {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="24" /></button></div>))}</div>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
     <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)} rows={3} className={inputCls + ' resize-y leading-relaxed'} placeholder={imgs.length ? 'Add a few words: how big it was, how it was cooked, any oil or sauces' : 'e.g. Pret chicken caesar baguette and a flat white'} />
     {listening && <div className="text-[11px] mt-1.5 flex items-center gap-1.5" style={{ color: FAT_T }}><span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: FAT }} />Listening… tap the mic again to stop.</div>}
     {imgs.length > 0 && !text.trim() && <div className="rounded-2xl p-3 mt-3" style={{ background: 'var(--surface3)', border: '1px solid var(--border)' }}>
@@ -12784,7 +12791,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     const lenses = MenuIdeas.LENSES.filter(l => rem || !l.needsDay);
     return (<div className="fade-in">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <button onClick={() => setRes(null)} className="hit text-[13px] flex items-center gap-1" style={{ color: 'var(--muted)' }}><Icon.arrow_left width="24" /> Back</button>
+        <button onClick={() => setRes(null)} className="hit text-[13px] flex items-center gap-1" style={{ color: 'var(--muted)' }}><Icon.arrow_left width="16" /> Back</button>
         {/* The lens, as the app's segmented switch: same object as LEFT/EATEN on Today, so a butted
             segment strip means one thing everywhere. Free to flip, since the sorting is arithmetic. */}
         <Pill value={view} options={lenses.map(l => ({ v: l.id, l: l.label }))} onChange={setView} />
@@ -12823,7 +12830,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
                   : ('Leaves ' + im.leftKcal + ' kcal and ' + im.leftProtein + ' g protein')}
             </div>}
             {s.why && <div className="text-[11.5px] mt-1.5 leading-snug" style={{ color: 'var(--text2)' }}>{s.why}</div>}
-            {s.tweak && <div className="text-[11px] mt-1 leading-snug" style={{ color: 'var(--accent-ink)' }}><Icon.corner_arrow width="24" /> {s.tweak}</div>}
+            {s.tweak && <div className="text-[11px] mt-1 leading-snug" style={{ color: 'var(--accent-ink)' }}><Icon.corner_arrow width="16" /> {s.tweak}</div>}
           </button>);
         })}
       </div>
@@ -12862,7 +12869,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         {f.pdf
           ? <div className="w-16 h-16 flex items-center justify-center pf text-[8px] uppercase" style={{ border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)' }}>PDF</div>
           : <img src={f.url} alt="" className="w-16 h-16 object-cover" style={{ border: '2px solid var(--border)' }} />}
-        <button onClick={() => remFile(f.id)} aria-label={'Remove ' + f.name} className="hit absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center" style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}><Icon.close width="24" /></button>
+        <button onClick={() => remFile(f.id)} aria-label={'Remove ' + f.name} className="hit absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center" style={{ border: '2px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}><Icon.close width="16" /></button>
       </div>))}</div>}
     {/* Deferred, per progressive disclosure: a photo covers most of it, and the two paste routes are
         one box because you can tell a link from a menu by looking at it. */}
@@ -13002,7 +13009,7 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
           </div>
           <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">You logged this before you ate it. Snap the real thing and the AI re-does the estimate, replacing this entry rather than adding another.</div>
           {imgs.length < MAX_PHOTOS && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
-          {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none" aria-label="Remove photo"><Icon.close width="24" /></button></div>))}</div>}
+          {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} alt="" className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => remImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none" aria-label="Remove photo"><Icon.close width="16" /></button></div>))}</div>}
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className={inputCls + ' resize-y leading-relaxed'} placeholder="Anything different from the plan? e.g. bigger than I expected, came with chips" />
           {/* This is a full AI estimate and it is billed like one. Saying so before the tap, rather
               than letting the paywall say it after, is the difference between a price and a shock. */}
@@ -13098,7 +13105,7 @@ function LiveScanner({ onFound, onClose }) {
   }
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><span className="font-semibold">Scan barcode</span><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="24" /></button></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><span className="font-semibold">Scan barcode</span><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-contain" />
         {!err && <div className="absolute" style={{ width: '78%', maxWidth: '340px', height: '150px', border: '3px solid rgba(255,255,255,0.75)' }} />}
@@ -13159,7 +13166,7 @@ function useCaptureCamera(videoRef) {
 // A round torch (flash) button for the capture cameras, shown only where the device exposes it.
 function TorchButton({ hasTorch, torch, toggleTorch }) {
   if (!hasTorch) return null;
-  return <button onClick={toggleTorch} aria-label={torch ? 'Turn flash off' : 'Turn flash on'} aria-pressed={torch} className="w-9 h-9 rounded-full flex items-center justify-center text-lg leading-none" style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.18)', color: torch ? '#111' : '#fff' }}><PixelGlyph kind={torch ? 'flashlight' : 'bolt'} size={24} /></button>;
+  return <button onClick={toggleTorch} aria-label={torch ? 'Turn flash off' : 'Turn flash on'} aria-pressed={torch} className="w-9 h-9 rounded-full flex items-center justify-center text-lg leading-none" style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.18)', color: torch ? '#111' : '#fff' }}><PixelGlyph kind={torch ? 'flashlight' : 'bolt'} size={16} /></button>;
 }
 // Soft "looks blurry" prompt shown after a capture whose sharpness is below the floor. Never blocks -
 // the user can always use the shot anyway; it just saves a wasted AI call on an unreadable photo.
@@ -13189,7 +13196,7 @@ function LabelScanner({ onCapture, onClose }) {
   const shoot = () => { setCapturing(true); setTimeout(() => { setCapturing(false); grab(); }, 350); }; // let autofocus settle
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">Scan nutrition label</div><div className="text-[11px] text-white/60">We'll read the exact numbers off the pack</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="24" /></button></div></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">Scan nutrition label</div><div className="text-[11px] text-white/60">We'll read the exact numbers off the pack</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
         {ready && !err && <div className="absolute inset-x-8 h-56 border-2 border-white/70 rounded-xl" />}
@@ -13223,7 +13230,7 @@ function MealCamera({ onFiles, onClose, title = 'Photograph your meal', subtitle
   const shoot = () => { setCapturing(true); setTimeout(() => { setCapturing(false); grab(); }, 350); }; // let autofocus settle
   return (
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">{title}</div><div className="text-[11px] text-white/60">{subtitle}</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="24" /></button></div></div>
+      <div className="flex justify-between items-center px-4 pb-3 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.9rem)' }}><div><div className="font-semibold leading-tight">{title}</div><div className="text-[11px] text-white/60">{subtitle}</div></div><div className="flex items-center gap-2"><TorchButton hasTorch={hasTorch} torch={torch} toggleTorch={toggleTorch} /><button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-2xl leading-none" style={{ background: 'rgba(255,255,255,0.18)' }}><Icon.close width="16" /></button></div></div>
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
         {ready && !err && <div className="absolute rounded-2xl" style={{ inset: '1.75rem', border: '2px solid rgba(255,255,255,0.5)' }} />}
@@ -14418,14 +14425,14 @@ function MealsScreen({ db, update, onBack }) {
     {list.map((m, i) => (
       <div key={m.id} className="flex items-center gap-2 mb-2">
         <div className="flex flex-col -my-2 shrink-0">
-          <button onClick={() => moveDef(m.id, -1)} disabled={i === 0} style={{ opacity: i === 0 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none px-1 py-0 -my-1" title="Move up"><Icon.caret_up width="24" /></button>
-          <button onClick={() => moveDef(m.id, 1)} disabled={i === list.length - 1} style={{ opacity: i === list.length - 1 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none px-1 py-0 -my-1" title="Move down"><Icon.caret_down width="24" /></button>
+          <button onClick={() => moveDef(m.id, -1)} disabled={i === 0} style={{ opacity: i === 0 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none px-1 py-0 -my-1" title="Move up"><Icon.caret_up width="16" /></button>
+          <button onClick={() => moveDef(m.id, 1)} disabled={i === list.length - 1} style={{ opacity: i === list.length - 1 ? 0.25 : 1 }} className="hit text-[#8A8A90] leading-none px-1 py-0 -my-1" title="Move down"><Icon.caret_down width="16" /></button>
         </div>
         <TextInput value={draft && draft.id === m.id ? draft.name : m.name}
           onChange={e => setDraft({ id: m.id, name: e.target.value })}
           onBlur={commitName}
           onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} />
-        <button onClick={() => setConfirmDel(m)} disabled={list.length <= 1} style={{ opacity: list.length <= 1 ? 0.3 : 1 }} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0" title="Remove"><Icon.close width="24" /></button>
+        <button onClick={() => setConfirmDel(m)} disabled={list.length <= 1} style={{ opacity: list.length <= 1 ? 0.3 : 1 }} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0" title="Remove"><Icon.close width="16" /></button>
       </div>
     ))}
     <button onClick={addDef} className="w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1">+ Add default meal</button>
@@ -14687,7 +14694,7 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
         <span className="block text-sm font-semibold mt-1">{progressTeaser(db)}</span>
         <span className="block text-[11.5px] mt-0.5 leading-snug" style={{ color: 'var(--muted)' }}>Weight and body-fat trends, your real burn, and how closely you have stuck to it.</span>
       </span>
-      <Icon.chevron width="24" height="24" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+      <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
     </button>}
     <div className="mb-4">
       <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search settings" className={inputCls} aria-label="Search settings" />
@@ -14754,7 +14761,7 @@ function ChangePassword({ email }) {
     setBusy(false);
   }
   return (<div>
-    <MenuRow label="Change password" onClick={() => { if (open) { setOpen(false); reset(); } else { reset(); setOpen(true); } }} right={<Icon.chevron width="24" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />} />
+    <MenuRow label="Change password" onClick={() => { if (open) { setOpen(false); reset(); } else { reset(); setOpen(true); } }} right={<Icon.chevron width="16" style={{ transform: open ? 'rotate(90deg)' : 'none' }} />} />
     {open && <div className="pixel-box p-4 mt-2 fade-in" style={{ background: 'var(--card)' }}>
       <Field label="Current password"><input type="password" autoComplete="current-password" className={inputCls} value={cur} onChange={e => setCur(e.target.value)} placeholder="current password" /></Field>
       <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} placeholder="at least 6 characters" /></Field>
@@ -14983,7 +14990,7 @@ function MenuRow({ label, desc, onClick, tone, right }) {
         <div className="text-sm font-semibold" style={{ color }}>{label}</div>
         {desc && <div className="text-[11px] text-[#8A8A90] mt-0.5 leading-snug">{desc}</div>}
       </div>
-      <span className="text-[#8A8A90] shrink-0">{right || <Icon.chevron width="24" />}</span>
+      <span className="text-[#8A8A90] shrink-0">{right || <Icon.chevron width="16" />}</span>
     </button>
   );
 }
@@ -15231,7 +15238,7 @@ function AdminAiLogDetail({ log, onClose, onImage }) {
           <pre className="text-[11px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3" style={{ boxShadow: 'none' }}>{resultDisplay}</pre>
         </div>
         <details>
-          <summary className="pf text-[8px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent <Icon.caret_down width="24" /></summary>
+          <summary className="pf text-[8px] uppercase text-[#8A8A90] cursor-pointer">Prompt sent <Icon.caret_down width="16" /></summary>
           <pre className="text-[10px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2" style={{ boxShadow: 'none', color: '#8A8A90' }}>{log.prompt || '(none)'}</pre>
         </details>
         <div className="text-[10px] text-[#8A8A90] tnum mt-4 pt-3 border-t border-[#262629]">{(log.input_tokens || 0) + ' tokens in · ' + (log.output_tokens || 0) + ' out'}{log.cost_usd ? ' · $' + (+log.cost_usd).toFixed(5) : ''}</div>
@@ -15281,7 +15288,7 @@ function AdminPanel({ onBack, adminEmail, update }) {
 
   return (
     <div className="max-w-md lg:max-w-3xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2"><Icon.arrow_left width="24" /> Back to menu</button>
+      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2"><Icon.arrow_left width="16" /> Back to menu</button>
       <PageHeader kicker="Admin" title="Control room" />
       <div className="flex gap-1 mb-4 bg-[#1E1E22] p-1 rounded-2xl">{[['overview', 'Overview'], ['support', 'Support'], ['users', 'Users'], ['ailogs', 'AI logs'], ['audit', 'Audit log']].map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}{k === 'support' && supportOpen > 0 && <span className="ml-1 text-[10px] px-1 rounded" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>{supportOpen}</span>}</button>)}</div>
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
@@ -15384,7 +15391,7 @@ function AdminUserDetail({ detail, onBack, reload, adminEmail }) {
   async function doSetPassword() { const p = newPw; if (!p || p.length < 6) { setErr('Password must be at least 6 characters.'); return; } setBusy('pw'); setErr(''); setMsg(''); try { await adminCall('set_password', { userId: u.id, password: p }); setNewPw(''); setConfirmKind(null); flash('Password updated. Their old password no longer works - share the new one with them securely and suggest they change it after logging in.'); } catch (e) { setErr(e.message); setConfirmKind(null); } setBusy(''); }
   return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6 fade-in">
-      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2"><Icon.arrow_left width="24" /> All users</button>
+      <button onClick={onBack} className="hit text-[12px] text-[#8A8A90] mb-2"><Icon.arrow_left width="16" /> All users</button>
       <PageHeader kicker="Admin · user" title={u.email} />
       {msg && <div className="text-[12px] mb-3" style={{ color: 'var(--good-ink)' }}>{msg}</div>}
       {err && <div className="text-[12px] mb-3" style={{ color: 'var(--danger-ink)' }}>{err}</div>}
@@ -15599,7 +15606,7 @@ function InviteSheet({ rewards, onClose, toast }) {
   async function copy() { try { await navigator.clipboard.writeText(link); toast && toast('Invite link copied'); } catch (_) {} }
   return (<div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
     <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 pb-8 fade-in" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none" aria-label="Close"><Icon.close width="24" /></button></div>
+      <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Invite friends</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none" aria-label="Close"><Icon.close width="16" /></button></div>
       <div className="text-[12px] text-[#8A8A90] mb-4 leading-relaxed">Share your link. When a friend joins with it, you <b style={{ color: 'var(--text)' }}>both</b> get <b style={{ color: 'var(--text)' }}>5 free AI logs</b> and a <b style={{ color: 'var(--text)' }}>rare dino</b>.</div>
       <div className="pixel-box p-3 mb-3 flex items-center gap-2" style={{ background: 'var(--surface3)' }}>
         <div className="min-w-0 flex-1 text-[12px] tnum truncate">{link}</div>
@@ -15926,7 +15933,7 @@ function Toast({ toast, onClose, lifted }) {
         <span className="text-sm">{toast.msg}</span>
         {toast.action2Label && <button onClick={toast.onAction2} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.action2Label}</button>}
         {toast.actionLabel && <button onClick={toast.onAction} className="hit text-sm font-semibold text-[#4A9EEB] shrink-0">{toast.actionLabel}</button>}
-        {onClose && <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1" aria-label="Dismiss"><Icon.close width="24" /></button>}
+        {onClose && <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1" aria-label="Dismiss"><Icon.close width="16" /></button>}
       </div>
     </div>
   );
@@ -16014,7 +16021,7 @@ function Sidebar({ view, setView, onAdd, onOpenPlay }) {
       <button onClick={onAdd} className="pixel-btn flex items-center justify-center gap-2 bg-white text-black py-3 font-bold mb-4"><Icon.plus width="24" height="24" /> Log food</button>
       <div className="flex flex-col gap-2">{tabs.map(([k, l, Ic]) => <button key={k} onClick={() => setView(k)} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${navActive(view, k) ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Ic width="24" height="24" /> {l}</button>)}
         <button onClick={onOpenPlay} className="pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"><PixelEgg size={20} color="var(--good)" /> PLAY</button>
-        <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="24" height="24" /> YOU</button>
+        <button onClick={() => setView('more')} className={`pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`}><Icon.more width="16" height="16" /> YOU</button>
       </div>
       <div className="mt-auto pf text-[8px] text-[#8A8A90] px-1">{BRAND}</div>
     </div>
@@ -16029,7 +16036,7 @@ function MobileHeader({ onOpenPlay, onOpenYou, streak }) {
         <div className="leading-tight">
           <div className="pf text-[12px]" style={{ color: 'var(--header-text)' }}>MACROSAURUS</div>
           <div className="text-[9px] flex items-center gap-1.5">
-            {streak > 0 && <span style={{ color: 'var(--on-header-accent)' }}><Icon.trend_up width="24" /> {streak}d</span>}
+            {streak > 0 && <span style={{ color: 'var(--on-header-accent)' }}><Icon.trend_up width="16" /> {streak}d</span>}
             <span className="pf text-[7px] uppercase" style={{ color: 'var(--on-header-accent)' }}>Play ›</span>
           </div>
         </div>
@@ -16095,7 +16102,7 @@ function OnboardingChecklist({ db, update, onLog, onOpenDex }) {
   return (<Card className="p-4 mb-4 fade-in">
     <div className="flex justify-between items-center mb-2">
       <div className="text-sm font-bold">{incubating ? 'Hatch your buddy' : 'Getting started'}</div>
-      <div className="flex items-center gap-2"><span className="text-[11px] text-[#8A8A90]">{doneCount}/{items.length}</span><button onClick={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.dismissed = true; })} className="text-[#8A8A90] text-lg leading-none" aria-label="Dismiss"><Icon.close width="24" /></button></div>
+      <div className="flex items-center gap-2"><span className="text-[11px] text-[#8A8A90]">{doneCount}/{items.length}</span><button onClick={() => update(d => { d.onboarding = d.onboarding || {}; d.onboarding.dismissed = true; })} className="text-[#8A8A90] text-lg leading-none" aria-label="Dismiss"><Icon.close width="16" /></button></div>
     </div>
     <div className="text-[11px] text-[#8A8A90] mb-2.5 leading-snug">{incubating ? 'Your egg is incubating. Do these staples and it cracks open into your buddy.' : 'Tap a task to jump straight to it. Each one ticks off on its own once you have done it.'}</div>
     <div className="space-y-0.5">
@@ -16173,7 +16180,7 @@ function RecipeCard({ recipe, onOpen, onFav }) {
           <div className="font-bold text-[15px] leading-tight" style={{ ...clamp2, color: '#fff' }}>{recipe.title}</div>
         </div>
         <div className="absolute top-2 right-2 pixel-box px-2 py-1 text-[11px] font-bold tnum" style={{ background: 'var(--bg)', color: m.kcal > 0 ? 'var(--text)' : 'var(--muted)' }}>{m.kcal > 0 ? Math.round(m.kcal) + ' kcal' : 'Tap to price'}</div>
-        {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="24" height="24" fill="currentColor" /></button>}
+        {onFav && <button onClick={e => { e.stopPropagation(); onFav(); }} aria-label="Favourite" className="absolute top-2 left-2 w-8 h-8 pixel-box flex items-center justify-center" style={{ background: 'var(--bg)', color: recipe.favorite ? FAT : 'var(--muted)' }}><Icon.star width="16" height="16" fill="currentColor" /></button>}
       </div>
       {chips.length > 0 && <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
         {chips.map((c, i) => <span key={i} className="pf text-[7px] uppercase px-1.5 py-1 leading-none" style={c.hero ? { background: 'var(--accent)', color: 'var(--on-accent)' } : { background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{c.label}</span>)}
@@ -16248,7 +16255,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
   if (draft) return <RecipeReview recipe={draft} note={note} onSave={onSaved} onCancel={() => { setNote(''); setDraft(null); }} />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Back</button>
+    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Back</button>
     <div className="text-lg font-bold mb-3">Import a recipe</div>
     <ShareTip className="mb-4" />
     <div className="text-[11px] uppercase pf text-[#8A8A90] mb-2">Or paste a link</div>
@@ -16263,7 +16270,7 @@ function RecipeImport({ initialUrl, onSaved, onCancel }) {
       </Field>
       <Btn kind="ghost" className="w-full mb-4" onClick={fromCaption}>Build from pasted text</Btn>
       <div className="mb-1"><PhotoButton label="Add recipe screenshots" multiple onFiles={addImgs} className="w-full" /></div>
-      {imgs.length > 0 && <div className="flex gap-2 flex-wrap my-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="24" /></button></div>))}</div>}
+      {imgs.length > 0 && <div className="flex gap-2 flex-wrap my-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
       {imgs.length > 0 && <Btn kind="ghost" className="w-full" onClick={fromImages}>Build from screenshots</Btn>}
     </div>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 fade-in leading-snug">{err}</div>}
@@ -16279,7 +16286,7 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
   const setSteps = (txt) => setD(x => ({ ...x, steps: txt.split('\n').map(s => s.trim()).filter(Boolean) }));
   const priced = d.macros_per_serving.kcal > 0;
   return (<div className="fade-in">
-    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Start over</button>
+    <button onClick={onCancel} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Start over</button>
     <div className="text-lg font-bold mb-1">Check the recipe</div>
     <div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Got {d.ingredients.length} ingredient{d.ingredients.length === 1 ? '' : 's'}{d.steps.length ? ' and ' + d.steps.length + ' step' + (d.steps.length === 1 ? '' : 's') : ''}{d.source_platform ? ' from ' + Rcp.platformLabel(d.source_platform) : ''}. Each ingredient is one line, amount first. Fix anything, then save it to your cookbook, you can work out the macros or cook it whenever.</div>
     {/* Say plainly which parts of the video we actually read. When the importer had to watch or listen
@@ -16295,7 +16302,7 @@ function RecipeReview({ recipe, note, onSave, onCancel }) {
       {d.ingredients.map((ing, i) => (
         <div key={ing.id} className="flex items-center gap-2">
           <input value={Rcp.lineOf(ing)} onChange={e => setLine(i, e.target.value)} className={inputCls + ' flex-1 py-2'} placeholder="e.g. 150 g cottage cheese" />
-          <button onClick={() => delIng(i)} className="text-[#8A8A90] text-lg leading-none px-1" aria-label="Remove"><Icon.close width="24" /></button>
+          <button onClick={() => delIng(i)} className="text-[#8A8A90] text-lg leading-none px-1" aria-label="Remove"><Icon.close width="16" /></button>
         </div>
       ))}
     </div>
@@ -16330,7 +16337,7 @@ function IngredientMacroSheet({ ingredient, onResolve, onClose }) {
   const tabs = [['ai', 'Estimate'], ['search', 'Search'], ['manual', 'Manual']];
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"><Icon.close width="24" /></button></div>
+      <div className="flex items-center justify-between mb-1"><div className="text-base font-bold truncate pr-2">Macros for “{line}”</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"><Icon.close width="16" /></button></div>
       <div className="text-[11px] text-[#8A8A90] mb-3">Set exact numbers for this ingredient if the automatic ones look off.</div>
       <div className="flex gap-1 bg-[#1E1E22] p-1 rounded-2xl mb-3">{tabs.map(([k, l]) => <button key={k} onClick={() => { setTab(k); setErr(''); }} className={`flex-1 rounded-xl py-2 text-[12px] transition ${tab === k ? 'bg-white text-black font-semibold' : 'text-[#8A8A90]'}`}>{l}</button>)}</div>
       {tab === 'ai' && <div className="text-center py-1"><div className="text-[12px] text-[#8A8A90] mb-3 leading-snug">Estimate the macros for this exact line with AI.</div><Btn kind="accent" className="w-full" onClick={aiEstimate}>{busy === 'ai' ? 'Estimating...' : 'Estimate with AI'}</Btn></div>}
@@ -16382,7 +16389,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
     <div className="flex items-center justify-between px-5 pt-4 pb-3" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
       <button onClick={() => setShowIng(true)} className="pixel-box px-3 py-1.5 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}><Icon.recipe width="24" height="24" /> Ingredients</button>
       <div className="pf text-[10px] text-[#8A8A90]">STEP {i + 1} / {steps.length}</div>
-      <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-2xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="24" /></button>
+      <button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-2xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="16" /></button>
     </div>
     <div className="h-1 mx-5 mb-2 rounded-full" style={{ background: 'var(--surface3)' }}><div className="h-1 rounded-full" style={{ width: ((i + 1) / steps.length * 100) + '%', background: 'var(--accent)' }} /></div>
     <div className="flex-1 overflow-y-auto px-6 flex flex-col justify-center">
@@ -16404,7 +16411,7 @@ function CookMode({ recipe, onClose, onLogDone }) {
     </div>
     {showIng && <div className="absolute inset-0 z-10 bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowIng(false)}>
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="24" /></button></div>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Ingredients</div><button onClick={() => setShowIng(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="16" /></button></div>
         <div className="space-y-0.5">{recipe.ingredients.map(ing => (
           <button key={ing.id} onClick={() => setChecked(c => Object.assign({}, c, { [ing.id]: !c[ing.id] }))} className="w-full flex items-center gap-3 text-left py-2">
             <span className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-[11px]" style={{ border: '2px solid ' + (checked[ing.id] ? 'var(--good)' : 'var(--border)'), background: checked[ing.id] ? 'var(--good)' : 'transparent', color: 'var(--on-accent)' }}>{checked[ing.id] ? <Tick size={12} /> : null}</span>
@@ -16509,8 +16516,8 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
   const chips = recipeChips(recipe);
   return (<div className="fade-in">
     <SubHeader back={onBack} backLabel="Cook" title="Recipe" actions={[
-      { icon: <Icon.star width="24" height="24" fill="currentColor" />, label: 'Favourite', onClick: toggleFav, on: !!recipe.favorite },
-      { icon: <Icon.more width="24" />, label: 'More', onClick: () => setMore(true) },
+      { icon: <Icon.star width="16" height="16" fill="currentColor" />, label: 'Favourite', onClick: toggleFav, on: !!recipe.favorite },
+      { icon: <Icon.more width="16" />, label: 'More', onClick: () => setMore(true) },
     ]} />
     {/* ONE card carries the image AND the recipe's identity, per the design. Splitting them - a
         framed photo, then a bare heading loose on the page - is what made this screen read as a
@@ -16563,7 +16570,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
     </Card>
     {hasMacros && (() => { const s = Rcp.macroSanity(recipe); return s ? <div className="pixel-box p-3 mb-3 text-[12px] leading-snug" style={{ background: 'var(--surface3)', borderColor: '#F5C542', color: '#F5C542' }}>Heads up: {s.msg} <button onClick={() => analyze(false)} className="underline font-semibold">Re-work out</button></div> : null; })()}
-    {(recipe.steps || []).length > 0 && <div className="mb-3"><SheetBtn onClick={() => setCooking(true)}><Icon.play width="24" /> Start cooking</SheetBtn></div>}
+    {(recipe.steps || []).length > 0 && <div className="mb-3"><SheetBtn onClick={() => setCooking(true)}><Icon.play width="16" /> Start cooking</SheetBtn></div>}
     <Card className="p-0 overflow-hidden mb-3">
       <div className="flex items-center justify-between gap-2 px-2.5 py-1.5" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
         <span className="pf text-[10px] uppercase" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }}>Ingredients</span>
@@ -16582,7 +16589,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
         {recipe.ingredients.map((ing) => (
           <div key={ing.id} className="flex items-center gap-2">
             <input key={Rcp.lineOf(ing)} defaultValue={Rcp.lineOf(ing)} onBlur={e => setLine(ing.id, e.target.value)} placeholder="e.g. 150 g cottage cheese" className={inputCls + ' flex-1 py-2 text-[14px]'} />
-            <button onClick={() => removeIng(ing.id)} className="text-[#8A8A90] text-xl leading-none px-1 shrink-0" aria-label="Remove"><Icon.close width="24" /></button>
+            <button onClick={() => removeIng(ing.id)} className="text-[#8A8A90] text-xl leading-none px-1 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
           </div>
         ))}
       </div>
@@ -16598,7 +16605,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
             <button onClick={() => toggleHave(ing.id)} aria-label="Have it" className="flex items-center justify-center shrink-0" style={{ width: 20, height: 20, border: '2px solid var(--border)', background: ing.have ? 'var(--good)' : 'var(--card)', color: '#fff' }}>{ing.have ? <Tick size={12} /> : null}</button>
             <button onClick={() => toggleHave(ing.id)} className="flex-1 min-w-0 text-left text-[13.5px] leading-snug" style={{ color: ing.have ? 'var(--muted)' : 'var(--text)', textDecoration: ing.have ? 'line-through' : 'none' }}>{Rcp.lineOf(ing)}</button>
             <button onClick={() => setMacrosIng(ing)} className="pf text-[9px] tnum shrink-0 flex items-center gap-1" style={{ color: ing.macros ? 'var(--muted)' : 'var(--accent-ink)', letterSpacing: '0.08em' }}>
-              {ing.resolved && <span style={{ color: srcDot[ing.resolved.source] || MUTED }}><PixelGlyph kind="dot" size={24} /></span>}
+              {ing.resolved && <span style={{ color: srcDot[ing.resolved.source] || MUTED }}><PixelGlyph kind="dot" size={16} /></span>}
               {ing.macros ? Math.round(ing.macros.kcal) + ' KCAL' : 'SET ›'}
             </button>
           </div>
@@ -16606,7 +16613,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
       </div>
       <div className="mt-3"><SheetBtn tone="ghost" onClick={addMissingToShopping} disabled={!missing.length} style={missing.length ? null : { opacity: 0.5 }}>{missing.length ? ('Add ' + missing.length + ' missing to the shopping list') : 'You have everything'}</SheetBtn></div>
       <div className="text-[11px] mt-2.5 leading-snug" style={{ color: 'var(--muted)' }}>Tick what you have. Tap a line's calories to fix its numbers, or Edit to change the ingredients.{resolved > 0 ? ' ' : ''}
-        {resolved > 0 && <span className="inline-flex flex-wrap gap-x-3"><span><Icon.dot width="24" style={{ color: 'var(--good-ink)' }} /> database</span><span><Icon.dot width="24" style={{ color: 'var(--fat-ink)' }} /> AI estimate</span><span><Icon.dot width="24" style={{ color: 'var(--accent-ink)' }} /> your number</span></span>}
+        {resolved > 0 && <span className="inline-flex flex-wrap gap-x-3"><span><Icon.dot width="16" style={{ color: 'var(--good-ink)' }} /> database</span><span><Icon.dot width="16" style={{ color: 'var(--fat-ink)' }} /> AI estimate</span><span><Icon.dot width="16" style={{ color: 'var(--accent-ink)' }} /> your number</span></span>}
       </div>
     </>}
       </div>
@@ -16666,7 +16673,7 @@ function RecipeDetail({ recipe, db, update, showToast, onBack, onDelete, onLogRe
     {showColl && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShowColl(false)}>
       <BackClose onClose={() => setShowColl(false)} />
       <div className="w-full lg:max-w-sm rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Collections</div><button onClick={() => setShowColl(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="24" /></button></div>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Collections</div><button onClick={() => setShowColl(false)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="16" /></button></div>
         <div className="text-[12px] text-[#8A8A90] mb-3">Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways).</div>
         <div className="space-y-1.5 mb-4">{allCollections.map(c => { const on = (recipe.collections || []).includes(c); return (
           <button key={c} onClick={() => toggleColl(c)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left text-[14px]" style={{ background: 'var(--surface3)' }}>
@@ -16737,12 +16744,12 @@ function ShoppingListView({ db, update, showToast, onBack }) {
         ? <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={() => saveEdit(it.id)} onKeyDown={e => { if (e.key === 'Enter') saveEdit(it.id); }} className="w-16 text-[12px] text-right bg-transparent shrink-0" style={{ borderBottom: '1px solid var(--border)', color: 'var(--text)' }} />
         : <button onClick={() => { setEditId(it.id); setEditVal(it.qty_label || ''); }} className="text-[12px] text-[#8A8A90] tnum shrink-0 min-w-[24px] text-right">{it.qty_label || '+'}</button>}
       {!it.checked && <button onClick={() => alwaysHave(it)} title="Always have (stop adding this to lists)" aria-label="Always have" className="pf text-[6.5px] uppercase text-[#8A8A90] shrink-0 leading-none" style={{ letterSpacing: '.5px' }}>Have</button>}
-      <button onClick={() => removeItem(it.id)} aria-label="Remove" className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0"><Icon.close width="24" /></button>
+      <button onClick={() => removeItem(it.id)} aria-label="Remove" className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0"><Icon.close width="16" /></button>
     </div>
   );
 
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Recipes</button>
+    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
     <div className="flex items-center justify-between mb-3 gap-3">
       <h1 className="text-xl font-bold">Shopping list</h1>
       <div className="flex items-center gap-3 shrink-0">
@@ -16776,7 +16783,7 @@ function ShoppingListView({ db, update, showToast, onBack }) {
       {showPantry && <Card className="p-3 mt-2">
         <div className="text-[11px] text-[#8A8A90] mb-2">Things you always have. We won't add these from recipes. Remove one to start buying it again.</div>
         <div className="flex flex-wrap gap-1.5">{pantry.map(n => (
-          <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[7px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} <Icon.close width="24" /></button>
+          <button key={n} onClick={() => removeFromPantry(n)} className="pf text-[7px] uppercase px-2 py-1 leading-none flex items-center gap-1" style={{ background: 'var(--surface3)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{n} <Icon.close width="16" /></button>
         ))}</div>
       </Card>}
     </div>}
@@ -16893,7 +16900,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
       </div>
       {teaser.length > 0 && <div className="relative mb-4" onClick={openPaywall}>
         <div className="grid grid-cols-2 gap-3" style={{ filter: 'blur(3px)', opacity: 0.85, pointerEvents: 'none' }}>{teaser.slice(0, 4).map((p, i) => <PublicRecipeCard key={i} pub={p} onOpen={() => {}} />)}</div>
-        <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.lock width="24" /> Unlock the library</span></div>
+        <div className="absolute inset-0 flex items-center justify-center"><span className="pixel-box px-4 py-2 text-[11px] pf" style={{ background: 'var(--bg)', color: 'var(--text)' }}><Icon.lock width="16" /> Unlock the library</span></div>
       </div>}
       <button onClick={onGoMine} className="w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug">Free forever: import, upload and cook your own recipes. <span style={{ color: 'var(--accent-ink)' }}>Your cookbook ›</span></button>
     </div>);
@@ -16923,7 +16930,7 @@ function RecipeHub({ db, isPremium, onSaveCopy, onCook, onConsent, showToast, on
       <BackClose onClose={() => setPreview(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
         <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={preview.thumbnail} iconSize={48} /></div>
-        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="24" /></button></div>
+        <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{preview.title}</div><button onClick={() => setPreview(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="16" /></button></div>
         {preview.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(preview)}</div> : null}
         <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {preview.servings}</div><RecipeMacroStrip macros={pm} per /></Card>
         <div className="text-[13px] font-bold mb-1">Ingredients</div>
@@ -16967,13 +16974,13 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
   const plannedCount = days.reduce((n, d) => n + planFor(d).length, 0);
   const forecast = weekForecastTargets(db, days);
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Recipes</button>
+    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
     <div className="flex items-center justify-between mb-3">
       <PageHeader kicker="Cook" title="Meal plan" />
       <div className="flex items-center gap-1.5 shrink-0">
-        <button onClick={() => setWeekStart(shiftISO(weekStart, -7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Previous week"><Icon.chevron width="24" style={{ transform: 'scaleX(-1)' }} /></button>
+        <button onClick={() => setWeekStart(shiftISO(weekStart, -7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Previous week"><Icon.chevron width="16" style={{ transform: 'scaleX(-1)' }} /></button>
         <button onClick={() => setWeekStart(today)} className="pixel-box px-2.5 h-9 text-[11px] flex items-center" style={{ background: 'var(--surface3)' }}>This week</button>
-        <button onClick={() => setWeekStart(shiftISO(weekStart, 7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Next week"><Icon.chevron width="24" /></button>
+        <button onClick={() => setWeekStart(shiftISO(weekStart, 7))} className="pixel-box w-9 h-9 flex items-center justify-center" style={{ background: 'var(--surface3)' }} aria-label="Next week"><Icon.chevron width="16" /></button>
       </div>
     </div>
     {plannedCount > 0 && <Btn kind="ghost" className="w-full mb-4 flex items-center justify-center gap-2" onClick={addWeekToShopping}><Icon.cart width="24" height="24" /> Add this week's ingredients to shopping</Btn>}
@@ -16997,7 +17004,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
                   <span className="text-[10px] text-[#8A8A90] tnum shrink-0">{mk} kcal</span>
                 </button>
                 {!p.cooked && <button onClick={() => logPlanned(p)} className="pf text-[8px] uppercase px-2 py-1 rounded shrink-0" style={{ color: 'var(--accent-ink)', border: '1px solid var(--accent)' }}>Log</button>}
-                <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove"><Icon.close width="24" /></button>
+                <button onClick={() => removeFromPlan(p.id)} className="text-[#8A8A90] text-lg leading-none px-0.5 shrink-0" aria-label="Remove"><Icon.close width="16" /></button>
               </div>); })}
           </div>}
           <button onClick={() => setPick(d)} className="hit text-[12px]" style={{ color: 'var(--accent-ink)' }}>+ Add a recipe</button>
@@ -17007,7 +17014,7 @@ function PlannerView({ db, update, showToast, onBack, onOpenRecipe, onLogOn }) {
     {pick && <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setPick(null)}>
       <BackClose onClose={() => setPick(null)} />
       <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Add to {new Date(pick + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })}</div><button onClick={() => setPick(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="24" /></button></div>
+        <div className="flex items-center justify-between mb-3"><div className="text-base font-bold">Add to {new Date(pick + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })}</div><button onClick={() => setPick(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"><Icon.close width="16" /></button></div>
         {priced.length ? <div className="space-y-1.5">{priced.map(r => (
           <button key={r.id} onClick={() => addToPlan(pick, r.id)} className="w-full flex items-center gap-3 pixel-box px-3 py-2.5 text-left" style={{ background: 'var(--surface3)' }}>
             <span className="flex-1 min-w-0 text-[14px] truncate">{r.title}</span>
@@ -17033,12 +17040,12 @@ function RecipeFilterSheet({ db, facets, setFacet, sort, setSort, onClear, onClo
   return (<div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
     <BackClose onClose={onClose} />
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="24" /></button></div>
+      <div className="flex items-center justify-between mb-4"><div className="text-base font-bold">Filter &amp; sort</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]" aria-label="Close"><Icon.close width="16" /></button></div>
       <div className="mb-4">
         <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Show</div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setFacet('badge', 'high-protein')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: facets.badge === 'high-protein' ? 'var(--accent)' : 'var(--surface3)', color: facets.badge === 'high-protein' ? 'var(--on-accent)' : 'var(--text)', fontWeight: facets.badge === 'high-protein' ? 700 : 400 }}>High protein</button>
-          {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}><Icon.star width="24" /> Favourites</button>}
+          {setFilter && <button onClick={() => setFilter(filter === 'fav' ? 'all' : 'fav')} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: filter === 'fav' ? 'var(--accent)' : 'var(--surface3)', color: filter === 'fav' ? 'var(--on-accent)' : 'var(--text)', fontWeight: filter === 'fav' ? 700 : 400 }}><Icon.star width="16" /> Favourites</button>}
           {setFilter && (collections || []).map(c => { const on = filter === c; return <button key={c} onClick={() => setFilter(on ? 'all' : c)} className="pixel-box px-2.5 py-1.5 text-[12px]" style={{ background: on ? 'var(--accent)' : 'var(--surface3)', color: on ? 'var(--on-accent)' : 'var(--text)', fontWeight: on ? 700 : 400 }}>{c}</button>; })}
         </div>
       </div>
@@ -17171,18 +17178,18 @@ function FridgeScan({ db, update, showToast, onBack, onOpenRecipe, isPremium, on
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} title="Photograph your fridge" subtitle="Snap a shelf or two of what you've got" frameHint="Fit a shelf in the frame, then tap to capture. Add more after." unavailable="Camera unavailable here, upload a photo of your fridge instead." fileName="fridge.jpg" />;
   if (busy) return <DinoLoader label={busy} />;
   return (<div className="fade-in">
-    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="24" /> Recipes</button>
+    <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-3"><Icon.arrow_left width="16" /> Recipes</button>
     <div className="text-lg font-bold mb-1">Cook from your fridge</div>
     <div className="text-[12px] text-[#8A8A90] mb-4 leading-snug">Snap your fridge, freezer or cupboard (a few shelves is fine). We'll spot what's in there and find recipes you can make now, or are only a couple of ingredients short of{isPremium ? ', from your cookbook and the whole Discover library' : ''}. Great for using things up before they go off.</div>
     {imgs.length < 5 && <button onClick={() => setCam(true)} className="w-full flex items-center justify-center gap-2 mb-3 pixel-btn py-3 text-[13px] font-medium" style={{ background: 'var(--surface3)', color: 'var(--text)' }}><Icon.cam width="24" height="24" /> {imgs.length ? 'Add another photo' : 'Take or upload a photo'}</button>}
-    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="24" /></button></div>))}</div>}
+    {imgs.length > 0 && <div className="flex gap-2 flex-wrap mb-3">{imgs.map(i => (<div key={i.id} className="relative"><img src={i.url} className="w-16 h-16 object-cover rounded-xl border border-[#262629]" /><button onClick={() => removeImg(i.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"><Icon.close width="16" /></button></div>))}</div>}
     {imgs.length > 0 && items === null && <Btn kind="accent" className="w-full" onClick={scan}>Spot my ingredients</Btn>}
     {err && <div className="text-[12px] text-[#F5C542] mt-3 leading-snug">{err}</div>}
     {items !== null && <div className="mt-4 fade-in">
       <div className="text-[13px] font-bold mb-1">We spotted these</div>
       <div className="text-[11px] text-[#8A8A90] mb-2 leading-snug">Tap × to remove anything we got wrong, and add anything we missed (things behind other things, or in jars, are easy to miss). Your pantry staples are already assumed.</div>
       <div className="flex flex-wrap gap-2 mb-3">
-        {(items || []).map((it, i) => <span key={i} className="pixel-box pl-2.5 pr-1.5 py-1 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}>{it}<button onClick={() => removeItem(i)} className="text-[#8A8A90] text-sm leading-none" aria-label="Remove"><Icon.close width="24" /></button></span>)}
+        {(items || []).map((it, i) => <span key={i} className="pixel-box pl-2.5 pr-1.5 py-1 text-[12px] flex items-center gap-1.5" style={{ background: 'var(--surface3)' }}>{it}<button onClick={() => removeItem(i)} className="text-[#8A8A90] text-sm leading-none" aria-label="Remove"><Icon.close width="16" /></button></span>)}
         {!(items || []).length && <span className="text-[12px] text-[#8A8A90]">Nothing yet - add what you have below.</span>}
       </div>
       <div className="flex gap-2 mb-5"><input value={add} onChange={e => setAdd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()} className={inputCls + ' flex-1'} placeholder="Add an ingredient…" /><Btn kind="ghost" onClick={addItem}>Add</Btn></div>
@@ -17220,7 +17227,7 @@ function FridgePublicSheet({ m, onCook, onSave, onAddMissing, onClose }) {
     <BackClose onClose={onClose} />
     <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
       <div className="relative w-full mb-3 pixel-box overflow-hidden" style={{ aspectRatio: '16 / 9', background: 'var(--surface3)' }}><RecipeImg src={r.thumbnail} iconSize={48} /><span className="absolute top-2 left-2 pf text-[8px] uppercase px-1.5 py-1" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Discover</span></div>
-      <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="24" /></button></div>
+      <div className="flex items-start justify-between gap-3 mb-1"><div className="text-lg font-bold leading-tight">{r.title}</div><button onClick={onClose} className="w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"><Icon.close width="16" /></button></div>
       {pub && pub.source_author ? <div className="text-[12px] mb-2" style={{ color: 'var(--accent-ink)' }}>via {creditName(pub)}</div> : null}
       <div className="text-[12px] mb-2" style={{ color: m.makeable ? 'var(--good-ink)' : '#F5C542' }}>{m.makeable ? 'You have everything for this' : m.missingCount + ' to grab · uses ' + m.haveCount + ' you have'}</div>
       {mm.kcal > 0 && <Card className="p-3 mb-3"><div className="text-[11px] text-[#8A8A90] mb-2">Per serving · serves {r.servings}</div><RecipeMacroStrip macros={mm} per /></Card>}
@@ -17414,7 +17421,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
           <span className="block text-[14px] font-bold leading-tight">Cook from your fridge</span>
           <span className="block text-[11px] text-[#8A8A90] leading-snug mt-0.5">Snap what you've got and I'll find recipes you can make right now.</span>
         </span>
-        <span className="shrink-0" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="24" /></span>
+        <span className="shrink-0" style={{ color: 'var(--accent-ink)' }}><Icon.chevron width="16" /></span>
       </button>
       <ChefCard db={db} />
       {/* The Cook page is the recipe hub: Discover = the whole community library (premium), Mine = yours (free). */}
@@ -17425,7 +17432,7 @@ function Recipes({ db, update, showToast, importUrl, onConsumeImport, openRecipe
             style={{ padding: '9px 4px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
               background: hubTab === k ? 'var(--accent)' : 'var(--card)',
               color: hubTab === k ? 'var(--on-accent)' : 'var(--muted2)' }}>
-            {l}{k === 'discover' && !isPremium && <span style={{ opacity: 0.7 }}><Icon.lock width="24" /></span>}
+            {l}{k === 'discover' && !isPremium && <span style={{ opacity: 0.7 }}><Icon.lock width="16" /></span>}
           </button>
         ))}
       </div>
@@ -17497,7 +17504,7 @@ function Paywall({ reason, onCheckout, onClose }) {
         <div className="p-5 overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
             <div className="text-[10px] uppercase tracking-widest pf" style={{ color: 'var(--accent-ink)' }}>Macrosaurus Premium</div>
-            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"><Icon.close width="24" /></button>
+            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"><Icon.close width="16" /></button>
           </div>
           <h2 className="text-[26px] font-bold mb-2 leading-tight" style={{ fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}>{headline}</h2>
           <div className="text-base leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>{blurb}</div>
@@ -18166,7 +18173,7 @@ function App() {
       {shared && shared.files && shared.files.length > 0 && <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={() => setShared(null)}>
         <BackClose onClose={() => setShared(null)} />
         <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto" style={{ background: 'var(--bg)' }} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none"><Icon.close width="24" /></button></div>
+          <div className="flex items-center justify-between mb-1"><div className="text-lg font-bold">Log shared photo{shared.files.length === 1 ? '' : 's'}</div><button onClick={() => setShared(null)} className="w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none"><Icon.close width="16" /></button></div>
           <div className="text-[12px] text-[#8A8A90] mb-3">The AI reads {shared.files.length === 1 ? 'it' : 'them'} and proposes a meal, you confirm before it's logged.</div>
           <DescribeTab db={db} initialFiles={shared.files} onBack={() => setShared(null)} onPick={(item) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEntry(Store.todayISO(), meals[0].id, item); setShared(null); }} onAddItems={(its) => { const meals = mealsForDay(db, Store.todayISO()); if (meals[0]) addEstimateItems(Store.todayISO(), meals[0].id, its); setShared(null); }} />
         </div>

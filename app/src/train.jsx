@@ -464,7 +464,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                     </span>
                   </span>
                   {isNext && <span className="pf text-[7px] uppercase shrink-0" style={{ color: 'var(--accent-ink)' }}>Next</span>}
-                  <Icon.chevron width="24" height="24" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+                  <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
                 </button>
               );
             })}
@@ -481,7 +481,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               {/* The page's one primary action, so it wears the accent rather than a hardcoded white
                   slab - which was also the last control in Train that stayed daylight at night. */}
               <button onClick={() => onOpen(next.session, block)} className="pixel-btn w-full py-3.5 pf text-[12px] uppercase" style={{ background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>
-                <Icon.play width="24" /> Open {next.session.name.split(' - ')[0]}
+                <Icon.play width="16" /> Open {next.session.name.split(' - ')[0]}
               </button>
               {/* Naming it is the whole of the discoverability. Opening a day has always been how you
                   read it; that it is also how you CHANGE it is not something a chevron can say, and
@@ -568,7 +568,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
           <button onClick={() => go('history')} className="w-full text-left px-3.5 py-3">
             <div className="flex items-baseline justify-between gap-3 mb-2.5">
               <span className="text-[15px] font-semibold truncate">{lastLog.name || 'Session'}</span>
-              <Icon.chevron width="24" height="24" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+              <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
             </div>
             <div className="grid grid-cols-3 gap-2.5">
               {(() => {
@@ -604,7 +604,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
                 {draftDays} {draftDays === 1 ? 'day' : 'days'} collected, ready when you are
               </span>
             </span>
-            <Icon.chevron width="24" height="24" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+            <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
           </button>
           {/* Binning a half-read import is at least as common as finishing one, so it does not need
               a trip inside the draft to find. */}
@@ -1216,10 +1216,10 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                 </span>}
               </span>
               {open
-                ? <span className="shrink-0" style={{ color: 'var(--cardhead-text)' }}><Icon.chevron width="24" height="24" style={{ transform: 'rotate(90deg)' }} /></span>
+                ? <span className="shrink-0" style={{ color: 'var(--cardhead-text)' }}><Icon.chevron width="16" height="16" style={{ transform: 'rotate(90deg)' }} /></span>
                 : done
                   ? <span className="shrink-0 w-6 h-6 flex items-center justify-center" style={{ background: 'var(--good)', color: '#fff' }}><Tick size={12} /></span>
-                  : <span className="shrink-0" style={{ color: 'var(--muted2)' }}><Icon.chevron width="24" height="24" /></span>}
+                  : <span className="shrink-0" style={{ color: 'var(--muted2)' }}><Icon.chevron width="16" height="16" /></span>}
             </button>
 
             {open && (
@@ -1437,7 +1437,7 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
               <span className="flex items-center gap-3 shrink-0">
                 <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt - 15000 }))} className="hit pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>−15</button>
                 <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 15000, seconds: r.seconds + 15, alerted: false }))} className="hit pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>+15</button>
-                <button onClick={() => setRest(null)} aria-label="Skip rest" className="hit pf text-[9px] uppercase" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.08em' }}>Skip <Icon.play width="24" /></button>
+                <button onClick={() => setRest(null)} aria-label="Skip rest" className="hit pf text-[9px] uppercase" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.08em' }}>Skip <Icon.play width="16" /></button>
               </span>
             </div>
             <div className="flex gap-[1px]" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
@@ -2221,7 +2221,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
             <span className="block text-[13px] font-semibold truncate">{gym ? gym.name : 'Choose a gym'}</span>
             <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gym ? gymSummary(gym) : 'Nothing saved yet'}</span>
           </span>
-          <Icon.chevron width="24" height="24" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+          <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
         </button>
       </Field>
 
@@ -2382,7 +2382,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
           <span className="block text-[11px] mt-1" style={{ color: 'var(--muted)' }}>{weekRangeLabel(startISO, week)}</span>
         </span>
         <span style={{ color: 'var(--muted2)', transform: weekPick ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}>
-          <Icon.chevron width="24" height="24" />
+          <Icon.chevron width="16" height="16" />
         </span>
       </button>
       {weekPick && (
@@ -2438,7 +2438,7 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
               </span>
               {log
                 ? <span className="shrink-0 w-6 h-6 flex items-center justify-center text-[13px] font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}><Tick size={12} /></span>
-                : <span className="shrink-0" style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="24" height="24" /></span>}
+                : <span className="shrink-0" style={{ color: 'var(--muted2)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s' }}><Icon.chevron width="16" height="16" /></span>}
             </button>
 
             {open && (
@@ -2699,7 +2699,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
             aria-label={'Change ' + (ex ? ex.name : 'this movement')}
             className="w-full text-left pixel-box p-4 mb-3 flex items-start gap-3" style={{ background: 'var(--card)' }}>
             {body}
-            <span className="shrink-0 mt-1" style={{ color: 'var(--muted2)' }}><Icon.chevron width="24" height="24" /></span>
+            <span className="shrink-0 mt-1" style={{ color: 'var(--muted2)' }}><Icon.chevron width="16" height="16" /></span>
           </button>
         );
       })}
@@ -3663,7 +3663,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
               <span className="block text-[13px] font-semibold truncate">{g.name}</span>
               <span className="block text-[11px]" style={{ color: 'var(--muted)' }}>{gymSummary(g)}</span>
             </span>
-            <Icon.chevron width="24" height="24" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+            <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
           </button>
         ))}
         {!gyms.length && <div className="text-[12px] mb-2" style={{ color: 'var(--muted2)' }}>None saved yet.</div>}
@@ -3677,7 +3677,7 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
             The rules behind the volume bands, the effort targets and the four-week shape.
           </span>
         </span>
-        <Icon.chevron width="24" height="24" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
+        <Icon.chevron width="16" height="16" style={{ color: 'var(--muted2)', flexShrink: 0 }} />
       </button>
 
       <Field label="Weight units" hint="Only changes what you see. Everything is stored the same way underneath.">

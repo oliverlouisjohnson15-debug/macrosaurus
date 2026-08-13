@@ -9584,8 +9584,15 @@ function PixelGlyph({
   const s = size || 24;
   const gi = GI_ICONS[kind];
   if (gi) {
+    // The artwork fills its 512 box edge to edge, while the pixel set it replaced carried a 2/24
+    // margin - so a 24px game-icon reads about a fifth larger than the glyph it replaced, which is
+    // most of why the chrome started shouting. Widening the viewBox insets every drawing by the
+    // same amount, in one place, rather than second-guessing 161 call sites.
+    // ...but only where the icon sits beside something. At 32px and up it is a hero in its own
+    // box - the add button, an empty state - and the inset just makes it timid.
+    const pad = s >= 32 ? 0 : 52;
     return /*#__PURE__*/React.createElement("svg", {
-      viewBox: "0 0 512 512",
+      viewBox: -pad + ' ' + -pad + ' ' + (512 + pad * 2) + ' ' + (512 + pad * 2),
       width: s,
       height: s,
       fill: color || 'currentColor',
@@ -9874,7 +9881,7 @@ function IOSInstallSheet({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon."), /*#__PURE__*/React.createElement("div", {
@@ -9952,7 +9959,7 @@ function InstallCard() {
     "aria-label": "Dismiss",
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug"
   }, isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'), /*#__PURE__*/React.createElement("button", {
@@ -12648,7 +12655,7 @@ function Sheet({
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: title,
     right: /*#__PURE__*/React.createElement(Icon.close, {
-      width: "24",
+      width: "16",
       "aria-label": "Close"
     }),
     onRight: onClose,
@@ -12970,7 +12977,7 @@ function Dropdown({
   }, cur ? cur.l : 'Select'), /*#__PURE__*/React.createElement("span", {
     className: "shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "24"
+    width: "16"
   }))), open && /*#__PURE__*/React.createElement("div", {
     className: "absolute z-40 mt-1 min-w-[10rem] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl"
   }, options.map(o => /*#__PURE__*/React.createElement("button", {
@@ -12991,7 +12998,7 @@ function Dropdown({
   }, cur ? cur.l : 'Select'), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] ml-2"
   }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "24"
+    width: "16"
   }))), open && /*#__PURE__*/React.createElement("div", {
     className: "absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl"
   }, options.map(o => /*#__PURE__*/React.createElement("button", {
@@ -15005,7 +15012,7 @@ function Auth() {
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back to log in"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-center mt-6 leading-relaxed px-2",
     style: {
@@ -15205,7 +15212,7 @@ function BodyFatPicker({
     onClick: () => setMode('bands'),
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and ", /*#__PURE__*/React.createElement("span", {
@@ -17635,7 +17642,7 @@ function WeighInEditModal({
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
   }, "Not sure? Estimate it from photos ", /*#__PURE__*/React.createElement(Icon.arrow_right, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement(SheetBtn, {
     onClick: save
   }, "Save")), bfPick && /*#__PURE__*/React.createElement(BodyFatPicker, {
@@ -17715,7 +17722,7 @@ function WeighInLog({
       className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0",
       "aria-label": "Delete"
     }, /*#__PURE__*/React.createElement(Icon.close, {
-      width: "24"
+      width: "16"
     })));
   }), entries.length > CAP && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowAll(s => !s),
@@ -18327,7 +18334,7 @@ function FullSheet({
       color: 'var(--header-text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px] uppercase",
     style: {
@@ -18448,7 +18455,7 @@ function ExpenditureCard({
       }
     }, "how this was worked out"), /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: showMath ? 'caret_up' : 'caret_down',
-      size: 24
+      size: 16
     })), showMath && /*#__PURE__*/React.createElement("div", {
       className: "fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5"
     }, /*#__PURE__*/React.createElement("div", null, "Over the last ", est.windowDays, " days you ate about ", /*#__PURE__*/React.createElement("span", {
@@ -20125,7 +20132,7 @@ function BuddyHabitat({
       color: 'var(--muted2)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), body, bare && /*#__PURE__*/React.createElement("span", {
     className: "blink absolute pf",
     style: {
@@ -20135,7 +20142,7 @@ function BuddyHabitat({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.tri_down, {
-    width: "24"
+    width: "16"
   })));
   return /*#__PURE__*/React.createElement(Card, {
     className: "hero-card p-0 mb-4 overflow-hidden"
@@ -22344,7 +22351,7 @@ function BuddyChatModal({
       color: 'var(--cardhead-text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto px-3 py-3",
     style: {
@@ -22486,7 +22493,7 @@ function BuddyChatModal({
       color: 'var(--nav-off)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "shrink-0 flex gap-2 items-stretch"
   }, /*#__PURE__*/React.createElement("button", {
@@ -22854,7 +22861,7 @@ function TrophyCabinet({
     onClick: onBack,
     className: "hit text-[11px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-3"
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
@@ -23134,7 +23141,7 @@ function ShopView({
     onClick: onBack,
     className: "hit text-[11px] text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back") : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px]",
     style: {
@@ -24029,7 +24036,7 @@ function FightModal({
         color: 'var(--fat-ink)'
       }
     }, /*#__PURE__*/React.createElement(Icon.trend_up, {
-      width: "24"
+      width: "16"
     }), " ", fight.dailyStreak, "-day streak · "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
       className: "font-bold",
       style: {
@@ -24074,7 +24081,7 @@ function FightModal({
       className: "w-full",
       onClick: prestige
     }, /*#__PURE__*/React.createElement(Icon.arrow_up, {
-      width: "24"
+      width: "16"
     }), " Prestige · tougher climb, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
       kind: "danger",
       className: "w-full inline-flex items-center justify-center gap-2",
@@ -25462,7 +25469,7 @@ function MetricBreakdownSheet({
         boxShadow: 'none'
       }
     }, "See today's Fight buff ", /*#__PURE__*/React.createElement(Icon.arrow_right, {
-      width: "24"
+      width: "16"
     })));
   }
   return /*#__PURE__*/React.createElement(Sheet, {
@@ -26066,7 +26073,7 @@ function StageUpCelebration({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-center"
   }, /*#__PURE__*/React.createElement(SpriteSheet, {
@@ -26526,8 +26533,8 @@ function LeftoversStrip({
   }, r.title), r.macros_per_serving && r.macros_per_serving.kcal > 0 && /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] text-[#8A8A90] tnum shrink-0"
   }, Math.round(r.macros_per_serving.kcal), " kcal"), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     style: {
       color: 'var(--muted)'
     }
@@ -26595,7 +26602,7 @@ function PremiumNudge({
     className: "hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5",
     "aria-label": "Not now"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })));
 }
 // Fills in the day's unscored entries so the quality score covers everything you actually ate, not
@@ -27585,12 +27592,12 @@ function CarryoverSheet({
   }, dShort(d.date)))), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between text-[9px] text-[#8A8A90] mb-4"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.square, {
-    width: "24",
+    width: "16",
     style: {
       color: 'var(--good-ink)'
     }
   }), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.square, {
-    width: "24",
+    width: "16",
     style: {
       color: 'var(--fat-ink)'
     }
@@ -28134,7 +28141,7 @@ function FoodLog({
         },
         "aria-label": "Entry options"
       }, /*#__PURE__*/React.createElement(Icon.more, {
-        width: "24"
+        width: "16"
       })), menu && menu.id === e.id && /*#__PURE__*/React.createElement(AnchoredMenu, {
         rect: menu.rect,
         onClose: () => setMenu(null),
@@ -28236,7 +28243,7 @@ function FoodLog({
     },
     "aria-label": "Previous day"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
+    width: "16",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -28269,7 +28276,7 @@ function FoodLog({
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: showCal ? 'caret_up' : 'caret_down',
-    size: 24
+    size: 16
   }))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setDate(shiftISO(date, 1)),
     className: "pixel-btn pf text-[12px] flex items-center justify-center",
@@ -28280,7 +28287,7 @@ function FoodLog({
     },
     "aria-label": "Next day"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   })), /*#__PURE__*/React.createElement("div", {
     className: "relative flex items-center"
   }, /*#__PURE__*/React.createElement("button", {
@@ -28293,7 +28300,7 @@ function FoodLog({
     className: "hit px-2 py-2 text-[#8A8A90]",
     "aria-label": "Day options"
   }, /*#__PURE__*/React.createElement(Icon.more, {
-    width: "24"
+    width: "16"
   })), dayMenu && /*#__PURE__*/React.createElement("div", {
     className: "absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44",
     onClick: ev => ev.stopPropagation()
@@ -28335,7 +28342,7 @@ function FoodLog({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
+    width: "16",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -28354,7 +28361,7 @@ function FoodLog({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
@@ -28546,7 +28553,7 @@ function FoodLog({
         className: "hit leading-none px-1 py-0 -my-1",
         title: "Move up"
       }, /*#__PURE__*/React.createElement(Icon.caret_up, {
-        width: "24"
+        width: "16"
       })), /*#__PURE__*/React.createElement("button", {
         onClick: () => moveMeal(m, 1),
         disabled: mi === meals.length - 1,
@@ -28557,7 +28564,7 @@ function FoodLog({
         className: "hit leading-none px-1 py-0 -my-1",
         title: "Move down"
       }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-        width: "24"
+        width: "16"
       }))), editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
         autoFocus: true,
         value: mealName,
@@ -28592,7 +28599,7 @@ function FoodLog({
           opacity: 0.6
         }
       }, /*#__PURE__*/React.createElement(Icon.edit, {
-        width: "24"
+        width: "16"
       })))), /*#__PURE__*/React.createElement("div", {
         className: "flex items-start gap-1.5"
       }, /*#__PURE__*/React.createElement("div", {
@@ -28619,7 +28626,7 @@ function FoodLog({
         },
         "aria-label": "Meal options"
       }, /*#__PURE__*/React.createElement(Icon.more, {
-        width: "24"
+        width: "16"
       })), mealMenu && mealMenu.id === m.id && /*#__PURE__*/React.createElement(AnchoredMenu, {
         rect: mealMenu.rect,
         onClose: () => setMealMenu(null),
@@ -29388,7 +29395,7 @@ function CopyToModal({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
+    width: "16",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -29407,7 +29414,7 @@ function CopyToModal({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
@@ -29805,8 +29812,8 @@ function FoodTab({
       color: f.is_favorite ? FAT : '#3A3A42'
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     fill: "currentColor"
   })));
   const Head = t => /*#__PURE__*/React.createElement("div", {
@@ -29842,7 +29849,7 @@ function FoodTab({
       className: "w-11 h-11 flex items-center justify-center shrink-0 shrink-0 text-[#8A8A90] text-lg leading-none",
       "aria-label": "Delete saved meal"
     }, /*#__PURE__*/React.createElement(Icon.close, {
-      width: "24"
+      width: "16"
     })));
   }))), !favs.length && !myShown.length && !savedMeals.length && /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[#8A8A90] text-sm py-8"
@@ -29874,7 +29881,7 @@ function FoodTab({
   }, "P ", Math.round(g.per100.protein), "g"), " / 100 g")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   })))))), Head('Brands and packets'), dbLoading && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#4A9EEB] py-2"
   }, "Searching…"), !dbLoading && dbResults.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -29898,7 +29905,7 @@ function FoodTab({
   }, "P ", Math.round(r.per100.protein), "g"), " / 100 g")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   }))))), !dbLoading && !dbResults.length && !dbErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] py-1"
   }, "No database matches."), dbErr && /*#__PURE__*/React.createElement("div", {
@@ -29939,7 +29946,7 @@ function FoodTab({
   }, "Estimate a meal from text, voice or a photo")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setManual(true),
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition"
@@ -29963,7 +29970,7 @@ function FoodTab({
   }, "Type in the macros yourself")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   }))), onAlcohol && /*#__PURE__*/React.createElement("button", {
     onClick: onAlcohol,
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2"
@@ -29985,7 +29992,7 @@ function FoodTab({
   }, "Beer, wine or spirits, with the units")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   })))), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Delete "' + confirmDel.name + '"?',
     body: "This removes the saved meal. Food already logged from it stays in your diary.",
@@ -30148,7 +30155,7 @@ function LogSheet({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back to food"), /*#__PURE__*/React.createElement(Dropdown, {
     compact: true,
     value: mealId,
@@ -30338,8 +30345,8 @@ function RecentTab({
       color: f.is_favorite ? FAT : '#3A3A42'
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     fill: "currentColor"
   })));
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TextInput, {
@@ -30459,7 +30466,7 @@ function ManualTab({
     onClick: onCancel,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back"), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
@@ -31093,7 +31100,7 @@ function ConfirmFood({
     tone: "quiet",
     className: "mb-2"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back"), estimated ? /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
     style: {
@@ -31263,7 +31270,7 @@ function ConfirmFood({
   }, "Wrong product, or the numbers look off")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   }))), onAskAI && /*#__PURE__*/React.createElement("button", {
     onClick: onAskAI,
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition"
@@ -31282,7 +31289,7 @@ function ConfirmFood({
   }, "Not packaged, or nothing to scan")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   })))), kcalHigh && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mt-3 mb-2",
     style: {
@@ -31613,7 +31620,7 @@ function AiConfirm({
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] min-h-[44px] -ml-1 px-1 flex items-center"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Start over"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -31828,7 +31835,7 @@ function AiConfirm({
     className: "shrink-0 mr-1"
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: edit ? 'caret_up' : 'caret_down',
-    size: 24
+    size: 16
   })), /*#__PURE__*/React.createElement("span", {
     className: "min-w-0"
   }, edit ? 'Hide items' : items.map(it => it.name).join(' · '))), hadItems && !single && edit && /*#__PURE__*/React.createElement("div", {
@@ -31865,11 +31872,11 @@ function AiConfirm({
     className: "w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0",
     "aria-label": `Remove ${it.name}`
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), it.assumption && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
   }, /*#__PURE__*/React.createElement(Icon.corner_arrow, {
-    width: "24"
+    width: "16"
   }), " ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] py-1"
   }, "All items removed. Tell the AI what to fix below, or start over.")), onRefine && /*#__PURE__*/React.createElement("div", {
@@ -32140,7 +32147,7 @@ function DescribeTab({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-2 flex items-center"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm."), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("button", {
@@ -32165,7 +32172,7 @@ function DescribeTab({
     onClick: () => remImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))))), /*#__PURE__*/React.createElement("textarea", {
     ref: taRef,
     value: text,
@@ -32493,7 +32500,7 @@ function MenuTab({
         color: 'var(--muted)'
       }
     }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-      width: "24"
+      width: "16"
     }), " Back"), /*#__PURE__*/React.createElement(Pill, {
       value: view,
       options: lenses.map(l => ({
@@ -32575,7 +32582,7 @@ function MenuTab({
           color: 'var(--accent-ink)'
         }
       }, /*#__PURE__*/React.createElement(Icon.corner_arrow, {
-        width: "24"
+        width: "16"
       }), " ", s.tweak));
     })), ranked.length > SHOWN && /*#__PURE__*/React.createElement("button", {
       onClick: () => setAll(v => !v),
@@ -32679,7 +32686,7 @@ function MenuTab({
       color: 'var(--text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))))), !pasteOpen && /*#__PURE__*/React.createElement("button", {
     onClick: () => setPasteOpen(true),
     className: "hit text-[12px] mt-2",
@@ -32954,7 +32961,7 @@ function PhotoUpdateSheet({
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none",
     "aria-label": "Remove photo"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))))), /*#__PURE__*/React.createElement("textarea", {
     value: note,
     onChange: e => setNote(e.target.value),
@@ -33115,7 +33122,7 @@ function LiveScanner({
       background: 'rgba(255,255,255,0.18)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -33279,7 +33286,7 @@ function TorchButton({
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: torch ? 'flashlight' : 'bolt',
-    size: 24
+    size: 16
   }));
 }
 // Soft "looks blurry" prompt shown after a capture whose sharpness is below the floor. Never blocks -
@@ -33374,7 +33381,7 @@ function LabelScanner({
       background: 'rgba(255,255,255,0.18)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -33495,7 +33502,7 @@ function MealCamera({
       background: 'rgba(255,255,255,0.18)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -36092,7 +36099,7 @@ function MealsScreen({
     className: "hit text-[#8A8A90] leading-none px-1 py-0 -my-1",
     title: "Move up"
   }, /*#__PURE__*/React.createElement(Icon.caret_up, {
-    width: "24"
+    width: "16"
   })), /*#__PURE__*/React.createElement("button", {
     onClick: () => moveDef(m.id, 1),
     disabled: i === list.length - 1,
@@ -36102,7 +36109,7 @@ function MealsScreen({
     className: "hit text-[#8A8A90] leading-none px-1 py-0 -my-1",
     title: "Move down"
   }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement(TextInput, {
     value: draft && draft.id === m.id ? draft.name : m.name,
     onChange: e => setDraft({
@@ -36122,7 +36129,7 @@ function MealsScreen({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0",
     title: "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })))), /*#__PURE__*/React.createElement("button", {
     onClick: addDef,
     className: "w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1"
@@ -36662,8 +36669,8 @@ function SettingsOverview({
       color: 'var(--muted)'
     }
   }, "Weight and body-fat trends, your real burn, and how closely you have stuck to it.")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -36851,7 +36858,7 @@ function ChangePassword({
       }
     },
     right: /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "24",
+      width: "16",
       style: {
         transform: open ? 'rotate(90deg)' : 'none'
       }
@@ -37503,7 +37510,7 @@ function MenuRow({
   }, desc)), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, right || /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   })));
 }
 
@@ -38233,7 +38240,7 @@ function AdminAiLogDetail({
   }, resultDisplay)), /*#__PURE__*/React.createElement("details", null, /*#__PURE__*/React.createElement("summary", {
     className: "pf text-[8px] uppercase text-[#8A8A90] cursor-pointer"
   }, "Prompt sent ", /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "24"
+    width: "16"
   })), /*#__PURE__*/React.createElement("pre", {
     className: "text-[10px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2",
     style: {
@@ -38361,7 +38368,7 @@ function AdminPanel({
     onClick: onBack,
     className: "hit text-[12px] text-[#8A8A90] mb-2"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back to menu"), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Admin",
     title: "Control room"
@@ -38827,7 +38834,7 @@ function AdminUserDetail({
     onClick: onBack,
     className: "hit text-[12px] text-[#8A8A90] mb-2"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " All users"), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Admin · user",
     title: u.email
@@ -39359,7 +39366,7 @@ function InviteSheet({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Share your link. When a friend joins with it, you ", /*#__PURE__*/React.createElement("b", {
@@ -40059,7 +40066,7 @@ function Toast({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1",
     "aria-label": "Dismiss"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))));
 }
 const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['train', 'TRAIN', Icon.dumbbell], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
@@ -40283,8 +40290,8 @@ function Sidebar({
     onClick: () => setView('more'),
     className: `pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
   }, /*#__PURE__*/React.createElement(Icon.more, {
-    width: "24",
-    height: "24"
+    width: "16",
+    height: "16"
   }), " YOU")), /*#__PURE__*/React.createElement("div", {
     className: "mt-auto pf text-[8px] text-[#8A8A90] px-1"
   }, BRAND));
@@ -40327,7 +40334,7 @@ function MobileHeader({
       color: 'var(--on-header-accent)'
     }
   }, /*#__PURE__*/React.createElement(Icon.trend_up, {
-    width: "24"
+    width: "16"
   }), " ", streak, "d"), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
@@ -40476,7 +40483,7 @@ function OnboardingChecklist({
     className: "text-[#8A8A90] text-lg leading-none",
     "aria-label": "Dismiss"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2.5 leading-snug"
   }, incubating ? 'Your egg is incubating. Do these staples and it cracks open into your buddy.' : 'Tap a task to jump straight to it. Each one ticks off on its own once you have done it.'), /*#__PURE__*/React.createElement("div", {
@@ -40655,8 +40662,8 @@ function RecipeCard({
       color: recipe.favorite ? FAT : 'var(--muted)'
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     fill: "currentColor"
   }))), chips.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap gap-1.5 px-3 pt-2.5"
@@ -40827,7 +40834,7 @@ function RecipeImport({
     onClick: onCancel,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-3"
   }, "Import a recipe"), /*#__PURE__*/React.createElement(ShareTip, {
@@ -40885,7 +40892,7 @@ function RecipeImport({
     onClick: () => removeImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))))), imgs.length > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
@@ -40940,7 +40947,7 @@ function RecipeReview({
     onClick: onCancel,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Start over"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
   }, "Check the recipe"), /*#__PURE__*/React.createElement("div", {
@@ -41006,7 +41013,7 @@ function RecipeReview({
     className: "text-[#8A8A90] text-lg leading-none px-1",
     "aria-label": "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))))), /*#__PURE__*/React.createElement("button", {
     onClick: addIng,
     className: "hit text-[12px] mb-4",
@@ -41137,7 +41144,7 @@ function IngredientMacroSheet({
     onClick: onClose,
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3"
   }, "Set exact numbers for this ingredient if the automatic ones look off."), /*#__PURE__*/React.createElement("div", {
@@ -41311,7 +41318,7 @@ function CookMode({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-2xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "h-1 mx-5 mb-2 rounded-full",
     style: {
@@ -41410,7 +41417,7 @@ function CookMode({
     onClick: () => setShowIng(false),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-0.5"
   }, recipe.ingredients.map(ing => /*#__PURE__*/React.createElement("button", {
@@ -41688,8 +41695,8 @@ function RecipeDetail({
     title: "Recipe",
     actions: [{
       icon: /*#__PURE__*/React.createElement(Icon.star, {
-        width: "24",
-        height: "24",
+        width: "16",
+        height: "16",
         fill: "currentColor"
       }),
       label: 'Favourite',
@@ -41697,7 +41704,7 @@ function RecipeDetail({
       on: !!recipe.favorite
     }, {
       icon: /*#__PURE__*/React.createElement(Icon.more, {
-        width: "24"
+        width: "16"
       }),
       label: 'More',
       onClick: () => setMore(true)
@@ -41854,7 +41861,7 @@ function RecipeDetail({
   }, /*#__PURE__*/React.createElement(SheetBtn, {
     onClick: () => setCooking(true)
   }, /*#__PURE__*/React.createElement(Icon.play, {
-    width: "24"
+    width: "16"
   }), " Start cooking")), /*#__PURE__*/React.createElement(Card, {
     className: "p-0 overflow-hidden mb-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -41929,7 +41936,7 @@ function RecipeDetail({
     className: "text-[#8A8A90] text-xl leading-none px-1 shrink-0",
     "aria-label": "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))))), /*#__PURE__*/React.createElement("button", {
     onClick: addIng,
     className: "hit text-[12px] mb-2",
@@ -41984,7 +41991,7 @@ function RecipeDetail({
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "dot",
-    size: 24
+    size: 16
   })), ing.macros ? Math.round(ing.macros.kcal) + ' KCAL' : 'SET ›')))), /*#__PURE__*/React.createElement("div", {
     className: "mt-3"
   }, /*#__PURE__*/React.createElement(SheetBtn, {
@@ -42002,17 +42009,17 @@ function RecipeDetail({
   }, "Tick what you have. Tap a line's calories to fix its numbers, or Edit to change the ingredients.", resolved > 0 ? ' ' : '', resolved > 0 && /*#__PURE__*/React.createElement("span", {
     className: "inline-flex flex-wrap gap-x-3"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.dot, {
-    width: "24",
+    width: "16",
     style: {
       color: 'var(--good-ink)'
     }
   }), " database"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.dot, {
-    width: "24",
+    width: "16",
     style: {
       color: 'var(--fat-ink)'
     }
   }), " AI estimate"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.dot, {
-    width: "24",
+    width: "16",
     style: {
       color: 'var(--accent-ink)'
     }
@@ -42226,7 +42233,7 @@ function RecipeDetail({
     onClick: () => setShowColl(false),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways)."), /*#__PURE__*/React.createElement("div", {
@@ -42442,7 +42449,7 @@ function ShoppingListView({
     "aria-label": "Remove",
     className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })));
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -42450,7 +42457,7 @@ function ShoppingListView({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3 gap-3"
   }, /*#__PURE__*/React.createElement("h1", {
@@ -42531,7 +42538,7 @@ function ShoppingListView({
       border: '1px solid var(--border)'
     }
   }, n, " ", /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })))))));
 }
 // The Cook game layer: cooking recipes climbs a Chef level, so the gamification spans the recipe hub
@@ -42781,7 +42788,7 @@ function RecipeHub({
         color: 'var(--text)'
       }
     }, /*#__PURE__*/React.createElement(Icon.lock, {
-      width: "24"
+      width: "16"
     }), " Unlock the library"))), /*#__PURE__*/React.createElement("button", {
       onClick: onGoMine,
       className: "w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug"
@@ -42895,7 +42902,7 @@ function RecipeHub({
     onClick: () => setPreview(null),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), preview.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
@@ -43043,7 +43050,7 @@ function PlannerView({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement(PageHeader, {
@@ -43059,7 +43066,7 @@ function PlannerView({
     },
     "aria-label": "Previous week"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
+    width: "16",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -43077,7 +43084,7 @@ function PlannerView({
     },
     "aria-label": "Next week"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   })))), plannedCount > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full mb-4 flex items-center justify-center gap-2",
@@ -43144,7 +43151,7 @@ function PlannerView({
         className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0",
         "aria-label": "Remove"
       }, /*#__PURE__*/React.createElement(Icon.close, {
-        width: "24"
+        width: "16"
       })));
     })), /*#__PURE__*/React.createElement("button", {
       onClick: () => setPick(d),
@@ -43174,7 +43181,7 @@ function PlannerView({
     onClick: () => setPick(null),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), priced.length ? /*#__PURE__*/React.createElement("div", {
     className: "space-y-1.5"
   }, priced.map(r => /*#__PURE__*/React.createElement("button", {
@@ -43263,7 +43270,7 @@ function RecipeFilterSheet({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, /*#__PURE__*/React.createElement("div", {
@@ -43287,7 +43294,7 @@ function RecipeFilterSheet({
       fontWeight: filter === 'fav' ? 700 : 400
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "24"
+    width: "16"
   }), " Favourites"), setFilter && (collections || []).map(c => {
     const on = filter === c;
     return /*#__PURE__*/React.createElement("button", {
@@ -43651,7 +43658,7 @@ function FridgeScan({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "24"
+    width: "16"
   }), " Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
   }, "Cook from your fridge"), /*#__PURE__*/React.createElement("div", {
@@ -43678,7 +43685,7 @@ function FridgeScan({
     onClick: () => removeImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))))), imgs.length > 0 && items === null && /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
@@ -43704,7 +43711,7 @@ function FridgeScan({
     className: "text-[#8A8A90] text-sm leading-none",
     "aria-label": "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   })))), !(items || []).length && /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] text-[#8A8A90]"
   }, "Nothing yet - add what you have below.")), /*#__PURE__*/React.createElement("div", {
@@ -43844,7 +43851,7 @@ function FridgePublicSheet({
     onClick: onClose,
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), pub && pub.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
@@ -44255,7 +44262,7 @@ function Recipes({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement(ChefCard, {
     db: db
   }), /*#__PURE__*/React.createElement("div", {
@@ -44280,7 +44287,7 @@ function Recipes({
       opacity: 0.7
     }
   }, /*#__PURE__*/React.createElement(Icon.lock, {
-    width: "24"
+    width: "16"
   }))))), hubTab === 'discover' ? /*#__PURE__*/React.createElement(RecipeHub, {
     db: db,
     isPremium: isPremium,
@@ -44496,7 +44503,7 @@ function Paywall({
     "aria-label": "Close",
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("h2", {
     className: "text-[26px] font-bold mb-2 leading-tight",
     style: {
@@ -45978,7 +45985,7 @@ function App() {
     onClick: () => setShared(null),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "24"
+    width: "16"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(DescribeTab, {
@@ -46855,8 +46862,8 @@ function TrainHome({
         color: 'var(--accent-ink)'
       }
     }, "Next"), /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "24",
-      height: "24",
+      width: "16",
+      height: "16",
       style: {
         color: 'var(--muted2)',
         flexShrink: 0
@@ -46879,7 +46886,7 @@ function TrainHome({
       letterSpacing: '0.06em'
     }
   }, /*#__PURE__*/React.createElement(Icon.play, {
-    width: "24"
+    width: "16"
   }), " Open ", next.session.name.split(' - ')[0]), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-center mt-3 leading-snug",
     style: {
@@ -46985,8 +46992,8 @@ function TrainHome({
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[15px] font-semibold truncate"
   }, lastLog.name || 'Session'), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -47047,8 +47054,8 @@ function TrainHome({
       color: 'var(--muted)'
     }
   }, draftDays, " ", draftDays === 1 ? 'day' : 'days', " collected, ready when you are")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -47955,8 +47962,8 @@ function SessionPlayer({
           color: 'var(--cardhead-text)'
         }
       }, /*#__PURE__*/React.createElement(Icon.chevron, {
-        width: "24",
-        height: "24",
+        width: "16",
+        height: "16",
         style: {
           transform: 'rotate(90deg)'
         }
@@ -47974,8 +47981,8 @@ function SessionPlayer({
           color: 'var(--muted2)'
         }
       }, /*#__PURE__*/React.createElement(Icon.chevron, {
-        width: "24",
-        height: "24"
+        width: "16",
+        height: "16"
       }))), open && /*#__PURE__*/React.createElement("div", {
         className: "px-3 pb-3 pt-3"
       }, /*#__PURE__*/React.createElement("div", {
@@ -48291,7 +48298,7 @@ function SessionPlayer({
         letterSpacing: '0.08em'
       }
     }, "Skip ", /*#__PURE__*/React.createElement(Icon.play, {
-      width: "24"
+      width: "16"
     })))), /*#__PURE__*/React.createElement("div", {
       className: "flex gap-[1px]",
       style: {
@@ -49602,8 +49609,8 @@ function BlockWizard({
       color: 'var(--muted)'
     }
   }, gym ? gymSummary(gym) : 'Nothing saved yet')), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -49833,8 +49840,8 @@ function BlockBuilder({
       transition: 'transform .12s'
     }
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24"
+    width: "16",
+    height: "16"
   }))), weekPick && /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, Array.from({
@@ -49926,8 +49933,8 @@ function BlockBuilder({
         transition: 'transform .12s'
       }
     }, /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "24",
-      height: "24"
+      width: "16",
+      height: "16"
     }))), open && /*#__PURE__*/React.createElement("div", {
       className: "px-4 pb-4"
     }, ordered.map((it, ei) => /*#__PURE__*/React.createElement("div", {
@@ -50280,8 +50287,8 @@ function SessionPreview({
         color: 'var(--muted2)'
       }
     }, /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "24",
-      height: "24"
+      width: "16",
+      height: "16"
     })));
   }), editable && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => setPicking({
@@ -51745,8 +51752,8 @@ function TrainSettings({
       color: 'var(--muted)'
     }
   }, gymSummary(g))), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -51778,8 +51785,8 @@ function TrainSettings({
       color: 'var(--muted)'
     }
   }, "The rules behind the volume bands, the effort targets and the four-week shape.")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "24",
-    height: "24",
+    width: "16",
+    height: "16",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
