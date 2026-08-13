@@ -328,6 +328,74 @@ test('parseMenuText does not mistake a price inside a dish name for the price', 
   assert.strictEqual(s[0].items[0].price, '£6.00');
 });
 
+// ---- narrowing a long menu -------------------------------------------------------------------------
+// Courses are the menu's own structure, but they are not how anyone narrows a long menu. Nobody
+// thinks "show me the mains" - they think "have they got a burger".
+
+const BIG_MENU = M.parseMenuText([
+  'STARTERS',
+  '- Salt and Chilli Squid  £8.95',
+  '    With lime aioli',
+  '- Garlic Bread  £4.00',
+  '- Chicken Wings  £6.50',
+  '    Pick your glaze',
+  'MAINS',
+  '- Margherita Pizza  £11.00',
+  '- Pepperoni Pizza  £12.50',
+  '- Classic Cheeseburger  £13.00',
+  '    Skin on fries',
+  '- Chicken Katsu Curry  £14.00',
+  '    Panko chicken, katsu sauce, rice',
+  '- Beer Battered Haddock  £16.50',
+  '- Halloumi Salad  £10.50',
+  '    Rocket, tomato, house dressing',
+  'SIDES',
+  '- Skin On Fries  £4.00',
+  '- Onion Rings  £4.50',
+].join('\n'));
+
+test('menuTypes offers only the kinds of food this menu actually has', () => {
+  const types = M.menuTypes(BIG_MENU);
+  const ids = types.map(t => t.id);
+  assert.ok(ids.includes('pizza'), 'expected pizza, got ' + JSON.stringify(ids));
+  assert.ok(ids.includes('chicken'));
+  assert.ok(ids.includes('sides'));
+  // A chip for food this place does not serve is a dead end dressed as a filter.
+  assert.ok(!ids.includes('pudding'));
+  assert.ok(!ids.includes('pasta'));
+  // Ordered by how much of it there is, so the useful chips come first.
+  assert.deepStrictEqual(types.map(t => t.count), [...types.map(t => t.count)].sort((a, b) => b - a));
+});
+
+test('filterMenu narrows by what someone fancies, across every course', () => {
+  const pizza = M.filterMenu(BIG_MENU, { type: 'pizza' });
+  assert.deepStrictEqual(pizza.map(d => d.name), ['Margherita Pizza', 'Pepperoni Pizza']);
+  // The course travels with the dish: once you have filtered, it is a label rather than a heading.
+  assert.strictEqual(pizza[0].section, 'Mains');
+  assert.strictEqual(pizza[0].price, '£11.00');
+
+  // Overlap is correct, not a bug: a chicken katsu curry is honestly both, and hiding it from one
+  // of those two searches is the only real mistake available here.
+  assert.ok(M.filterMenu(BIG_MENU, { type: 'chicken' }).some(d => d.name === 'Chicken Katsu Curry'));
+  assert.ok(M.filterMenu(BIG_MENU, { type: 'curry' }).some(d => d.name === 'Chicken Katsu Curry'));
+
+  // A dish is matched on its own description too, not just its name.
+  assert.ok(M.filterMenu(BIG_MENU, { type: 'sides' }).some(d => d.name === 'Classic Cheeseburger'));
+});
+
+test('filterMenu searches names, descriptions and the course itself', () => {
+  assert.deepStrictEqual(M.filterMenu(BIG_MENU, { q: 'aioli' }).map(d => d.name), ['Salt and Chilli Squid']);
+  // Typing a course name does the obvious thing.
+  assert.strictEqual(M.filterMenu(BIG_MENU, { q: 'sides' }).length, 2);
+  assert.strictEqual(M.filterMenu(BIG_MENU, { q: 'HADDOCK' }).length, 1);
+  assert.deepStrictEqual(M.filterMenu(BIG_MENU, { q: 'sushi' }), []);
+  // Search and a chip together, because someone who taps Pizza then types is narrowing further.
+  assert.deepStrictEqual(M.filterMenu(BIG_MENU, { type: 'pizza', q: 'pepper' }).map(d => d.name), ['Pepperoni Pizza']);
+  // Nothing asked for is everything, which is what the browse list shows by default.
+  assert.strictEqual(M.filterMenu(BIG_MENU, {}).length, M.countItems(BIG_MENU));
+  assert.deepStrictEqual(M.filterMenu(null, { q: 'x' }), []);
+});
+
 // ---- what a pasted link is worth -----------------------------------------------------------------
 // Measured against real UK restaurant pages in August 2026: fetching the page behind a link returned
 // a usable menu for NONE of sixteen tried. Chains render menus in JavaScript, aggregators 403

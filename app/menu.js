@@ -368,6 +368,86 @@
     return n;
   }
 
+  /* ---- "I fancy a burger" ------------------------------------------------------------------------
+     Courses are the menu's own structure and come free, but they are not how anyone actually
+     narrows a long menu. Nobody thinks "show me the mains" - they think "have they got a burger",
+     "is there a salad", "what are the sides like". A forty-dish menu across six accordions still
+     needs a lot of tapping to answer that.
+
+     So dishes are also grouped by WHAT THEY ARE, matched on their name and their own description.
+     Plain keywords, deliberately: this runs on every keystroke over a list already in memory, so it
+     has to be instant and free, and an AI call to tell someone a Margherita is a pizza would be an
+     absurd use of both. The matchers are UK menu vocabulary rather than a food ontology, and they
+     are allowed to overlap - a chicken katsu curry is honestly both chicken and a curry, and hiding
+     it from one of those searches would be the only real mistake available here. */
+  var FOOD_TYPES = [
+    { id: 'pizza', label: 'Pizza', re: /\b(pizza|calzone|margherita|pepperoni)/i },
+    { id: 'burger', label: 'Burgers', re: /\b(burger|smash(ed)?\b|patty|cheeseburger)/i },
+    { id: 'chicken', label: 'Chicken', re: /\b(chicken|wings?\b|katsu|tikka|tenders|goujons|nuggets)/i },
+    { id: 'fish', label: 'Fish', re: /\b(fish|cod|haddock|salmon|scampi|prawn|tuna|seafood|calamari|squid|chowder|skink)/i },
+    { id: 'steak', label: 'Steak', re: /\b(steak|sirloin|ribeye|rib-eye|rump|fillet|brisket|beef)/i },
+    { id: 'pasta', label: 'Pasta', re: /\b(pasta|spaghetti|penne|rigatoni|linguine|tagliatelle|pappardelle|lasagne|carbonara|risotto|gnocchi|macaroni)/i },
+    { id: 'curry', label: 'Curry', re: /\b(curry|masala|balti|korma|bhuna|rogan|madras|jalfrezi|biryani|dhal|daal|saag|bhaji)/i },
+    { id: 'salad', label: 'Salad', re: /\b(salad|slaw|leaves|rocket)/i },
+    { id: 'wrap', label: 'Wraps', re: /\b(wrap|sandwich|panini|baguette|toastie|bap|sub\b|ciabatta|roll\b)/i },
+    { id: 'sides', label: 'Sides', re: /\b(chips|fries|onion rings|garlic bread|dough balls|coleslaw|mash|rice\b|naan|pitta)/i },
+    { id: 'veg', label: 'Veggie', re: /\b(vegan|vegetarian|veggie|plant[- ]based|halloumi|paneer|falafel|mushroom|tofu)/i },
+    { id: 'pudding', label: 'Puddings', re: /\b(dessert|pudding|cake|brownie|sundae|ice ?cream|cheesecake|waffle|crumble|gelato|doughnut)/i }
+  ];
+
+  function typeOfDish(id) {
+    for (var i = 0; i < FOOD_TYPES.length; i++) if (FOOD_TYPES[i].id === id) return FOOD_TYPES[i];
+    return null;
+  }
+  function dishHaystack(item, section) {
+    return ((item && item.name) || '') + ' ' + ((item && item.description) || '') + ' ' + (section || '');
+  }
+
+  /* Which kinds of food this menu actually has, with counts, so the chips offered are the ones that
+     lead somewhere. A "Puddings" chip on a menu with no puddings is a dead end dressed as a filter,
+     and two matches is the floor because one is not a category. */
+  function menuTypes(sections) {
+    var counts = {};
+    for (var s = 0; s < (sections || []).length; s++) {
+      var sec = sections[s];
+      for (var i = 0; i < (sec.items || []).length; i++) {
+        var hay = dishHaystack(sec.items[i], sec.name);
+        for (var t = 0; t < FOOD_TYPES.length; t++) {
+          if (FOOD_TYPES[t].re.test(hay)) counts[FOOD_TYPES[t].id] = (counts[FOOD_TYPES[t].id] || 0) + 1;
+        }
+      }
+    }
+    var out = [];
+    for (var k = 0; k < FOOD_TYPES.length; k++) {
+      var n = counts[FOOD_TYPES[k].id] || 0;
+      if (n >= 2) out.push({ id: FOOD_TYPES[k].id, label: FOOD_TYPES[k].label, count: n });
+    }
+    out.sort(function (a, b) { return b.count - a.count; });
+    return out;
+  }
+
+  /* The menu, narrowed. Returns a FLAT list carrying each dish's section, because once someone has
+     filtered they are no longer reading a menu by course: they want everything that matches, and
+     which course it was under is a label on the dish rather than a heading to hunt through.
+     Searching covers the section name too, so typing "sides" does the obvious thing. */
+  function filterMenu(sections, opts) {
+    opts = opts || {};
+    var q = String(opts.q || '').trim().toLowerCase();
+    var type = opts.type ? typeOfDish(opts.type) : null;
+    var out = [];
+    for (var s = 0; s < (sections || []).length; s++) {
+      var sec = sections[s];
+      for (var i = 0; i < (sec.items || []).length; i++) {
+        var it = sec.items[i];
+        var hay = dishHaystack(it, sec.name);
+        if (type && !type.re.test(hay)) continue;
+        if (q && hay.toLowerCase().indexOf(q) === -1) continue;
+        out.push({ section: sec.name, name: it.name, description: it.description, price: it.price });
+      }
+    }
+    return out;
+  }
+
   /* Ranking, on the device. Nothing is ever REMOVED here, only ordered: a dish that busts the day is
      still on the menu, and someone who wants it is entitled to see what it costs rather than have
      the app decide on their behalf that they did not mean it. */
@@ -450,7 +530,8 @@
   var MenuIdeas = {
     LENSES: LENSES, lens: lens, remaining: remaining, brief: brief, placeFromUrl: placeFromUrl,
     normalise: normalise, rank: rank, impact: impact, toEstimate: toEstimate, totalOf: totalOf,
-    parseMenuText: parseMenuText, countItems: countItems
+    parseMenuText: parseMenuText, countItems: countItems,
+    FOOD_TYPES: FOOD_TYPES, menuTypes: menuTypes, filterMenu: filterMenu
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = MenuIdeas;
   root.MenuIdeas = MenuIdeas;
