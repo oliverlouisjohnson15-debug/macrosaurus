@@ -310,6 +310,82 @@ export function dedupeDishes(list: Dish[]): Dish[] {
   return out;
 }
 
+// ---- rung 2b: Redbox Systems, and the shape of the problem it represents ---------------------------
+
+/* The site that started all of this turned out to publish NOTHING in its HTML: 1.9 KB, one empty
+   <div id="root">, and a Vite bundle. No JSON-LD, no server-rendered state, no visible text - so
+   rungs 1 to 3 have nothing whatsoever to work with, and never will, because the menu is fetched by
+   the browser after the page boots.
+
+   It is built by Redbox Systems (Korelogic Ltd), a white-label ordering platform that powers a long
+   list of UK regional marketplaces under their own domains - which is exactly the class of link this
+   feature exists to read, so "client-rendered, give up" was not an acceptable answer. The menu comes
+   from a same-origin Apollo endpoint at /gqlv2, keyed by the outlet id that is already sitting in the
+   URL, and it answers unauthenticated because that is how the restaurant's own public menu page
+   works. So this rung asks the page's own backend the same question the page itself asks.
+
+   Two things to know about this rung, both of which are why it sits BELOW the structured ones rather
+   than above them. It is an undocumented interface: nothing obliges Redbox to keep the field names,
+   and if they change it this rung stops matching and the ladder falls through to the camera, which
+   is the correct failure. And it is narrow on purpose - one platform, one query, triggered only by
+   that platform's own fingerprint in the HTML - rather than a general "poke at any API you can
+   find", which is neither safe nor something we could keep working. */
+const REDBOX_MARK = /redbox\.systems|Redbox Systems|Korelogic/i;
+export const REDBOX_PATH = '/gqlv2';
+export const REDBOX_QUERY =
+  'query($id: ID!, $sid: String!){' +
+  ' outlet(id: $sid){ name restaurant { name } }' +
+  ' menuItemGroupsForOutlet(outletId: $id, narrowFulfilmentMethods: [DELIVERY, COLLECTION]){' +
+  ' name menuItems { name description price } } }';
+
+/* The outlet id, which is the record id already in the path: /takeaways/<id>/<slug>/menu. Returned
+   only when the page carries the platform's fingerprint, so this cannot fire on somebody else's
+   site that happens to have a long path segment. */
+export function redboxOutletId(html: string, pathname: string): string {
+  if (!REDBOX_MARK.test(html || '')) return '';
+  for (const seg of String(pathname || '').split('/').filter(Boolean)) {
+    if (/^(?=[a-z0-9]*\d)(?=[a-z0-9]*[a-z])[a-z0-9]{16,}$/i.test(seg)) return seg;
+  }
+  return '';
+}
+
+/* Redbox stores money in pence, always - unlike the JSON walker's guess-by-magnitude, which would
+   read a £1.50 side (150) as £150. Here the unit is known, so it is applied rather than inferred. */
+const pence = (v: unknown): string => {
+  const n = Number(v);
+  return isFinite(n) && n > 0 ? '£' + (n / 100).toFixed(2) : '';
+};
+
+export function dishesFromRedbox(payload: any): Dish[] {
+  const groups = payload && payload.data && payload.data.menuItemGroupsForOutlet;
+  if (!Array.isArray(groups)) return [];
+  const out: Dish[] = [];
+  for (const g of groups) {
+    const section = (g && typeof g.name === 'string' ? g.name : '').trim();
+    const items = g && Array.isArray(g.menuItems) ? g.menuItems : [];
+    for (const it of items) {
+      const name = (it && typeof it.name === 'string' ? it.name : '').trim();
+      if (!isDishName(name)) continue;
+      out.push({
+        section,
+        name,
+        description: (it && typeof it.description === 'string' ? it.description : '').trim().slice(0, 300),
+        price: pence(it && it.price),
+      });
+    }
+  }
+  return dedupeDishes(out);
+}
+
+// The restaurant, as the platform itself names it. Beats both the page title and the URL.
+export function placeFromRedbox(payload: any): string {
+  const o = payload && payload.data && payload.data.outlet;
+  if (!o) return '';
+  const n = (typeof o.name === 'string' ? o.name : '').trim();
+  const r = o.restaurant && typeof o.restaurant.name === 'string' ? o.restaurant.name.trim() : '';
+  return (r || n).slice(0, 80);
+}
+
 // ---- rung 3: the visible text ----------------------------------------------------------------------
 
 /* The page with everything that is not content taken out. A blunt instrument on purpose: it is the

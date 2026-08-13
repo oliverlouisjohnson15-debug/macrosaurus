@@ -171,6 +171,82 @@ test('the same dish listed three times over comes back once', async () => {
   assert.deepStrictEqual(out.map((d) => d.name), ['Cod and Chips', 'Chips']);
 });
 
+// ---- rung 2b: the page that publishes nothing at all -----------------------------------------------
+// The link that started all of this. Its HTML is 1.9 KB: an empty <div id="root"> and a Vite bundle,
+// so every HTML-reading rung has nothing to work with and never will. It is built by Redbox Systems,
+// a white-label platform behind a lot of UK regional ordering sites, and its menu comes from a
+// same-origin GraphQL endpoint keyed by the outlet id already in the URL. The fixtures below are the
+// real shapes, trimmed: the actual shell that came back, and the actual payload that answered.
+
+const REDBOX_SHELL = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
+<meta name="client-version" content="v2" />
+<meta name="author" content="Korelogic Limited - Redbox Systems - Online Ordering & Delivery Solutions Platform" />
+<meta name="author-website" content="https://redbox.systems" />
+<script type="module" crossorigin src="/assets/index.0887bb32.js"></script>
+</head><body><div id="modal-root"></div><div id="root"></div></body></html>`;
+
+const REDBOX_PAYLOAD = {
+  data: {
+    outlet: { name: 'Coast ', restaurant: { name: 'Coast' } },
+    menuItemGroupsForOutlet: [
+      { name: 'Starters', menuItems: [
+        { name: 'BBQ Baby Back Ribs', description: 'Aioli', price: 800 },
+        { name: 'Ramore  Nachos', description: 'Cheese, Sour Cream, Guacamole, Jalapenos.', price: 700 },
+        { name: 'Garlic & Parmesan Bread', description: 'Garlic Mayo', price: 600 },
+        { name: 'Salt & Chilli Prawns (for 2)', description: 'Prawn Crackers, Garlic Mayo, Chilli Oil.', price: 2000 },
+      ] },
+      { name: 'Pastas', menuItems: [
+        { name: 'Chilli Beef Rigatoni', description: 'Tobacco Onions', price: 1800 },
+        { name: 'Spaghetti Carbonara ', description: 'Comes with Garlic Bread', price: 1500 },
+        { name: 'Side Salad', description: 'House dressing', price: 150 },
+      ] },
+    ],
+  },
+};
+
+test('an empty SPA shell still gives up its outlet id when the platform is one we can ask', async () => {
+  const { redboxOutletId, visibleText, looksLikeMenu, stateBlobs, dishesFromState } = await load();
+  // Everything else genuinely has nothing: this is not a parser that could be made better.
+  assert.strictEqual(looksLikeMenu(visibleText(REDBOX_SHELL)), false);
+  assert.strictEqual(dishesFromState(stateBlobs(REDBOX_SHELL)).length, 0);
+  assert.strictEqual(
+    redboxOutletId(REDBOX_SHELL, '/takeaways/clrafoiq9963n0824lm3d17g1/coast/menu'),
+    'clrafoiq9963n0824lm3d17g1'
+  );
+  // Without the platform's fingerprint it must not fire, however id-shaped the path looks: this is
+  // the guard that stops one platform's query being aimed at somebody else's site.
+  assert.strictEqual(redboxOutletId('<html><body>a normal site</body></html>', '/takeaways/clrafoiq9963n0824lm3d17g1/coast/menu'), '');
+  // And with the fingerprint but no id in the path, there is nothing to ask about.
+  assert.strictEqual(redboxOutletId(REDBOX_SHELL, '/about-us'), '');
+});
+
+test('the platform payload becomes a menu, with pence read as pence', async () => {
+  const { dishesFromRedbox, placeFromRedbox, menuText } = await load();
+  const dishes = dishesFromRedbox(REDBOX_PAYLOAD);
+  assert.strictEqual(dishes.length, 7);
+  assert.strictEqual(dishes[0].name, 'BBQ Baby Back Ribs');
+  assert.strictEqual(dishes[0].section, 'Starters');
+  assert.strictEqual(dishes[0].price, '£8.00');
+  assert.strictEqual(dishes[4].section, 'Pastas');
+  /* The unit is KNOWN here, so it is applied rather than guessed. The JSON walker's
+     guess-by-magnitude would read this £1.50 side as £150, which is the sort of number that makes
+     an app look broken at exactly the moment someone is trusting it. */
+  assert.strictEqual(dishes.find((d) => d.name === 'Side Salad').price, '£1.50');
+  assert.strictEqual(placeFromRedbox(REDBOX_PAYLOAD), 'Coast');
+  const txt = menuText(dishes);
+  assert.match(txt, /STARTERS[\s\S]*BBQ Baby Back Ribs {2}£8\.00/);
+  assert.match(txt, /Prawn Crackers, Garlic Mayo, Chilli Oil/);
+});
+
+test('a platform reply that is an error, or empty, is not a menu', async () => {
+  const { dishesFromRedbox, placeFromRedbox } = await load();
+  // Their API answers 200 with an errors array when an instance is recycling; it must read as a miss.
+  assert.deepStrictEqual(dishesFromRedbox({ errors: [{ message: 'unable to process' }], data: null }), []);
+  assert.deepStrictEqual(dishesFromRedbox({}), []);
+  assert.deepStrictEqual(dishesFromRedbox(null), []);
+  assert.strictEqual(placeFromRedbox({ data: null }), '');
+});
+
 // ---- the half that matters more: refusing to claim a menu ---------------------------------------
 
 test('an SPA shell that renders its menu in JavaScript yields nothing', async () => {

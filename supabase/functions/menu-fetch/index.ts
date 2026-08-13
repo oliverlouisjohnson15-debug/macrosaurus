@@ -31,6 +31,7 @@
 import {
   clip, MAX_MENU_TEXT, jsonLdBlocks, dishesFromJsonLd, placeFromJsonLd, stateBlobs, dishesFromState,
   visibleText, looksLikeMenu, menuText, pdfMenuLinks, placeFromMeta, isBlockedHost, dedupeDishes,
+  redboxOutletId, dishesFromRedbox, placeFromRedbox, REDBOX_PATH, REDBOX_QUERY,
   type Dish,
 } from './parse.ts';
 
@@ -153,6 +154,28 @@ async function fetchPdf(url: string): Promise<{ b64: string; bytes: number } | n
   } catch { clearTimeout(timer); return null; }
 }
 
+/* Ask a Redbox-built page's own backend for the menu it is about to render. The endpoint is derived
+   from the page we already fetched - same origin, already host-checked - never from anything in the
+   request body, so this adds no new reach: it can only talk to a host we were already allowed to
+   read. See parse.ts for why this rung exists at all. */
+async function fetchRedbox(origin: string, outletId: string): Promise<any | null> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(origin + REDBOX_PATH, {
+      method: 'POST',
+      signal: ctl.signal,
+      headers: { 'content-type': 'application/json', 'user-agent': UA, accept: 'application/json' },
+      body: JSON.stringify({ query: REDBOX_QUERY, variables: { id: outletId, sid: outletId } }),
+    });
+    clearTimeout(timer);
+    if (!r.ok) { try { await r.body?.cancel(); } catch { /* ignore */ } return null; }
+    const text = await r.text();
+    if (text.length > 2_000_000) return null;
+    return JSON.parse(text);
+  } catch { clearTimeout(timer); return null; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ ok: false, note: 'Method not allowed' }, 405);
@@ -191,6 +214,24 @@ Deno.serve(async (req) => {
       if (fromState.length > dishes.length) { dishes = fromState; via = 'embedded-state'; }
     }
 
+    /* Nothing in the HTML, because the page renders its menu in the browser. If it is a platform we
+       know how to ask, ask it. This is the rung that reads the regional ordering sites whose shells
+       are genuinely empty - the case that defeats every other rung by construction. */
+    let redboxPlace = '';
+    if (dishes.length < MIN_DISHES) {
+      const outletId = redboxOutletId(page.html, page.url.pathname);
+      if (outletId) {
+        const payload = await fetchRedbox(page.url.origin, outletId);
+        const fromApi = payload ? dishesFromRedbox(payload) : [];
+        diag += ' | redbox:' + (payload ? fromApi.length : 'no-reply');
+        if (fromApi.length > dishes.length) {
+          dishes = fromApi;
+          via = 'redbox';
+          redboxPlace = placeFromRedbox(payload);
+        }
+      }
+    }
+
     // A structured read is trusted on its own count: these are labelled records, not a guess about
     // what a line of text meant. The text rungs have to prove themselves instead.
     let text = dishes.length >= MIN_DISHES ? menuText(dishes) : '';
@@ -207,7 +248,8 @@ Deno.serve(async (req) => {
     const pdf = pdfMenuLinks(page.html, page.url.toString());
 
     const meta = placeFromMeta(page.html);
-    const place = placeFromJsonLd(blocks) || meta.title || '';
+    // The platform naming its own outlet beats both the page title and anything read off the URL.
+    const place = redboxPlace || placeFromJsonLd(blocks) || meta.title || '';
 
     /* The PDF is fetched only when the page itself gave us nothing: a structured read of the live
        menu is more current than whatever PDF is linked in the footer, which on a lot of sites is
