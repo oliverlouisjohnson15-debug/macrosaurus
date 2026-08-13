@@ -42,7 +42,18 @@ const OTHER = Object.keys(ICONS).filter((k) => !FOOD.includes(k));
 const STATUS = { good: '#39FF14', warn: '#FFB020', danger: '#FF5555' };
 const STATUS_LIGHT = { good: '#17A398', warn: '#B26A00', danger: '#D7263D' };
 
-const svg = (rows, px, ink) => {
+// The pictorial glyphs are game-icons.net vectors used as drawn, not pixel art, so the sheet has
+// to render them the way the app does or it is reviewing something that does not ship.
+const GI = {};
+{
+  const b = SRC.match(/const GI_ICONS = \{[\s\S]*?\n\};/);
+  if (b) for (const m of b[0].matchAll(/(\w+): \{ by: '([^']*)', of: '([^']*)', d: '([^']*)' \}/g)) GI[m[1]] = { by: m[2], of: m[3], d: m[4] };
+}
+const svg = (rows, px, ink, name) => {
+  if (name && GI[name]) return `<svg viewBox="0 0 512 512" width="${px}" height="${px}" fill="${ink}"><path d="${GI[name].d}"/></svg>`;
+  return svgPx(rows, px, ink);
+};
+const svgPx = (rows, px, ink) => {
   const w = Math.max(...rows.map((r) => r.length)), h = rows.length;
   let rects = '';
   rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === '#') rects += `<rect x="${x}" y="${y}" width="1" height="1"/>`; }));
@@ -50,7 +61,7 @@ const svg = (rows, px, ink) => {
 };
 const tile = (name, rows, bg, ink, { px = 24, box = 36, label = name } = {}) => `
   <figure>
-    <div class="tile" style="width:${box}px;height:${box}px;background:${bg}">${svg(rows, px, ink)}</div>
+    <div class="tile" style="width:${box}px;height:${box}px;background:${bg}">${svg(rows, px, ink, name)}</div>
     <figcaption>${label}</figcaption>
   </figure>`;
 
