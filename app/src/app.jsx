@@ -7709,8 +7709,92 @@ const ITEMS = {
   amber: { name: 'Amber Fossil', kind: 'trophy', desc: 'A rare boss trophy sealed in golden amber.' },
   belt: { name: 'Champion Belt', kind: 'trophy', desc: 'Proof you cleared the whole fight ladder.' },
 };
+/* SOMETHING TO DO WITH YOUR THUMB WHILE THE AI THINKS.
+   ----------------------------------------------------------------------------
+   A toy, deliberately, and not a game. Four rules it is built to, each of which is the difference
+   between a nice thirty seconds and an irritating one:
+
+   NO SCORE, NO XP, NO STREAK. Nothing here is earned or lost. The moment a wait pays out, a fast
+   answer starts to feel like being robbed of a turn - and worse, it quietly gives US a reason not to
+   fix the speed, which is the actual problem. This is a distraction from a cost, never a reward for
+   paying it.
+
+   THE ANSWER ALWAYS WINS. The toy lives inside the loader, so when the request lands the whole thing
+   unmounts mid-chew. Nobody is ever held in a game to look at their own dinner options.
+
+   ONE THUMB, NO PRECISION, NO LOSING. You are stood in a restaurant with a waiter next to you. There
+   is no timing element, nothing moves fast, nothing can be missed, and there is no fail state to
+   feel bad about while you are trying to order.
+
+   IT IS OFFERED, NOT IMPOSED, and only once a wait is genuinely long. Plenty of people would rather
+   watch the dots than be handed a pet to feed.
+
+   The art is all already here: every creature's sprite sheet ships bite, eat and cheer frames that
+   nothing in the app had used until now, and the treats are the same game-icons artwork and food
+   colours the diary uses, so it looks like the rest of the app rather than a minigame bolted on. */
+const TREATS = [
+  { icon: 'meat', tone: 'var(--food-meat)' },
+  { icon: 'egg', tone: 'var(--food-egg)' },
+  { icon: 'food', tone: 'var(--food-plant)' },
+];
+function FeedToy({ buddy, name }) {
+  const [anim, setAnim] = useState('idle');
+  const [treats, setTreats] = useState([]);
+  const [fed, setFed] = useState(0);
+  const seq = useRef(0);
+  const timers = useRef([]);
+  const after = (ms, fn) => { const t = setTimeout(fn, ms); timers.current.push(t); return t; };
+
+  // Somewhere new to put the next treat: spread across the width, always clear of the dino's feet.
+  function spawn() {
+    seq.current += 1;
+    return {
+      id: seq.current,
+      kind: TREATS[Math.floor(Math.random() * TREATS.length)],
+      left: 8 + Math.random() * 74,   // %
+      top: 4 + Math.random() * 46,    // %
+    };
+  }
+  useEffect(() => {
+    setTreats([spawn(), spawn(), spawn()]);
+    return () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  }, []);
+
+  function eat(id) {
+    setTreats(list => list.filter(t => t.id !== id));
+    const n = fed + 1;
+    setFed(n);
+    // Every fourth mouthful it stops eating and celebrates, so it does not feel like a vending
+    // machine. The rest of the time it just chomps and goes back to waiting with you.
+    const react = n % 4 === 0 ? 'cheer' : 'bite';
+    setAnim(react);
+    after(react === 'cheer' ? 900 : 550, () => setAnim('idle'));
+    after(700, () => setTreats(list => (list.length >= 3 ? list : list.concat([spawn()]))));
+  }
+
+  return (<div className="w-full" style={{ maxWidth: 300 }}>
+    <div className="relative" style={{ height: 150, border: '2px solid var(--border)', background: 'var(--surface2)', overflow: 'hidden' }}>
+      {treats.map(t => {
+        const Treat = Icon[t.kind.icon];
+        return (<button key={t.id} onClick={() => eat(t.id)} aria-label="Feed a treat"
+          className="hit absolute fade-in" style={{ left: t.left + '%', top: t.top + '%', color: t.kind.tone, lineHeight: 0 }}>
+          <Treat width="24" height="24" />
+        </button>);
+      })}
+      <div className="absolute" style={{ left: '50%', bottom: 6, transform: 'translateX(-50%)' }}>
+        <FighterSprite buddy={buddy} anim={anim} px={2.2} />
+      </div>
+    </div>
+    <div className="text-[11px] text-center mt-2 leading-snug" style={{ color: 'var(--muted)' }}>
+      {fed === 0
+        ? 'Tap a treat to feed ' + (name || 'your buddy') + '.'
+        : anim === 'cheer' ? 'They love that one.' : 'Still thinking. Keep feeding.'}
+    </div>
+  </div>);
+}
+
 // Hopping dino shown while the AI is thinking, so a wait never looks like a crash.
-function DinoLoader({ label }) {
+function DinoLoader({ label, buddy, buddyName }) {
   const cr = CR_BY_ID['carbo'] || CREATURES[1];
   const text = String(label || 'Working').replace(/[.…\s]+$/, '');
   /* Safety net: if a fetch hangs, say so instead of hopping forever with no way out.
@@ -7723,11 +7807,21 @@ function DinoLoader({ label }) {
      really did hang. Twenty-five seconds is past where a normal call lands and short of giving up. */
   const [slow, setSlow] = useState(false);
   useEffect(() => { const t = setTimeout(() => setSlow(true), 25000); return () => clearTimeout(t); }, []);
+  // Offered only once the wait is genuinely long, and only ever offered: a quick call stays clean,
+  // and nobody is handed a pet to feed when they were happy watching the dots.
+  const [offer, setOffer] = useState(false);
+  const [play, setPlay] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setOffer(true), 8000); return () => clearTimeout(t); }, []);
   return (
     <div className="flex flex-col items-center justify-center py-10 fade-in">
-      <div className="dino-hop"><Sprite art={cr.art} colors={cr.colors} px={7} /></div>
-      <div className="dino-shadow mt-1.5" style={{ width: 36 }} />
+      {play
+        ? <FeedToy buddy={buddy} name={buddyName} />
+        : <React.Fragment>
+          <div className="dino-hop"><Sprite art={cr.art} colors={cr.colors} px={7} /></div>
+          <div className="dino-shadow mt-1.5" style={{ width: 36 }} />
+        </React.Fragment>}
       <div className="text-[12px] text-[#8A8A90] mt-4">{text}<span className="dino-dot">.</span><span className="dino-dot">.</span><span className="dino-dot">.</span></div>
+      {offer && !play && <button onClick={() => setPlay(true)} className="hit text-[12px] mt-3 fade-in" style={{ color: 'var(--accent-ink)' }}>Play while you wait</button>}
       {slow && <div className="text-[11px] text-[#8A8A90] mt-3 text-center px-8 leading-relaxed fade-in">Taking longer than usual. Check your connection, or go back and try again.</div>}
     </div>
   );
@@ -12899,7 +12993,7 @@ function DescribeTab({ db, onPick, onAddItems, onScan, onBack, initialFiles }) {
   }
   if (result) return (<div className="fade-in"><AiConfirm key={ver} est={result} photos={imgs} busy={busy} refineCount={refineCount} answered={answered} onRefine={refine} onAdd={onPick} onAddItems={onAddItems} onCancel={() => setResult(null)} />{err && <div className="text-[12px] text-[#F5C542] mt-3">{err}</div>}</div>);
   if (cam) return <MealCamera onFiles={fs => { addImgs(fs); setCam(false); }} onClose={() => setCam(false)} />;
-  if (busy) return <DinoLoader label="Working out your meal" />;
+  if (busy) return <DinoLoader label="Working out your meal" buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />;
   return (<div>
     {onBack && <button onClick={onBack} className="hit text-[13px] text-[#8A8A90] mb-2 flex items-center"><Icon.arrow_left width="16" /> Back</button>}
     <div className="text-[12px] text-[#8A8A90] mb-3">Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm.</div>
@@ -13192,7 +13286,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       onCancel={() => { setEst(null); setPicked(null); }} />
     {err && <div className="text-[12px] mt-3" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
-  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : busy === 'one' ? 'Working out that dish' : 'Reading the menu'} />;
+  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : busy === 'one' ? 'Working out that dish' : 'Reading the menu'} buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />;
 
   // ---- the menu, ranked ----
   if (res) {
@@ -13536,7 +13630,7 @@ function PhotoUpdateSheet({ db, entry, onSave, onClose }) {
     <Sheet title="Update with a photo" onClose={onClose} wide z={60}>
       <div>
       <div className="text-[11px] mb-3 truncate" style={{ color: 'var(--muted)' }}>{entry.name}</div>
-      {busy && !result ? <DinoLoader label="Reading what you actually had" />
+      {busy && !result ? <DinoLoader label="Reading what you actually had" buddy={db.buddy} buddyName={db.buddy && db.buddy.name} />
         : result ? (<div className="fade-in">
           {/* No "currently logged" block above this: the confirm screen now carries the old figure
               beside the new one and on the commit button, and a third copy at the top of the sheet
