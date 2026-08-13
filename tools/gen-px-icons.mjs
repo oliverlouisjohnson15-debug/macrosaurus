@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Writes the icon set into app/src/app.jsx from design-exports/macrosaurus-icons-16.json.
+ * Writes the icon set into app/src/app.jsx from design-exports/macrosaurus-icons-24.json.
  *
  * The JSON is the delivered artwork (Claude Design project "Macrosaurus Icons"); app.jsx carries a
  * generated copy so the app stays a single self-contained bundle with no fetch at boot. Editing the
@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const JSON_PATH = join(ROOT, 'design-exports', 'macrosaurus-icons-16.json');
+const JSON_PATH = join(ROOT, 'design-exports', 'macrosaurus-icons-24.json');
 const APP_PATH = join(ROOT, 'app', 'src', 'app.jsx');
 
 const art = JSON.parse(readFileSync(JSON_PATH, 'utf8'));
@@ -22,9 +22,9 @@ const names = Object.keys(art.icons).sort();
 
 for (const name of names) {
   const rows = art.icons[name];
-  if (rows.length !== 16) throw new Error(`${name}: ${rows.length} rows, expected 16`);
+  if (rows.length !== 24) throw new Error(`${name}: ${rows.length} rows, expected 24`);
   rows.forEach((r, i) => {
-    if (r.length !== 16) throw new Error(`${name} row ${i}: ${r.length} wide, expected 16`);
+    if (r.length !== 24) throw new Error(`${name} row ${i}: ${r.length} wide, expected 24`);
     if (!/^[.#]+$/.test(r)) throw new Error(`${name} row ${i}: bad character in "${r}"`);
   });
 }

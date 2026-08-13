@@ -48,7 +48,7 @@ const svg = (rows, px, ink) => {
   rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === '#') rects += `<rect x="${x}" y="${y}" width="1" height="1"/>`; }));
   return `<svg viewBox="0 0 ${w} ${h}" width="${px}" height="${px}" fill="${ink}" style="shape-rendering:crispEdges">${rects}</svg>`;
 };
-const tile = (name, rows, bg, ink, { px = 16, box = 28, label = name } = {}) => `
+const tile = (name, rows, bg, ink, { px = 24, box = 36, label = name } = {}) => `
   <figure>
     <div class="tile" style="width:${box}px;height:${box}px;background:${bg}">${svg(rows, px, ink)}</div>
     <figcaption>${label}</figcaption>
@@ -84,7 +84,7 @@ function themeBlock(theme) {
       ].join(''))}
 
     ${section('Every food glyph, at the size it ships',
-      '16px of art inside a 28px tile. If it does not read here, it does not read.',
+      '24px of art inside a 36px tile. If it does not read here, it does not read.',
       FOOD.map((k) => tile(k, ICONS[k], pal[KIND_KEY[k]], ink)).join(''))}
 
     ${section('The rest of the set',
@@ -93,7 +93,7 @@ function themeBlock(theme) {
 
     ${section('Enlarged, to check the drawing',
       'Silhouette is the whole job at this size: if you cannot tell what it is from the outline alone, it needs simplifying.',
-      FOOD.map((k) => tile(k, ICONS[k], pal[KIND_KEY[k]], ink, { px: 72, box: 88 })).join(''))}
+      FOOD.map((k) => tile(k, ICONS[k], pal[KIND_KEY[k]], ink, { px: 96, box: 112 })).join(''))}
   </div>`;
 }
 

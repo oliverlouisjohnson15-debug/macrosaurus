@@ -1,14 +1,24 @@
 # Handover — the icons
 
-> **DONE, 2026-08-11 (sw 277).** Claude Design delivered a single 55-glyph set on a **16x16** grid
-> (not the 8x8 this doc assumed - 8 had no room for a chevron, a camera or a recipe card, which was
-> exactly the risk flagged in step 3 below). The vector `Icon` set is retired and `Icon.name` is now
-> a wrapper over the same pixel art, so call sites did not have to move. Sizes are rationalised to
-> 16/24/32. The leaked emoji and the Unicode geometry standing in for icons (✕ ▾ ▲ ▼ ‹ › ⋯ ⌄ ● ■ ★
-> ♥ ♡ ☀ ☾ ✚ ✎ ↳ ▶ ← → ↑ 🔒 📸 🧍 🔦 ⚡) are all drawn from the set now. Master art:
-> `design-exports/macrosaurus-icons-16.json` → `node tools/gen-px-icons.mjs` writes it into
-> app.jsx. Still open: the app icon / maskable work in "The app icon" below, and `ⓘ` (the set has
-> no info glyph). The rest of this file is the pre-work analysis, kept for the reasoning.
+> **DONE, 2026-08-13 (sw 291).** The vector `Icon` set is retired; `Icon.name` is now a wrapper over
+> the pixel art, so call sites did not have to move. The leaked emoji and the Unicode geometry
+> standing in for icons (✕ ▾ ▲ ▼ ‹ › ⋯ ⌄ ● ■ ★ ♥ ♡ ☀ ☾ ✚ ✎ ↳ ▶ ← → ↑ 🔒 📸 🧍 🔦 ⚡) are all drawn
+> from the set now, and `info` closed the last gap (`ⓘ`).
+>
+> It landed in two passes. The first (sw 277) was 55 glyphs on a **16x16** grid - not the 8x8 this
+> doc assumed, because 8 had no room for a chevron, a camera or a recipe card, exactly the risk in
+> step 3 below. The second (sw 291) replaced that with **56 glyphs on a 24x24 grid** for the detail,
+> which forced the app's ladder from 16/24/32 to **24/48**: crisp pixel art needs the render size to
+> be a whole multiple of the grid, so more detail is only buyable by drawing bigger. `check` and
+> `star` render inline in prose at **12px**, which works only because those two are drawn on an even
+> 2px sub-grid and halve exactly. The brief that produced it is `23-icon-brief-v2.md`, and
+> `tests/pixel-icons.test.js` now enforces its geometry: the 2px margin, no corner-only joins, no
+> 1x1 features, optical centring, exact mirrored pairs, and that the app never asks for an off-grid
+> size.
+>
+> Master art: `design-exports/macrosaurus-icons-24.json` → `node tools/gen-px-icons.mjs` writes it
+> into app.jsx. Still open: the app icon / maskable work in "The app icon" below. The rest of this
+> file is the pre-work analysis, kept for the reasoning.
 
 2026-08-11. Written for a chat picking up icon work on Macrosaurus. Everything here was checked
 against the code and the shipped assets today, not recalled.

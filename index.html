@@ -40,7 +40,7 @@ window.MTRACK=function(name,props){try{window.posthog&&posthog.capture(name,prop
 window.MIDENTIFY=function(id){try{window.posthog&&posthog.identify(id);}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser({id:id});}catch(_){}};
 window.MRESET=function(){try{window.posthog&&posthog.reset();}catch(_){}try{window.Sentry&&Sentry.setUser&&Sentry.setUser(null);}catch(_){}};
 </script>
-<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.m-3{margin:.75rem}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-2\.5{margin-left:-.625rem;margin-right:-.625rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-6{margin-top:-1.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mb-\[7px\]{margin-bottom:7px}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-3\.5{margin-top:.875rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-\[3px\]{margin-top:3px}.mt-auto{margin-top:auto}.box-border{box-sizing:border-box}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-20{height:5rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-\[78px\]{width:78px}.w-full{width:100%}.w-px{width:1px}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[80\%\]{max-width:80%}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.resize{resize:both}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-3\.5{gap:.875rem}.gap-4{gap:1rem}.gap-5{gap:1.25rem}.gap-\[1px\]{gap:1px}.gap-\[2px\]{gap:2px}.gap-\[3px\]{gap:3px}.gap-\[7px\]{gap:7px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-2{row-gap:.5rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.py-\[2px\]{padding-top:2px;padding-bottom:2px}.py-\[6px\]{padding-top:6px;padding-bottom:6px}.py-\[7px\]{padding-top:7px;padding-bottom:7px}.py-\[9px\]{padding-top:9px;padding-bottom:9px}.pb-1{padding-bottom:.25rem}.pb-1\.5{padding-bottom:.375rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-3\.5{padding-bottom:.875rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-2\.5{padding-right:.625rem}.pr-6{padding-right:1.5rem}.pr-8{padding-right:2rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[22px\]{font-size:22px}.text-\[25px\]{font-size:25px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[34px\]{font-size:34px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-50{opacity:.5}.opacity-60{opacity:.6}.opacity-70{opacity:.7}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}.sm\:p-4{padding:1rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
+<style>*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.pointer-events-auto{pointer-events:auto}.visible{visibility:visible}.invisible{visibility:hidden}.static{position:static}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0}.inset-x-0{left:0;right:0}.inset-x-6{left:1.5rem;right:1.5rem}.inset-x-8{left:2rem;right:2rem}.inset-y-0{top:0;bottom:0}.-right-1\.5{right:-.375rem}.-top-1{top:-.25rem}.-top-1\.5{top:-.375rem}.bottom-0{bottom:0}.bottom-1{bottom:.25rem}.bottom-2{bottom:.5rem}.left-0{left:0}.left-1\.5{left:.375rem}.left-1\/2{left:50%}.left-2{left:.5rem}.right-0{right:0}.right-1\.5{right:.375rem}.right-2{right:.5rem}.top-0{top:0}.top-1\.5{top:.375rem}.top-10{top:2.5rem}.top-2{top:.5rem}.z-10{z-index:10}.z-20{z-index:20}.z-30{z-index:30}.z-40{z-index:40}.z-\[100\]{z-index:100}.z-\[60\]{z-index:60}.z-\[70\]{z-index:70}.z-\[80\]{z-index:80}.z-\[85\]{z-index:85}.z-\[86\]{z-index:86}.z-\[90\]{z-index:90}.z-\[92\]{z-index:92}.z-\[95\]{z-index:95}.col-span-2{grid-column:span 2/span 2}.m-3{margin:.75rem}.-mx-1{margin-left:-.25rem;margin-right:-.25rem}.-mx-2\.5{margin-left:-.625rem;margin-right:-.625rem}.-mx-5{margin-left:-1.25rem;margin-right:-1.25rem}.-my-1{margin-top:-.25rem;margin-bottom:-.25rem}.-my-2{margin-top:-.5rem;margin-bottom:-.5rem}.mx-5{margin-left:1.25rem;margin-right:1.25rem}.mx-auto{margin-left:auto;margin-right:auto}.my-1\.5{margin-top:.375rem;margin-bottom:.375rem}.my-2{margin-top:.5rem;margin-bottom:.5rem}.my-3{margin-top:.75rem;margin-bottom:.75rem}.my-5{margin-top:1.25rem;margin-bottom:1.25rem}.-ml-1{margin-left:-.25rem}.-mr-1{margin-right:-.25rem}.-mt-1{margin-top:-.25rem}.-mt-6{margin-top:-1.5rem}.-mt-\[72px\]{margin-top:-72px}.mb-0\.5{margin-bottom:.125rem}.mb-1{margin-bottom:.25rem}.mb-1\.5{margin-bottom:.375rem}.mb-2{margin-bottom:.5rem}.mb-2\.5{margin-bottom:.625rem}.mb-3{margin-bottom:.75rem}.mb-3\.5{margin-bottom:.875rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-6{margin-bottom:1.5rem}.mb-\[7px\]{margin-bottom:7px}.ml-1{margin-left:.25rem}.ml-1\.5{margin-left:.375rem}.ml-2{margin-left:.5rem}.ml-8{margin-left:2rem}.ml-auto{margin-left:auto}.mr-1{margin-right:.25rem}.mr-1\.5{margin-right:.375rem}.mt-0\.5{margin-top:.125rem}.mt-1{margin-top:.25rem}.mt-1\.5{margin-top:.375rem}.mt-2{margin-top:.5rem}.mt-2\.5{margin-top:.625rem}.mt-3{margin-top:.75rem}.mt-3\.5{margin-top:.875rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-8{margin-top:2rem}.mt-\[3px\]{margin-top:3px}.mt-auto{margin-top:auto}.box-border{box-sizing:border-box}.\!block{display:block!important}.block{display:block}.inline-block{display:inline-block}.inline{display:inline}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.contents{display:contents}.hidden{display:none}.aspect-square{aspect-ratio:1/1}.h-1{height:.25rem}.h-1\.5{height:.375rem}.h-10{height:2.5rem}.h-11{height:2.75rem}.h-12{height:3rem}.h-14{height:3.5rem}.h-16{height:4rem}.h-2{height:.5rem}.h-2\.5{height:.625rem}.h-20{height:5rem}.h-24{height:6rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-56{height:14rem}.h-6{height:1.5rem}.h-7{height:1.75rem}.h-8{height:2rem}.h-9{height:2.25rem}.h-\[150px\]{height:150px}.h-\[18px\]{height:18px}.h-\[68px\]{height:68px}.h-full{height:100%}.h-px{height:1px}.max-h-56{max-height:14rem}.max-h-\[80vh\]{max-height:80vh}.max-h-\[85vh\]{max-height:85vh}.max-h-\[88vh\]{max-height:88vh}.max-h-\[92vh\]{max-height:92vh}.max-h-full{max-height:100%}.min-h-0{min-height:0}.min-h-\[44px\]{min-height:44px}.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}.w-1{width:.25rem}.w-1\.5{width:.375rem}.w-10{width:2.5rem}.w-11{width:2.75rem}.w-12{width:3rem}.w-14{width:3.5rem}.w-16{width:4rem}.w-2\.5{width:.625rem}.w-20{width:5rem}.w-24{width:6rem}.w-28{width:7rem}.w-4{width:1rem}.w-40{width:10rem}.w-44{width:11rem}.w-5{width:1.25rem}.w-56{width:14rem}.w-6{width:1.5rem}.w-7{width:1.75rem}.w-8{width:2rem}.w-9{width:2.25rem}.w-\[150px\]{width:150px}.w-\[64px\]{width:64px}.w-\[68px\]{width:68px}.w-\[78px\]{width:78px}.w-full{width:100%}.w-px{width:1px}.min-w-0{min-width:0}.min-w-\[10rem\]{min-width:10rem}.min-w-\[18px\]{min-width:18px}.min-w-\[24px\]{min-width:24px}.min-w-\[28\%\]{min-width:28%}.min-w-\[44px\]{min-width:44px}.max-w-\[16rem\]{max-width:16rem}.max-w-\[17rem\]{max-width:17rem}.max-w-\[18rem\]{max-width:18rem}.max-w-\[300px\]{max-width:300px}.max-w-\[80\%\]{max-width:80%}.max-w-\[85\%\]{max-width:85%}.max-w-full{max-width:100%}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.max-w-sm{max-width:24rem}.max-w-xs{max-width:20rem}.flex-1{flex:1 1 0%}.flex-none{flex:none}.shrink{flex-shrink:1}.shrink-0{flex-shrink:0}.grow{flex-grow:1}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-x-1\/2,.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes pulse{50%{opacity:.5}}.animate-pulse{animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite}.cursor-pointer{cursor:pointer}.resize-none{resize:none}.resize-y{resize:vertical}.resize{resize:both}.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}.grid-cols-10{grid-template-columns:repeat(10,minmax(0,1fr))}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}.grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}.grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.items-baseline{align-items:baseline}.items-stretch{align-items:stretch}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-0\.5{gap:.125rem}.gap-1{gap:.25rem}.gap-1\.5{gap:.375rem}.gap-2{gap:.5rem}.gap-2\.5{gap:.625rem}.gap-3{gap:.75rem}.gap-3\.5{gap:.875rem}.gap-4{gap:1rem}.gap-5{gap:1.25rem}.gap-\[1px\]{gap:1px}.gap-\[2px\]{gap:2px}.gap-\[3px\]{gap:3px}.gap-\[7px\]{gap:7px}.gap-x-2{-moz-column-gap:.5rem;column-gap:.5rem}.gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}.gap-x-4{-moz-column-gap:1rem;column-gap:1rem}.gap-y-0\.5{row-gap:.125rem}.gap-y-1{row-gap:.25rem}.gap-y-2{row-gap:.5rem}.gap-y-4{row-gap:1rem}.space-y-0\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.125rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.125rem*var(--tw-space-y-reverse))}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-1\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.375rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.375rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-2\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.625rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.625rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.space-y-3\.5>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.875rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.875rem*var(--tw-space-y-reverse))}.self-center{align-self:center}.self-stretch{align-self:stretch}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis}.truncate,.whitespace-nowrap{white-space:nowrap}.whitespace-pre-line{white-space:pre-line}.whitespace-pre-wrap{white-space:pre-wrap}.break-words{overflow-wrap:break-word}.break-all{word-break:break-all}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-\[3px\]{border-radius:3px}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.rounded-t-3xl{border-top-left-radius:1.5rem;border-top-right-radius:1.5rem}.border{border-width:1px}.border-0{border-width:0}.border-2{border-width:2px}.border-b{border-bottom-width:1px}.border-b-\[3px\]{border-bottom-width:3px}.border-r-\[3px\]{border-right-width:3px}.border-t{border-top-width:1px}.border-t-\[3px\]{border-top-width:3px}.border-dashed{border-style:dashed}.border-\[\#262629\]{--tw-border-opacity:1;border-color:rgb(38 38 41/var(--tw-border-opacity,1))}.border-\[\#4A9EEB\]\/40{border-color:rgba(74,158,235,.4)}.border-white\/70{border-color:hsla(0,0%,100%,.7)}.bg-\[\#0F0F12\]{--tw-bg-opacity:1;background-color:rgb(15 15 18/var(--tw-bg-opacity,1))}.bg-\[\#161618\]{--tw-bg-opacity:1;background-color:rgb(22 22 24/var(--tw-bg-opacity,1))}.bg-\[\#1E1E22\]{--tw-bg-opacity:1;background-color:rgb(30 30 34/var(--tw-bg-opacity,1))}.bg-\[\#262629\]{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.bg-\[\#4A9EEB\]\/15{background-color:rgba(74,158,235,.15)}.bg-\[\#F5C542\]\/15{background-color:rgba(245,197,66,.15)}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/50{background-color:rgba(0,0,0,.5)}.bg-black\/60{background-color:rgba(0,0,0,.6)}.bg-black\/70{background-color:rgba(0,0,0,.7)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-black\/90{background-color:rgba(0,0,0,.9)}.bg-transparent{background-color:transparent}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.object-contain{-o-object-fit:contain;object-fit:contain}.object-cover{-o-object-fit:cover;object-fit:cover}.p-0{padding:0}.p-0\.5{padding:.125rem}.p-1{padding:.25rem}.p-1\.5{padding:.375rem}.p-2{padding:.5rem}.p-2\.5{padding:.625rem}.p-3{padding:.75rem}.p-3\.5{padding:.875rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.px-0{padding-left:0;padding-right:0}.px-0\.5{padding-left:.125rem;padding-right:.125rem}.px-1{padding-left:.25rem;padding-right:.25rem}.px-1\.5{padding-left:.375rem;padding-right:.375rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-3\.5{padding-left:.875rem;padding-right:.875rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-0{padding-top:0;padding-bottom:0}.py-0\.5{padding-top:.125rem;padding-bottom:.125rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-1\.5{padding-top:.375rem;padding-bottom:.375rem}.py-10{padding-top:2.5rem;padding-bottom:2.5rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-3\.5{padding-top:.875rem;padding-bottom:.875rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-6{padding-top:1.5rem;padding-bottom:1.5rem}.py-8{padding-top:2rem;padding-bottom:2rem}.py-\[2px\]{padding-top:2px;padding-bottom:2px}.py-\[6px\]{padding-top:6px;padding-bottom:6px}.py-\[7px\]{padding-top:7px;padding-bottom:7px}.py-\[9px\]{padding-top:9px;padding-bottom:9px}.pb-1{padding-bottom:.25rem}.pb-1\.5{padding-bottom:.375rem}.pb-10{padding-bottom:2.5rem}.pb-2{padding-bottom:.5rem}.pb-2\.5{padding-bottom:.625rem}.pb-24{padding-bottom:6rem}.pb-28{padding-bottom:7rem}.pb-3{padding-bottom:.75rem}.pb-3\.5{padding-bottom:.875rem}.pb-36{padding-bottom:9rem}.pb-4{padding-bottom:1rem}.pb-6{padding-bottom:1.5rem}.pb-8{padding-bottom:2rem}.pl-1{padding-left:.25rem}.pl-10{padding-left:2.5rem}.pl-2\.5{padding-left:.625rem}.pl-3{padding-left:.75rem}.pl-8{padding-left:2rem}.pr-1{padding-right:.25rem}.pr-1\.5{padding-right:.375rem}.pr-2{padding-right:.5rem}.pr-2\.5{padding-right:.625rem}.pr-6{padding-right:1.5rem}.pr-8{padding-right:2rem}.pt-0\.5{padding-top:.125rem}.pt-1{padding-top:.25rem}.pt-10{padding-top:2.5rem}.pt-2{padding-top:.5rem}.pt-2\.5{padding-top:.625rem}.pt-3{padding-top:.75rem}.pt-3\.5{padding-top:.875rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-6{padding-top:1.5rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.align-\[-0\.15em\]{vertical-align:-.15em}.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-5xl{font-size:3rem;line-height:1}.text-\[10\.5px\]{font-size:10.5px}.text-\[10px\]{font-size:10px}.text-\[11\.5px\]{font-size:11.5px}.text-\[11px\]{font-size:11px}.text-\[12\.5px\]{font-size:12.5px}.text-\[12px\]{font-size:12px}.text-\[13\.5px\]{font-size:13.5px}.text-\[13px\]{font-size:13px}.text-\[14px\]{font-size:14px}.text-\[15px\]{font-size:15px}.text-\[16px\]{font-size:16px}.text-\[17px\]{font-size:17px}.text-\[18px\]{font-size:18px}.text-\[19px\]{font-size:19px}.text-\[22px\]{font-size:22px}.text-\[25px\]{font-size:25px}.text-\[26px\]{font-size:26px}.text-\[30px\]{font-size:30px}.text-\[34px\]{font-size:34px}.text-\[6\.5px\]{font-size:6.5px}.text-\[7px\]{font-size:7px}.text-\[8px\]{font-size:8px}.text-\[9\.5px\]{font-size:9.5px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.font-normal{font-weight:400}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-\[1\.4\]{line-height:1.4}.leading-none{line-height:1}.leading-relaxed{line-height:1.625}.leading-snug{line-height:1.375}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-.025em}.tracking-widest{letter-spacing:.1em}.text-\[\#4A9EEB\]{--tw-text-opacity:1;color:rgb(74 158 235/var(--tw-text-opacity,1))}.text-\[\#5A5A62\]{--tw-text-opacity:1;color:rgb(90 90 98/var(--tw-text-opacity,1))}.text-\[\#6A6A70\]{--tw-text-opacity:1;color:rgb(106 106 112/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]{--tw-text-opacity:1;color:rgb(138 138 144/var(--tw-text-opacity,1))}.text-\[\#8A8A90\]\/70{color:hsla(240,3%,55%,.7)}.text-\[\#C9C9CF\]{--tw-text-opacity:1;color:rgb(201 201 207/var(--tw-text-opacity,1))}.text-\[\#F5C542\]{--tw-text-opacity:1;color:rgb(245 197 66/var(--tw-text-opacity,1))}.text-\[\#ff6b6b\]{--tw-text-opacity:1;color:rgb(255 107 107/var(--tw-text-opacity,1))}.text-\[var\(--good\)\]{color:var(--good)}.text-\[var\(--text\)\]{color:var(--text)}.text-\[var\(--text2\)\]{color:var(--text2)}.text-black{--tw-text-opacity:1;color:rgb(0 0 0/var(--tw-text-opacity,1))}.text-black\/60{color:rgba(0,0,0,.6)}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.text-white\/60{color:hsla(0,0%,100%,.6)}.text-white\/70{color:hsla(0,0%,100%,.7)}.text-white\/80{color:hsla(0,0%,100%,.8)}.text-white\/90{color:hsla(0,0%,100%,.9)}.underline{text-decoration-line:underline}.line-through{text-decoration-line:line-through}.accent-\[\#4A9EEB\]{accent-color:#4a9eeb}.opacity-40{opacity:.4}.opacity-45{opacity:.45}.opacity-50{opacity:.5}.opacity-60{opacity:.6}.opacity-70{opacity:.7}.shadow{--tw-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px -1px rgba(0,0,0,.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color),0 1px 2px -1px var(--tw-shadow-color)}.shadow,.shadow-2xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(3px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.blur{--tw-blur:blur(8px)}.blur,.drop-shadow{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.drop-shadow{--tw-drop-shadow:drop-shadow(0 1px 2px rgba(0,0,0,.1)) drop-shadow(0 1px 1px rgba(0,0,0,.06))}.grayscale{--tw-grayscale:grayscale(100%)}.filter,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.first\:border-0:first-child{border-width:0}.hover\:bg-\[\#262629\]:hover{--tw-bg-opacity:1;background-color:rgb(38 38 41/var(--tw-bg-opacity,1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95}.active\:scale-95:active,.active\:scale-\[\.99\]:active{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-\[\.99\]:active{--tw-scale-x:.99;--tw-scale-y:.99}.active\:opacity-60:active{opacity:.6}.active\:opacity-70:active{opacity:.7}.active\:opacity-80:active{opacity:.8}.active\:opacity-90:active{opacity:.9}.active\:opacity-95:active{opacity:.95}.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}@media (min-width:640px){.sm\:inline{display:inline}.sm\:max-w-sm{max-width:24rem}.sm\:items-center{align-items:center}.sm\:rounded-3xl{border-radius:1.5rem}.sm\:p-4{padding:1rem}}@media (min-width:1024px){.lg\:static{position:static}.lg\:flex{display:flex}.lg\:grid{display:grid}.lg\:hidden{display:none}.lg\:max-w-2xl{max-width:42rem}.lg\:max-w-3xl{max-width:48rem}.lg\:max-w-5xl{max-width:64rem}.lg\:max-w-md{max-width:28rem}.lg\:max-w-none{max-width:none}.lg\:max-w-sm{max-width:24rem}.lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:items-start{align-items:flex-start}.lg\:gap-6{gap:1.5rem}.lg\:rounded-3xl{border-radius:1.5rem}.lg\:p-0{padding:0}.lg\:pb-12{padding-bottom:3rem}.lg\:pb-16{padding-bottom:4rem}.lg\:pl-56{padding-left:14rem}}</style>
 <style>@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 /* ============ MACROSAURUS · PAPER TERRARIUM DESIGN SYSTEM ============ */
@@ -9188,61 +9188,62 @@ function leanKg(p) {
 // their own. Ship them at 16, 24 or 32px - other sizes land the art off whole pixels and blur it.
 // Judge every glyph at 16px, not zoomed in.
 const PX_ICONS = {
-  arrow_left: ['................', '................', '................', '................', '.....#..........', '....##..........', '...###..........', '..############..', '..############..', '...###..........', '....##..........', '.....#..........', '................', '................', '................', '................'],
-  arrow_right: ['................', '................', '................', '................', '..........#.....', '..........##....', '..........###...', '..############..', '..############..', '..........###...', '..........##....', '..........#.....', '................', '................', '................', '................'],
-  arrow_up: ['................', '................', '.......##.......', '......####......', '.....######.....', '....########....', '.......##.......', '.......##.......', '.......##.......', '.......##.......', '.......##.......', '.......##.......', '.......##.......', '.......##.......', '................', '................'],
-  barcode: ['................', '................', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '..#.##.#.##.#...', '................', '................'],
-  bolt: ['................', '......#####.....', '.....#####......', '....#####.......', '...#####........', '..###########...', '........####....', '.......####.....', '......####......', '.....####.......', '....####........', '...###..........', '..##............', '................', '................', '................'],
-  calendar: ['....##....##....', '....##....##....', '..############..', '..############..', '..############..', '..##........##..', '..##.##..##.##..', '..##.##..##.##..', '..##........##..', '..##.##..##.##..', '..##.##..##.##..', '..##........##..', '..############..', '..############..', '................', '................'],
-  cam: ['................', '.....#####......', '.....#####..##..', '.##############.', '.##############.', '.#####....#####.', '.###..####..###.', '.##.########.##.', '.##.########.##.', '.##.########.##.', '.##.########.##.', '.###..####..###.', '.#####....#####.', '.##############.', '................', '................'],
-  caret_down: ['................', '................', '................', '................', '................', '................', '...##########...', '....########....', '.....######.....', '......####......', '.......##.......', '................', '................', '................', '................', '................'],
-  caret_up: ['................', '................', '................', '................', '................', '.......##.......', '......####......', '.....######.....', '....########....', '...##########...', '................', '................', '................', '................', '................', '................'],
-  cart: ['................', '................', '.##.............', '.##.............', '.##.##########..', '..############..', '..############..', '...##########...', '....########....', '................', '................', '...##.....##....', '...##.....##....', '................', '................', '................'],
-  chat: ['................', '................', '..############..', '.##############.', '.##############.', '.##..##..##..##.', '.##..##..##..##.', '.##############.', '.##############.', '..############..', '..#####.........', '..####..........', '..##............', '................', '................', '................'],
-  check: ['................', '................', '................', '................', '................', '...........###..', '..........###...', '.........###....', '..#.....###.....', '..##...###......', '..###.###.......', '...#####........', '....###.........', '................', '................', '................'],
-  chevron: ['................', '....##..........', '....###.........', '....####........', '.....####.......', '......####......', '.......####.....', '........####....', '........####....', '.......####.....', '......####......', '.....####.......', '....####........', '....###.........', '....##..........', '................'],
-  close: ['................', '................', '..##........##..', '..###......###..', '...###....###...', '....###..###....', '.....######.....', '......####......', '......####......', '.....######.....', '....###..###....', '...###....###...', '..###......###..', '..##........##..', '................', '................'],
-  corner_arrow: ['................', '................', '..##............', '..##............', '..##............', '..##............', '..##......##....', '..##......###...', '..############..', '..############..', '..........###...', '..........##....', '................', '................', '................', '................'],
-  dash: ['................', '................', '..#####..#####..', '..#####..#####..', '..#####..#####..', '..#####..#####..', '..#####..#####..', '................', '................', '..#####..#####..', '..#####..#####..', '..#####..#####..', '..#####..#####..', '..#####..#####..', '................', '................'],
-  dino: ['................', '....#####.......', '...#######......', '...##.#####.....', '...########.....', '.##########.....', '.##########.##..', '...#########.##.', '..###########.#.', '..############..', '..############..', '..############..', '..##.....###....', '..##.....###....', '.###.....###....', '................'],
-  dot: ['................', '................', '................', '................', '................', '.....######.....', '....########....', '....########....', '....########....', '....########....', '.....######.....', '................', '................', '................', '................', '................'],
-  drink: ['................', '..........###...', '.........###....', '........###.....', '..###########...', '..###########...', '..###########...', '...#########....', '...#########....', '....#######.....', '....#######.....', '.....#####......', '.....#####......', '......###.......', '................', '................'],
-  drop: ['................', '.......##.......', '......####......', '......####......', '.....######.....', '....########....', '...##########...', '..############..', '..############..', '..############..', '..############..', '...##########...', '....########....', '.....######.....', '................', '................'],
-  dumbbell: ['................', '................', '................', '................', '................', '.###........###.', '.###........###.', '.##############.', '.##############.', '.###........###.', '.###........###.', '................', '................', '................', '................', '................'],
-  edit: ['................', '................', '..........#####.', '.........######.', '........######..', '.......######...', '......######....', '.....######.....', '....######......', '...######.......', '..######........', '..#####.........', '..####..........', '..##............', '................', '................'],
-  egg: ['................', '......####......', '.....######.....', '....########....', '...##########...', '..############..', '..##..########..', '..##..########..', '..############..', '..############..', '...##########...', '....########....', '.....######.....', '......####......', '................', '................'],
-  figure: ['................', '......####......', '......####......', '......####......', '................', '..############..', '..############..', '..##..####..##..', '..##..####..##..', '......####......', '......####......', '....##....##....', '....##....##....', '....##....##....', '....##....##....', '................'],
-  flashlight: ['................', '................', '................', '................', '................', '...####.........', '..######........', '..######..##.##.', '..######..##.##.', '..######........', '...####.........', '................', '................', '................', '................', '................'],
-  food: ['................', '..#.#.#....##...', '..#.#.#....##...', '..#.#.#...###...', '..#####...###...', '..#####...####..', '...###....####..', '...###....####..', '...###.....##...', '...###.....##...', '...###.....##...', '...###.....##...', '...###.....##...', '...###.....##...', '................', '................'],
-  gear: ['................', '....##....##....', '....##....##....', '..############..', '..############..', '..###......###..', '###..........###', '###..........###', '###..........###', '###..........###', '..###......###..', '..############..', '..############..', '....##....##....', '....##....##....', '................'],
-  glove: ['................', '................', '....########....', '...##########...', '..############..', '..############..', '##.############.', '###############.', '##.############.', '..############..', '...##########...', '....########....', '................', '...#########....', '...#########....', '................'],
-  goal: ['................', '................', '..############..', '..############..', '..##........##..', '..##.######.##..', '..##.######.##..', '..##.######.##..', '..##.######.##..', '..##.######.##..', '..##.######.##..', '..##........##..', '..############..', '..############..', '................', '................'],
-  grain: ['................', '................', '................', '....########....', '..############..', '.####..###..###.', '.###..###..####.', '.##..###..#####.', '.##############.', '.##############.', '.##############.', '.##############.', '................', '................', '................', '................'],
-  heart_empty: ['................', '................', '..####....####..', '.##.##....##.##.', '##...##..##...##', '##.....##.....##', '##............##', '.##..........##.', '..##........##..', '...##......##...', '....##....##....', '.....##..##.....', '......####......', '.......##.......', '................', '................'],
-  heart_full: ['................', '................', '..####....####..', '.##############.', '################', '################', '################', '.##############.', '..############..', '...##########...', '....########....', '.....######.....', '......####......', '.......##.......', '................', '................'],
-  lock: ['................', '....########....', '...##......##...', '...##......##...', '...##......##...', '..############..', '..############..', '..############..', '..#####..#####..', '..#####..#####..', '..############..', '..############..', '..############..', '..############..', '................', '................'],
-  meat: ['................', '................', '.........####...', '........######..', '.......#######..', '..##...#######..', '.####..#######..', '.####.########..', '.####..#######..', '..##...#######..', '.......#######..', '........######..', '.........####...', '................', '................', '................'],
-  mic: ['................', '......####......', '......####......', '......####......', '......####......', '......####......', '....##....##....', '....##....##....', '....##....##....', '....########....', '......####......', '......####......', '...##########...', '................', '................', '................'],
-  moon: ['................', '......####......', '....######......', '...#####........', '..#####.........', '..#####.........', '.#####..........', '.#####..........', '.#####..........', '.#####..........', '..#####.........', '..#####.........', '...#####........', '....######......', '......####......', '................'],
-  more: ['................', '................', '................', '................', '................', '................', '................', '..##...##...##..', '..##...##...##..', '................', '................', '................', '................', '................', '................', '................'],
-  photo: ['................', '................', '..####....####..', '..#..........#..', '..#..........#..', '................', '.....######.....', '.....######.....', '.....######.....', '.....######.....', '................', '..#..........#..', '..#..........#..', '..####....####..', '................', '................'],
-  plant: ['................', '......####......', '.....######.....', '....########....', '....###.####....', '...###..#####...', '...###..#####...', '..###...######..', '..###...######..', '..####..######..', '...####.#####...', '....#########...', '.....#######....', '.......##.......', '.......##.......', '................'],
-  play: ['................', '................', '................', '..##............', '..####..........', '..######........', '..########......', '..##########....', '..##########....', '..########......', '..######........', '..####..........', '..##............', '................', '................', '................'],
-  plus: ['................', '................', '......####......', '......####......', '......####......', '......####......', '..############..', '..############..', '..############..', '..############..', '......####......', '......####......', '......####......', '......####......', '................', '................'],
-  recipe: ['................', '............###.', '...........###..', '.......##..##...', '.##############.', '.##############.', '..############..', '################', '#.############.#', '################', '..############..', '..############..', '..############..', '...##########...', '................', '................'],
-  scale: ['................', '................', '................', '..############..', '.##############.', '.##############.', '.###........###.', '.###...##...###.', '.###...##...###.', '.###........###.', '.##############.', '.##############.', '..############..', '..##........##..', '................', '................'],
-  share: ['................', '......####......', '.....######.....', '....##.##.##....', '...##..##..##...', '......####......', '......####......', '......####......', '..##........##..', '..##........##..', '..##........##..', '..##........##..', '..############..', '..############..', '................', '................'],
-  sliders: ['................', '................', '.....###........', '..############..', '..############..', '.....###........', '.........###....', '..############..', '..############..', '.........###....', '....###.........', '..############..', '..############..', '....###.........', '................', '................'],
-  snow: ['................', '.......##.......', '.....#.##.#.....', '......####......', '..#...####...#..', '...##..##..##...', '....########....', '..############..', '..############..', '....########....', '...##..##..##...', '..#...####...#..', '......####......', '.....#.##.#.....', '.......##.......', '................'],
-  square: ['................', '................', '................', '................', '....########....', '....########....', '....########....', '....########....', '....########....', '....########....', '....########....', '....########....', '................', '................', '................', '................'],
-  star: ['................', '.......##.......', '.......##.......', '......####......', '......####......', '.##############.', '.##############.', '..############..', '...##########...', '....########....', '...##########...', '...###....###...', '..###......###..', '..##........##..', '................', '................'],
-  sun: ['................', '.......##.......', '.......##.......', '..#....##....#..', '...##......##...', '....########....', '....########....', '.##.########.##.', '.##.########.##.', '....########....', '....########....', '...##......##...', '..#....##....#..', '.......##.......', '.......##.......', '................'],
-  sweet: ['.......##.......', '.......##.......', '....########....', '...##########...', '..############..', '.##############.', '.##############.', '..############..', '..############..', '..##.##..##.##..', '..##.##..##.##..', '...##########...', '...##########...', '....########....', '................', '................'],
-  trend_down: ['................', '................', '...####.........', '....####........', '.....####.......', '......####......', '.......####.....', '........####....', '.........####...', '..........####..', '............##..', '.......#######..', '.......#######..', '................', '................', '................'],
-  trend_up: ['................', '................', '................', '.......#######..', '.......#######..', '............##..', '..........####..', '.........####...', '........####....', '.......####.....', '......####......', '.....####.......', '....####........', '...####.........', '................', '................'],
-  tri_down: ['................', '................', '................', '................', '.##############.', '..############..', '...##########...', '....########....', '.....######.....', '......####......', '.......##.......', '................', '................', '................', '................', '................'],
-  tri_up: ['................', '................', '................', '................', '................', '.......##.......', '......####......', '.....######.....', '....########....', '...##########...', '..############..', '.##############.', '................', '................', '................', '................'],
-  trophy: ['................', '..############..', '..############..', '.####......####.', '.##.########.##.', '.##.########.##.', '.####......####.', '...##########...', '....########....', '.....######.....', '......####......', '....########....', '....########....', '..############..', '..############..', '................']
+  arrow_left: ['........................', '........................', '........................', '........................', '........................', '........................', '.......##...............', '......###...............', '.....####...............', '....#####...............', '...###################..', '..####################..', '..####################..', '...###################..', '....#####...............', '.....####...............', '......###...............', '.......##...............', '........................', '........................', '........................', '........................', '........................', '........................'],
+  arrow_right: ['........................', '........................', '........................', '........................', '........................', '........................', '...............##.......', '...............###......', '...............####.....', '...............#####....', '..###################...', '..####################..', '..####################..', '..###################...', '...............#####....', '...............####.....', '...............###......', '...............##.......', '........................', '........................', '........................', '........................', '........................', '........................'],
+  arrow_up: ['........................', '........................', '...........##...........', '..........####..........', '.........######.........', '........########........', '.......##########.......', '......############......', '......############......', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '........................', '........................'],
+  barcode: ['........................', '........................', '........................', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '..##..####..##..##..##..', '........................', '........................', '........................'],
+  bolt: ['........................', '........................', '........................', '............#######.....', '...........########.....', '..........########......', '.........########.......', '........########........', '.......########.........', '......#########.........', '......#############.....', '......#############.....', '..........#########.....', '..........########......', '.........########.......', '........########........', '.......########.........', '......########..........', '.....########...........', '.....#######............', '........................', '........................', '........................', '........................'],
+  calendar: ['........................', '........................', '......###......###......', '......###......###......', '......###......###......', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..##................##..', '..##................##..', '..##......####......##..', '..##......####......##..', '..##......####......##..', '..##......####......##..', '..##................##..', '..##................##..', '..####################..', '..####################..', '........................', '........................'],
+  cam: ['........................', '........................', '........................', '........................', '........########........', '........########........', '..####################..', '..####################..', '..####################..', '..##....########....##..', '..##....########....##..', '..##....########....##..', '..####################..', '..######........######..', '..######........######..', '..######........######..', '..######........######..', '..######........######..', '..######........######..', '..####################..', '..####################..', '..####################..', '........................', '........................'],
+  caret_down: ['........................', '........................', '........................', '........................', '........................', '........................', '........................', '...####..........####...', '...####..........####...', '....####........####....', '.....####......####.....', '......####....####......', '.......####..####.......', '........########........', '.........######.........', '..........####..........', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................'],
+  caret_up: ['........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '..........####..........', '.........######.........', '........########........', '.......####..####.......', '......####....####......', '.....####......####.....', '....####........####....', '...####..........####...', '...####..........####...', '........................', '........................', '........................', '........................', '........................', '........................', '........................'],
+  cart: ['........................', '........................', '........................', '..######................', '..######................', '..######................', '......##................', '......################..', '........##############..', '........##############..', '........##############..', '........##############..', '........##############..', '........##############..', '........##############..', '........##############..', '........................', '........................', '..........####..####....', '..........####..####....', '..........####..####....', '..........####..####....', '........................', '........................'],
+  chat: ['........................', '........................', '........................', '.....##############.....', '....################....', '...##################...', '..####################..', '..####################..', '..##....##....##....##..', '..##....##....##....##..', '..##....##....##....##..', '..##....##....##....##..', '..####################..', '..####################..', '...##################...', '....################....', '.....##############.....', '.....######.............', '.....#####..............', '.....####...............', '.....###................', '........................', '........................', '........................'],
+  check: ['........................', '........................', '........................', '........................', '........................', '........................', '................######..', '................######..', '..............######....', '..............######....', '............######......', '............######......', '..######..######........', '..######..######........', '....##########..........', '....##########..........', '......######............', '......######............', '........................', '........................', '........................', '........................', '........................', '........................'],
+  chevron: ['........................', '........................', '........................', '........................', '......#####.............', '......######............', '.......######...........', '........######..........', '.........######.........', '..........######........', '...........######.......', '............######......', '............######......', '...........######.......', '..........######........', '.........######.........', '........######..........', '.......######...........', '......######............', '......#####.............', '........................', '........................', '........................', '........................'],
+  close: ['........................', '........................', '........................', '........................', '....##............##....', '....###..........###....', '.....###........###.....', '......###......###......', '.......###....###.......', '........###..###........', '.........######.........', '..........####..........', '..........####..........', '.........######.........', '........###..###........', '.......###....###.......', '......###......###......', '.....###........###.....', '....###..........###....', '....##............##....', '........................', '........................', '........................', '........................'],
+  corner_arrow: ['........................', '........................', '........................', '........................', '....####................', '....####................', '....####................', '....####................', '....####.......##.......', '....####.......###......', '....####.......####.....', '....################....', '....#################...', '....#################...', '....################....', '...............####.....', '...............###......', '...............##.......', '........................', '........................', '........................', '........................', '........................', '........................'],
+  dash: ['........................', '........................', '..#########..#########..', '..#########..#########..', '..#########..##.....##..', '..#########..##.....##..', '..#########..##.....##..', '..#########..##.....##..', '..#########..##.....##..', '..#########..#########..', '..#########..#########..', '........................', '........................', '..#########..#########..', '..#########..#########..', '..##.....##..##.....##..', '..##.....##..##.....##..', '..##.....##..##.....##..', '..##.....##..##.....##..', '..##.....##..##.....##..', '..#########..#########..', '..#########..#########..', '........................', '........................'],
+  dino: ['........................', '........................', '........................', '...########.............', '..##########............', '..##...#####............', '..##...#####............', '..##...#####............', '..###########.....####..', '....##########...#####..', '.....################...', '.....###############....', '.....##############.....', '.....#############......', '.....############.......', '.....###########........', '.....##########.........', '.....##########.........', '......###..###..........', '......###..###..........', '.....####..####.........', '.....####..####.........', '........................', '........................'],
+  dot: ['........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '.........######.........', '.........######.........', '.........######.........', '.........######.........', '.........######.........', '.........######.........', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................'],
+  drink: ['........................', '........................', '.................##.....', '................###.....', '...............###......', '..............####......', '...##################...', '...##################...', '....################....', '....################....', '....##............##....', '....##............##....', '....##............##....', '....################....', '....################....', '....################....', '....################....', '....################....', '.....##############.....', '......############......', '.......##########.......', '........########........', '........................', '........................'],
+  drop: ['........................', '........................', '........................', '...........##...........', '..........####..........', '.........######.........', '........########........', '.......##########.......', '......############......', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '......############......', '.......##########.......', '........########........', '........................', '........................'],
+  dumbbell: ['........................', '........................', '........................', '..####............####..', '..####............####..', '..####............####..', '..####............####..', '..######........######..', '..######........######..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..######........######..', '..######........######..', '..####............####..', '..####............####..', '..####............####..', '..####............####..', '........................', '........................', '........................'],
+  edit: ['........................', '........................', '........................', '........................', '...............######...', '..............#######...', '.............#######....', '............#######.....', '...........#######......', '..........#######.......', '.........#######........', '........#######.........', '.......#######..........', '......#######...........', '.....#######............', '....#######.............', '...######...............', '...###..................', '........................', '........................', '........................', '........................', '........................', '........................'],
+  egg: ['........................', '........................', '........................', '........................', '..........####..........', '.........######.........', '........########........', '.......##########.......', '.......##########.......', '............#####.......', '........................', '.....#######............', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '......############......', '.......##########.......', '........########........', '.........######.........', '........................', '........................'],
+  figure: ['........................', '........................', '.........######.........', '.........######.........', '.........######.........', '.........######.........', '.........######.........', '.........######.........', '........................', '........................', '..####################..', '..####################..', '..####################..', '..####################..', '......############......', '......############......', '........###..###........', '........###..###........', '........###..###........', '........###..###........', '........###..###........', '........###..###........', '........................', '........................'],
+  flashlight: ['........................', '........................', '........................', '........................', '..............####......', '..............####......', '..################..##..', '..################..##..', '..################......', '..################......', '..################......', '..################..##..', '..################..##..', '..################......', '..################......', '..################......', '..################..##..', '..################..##..', '..............####......', '..............####......', '........................', '........................', '........................', '........................'],
+  food: ['........................', '........................', '...###..###.......##....', '...###..###......###....', '...###..###.....####....', '...###..###...######....', '...###..###...######....', '...###..###...######....', '...###..###...######....', '...########...######....', '...########...######....', '...########...######....', '.....###......######....', '.....###......######....', '.....###........###.....', '.....###........###.....', '.....###........###.....', '.....###........###.....', '.....###........###.....', '.....###........###.....', '.....###........###.....', '.....###........###.....', '........................', '........................'],
+  gear: ['........................', '........................', '..........####..........', '..........####..........', '........########........', '........########........', '........########........', '........########........', '....################....', '....#####......#####....', '..#######......#######..', '..#######......#######..', '..#######......#######..', '..#######......#######..', '....#####......#####....', '....################....', '........########........', '........########........', '........########........', '........########........', '..........####..........', '..........####..........', '........................', '........................'],
+  glove: ['........................', '........................', '........................', '........##########......', '.......############.....', '......##############....', '.....################...', '....#################...', '...##################...', '..###################...', '..###################...', '..###################...', '...##################...', '.....##########.........', '.....##########.........', '.....##########.........', '.....##########.........', '......##############....', '......##############....', '......##############....', '.......############.....', '........................', '........................', '........................'],
+  goal: ['........................', '........................', '..####################..', '..####################..', '..##................##..', '..##................##..', '..##..############..##..', '..##..############..##..', '..##..##........##..##..', '..##..##........##..##..', '..##..##..####..##..##..', '..##..##..####..##..##..', '..##..##..####..##..##..', '..##..##..####..##..##..', '..##..##........##..##..', '..##..##........##..##..', '..##..############..##..', '..##..############..##..', '..##................##..', '..##................##..', '..####################..', '..####################..', '........................', '........................'],
+  grain: ['........................', '........................', '........................', '.........######.........', '........########........', '.......##########.......', '......############......', '.....##############.....', '....################....', '...##################...', '...##################...', '...##################...', '...###............###...', '...###............###...', '...###............###...', '...###............###...', '...###............###...', '...###............###...', '...###............###...', '...###............###...', '...##################...', '...##################...', '........................', '........................'],
+  heart_empty: ['........................', '........................', '........................', '........................', '....#####......#####....', '...#######....#######...', '..#########..#########..', '..###...########...###..', '..##.....######.....##..', '..##................##..', '..##................##..', '..###..............###..', '..####............####..', '...####..........####...', '....####........####....', '.....####......####.....', '......####....####......', '.......####..####.......', '........########........', '.........######.........', '..........####..........', '..........####..........', '........................', '........................'],
+  heart_full: ['........................', '........................', '........................', '........................', '....#####......#####....', '...#######....#######...', '..#########..#########..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '...##################...', '....################....', '.....##############.....', '......############......', '.......##########.......', '........########........', '.........######.........', '..........####..........', '..........####..........', '........................', '........................'],
+  info: ['........................', '........................', '........................', '...##################...', '...##################...', '...##..............##...', '...##..............##...', '...##.....####.....##...', '...##.....####.....##...', '...##..............##...', '...##..............##...', '...##.....####.....##...', '...##.....####.....##...', '...##.....####.....##...', '...##.....####.....##...', '...##.....####.....##...', '...##.....####.....##...', '...##..............##...', '...##..............##...', '...##################...', '...##################...', '........................', '........................', '........................'],
+  lock: ['........................', '........................', '........................', '.........######.........', '........########........', '.......##########.......', '.......##......##.......', '.......##......##.......', '.......##......##.......', '.......##......##.......', '....################....', '....################....', '....################....', '....######....######....', '....######....######....', '....######....######....', '....######....######....', '....######....######....', '....################....', '....################....', '....################....', '....################....', '........................', '........................'],
+  meat: ['........................', '........................', '............########....', '...........##########...', '..........############..', '.........#############..', '........##############..', '........##############..', '........##############..', '........##############..', '.........#############..', '..........###########...', '...........#########....', '...........########.....', '..........#####.........', '.........#####..........', '........#####...........', '.......#####............', '......#####.............', '.....#####..............', '..#######...............', '..#######...............', '........................', '........................'],
+  mic: ['........................', '........................', '........########........', '........########........', '........########........', '........########........', '........########........', '........########........', '........########........', '........########........', '....##..########..##....', '....##..########..##....', '....##..########..##....', '....##..########..##....', '....################....', '....################....', '..........####..........', '..........####..........', '..........####..........', '....################....', '....################....', '....################....', '........................', '........................'],
+  moon: ['........................', '........................', '........................', '...........######.......', '..........#######.......', '.........#######........', '........#######.........', '.......#######..........', '......#######...........', '......#######...........', '......#######...........', '......#######...........', '......#######...........', '......#######...........', '......#######...........', '......#######...........', '.......#######..........', '........#######.........', '.........#######........', '..........#######.......', '...........######.......', '........................', '........................', '........................'],
+  more: ['........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '..####....####....####..', '..####....####....####..', '..####....####....####..', '..####....####....####..', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................'],
+  photo: ['........................', '........................', '........................', '........................', '............##########..', '............##########..', '....................##..', '....................##..', '..################..##..', '..################..##..', '..##............##..##..', '..##............##..##..', '..##........##..##......', '..##........##..##......', '..##............##......', '..##########....##......', '..###########...##......', '..############..##......', '..################......', '..################......', '..################......', '..################......', '........................', '........................'],
+  plant: ['........................', '........................', '........................', '........................', '..........####..........', '..........####..........', '........########........', '......############......', '....################....', '..####################..', '..####################..', '....################....', '......############......', '........########........', '..........####..........', '..........####..........', '........########........', '......############......', '....################....', '....################....', '......############......', '........########........', '........................', '........................'],
+  play: ['........................', '........................', '........................', '.......##...............', '.......###..............', '.......####.............', '.......#####............', '.......######...........', '.......#######..........', '.......########.........', '.......##########.......', '.......##########.......', '.......##########.......', '.......##########.......', '.......########.........', '.......#######..........', '.......######...........', '.......#####............', '.......####.............', '.......###..............', '.......##...............', '........................', '........................', '........................'],
+  plus: ['........................', '........................', '........................', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '...##################...', '...##################...', '...##################...', '...##################...', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '........................', '........................', '........................'],
+  recipe: ['........................', '........................', '........##....##........', '........##....##........', '........................', '........................', '..........####..........', '..........####..........', '....################....', '....################....', '....################....', '..####################..', '..####################..', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.....##############.....', '.......##########.......', '.......##########.......', '........................', '........................'],
+  scale: ['........................', '........................', '........................', '........................', '..####################..', '..####################..', '..####################..', '..####################..', '..######........######..', '..######........######..', '..######........######..', '..######........######..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '...####..........####...', '...####..........####...', '........................', '........................', '........................', '........................'],
+  share: ['........................', '........................', '........................', '................######..', '................######..', '..............########..', '.............#########..', '............##########..', '...........###..######..', '..######..###...........', '..##########............', '..#########.............', '..#########.............', '..##########............', '..######..###...........', '...........###..######..', '............##########..', '.............#########..', '..............########..', '................######..', '................######..', '........................', '........................', '........................'],
+  sliders: ['........................', '........................', '........................', '.............######.....', '.............######.....', '..####################..', '..####################..', '.............######.....', '.............######.....', '.....######.............', '.....######.............', '..####################..', '..####################..', '.....######.............', '.....######.............', '............######......', '............######......', '..####################..', '..####################..', '............######......', '............######......', '........................', '........................', '........................'],
+  snow: ['........................', '........................', '...........##...........', '...........##...........', '...........##...........', '....##.....##.....##....', '....###....##....###....', '.....###...##...###.....', '......###..##..###......', '.......##########.......', '.......##########.......', '..####################..', '..####################..', '.......##########.......', '.......##########.......', '......###..##..###......', '.....###...##...###.....', '....###....##....###....', '....##.....##.....##....', '...........##...........', '...........##...........', '...........##...........', '........................', '........................'],
+  square: ['........................', '........................', '........................', '........................', '........................', '........................', '......############......', '......############......', '......##........##......', '......##........##......', '......##........##......', '......##........##......', '......##........##......', '......##........##......', '......##........##......', '......##........##......', '......############......', '......############......', '........................', '........................', '........................', '........................', '........................', '........................'],
+  star: ['........................', '........................', '........................', '........................', '..........####..........', '..........####..........', '........########........', '........########........', '..####################..', '..####################..', '....################....', '....################....', '......############......', '......############......', '......####....####......', '......####....####......', '....####........####....', '....####........####....', '........................', '........................', '........................', '........................', '........................', '........................'],
+  sun: ['........................', '........................', '.........######.........', '.........######.........', '.........######.........', '........................', '........................', '.......##########.......', '.......##########.......', '..###..##########..###..', '..###..##########..###..', '..###..##########..###..', '..###..##########..###..', '..###..##########..###..', '..###..##########..###..', '.......##########.......', '.......##########.......', '........................', '........................', '.........######.........', '.........######.........', '.........######.........', '........................', '........................'],
+  sweet: ['........................', '........................', '........................', '.........######.........', '.........######.........', '..##.....######.....##..', '..###....######....###..', '..####...######...####..', '..#####..######..#####..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..####################..', '..#####..######..#####..', '..####...######...####..', '..###....######....###..', '..##.....######.....##..', '.........######.........', '.........######.........', '........................', '........................', '........................'],
+  trend_down: ['........................', '........................', '........................', '........................', '........................', '...####.................', '...#####................', '....#####...............', '.....#####..............', '......#####.............', '.......#####............', '........#####...........', '.........#####..........', '..........#####....###..', '...........#####..####..', '............##########..', '.............#########..', '..............########..', '..............########..', '.............#########..', '.............#########..', '........................', '........................', '........................'],
+  trend_up: ['........................', '........................', '........................', '.............#########..', '.............#########..', '..............########..', '..............########..', '.............#########..', '............##########..', '...........#####..####..', '..........#####....###..', '.........#####..........', '........#####...........', '.......#####............', '......#####.............', '.....#####..............', '....#####...............', '...#####................', '...####.................', '........................', '........................', '........................', '........................', '........................'],
+  tri_down: ['........................', '........................', '........................', '........................', '........................', '........................', '........................', '...##################...', '...##################...', '....################....', '.....##############.....', '......############......', '.......##########.......', '........########........', '.........######.........', '..........####..........', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................'],
+  tri_up: ['........................', '........................', '........................', '........................', '........................', '........................', '........................', '........................', '..........####..........', '.........######.........', '........########........', '.......##########.......', '......############......', '.....##############.....', '....################....', '...##################...', '...##################...', '........................', '........................', '........................', '........................', '........................', '........................', '........................'],
+  trophy: ['........................', '........................', '........................', '....################....', '....################....', '....################....', '..####################..', '..####################..', '..####################..', '..####################..', '.....##############.....', '......############......', '.......##########.......', '........########........', '..........####..........', '..........####..........', '..........####..........', '..........####..........', '........########........', '........########........', '......############......', '......############......', '........................', '........................']
 }; // Classification lives in the engine (pure, and tested there, because these regexes run over
 // whatever anyone types into a food name). This keeps the old call sites unchanged.
 function foodKind(name, isAlc) {
@@ -9281,7 +9282,7 @@ function PixelGlyph({
   const g = PX_ICONS[kind] || PX_ICONS.dino;
   const w = g[0].length,
     h = g.length,
-    s = size || 16;
+    s = size || 24;
   return /*#__PURE__*/React.createElement("svg", {
     viewBox: `0 0 ${w} ${h}`,
     width: s,
@@ -9307,7 +9308,7 @@ function PixelGlyph({
 // Inline pixel glyphs for use inside running text, replacing the Unicode ✓/✦ (which Press Start 2P
 // lacks and the browser renders in a fallback font). They inherit the surrounding text colour.
 function Tick({
-  size = 16,
+  size = 12,
   style
 }) {
   return /*#__PURE__*/React.createElement("span", {
@@ -9324,7 +9325,7 @@ function Tick({
   }));
 }
 function Spark({
-  size = 16,
+  size = 12,
   style
 }) {
   return /*#__PURE__*/React.createElement("span", {
@@ -9551,7 +9552,7 @@ function IOSInstallSheet({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Install Macrosaurus in three quick taps in Safari, for a full-screen app with its own icon."), /*#__PURE__*/React.createElement("div", {
@@ -9629,7 +9630,7 @@ function InstallCard() {
     "aria-label": "Dismiss",
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-0.5 mb-3 leading-snug"
   }, isIOS ? 'Install it like an app: full screen, its own icon, and faster launches, no App Store needed.' : 'Install the app for full-screen, offline-ready tracking and a home-screen icon, no Play Store needed.'), /*#__PURE__*/React.createElement("button", {
@@ -12160,8 +12161,8 @@ function PhotoButton({
   return /*#__PURE__*/React.createElement("label", {
     className: `flex items-center justify-center gap-2 ${bg} rounded-2xl py-3 text-[13px] border border-[#262629] cursor-pointer active:scale-[.99] transition ${className}`
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: CAL_T
     }
@@ -12325,7 +12326,7 @@ function Sheet({
   }, /*#__PURE__*/React.createElement(CardHead, {
     title: title,
     right: /*#__PURE__*/React.createElement(Icon.close, {
-      width: "16",
+      width: "24",
       "aria-label": "Close"
     }),
     onRight: onClose,
@@ -12647,7 +12648,7 @@ function Dropdown({
   }, cur ? cur.l : 'Select'), /*#__PURE__*/React.createElement("span", {
     className: "shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "16"
+    width: "24"
   }))), open && /*#__PURE__*/React.createElement("div", {
     className: "absolute z-40 mt-1 min-w-[10rem] bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl"
   }, options.map(o => /*#__PURE__*/React.createElement("button", {
@@ -12668,7 +12669,7 @@ function Dropdown({
   }, cur ? cur.l : 'Select'), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] ml-2"
   }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "16"
+    width: "24"
   }))), open && /*#__PURE__*/React.createElement("div", {
     className: "absolute z-40 mt-1 w-full bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 max-h-56 overflow-y-auto shadow-2xl"
   }, options.map(o => /*#__PURE__*/React.createElement("button", {
@@ -12959,7 +12960,7 @@ function useScrolledToTop() {
 /* ---------- icons ----------
    There is one icon set (`PX_ICONS`, top of this file) and two ways to reach it. `PixelGlyph` is
    the renderer; `Icon.name` is the same art in the shape the call sites already had - a component
-   per name taking `width`/`height` - so a screen can keep saying `<Icon.cam width="16" />`.
+   per name taking `width`/`height` - so a screen can keep saying `<Icon.cam width="24" />`.
 
    `width` is the size: these are square, and an icon asked for a non-square box used to get one and
    stretch. Sizes are 16, 24 and 32 only; anything else puts the grid on half pixels. */
@@ -12969,7 +12970,7 @@ Object.keys(PX_ICONS).forEach(function (k) {
     p = p || {};
     return /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: k,
-      size: +(p.width || p.height || 16),
+      size: +(p.width || p.height || 24),
       color: p.fill,
       className: p.className,
       style: p.style,
@@ -14661,7 +14662,7 @@ function Auth() {
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back to log in"), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-center mt-6 leading-relaxed px-2",
     style: {
@@ -14861,7 +14862,7 @@ function BodyFatPicker({
     onClick: () => setMode('bands'),
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4"
   }, "Add up to three photos in good light, fitted clothing or none. They're sent to the AI once for the estimate and ", /*#__PURE__*/React.createElement("span", {
@@ -14875,8 +14876,8 @@ function BodyFatPicker({
     src: imgs[s].url,
     className: "absolute inset-0 w-full h-full object-cover"
   }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: CAL_T
     }
@@ -17291,7 +17292,7 @@ function WeighInEditModal({
     onClick: () => setBfPick(true),
     className: "text-[12px] text-[#4A9EEB] mt-1.5"
   }, "Not sure? Estimate it from photos ", /*#__PURE__*/React.createElement(Icon.arrow_right, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement(SheetBtn, {
     onClick: save
   }, "Save")), bfPick && /*#__PURE__*/React.createElement(BodyFatPicker, {
@@ -17371,7 +17372,7 @@ function WeighInLog({
       className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0",
       "aria-label": "Delete"
     }, /*#__PURE__*/React.createElement(Icon.close, {
-      width: "16"
+      width: "24"
     })));
   }), entries.length > CAP && /*#__PURE__*/React.createElement("button", {
     onClick: () => setShowAll(s => !s),
@@ -17638,7 +17639,7 @@ function StatTile({
     title: 'vs the previous period'
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: trend.l,
-    size: 16
+    size: 24
   }))), sub && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
   }, sub));
@@ -17983,7 +17984,7 @@ function FullSheet({
       color: 'var(--header-text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px] uppercase",
     style: {
@@ -18104,7 +18105,7 @@ function ExpenditureCard({
       }
     }, "how this was worked out"), /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: showMath ? 'caret_up' : 'caret_down',
-      size: 16
+      size: 24
     })), showMath && /*#__PURE__*/React.createElement("div", {
       className: "fade-in text-[11px] text-[#8A8A90] leading-relaxed mt-2 space-y-1.5"
     }, /*#__PURE__*/React.createElement("div", null, "Over the last ", est.windowDays, " days you ate about ", /*#__PURE__*/React.createElement("span", {
@@ -19781,7 +19782,7 @@ function BuddyHabitat({
       color: 'var(--muted2)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), body, bare && /*#__PURE__*/React.createElement("span", {
     className: "blink absolute pf",
     style: {
@@ -19791,7 +19792,7 @@ function BuddyHabitat({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.tri_down, {
-    width: "16"
+    width: "24"
   })));
   return /*#__PURE__*/React.createElement(Card, {
     className: "hero-card p-0 mb-4 overflow-hidden"
@@ -19861,7 +19862,7 @@ function BuddyHabitat({
       color: 'var(--on-accent)'
     }
   }, t.done ? /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }) : null), /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] flex-1 min-w-0",
     style: {
@@ -21359,7 +21360,7 @@ function BuddyAvatar({
 function BondHearts({
   n,
   max,
-  size = 16
+  size = 24
 }) {
   return /*#__PURE__*/React.createElement("span", {
     className: "inline-flex items-center gap-0.5"
@@ -21450,7 +21451,7 @@ function PlayBuddyView({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "snow",
     color: "var(--carb)",
-    size: 16
+    size: 24
   }))))), !incubating && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-3",
     style: {
@@ -21477,7 +21478,7 @@ function PlayBuddyView({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "chat",
     color: "currentColor",
-    size: 16
+    size: 24
   }), " TALK TO ", (named ? bp.name : 'YOUR BUDDY').toUpperCase()), /*#__PURE__*/React.createElement("button", {
     onClick: onTrophies,
     className: "pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2",
@@ -21487,7 +21488,7 @@ function PlayBuddyView({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
-    size: 16
+    size: 24
   }), " TROPHY CABINET"), !incubating && /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[9px] text-[#8A8A90] mt-3 leading-snug"
   }, "The food you log feeds ", who, ". Keep your streak going to grow it."), !incubating && /*#__PURE__*/React.createElement("div", {
@@ -21578,7 +21579,7 @@ function TalkCard({
       color: 'var(--good-ink)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }), " ", done));
   const Wrap = ({
     children
@@ -22000,7 +22001,7 @@ function BuddyChatModal({
       color: 'var(--cardhead-text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto px-3 py-3",
     style: {
@@ -22142,7 +22143,7 @@ function BuddyChatModal({
       color: 'var(--nav-off)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "shrink-0 flex gap-2 items-stretch"
   }, /*#__PURE__*/React.createElement("button", {
@@ -22158,8 +22159,8 @@ function BuddyChatModal({
       opacity: busy ? 0.5 : 1
     }
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   })), /*#__PURE__*/React.createElement("input", {
     ref: inputRef,
     value: draft,
@@ -22510,13 +22511,13 @@ function TrophyCabinet({
     onClick: onBack,
     className: "hit text-[11px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-3"
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
-    size: 16
+    size: 24
   }), /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold"
   }, "Trophy cabinet")), /*#__PURE__*/React.createElement("div", {
@@ -22600,7 +22601,7 @@ function TrophyCabinet({
     }, /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: "trophy",
       color: got ? 'var(--fat)' : 'var(--muted)',
-      size: 16
+      size: 24
     }), /*#__PURE__*/React.createElement("div", {
       className: "min-w-0 flex-1"
     }, /*#__PURE__*/React.createElement("div", {
@@ -22608,7 +22609,7 @@ function TrophyCabinet({
     }, t.name, got ? '' : ' · locked'), /*#__PURE__*/React.createElement("div", {
       className: "text-[9px] text-[#8A8A90] leading-snug"
     }, t.desc)), got && /*#__PURE__*/React.createElement(Tick, {
-      size: 16
+      size: 12
     }));
   }), trophyIds.map(id => {
     const it = ITEMS[id];
@@ -22622,7 +22623,7 @@ function TrophyCabinet({
     }, /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: "trophy",
       color: "var(--fat)",
-      size: 16
+      size: 24
     }), /*#__PURE__*/React.createElement("div", {
       className: "min-w-0 flex-1"
     }, /*#__PURE__*/React.createElement("div", {
@@ -22768,7 +22769,7 @@ function ShopView({
         opacity: afford ? 1 : 0.7
       }
     }, /*#__PURE__*/React.createElement(Spark, {
-      size: 16
+      size: 12
     }), " ", price));
   };
   const buddy = db.buddy || {};
@@ -22790,14 +22791,14 @@ function ShopView({
     onClick: onBack,
     className: "hit text-[11px] text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back") : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px]",
     style: {
       color: 'var(--fat-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   }), " ", amber, " Amber")), /*#__PURE__*/React.createElement("h2", {
     className: "text-lg font-semibold mb-1"
   }, "Amber Shop"), /*#__PURE__*/React.createElement("div", {
@@ -23643,7 +23644,7 @@ function FightModal({
   }, "Prestige ", fight.prestige, " ·"), /*#__PURE__*/React.createElement("span", null, ladderCleared ? 'All bosses cleared' : `Boss ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`, " · ", fight.wins || 0, " wins · ", fight.trophies || 0), /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mb-4 flex items-center gap-3",
     style: {
@@ -23685,14 +23686,14 @@ function FightModal({
         color: 'var(--fat-ink)'
       }
     }, /*#__PURE__*/React.createElement(Icon.trend_up, {
-      width: "16"
+      width: "24"
     }), " ", fight.dailyStreak, "-day streak · "), "Beat it for ", /*#__PURE__*/React.createElement("span", {
       className: "font-bold",
       style: {
         color: 'var(--fat-ink)'
       }
     }, /*#__PURE__*/React.createElement(Spark, {
-      size: 16
+      size: 12
     }), " ", dailyAmber, " Amber"), ". A fresh one roams in tomorrow."),
     action: dailyReady ? loggedToday ? /*#__PURE__*/React.createElement(Btn, {
       kind: "accent",
@@ -23701,7 +23702,7 @@ function FightModal({
     }, /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: "glove",
       color: "currentColor",
-      size: 16
+      size: 24
     }), " Hunt") : /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
       style: {
@@ -23716,7 +23717,7 @@ function FightModal({
         color: 'var(--good-ink)'
       }
     }, "Hunt cleared today ", /*#__PURE__*/React.createElement(Tick, {
-      size: 16
+      size: 12
     }), " A fresh one lands tomorrow.")
   }), /*#__PURE__*/React.createElement(FightCard, {
     tag: ladderCleared ? 'Boss Climb · all cleared' : 'Boss Climb · Rank ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length,
@@ -23730,7 +23731,7 @@ function FightModal({
       className: "w-full",
       onClick: prestige
     }, /*#__PURE__*/React.createElement(Icon.arrow_up, {
-      width: "16"
+      width: "24"
     }), " Prestige · tougher climb, better drops") : gate.can ? /*#__PURE__*/React.createElement(Btn, {
       kind: "danger",
       className: "w-full inline-flex items-center justify-center gap-2",
@@ -23750,7 +23751,7 @@ function FightModal({
     }, /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: "glove",
       color: "currentColor",
-      size: 16
+      size: 24
     }), " Fight") : /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-[#8A8A90] text-center pixel-box p-2",
       style: {
@@ -23801,7 +23802,7 @@ function FightModal({
       color: 'var(--fat-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   }), " +", amberEarned, " Amber"), winner === 'you' && drops.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mb-3",
     style: {
@@ -24525,7 +24526,7 @@ function StepsSleepCard({
   }
   const coach = recoveryCoachLine(db, today);
   const moveBig = synced ? stepGoal > 0 ? goalHit ? /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }) : stepPct : '–' : '–';
   const sleepBig = night ? hasScore ? score : sHrsLabel : '–';
   const readyBig = readiness != null ? readiness : '–';
@@ -24610,7 +24611,7 @@ function StepsSleepCard({
       color: 'var(--good-ink)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }), " Synced") : ghConfigured() ? /*#__PURE__*/React.createElement("button", {
     onClick: ghConnectGated,
     className: "hit pf text-[7px] uppercase",
@@ -25118,7 +25119,7 @@ function MetricBreakdownSheet({
         boxShadow: 'none'
       }
     }, "See today's Fight buff ", /*#__PURE__*/React.createElement(Icon.arrow_right, {
-      width: "16"
+      width: "24"
     })));
   }
   return /*#__PURE__*/React.createElement(Sheet, {
@@ -25152,7 +25153,7 @@ function GoogleHealthDisclosure({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
@@ -25391,9 +25392,9 @@ function BuddyUpgradeOnboarding({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   }), "Founding member", /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   })), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-5 mb-4 flex items-center justify-center celebrate-bounce buddy-scene",
     style: {
@@ -25425,7 +25426,7 @@ function BuddyUpgradeOnboarding({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: icon,
     color: "var(--accent)",
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] font-bold"
   }, title), /*#__PURE__*/React.createElement("div", {
@@ -25542,9 +25543,9 @@ function MilestoneCelebration({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   }), reached ? 'Goal reached' : 'Milestone', /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   })), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-6 mb-6 flex items-center justify-center buddy-scene",
     style: {
@@ -25674,9 +25675,9 @@ function StageUpCelebration({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   }), who, " grew", /*#__PURE__*/React.createElement(Spark, {
-    size: 16
+    size: 12
   })), /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-6 mb-6 flex items-center justify-center buddy-scene",
     style: {
@@ -25722,7 +25723,7 @@ function StageUpCelebration({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-center"
   }, /*#__PURE__*/React.createElement(SpriteSheet, {
@@ -26182,8 +26183,8 @@ function LeftoversStrip({
   }, r.title), r.macros_per_serving && r.macros_per_serving.kcal > 0 && /*#__PURE__*/React.createElement("span", {
     className: "text-[11px] text-[#8A8A90] tnum shrink-0"
   }, Math.round(r.macros_per_serving.kcal), " kcal"), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted)'
     }
@@ -26251,7 +26252,7 @@ function PremiumNudge({
     className: "hit absolute top-1.5 right-1.5 text-[#8A8A90] text-base leading-none px-1.5 py-0.5",
     "aria-label": "Not now"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })));
 }
 // Fills in the day's unscored entries so the quality score covers everything you actually ate, not
@@ -27241,12 +27242,12 @@ function CarryoverSheet({
   }, dShort(d.date)))), /*#__PURE__*/React.createElement("div", {
     className: "flex justify-between text-[9px] text-[#8A8A90] mb-4"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.square, {
-    width: "16",
+    width: "24",
     style: {
       color: 'var(--good-ink)'
     }
   }), " under target"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.square, {
-    width: "16",
+    width: "24",
     style: {
       color: 'var(--fat-ink)'
     }
@@ -27790,7 +27791,7 @@ function FoodLog({
         },
         "aria-label": "Entry options"
       }, /*#__PURE__*/React.createElement(Icon.more, {
-        width: "16"
+        width: "24"
       })), menu && menu.id === e.id && /*#__PURE__*/React.createElement(AnchoredMenu, {
         rect: menu.rect,
         onClose: () => setMenu(null),
@@ -27892,7 +27893,7 @@ function FoodLog({
     },
     "aria-label": "Previous day"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
+    width: "24",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -27925,7 +27926,7 @@ function FoodLog({
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: showCal ? 'caret_up' : 'caret_down',
-    size: 16
+    size: 24
   }))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setDate(shiftISO(date, 1)),
     className: "pixel-btn pf text-[12px] flex items-center justify-center",
@@ -27936,7 +27937,7 @@ function FoodLog({
     },
     "aria-label": "Next day"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   })), /*#__PURE__*/React.createElement("div", {
     className: "relative flex items-center"
   }, /*#__PURE__*/React.createElement("button", {
@@ -27949,7 +27950,7 @@ function FoodLog({
     className: "hit px-2 py-2 text-[#8A8A90]",
     "aria-label": "Day options"
   }, /*#__PURE__*/React.createElement(Icon.more, {
-    width: "16"
+    width: "24"
   })), dayMenu && /*#__PURE__*/React.createElement("div", {
     className: "absolute right-0 top-10 z-20 bg-[#1E1E22] border border-[#262629] rounded-2xl py-1 text-sm shadow-xl w-44",
     onClick: ev => ev.stopPropagation()
@@ -27991,7 +27992,7 @@ function FoodLog({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
+    width: "24",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -28010,7 +28011,7 @@ function FoodLog({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
@@ -28152,7 +28153,7 @@ function FoodLog({
   }, "Tap ", /*#__PURE__*/React.createElement("span", {
     className: "text-[#4A9EEB] font-medium"
   }, "+ Add food"), " on any meal below, or the big ", /*#__PURE__*/React.createElement(Icon.plus, {
-    width: "16"
+    width: "24"
   }), " button. You can snap a label photo, describe a meal out loud, scan a barcode, or search, the AI does the maths and you just confirm.")), meals.map((m, mi) => {
     const me = day.filter(e => e.meal_id === m.id);
     const ms = sumMacros(me);
@@ -28191,7 +28192,7 @@ function FoodLog({
       }, /*#__PURE__*/React.createElement("div", {
         className: "flex items-center gap-1.5 min-w-0"
       }, /*#__PURE__*/React.createElement("div", {
-        className: "flex flex-col -my-1 shrink-0"
+        className: "flex flex-col -my-2 shrink-0"
       }, /*#__PURE__*/React.createElement("button", {
         onClick: () => moveMeal(m, -1),
         disabled: mi === 0,
@@ -28199,10 +28200,10 @@ function FoodLog({
           opacity: mi === 0 ? 0.25 : 1,
           color: 'var(--cardhead-text)'
         },
-        className: "hit leading-none text-[9px] px-1 py-1",
+        className: "hit leading-none px-1 py-0 -my-1",
         title: "Move up"
       }, /*#__PURE__*/React.createElement(Icon.caret_up, {
-        width: "16"
+        width: "24"
       })), /*#__PURE__*/React.createElement("button", {
         onClick: () => moveMeal(m, 1),
         disabled: mi === meals.length - 1,
@@ -28210,10 +28211,10 @@ function FoodLog({
           opacity: mi === meals.length - 1 ? 0.25 : 1,
           color: 'var(--cardhead-text)'
         },
-        className: "hit leading-none text-[9px] px-1 py-1",
+        className: "hit leading-none px-1 py-0 -my-1",
         title: "Move down"
       }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-        width: "16"
+        width: "24"
       }))), editMeal === m.id ? /*#__PURE__*/React.createElement("input", {
         autoFocus: true,
         value: mealName,
@@ -28248,7 +28249,7 @@ function FoodLog({
           opacity: 0.6
         }
       }, /*#__PURE__*/React.createElement(Icon.edit, {
-        width: "16"
+        width: "24"
       })))), /*#__PURE__*/React.createElement("div", {
         className: "flex items-start gap-1.5"
       }, /*#__PURE__*/React.createElement("div", {
@@ -28275,7 +28276,7 @@ function FoodLog({
         },
         "aria-label": "Meal options"
       }, /*#__PURE__*/React.createElement(Icon.more, {
-        width: "16"
+        width: "24"
       })), mealMenu && mealMenu.id === m.id && /*#__PURE__*/React.createElement(AnchoredMenu, {
         rect: mealMenu.rect,
         onClose: () => setMealMenu(null),
@@ -28452,7 +28453,7 @@ function FoodLog({
     }, /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: drag.kind,
       color: "rgba(0,0,0,0.8)",
-      size: 16
+      size: 24
     })), /*#__PURE__*/React.createElement("div", {
       className: "min-w-0 flex-1"
     }, /*#__PURE__*/React.createElement("div", {
@@ -28465,7 +28466,7 @@ function FoodLog({
     }, /*#__PURE__*/React.createElement(PixelGlyph, {
       kind: "scale",
       color: "var(--muted)",
-      size: 16
+      size: 24
     }), drag.qty || '1 portion'), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] tnum mt-0.5"
     }, /*#__PURE__*/React.createElement("span", {
@@ -28877,8 +28878,8 @@ function EditEntryModal({
       background: 'var(--surface2)'
     }
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     className: "shrink-0"
   }), /*#__PURE__*/React.createElement("span", {
     className: "min-w-0"
@@ -29044,7 +29045,7 @@ function CopyToModal({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
+    width: "24",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -29063,7 +29064,7 @@ function CopyToModal({
     }),
     className: "text-[#8A8A90] px-2 py-1"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-7 gap-1 text-center text-[10px] text-[#8A8A90] mb-1"
   }, ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => /*#__PURE__*/React.createElement("div", {
@@ -29461,8 +29462,8 @@ function FoodTab({
       color: f.is_favorite ? FAT : '#3A3A42'
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     fill: "currentColor"
   })));
   const Head = t => /*#__PURE__*/React.createElement("div", {
@@ -29498,7 +29499,7 @@ function FoodTab({
       className: "w-11 h-11 flex items-center justify-center shrink-0 shrink-0 text-[#8A8A90] text-lg leading-none",
       "aria-label": "Delete saved meal"
     }, /*#__PURE__*/React.createElement(Icon.close, {
-      width: "16"
+      width: "24"
     })));
   }))), !favs.length && !myShown.length && !savedMeals.length && /*#__PURE__*/React.createElement("div", {
     className: "text-center text-[#8A8A90] text-sm py-8"
@@ -29530,7 +29531,7 @@ function FoodTab({
   }, "P ", Math.round(g.per100.protein), "g"), " / 100 g")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   })))))), Head('Brands and packets'), dbLoading && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#4A9EEB] py-2"
   }, "Searching…"), !dbLoading && dbResults.length > 0 && /*#__PURE__*/React.createElement("div", {
@@ -29554,7 +29555,7 @@ function FoodTab({
   }, "P ", Math.round(r.per100.protein), "g"), " / 100 g")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   }))))), !dbLoading && !dbResults.length && !dbErr && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] py-1"
   }, "No database matches."), dbErr && /*#__PURE__*/React.createElement("div", {
@@ -29585,7 +29586,7 @@ function FoodTab({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "sun",
     color: FAT,
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
@@ -29595,7 +29596,7 @@ function FoodTab({
   }, "Estimate a meal from text, voice or a photo")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("button", {
     onClick: () => setManual(true),
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition"
@@ -29605,8 +29606,8 @@ function FoodTab({
       background: 'rgba(255,255,255,0.05)'
     }
   }, /*#__PURE__*/React.createElement(Icon.plus, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted)'
     }
@@ -29619,7 +29620,7 @@ function FoodTab({
   }, "Type in the macros yourself")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   }))), onAlcohol && /*#__PURE__*/React.createElement("button", {
     onClick: onAlcohol,
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition mt-2"
@@ -29631,7 +29632,7 @@ function FoodTab({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "drink",
     color: "var(--muted)",
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
@@ -29641,7 +29642,7 @@ function FoodTab({
   }, "Beer, wine or spirits, with the units")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   })))), confirmDel && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: 'Delete "' + confirmDel.name + '"?',
     body: "This removes the saved meal. Food already logged from it stays in your diary.",
@@ -29804,7 +29805,7 @@ function LogSheet({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back to food"), /*#__PURE__*/React.createElement(Dropdown, {
     compact: true,
     value: mealId,
@@ -29994,8 +29995,8 @@ function RecentTab({
       color: f.is_favorite ? FAT : '#3A3A42'
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     fill: "currentColor"
   })));
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(TextInput, {
@@ -30115,7 +30116,7 @@ function ManualTab({
     onClick: onCancel,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back"), /*#__PURE__*/React.createElement(Field, {
     label: "Name"
   }, /*#__PURE__*/React.createElement(TextInput, {
@@ -30316,7 +30317,7 @@ function FoodTile({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: kind,
     color: ink,
-    size: Math.round(size * 0.62)
+    size: size >= 44 ? 48 : 24
   }));
 }
 function DensityScoreText({
@@ -30749,7 +30750,7 @@ function ConfirmFood({
     tone: "quiet",
     className: "mb-2"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back"), estimated ? /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-2.5 mb-3 text-[11px] leading-snug",
     style: {
@@ -30905,8 +30906,8 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-9 h-9 rounded-xl bg-[#4A9EEB]/15 flex items-center justify-center shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: CAL_T
     }
@@ -30919,7 +30920,7 @@ function ConfirmFood({
   }, "Wrong product, or the numbers look off")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   }))), onAskAI && /*#__PURE__*/React.createElement("button", {
     onClick: onAskAI,
     className: "w-full flex items-center gap-3 bg-[#1E1E22] pixel-box p-3.5 text-left active:scale-[.99] transition"
@@ -30928,7 +30929,7 @@ function ConfirmFood({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "sun",
     color: FAT,
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0 flex-1"
   }, /*#__PURE__*/React.createElement("div", {
@@ -30938,7 +30939,7 @@ function ConfirmFood({
   }, "Not packaged, or nothing to scan")), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   })))), kcalHigh && /*#__PURE__*/React.createElement("div", {
     className: "pixel-box p-3 mt-3 mb-2",
     style: {
@@ -31269,7 +31270,7 @@ function AiConfirm({
     onClick: onCancel,
     className: "text-[13px] text-[#8A8A90] min-h-[44px] -ml-1 px-1 flex items-center"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Start over"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between gap-2 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -31484,7 +31485,7 @@ function AiConfirm({
     className: "shrink-0 mr-1"
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: edit ? 'caret_up' : 'caret_down',
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("span", {
     className: "min-w-0"
   }, edit ? 'Hide items' : items.map(it => it.name).join(' · '))), hadItems && !single && edit && /*#__PURE__*/React.createElement("div", {
@@ -31521,11 +31522,11 @@ function AiConfirm({
     className: "w-11 h-11 -mr-1 flex items-center justify-center text-[#8A8A90] text-lg leading-none shrink-0",
     "aria-label": `Remove ${it.name}`
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), it.assumption && /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mt-1 leading-snug"
   }, /*#__PURE__*/React.createElement(Icon.corner_arrow, {
-    width: "16"
+    width: "24"
   }), " ", it.assumption))), items.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] py-1"
   }, "All items removed. Tell the AI what to fix below, or start over.")), onRefine && /*#__PURE__*/React.createElement("div", {
@@ -31796,7 +31797,7 @@ function DescribeTab({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-2 flex items-center"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Snap it, type it or say it. A photo plus a few words works best, and nothing is logged until you confirm."), imgs.length < MAX_PHOTOS && /*#__PURE__*/React.createElement("button", {
@@ -31807,8 +31808,8 @@ function DescribeTab({
       color: 'var(--text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " ", imgs.length ? 'Add another photo' : 'Take or upload a photo'), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
@@ -31821,7 +31822,7 @@ function DescribeTab({
     onClick: () => remImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))))), /*#__PURE__*/React.createElement("textarea", {
     ref: taRef,
     value: text,
@@ -31873,8 +31874,8 @@ function DescribeTab({
       color: listening ? '#fff' : 'var(--text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.mic, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   })), /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "flex-1",
@@ -32149,7 +32150,7 @@ function MenuTab({
         color: 'var(--muted)'
       }
     }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-      width: "16"
+      width: "24"
     }), " Back"), /*#__PURE__*/React.createElement(Pill, {
       value: view,
       options: lenses.map(l => ({
@@ -32231,7 +32232,7 @@ function MenuTab({
           color: 'var(--accent-ink)'
         }
       }, /*#__PURE__*/React.createElement(Icon.corner_arrow, {
-        width: "16"
+        width: "24"
       }), " ", s.tweak));
     })), ranked.length > SHOWN && /*#__PURE__*/React.createElement("button", {
       onClick: () => setAll(v => !v),
@@ -32295,8 +32296,8 @@ function MenuTab({
       color: 'var(--text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " ", imgs.length ? 'Add another page' : 'Photograph the menu', /*#__PURE__*/React.createElement("input", {
     type: "file",
     accept: "image/*,application/pdf",
@@ -32335,7 +32336,7 @@ function MenuTab({
       color: 'var(--text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))))), !pasteOpen && /*#__PURE__*/React.createElement("button", {
     onClick: () => setPasteOpen(true),
     className: "hit text-[12px] mt-2",
@@ -32594,8 +32595,8 @@ function PhotoUpdateSheet({
       color: 'var(--text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " ", imgs.length ? 'Add another photo' : 'Take or upload a photo'), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
@@ -32610,7 +32611,7 @@ function PhotoUpdateSheet({
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none",
     "aria-label": "Remove photo"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))))), /*#__PURE__*/React.createElement("textarea", {
     value: note,
     onChange: e => setNote(e.target.value),
@@ -32771,7 +32772,7 @@ function LiveScanner({
       background: 'rgba(255,255,255,0.18)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -32935,7 +32936,7 @@ function TorchButton({
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: torch ? 'flashlight' : 'bolt',
-    size: 16
+    size: 24
   }));
 }
 // Soft "looks blurry" prompt shown after a capture whose sharpness is below the floor. Never blocks -
@@ -33030,7 +33031,7 @@ function LabelScanner({
       background: 'rgba(255,255,255,0.18)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -33151,7 +33152,7 @@ function MealCamera({
       background: 'rgba(255,255,255,0.18)'
     }
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })))), /*#__PURE__*/React.createElement("div", {
     className: "flex-1 relative flex items-center justify-center overflow-hidden"
   }, /*#__PURE__*/React.createElement("video", {
@@ -33522,7 +33523,7 @@ function PhotoTab({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "sun",
     color: FAT,
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
@@ -33834,7 +33835,7 @@ function GoalCard({
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: glyph,
     color: "currentColor",
-    size: 16
+    size: 24
   })), /*#__PURE__*/React.createElement("div", {
     className: "font-semibold text-[13px]"
   }, title), /*#__PURE__*/React.createElement("div", {
@@ -34251,7 +34252,7 @@ function GoalEditor({
     className: "text-[11px] text-[#8A8A90] mb-2"
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: showAdv ? 'caret_up' : 'caret_down',
-    size: 16
+    size: 24
   }), " ", showAdv ? 'Hide advanced' : 'Advanced: protein and diet style'), showAdv && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement(Field, {
@@ -34412,7 +34413,7 @@ function SavedFlash({
       color: 'var(--good-ink)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }), " Saved") : null);
 }
 // Instant apply: write through, then flash. Typed inputs commit on blur rather than per keystroke,
@@ -35738,27 +35739,27 @@ function MealsScreen({
     key: m.id,
     className: "flex items-center gap-2 mb-2"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col -my-1 shrink-0"
+    className: "flex flex-col -my-2 shrink-0"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => moveDef(m.id, -1),
     disabled: i === 0,
     style: {
       opacity: i === 0 ? 0.25 : 1
     },
-    className: "hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5",
+    className: "hit text-[#8A8A90] leading-none px-1 py-0 -my-1",
     title: "Move up"
   }, /*#__PURE__*/React.createElement(Icon.caret_up, {
-    width: "16"
+    width: "24"
   })), /*#__PURE__*/React.createElement("button", {
     onClick: () => moveDef(m.id, 1),
     disabled: i === list.length - 1,
     style: {
       opacity: i === list.length - 1 ? 0.25 : 1
     },
-    className: "hit text-[#8A8A90] text-[10px] leading-none px-1 py-1.5",
+    className: "hit text-[#8A8A90] leading-none px-1 py-0 -my-1",
     title: "Move down"
   }, /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement(TextInput, {
     value: draft && draft.id === m.id ? draft.name : m.name,
     onChange: e => setDraft({
@@ -35778,7 +35779,7 @@ function MealsScreen({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0",
     title: "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })))), /*#__PURE__*/React.createElement("button", {
     onClick: addDef,
     className: "w-full text-sm text-[#8A8A90] border border-dashed border-[#262629] rounded-2xl py-2.5 mt-1"
@@ -36003,7 +36004,7 @@ function IntegrationsScreen({
       },
       onClick: () => ask(it.id, it.name)
     }, on ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Tick, {
-      size: 16
+      size: 12
     }), " On your list") : busy === it.id ? 'Adding…' : 'I want this'));
   };
   const top = INTEGRATIONS.filter(x => x.top),
@@ -36049,7 +36050,7 @@ function IntegrationsScreen({
       setSent(true);
     }
   }, sent ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }), " Sent") : busy === 'other' ? 'Sending…' : 'Send request')), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mt-4 leading-snug"
   }, "Every one of these is read-only when it arrives: we take the numbers, we never write back to your other apps."));
@@ -36318,8 +36319,8 @@ function SettingsOverview({
       color: 'var(--muted)'
     }
   }, "Weight and body-fat trends, your real burn, and how closely you have stuck to it.")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -36396,7 +36397,7 @@ function SettingsOverview({
       }, /*#__PURE__*/React.createElement(PixelGlyph, {
         kind: "sun",
         color: "currentColor",
-        size: 16
+        size: 24
       }), " Paper")
     }, {
       v: 'dark',
@@ -36405,7 +36406,7 @@ function SettingsOverview({
       }, /*#__PURE__*/React.createElement(PixelGlyph, {
         kind: "moon",
         color: "currentColor",
-        size: 16
+        size: 24
       }), " Dark")
     }]
   })), /*#__PURE__*/React.createElement(Field, {
@@ -36507,7 +36508,7 @@ function ChangePassword({
       }
     },
     right: /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "16",
+      width: "24",
       style: {
         transform: open ? 'rotate(90deg)' : 'none'
       }
@@ -37155,7 +37156,7 @@ function MenuRow({
   }, desc)), /*#__PURE__*/React.createElement("span", {
     className: "text-[#8A8A90] shrink-0"
   }, right || /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   })));
 }
 
@@ -37885,7 +37886,7 @@ function AdminAiLogDetail({
   }, resultDisplay)), /*#__PURE__*/React.createElement("details", null, /*#__PURE__*/React.createElement("summary", {
     className: "pf text-[8px] uppercase text-[#8A8A90] cursor-pointer"
   }, "Prompt sent ", /*#__PURE__*/React.createElement(Icon.caret_down, {
-    width: "16"
+    width: "24"
   })), /*#__PURE__*/React.createElement("pre", {
     className: "text-[10px] whitespace-pre-wrap break-words bg-[#161618] pixel-box p-3 mt-2",
     style: {
@@ -38013,7 +38014,7 @@ function AdminPanel({
     onClick: onBack,
     className: "hit text-[12px] text-[#8A8A90] mb-2"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back to menu"), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Admin",
     title: "Control room"
@@ -38479,7 +38480,7 @@ function AdminUserDetail({
     onClick: onBack,
     className: "hit text-[12px] text-[#8A8A90] mb-2"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " All users"), /*#__PURE__*/React.createElement(PageHeader, {
     kicker: "Admin · user",
     title: u.email
@@ -39011,7 +39012,7 @@ function InviteSheet({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-4 leading-relaxed"
   }, "Share your link. When a friend joins with it, you ", /*#__PURE__*/React.createElement("b", {
@@ -39711,7 +39712,7 @@ function Toast({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-lg leading-none shrink-0 -mr-1",
     "aria-label": "Dismiss"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))));
 }
 const NAV_ITEMS = [['dashboard', 'TODAY', Icon.dash], ['foodlog', 'FOOD', Icon.food], ['recipes', 'COOK', Icon.recipe], ['train', 'TRAIN', Icon.dumbbell], ['goals', 'PROGRESS', Icon.goal], ['more', 'YOU', Icon.more]];
@@ -39769,8 +39770,8 @@ function ShareKindSheet({
       background: 'var(--surface2)'
     }
   }, /*#__PURE__*/React.createElement(Icon.recipe, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--accent-ink)'
     }
@@ -39788,8 +39789,8 @@ function ShareKindSheet({
       background: 'var(--surface2)'
     }
   }, /*#__PURE__*/React.createElement(Icon.dumbbell, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--accent-ink)'
     }
@@ -39840,8 +39841,8 @@ function BottomNav({
       '--box-border': 'var(--hero-ring)'
     }
   }, /*#__PURE__*/React.createElement(Icon.plus, {
-    width: "32",
-    height: "32"
+    width: "48",
+    height: "48"
   }))), BOTTOM_NAV.slice(2).map(([k, l, Ic]) => /*#__PURE__*/React.createElement(NavBtn, {
     key: k,
     k: k,
@@ -39872,8 +39873,8 @@ function NavBtn({
       color: navActive(view, k) ? 'var(--on-header-accent)' : 'var(--nav-off)'
     }
   }, /*#__PURE__*/React.createElement(Ic, {
-    width: "22",
-    height: "22"
+    width: "24",
+    height: "24"
   }), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[9px]",
     style: {
@@ -39914,8 +39915,8 @@ function Sidebar({
     onClick: onAdd,
     className: "pixel-btn flex items-center justify-center gap-2 bg-white text-black py-3 font-bold mb-4"
   }, /*#__PURE__*/React.createElement(Icon.plus, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " Log food"), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col gap-2"
   }, tabs.map(([k, l, Ic]) => /*#__PURE__*/React.createElement("button", {
@@ -39923,8 +39924,8 @@ function Sidebar({
     onClick: () => setView(k),
     className: `pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${navActive(view, k) ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
   }, /*#__PURE__*/React.createElement(Ic, {
-    width: "20",
-    height: "20"
+    width: "24",
+    height: "24"
   }), " ", l)), /*#__PURE__*/React.createElement("button", {
     onClick: onOpenPlay,
     className: "pixel-box flex items-center gap-3 px-3 py-2.5 text-sm bg-[#1E1E22] text-[#8A8A90]"
@@ -39935,8 +39936,8 @@ function Sidebar({
     onClick: () => setView('more'),
     className: `pixel-box flex items-center gap-3 px-3 py-2.5 text-sm ${view === 'more' ? 'bg-white text-black font-bold' : 'bg-[#1E1E22] text-[#8A8A90]'}`
   }, /*#__PURE__*/React.createElement(Icon.more, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " YOU")), /*#__PURE__*/React.createElement("div", {
     className: "mt-auto pf text-[8px] text-[#8A8A90] px-1"
   }, BRAND));
@@ -39979,7 +39980,7 @@ function MobileHeader({
       color: 'var(--on-header-accent)'
     }
   }, /*#__PURE__*/React.createElement(Icon.trend_up, {
-    width: "16"
+    width: "24"
   }), " ", streak, "d"), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[7px] uppercase",
     style: {
@@ -39995,8 +39996,8 @@ function MobileHeader({
       color: '#fff'
     }
   }, /*#__PURE__*/React.createElement(Icon.gear, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px]"
   }, "YOU")));
@@ -40128,7 +40129,7 @@ function OnboardingChecklist({
     className: "text-[#8A8A90] text-lg leading-none",
     "aria-label": "Dismiss"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-2.5 leading-snug"
   }, incubating ? 'Your egg is incubating. Do these staples and it cracks open into your buddy.' : 'Tap a task to jump straight to it. Each one ticks off on its own once you have done it.'), /*#__PURE__*/React.createElement("div", {
@@ -40145,7 +40146,7 @@ function OnboardingChecklist({
       color: 'var(--on-accent)'
     }
   }, it.done ? /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }) : null), /*#__PURE__*/React.createElement("span", {
     className: "text-[13px] flex-1 min-w-0",
     style: {
@@ -40201,7 +40202,7 @@ function listJoin(items) {
 // hold expired CDN links, so a failed load swaps to the placeholder instead of a broken grey block.
 function RecipeImg({
   src,
-  iconSize = 32
+  iconSize = 48
 }) {
   const [dead, setDead] = useState(false);
   useEffect(() => {
@@ -40277,7 +40278,7 @@ function RecipeCard({
     }
   }, /*#__PURE__*/React.createElement(RecipeImg, {
     src: img,
-    iconSize: 32
+    iconSize: 48
   }), /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-x-0 bottom-0 pt-8 px-3 pb-2.5",
     style: {
@@ -40307,8 +40308,8 @@ function RecipeCard({
       color: recipe.favorite ? FAT : 'var(--muted)'
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     fill: "currentColor"
   }))), chips.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap gap-1.5 px-3 pt-2.5"
@@ -40345,8 +40346,8 @@ function ShareTip({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 mb-1.5"
   }, /*#__PURE__*/React.createElement(Icon.share, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--accent-ink)'
     }
@@ -40479,7 +40480,7 @@ function RecipeImport({
     onClick: onCancel,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Back"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-3"
   }, "Import a recipe"), /*#__PURE__*/React.createElement(ShareTip, {
@@ -40537,7 +40538,7 @@ function RecipeImport({
     onClick: () => removeImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))))), imgs.length > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full",
@@ -40592,7 +40593,7 @@ function RecipeReview({
     onClick: onCancel,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Start over"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
   }, "Check the recipe"), /*#__PURE__*/React.createElement("div", {
@@ -40658,7 +40659,7 @@ function RecipeReview({
     className: "text-[#8A8A90] text-lg leading-none px-1",
     "aria-label": "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))))), /*#__PURE__*/React.createElement("button", {
     onClick: addIng,
     className: "hit text-[12px] mb-4",
@@ -40789,7 +40790,7 @@ function IngredientMacroSheet({
     onClick: onClose,
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90] mb-3"
   }, "Set exact numbers for this ingredient if the automatic ones look off."), /*#__PURE__*/React.createElement("div", {
@@ -40954,8 +40955,8 @@ function CookMode({
       background: 'var(--surface3)'
     }
   }, /*#__PURE__*/React.createElement(Icon.recipe, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " Ingredients"), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[10px] text-[#8A8A90]"
   }, "STEP ", i + 1, " / ", steps.length), /*#__PURE__*/React.createElement("button", {
@@ -40963,7 +40964,7 @@ function CookMode({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-2xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "h-1 mx-5 mb-2 rounded-full",
     style: {
@@ -41062,7 +41063,7 @@ function CookMode({
     onClick: () => setShowIng(false),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "space-y-0.5"
   }, recipe.ingredients.map(ing => /*#__PURE__*/React.createElement("button", {
@@ -41079,7 +41080,7 @@ function CookMode({
       color: 'var(--on-accent)'
     }
   }, checked[ing.id] ? /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }) : null), /*#__PURE__*/React.createElement("span", {
     className: "text-[14px]",
     style: {
@@ -41340,8 +41341,8 @@ function RecipeDetail({
     title: "Recipe",
     actions: [{
       icon: /*#__PURE__*/React.createElement(Icon.star, {
-        width: "16",
-        height: "16",
+        width: "24",
+        height: "24",
         fill: "currentColor"
       }),
       label: 'Favourite',
@@ -41349,7 +41350,7 @@ function RecipeDetail({
       on: !!recipe.favorite
     }, {
       icon: /*#__PURE__*/React.createElement(Icon.more, {
-        width: "16"
+        width: "24"
       }),
       label: 'More',
       onClick: () => setMore(true)
@@ -41365,7 +41366,7 @@ function RecipeDetail({
     }
   }, /*#__PURE__*/React.createElement(RecipeImg, {
     src: recipe.photo || recipe.thumbnail,
-    iconSize: 32
+    iconSize: 48
   }), hasMacros && /*#__PURE__*/React.createElement("div", {
     className: "absolute top-2 left-2 px-2 py-1 pf text-[9px] tnum",
     style: {
@@ -41381,8 +41382,8 @@ function RecipeDetail({
       letterSpacing: '0.1em'
     }
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " ", recipe.photo ? 'CHANGE' : 'PHOTO', /*#__PURE__*/React.createElement("input", {
     type: "file",
     accept: "image/*",
@@ -41506,7 +41507,7 @@ function RecipeDetail({
   }, /*#__PURE__*/React.createElement(SheetBtn, {
     onClick: () => setCooking(true)
   }, /*#__PURE__*/React.createElement(Icon.play, {
-    width: "16"
+    width: "24"
   }), " Start cooking")), /*#__PURE__*/React.createElement(Card, {
     className: "p-0 overflow-hidden mb-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -41581,7 +41582,7 @@ function RecipeDetail({
     className: "text-[#8A8A90] text-xl leading-none px-1 shrink-0",
     "aria-label": "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))))), /*#__PURE__*/React.createElement("button", {
     onClick: addIng,
     className: "hit text-[12px] mb-2",
@@ -41615,7 +41616,7 @@ function RecipeDetail({
       color: '#fff'
     }
   }, ing.have ? /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }) : null), /*#__PURE__*/React.createElement("button", {
     onClick: () => toggleHave(ing.id),
     className: "flex-1 min-w-0 text-left text-[13.5px] leading-snug",
@@ -41636,7 +41637,7 @@ function RecipeDetail({
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "dot",
-    size: 16
+    size: 24
   })), ing.macros ? Math.round(ing.macros.kcal) + ' KCAL' : 'SET ›')))), /*#__PURE__*/React.createElement("div", {
     className: "mt-3"
   }, /*#__PURE__*/React.createElement(SheetBtn, {
@@ -41654,17 +41655,17 @@ function RecipeDetail({
   }, "Tick what you have. Tap a line's calories to fix its numbers, or Edit to change the ingredients.", resolved > 0 ? ' ' : '', resolved > 0 && /*#__PURE__*/React.createElement("span", {
     className: "inline-flex flex-wrap gap-x-3"
   }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.dot, {
-    width: "16",
+    width: "24",
     style: {
       color: 'var(--good-ink)'
     }
   }), " database"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.dot, {
-    width: "16",
+    width: "24",
     style: {
       color: 'var(--fat-ink)'
     }
   }), " AI estimate"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icon.dot, {
-    width: "16",
+    width: "24",
     style: {
       color: 'var(--accent-ink)'
     }
@@ -41878,7 +41879,7 @@ function RecipeDetail({
     onClick: () => setShowColl(false),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "Group this recipe so you can find it later (e.g. Weeknight, High-protein, Fakeaways)."), /*#__PURE__*/React.createElement("div", {
@@ -41900,7 +41901,7 @@ function RecipeDetail({
         color: 'var(--on-accent)'
       }
     }, on ? /*#__PURE__*/React.createElement(Tick, {
-      size: 16
+      size: 12
     }) : null), c);
   })), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
@@ -42050,7 +42051,7 @@ function ShoppingListView({
       color: 'var(--on-accent)'
     }
   }, it.checked ? /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   }) : null), /*#__PURE__*/React.createElement("button", {
     onClick: () => toggle(it.id),
     className: "flex-1 min-w-0 text-left"
@@ -42094,7 +42095,7 @@ function ShoppingListView({
     "aria-label": "Remove",
     className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })));
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -42102,7 +42103,7 @@ function ShoppingListView({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3 gap-3"
   }, /*#__PURE__*/React.createElement("h1", {
@@ -42116,8 +42117,8 @@ function ShoppingListView({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.share, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " Share"), checked.length > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: clearChecked,
     className: "hit text-[12px] text-[#8A8A90] underline"
@@ -42183,7 +42184,7 @@ function ShoppingListView({
       border: '1px solid var(--border)'
     }
   }, n, " ", /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })))))));
 }
 // The Cook game layer: cooking recipes climbs a Chef level, so the gamification spans the recipe hub
@@ -42287,7 +42288,7 @@ function PublicRecipeCard({
     }
   }, /*#__PURE__*/React.createElement(RecipeImg, {
     src: pub.thumbnail,
-    iconSize: 32
+    iconSize: 48
   }), /*#__PURE__*/React.createElement("div", {
     className: "absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[10px] font-bold tnum",
     style: {
@@ -42433,7 +42434,7 @@ function RecipeHub({
         color: 'var(--text)'
       }
     }, /*#__PURE__*/React.createElement(Icon.lock, {
-      width: "16"
+      width: "24"
     }), " Unlock the library"))), /*#__PURE__*/React.createElement("button", {
       onClick: onGoMine,
       className: "w-full text-center text-[12px] text-[#8A8A90] py-2 leading-snug"
@@ -42538,7 +42539,7 @@ function RecipeHub({
     }
   }, /*#__PURE__*/React.createElement(RecipeImg, {
     src: preview.thumbnail,
-    iconSize: 32
+    iconSize: 48
   })), /*#__PURE__*/React.createElement("div", {
     className: "flex items-start justify-between gap-3 mb-1"
   }, /*#__PURE__*/React.createElement("div", {
@@ -42547,7 +42548,7 @@ function RecipeHub({
     onClick: () => setPreview(null),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), preview.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
@@ -42586,8 +42587,8 @@ function RecipeHub({
       setPreview(null);
     }
   }, /*#__PURE__*/React.createElement(Icon.recipe, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " Start cooking"), /*#__PURE__*/React.createElement(Btn, {
     kind: (preview.steps || []).length > 0 ? 'ghost' : 'accent',
     className: "w-full",
@@ -42695,7 +42696,7 @@ function PlannerView({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between mb-3"
   }, /*#__PURE__*/React.createElement(PageHeader, {
@@ -42711,7 +42712,7 @@ function PlannerView({
     },
     "aria-label": "Previous week"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
+    width: "24",
     style: {
       transform: 'scaleX(-1)'
     }
@@ -42729,14 +42730,14 @@ function PlannerView({
     },
     "aria-label": "Next week"
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   })))), plannedCount > 0 && /*#__PURE__*/React.createElement(Btn, {
     kind: "ghost",
     className: "w-full mb-4 flex items-center justify-center gap-2",
     onClick: addWeekToShopping
   }, /*#__PURE__*/React.createElement(Icon.cart, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " Add this week's ingredients to shopping"), /*#__PURE__*/React.createElement("div", {
     className: "space-y-3"
   }, days.map(d => {
@@ -42796,7 +42797,7 @@ function PlannerView({
         className: "text-[#8A8A90] text-lg leading-none px-0.5 shrink-0",
         "aria-label": "Remove"
       }, /*#__PURE__*/React.createElement(Icon.close, {
-        width: "16"
+        width: "24"
       })));
     })), /*#__PURE__*/React.createElement("button", {
       onClick: () => setPick(d),
@@ -42826,7 +42827,7 @@ function PlannerView({
     onClick: () => setPick(null),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), priced.length ? /*#__PURE__*/React.createElement("div", {
     className: "space-y-1.5"
   }, priced.map(r => /*#__PURE__*/React.createElement("button", {
@@ -42915,7 +42916,7 @@ function RecipeFilterSheet({
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90]",
     "aria-label": "Close"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, /*#__PURE__*/React.createElement("div", {
@@ -42939,7 +42940,7 @@ function RecipeFilterSheet({
       fontWeight: filter === 'fav' ? 700 : 400
     }
   }, /*#__PURE__*/React.createElement(Icon.star, {
-    width: "16"
+    width: "24"
   }), " Favourites"), setFilter && (collections || []).map(c => {
     const on = filter === c;
     return /*#__PURE__*/React.createElement("button", {
@@ -43077,8 +43078,8 @@ function FridgeMatchCard({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.cart, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " Add ", m.missingCount === 1 ? 'it' : 'them', " to shopping list"));
 }
 // Log a serving of a recipe you cooked without saving it (e.g. straight from Discover). Same portion +
@@ -43303,7 +43304,7 @@ function FridgeScan({
     onClick: onBack,
     className: "hit text-[13px] text-[#8A8A90] mb-3"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
-    width: "16"
+    width: "24"
   }), " Recipes"), /*#__PURE__*/React.createElement("div", {
     className: "text-lg font-bold mb-1"
   }, "Cook from your fridge"), /*#__PURE__*/React.createElement("div", {
@@ -43316,8 +43317,8 @@ function FridgeScan({
       color: 'var(--text)'
     }
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " ", imgs.length ? 'Add another photo' : 'Take or upload a photo'), imgs.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 flex-wrap mb-3"
   }, imgs.map(i => /*#__PURE__*/React.createElement("div", {
@@ -43330,7 +43331,7 @@ function FridgeScan({
     onClick: () => removeImg(i.id),
     className: "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 border border-[#262629] text-white text-xs leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))))), imgs.length > 0 && items === null && /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
@@ -43356,7 +43357,7 @@ function FridgeScan({
     className: "text-[#8A8A90] text-sm leading-none",
     "aria-label": "Remove"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   })))), !(items || []).length && /*#__PURE__*/React.createElement("span", {
     className: "text-[12px] text-[#8A8A90]"
   }, "Nothing yet - add what you have below.")), /*#__PURE__*/React.createElement("div", {
@@ -43481,7 +43482,7 @@ function FridgePublicSheet({
     }
   }, /*#__PURE__*/React.createElement(RecipeImg, {
     src: r.thumbnail,
-    iconSize: 32
+    iconSize: 48
   }), /*#__PURE__*/React.createElement("span", {
     className: "absolute top-2 left-2 pf text-[8px] uppercase px-1.5 py-1",
     style: {
@@ -43496,7 +43497,7 @@ function FridgePublicSheet({
     onClick: onClose,
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-xl leading-none text-[#8A8A90] shrink-0"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), pub && pub.source_author ? /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-2",
     style: {
@@ -43548,8 +43549,8 @@ function FridgePublicSheet({
     className: "w-full mb-2 flex items-center justify-center gap-2",
     onClick: () => onCook(pub)
   }, /*#__PURE__*/React.createElement(Icon.recipe, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), " Start cooking"), /*#__PURE__*/React.createElement(Btn, {
     kind: (r.steps || []).length > 0 ? 'ghost' : 'accent',
     className: "w-full",
@@ -43850,8 +43851,8 @@ function Recipes({
     },
     "aria-label": "Cook from your fridge"
   }, /*#__PURE__*/React.createElement(Icon.cam, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setScreen('plan'),
     className: "pixel-box w-10 h-10 flex items-center justify-center",
@@ -43860,8 +43861,8 @@ function Recipes({
     },
     "aria-label": "Meal plan"
   }, /*#__PURE__*/React.createElement(Icon.calendar, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setScreen('shopping'),
     className: "relative pixel-box w-10 h-10 flex items-center justify-center",
@@ -43870,8 +43871,8 @@ function Recipes({
     },
     "aria-label": "Shopping list"
   }, /*#__PURE__*/React.createElement(Icon.cart, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), shoppingCount > 0 && /*#__PURE__*/React.createElement("span", {
     className: "absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center",
     style: {
@@ -43907,7 +43908,7 @@ function Recipes({
       color: 'var(--accent-ink)'
     }
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement(ChefCard, {
     db: db
   }), /*#__PURE__*/React.createElement("div", {
@@ -43932,7 +43933,7 @@ function Recipes({
       opacity: 0.7
     }
   }, /*#__PURE__*/React.createElement(Icon.lock, {
-    width: "16"
+    width: "24"
   }))))), hubTab === 'discover' ? /*#__PURE__*/React.createElement(RecipeHub, {
     db: db,
     isPremium: isPremium,
@@ -43953,8 +43954,8 @@ function Recipes({
   }, /*#__PURE__*/React.createElement("div", {
     className: "mb-3 flex justify-center"
   }, /*#__PURE__*/React.createElement(Icon.recipe, {
-    width: "32",
-    height: "32",
+    width: "48",
+    height: "48",
     style: {
       color: 'var(--muted)'
     }
@@ -43983,8 +43984,8 @@ function Recipes({
     },
     "aria-label": "Filters"
   }, /*#__PURE__*/React.createElement(Icon.sliders, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }), facetCount ? /*#__PURE__*/React.createElement("span", {
     className: "pf text-[8px]"
   }, facetCount) : /*#__PURE__*/React.createElement("span", {
@@ -44148,7 +44149,7 @@ function Paywall({
     "aria-label": "Close",
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-2xl leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("h2", {
     className: "text-[26px] font-bold mb-2 leading-tight",
     style: {
@@ -44180,7 +44181,7 @@ function Paywall({
       border: '2px solid var(--border)'
     }
   }, /*#__PURE__*/React.createElement(Tick, {
-    size: 16
+    size: 12
   })), /*#__PURE__*/React.createElement("div", {
     className: "min-w-0"
   }, /*#__PURE__*/React.createElement("div", {
@@ -45630,7 +45631,7 @@ function App() {
     onClick: () => setShared(null),
     className: "w-11 h-11 flex items-center justify-center shrink-0 text-[#8A8A90] text-xl leading-none"
   }, /*#__PURE__*/React.createElement(Icon.close, {
-    width: "16"
+    width: "24"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] text-[#8A8A90] mb-3"
   }, "The AI reads ", shared.files.length === 1 ? 'it' : 'them', " and proposes a meal, you confirm before it's logged."), /*#__PURE__*/React.createElement(DescribeTab, {
@@ -46428,8 +46429,8 @@ function TrainHome({
       background: 'var(--surface2)'
     }
   }, /*#__PURE__*/React.createElement(Icon.sliders, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }))), block && !blockDone &&
   /*#__PURE__*/
   /* The block, as a titled panel: its name on the ink bar with the week's progress in accent
@@ -46507,8 +46508,8 @@ function TrainHome({
         color: 'var(--accent-ink)'
       }
     }, "Next"), /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "16",
-      height: "16",
+      width: "24",
+      height: "24",
       style: {
         color: 'var(--muted2)',
         flexShrink: 0
@@ -46531,7 +46532,7 @@ function TrainHome({
       letterSpacing: '0.06em'
     }
   }, /*#__PURE__*/React.createElement(Icon.play, {
-    width: "16"
+    width: "24"
   }), " Open ", next.session.name.split(' - ')[0]), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-center mt-3 leading-snug",
     style: {
@@ -46637,8 +46638,8 @@ function TrainHome({
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[15px] font-semibold truncate"
   }, lastLog.name || 'Session'), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -46699,8 +46700,8 @@ function TrainHome({
       color: 'var(--muted)'
     }
   }, draftDays, " ", draftDays === 1 ? 'day' : 'days', " collected, ready when you are")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -47607,8 +47608,8 @@ function SessionPlayer({
           color: 'var(--cardhead-text)'
         }
       }, /*#__PURE__*/React.createElement(Icon.chevron, {
-        width: "16",
-        height: "16",
+        width: "24",
+        height: "24",
         style: {
           transform: 'rotate(90deg)'
         }
@@ -47619,15 +47620,15 @@ function SessionPlayer({
           color: '#fff'
         }
       }, /*#__PURE__*/React.createElement(Tick, {
-        size: 16
+        size: 12
       })) : /*#__PURE__*/React.createElement("span", {
         className: "shrink-0",
         style: {
           color: 'var(--muted2)'
         }
       }, /*#__PURE__*/React.createElement(Icon.chevron, {
-        width: "16",
-        height: "16"
+        width: "24",
+        height: "24"
       }))), open && /*#__PURE__*/React.createElement("div", {
         className: "px-3 pb-3 pt-3"
       }, /*#__PURE__*/React.createElement("div", {
@@ -47803,7 +47804,7 @@ function SessionPlayer({
             transform: justDone === ii + ':' + si ? 'scale(1.12)' : 'scale(1)'
           }
         }, /*#__PURE__*/React.createElement(Tick, {
-          size: 16
+          size: 12
         }))), setMenu === ii + ':' + si && /*#__PURE__*/React.createElement("div", {
           className: "flex gap-1 flex-wrap mt-1 mb-2 pl-1"
         }, SET_TYPES.map(st => /*#__PURE__*/React.createElement("button", {
@@ -47943,7 +47944,7 @@ function SessionPlayer({
         letterSpacing: '0.08em'
       }
     }, "Skip ", /*#__PURE__*/React.createElement(Icon.play, {
-      width: "16"
+      width: "24"
     })))), /*#__PURE__*/React.createElement("div", {
       className: "flex gap-[1px]",
       style: {
@@ -48329,7 +48330,7 @@ function PastSets({
         fontWeight: mark ? 700 : 400
       }
     }, mark ? /*#__PURE__*/React.createElement(Spark, {
-      size: 16
+      size: 12
     }) : null, mark ? ' ' : '', toDisplayWeight(s.weightKg, units), unitLabel(units), " × ", s.reps, s.rir != null ? ' @' + s.rir : '');
   })), r.marks.filter(Boolean).map((m, k) => /*#__PURE__*/React.createElement("div", {
     key: k,
@@ -49254,8 +49255,8 @@ function BlockWizard({
       color: 'var(--muted)'
     }
   }, gym ? gymSummary(gym) : 'Nothing saved yet')), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -49485,8 +49486,8 @@ function BlockBuilder({
       transition: 'transform .12s'
     }
   }, /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16"
+    width: "24",
+    height: "24"
   }))), weekPick && /*#__PURE__*/React.createElement("div", {
     className: "mb-4"
   }, Array.from({
@@ -49569,7 +49570,7 @@ function BlockBuilder({
         color: 'var(--on-accent)'
       }
     }, /*#__PURE__*/React.createElement(Tick, {
-      size: 16
+      size: 12
     })) : /*#__PURE__*/React.createElement("span", {
       className: "shrink-0",
       style: {
@@ -49578,8 +49579,8 @@ function BlockBuilder({
         transition: 'transform .12s'
       }
     }, /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "16",
-      height: "16"
+      width: "24",
+      height: "24"
     }))), open && /*#__PURE__*/React.createElement("div", {
       className: "px-4 pb-4"
     }, ordered.map((it, ei) => /*#__PURE__*/React.createElement("div", {
@@ -49932,8 +49933,8 @@ function SessionPreview({
         color: 'var(--muted2)'
       }
     }, /*#__PURE__*/React.createElement(Icon.chevron, {
-      width: "16",
-      height: "16"
+      width: "24",
+      height: "24"
     })));
   }), editable && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     onClick: () => setPicking({
@@ -51198,7 +51199,7 @@ function TrainHistory({
       return /*#__PURE__*/React.createElement("span", {
         key: p.exerciseId + pi
       }, pi > 0 ? ' · ' : '', /*#__PURE__*/React.createElement(Spark, {
-        size: 16
+        size: 12
       }), " ", (e ? e.name : p.exerciseId) + ', ' + p.label.toLowerCase());
     })), /*#__PURE__*/React.createElement("div", {
       className: "text-[11px] leading-snug",
@@ -51397,8 +51398,8 @@ function TrainSettings({
       color: 'var(--muted)'
     }
   }, gymSummary(g))), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
@@ -51430,8 +51431,8 @@ function TrainSettings({
       color: 'var(--muted)'
     }
   }, "The rules behind the volume bands, the effort targets and the four-week shape.")), /*#__PURE__*/React.createElement(Icon.chevron, {
-    width: "16",
-    height: "16",
+    width: "24",
+    height: "24",
     style: {
       color: 'var(--muted2)',
       flexShrink: 0
