@@ -12797,8 +12797,23 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   const [ver, setVer] = useState(0);
   const [refineCount, setRefineCount] = useState(0);
 
-  const pasteIsLink = /^\s*(https?:\/\/|www\.)\S+\s*$/i.test(paste);
-  const linkUrl = pasteIsLink ? (/^www\./i.test(paste.trim()) ? 'https://' + paste.trim() : paste.trim()) : '';
+  /* A LINK IS A LINK WHEREVER IT WAS TYPED. This started out only reading the paste box, and that
+     was wrong in the way that only shows up once someone uses it: "Where are you eating?" is the
+     most prominent field on the screen, it is asking the exact question a restaurant link answers,
+     and the paste box is folded away behind a line of small print above it. So people paste the link
+     into the place field, and every bit of machinery that makes a link useful - reading the
+     restaurant's name out of it, fetching the menu behind it - hung off the other box and never ran.
+     What the model got was the raw URL as the name of the restaurant and no menu at all, which is
+     the worst of every world: it cannot look up a URL, so it guesses at the type of place, and does
+     it under a name that is not a name. Both boxes now feed the same path. */
+  const asUrl = (s) => {
+    const t = String(s || '').trim();
+    if (!/^\s*(https?:\/\/|www\.)\S+\s*$/i.test(t)) return '';
+    return /^www\./i.test(t) ? 'https://' + t : t;
+  };
+  const pasteIsLink = !!asUrl(paste);
+  const placeIsLink = !!asUrl(place);
+  const linkUrl = asUrl(paste) || asUrl(place);
   // What the server made of that link: { url, busy, res }. Kept keyed by the url it belongs to so a
   // stale answer can never be shown against a link that has since been edited.
   const [link, setLink] = useState({ url: '', busy: false, res: null });
@@ -12841,12 +12856,19 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   const linkRes = (link.url === linkUrl && link.res) ? link.res : null;
   const got = fromLink(linkRes);
   const linkHost = linkUrl ? (function () { try { return new URL(linkUrl).hostname.replace(/^www\./i, ''); } catch (_) { return ''; } })() : '';
-  const menuTextAll = pasteIsLink ? got.menu : paste.trim();
+  // Menu text they typed themselves, which is only ever the paste box and only when it is not a
+  // link. Their own text beats a fetched menu: they pasted it because they are looking at it.
+  const typedMenu = pasteIsLink ? '' : paste.trim();
+  const menuTextAll = typedMenu || got.menu;
   /* The name of the place, best source first. The page states who it is for, which beats reading it
      out of the URL; placeFromUrl stays as the fallback for when the fetch missed or the person is
-     signed out. See app/menu.js for how much a URL can honestly be made to say on its own. */
-  const linkPlace = pasteIsLink ? (got.place || MenuIdeas.placeFromUrl(linkUrl)) : '';
-  const askedPlace = place.trim() || linkPlace;
+     signed out. See app/menu.js for how much a URL can honestly be made to say on its own.
+
+     A URL is never itself the answer: `typedPlace` drops the place field when what is in it is a
+     link, so a raw URL can no longer reach the model as the restaurant's name. */
+  const linkPlace = linkUrl ? (got.place || MenuIdeas.placeFromUrl(linkUrl)) : '';
+  const typedPlace = placeIsLink ? '' : place.trim();
+  const askedPlace = typedPlace || linkPlace;
   const canRun = imgs.length > 0 || !!menuTextAll || !!got.pdf || !!askedPlace;
 
   async function run() {
@@ -12856,13 +12878,13 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     // screen. Rather than disable the button or drop the menu we were seconds from having, wait for
     // it here; a second call for the same URL is served from the cache.
     let res = linkRes;
-    if (pasteIsLink && !res) {
+    if (linkUrl && !res) {
       setBusy('link');
       res = await fetchMenuFromLink(linkUrl);
       setLink({ url: linkUrl, busy: false, res: res });
     }
-    const g = pasteIsLink ? fromLink(res) : { menu: '', pdf: '', place: '', dishes: 0 };
-    const text = pasteIsLink ? g.menu : paste.trim();
+    const g = linkUrl ? fromLink(res) : { menu: '', pdf: '', place: '', dishes: 0 };
+    const text = typedMenu || g.menu;
     const files = imgs.map(f => f.file);
     // A menu that is only published as a PDF rides as a document block, exactly like one picked off
     // the phone: menu PDFs are typed rather than scanned, so this is the model reading the real text.
@@ -12870,9 +12892,9 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     setBusy('menu');
     try {
       const brief = MenuIdeas.brief({
-        place: place.trim() || g.place || linkPlace,
+        place: typedPlace || g.place || linkPlace,
         mealName: mealName, remaining: rem, note: note.trim(),
-        menuText: text, menuFrom: text && pasteIsLink ? linkHost : '', hasImages: files.length > 0
+        menuText: text, menuFrom: text && text === g.menu ? linkHost : '', hasImages: files.length > 0
       });
       const out = await menuIdeasRequest(files, brief);
       if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');
@@ -13009,6 +13031,35 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     </div>);
   }
 
+  /* A link is told the truth about what it did, in the one line someone will actually read. There
+     are genuinely different outcomes and they lead to different actions, so they must not be worded
+     alike: we have their menu and they can go; we have a PDF of it and they can go; we have only the
+     name, and they need the camera. The old copy said "Got it" for all three, which is how a link to
+     a listing site ended up feeling like the app had understood when all it had was a domain.
+
+     Built once and rendered under whichever box the link was actually typed into, because it is the
+     same answer either way and someone who pasted into "Where are you eating?" needs to see it just
+     as much as someone who found the paste box. */
+  const linkNote = link.busy
+    ? <div className="text-[11px] mt-1.5 leading-snug" style={{ color: 'var(--muted)' }}>Looking at that page…</div>
+    : <div className="text-[11px] mt-1.5 leading-snug" style={{ color: (got.menu || got.pdf) ? 'var(--good-ink)' : 'var(--muted)' }}>
+      {got.dishes
+        ? ('Read ' + got.dishes + ' dishes off their menu' + (linkPlace ? ' at ' + linkPlace : '') + '. Tap below and I will price them.')
+        : got.menu
+          ? ('Read their menu' + (linkPlace ? ' at ' + linkPlace : '') + '. Tap below and I will price it.')
+          : got.pdf
+            ? ('Got their menu as a PDF' + (linkPlace ? ' from ' + linkPlace : '') + '. Tap below and I will read it.')
+            : (linkRes && (linkRes.reason === 'signed_out' || linkRes.reason === 'offline'))
+              // Not the page's fault, so do not blame it: "that page publishes no menu" would be a
+              // claim we never actually tested.
+              ? ((linkPlace ? linkPlace + '. ' : '') + (linkRes.reason === 'offline'
+                ? 'I could not reach the menu reader just now. Photograph the menu and it will still work.'
+                : 'Sign in and I can try to read their menu from that link.'))
+              : linkPlace
+                ? (linkPlace + ', but that page does not publish its menu anywhere I can read it. Photograph the menu for the actual dishes, or go on and I will work from what I know of the place.')
+                : 'I could not read that link, or tell which restaurant it is for. Add the place below, or photograph the menu.'}
+    </div>;
+
   // ---- the ask: photograph the menu, name the place, go ----
   return (<div>
     <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>Eating out? Show me the menu and I will price what is on it. Nothing is logged until you pick something and confirm it.</div>
@@ -13043,37 +13094,15 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     {!pasteOpen && <button onClick={() => setPasteOpen(true)} className="hit text-[12px] mt-2" style={{ color: 'var(--accent-ink)' }}>or paste the menu, or a link to the place</button>}
     {pasteOpen && <div className="mt-2 fade-in">
       <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={pasteIsLink ? 2 : 4} className={inputCls + ' resize-y leading-relaxed'} placeholder="Paste the menu, or a link to the place" />
-      {/* A link is told the truth about what it did, in the one line someone will actually read.
-          There are now three genuinely different outcomes and they lead to different actions, so
-          they must not be worded alike: we have their menu and they can go; we have a PDF of it and
-          they can go; we have only the name, and they need the camera. The old copy said "Got it"
-          for all three, which is how a link to a listing site ended up feeling like the app had
-          understood when all it had was a domain. */}
-      {pasteIsLink && (link.busy
-        ? <div className="text-[11px] mt-1.5 leading-snug" style={{ color: 'var(--muted)' }}>Looking at that page…</div>
-        : <div className="text-[11px] mt-1.5 leading-snug" style={{ color: (got.menu || got.pdf) ? 'var(--good-ink)' : 'var(--muted)' }}>
-          {got.dishes
-            ? ('Read ' + got.dishes + ' dishes off their menu' + (linkPlace ? ' at ' + linkPlace : '') + '. Tap below and I will price them.')
-            : got.menu
-              ? ('Read their menu' + (linkPlace ? ' at ' + linkPlace : '') + '. Tap below and I will price it.')
-              : got.pdf
-                ? ('Got their menu as a PDF' + (linkPlace ? ' from ' + linkPlace : '') + '. Tap below and I will read it.')
-                : (linkRes && (linkRes.reason === 'signed_out' || linkRes.reason === 'offline'))
-                  // Not the page's fault, so do not blame it: "that page publishes no menu" would
-                  // be a claim we never actually tested.
-                  ? ((linkPlace ? linkPlace + '. ' : '') + (linkRes.reason === 'offline'
-                    ? 'I could not reach the menu reader just now. Photograph the menu and it will still work.'
-                    : 'Sign in and I can try to read their menu from that link.'))
-                  : linkPlace
-                    ? (linkPlace + ', but that page does not publish its menu anywhere I can read it. Photograph the menu for the actual dishes, or go on and I will work from what I know of the place.')
-                    : 'I could not read that link, or tell which restaurant it is for. Add the place below, or photograph the menu.'}
-        </div>)}
+      {pasteIsLink && linkNote}
     </div>}
 
     <div className="mt-4">
-      <Field label="Where are you eating?" hint="A chain name alone is enough. If it publishes its nutrition, I will use the real figures.">
-        <TextInput value={place} onChange={e => setPlace(e.target.value)} placeholder={linkPlace || 'e.g. Dishoom, or the local Italian'} />
+      <Field label="Where are you eating?" hint="A name, or paste a link to the place. If it publishes its nutrition, or its menu, I will use the real thing.">
+        <TextInput value={place} onChange={e => setPlace(e.target.value)} placeholder={(!placeIsLink && linkPlace) || 'e.g. Dishoom, or a link to the menu'} />
       </Field>
+      {/* The same answer as the paste box gives, because a link pasted here does the same work. */}
+      {placeIsLink && linkNote}
     </div>
 
     {!noteOpen && <button onClick={() => setNoteOpen(true)} className="hit text-[12px] mb-4 block" style={{ color: 'var(--accent-ink)' }}>+ Add a note</button>}
