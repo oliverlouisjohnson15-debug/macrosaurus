@@ -154,6 +154,63 @@ When it is set, each transcription's cost is recorded against the caller's month
 `add_ai_usage`, the same pot ai-proxy uses, so the fair-use ceiling stays meaningful. Downloads are
 capped at 25 MB.
 
+## Eating out (the `menu-fetch` function)
+
+Reads the **actual menu** behind a pasted restaurant link, so that "paste a link" stops meaning
+"tell me the name of the place". Deploy with:
+
+```
+supabase functions deploy menu-fetch          # verify_jwt stays on — signed-in users only
+```
+
+No secrets, no third-party spend, no paid API. One `POST {url}` →
+`{ ok, place, menuText, dishCount, via, pdf_b64, note, diag }`.
+
+The ladder, most structured first, stopping at the first rung that yields a menu:
+
+| Rung | Source | Works on |
+|---|---|---|
+| 1 | schema.org `Menu` / `hasMenu` JSON-LD | independents whose site publishes menu markup for Google |
+| 2 | `__NEXT_DATA__`, Nuxt, React flight chunks, Apollo caches | **regional ordering platforms** — the page people actually paste |
+| 3 | visible page text, kept only if `looksLikeMenu` agrees | plain HTML menus |
+| 4 | a linked menu PDF, fetched and returned as base64 | pubs and restaurants that publish a PDF |
+
+Rung 2 is the one that matters. Those platforms are Next.js/Nuxt apps that server-render for SEO,
+so the whole menu — sections, dishes, descriptions, prices — is in the HTML as JSON. The walker is
+deliberately **shape-blind**: it recognises a dish by what a dish has (a name, plus a price or a
+description) rather than by a known payload shape, so it works on a platform we have never seen,
+which is most of them. It does **not** beat the two cases `app/menu.js` measured and was right
+about: chains render menus in the browser from a private API, and the delivery aggregators refuse
+anything without a browser fingerprint. Both come back as a flat `ok:false` and the client falls
+through to the camera.
+
+**A false positive is worse than a miss here.** A page of navigation accepted as a menu becomes six
+confidently-priced dishes nobody serves, handed to someone deciding what to eat. So the text rungs
+must satisfy `looksLikeMenu()` (six-plus prices against dish-shaped lines) and the structured rungs
+must clear `MIN_DISHES`, or the answer is reported as a miss. Roughly half of
+`tests/menu-fetch.test.js` is SPA shells, cookie banners and specials boxes asserting that *nothing*
+comes back.
+
+**SSRF.** Unlike `recipe-extract`, which only ever fetches three allow-listed platforms, this is
+pointed at a URL the user typed, so the allow-list cannot be the defence:
+
+- http/https only; credentials stripped from the URL.
+- Host checked against a deny-list (loopback, all RFC1918, link-local **including
+  `169.254.169.254`**, CGNAT, multicast, `.internal`/`.local`, bare names, IPv6 equivalents and
+  `::ffff:` mapped forms) **before** the request.
+- Redirects followed **manually**, re-checking the host on every hop — `redirect: 'follow'` would
+  let a public host bounce the request into a private network in one step.
+- No cookies or auth headers forwarded; response must be HTML; capped at 4 MB and a 12 s timeout;
+  a linked PDF capped at 4.5 MB and magic-byte checked.
+- Nothing but extracted menu text is ever returned, so a non-HTML or non-menu response is
+  indistinguishable from a 404 to the caller.
+
+All parsing lives in `menu-fetch/parse.ts` and is unit-tested (`tests/menu-fetch.test.js`) — that is
+the half that breaks when a platform changes shape. The client (`fetchMenuFromLink` in
+`app/src/app.jsx`) fetches on paste rather than on submit, so someone learns they need the camera
+*before* waiting for an answer, and caches per URL for 24 h — misses included, so an unreadable site
+says so instantly the second time.
+
 ## Outstanding security-advisor items (not code — needs a dashboard toggle)
 
 - **Leaked-password protection is disabled.** Enable it in *Auth → Providers → Password* (checks

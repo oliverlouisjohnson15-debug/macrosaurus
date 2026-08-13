@@ -1798,6 +1798,12 @@ const AI_PROXY = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/ai-proxy
 // YouTube/Instagram/TikTok link server-side (the browser can't, due to CORS). It holds no key and calls no
 // paid API; we then hand its text to the normal ai-proxy to structure into a recipe.
 const RECIPE_EXTRACT = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/recipe-extract';
+// menu-fetch reads the actual menu behind a pasted restaurant link, server-side. Same reason as
+// recipe-extract (CORS makes it impossible in the browser), and it holds no key and calls nothing
+// paid. It succeeds on the pages that server-render their menu - the regional ordering platforms
+// most independents are listed on, and any site publishing schema.org menu markup - and returns a
+// flat miss on the ones that do not, which is most chains. See supabase/functions/menu-fetch.
+const MENU_FETCH = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/menu-fetch';
 // nutrition-analyze turns ingredient LINES into per-ingredient + total macros via a real nutrition
 // database (Edamam), server-side. If it is not configured, the client falls back to an AI estimate.
 const NUTRITION_ANALYZE = 'https://wnbksotvcjqfslrttjxy.supabase.co/functions/v1/nutrition-analyze';
@@ -2282,6 +2288,85 @@ async function menuIdeasRequest(files, brief) {
   if (!txt.trim()) throw new Error('the AI sent nothing back, please try again');
   return MenuIdeas.normalise(parseModelJSON(txt));
 }
+/* ---- Reading the menu behind a link ------------------------------------------------------------
+   The one thing someone wants from pasting a link is the menu, and until now the honest answer was
+   that they could not have it: the app read the restaurant's NAME out of the URL and asked for a
+   photograph. That is still the answer for a chain, whose menu is rendered in the browser from a
+   private API, and for the delivery aggregators, which refuse anything without a browser
+   fingerprint. It is NOT the answer for the page people actually paste, which is a listing on a
+   regional ordering platform: those are server-rendered for search engines, so the whole menu -
+   sections, dishes, descriptions, prices - is sitting in the HTML as JSON. menu-fetch reads it.
+
+   The result is cached by URL, in memory for the session and in localStorage for a day. Three
+   reasons, in order of how much they matter: someone comparing two places flips between links and
+   should not wait twice; a menu does not change between opening the app in the car park and opening
+   it at the table; and the failures are worth caching too, so a site that cannot be read says so
+   instantly the second time instead of making them wait twelve seconds to be told again. */
+const MENU_LINK_TTL_MS = 24 * 60 * 60 * 1000;
+const MENU_LINK_KEEP = 8;
+const MENU_LINK_KEY = 'mac_menu_links';
+const menuLinkMem = new Map();
+function menuLinkStore(read, write) {
+  try {
+    const all = JSON.parse(localStorage.getItem(MENU_LINK_KEY) || '{}') || {};
+    if (!write) return all;
+    localStorage.setItem(MENU_LINK_KEY, JSON.stringify(write));
+  } catch (_) { /* private mode, a full quota: the in-memory cache still works */ }
+  return read || {};
+}
+function menuLinkCached(url) {
+  if (menuLinkMem.has(url)) return menuLinkMem.get(url);
+  const all = menuLinkStore(true);
+  const hit = all[url];
+  if (!hit || !hit.at || (Date.now() - hit.at) > MENU_LINK_TTL_MS) return null;
+  menuLinkMem.set(url, hit.res);
+  return hit.res;
+}
+function menuLinkRemember(url, res) {
+  menuLinkMem.set(url, res);
+  // The PDF bytes are deliberately not persisted: several megabytes of base64 would blow the
+  // localStorage quota on its own and take the rest of the app's storage down with it.
+  const slim = Object.assign({}, res, { pdf_b64: '' });
+  const all = menuLinkStore(true);
+  all[url] = { at: Date.now(), res: slim };
+  const keys = Object.keys(all).sort((a, b) => (all[b].at || 0) - (all[a].at || 0));
+  const trimmed = {};
+  for (const k of keys.slice(0, MENU_LINK_KEEP)) trimmed[k] = all[k];
+  menuLinkStore(null, trimmed);
+}
+/* Ask the server to read the menu behind a link. Never throws: every failure is a shape the caller
+   can show, because "I could not read that" said plainly and immediately is a good outcome here -
+   it is what sends someone to the camera instead of leaving them to discover from the results that
+   the app was working off the name of the place all along. */
+async function fetchMenuFromLink(url) {
+  const cached = menuLinkCached(url);
+  if (cached) return Object.assign({}, cached, { cached: true });
+  let out;
+  try {
+    const sess = supa ? (await supa.auth.getSession()).data.session : null;
+    const token = sess && sess.access_token;
+    if (!token) return { ok: false, reason: 'signed_out', note: '' };
+    const res = await fetch(MENU_FETCH, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + token, 'apikey': SUPA_KEY },
+      body: JSON.stringify({ url }),
+    });
+    out = await res.json().catch(() => ({ ok: false, reason: 'unreadable', note: 'Could not reach the menu reader.' }));
+  } catch (e) {
+    return { ok: false, reason: 'offline', note: '' };
+  }
+  if (out && (out.ok || out.reason === 'no_menu' || out.reason === 'unreadable')) menuLinkRemember(url, out);
+  return out || { ok: false };
+}
+// A fetched menu PDF arrives as base64 and goes to the model as a document block, exactly like one
+// picked from the file system. Wrapped as a File so menuIdeasRequest cannot tell the difference.
+function pdfFileFromB64(b64, name) {
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return new File([buf], (name || 'menu') + '.pdf', { type: 'application/pdf' });
+}
+
 // ---- Recipe extraction + structuring --------------------------------------------------------
 // Fetch the public text behind a shared YouTube/Instagram/TikTok link via the recipe-extract Edge Function.
 // Returns { ok, platform, title, author, thumbnail, sourceText, note }. Signed-in only (like aiRequest).
@@ -12713,31 +12798,95 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
   const [refineCount, setRefineCount] = useState(0);
 
   const pasteIsLink = /^\s*(https?:\/\/|www\.)\S+\s*$/i.test(paste);
+  const linkUrl = pasteIsLink ? (/^www\./i.test(paste.trim()) ? 'https://' + paste.trim() : paste.trim()) : '';
+  // What the server made of that link: { url, busy, res }. Kept keyed by the url it belongs to so a
+  // stale answer can never be shown against a link that has since been edited.
+  const [link, setLink] = useState({ url: '', busy: false, res: null });
+
+  /* The link is read the moment it is pasted rather than when Read the menu is tapped, because the
+     answer changes what the person does next: if we got their menu they can just go, and if we did
+     not they need to photograph it, and finding that out after a twelve-second wait and a screen of
+     generic dishes is how this feature loses someone's trust. Debounced, because a link arriving by
+     keystroke would otherwise be fetched a character at a time; cached, so the flip back and forth
+     between two restaurants costs one request each. */
+  useEffect(() => {
+    if (!linkUrl) { setLink({ url: '', busy: false, res: null }); return; }
+    const cached = menuLinkCached(linkUrl);
+    if (cached) { setLink({ url: linkUrl, busy: false, res: cached }); return; }
+    let live = true;
+    setLink({ url: linkUrl, busy: true, res: null });
+    const t = setTimeout(() => {
+      fetchMenuFromLink(linkUrl).then(res => { if (live) setLink({ url: linkUrl, busy: false, res: res }); });
+    }, 700);
+    return () => { live = false; clearTimeout(t); };
+  }, [linkUrl]);
+
+  // The three things a successful read can give us, pulled out of whichever result we are holding.
+  function fromLink(res) {
+    return {
+      menu: res && res.ok ? String(res.menuText || '') : '',
+      pdf: (res && res.ok && res.pdf_b64) || '',
+      place: (res && String(res.place || '').trim()) || '',
+      dishes: (res && +res.dishCount) || 0,
+    };
+  }
+
   function addFiles(list) {
     const arr = Array.from(list || []).map(f => ({ id: Store.uid(), file: f, pdf: isPdfFile(f), name: f.name || 'menu', url: isPdfFile(f) ? '' : URL.createObjectURL(f) }));
     setImgs(x => x.concat(arr).slice(0, MAX_FILES));
   }
   function remFile(id) { setImgs(x => x.filter(f => f.id !== id)); }
-  const menuTextAll = pasteIsLink ? '' : paste.trim();
-  // A pasted link names the restaurant, instantly and with no network call. See placeFromUrl in
-  // app/menu.js for why it does not try to fetch the menu behind it.
-  const linkPlace = pasteIsLink ? MenuIdeas.placeFromUrl(paste.trim()) : '';
+  // The result we are currently entitled to show: only ever the one fetched for the link as it
+  // stands right now.
+  const linkRes = (link.url === linkUrl && link.res) ? link.res : null;
+  const got = fromLink(linkRes);
+  const linkHost = linkUrl ? (function () { try { return new URL(linkUrl).hostname.replace(/^www\./i, ''); } catch (_) { return ''; } })() : '';
+  const menuTextAll = pasteIsLink ? got.menu : paste.trim();
+  /* The name of the place, best source first. The page states who it is for, which beats reading it
+     out of the URL; placeFromUrl stays as the fallback for when the fetch missed or the person is
+     signed out. See app/menu.js for how much a URL can honestly be made to say on its own. */
+  const linkPlace = pasteIsLink ? (got.place || MenuIdeas.placeFromUrl(linkUrl)) : '';
   const askedPlace = place.trim() || linkPlace;
-  const canRun = imgs.length > 0 || !!menuTextAll || !!askedPlace;
+  const canRun = imgs.length > 0 || !!menuTextAll || !!got.pdf || !!askedPlace;
 
   async function run() {
     if (!canRun) { setErr('Photograph the menu, or tell me where you are eating.'); return; }
     setErr('');
+    // Tapping Read the menu before the link has come back is normal - it is the first thing on the
+    // screen. Rather than disable the button or drop the menu we were seconds from having, wait for
+    // it here; a second call for the same URL is served from the cache.
+    let res = linkRes;
+    if (pasteIsLink && !res) {
+      setBusy('link');
+      res = await fetchMenuFromLink(linkUrl);
+      setLink({ url: linkUrl, busy: false, res: res });
+    }
+    const g = pasteIsLink ? fromLink(res) : { menu: '', pdf: '', place: '', dishes: 0 };
+    const text = pasteIsLink ? g.menu : paste.trim();
+    const files = imgs.map(f => f.file);
+    // A menu that is only published as a PDF rides as a document block, exactly like one picked off
+    // the phone: menu PDFs are typed rather than scanned, so this is the model reading the real text.
+    if (g.pdf) { try { files.push(pdfFileFromB64(g.pdf, 'menu')); } catch (_) { /* fall through without it */ } }
     setBusy('menu');
     try {
       const brief = MenuIdeas.brief({
-        place: askedPlace,
+        place: place.trim() || g.place || linkPlace,
         mealName: mealName, remaining: rem, note: note.trim(),
-        menuText: menuTextAll, hasImages: imgs.length > 0
+        menuText: text, menuFrom: text && pasteIsLink ? linkHost : '', hasImages: files.length > 0
       });
-      const out = await menuIdeasRequest(imgs.map(f => f.file), brief);
+      const out = await menuIdeasRequest(files, brief);
       if (!out.dishes.length) setErr(out.note || 'Nothing usable came back. Try a clearer photo of the menu, or paste it as text.');
-      else { setRes(out); setAll(false); setView(rem ? 'fit' : 'protein'); setErr(''); }
+      else {
+        /* Whether a menu was actually in front of the model is something WE know for certain and it
+           only reports, so the fact wins over the self-report where they disagree. The banner this
+           feeds exists for the case where we sent nothing at all - a link we could not read, or just
+           the name of a place - and that case is not in any doubt here. Where a menu was sent and
+           the model still could not read enough of it, the prompt has it say so in `note`, which is
+           rendered directly above. */
+        const sentMenu = !!(text || files.length);
+        setRes(Object.assign({}, out, { menuRead: out.menuRead || sentMenu }));
+        setAll(false); setView(rem ? 'fit' : 'protein'); setErr('');
+      }
     } catch (e) { setErr('Could not read that menu: ' + e.message); }
     setBusy('');
   }
@@ -12786,7 +12935,7 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
       onCancel={() => { setEst(null); setPicked(null); }} />
     {err && <div className="text-[12px] mt-3" style={{ color: 'var(--fat-ink)' }}>{err}</div>}
   </div>);
-  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : 'Reading the menu'} />;
+  if (busy) return <DinoLoader label={busy === 'refine' ? 'Re-working it out' : busy === 'link' ? 'Fetching their menu' : 'Reading the menu'} />;
 
   // ---- the menu, ranked ----
   if (res) {
@@ -12801,6 +12950,20 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
         <Pill value={view} options={lenses.map(l => ({ v: l.id, l: l.label }))} onChange={setView} />
       </div>
       {swapBar}
+      {/* WHERE THESE DISHES CAME FROM, which the app knew all along and never said. `menu_read` is
+          the model's own answer to "did I read their menu, or work from what I know of this place",
+          and the two deserve very different amounts of trust: one is priced off the menu in front of
+          them, the other is a well-informed guess about what a place of that kind serves, with
+          dishes that may not be on the menu at all. Rendering them identically - which is what
+          happened until now - is the single biggest reason this feature could feel unreliable, since
+          the only way to find out you were in the second case was to read the list and not recognise
+          anything. Stated once, plainly, above the dishes it applies to. */}
+      {!res.menuRead && <div className="flex items-start gap-2 p-2.5 mb-3" style={{ border: '2px solid var(--border)', background: 'var(--surface2)' }}>
+        <span className="shrink-0 mt-0.5" style={{ color: 'var(--muted)' }}><Icon.info width="16" /></span>
+        <span className="text-[11.5px] leading-snug" style={{ color: 'var(--text2)' }}>
+          These come from what I know of {res.place ? res.place : 'this place'} rather than from their menu, so check the dish is actually on it. Photograph the menu and I will price the real thing.
+        </span>
+      </div>}
       {res.note && <div className="text-[12px] mb-3 leading-relaxed" style={{ color: 'var(--muted)' }}>{res.note}</div>}
       {/* ONE panel with ruled rows, not N cards. Three framed boxes with three shadows is the box
           soup this app spent a redesign getting rid of, and it would make the options read as
@@ -12880,16 +13043,31 @@ function MenuTab({ db, day, mealName, planned, onPick, onAddItems, onScan }) {
     {!pasteOpen && <button onClick={() => setPasteOpen(true)} className="hit text-[12px] mt-2" style={{ color: 'var(--accent-ink)' }}>or paste the menu, or a link to the place</button>}
     {pasteOpen && <div className="mt-2 fade-in">
       <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={pasteIsLink ? 2 : 4} className={inputCls + ' resize-y leading-relaxed'} placeholder="Paste the menu, or a link to the place" />
-      {/* A link is told the truth about what it did. Restaurant sites render their menus in
-          JavaScript and the delivery apps block anything that is not a browser, so there is no menu
-          to be had behind a URL; what there IS, for free and instantly, is the name of the place,
-          which for a chain unlocks its published nutrition. Saying which of those just happened is
-          the difference between a helpful shortcut and a feature that seems to have ignored you. */}
-      {pasteIsLink && <div className="text-[11px] mt-1.5 leading-snug" style={{ color: linkPlace ? 'var(--good-ink)' : 'var(--muted)' }}>
-        {linkPlace
-          ? ('Got it, ' + linkPlace + '. Photograph the menu too if you want the actual dishes priced.')
-          : 'That link does not name a restaurant. Add the place below, or photograph the menu.'}
-      </div>}
+      {/* A link is told the truth about what it did, in the one line someone will actually read.
+          There are now three genuinely different outcomes and they lead to different actions, so
+          they must not be worded alike: we have their menu and they can go; we have a PDF of it and
+          they can go; we have only the name, and they need the camera. The old copy said "Got it"
+          for all three, which is how a link to a listing site ended up feeling like the app had
+          understood when all it had was a domain. */}
+      {pasteIsLink && (link.busy
+        ? <div className="text-[11px] mt-1.5 leading-snug" style={{ color: 'var(--muted)' }}>Looking at that page…</div>
+        : <div className="text-[11px] mt-1.5 leading-snug" style={{ color: (got.menu || got.pdf) ? 'var(--good-ink)' : 'var(--muted)' }}>
+          {got.dishes
+            ? ('Read ' + got.dishes + ' dishes off their menu' + (linkPlace ? ' at ' + linkPlace : '') + '. Tap below and I will price them.')
+            : got.menu
+              ? ('Read their menu' + (linkPlace ? ' at ' + linkPlace : '') + '. Tap below and I will price it.')
+              : got.pdf
+                ? ('Got their menu as a PDF' + (linkPlace ? ' from ' + linkPlace : '') + '. Tap below and I will read it.')
+                : (linkRes && (linkRes.reason === 'signed_out' || linkRes.reason === 'offline'))
+                  // Not the page's fault, so do not blame it: "that page publishes no menu" would
+                  // be a claim we never actually tested.
+                  ? ((linkPlace ? linkPlace + '. ' : '') + (linkRes.reason === 'offline'
+                    ? 'I could not reach the menu reader just now. Photograph the menu and it will still work.'
+                    : 'Sign in and I can try to read their menu from that link.'))
+                  : linkPlace
+                    ? (linkPlace + ', but that page does not publish its menu anywhere I can read it. Photograph the menu for the actual dishes, or go on and I will work from what I know of the place.')
+                    : 'I could not read that link, or tell which restaurant it is for. Add the place below, or photograph the menu.'}
+        </div>)}
     </div>}
 
     <div className="mt-4">

@@ -43,20 +43,28 @@
 
   /* ---- what a pasted link is actually worth ---------------------------------------------------
      Sending a link is the way people want to do this, so it was worth finding out what a link can
-     honestly give us. The answer, measured against real UK restaurant pages in August 2026, is: not
-     the menu. Every chain site tested (Nando's, Wagamama, Pret, Greggs) serves an empty shell and
-     renders its menu in JavaScript, so the HTML carries navigation and nothing else; Nando's ships
-     2.5 MB of it. The delivery aggregators and several restaurant groups return 403 to anything that
-     is not a browser. The independents are on the same SPA platforms as everyone else. Fetching the
-     page server-side returned a usable menu for NONE of sixteen real URLs, and a rendering service
-     that could would be a paid dependency, a bot-detection arms race, and a fetch-anything hole in
-     our own backend, all to arrive somewhere a photograph already gets to in one tap.
+     honestly give us. The first answer, measured against real UK restaurant pages in August 2026,
+     was: not the menu. Every chain site tested (Nando's, Wagamama, Pret, Greggs) serves an empty
+     shell and renders its menu in JavaScript, so the HTML carries navigation and nothing else;
+     Nando's ships 2.5 MB of it. The delivery aggregators and several restaurant groups return 403
+     to anything that is not a browser. Sixteen URLs, no menu.
 
-     But the link is still the fastest way in, because the useful thing in it was never the menu: it
-     is WHICH RESTAURANT. That is sat in the URL in plain text, it needs no network call at all, and
-     for a chain it unlocks the published nutrition, which beats anything we would have parsed off
-     their web page anyway. So a pasted link fills in the place, and the menu itself comes from the
-     camera, which is the one route that works everywhere and reads the specials board too. */
+     That still holds for all sixteen, and the menu-fetch edge function does not try to beat either
+     case. What the sample missed is that all sixteen were the same two kinds of page, and the page
+     people actually paste is a third: a listing on a REGIONAL ORDERING PLATFORM, which every town
+     has and which almost every independent is on. Those are Next.js and Nuxt apps that
+     server-render for search engines, so the entire menu - sections, dishes, descriptions, prices -
+     is sitting in the HTML as JSON, needing no browser and no rendering service. A good number of
+     independents with their own site publish schema.org menu markup, or link a PDF that is real
+     text. So the menu IS often behind the link, and supabase/functions/menu-fetch reads it.
+
+     This function stays where it was, and stays worth having, for the times it is not: a chain, an
+     aggregator, a page that was unreadable, a phone with no signal, or the moment before the fetch
+     comes back. WHICH RESTAURANT is sat in the URL in plain text, it needs no network call at all,
+     and for a chain it unlocks the published nutrition - which beats anything we would have parsed
+     off their web page anyway. The page's own declared name wins where we have it (the client
+     prefers menu-fetch's `place`); this is the floor, not the ceiling. And the camera remains the
+     one route that works everywhere, and the only one that reads the specials board. */
   var AGG_HOSTS = /^(deliveroo|just-?eat|ubereats|uber|opentable|thefork|resy|sevenrooms|yelp|quandoo|bookatable)\./i;
   var MAP_HOSTS = /^(google|maps\.google|bing|tripadvisor|yell)\./i;
   var SOCIAL_HOSTS = /^(instagram|facebook|tiktok|twitter|x|threads|youtube|youtu)\./i;
@@ -187,7 +195,11 @@
       lines.push('THEIR OWN NOTE, which overrides everything else about what to include: "' + String(opts.note).trim() + '".');
     }
     if (opts.menuText && String(opts.menuText).trim()) {
-      lines.push('THE MENU, as text:\n' + String(opts.menuText).trim());
+      // Where the text came from is worth one clause. A menu read off the restaurant's own listing
+      // is their current menu, and saying so stops the model hedging it against a half-remembered
+      // version of the same place - which it will do, and which shows up as prices that belong to
+      // no menu in particular.
+      lines.push('THE MENU, as text' + (opts.menuFrom ? ', taken from their own page at ' + String(opts.menuFrom).trim() + ' just now, so it is current' : '') + ':\n' + String(opts.menuText).trim());
     }
     if (opts.hasImages) lines.push('The menu is attached as image(s) and/or a PDF. Read every dish you can see on it.');
     if (!opts.menuText && !opts.hasImages) {

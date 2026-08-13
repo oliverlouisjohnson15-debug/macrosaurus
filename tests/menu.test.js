@@ -63,6 +63,16 @@ test('brief: the day is stated as numbers, and explicitly as context rather than
   assert.doesNotMatch(b, /RANK BY/);
 });
 
+test('brief: a menu fetched from their own page is said to be current', () => {
+  // Without this the model hedges the menu it was handed against a half-remembered version of the
+  // same restaurant, which shows up as prices belonging to no menu in particular.
+  const b = M.brief({ place: 'Coast', menuText: 'Cod and Chips £10.50', menuFrom: 'causeway-eats.co.uk' });
+  assert.match(b, /taken from their own page at causeway-eats\.co\.uk just now, so it is current/);
+  assert.match(b, /Cod and Chips/);
+  // A menu the person typed or photographed carries no such claim.
+  assert.doesNotMatch(M.brief({ menuText: 'Cod and Chips £10.50' }), /taken from their own page/);
+});
+
 test('brief: an overspent day is stated without asking the model to refuse or lecture', () => {
   const b = M.brief({ remaining: M.remaining(day({ kcal: 2700 }, { kcal: 2400 })) });
   assert.match(b, /already about 300 kcal past/);
