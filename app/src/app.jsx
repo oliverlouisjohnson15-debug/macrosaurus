@@ -11389,6 +11389,91 @@ function FoodLog({ db, update, openLog, showToast }) {
     return () => { window.removeEventListener('touchmove', blockTouch); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); document.body.style.userSelect = prevSel; document.body.style.touchAction = prevTouch; };
   }, [drag]);
 
+  /* ---- drag & drop: reorder the day's MEALS by their header ----
+     This replaced a pair of caret buttons stacked in the left of every meal title bar. Two 16px
+     arrows in a 12px-tall column is the worst version of a reorder control: each one is well under
+     the 44px touch floor, they sit permanently in the header of a card whose title bar has exactly
+     one job (say which meal this is), and moving breakfast to the end of the day is four separate
+     taps on a target you keep missing. Food already moves between meals by picking it up, so the
+     meal itself moving the same way is the gesture people will try first.
+     The keyboard/assistive path did not disappear with the arrows: Move up and Move down are in
+     the meal's ⋯ menu, which is a real button on a real target and reachable without a pointer. */
+  const [mealDrag, setMealDrag] = useState(null);     // { id, name, kcal, count }
+  const [mealGhost, setMealGhost] = useState(null);   // { x, y } floating header position
+  const [mealDropAt, setMealDropAt] = useState(null); // { beforeId } - null beforeId means "last"
+  const [mealArming, setMealArming] = useState(null); // meal id currently being held
+  const mealDraggedAt = useRef(0);
+  const reorderMeals = (dragId, beforeId) => update(d => {
+    const arr = ensureDayMeals(d, date); arr.sort((a, b) => a.sort_order - b.sort_order);
+    const i = arr.findIndex(x => x.id === dragId); if (i < 0) return;
+    const item = arr.splice(i, 1)[0];
+    let j = beforeId ? arr.findIndex(x => x.id === beforeId) : -1;
+    if (j < 0) j = arr.length;
+    arr.splice(j, 0, item);
+    arr.forEach((x, k) => x.sort_order = k);
+  });
+  const beginMealDrag = (m, me, x, y) => {
+    setMealDrag({ id: m.id, name: m.name, kcal: Math.round(sumMacros(me).kcal), count: me.length });
+    setMealGhost({ x, y });
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} }
+  };
+  /* Two ways in, on purpose. The grip picks the meal up at once, because a handle can mean nothing
+     else; anywhere else on the title bar takes the same 450ms hold the food rows use, because the
+     bar is also the rename button and a plain tap has to keep working. */
+  const startMealDrag = (ev, m, me, immediate) => {
+    if (ev.button != null && ev.button !== 0) return;
+    ev.stopPropagation(); setMenu(null); setMealMenu(null);
+    const sx = ev.clientX, sy = ev.clientY;
+    if (immediate) { if (ev.cancelable) ev.preventDefault(); mealDraggedAt.current = Date.now(); beginMealDrag(m, me, sx, sy); return; }
+    setMealArming(m.id);
+    const timer = setTimeout(() => { cleanup(); setMealArming(null); mealDraggedAt.current = Date.now(); beginMealDrag(m, me, sx, sy); }, 450);
+    const onMove = (e) => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) { clearTimeout(timer); cleanup(); setMealArming(null); } };
+    const onUp = () => { clearTimeout(timer); cleanup(); setMealArming(null); };
+    function cleanup() { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); }
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerup', onUp); window.addEventListener('pointercancel', onUp);
+  };
+  useEffect(() => {
+    if (!mealDrag) return;
+    // Meal cards are laid out top to bottom in document order, so the first card whose middle is
+    // below the finger is the one we would land in front of; past the last middle it goes to the end.
+    const computeDrop = (y) => {
+      const cards = Array.prototype.slice.call(document.querySelectorAll('[data-meal-card]'));
+      for (let i = 0; i < cards.length; i++) {
+        const r = cards[i].getBoundingClientRect();
+        if (y < r.top + r.height / 2) return { beforeId: cards[i].getAttribute('data-meal-card') };
+      }
+      return { beforeId: null };
+    };
+    let lastDrop = null;
+    const move = (ev) => {
+      setMealGhost({ x: ev.clientX, y: ev.clientY });
+      lastDrop = computeDrop(ev.clientY); setMealDropAt(lastDrop);
+      const es = ev.clientY < 100 ? -14 : ev.clientY > window.innerHeight - 130 ? 14 : 0; if (es) window.scrollBy(0, es);
+      if (ev.cancelable) ev.preventDefault();
+    };
+    const finish = (t) => {
+      mealDraggedAt.current = Date.now();
+      if (t && t.beforeId !== mealDrag.id) reorderMeals(mealDrag.id, t.beforeId);
+      setMealDrag(null); setMealDropAt(null); setMealGhost(null);
+    };
+    const up = (ev) => finish(computeDrop(ev.clientY) || lastDrop);
+    const cancel = () => finish(lastDrop);
+    // Same reason as the food rows: on touch a pointermove is not cancelable once the browser owns
+    // the gesture, so the drag has to block touchmove itself or the first millimetre scrolls the
+    // page and the resulting pointercancel tears the drag down.
+    const blockTouch = (ev) => { if (ev.cancelable) ev.preventDefault(); };
+    window.addEventListener('touchmove', blockTouch, { passive: false });
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel);
+    const prevSel = document.body.style.userSelect; document.body.style.userSelect = 'none';
+    const prevTouch = document.body.style.touchAction; document.body.style.touchAction = 'none';
+    return () => { window.removeEventListener('touchmove', blockTouch); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); document.body.style.userSelect = prevSel; document.body.style.touchAction = prevTouch; };
+  }, [mealDrag]);
+  // The line the meal will land on. Same 6px accent bar the food rows use, so one gesture has one
+  // vocabulary whichever thing you happen to be holding.
+  const mealDropBar = <div className="h-1.5 -mt-1 mb-1.5 pointer-events-none" style={{ background: 'var(--accent)', boxShadow: '2px 2px 0 0 var(--shadow)' }} />;
+
   // A held row says so. Nothing marked the 450ms between the press and the pick-up, so a hold that
   // was working looked exactly like a hold that wasn't, and the natural response is to let go early.
   const renderEntry = (e, m, mc) => { const dragging = drag && drag.id === e.id; const armed = arming === e.id && !dragging; return (
@@ -11622,16 +11707,24 @@ function FoodLog({ db, update, openLog, showToast }) {
              gives each one an ink title bar carrying the name and the meal's calories in accent, so
              the diary reads as a set of labelled drawers - and it matches the day card directly
              above and the cards on Today. */
-          <Card key={m.id} className="p-0 mb-3 overflow-hidden" data-meal-drop={m.id} style={drag && dropAt && dropAt.mealId === m.id ? { outline: '3px solid var(--accent)', outlineOffset: '-3px', boxShadow: '3px 3px 0 0 var(--accent)' } : undefined}>
-            <div className="flex justify-between items-center gap-2 px-2.5 py-[6px]" style={{ borderBottom: '2px solid var(--border)', background: 'var(--cardhead-bg)' }}>
+          <React.Fragment key={m.id}>
+          {mealDrag && mealDropAt && mealDropAt.beforeId === m.id && mealDropBar}
+          <Card className="p-0 mb-3 overflow-hidden" data-meal-drop={m.id} data-meal-card={m.id} style={Object.assign({},
+            drag && dropAt && dropAt.mealId === m.id ? { outline: '3px solid var(--accent)', outlineOffset: '-3px', boxShadow: '3px 3px 0 0 var(--accent)' } : null,
+            mealDrag && mealDrag.id === m.id ? { opacity: 0.4, outline: '2px dashed var(--muted)', outlineOffset: '-2px' } : null)}>
+            {/* The title bar IS the reorder control: hold it and the meal comes with you. The grip
+                on the left says so without adding a second thing to aim at, and it starts the drag
+                on contact because a handle cannot mean anything else. */}
+            <div onPointerDown={(ev) => { if (editMeal === m.id) return; if (ev.target.closest && ev.target.closest('[data-no-mealdrag]')) return; startMealDrag(ev, m, me, false); }}
+              className="flex justify-between items-center gap-2 px-2.5 py-[6px]"
+              style={{ borderBottom: '2px solid var(--border)', background: mealArming === m.id ? 'var(--surface2)' : 'var(--cardhead-bg)', transition: 'background .18s linear', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}>
               <div className="flex items-center gap-1.5 min-w-0">
-                <div className="flex flex-col -my-2 shrink-0">
-                  <button onClick={() => moveMeal(m, -1)} disabled={mi === 0} style={{ opacity: mi === 0 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none px-1 py-0 -my-1" title="Move up"><Icon.caret_up width="16" /></button>
-                  <button onClick={() => moveMeal(m, 1)} disabled={mi === meals.length - 1} style={{ opacity: mi === meals.length - 1 ? 0.25 : 1, color: 'var(--cardhead-text)' }} className="hit leading-none px-1 py-0 -my-1" title="Move down"><Icon.caret_down width="16" /></button>
-                </div>
+                <span onPointerDown={(ev) => { if (editMeal === m.id) return; startMealDrag(ev, m, me, true); }}
+                  className="hit shrink-0 flex items-center px-1 -mx-1" aria-hidden="true"
+                  style={{ color: 'var(--cardhead-text)', opacity: 0.55, cursor: 'grab', touchAction: 'none' }} title="Drag to reorder"><PixelGrip /></span>
                 {editMeal === m.id
-                  ? <input autoFocus value={mealName} onChange={e => setMealName(e.target.value)} onBlur={() => { renameMeal(m, mealName); setEditMeal(null); }} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} className="px-2 py-1 text-sm font-semibold w-40" style={{ background: 'var(--card)', color: 'var(--text)', border: '2px solid var(--border)' }} />
-                  : <button onClick={() => { setEditMeal(m.id); setMealName(m.name); }} className="hit pf text-[10px] uppercase flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }} title="Rename meal"><span className="truncate">{m.name}</span><span className="shrink-0" style={{ opacity: 0.6 }}><Icon.edit width="16" /></span></button>}
+                  ? <input autoFocus data-no-mealdrag value={mealName} onChange={e => setMealName(e.target.value)} onBlur={() => { renameMeal(m, mealName); setEditMeal(null); }} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} className="px-2 py-1 text-sm font-semibold w-40" style={{ background: 'var(--card)', color: 'var(--text)', border: '2px solid var(--border)' }} />
+                  : <button onClick={() => { if (Date.now() - mealDraggedAt.current < 500) return; setEditMeal(m.id); setMealName(m.name); }} className="hit pf text-[10px] uppercase flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.12em' }} title="Rename meal"><span className="truncate">{m.name}</span><span className="shrink-0" style={{ opacity: 0.6 }}><Icon.edit width="16" /></span></button>}
               </div>
               <div className="flex items-start gap-1.5">
                 {/* The meal's calories, and nothing else. Its protein/carbs/fat used to sit here in
@@ -11648,9 +11741,13 @@ function FoodLog({ db, update, openLog, showToast }) {
                 <div className="pf text-[10px] tnum text-right leading-tight" style={{ color: me.length ? 'var(--accent)' : 'var(--cardhead-text)', opacity: me.length ? 1 : 0.55, letterSpacing: '0.1em' }}>
                   {me.length ? Math.round(ms.kcal) + ' kcal' : '–'}
                 </div>
-                <div className="relative">
+                <div className="relative" data-no-mealdrag>
                   <button onClick={ev => { ev.stopPropagation(); setMenu(null); setMealMenu(mealMenu && mealMenu.id === m.id ? null : { id: m.id, rect: ev.currentTarget.getBoundingClientRect() }); }} className="hit px-1" style={{ color: 'var(--cardhead-text)' }} aria-label="Meal options"><Icon.more width="16" /></button>
                   {mealMenu && mealMenu.id === m.id && <AnchoredMenu rect={mealMenu.rect} onClose={() => setMealMenu(null)} className="w-40">
+                    {/* Dragging is the gesture; these are the same move without one, for a keyboard,
+                        a switch, or anyone who would rather not hold a card at arm's length. */}
+                    {mi > 0 && <button onClick={() => { moveMeal(m, -1); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Move up</button>}
+                    {mi < meals.length - 1 && <button onClick={() => { moveMeal(m, 1); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Move down</button>}
                     {me.length > 0 && <button onClick={() => saveMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Save as meal</button>}
                     {me.length > 0 && <button onClick={() => { setCopyTo({ title: 'Copy ' + m.name, entries: me, srcDate: date, pickMeal: true, meal: m.id }); setMealMenu(null); }} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Copy to…</button>}
                     {me.length > 0 && <button onClick={() => clearMeal(m, me)} className="block w-full text-left px-4 py-2 hover:bg-[#262629]">Clear food</button>}
@@ -11678,8 +11775,10 @@ function FoodLog({ db, update, openLog, showToast }) {
             <button onClick={() => openLog({ date, mealId: m.id })}
               className="pf text-[10px] uppercase w-full text-left flex items-center px-3"
               style={{ color: 'var(--accent-ink)', minHeight: 44, letterSpacing: '0.1em', background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>+ Add food</button>
-          </Card>);
+          </Card>
+          </React.Fragment>);
       })}
+      {mealDrag && mealDropAt && mealDropAt.beforeId === null && mealDropBar}
       {(() => {
         const mealIds = new Set(meals.map(m => m.id));
         const orphans = day.filter(e => !mealIds.has(e.meal_id));
@@ -11721,6 +11820,25 @@ function FoodLog({ db, update, openLog, showToast }) {
               <div className="text-[11px] tnum mt-0.5"><span className="font-bold" style={{ color: drag.mc }}>{drag.kcal}</span><span className="text-[#8A8A90]"> kc</span> <span style={{ color: PRO_T }}>{drag.p}P</span> <span style={{ color: CARB_T }}>{drag.c}C</span> <span style={{ color: FAT_T }}>{drag.f}F</span></div>
             </div>
             <span className="shrink-0 pr-1" style={{ color: drag.mc }}><PixelGrip /></span>
+          </div>
+        </div>;
+      })()}
+      {/* The meal in hand. It is the title bar and nothing else: carrying the whole card would put a
+          screen's worth of food under the finger and hide the very gap you are aiming for. */}
+      {mealDrag && mealGhost && (() => {
+        const VW = typeof window !== 'undefined' ? window.innerWidth : 360;
+        const W = Math.min(300, VW - 40);
+        // The grip is the part you are holding, so the ghost hangs its own grip off the finger -
+        // and gets clamped, because that finger starts at the far left of the screen and an
+        // unclamped card would spend the whole drag mostly off the edge.
+        const L = Math.max(8, Math.min(mealGhost.x - 24, VW - W - 8));
+        return <div data-ghost className="fixed z-[80] pointer-events-none pixel-box" style={{ width: W, left: L, top: mealGhost.y - 18, background: 'var(--cardhead-bg)', boxShadow: '5px 5px 0 0 var(--shadow)', transform: 'scale(1.02)', opacity: 0.97 }}>
+          <div className="flex items-center justify-between gap-2 px-2.5 py-[6px]">
+            <div className="flex items-center gap-1.5 min-w-0" style={{ color: 'var(--cardhead-text)' }}>
+              <span className="shrink-0" style={{ opacity: 0.55 }}><PixelGrip /></span>
+              <span className="pf text-[10px] uppercase truncate" style={{ letterSpacing: '0.12em' }}>{mealDrag.name}</span>
+            </div>
+            <div className="pf text-[10px] tnum shrink-0" style={{ color: mealDrag.count ? 'var(--accent)' : 'var(--cardhead-text)', opacity: mealDrag.count ? 1 : 0.55, letterSpacing: '0.1em' }}>{mealDrag.count ? mealDrag.kcal + ' kcal' : '–'}</div>
           </div>
         </div>;
       })()}
