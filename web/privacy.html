@@ -8,32 +8,40 @@
 <meta name="robots" content="all">
 <link rel="canonical" href="https://macrosaurus.com/privacy">
 <link rel="icon" href="/icon-192.png">
-<meta name="theme-color" content="#5B4FA6">
+<meta name="theme-color" content="#5B4FA6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap">
 <style>
-:root{--bg:#F0F0F0;--ink:#1e1e1e;--text:#1a1a1a;--muted:#5f5f66;--purple:#5B4FA6;--gold:#F5C518;
-  --mono:ui-monospace,"SFMono-Regular","SF Mono",Menlo,Consolas,"Courier New",monospace;}
+:root{--bg:#e7e3da;--card:#fffdf7;--ink:#241f2e;--text:#241f2e;--muted:#6b6459;--track:#ece7dc;
+  --header:#5B4FA6;--header-text:#fffdf7;--accent:#F0B429;--link:#5B4FA6;
+  --mono:'IBM Plex Mono',ui-monospace,"SFMono-Regular","SF Mono",Menlo,Consolas,"Courier New",monospace;}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#050507;--card:#0c0c11;--ink:#2f2f3a;--text:#e8e8ea;--muted:#8b8b98;--track:#1a1a22;
+    --header:#000000;--header-text:#3DFF62;--accent:#3DFF62;--link:#9B7BFF;}}
 *{box-sizing:border-box;}
 html,body{margin:0;background:var(--bg);}
 body{font-family:var(--mono);color:var(--text);line-height:1.7;font-size:15px;-webkit-font-smoothing:antialiased;}
-.nav{background:var(--purple);border-bottom:3px solid var(--ink);}
+.nav{background:var(--header);border-bottom:3px solid var(--ink);}
 .nav-in{max-width:760px;margin:0 auto;padding:14px 24px;}
-.brand{color:#fff;text-decoration:none;font-weight:700;letter-spacing:.5px;display:inline-flex;align-items:center;gap:9px;}
-.brand .dino{font-size:20px;}
+.brand{color:var(--header-text);text-decoration:none;font-weight:700;letter-spacing:.5px;display:inline-flex;align-items:center;gap:9px;}
+.brand .egg{width:22px;height:22px;image-rendering:pixelated;}
 .wrap{max-width:760px;margin:0 auto;padding:44px 24px 72px;}
 h1{font-size:26px;line-height:1.3;margin:0 0 6px;}
 .updated{color:var(--muted);font-size:13px;margin:0 0 8px;}
-.note{border-left:3px solid var(--gold);padding:10px 14px;background:#fff;color:var(--muted);font-size:13.5px;margin:18px 0 30px;}
+.note{border-left:3px solid var(--accent);padding:12px 16px;background:var(--card);color:var(--muted);font-size:13.5px;margin:18px 0 30px;}
 h2{font-size:17px;margin:34px 0 8px;padding-top:4px;}
 p{margin:0 0 14px;}
 ul{margin:0 0 14px;padding-left:22px;}
 li{margin:0 0 8px;}
-a{color:var(--purple);}
-.back{display:inline-block;margin-top:40px;color:var(--purple);text-decoration:none;font-weight:700;}
-.foot{border-top:2px solid #d8d8d8;margin-top:44px;padding-top:20px;color:var(--muted);font-size:12.5px;}
+a{color:var(--link);}
+.back{display:inline-block;margin-top:40px;color:var(--link);text-decoration:none;font-weight:700;}
+.foot{border-top:2px solid var(--track);margin-top:44px;padding-top:20px;color:var(--muted);font-size:12.5px;}
 </style>
 </head>
 <body>
-<nav class="nav"><div class="nav-in"><a class="brand" href="/"><span class="dino">&#129430;</span> MACROSAURUS</a></div></nav>
+<nav class="nav"><div class="nav-in"><a class="brand" href="/"><img class="egg" src="/egg.png" alt=""> MACROSAURUS</a></div></nav>
 <main class="wrap">
   <h1>Privacy Policy</h1>
   <p class="updated">Last updated: 31 July 2026</p>
