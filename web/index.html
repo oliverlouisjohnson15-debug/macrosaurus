@@ -607,7 +607,12 @@ html{-webkit-text-size-adjust:100%;}
 @media(max-width:980px){
   .nav-in{padding:16px 20px 0; column-gap:14px; align-items:center;}
   .nav-cta{align-items:center;}
-  .nav-links{margin:12px -20px 0; padding:0 20px 13px; gap:28px;
+  /* space-between rather than a fixed gap: a fixed 28px was what actually overflowed the row,
+     and any fixed value is wrong on some phone. Letting the free space distribute means the
+     spacing is as generous as the screen can afford (about 41px at 375, still 23px at 320) and
+     the row can never be wider than the bar holding it. The gap is a floor, not the spacing. */
+  .nav-links{margin:12px -20px 0; padding:0 20px 13px; gap:10px;
+    justify-content:space-between;
     border-top:2px solid rgba(255,253,247,.14); padding-top:11px;
     scroll-padding-inline:20px;}
   /* the fade is only mounted when the row actually overflows, so a nav that fits is never
@@ -635,7 +640,7 @@ html{-webkit-text-size-adjust:100%;}
 }
 @media(max-width:600px){
   .nav-in{padding:18px 18px 0;}
-  .nav-links{gap:24px; margin:12px -18px 0; padding:11px 18px 13px;}
+  .nav-links{gap:8px; margin:12px -18px 0; padding:11px 18px 13px;}
   .nav-cta{gap:10px;}
 }
 
@@ -862,8 +867,15 @@ h2.sec, .final h2{font-family:var(--mono); font-weight:700; font-size:33px; line
   <nav class="nav">
     <div class="nav-in">
       <a class="brand" href="#top"><img class="brandegg" src="egg.png" alt=""><span class="brandtxt"> MACROSAURUS</span></a>
+      <!-- Four, not five. Five labels are only 279px of text, so they always fitted; it was the
+           gaps that overflowed the row. But fitting five leaves 15px between them on a 375px
+           screen and about 1px on a 320px one, which is the cramped look this started as. Four
+           at the full type size get 23-41px of air depending on the phone, with no scrolling.
+           Logging is the one that goes: every tracker logs food, so it is the least useful thing
+           a nav can offer, and the hero already says it. What is left is the three things nobody
+           else does and the money question. #logging is still anchored and still linked in the
+           footer, so nothing became unreachable. -->
       <div class="nav-links">
-        <a href="#logging">Logging</a>
         <a href="#eatout">Eat out</a>
         <a href="#train">Train</a>
         <a href="#buddy">Buddy</a>
