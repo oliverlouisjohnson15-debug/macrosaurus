@@ -8073,13 +8073,35 @@ const AURA_GLOW = { aura_ember: '#ff7a1a', aura_frost: '#3fd0ff', aura_spark: '#
 // Each scene is a lit diorama with its OWN fixed lighting rather than theme-following chrome, so a
 // bought Tar Pit looks like a tar pit in both themes; the unbought default is still the themed
 // .buddy-scene the app has always drawn.
+/* The five scenes were authored when the app was neon-on-black, and they are the ONLY thing Amber
+   buys that repaints the terrarium, i.e. the largest coloured object on the busiest screen. On the
+   paper theme (the default since the overhaul) every one of them rendered as a near-black slab: a
+   void in the shop list, and a hole punched in a cream page once equipped. Somebody spending 200
+   Amber on "Fern Hollow" got a black rectangle.
+   So each scene now carries BOTH palettes and keeps its identity across the two: fern stays green,
+   dusk stays warm, tar stays smoky, frost stays pale blue, aurora stays violet. `sceneArt` picks by
+   the theme class the app has already stamped on <html>, which is the same signal the CSS reads, so
+   the two can never disagree. */
 const SCENE_ART = {
-  scene_fern: { top: '#16301c', bottom: '#0a1a0e', glow: 'rgba(127,212,107,0.26)', ground: '#1d3a22', line: '#2c5531' },
-  scene_dusk: { top: '#3a2140', bottom: '#150d1c', glow: 'rgba(255,150,80,0.28)', ground: '#2e1c30', line: '#4a2c45' },
-  scene_tar: { top: '#2a1a10', bottom: '#0a0705', glow: 'rgba(255,110,30,0.30)', ground: '#1a1109', line: '#3b2513' },
-  scene_frost: { top: '#16303f', bottom: '#081319', glow: 'rgba(120,215,255,0.26)', ground: '#17323f', line: '#27505f' },
-  scene_aurora: { top: '#1b1440', bottom: '#080618', glow: 'rgba(120,255,200,0.30)', ground: '#1d1642', line: '#33285f' },
+  scene_fern: { top: '#16301c', bottom: '#0a1a0e', glow: 'rgba(127,212,107,0.26)', ground: '#1d3a22', line: '#2c5531',
+    light: { top: '#E9F3DF', bottom: '#D2E5C2', glow: 'rgba(110,170,70,0.22)', ground: '#BCD7A9', line: '#5C8A46' } },
+  scene_dusk: { top: '#3a2140', bottom: '#150d1c', glow: 'rgba(255,150,80,0.28)', ground: '#2e1c30', line: '#4a2c45',
+    light: { top: '#FBE3CE', bottom: '#F3C9AE', glow: 'rgba(240,140,70,0.24)', ground: '#E0A98C', line: '#9A5B45' } },
+  scene_tar: { top: '#2a1a10', bottom: '#0a0705', glow: 'rgba(255,110,30,0.30)', ground: '#1a1109', line: '#3b2513',
+    light: { top: '#E6DCCF', bottom: '#D2C3B0', glow: 'rgba(200,110,40,0.22)', ground: '#B9A38C', line: '#6B4F38' } },
+  scene_frost: { top: '#16303f', bottom: '#081319', glow: 'rgba(120,215,255,0.26)', ground: '#17323f', line: '#27505f',
+    light: { top: '#E2F0F7', bottom: '#CBE4F0', glow: 'rgba(90,180,220,0.22)', ground: '#B4D6E6', line: '#4A7E96' } },
+  scene_aurora: { top: '#1b1440', bottom: '#080618', glow: 'rgba(120,255,200,0.30)', ground: '#1d1642', line: '#33285f',
+    light: { top: '#E8E2F7', bottom: '#D6CDEE', glow: 'rgba(120,220,190,0.26)', ground: '#C3B8E4', line: '#5F4E96' } },
 };
+// The scene as it should read in the theme actually on screen. Dark keeps the original palette, so
+// nothing anyone already bought changes at night.
+function sceneArt(id) {
+  const s = SCENE_ART[id];
+  if (!s) return null;
+  const dark = typeof document !== 'undefined' && document.documentElement.classList.contains('theme-dark');
+  return (!dark && s.light) ? s.light : s;
+}
 // Terrarium props: one pixel decoration on the floor. These reuse CR_ART shapes the bundle already
 // carries, so a whole prop line costs no new art. `at` is the fraction across the floor (kept well
 // off centre so the prop never sits over the buddy) and `px` its Sprite scale.
@@ -8266,7 +8288,7 @@ function useNight() {
 }
 function BuddyScene({ buddy, stageIndex, px, w, h, floor, spriteBottom, plant, shadowW, eq, asleep, stuffed, sad, dayState, say, asking, pointing, className, style, terrarium, away }) {
   const s = buddyStageSprite(stageIndex, buddy);
-  const scene = (eq && eq.scene) ? SCENE_ART[eq.scene] : null;
+  const scene = (eq && eq.scene) ? sceneArt(eq.scene) : null;
   const prop = (eq && eq.prop) ? PROP_ART[eq.prop] : null;
   const night = useNight();
   // The egg does not keep hours: it is incubating, and a sleeping egg is just an egg.
@@ -8975,7 +8997,7 @@ function TrophyCabinet({ db, streak, onBack }) {
 // Small previews so a scene or prop can be judged before it is bought, drawn from the same tables the
 // terrarium renders from (so what you see in the shop is exactly what you get).
 function ScenePreview({ id, size = 40 }) {
-  const s = SCENE_ART[id]; if (!s) return null;
+  const s = sceneArt(id); if (!s) return null;
   return <div style={{ width: size, height: size, background: 'linear-gradient(180deg, ' + s.top + ' 0%, ' + s.bottom + ' 100%)', position: 'relative', overflow: 'hidden' }}>
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: Math.round(size * 0.3), background: s.ground, borderTop: '2px solid ' + s.line }} />
     <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%', background: 'radial-gradient(60% 70% at 50% 100%, ' + s.glow + ', transparent 70%)' }} />
@@ -9023,11 +9045,14 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   const auraBuddy = Object.assign({}, buddy, { equipped: Object.assign({}, buddy.equipped, { aura: null }) });
   return (
     <div className="fade-in">
-      <div className="flex items-center justify-between mb-3">
-        {onBack ? <button onClick={onBack} className="hit text-[11px] text-[#8A8A90]"><Icon.arrow_left width="16" /> Back</button> : <span />}
-        <div className="pf text-[10px]" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</div>
+      {onBack && <div className="mb-3"><button onClick={onBack} className="hit text-[11px] text-[#8A8A90]"><Icon.arrow_left width="16" /> Back</button></div>}
+      {/* The wallet is the other half of the heading, not a label floating above it: what you have
+          and what you are spending it in belong on one line, which is how the design draws it and
+          how every other titled row in the app is built. */}
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <h2 className="text-lg font-semibold">Amber Shop</h2>
+        <span className="pf text-[10px] shrink-0" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
       </div>
-      <h2 className="text-lg font-semibold mb-1">Amber Shop</h2>
       {/* Where Amber comes from, honestly. This used to read "Win Amber from your buddy's fights",
           which named the one source that is optional and left out every source that is not:
           Game.AMBER_REWARDS pays for logging the day, landing it, foraging and coming back, and the
@@ -9345,24 +9370,29 @@ function FightModal({ db, update, streak, onClose, embedded }) {
   const StatLine = ({ s }) => <div className="text-[8px] text-[#8A8A90] tnum">HP {s.hp} · ATK {s.atk} · DEF {s.def}</div>;
   // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
   // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
-  const FightCard = ({ tag, tagColor, attemptTag, enemy, reward, action, border }) => (
-    <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (border || 'var(--border)') }}>
-      <div className="flex items-center justify-between gap-2 mb-2.5">
-        <div className="pf text-[8px] uppercase" style={{ color: tagColor || 'var(--muted)' }}>{tag}</div>
-        {attemptTag && <span className="pf text-[7px] uppercase px-1.5 py-1 shrink-0" style={{ background: 'var(--surface3)', color: 'var(--muted)' }}>{attemptTag}</span>}
-      </div>
-      <div className="flex items-center gap-3 mb-3">
-        <div className="pixel-box shrink-0 inline-flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', width: 68, height: 68 }}>
-          <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={enemy.name} anim="idle" px={2.5} /></span>
+  // A fight card is a CARD, and every card in this app opens with the same filled ink title bar:
+  // Today's Plan, Recovery, the Food day card, all twenty-odd sheets. Battle was the last surface
+  // still drawing its own header out of a small coloured eyebrow and a grey chip floating on the
+  // card's own paper, which is most of why Play read as a game bolted to the side of the app rather
+  // than a room inside it. Same CardHead, same status-on-the-bar, same p-3 interior as everywhere
+  // else; the mode's colour stays on the card's border, where it distinguishes without shouting.
+  const FightCard = ({ tag, attemptTag, enemy, reward, action, border }) => (
+    <div className="pixel-box p-0 mb-3 overflow-hidden" style={{ background: 'var(--surface2)', boxShadow: 'none', border: '2px solid ' + (border || 'var(--border)') }}>
+      <CardHead title={tag} right={attemptTag || null} />
+      <div className="p-3">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="pixel-box shrink-0 inline-flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', width: 68, height: 68 }}>
+            <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={enemy.name} anim="idle" px={2.5} /></span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-bold truncate">{enemy.name}</div>
+            <StatLine s={enemy.stats} />
+            {enemy.ability && enemy.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
+            <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{reward}</div>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-bold truncate">{enemy.name}</div>
-          <StatLine s={enemy.stats} />
-          {enemy.ability && enemy.ability !== 'none' && <div className="text-[8px] mt-0.5" style={{ color: 'var(--fat-ink)' }}>{ABIL_LABEL[enemy.ability]}</div>}
-          <div className="text-[9px] text-[#8A8A90] mt-1 leading-snug">{reward}</div>
-        </div>
+        {action}
       </div>
-      {action}
     </div>
   );
 
@@ -9388,12 +9418,22 @@ function FightModal({ db, update, streak, onClose, embedded }) {
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-bold truncate">{fighter.name}</div>
               <StatLine s={fighter.stats} />
-              <div className="text-[9px] mt-1 leading-snug" style={{ color: readyBuff.band === 'apex' ? 'var(--good-ink)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)' }}>
+              {/* WHERE THE NUMBERS CAME FROM. The readiness line was the only thing on this screen
+                  that explained itself in terms of the user's actual life, and it was the best thing
+                  on it: "well rested, +15% attack today" is the whole idea of the game layer in six
+                  words. Every other figure here is grown from food - ATK from protein days, DEF from
+                  fibre days, HP from the streak (buddyStats) - and the screen had never once said so,
+                  so the stats read as arbitrary game numbers rather than as a picture of the week.
+                  Same source, stated plainly, right under the stats they explain. */}
+              <div className="text-[9px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>
+                Fed by your week: protein {fighter.stats.pro}/7 into attack, fibre {fighter.stats.fib}/7 into defence.
+              </div>
+              <div className="text-[9px] mt-0.5 leading-snug" style={{ color: readyBuff.band === 'apex' ? 'var(--good-ink)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)' }}>
                 {readyBuff.band
                   ? (readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today'
                     : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today'
                     : 'Steady readiness today')
-                  : 'Built from your week’s protein, fibre and perfect days'}
+                  : 'Connect a wearable and last night’s sleep will move these too'}
               </div>
             </div>
           </div>
@@ -9401,7 +9441,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
           <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your battles</div>
 
           {/* Daily Hunt: the quick everyday fight for Amber. */}
-          <FightCard tag="Daily Hunt" tagColor="var(--accent)" border={dailyReady ? 'var(--accent)' : 'var(--border)'} enemy={daily}
+          <FightCard tag="Daily Hunt" border={dailyReady ? 'var(--accent)' : 'var(--border)'} enemy={daily}
             attemptTag={dailyReady ? (loggedToday ? 'ready' : 'log to arm') : 'cleared today'}
             reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat-ink)' }}><Icon.trend_up width="16" /> {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
             action={dailyReady
@@ -9412,7 +9452,7 @@ function FightModal({ db, update, streak, onClose, embedded }) {
 
           {/* Boss Climb: the ladder folded into the boss. Beat progressively tougher bosses, one attempt
               a day, to climb ranks and earn the Champion Belt, then prestige for a harder run. */}
-          <FightCard tag={ladderCleared ? 'Boss Climb · all cleared' : 'Boss Climb · Rank ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length} tagColor="var(--danger)" border="var(--danger)" enemy={rival}
+          <FightCard tag={ladderCleared ? 'Boss Climb · all cleared' : 'Boss Climb · Rank ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length} border="var(--danger)" enemy={rival}
             attemptTag={ladderCleared ? null : (gate.can ? '1 attempt today' : gate.reason === 'used' ? 'used today' : 'log to unlock')}
             reward="Climb the bosses for Amber, loot and the Champion Belt. Losing only teaches, never sets you back."
             action={ladderCleared

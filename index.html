@@ -3973,9 +3973,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     { id: 'aura_toxic', name: 'Toxic Aura', kind: 'aura', price: 220, desc: 'An eerie green haze, for the apex predator.' },
     { id: 'scene_fern', name: 'Fern Hollow', kind: 'scene', price: 140, desc: 'A green, overgrown clearing full of soft light.' },
     { id: 'scene_dusk', name: 'Dusk Ridge', kind: 'scene', price: 160, desc: 'Warm evening sun sinking behind the ridge.' },
-    { id: 'scene_tar', name: 'Tar Pit', kind: 'scene', price: 200, desc: 'Bubbling black tar under a smoky orange sky.' },
+    { id: 'scene_tar', name: 'Tar Pit', kind: 'scene', price: 200, desc: 'Bubbling tar under a smoky orange sky.' },
     { id: 'scene_frost', name: 'Frost Cavern', kind: 'scene', price: 200, desc: 'Pale blue ice, still and very quiet.' },
-    { id: 'scene_aurora', name: 'Aurora Basin', kind: 'scene', price: 260, desc: 'Northern lights rippling over a deep violet sky.' },
+    { id: 'scene_aurora', name: 'Aurora Basin', kind: 'scene', price: 260, desc: 'Northern lights rippling over a still, violet basin.' },
     { id: 'prop_fern', name: 'Fern', kind: 'prop', price: 90, desc: 'A leafy fern for the corner of the terrarium.' },
     { id: 'prop_rock', name: 'Standing Stone', kind: 'prop', price: 110, desc: 'A weathered boulder to bask against.' },
     { id: 'prop_cycad', name: 'Cycad', kind: 'prop', price: 140, desc: 'A broad prehistoric palm, good for shade.' },
@@ -22211,43 +22211,95 @@ const AURA_GLOW = {
 // Each scene is a lit diorama with its OWN fixed lighting rather than theme-following chrome, so a
 // bought Tar Pit looks like a tar pit in both themes; the unbought default is still the themed
 // .buddy-scene the app has always drawn.
+/* The five scenes were authored when the app was neon-on-black, and they are the ONLY thing Amber
+   buys that repaints the terrarium, i.e. the largest coloured object on the busiest screen. On the
+   paper theme (the default since the overhaul) every one of them rendered as a near-black slab: a
+   void in the shop list, and a hole punched in a cream page once equipped. Somebody spending 200
+   Amber on "Fern Hollow" got a black rectangle.
+   So each scene now carries BOTH palettes and keeps its identity across the two: fern stays green,
+   dusk stays warm, tar stays smoky, frost stays pale blue, aurora stays violet. `sceneArt` picks by
+   the theme class the app has already stamped on <html>, which is the same signal the CSS reads, so
+   the two can never disagree. */
 const SCENE_ART = {
   scene_fern: {
     top: '#16301c',
     bottom: '#0a1a0e',
     glow: 'rgba(127,212,107,0.26)',
     ground: '#1d3a22',
-    line: '#2c5531'
+    line: '#2c5531',
+    light: {
+      top: '#E9F3DF',
+      bottom: '#D2E5C2',
+      glow: 'rgba(110,170,70,0.22)',
+      ground: '#BCD7A9',
+      line: '#5C8A46'
+    }
   },
   scene_dusk: {
     top: '#3a2140',
     bottom: '#150d1c',
     glow: 'rgba(255,150,80,0.28)',
     ground: '#2e1c30',
-    line: '#4a2c45'
+    line: '#4a2c45',
+    light: {
+      top: '#FBE3CE',
+      bottom: '#F3C9AE',
+      glow: 'rgba(240,140,70,0.24)',
+      ground: '#E0A98C',
+      line: '#9A5B45'
+    }
   },
   scene_tar: {
     top: '#2a1a10',
     bottom: '#0a0705',
     glow: 'rgba(255,110,30,0.30)',
     ground: '#1a1109',
-    line: '#3b2513'
+    line: '#3b2513',
+    light: {
+      top: '#E6DCCF',
+      bottom: '#D2C3B0',
+      glow: 'rgba(200,110,40,0.22)',
+      ground: '#B9A38C',
+      line: '#6B4F38'
+    }
   },
   scene_frost: {
     top: '#16303f',
     bottom: '#081319',
     glow: 'rgba(120,215,255,0.26)',
     ground: '#17323f',
-    line: '#27505f'
+    line: '#27505f',
+    light: {
+      top: '#E2F0F7',
+      bottom: '#CBE4F0',
+      glow: 'rgba(90,180,220,0.22)',
+      ground: '#B4D6E6',
+      line: '#4A7E96'
+    }
   },
   scene_aurora: {
     top: '#1b1440',
     bottom: '#080618',
     glow: 'rgba(120,255,200,0.30)',
     ground: '#1d1642',
-    line: '#33285f'
+    line: '#33285f',
+    light: {
+      top: '#E8E2F7',
+      bottom: '#D6CDEE',
+      glow: 'rgba(120,220,190,0.26)',
+      ground: '#C3B8E4',
+      line: '#5F4E96'
+    }
   }
 };
+// The scene as it should read in the theme actually on screen. Dark keeps the original palette, so
+// nothing anyone already bought changes at night.
+function sceneArt(id) {
+  const s = SCENE_ART[id];
+  if (!s) return null;
+  const dark = typeof document !== 'undefined' && document.documentElement.classList.contains('theme-dark');
+  return !dark && s.light ? s.light : s;
+}
 // Terrarium props: one pixel decoration on the floor. These reuse CR_ART shapes the bundle already
 // carries, so a whole prop line costs no new art. `at` is the fraction across the floor (kept well
 // off centre so the prop never sits over the buddy) and `px` its Sprite scale.
@@ -22530,7 +22582,7 @@ function BuddyScene({
   away
 }) {
   const s = buddyStageSprite(stageIndex, buddy);
-  const scene = eq && eq.scene ? SCENE_ART[eq.scene] : null;
+  const scene = eq && eq.scene ? sceneArt(eq.scene) : null;
   const prop = eq && eq.prop ? PROP_ART[eq.prop] : null;
   const night = useNight();
   // The egg does not keep hours: it is incubating, and a sleeping egg is just an egg.
@@ -24019,7 +24071,7 @@ function ScenePreview({
   id,
   size = 40
 }) {
-  const s = SCENE_ART[id];
+  const s = sceneArt(id);
   if (!s) return null;
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -24161,23 +24213,25 @@ function ShopView({
   });
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-3"
-  }, onBack ? /*#__PURE__*/React.createElement("button", {
+  }, onBack && /*#__PURE__*/React.createElement("div", {
+    className: "mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "hit text-[11px] text-[#8A8A90]"
   }, /*#__PURE__*/React.createElement(Icon.arrow_left, {
     width: "16"
-  }), " Back") : /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[10px]",
+  }), " Back")), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between gap-3 mb-1"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold"
+  }, "Amber Shop"), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[10px] shrink-0",
     style: {
       color: 'var(--fat-ink)'
     }
   }, /*#__PURE__*/React.createElement(Spark, {
     size: 12
-  }), " ", amber, " Amber")), /*#__PURE__*/React.createElement("h2", {
-    className: "text-lg font-semibold mb-1"
-  }, "Amber Shop"), /*#__PURE__*/React.createElement("div", {
+  }), " ", amber, " Amber")), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-[#8A8A90] mb-4 leading-snug"
   }, "Amber comes from logging your days, the daily hunt and whatever your buddy forages. Spend it here."), hatched && (onRename || canRecolour) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SheetLabel, {
     className: "block mb-2"
@@ -24946,35 +25000,32 @@ function FightModal({
   }, "HP ", s.hp, " · ATK ", s.atk, " · DEF ", s.def);
   // One tidy card per fight (ladder / daily / boss): the enemy on a shadow (mirrored, tinted), its
   // stats and reward, and a single action. Replaces the old cluttered VS + battle-plan + armed stack.
+  // A fight card is a CARD, and every card in this app opens with the same filled ink title bar:
+  // Today's Plan, Recovery, the Food day card, all twenty-odd sheets. Battle was the last surface
+  // still drawing its own header out of a small coloured eyebrow and a grey chip floating on the
+  // card's own paper, which is most of why Play read as a game bolted to the side of the app rather
+  // than a room inside it. Same CardHead, same status-on-the-bar, same p-3 interior as everywhere
+  // else; the mode's colour stays on the card's border, where it distinguishes without shouting.
   const FightCard = ({
     tag,
-    tagColor,
     attemptTag,
     enemy,
     reward,
     action,
     border
   }) => /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 mb-3",
+    className: "pixel-box p-0 mb-3 overflow-hidden",
     style: {
       background: 'var(--surface2)',
       boxShadow: 'none',
       border: '2px solid ' + (border || 'var(--border)')
     }
+  }, /*#__PURE__*/React.createElement(CardHead, {
+    title: tag,
+    right: attemptTag || null
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "p-3"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-2 mb-2.5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[8px] uppercase",
-    style: {
-      color: tagColor || 'var(--muted)'
-    }
-  }, tag), attemptTag && /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[7px] uppercase px-1.5 py-1 shrink-0",
-    style: {
-      background: 'var(--surface3)',
-      color: 'var(--muted)'
-    }
-  }, attemptTag)), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-3 mb-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pixel-box shrink-0 inline-flex items-center justify-center buddy-scene",
@@ -25005,7 +25056,7 @@ function FightModal({
     }
   }, ABIL_LABEL[enemy.ability]), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] text-[#8A8A90] mt-1 leading-snug"
-  }, reward))), action);
+  }, reward))), action));
   const body = /*#__PURE__*/React.createElement(React.Fragment, null, phase === 'egg' && /*#__PURE__*/React.createElement("div", {
     className: "text-center py-6"
   }, /*#__PURE__*/React.createElement("div", {
@@ -25060,13 +25111,17 @@ function FightModal({
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] mt-1 leading-snug",
     style: {
+      color: 'var(--muted)'
+    }
+  }, "Fed by your week: protein ", fighter.stats.pro, "/7 into attack, fibre ", fighter.stats.fib, "/7 into defence."), /*#__PURE__*/React.createElement("div", {
+    className: "text-[9px] mt-0.5 leading-snug",
+    style: {
       color: readyBuff.band === 'apex' ? 'var(--good-ink)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)'
     }
-  }, readyBuff.band ? readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today' : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today' : 'Steady readiness today' : 'Built from your week’s protein, fibre and perfect days'))), /*#__PURE__*/React.createElement("div", {
+  }, readyBuff.band ? readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today' : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today' : 'Steady readiness today' : 'Connect a wearable and last night’s sleep will move these too'))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[8px] uppercase text-[#8A8A90] mb-2"
   }, "Your battles"), /*#__PURE__*/React.createElement(FightCard, {
     tag: "Daily Hunt",
-    tagColor: "var(--accent)",
     border: dailyReady ? 'var(--accent)' : 'var(--border)',
     enemy: daily,
     attemptTag: dailyReady ? loggedToday ? 'ready' : 'log to arm' : 'cleared today',
@@ -25110,7 +25165,6 @@ function FightModal({
     }), " A fresh one lands tomorrow.")
   }), /*#__PURE__*/React.createElement(FightCard, {
     tag: ladderCleared ? 'Boss Climb · all cleared' : 'Boss Climb · Rank ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length,
-    tagColor: "var(--danger)",
     border: "var(--danger)",
     enemy: rival,
     attemptTag: ladderCleared ? null : gate.can ? '1 attempt today' : gate.reason === 'used' ? 'used today' : 'log to unlock',
