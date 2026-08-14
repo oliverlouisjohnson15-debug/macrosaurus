@@ -634,12 +634,32 @@ html{-webkit-text-size-adjust:100%;}
   .nav-links{transition:none;}
 }
 @media(max-width:600px){
-  /* the wordmark is hidden this small, so the egg alone was carrying the left of the bar and
-     the whole top row read as top-heavy and empty. A little more height under it settles it. */
   .nav-in{padding:18px 18px 0;}
   .nav-links{gap:24px; margin:12px -18px 0; padding:11px 18px 13px;}
   .nav-cta{gap:10px;}
-  .nav .btn{padding:14px 13px; font-size:11px;}
+}
+
+/* ---- ONE CTA AT A TIME ----
+   Below 820px the sticky bottom bar exists, so past the hero there were two START FREE buttons
+   on screen at once — same gold, same width, same right-hand column, 700px apart. They did not
+   read as repetition so much as one control drawn twice.
+   The persistent CTA now lives at the bottom only, which is also the half of the screen a thumb
+   can actually reach. The count works out to exactly one at every point in the scroll: the hero
+   carries its own button above the fold while the bar is stowed, and the bar arms at the moment
+   that button leaves. The two bars stop competing and take different jobs, the top being
+   identity, position and the way back into an account.
+   Losing the button frees 114px, which is enough to bring the wordmark back at every width, so
+   the row stops being a lone 26px egg with a gap where a header should be. */
+@media(max-width:820px){
+  .nav-cta .btn{display:none;}
+  .nav .brandtxt{display:inline;}
+}
+/* the wordmark plus LOG IN needs about 270px and the smallest phones offer 284px, so the brand
+   steps down a size there rather than letting the two collide */
+@media(max-width:360px){
+  .nav .brand{font-size:15px;}
+  .nav-in{padding-left:14px; padding-right:14px;}
+  .nav-links{margin-left:-14px; margin-right:-14px; padding-left:14px; padding-right:14px;}
 }
 @media(max-width:820px){
   a, button, summary{-webkit-tap-highlight-color:rgba(91,79,166,.18);}
@@ -1368,15 +1388,34 @@ h2.sec, .final h2{font-family:var(--mono); font-weight:700; font-size:33px; line
     targets.forEach(function(t){ navObs.observe(t); });
   }
 
-  // the sticky bar arms itself only once the hero's own CTA has scrolled away
-  var heroCta = document.querySelector('.hero-cta .btn-primary');
+  // THE ONE-CTA RULE. The sticky bar is the page's persistent call to action on a phone, so it
+  // shows only while the page is not already showing one of its own. It stands down for the hero
+  // button, both pricing buttons and the closing one alike, which means there is exactly one
+  // START FREE on screen at any point in the scroll and never two.
+  //
+  // Deliberately geometry on scroll rather than an IntersectionObserver: the observer's first
+  // callback lands before the two webfonts have swapped in, measures the hero button against a
+  // pre-swap layout, decides it is below the fold and arms the bar. Nothing crosses a threshold
+  // afterwards, so it stayed armed and you got two buttons at the top of the page, which is the
+  // one place the duplicate is most obvious. Four rects on a passive scroll listener is cheap
+  // and cannot be wrong about what is currently on screen.
   var bar = document.querySelector('.sticky-cta');
-  if (heroCta && bar && 'IntersectionObserver' in window) {
-    new IntersectionObserver(function(es){
-      bar.classList.toggle('armed', !es[0].isIntersecting);
-    }, { threshold: 0 }).observe(heroCta);
-  } else if (bar) {
-    bar.classList.add('armed');
+  var pageCtas = [].slice.call(document.querySelectorAll('.btn-primary')).filter(function(b){
+    return !b.closest('.sticky-cta') && !b.closest('.nav');
+  });
+  if (bar) {
+    var syncBar = function(){
+      var h = window.innerHeight, showing = false;
+      for (var i = 0; i < pageCtas.length; i++) {
+        var r = pageCtas[i].getBoundingClientRect();
+        if (r.bottom > 0 && r.top < h) { showing = true; break; }
+      }
+      bar.classList.toggle('armed', !showing);
+    };
+    syncBar();
+    window.addEventListener('scroll', syncBar, { passive: true });
+    window.addEventListener('resize', syncBar);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncBar);
   }
 
   // scroll reveal (no-op when reduced motion)
