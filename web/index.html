@@ -326,7 +326,10 @@ section[id], .row[id]{scroll-margin-top:104px;}
    the widest label ("KCAL LEFT") pushed its track past 1fr and the row grew wider than the grid.
    The overflow all landed on the last cell, which put STREAK through the side of the phone at
    every width. minmax(0,1fr) is the actual "four equal columns", and the labels wrap instead. */
-.pstats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:2px; background:var(--ink); border-top:3px solid var(--ink);}
+/* the gap IS the divider, drawn by the ink showing through. At 2px it read as four boxes with
+   bars between them; at 1px it reads as one strip that has been ruled, which is what the app
+   draws and what leaves the numbers room. */
+.pstats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; background:var(--ink); border-top:3px solid var(--ink);}
 .pstats div{background:var(--card); text-align:center; padding:9px 2px; min-width:0;}
 .pstats .v{font-family:var(--pix); font-size:13px; line-height:1;}
 /* now that the columns really are a quarter each, the labels have to fit a quarter: at 7px with
@@ -744,7 +747,17 @@ h2.sec, .final h2{font-family:var(--mono); font-weight:700; font-size:33px; line
    ran off a 375px screen, where .wrap's overflow-x:hidden silently guillotined the second
    handset. The column has to be allowed to shrink before its children can. */
 .hero-grid > *{min-width:0;}
-.phone{width:auto; flex:1 1 0; min-width:0; max-width:216px; padding:9px; box-shadow:5px 5px 0 0 var(--shadow);}
+/* 216px left the buddy card's stat strip with exactly 36px of usable cell for a value that
+   measures exactly 36px, so "1,412" ran wall to wall and read as clipped. The handset gets wider
+   and the hero gives it the room: a tighter column gap and a couple of points of the grid ratio,
+   which the copy column can spare and the mock cannot. */
+/* 216px left the buddy card's stat strip with exactly 36px of usable cell for a value that
+   measures exactly 36px, so "1,412" ran wall to wall and read as clipped. The width comes from
+   the gaps around and inside the handsets rather than from the grid ratio: taking it from the
+   copy column pushed the headline onto a fourth line, and the headline outranks the mock. */
+.phone{width:auto; flex:1 1 0; min-width:0; max-width:244px; padding:7px; box-shadow:5px 5px 0 0 var(--shadow);}
+.hero-grid{gap:52px;}
+.phone-col{gap:11px;}
 .phone.pB{transform:translateY(16px);}
 .terra{--sp:1.9; height:98px;}
 .terra .bob{margin-left:-11px;}
