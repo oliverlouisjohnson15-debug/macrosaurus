@@ -189,6 +189,67 @@
   ];
   function idleLine(salt, date) { return IDLE_LINES[seedFor(salt || '', date || '') % IDLE_LINES.length]; }
 
+  // ---- THE BUDDY SOUNDS LIKE ITSELF: the personality axis, finally on screen ----
+  // Every buddy has been given one of six personalities since it hatched, and not one of them has
+  // ever reached a word of copy: a plucky dinosaur and a dozy one delivered the morning read in the
+  // same voice, on the same day, forever. That is what "the coaching is generic" means in practice.
+  // The FACTS stay shared and deterministic (the numbers, the advice, the band); what varies is the
+  // last clause, the bit a companion would actually say.
+  //
+  // Three tone buckets, because a sign-off pinned to the wrong news is worse than none at all:
+  //   cheer  - it went well, or the day is a good one to push
+  //   gentle - a short night, a missed goal, a day to go easy on. Never scolds, never guilts.
+  //   steady - neutral business as usual
+  // Keep every line SHORT (it is appended to a full sentence and has to fit two lines at 390px),
+  // British, first person from the dinosaur, and free of em dashes (build.mjs throws on those).
+  var VOICE_SIGNOFFS = {
+    plucky: {
+      cheer: ['Right, let’s have it.', 'I’m buzzing, come on.', 'Told you we had it in us.'],
+      gentle: ['We’ll come back swinging tomorrow.', 'No shame in a slow one.', 'Still in this, you and me.'],
+      steady: ['Keep chipping away, I’m on it.', 'One good move and we’re flying.', 'I’m ready when you are.'],
+    },
+    steady: {
+      cheer: ['Nice and steady, just how I like it.', 'That’s the rhythm, keep it.', 'Good work, no fuss.'],
+      gentle: ['Tomorrow’s another go.', 'Nothing’s broken, we carry on.', 'Slow is fine, stopping isn’t.'],
+      steady: ['Same again today and we’re golden.', 'Steady wins this, it always has.', 'I’ll keep pace with you.'],
+    },
+    greedy: {
+      cheer: ['Now, about breakfast.', 'Brilliant. Feed me and it’s perfect.', 'Great news, and I’m still hungry.'],
+      gentle: ['A decent meal fixes most things.', 'Let’s eat properly today and see.', 'I’d start with something warm.'],
+      steady: ['Keep the meals coming, I’ll do the maths.', 'What’s next on the menu?', 'I’m thinking about lunch already.'],
+    },
+    gentle: {
+      cheer: ['So pleased for you.', 'That’s lovely to see.', 'You’ve earned a good day.'],
+      gentle: ['Be kind to yourself today.', 'That’s alright, honestly.', 'Rest is allowed, you know.'],
+      steady: ['I’m here either way.', 'No pressure from me.', 'We’ll take it as it comes.'],
+    },
+    brave: {
+      cheer: ['Let’s go and take today.', 'Nothing’s stopping us now.', 'Straight at it, then.'],
+      gentle: ['Even I need a quiet one sometimes.', 'Regroup today, charge tomorrow.', 'Courage is showing up again.'],
+      steady: ['Hold the line today.', 'Nothing dramatic, just forward.', 'I’ll take point, you follow.'],
+    },
+    dozy: {
+      cheer: ['I’d celebrate, but I’m cosy.', 'Marvellous. Waking up for this.', 'Even I’m impressed, and I’m asleep.'],
+      gentle: ['Naps are underrated, take one.', 'Early night, I’ll join you.', 'A quiet day it is, then.'],
+      steady: ['Slow and sleepy still counts.', 'I’ll doze, you carry on.', 'Wake me when there’s food.'],
+    },
+  };
+  var VOICE_TONES = ['cheer', 'gentle', 'steady'];
+  // Stable per (user, day, tone): the same day re-rendered says the same thing, so a screenshot is
+  // reproducible and the line cannot reshuffle under the reader.
+  //
+  // `slot` is which line of a multi-line read this is (sleep 0, steps 1, readiness 2). The morning
+  // read can legitimately want the same tone twice - a short night AND a missed step goal are both
+  // gentle - and hearing the identical sign-off twice on one small screen is precisely the canned
+  // feeling this exists to remove. Adding the slot AFTER the hash rather than into it makes the
+  // three lines of one read provably different rather than usually different: with three lines in
+  // each pool, slots 0..2 land on three distinct indices whatever the seed.
+  function buddySignoff(personality, tone, salt, date, slot) {
+    var pools = VOICE_SIGNOFFS[personality] || VOICE_SIGNOFFS.steady;
+    var pool = pools[tone] || pools.steady;
+    return pool[(seedFor(salt || '', (date || '') + '#' + tone) + (+slot || 0)) % pool.length];
+  }
+
   // ---- Fight 2.0: macros are types, with a matchup triangle and a weekly boss weakness ----
   // Types cycle power > guard > swift > renew > power; balanced is neutral both ways.
   var FIGHT_TYPES = ['power', 'guard', 'swift', 'renew'];
@@ -1092,6 +1153,9 @@
     oneThing: oneThing,
     IDLE_LINES: IDLE_LINES,
     idleLine: idleLine,
+    VOICE_SIGNOFFS: VOICE_SIGNOFFS,
+    VOICE_TONES: VOICE_TONES,
+    buddySignoff: buddySignoff,
     COMEBACK_MIN_GAP: COMEBACK_MIN_GAP,
     COMEBACK_AMBER: COMEBACK_AMBER,
     comeback: comeback,

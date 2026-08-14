@@ -48,7 +48,9 @@ const { checkinStatus, checkinWaitLabel } = sandbox;
 // 2026-08-10 is a Monday, so Monday is day 1 and the fixtures read as calendar dates.
 const MON = '2026-08-10', TUE = '2026-08-11', WED = '2026-08-12', SUN = '2026-08-09';
 const db = (last, day) => ({ last_checkin: last, profile: { checkinDay: day } });
-const shiftDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+// Shift in UTC, like every other suite here: local midnight + toISOString() lands on the PREVIOUS
+// day anywhere east of Greenwich, so in BST this handed the tests a "today" before the check-in.
+const shiftDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 test('a full week is due whatever weekday it lands on', () => {
   const st = checkinStatus(db('2026-08-04', 1), TUE); // Tue -> Tue, 7 days, but Monday is the day
@@ -120,7 +122,7 @@ test('when it is not due, it always says when it will be', () => {
   for (let day = 0; day <= 6; day++) {
     for (let i = 0; i <= 13; i++) {
       const last = '2026-08-01';
-      const todayISO = (() => { const d = new Date(last + 'T00:00:00'); d.setDate(d.getDate() + i); return d.toISOString().slice(0, 10); })();
+      const todayISO = shiftDays(last, i);
       const st = checkinStatus(db(last, day), todayISO);
       if (st.due) continue;
       assert.ok(st.nextISO, 'no next date offered on ' + todayISO + ' (day ' + day + ')');
