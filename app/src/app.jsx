@@ -8440,13 +8440,13 @@ function BuddyAvatar({ buddy, px = 4, asleep }) {
 // device - the Unicode pair it replaced picked up whatever the platform emoji font felt like.
 function BondHearts({ n, max, size = 24 }) {
   return <span className="inline-flex items-center gap-0.5">{Array.from({ length: max || 0 }, (_, i) =>
-    <span key={i} style={{ color: i < n ? 'var(--danger-ink)' : 'var(--border)' }}><PixelGlyph kind={i < n ? 'heart_full' : 'heart_empty'} size={size} /></span>)}</span>;
+    <span key={i} style={{ color: i < n ? 'var(--danger-ink)' : 'var(--muted2)', opacity: i < n ? 1 : 0.55 }}><PixelGlyph kind={i < n ? 'heart_full' : 'heart_empty'} size={size} /></span>)}</span>;
 }
 // The buddy detail in the Play hub's Buddy tab: the animated dino at its growth stage, its name, a
 // light mood + bond layer, and its streak-driven growth toward the next stage. (The old needs meters,
 // personality and species-evolution axis were retired - the buddy now grows on the ONE BUDDY_STAGES
 // line.) The Today habitat is the glanceable version; this is the fuller look.
-function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, onChat, isPremium }) {
+function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, onChat, onDressUp, isPremium }) {
   const buddy = db.buddy || {};
   const incubating = buddy.hatched === false;
   const named = !!bp.name;
@@ -8458,41 +8458,51 @@ function PlayBuddyView({ db, bp, streak, freezeReady, onOpenName, onTrophies, on
   const nextStage = BUDDY_STAGES[(buddy.stage || 0) + 1] || null;
   const toNext = nextStage ? Math.max(1, nextStage.min - streak) : 0;
   const prog = nextStage ? Math.max(0.04, Math.min(1, streak / nextStage.min)) : 1;
+  const eq = equippedCosmetics(buddy);
+  const sceneName = eq.scene && Game.COSMETIC_BY_ID[eq.scene] ? Game.COSMETIC_BY_ID[eq.scene].name : 'Dawn Flats';
+  /* ONE CARD, NOT SIX BOXES. This page used to stack a framed terrarium, a name block, a growth
+     panel, two buttons, a caption and a lore card, each in its own frame, which is a lot of ruled
+     lines for a screen whose job is to show you a dinosaur. The terrarium does the talking now: it
+     is nearly twice as tall, carries the scene name and the streak in its own corners, and the name,
+     mood, hearts and growth all live in the same card underneath it. The lore card is gone; a line
+     of flavour belongs in Talk, where the buddy is actually speaking. */
   return (
     <div className="fade-in">
-      <div className="flex flex-col items-center text-center mb-4">
-        <div className="pixel-box mb-3" style={{ boxShadow: 'none', lineHeight: 0 }}>
-          <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w={132} h={130}
-            floor={28} spriteBottom={8} shadowW={70} eq={equippedCosmetics(buddy)} asleep={asleep} />
+      <div className="pixel-box p-0 mb-3 overflow-hidden" style={{ background: 'var(--card)' }}>
+        <div className="relative" style={{ borderBottom: '2px solid var(--border)', lineHeight: 0 }}>
+          <BuddyScene buddy={buddy} stageIndex={buddy.stage || 0} px={4} w={384} h={238}
+            floor={62} spriteBottom={38} shadowW={64} eq={eq} asleep={asleep} />
+          <div className="pf absolute text-[8px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>{sceneName}</div>
+          {!incubating && <div className="pf absolute text-[8px] uppercase" style={{ right: 10, top: 8, letterSpacing: '0.14em', color: 'var(--text)', background: 'var(--card)', border: '2px solid var(--border)', padding: '3px 6px' }}>Streak {streak}</div>}
         </div>
-        <div className="text-lg font-bold">{who}</div>
-        {incubating
-          ? <div className="text-[10px] mt-1 leading-snug max-w-[16rem]" style={{ color: 'var(--carb-ink)' }}>Incubating. Do the getting-started tasks on Today to hatch it.</div>
-          : <>
-              <div className="text-[10px] mt-1 leading-snug"><span style={{ color: mm.color }}>{mm.label}</span> · <span className="text-[#8A8A90]">{line}</span></div>
-              <div className="flex items-center gap-2 mt-2">
-                {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
-                <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={24} /></span>
-              </div>
-            </>}
+        <div className="px-3 py-3.5 flex flex-col items-center text-center gap-2">
+          <span className="pf" style={{ fontSize: 18, letterSpacing: '0.06em' }}>{who.toUpperCase()}</span>
+          {incubating
+            ? <span className="text-[11.5px] leading-snug max-w-[17rem]" style={{ color: 'var(--carb-ink)' }}>Incubating. Do the getting-started tasks on Today to hatch it.</span>
+            : <>
+                <span className="text-[12px] leading-snug"><span style={{ color: mm.color, fontWeight: 700 }}>{mm.label}</span> <span style={{ color: 'var(--text2)' }}>· {line}</span></span>
+                <div className="flex items-center gap-1.5">
+                  {named && <BondHearts n={bp.bond.hearts} max={bp.bond.maxHearts} />}
+                  <span className="inline-flex items-center" title={freezeReady ? 'Streak freeze ready, one missed day forgiven this month' : 'Streak freeze used this month'} style={{ opacity: freezeReady ? 1 : 0.35 }}><PixelGlyph kind="snow" color="var(--carb)" size={24} /></span>
+                </div>
+              </>}
+        </div>
+        {!incubating && <div className="px-3 py-2.5 flex flex-col gap-1.5" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
+          <div className="flex justify-between pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
+            <span>Growth · {st.name}</span>
+            <span>{nextStage ? toNext + ' day' + (toNext === 1 ? '' : 's') + ' to ' + nextStage.name : 'Fully grown'}</span>
+          </div>
+          <PipLine pct={prog * 100} color="var(--cal)" height={12} cells={14} />
+        </div>}
       </div>
-      {!incubating && <div className="pixel-box p-3 mb-3" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="flex items-center justify-between mb-1.5"><span className="pf text-[8px] uppercase text-[#8A8A90]">Growth · {st.name}</span><span className="pf text-[8px] uppercase text-[#8A8A90]">Streak {streak}</span></div>
-        <PipLine pct={prog * 100} />
-        <div className="text-[9px] text-[#8A8A90] mt-1.5">{nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`}</div>
-      </div>}
-      {/* Talk back. The main way in is the dock on Today now; this stays as the hub's own entry point.
-          No longer badged Premium: it spends from the free monthly AI allowance like anything else. */}
-      {!incubating && onChat && <button onClick={onChat} className="pixel-btn w-full py-2.5 mb-2 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+      {!incubating && onChat && <button onClick={onChat} className="pixel-btn w-full py-3 mb-3 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
         <PixelGlyph kind="chat" color="currentColor" size={24} /> TALK TO {(named ? bp.name : 'YOUR BUDDY').toUpperCase()}
       </button>}
-      {/* Rename lives in the Shop now (an Amber spend), so it isn't duplicated here. */}
-      <button onClick={onTrophies} className="pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--surface2)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={24} /> TROPHY CABINET</button>
-      {!incubating && <div className="text-center text-[9px] text-[#8A8A90] mt-3 leading-snug">The food you log feeds {who}. Keep your streak going to grow it.</div>}
-      {!incubating && <div className="pixel-box p-2.5 mt-3 text-center" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
-        <div className="pf text-[7px] uppercase mb-1" style={{ color: 'var(--fat-ink)' }}>Dino lore</div>
-        <div className="text-[10px] leading-snug" style={{ color: 'var(--muted)' }}>{BUDDY_LORE[crHash((db.game_salt || '') + Store.todayISO()) % BUDDY_LORE.length]}</div>
-      </div>}
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={onTrophies} className="pixel-btn py-3 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--card)' }}><PixelGlyph kind="trophy" color="var(--fat)" size={24} /> TROPHIES</button>
+        <button onClick={onDressUp} className="pixel-btn py-3 text-[10px] inline-flex items-center justify-center gap-2" style={{ background: 'var(--card)' }}><PixelGlyph kind="star" color="var(--accent-ink)" size={24} /> DRESS UP</button>
+      </div>
+      {!incubating && <div className="text-center text-[11px] mt-3" style={{ color: 'var(--muted)' }}>The food you log feeds {who}.</div>}
     </div>
   );
 }
@@ -8851,16 +8861,23 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, o
         : (<>
           {/* One sub-view at a time. The hub used to stack boss + wallet + progress + buttons + loops +
               inventory + every biome grid on one endless scroll; now it's four calm tabs. */}
-          <div className="grid grid-cols-3 mb-4" style={{ border: '2px solid var(--border)' }}>
-            {[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => (
+          {/* THE WALLET BELONGS TO THE HUB, NOT THE SHOP. Amber is earned in Battle and spent in
+              Shop, so burying the balance inside one of the three tabs meant the number was missing
+              from the screen that pays it. One line above the tabs, visible on all three. */}
+          <div className="flex items-center justify-end mb-2">
+            <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.1em', color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
+          </div>
+          <div className="grid grid-cols-3 mb-4" style={{ border: '3px solid var(--border)' }}>
+            {[['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l], i) => (
               <button key={k} onClick={() => setView(k)} className="pf uppercase"
-                style={{ padding: '9px 2px', fontSize: 10, letterSpacing: '0.08em', lineHeight: 1.4,
+                style={{ padding: '11px 2px', fontSize: 10, letterSpacing: '0.1em', lineHeight: 1.4,
+                  borderRight: i < 2 ? '3px solid var(--border)' : undefined,
                   background: view === k ? 'var(--accent)' : 'var(--card)',
-                  color: view === k ? 'var(--on-accent)' : 'var(--muted2)' }}>{l}</button>
+                  color: view === k ? 'var(--on-accent)' : 'var(--muted)' }}>{l}</button>
             ))}
           </div>
 
-          {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} onChat={() => setChatting(true)} isPremium={isPremium} />}
+          {view === 'buddy' && <PlayBuddyView db={db} bp={bp} streak={streak} freezeReady={freezeReady} onOpenName={onOpenName} onTrophies={() => setTrophies(true)} onChat={() => setChatting(true)} onDressUp={() => setView('shop')} isPremium={isPremium} />}
 
           {/* Battle: the arena is embedded straight into the tab (no teaser, no second modal) so tapping
               Battle lands you right on Daily Hunt + Boss Climb. The Play tabs above stay put. */}
@@ -9317,6 +9334,17 @@ function PlayPanel({ title, right, rightTone, children, footer, className, style
     </div>
   );
 }
+// A sprite standing ON its shadow. The shadow belongs inside the sprite's own box, not measured from
+// the card, because the art sits a couple of pixels up inside its 24px cell and that gap scales with
+// px: pinned to the card, a 4x enemy floats twice as far off the ground as a 2x one.
+function SpriteFooting({ px, shadowW, children }) {
+  return (
+    <div className="relative" style={{ width: 24 * px, height: 24 * px }}>
+      <div className="absolute" style={{ left: '50%', bottom: Math.round(px * 0.8), transform: 'translateX(-50%)', width: shadowW, height: 6, background: 'var(--border)', opacity: 0.4, borderRadius: '50%' }} />
+      <div className="absolute inset-0">{children}</div>
+    </div>
+  );
+}
 // A scene band: the sky/ground the app already paints, with whatever is standing in it on top.
 function FightScene({ height, label, children }) {
   return (
@@ -9745,111 +9773,67 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
         </div>}
 
         {phase === 'select' && <div className="fade-in">
-          {/* The wallet lives on the battle screen because this is where Amber is earned. */}
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>
-              {(fight.prestige || 0) > 0 ? 'Prestige ' + fight.prestige + ' · ' : ''}{fight.wins || 0} wins
-            </span>
-            <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.1em', color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
-          </div>
-
-          {/* 1 · THIS WEEK'S BOSS. The panel that gives the week a point: who you are fighting, the
-              macro that breaks its guard, and how far into the week you already are. */}
-          <PlayPanel title="This week's boss" right={bossDaysLeft + (bossDaysLeft === 1 ? ' day left' : ' days left')}>
-            <FightScene height={112} label={worn.arena && Game.COSMETIC_BY_ID[worn.arena] ? Game.COSMETIC_BY_ID[worn.arena].name : null}>
-              <div className="absolute" style={{ right: 92, bottom: 14 }}>
-                <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={boss.name} anim="idle" px={3} /></span>
+          {/* ONE CARD FOR THE FIGHT, ONE STRIP FOR YOUR WEEK. The tab used to open with a boss panel
+              carrying a four-cell type grid, a seven-box macro calendar and a reward band, then a
+              second panel giving each of three stats its own meter and its own sentence, then a third
+              panel of three charge tiles. That is eleven framed things to say two: here is what you
+              are fighting, and here is what your week made of you. The calendar collapses into the
+              sentence that was already summarising it, the three meters into one stat strip, and the
+              charge tiles into the count on the button that spends them. */}
+          <div className="pixel-box p-0 mb-3 overflow-hidden" style={{ background: 'var(--card)' }}>
+            <div className="relative overflow-hidden buddy-scene" style={{ height: 200, borderBottom: '2px solid var(--border)' }}>
+              {/* Both fighters share the scene now, facing each other, so the card shows the fight
+                  rather than a mugshot of the enemy. */}
+              <div className="pf absolute text-[8px] uppercase" style={{ left: 10, top: 8, letterSpacing: '0.14em', color: 'var(--muted)' }}>
+                This week's boss · {bossDaysLeft} {bossDaysLeft === 1 ? 'day' : 'days'} left
               </div>
-              <div className="absolute" style={{ right: 104, bottom: 10, width: 44, height: 5, background: 'var(--border)', opacity: 0.45 }} />
-            </FightScene>
+              <div className="absolute" style={{ left: 28, bottom: 26 }}><SpriteFooting px={3} shadowW={52}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></SpriteFooting></div>
+              <div className="absolute" style={{ right: 26, bottom: 40 }}>
+                <SpriteFooting px={4} shadowW={64}><span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={boss.name} anim="idle" px={4} /></span></SpriteFooting>
+              </div>
+            </div>
             <div className="p-3 flex flex-col gap-2.5">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="pf text-[15px]" style={{ letterSpacing: '0.04em' }}>{boss.name}</span>
-                <span className="pf text-[9px] uppercase tnum" style={{ letterSpacing: '0.1em', color: 'var(--muted)' }}>ATK {boss.stats.atk} DEF {boss.stats.def} HP {boss.stats.hp}</span>
+                <span className="pf text-[9px] uppercase tnum" style={{ letterSpacing: '0.1em', color: 'var(--muted)' }}>HP {boss.stats.hp}</span>
               </div>
-              {/* One sentence, and it names the macro rather than a type. The count it used to
-                  restate ("2 days in so far") is the track directly below, drawn as boxes you can
-                  read at a glance - see 20-ui-review 2.3. */}
               <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
                 Weak to <b style={{ color: 'var(--accent-ink)' }}>{bossPlan.macro}</b>, the macro you land least often.{' '}
                 {bossPlan.live
-                  ? 'Already taking 1.35x.'
+                  ? bossPlan.daysHit + ' ' + bossPlan.macro + ' day' + (bossPlan.daysHit === 1 ? '' : 's') + ' logged, hits land 1.35x.'
                   : bossPlan.daysHit === 0
-                    ? 'Three ' + bossPlan.macro + ' days this week starts it.'
-                    : (bossPlan.daysNeeded - bossPlan.daysHit) + ' more and it starts taking 1.35x.'}
+                    ? 'Three ' + bossPlan.macro + ' days this week and hits land 1.35x.'
+                    : bossPlan.daysHit + ' logged, ' + (bossPlan.daysNeeded - bossPlan.daysHit) + ' more and hits land 1.35x.'}
               </div>
-              <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
-                  <span>{bossPlan.macro}, this week</span><span>{bossPlan.daysHit} of {bossPlan.daysTotal} days</span>
-                </div>
-                <div className="grid gap-[3px]" style={{ gridTemplateColumns: 'repeat(7,1fr)' }}>
-                  {Array.from({ length: bossPlan.daysTotal }, (_, i) => {
-                    const done = i < bossPlan.daysHit;
-                    return <div key={i} style={{ height: 22, border: '2px ' + (done ? 'solid var(--border)' : 'dashed var(--muted2)'), background: done ? 'var(--weight)' : 'var(--surface3)' }} />;
-                  })}
-                </div>
-              </div>
-              {/* THE FIGHT ITSELF. This panel led the tab with a boss, its stats, the week's track and
-                  a reward, and no way to take any of it: `start(x, 'weekly')` had no call site, so the
-                  win path and its result rows had been written and were unreachable. Gated on the
-                  boss's OWN once-a-week key and today's log - never on `gate`, which carries the
-                  ladder's one-attempt-a-day rule and would have the two fights eating each other. */}
-              {!bossReady
-                ? <div className="text-[11px] text-center" style={{ color: 'var(--muted)' }}>{boss.name} is down for this week. A new one comes Monday.</div>
-                : loggedToday
-                  ? <Btn kind="accent" className="w-full" onClick={() => start(boss, 'weekly')}>Fight {boss.name}</Btn>
-                  : <div className="text-[11px] text-center" style={{ color: 'var(--muted)' }}>{boss.name} is waiting on today's log. It keeps until you do.</div>}
             </div>
             <div className="px-2.5 py-2 flex items-center justify-between" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
               <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>Clears for</span>
-              {/* The figure here is the figure the ledger mints, and nothing else. It used to also
-                  advertise a first-time bonus that no code has ever paid. */}
               <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.08em', color: 'var(--accent-ink)' }}>{Game.AMBER_REWARDS.weekly} Amber</span>
             </div>
-          </PlayPanel>
+          </div>
 
-          {/* 2 · YOUR FIGHTER, AS A STAT SHEET. Every figure carries the meter and the sentence that
-              earned it, so the stats read as a picture of the week rather than game numbers.
-              No status on the panel's bar: it used to be a type derived from a hash of the buddy's
-              NAME, so renaming it changed the label and nothing else. The three rows below carry
-              every number this panel owns. */}
-          {loggedToday ? (
-            <PlayPanel title={fighter.name + ' · stage ' + Math.max(1, si)}
-              footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
-                <div style={{ color: 'var(--text2)' }}>{fighterLine}</div></>}>
-              <FightScene height={112}>
-                <div className="absolute" style={{ left: '50%', marginLeft: -36, bottom: 14 }}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></div>
-                <div className="absolute" style={{ left: '50%', marginLeft: -24, bottom: 10, width: 48, height: 5, background: 'var(--border)', opacity: 0.5 }} />
-              </FightScene>
-              <div className="p-3">
-                <StatRow first value={fighter.stats.atk} label="Attack" filled={fighter.stats.pro} total={7} color="var(--pro)"
-                  note={fighter.stats.pro + ' protein day' + (fighter.stats.pro === 1 ? '' : 's') + ' in the last 7'} />
-                <StatRow value={fighter.stats.def} label="Defence" filled={fighter.stats.fib} total={7} color="var(--carb)"
-                  note={fighter.stats.fib + ' fibre day' + (fighter.stats.fib === 1 ? '' : 's') + ' in the last 7'} />
-                <StatRow value={fighter.stats.hp} label="Health" filled={Math.min(streak, 14)} total={14} color="var(--cal)"
-                  note={streak + ' day streak, ' + fighter.stats.per + ' perfect day' + (fighter.stats.per === 1 ? '' : 's')} />
+          {/* Your week, as three figures. The meters and the sentences under them were saying what
+              the numbers already say to anyone who has read this screen once. */}
+          <div className="pixel-box p-0 mb-3 grid grid-cols-3" style={{ background: 'var(--card)' }}>
+            {[[fighter.stats.atk, 'Attack', 'var(--pro)'], [fighter.stats.def, 'Defence', 'var(--carb)'], [fighter.stats.hp, 'Health', 'var(--cal)']].map(([v, l, c], i) => (
+              <div key={l} className="py-2.5 px-2 text-center flex flex-col gap-0.5" style={i < 2 ? { borderRight: '2px solid var(--border)' } : null}>
+                <span className="pf tnum" style={{ fontSize: 18, color: c }}>{v}</span>
+                <span className="pf text-[7px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{l}</span>
               </div>
-            </PlayPanel>
-          ) : (
-            /* Nothing logged: the fighter panel steps aside entirely and the screen leads with the one
-               action, priced. It dims the fights rather than hiding them, and never scolds. */
-            <PlayPanel title="One log opens today" right={'+' + Game.AMBER_REWARDS.dailyLog + ' Amber'}
-              footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
-                <div style={{ color: 'var(--text2)' }}>I fight on what you eat. Log one thing and I am up.</div></>}>
-              <FightScene height={112}>
-                <div className="absolute" style={{ left: '50%', marginLeft: -36, bottom: 14, opacity: 0.55 }}><FighterSprite buddy={db.buddy} anim="sleep" px={3} /></div>
-              </FightScene>
-              <div className="p-3">
-                <Btn kind="accent" className="w-full" onClick={() => { if (onLog) onLog(); else onClose(); }}>Log a meal</Btn>
-              </div>
-            </PlayPanel>
-          )}
+            ))}
+          </div>
 
-          {/* 3 · TODAY'S CHARGES. Earned by today, spent tonight. */}
-          <PlayPanel title="Today's charges" right={charges.count ? charges.count + ' of 3' : 'None yet'}
-            footer="Earned by today, spent in tonight's fight.">
-            <ChargeTiles charges={charges} spent={{}} onSpend={null} />
-          </PlayPanel>
+          {/* The fight, and the charges counted on the button that spends them. */}
+          {!bossReady
+            ? <div className="text-[11px] text-center mb-1" style={{ color: 'var(--muted)' }}>{boss.name} is down for this week. A new one comes Monday.</div>
+            : loggedToday
+              ? <Btn kind="accent" className="w-full" onClick={() => start(boss, 'weekly')}>
+                  Fight {boss.name}{charges.count ? ' · ' + charges.count + (charges.count === 1 ? ' charge' : ' charges') : ''}
+                </Btn>
+              : <div className="text-[11px] text-center mb-1" style={{ color: 'var(--muted)' }}>{boss.name} is waiting on today's log. It keeps until you do.</div>}
+          <div className="text-center text-[11px] mt-2 mb-4" style={{ color: 'var(--muted)' }}>
+            {charges.count ? 'Charges come from hitting your macro targets.' : 'Hit a macro target today and you fight with a charge in hand.'}
+          </div>
 
           {/* 4 · THE TWO FIGHTS. */}
           <PlayPanel title="Daily hunt" right={dailyReady ? ((fight.dailyStreak || 0) > 0 ? fight.dailyStreak + ' in a row' : (loggedToday ? 'Ready' : 'Locked')) : '+' + dailyAmber + ' Amber'}>

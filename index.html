@@ -23052,7 +23052,8 @@ function BondHearts({
   }, (_, i) => /*#__PURE__*/React.createElement("span", {
     key: i,
     style: {
-      color: i < n ? 'var(--danger-ink)' : 'var(--border)'
+      color: i < n ? 'var(--danger-ink)' : 'var(--muted2)',
+      opacity: i < n ? 1 : 0.55
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: i < n ? 'heart_full' : 'heart_empty',
@@ -23071,6 +23072,7 @@ function PlayBuddyView({
   onOpenName,
   onTrophies,
   onChat,
+  onDressUp,
   isPremium
 }) {
   const buddy = db.buddy || {};
@@ -23084,44 +23086,83 @@ function PlayBuddyView({
   const nextStage = BUDDY_STAGES[(buddy.stage || 0) + 1] || null;
   const toNext = nextStage ? Math.max(1, nextStage.min - streak) : 0;
   const prog = nextStage ? Math.max(0.04, Math.min(1, streak / nextStage.min)) : 1;
+  const eq = equippedCosmetics(buddy);
+  const sceneName = eq.scene && Game.COSMETIC_BY_ID[eq.scene] ? Game.COSMETIC_BY_ID[eq.scene].name : 'Dawn Flats';
+  /* ONE CARD, NOT SIX BOXES. This page used to stack a framed terrarium, a name block, a growth
+     panel, two buttons, a caption and a lore card, each in its own frame, which is a lot of ruled
+     lines for a screen whose job is to show you a dinosaur. The terrarium does the talking now: it
+     is nearly twice as tall, carries the scene name and the streak in its own corners, and the name,
+     mood, hearts and growth all live in the same card underneath it. The lore card is gone; a line
+     of flavour belongs in Talk, where the buddy is actually speaking. */
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col items-center text-center mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box mb-3",
+    className: "pixel-box p-0 mb-3 overflow-hidden",
     style: {
-      boxShadow: 'none',
+      background: 'var(--card)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative",
+    style: {
+      borderBottom: '2px solid var(--border)',
       lineHeight: 0
     }
   }, /*#__PURE__*/React.createElement(BuddyScene, {
     buddy: buddy,
     stageIndex: buddy.stage || 0,
     px: 4,
-    w: 132,
-    h: 130,
-    floor: 28,
-    spriteBottom: 8,
-    shadowW: 70,
-    eq: equippedCosmetics(buddy),
+    w: 384,
+    h: 238,
+    floor: 62,
+    spriteBottom: 38,
+    shadowW: 64,
+    eq: eq,
     asleep: asleep
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-lg font-bold"
-  }, who), incubating ? /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] mt-1 leading-snug max-w-[16rem]",
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "pf absolute text-[8px] uppercase",
+    style: {
+      left: 10,
+      top: 8,
+      letterSpacing: '0.14em',
+      color: 'var(--muted)'
+    }
+  }, sceneName), !incubating && /*#__PURE__*/React.createElement("div", {
+    className: "pf absolute text-[8px] uppercase",
+    style: {
+      right: 10,
+      top: 8,
+      letterSpacing: '0.14em',
+      color: 'var(--text)',
+      background: 'var(--card)',
+      border: '2px solid var(--border)',
+      padding: '3px 6px'
+    }
+  }, "Streak ", streak)), /*#__PURE__*/React.createElement("div", {
+    className: "px-3 py-3.5 flex flex-col items-center text-center gap-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf",
+    style: {
+      fontSize: 18,
+      letterSpacing: '0.06em'
+    }
+  }, who.toUpperCase()), incubating ? /*#__PURE__*/React.createElement("span", {
+    className: "text-[11.5px] leading-snug max-w-[17rem]",
     style: {
       color: 'var(--carb-ink)'
     }
-  }, "Incubating. Do the getting-started tasks on Today to hatch it.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] mt-1 leading-snug"
+  }, "Incubating. Do the getting-started tasks on Today to hatch it.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "text-[12px] leading-snug"
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: mm.color
+      color: mm.color,
+      fontWeight: 700
     }
-  }, mm.label), " · ", /*#__PURE__*/React.createElement("span", {
-    className: "text-[#8A8A90]"
-  }, line)), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 mt-2"
+  }, mm.label), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--text2)'
+    }
+  }, "· ", line)), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1.5"
   }, named && /*#__PURE__*/React.createElement(BondHearts, {
     n: bp.bond.hearts,
     max: bp.bond.maxHearts
@@ -23136,24 +23177,25 @@ function PlayBuddyView({
     color: "var(--carb)",
     size: 24
   }))))), !incubating && /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-3 mb-3",
+    className: "px-3 py-2.5 flex flex-col gap-1.5",
     style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
+      background: 'var(--surface2)',
+      borderTop: '2px solid var(--border)'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between mb-1.5"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase text-[#8A8A90]"
-  }, "Growth · ", st.name), /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[8px] uppercase text-[#8A8A90]"
-  }, "Streak ", streak)), /*#__PURE__*/React.createElement(PipLine, {
-    pct: prog * 100
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "text-[9px] text-[#8A8A90] mt-1.5"
-  }, nextStage ? `${toNext} more logged day${toNext === 1 ? '' : 's'} to reach ${nextStage.name}.` : `${who} is fully grown, the apex of the pit.`)), !incubating && onChat && /*#__PURE__*/React.createElement("button", {
+    className: "flex justify-between pf text-[8px] uppercase",
+    style: {
+      letterSpacing: '0.14em',
+      color: 'var(--muted)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "Growth · ", st.name), /*#__PURE__*/React.createElement("span", null, nextStage ? toNext + ' day' + (toNext === 1 ? '' : 's') + ' to ' + nextStage.name : 'Fully grown')), /*#__PURE__*/React.createElement(PipLine, {
+    pct: prog * 100,
+    color: "var(--cal)",
+    height: 12,
+    cells: 14
+  }))), !incubating && onChat && /*#__PURE__*/React.createElement("button", {
     onClick: onChat,
-    className: "pixel-btn w-full py-2.5 mb-2 text-[10px] inline-flex items-center justify-center gap-2",
+    className: "pixel-btn w-full py-3 mb-3 text-[10px] inline-flex items-center justify-center gap-2",
     style: {
       background: 'var(--accent)',
       color: 'var(--on-accent)'
@@ -23162,35 +23204,34 @@ function PlayBuddyView({
     kind: "chat",
     color: "currentColor",
     size: 24
-  }), " TALK TO ", (named ? bp.name : 'YOUR BUDDY').toUpperCase()), /*#__PURE__*/React.createElement("button", {
+  }), " TALK TO ", (named ? bp.name : 'YOUR BUDDY').toUpperCase()), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: onTrophies,
-    className: "pixel-btn w-full py-2.5 text-[10px] inline-flex items-center justify-center gap-2",
+    className: "pixel-btn py-3 text-[10px] inline-flex items-center justify-center gap-2",
     style: {
-      background: 'var(--surface2)'
+      background: 'var(--card)'
     }
   }, /*#__PURE__*/React.createElement(PixelGlyph, {
     kind: "trophy",
     color: "var(--fat)",
     size: 24
-  }), " TROPHY CABINET"), !incubating && /*#__PURE__*/React.createElement("div", {
-    className: "text-center text-[9px] text-[#8A8A90] mt-3 leading-snug"
-  }, "The food you log feeds ", who, ". Keep your streak going to grow it."), !incubating && /*#__PURE__*/React.createElement("div", {
-    className: "pixel-box p-2.5 mt-3 text-center",
+  }), " TROPHIES"), /*#__PURE__*/React.createElement("button", {
+    onClick: onDressUp,
+    className: "pixel-btn py-3 text-[10px] inline-flex items-center justify-center gap-2",
     style: {
-      background: 'var(--surface3)',
-      boxShadow: 'none'
+      background: 'var(--card)'
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "pf text-[7px] uppercase mb-1",
-    style: {
-      color: 'var(--fat-ink)'
-    }
-  }, "Dino lore"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] leading-snug",
+  }, /*#__PURE__*/React.createElement(PixelGlyph, {
+    kind: "star",
+    color: "var(--accent-ink)",
+    size: 24
+  }), " DRESS UP")), !incubating && /*#__PURE__*/React.createElement("div", {
+    className: "text-center text-[11px] mt-3",
     style: {
       color: 'var(--muted)'
     }
-  }, BUDDY_LORE[crHash((db.game_salt || '') + Store.todayISO()) % BUDDY_LORE.length])));
+  }, "The food you log feeds ", who, "."));
 }
 /* The buddy, answering back AND doing things. A conversation grounded in the same day snapshot the
    deeper dive uses, with a client-executed tool loop behind it: the model asks for a tool, this
@@ -23961,21 +24002,32 @@ function MacrodexModal({
     streak: streak,
     onBack: () => setTrophies(false)
   }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-end mb-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[10px] uppercase",
+    style: {
+      letterSpacing: '0.1em',
+      color: 'var(--fat-ink)'
+    }
+  }, /*#__PURE__*/React.createElement(Spark, {
+    size: 12
+  }), " ", amber, " Amber")), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-3 mb-4",
     style: {
-      border: '2px solid var(--border)'
+      border: '3px solid var(--border)'
     }
-  }, [['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+  }, [['buddy', 'Buddy'], ['battle', 'Battle'], ['shop', 'Shop']].map(([k, l], i) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setView(k),
     className: "pf uppercase",
     style: {
-      padding: '9px 2px',
+      padding: '11px 2px',
       fontSize: 10,
-      letterSpacing: '0.08em',
+      letterSpacing: '0.1em',
       lineHeight: 1.4,
+      borderRight: i < 2 ? '3px solid var(--border)' : undefined,
       background: view === k ? 'var(--accent)' : 'var(--card)',
-      color: view === k ? 'var(--on-accent)' : 'var(--muted2)'
+      color: view === k ? 'var(--on-accent)' : 'var(--muted)'
     }
   }, l))), view === 'buddy' && /*#__PURE__*/React.createElement(PlayBuddyView, {
     db: db,
@@ -23985,6 +24037,7 @@ function MacrodexModal({
     onOpenName: onOpenName,
     onTrophies: () => setTrophies(true),
     onChat: () => setChatting(true),
+    onDressUp: () => setView('shop'),
     isPremium: isPremium
   }), view === 'battle' && /*#__PURE__*/React.createElement(FightModal, {
     db: db,
@@ -25086,6 +25139,36 @@ function PlayPanel({
     }
   }, footer));
 }
+// A sprite standing ON its shadow. The shadow belongs inside the sprite's own box, not measured from
+// the card, because the art sits a couple of pixels up inside its 24px cell and that gap scales with
+// px: pinned to the card, a 4x enemy floats twice as far off the ground as a 2x one.
+function SpriteFooting({
+  px,
+  shadowW,
+  children
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "relative",
+    style: {
+      width: 24 * px,
+      height: 24 * px
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: {
+      left: '50%',
+      bottom: Math.round(px * 0.8),
+      transform: 'translateX(-50%)',
+      width: shadowW,
+      height: 6,
+      background: 'var(--border)',
+      opacity: 0.4,
+      borderRadius: '50%'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "absolute inset-0"
+  }, children));
+}
 // A scene band: the sky/ground the app already paints, with whatever is standing in it on top.
 function FightScene({
   height,
@@ -25980,33 +26063,46 @@ function FightModal({
   }, "Log a meal")), phase === 'select' && /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-2 mb-3"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[9px] uppercase",
+    className: "pixel-box p-0 mb-3 overflow-hidden",
     style: {
-      letterSpacing: '0.12em',
+      background: 'var(--card)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative overflow-hidden buddy-scene",
+    style: {
+      height: 200,
+      borderBottom: '2px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf absolute text-[8px] uppercase",
+    style: {
+      left: 10,
+      top: 8,
+      letterSpacing: '0.14em',
       color: 'var(--muted)'
     }
-  }, (fight.prestige || 0) > 0 ? 'Prestige ' + fight.prestige + ' · ' : '', fight.wins || 0, " wins"), /*#__PURE__*/React.createElement("span", {
-    className: "pf text-[10px] uppercase",
-    style: {
-      letterSpacing: '0.1em',
-      color: 'var(--fat-ink)'
-    }
-  }, /*#__PURE__*/React.createElement(Spark, {
-    size: 12
-  }), " ", amber, " Amber")), /*#__PURE__*/React.createElement(PlayPanel, {
-    title: "This week's boss",
-    right: bossDaysLeft + (bossDaysLeft === 1 ? ' day left' : ' days left')
-  }, /*#__PURE__*/React.createElement(FightScene, {
-    height: 112,
-    label: worn.arena && Game.COSMETIC_BY_ID[worn.arena] ? Game.COSMETIC_BY_ID[worn.arena].name : null
-  }, /*#__PURE__*/React.createElement("div", {
+  }, "This week's boss · ", bossDaysLeft, " ", bossDaysLeft === 1 ? 'day' : 'days', " left"), /*#__PURE__*/React.createElement("div", {
     className: "absolute",
     style: {
-      right: 92,
-      bottom: 14
+      left: 28,
+      bottom: 26
     }
+  }, /*#__PURE__*/React.createElement(SpriteFooting, {
+    px: 3,
+    shadowW: 52
+  }, /*#__PURE__*/React.createElement(FighterSprite, {
+    buddy: db.buddy,
+    anim: "idle",
+    px: 3
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "absolute",
+    style: {
+      right: 26,
+      bottom: 40
+    }
+  }, /*#__PURE__*/React.createElement(SpriteFooting, {
+    px: 4,
+    shadowW: 64
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       display: 'inline-block',
@@ -26015,18 +26111,8 @@ function FightModal({
   }, /*#__PURE__*/React.createElement(EnemySprite, {
     name: boss.name,
     anim: "idle",
-    px: 3
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
-    style: {
-      right: 104,
-      bottom: 10,
-      width: 44,
-      height: 5,
-      background: 'var(--border)',
-      opacity: 0.45
-    }
-  })), /*#__PURE__*/React.createElement("div", {
+    px: 4
+  }))))), /*#__PURE__*/React.createElement("div", {
     className: "p-3 flex flex-col gap-2.5"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-baseline justify-between gap-2"
@@ -26041,7 +26127,7 @@ function FightModal({
       letterSpacing: '0.1em',
       color: 'var(--muted)'
     }
-  }, "ATK ", boss.stats.atk, " DEF ", boss.stats.def, " HP ", boss.stats.hp)), /*#__PURE__*/React.createElement("div", {
+  }, "HP ", boss.stats.hp)), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] leading-snug",
     style: {
       color: 'var(--text2)'
@@ -26050,46 +26136,7 @@ function FightModal({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, bossPlan.macro), ", the macro you land least often.", ' ', bossPlan.live ? 'Already taking 1.35x.' : bossPlan.daysHit === 0 ? 'Three ' + bossPlan.macro + ' days this week starts it.' : bossPlan.daysNeeded - bossPlan.daysHit + ' more and it starts taking 1.35x.'), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col gap-1.5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-between pf text-[8px] uppercase",
-    style: {
-      letterSpacing: '0.14em',
-      color: 'var(--muted)'
-    }
-  }, /*#__PURE__*/React.createElement("span", null, bossPlan.macro, ", this week"), /*#__PURE__*/React.createElement("span", null, bossPlan.daysHit, " of ", bossPlan.daysTotal, " days")), /*#__PURE__*/React.createElement("div", {
-    className: "grid gap-[3px]",
-    style: {
-      gridTemplateColumns: 'repeat(7,1fr)'
-    }
-  }, Array.from({
-    length: bossPlan.daysTotal
-  }, (_, i) => {
-    const done = i < bossPlan.daysHit;
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        height: 22,
-        border: '2px ' + (done ? 'solid var(--border)' : 'dashed var(--muted2)'),
-        background: done ? 'var(--weight)' : 'var(--surface3)'
-      }
-    });
-  }))), !bossReady ? /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-center",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, boss.name, " is down for this week. A new one comes Monday.") : loggedToday ? /*#__PURE__*/React.createElement(Btn, {
-    kind: "accent",
-    className: "w-full",
-    onClick: () => start(boss, 'weekly')
-  }, "Fight ", boss.name) : /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-center",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, boss.name, " is waiting on today's log. It keeps until you do.")), /*#__PURE__*/React.createElement("div", {
+  }, bossPlan.macro), ", the macro you land least often.", ' ', bossPlan.live ? bossPlan.daysHit + ' ' + bossPlan.macro + ' day' + (bossPlan.daysHit === 1 ? '' : 's') + ' logged, hits land 1.35x.' : bossPlan.daysHit === 0 ? 'Three ' + bossPlan.macro + ' days this week and hits land 1.35x.' : bossPlan.daysHit + ' logged, ' + (bossPlan.daysNeeded - bossPlan.daysHit) + ' more and hits land 1.35x.')), /*#__PURE__*/React.createElement("div", {
     className: "px-2.5 py-2 flex items-center justify-between",
     style: {
       background: 'var(--surface2)',
@@ -26107,122 +26154,49 @@ function FightModal({
       letterSpacing: '0.08em',
       color: 'var(--accent-ink)'
     }
-  }, Game.AMBER_REWARDS.weekly, " Amber"))), loggedToday ? /*#__PURE__*/React.createElement(PlayPanel, {
-    title: fighter.name + ' · stage ' + Math.max(1, si),
-    footer: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-      className: "pf text-[8px] uppercase inline-block mb-1.5",
-      style: {
-        letterSpacing: '0.14em',
-        background: 'var(--accent)',
-        color: 'var(--on-accent)',
-        border: '2px solid var(--border)',
-        padding: '3px 6px'
-      }
-    }, "Says"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        color: 'var(--text2)'
-      }
-    }, fighterLine))
-  }, /*#__PURE__*/React.createElement(FightScene, {
-    height: 112
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
+  }, Game.AMBER_REWARDS.weekly, " Amber"))), /*#__PURE__*/React.createElement("div", {
+    className: "pixel-box p-0 mb-3 grid grid-cols-3",
     style: {
-      left: '50%',
-      marginLeft: -36,
-      bottom: 14
+      background: 'var(--card)'
     }
-  }, /*#__PURE__*/React.createElement(FighterSprite, {
-    buddy: db.buddy,
-    anim: "idle",
-    px: 3
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
+  }, [[fighter.stats.atk, 'Attack', 'var(--pro)'], [fighter.stats.def, 'Defence', 'var(--carb)'], [fighter.stats.hp, 'Health', 'var(--cal)']].map(([v, l, c], i) => /*#__PURE__*/React.createElement("div", {
+    key: l,
+    className: "py-2.5 px-2 text-center flex flex-col gap-0.5",
+    style: i < 2 ? {
+      borderRight: '2px solid var(--border)'
+    } : null
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pf tnum",
     style: {
-      left: '50%',
-      marginLeft: -24,
-      bottom: 10,
-      width: 48,
-      height: 5,
-      background: 'var(--border)',
-      opacity: 0.5
+      fontSize: 18,
+      color: c
     }
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "p-3"
-  }, /*#__PURE__*/React.createElement(StatRow, {
-    first: true,
-    value: fighter.stats.atk,
-    label: "Attack",
-    filled: fighter.stats.pro,
-    total: 7,
-    color: "var(--pro)",
-    note: fighter.stats.pro + ' protein day' + (fighter.stats.pro === 1 ? '' : 's') + ' in the last 7'
-  }), /*#__PURE__*/React.createElement(StatRow, {
-    value: fighter.stats.def,
-    label: "Defence",
-    filled: fighter.stats.fib,
-    total: 7,
-    color: "var(--carb)",
-    note: fighter.stats.fib + ' fibre day' + (fighter.stats.fib === 1 ? '' : 's') + ' in the last 7'
-  }), /*#__PURE__*/React.createElement(StatRow, {
-    value: fighter.stats.hp,
-    label: "Health",
-    filled: Math.min(streak, 14),
-    total: 14,
-    color: "var(--cal)",
-    note: streak + ' day streak, ' + fighter.stats.per + ' perfect day' + (fighter.stats.per === 1 ? '' : 's')
-  }))) :
-  /*#__PURE__*/
-  /* Nothing logged: the fighter panel steps aside entirely and the screen leads with the one
-     action, priced. It dims the fights rather than hiding them, and never scolds. */
-  React.createElement(PlayPanel, {
-    title: "One log opens today",
-    right: '+' + Game.AMBER_REWARDS.dailyLog + ' Amber',
-    footer: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-      className: "pf text-[8px] uppercase inline-block mb-1.5",
-      style: {
-        letterSpacing: '0.14em',
-        background: 'var(--accent)',
-        color: 'var(--on-accent)',
-        border: '2px solid var(--border)',
-        padding: '3px 6px'
-      }
-    }, "Says"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        color: 'var(--text2)'
-      }
-    }, "I fight on what you eat. Log one thing and I am up."))
-  }, /*#__PURE__*/React.createElement(FightScene, {
-    height: 112
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "absolute",
+  }, v), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[7px] uppercase",
     style: {
-      left: '50%',
-      marginLeft: -36,
-      bottom: 14,
-      opacity: 0.55
+      letterSpacing: '0.14em',
+      color: 'var(--muted)'
     }
-  }, /*#__PURE__*/React.createElement(FighterSprite, {
-    buddy: db.buddy,
-    anim: "sleep",
-    px: 3
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "p-3"
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }, l)))), !bossReady ? /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-center mb-1",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, boss.name, " is down for this week. A new one comes Monday.") : loggedToday ? /*#__PURE__*/React.createElement(Btn, {
     kind: "accent",
     className: "w-full",
-    onClick: () => {
-      if (onLog) onLog();else onClose();
+    onClick: () => start(boss, 'weekly')
+  }, "Fight ", boss.name, charges.count ? ' · ' + charges.count + (charges.count === 1 ? ' charge' : ' charges') : '') : /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-center mb-1",
+    style: {
+      color: 'var(--muted)'
     }
-  }, "Log a meal"))), /*#__PURE__*/React.createElement(PlayPanel, {
-    title: "Today's charges",
-    right: charges.count ? charges.count + ' of 3' : 'None yet',
-    footer: "Earned by today, spent in tonight's fight."
-  }, /*#__PURE__*/React.createElement(ChargeTiles, {
-    charges: charges,
-    spent: {},
-    onSpend: null
-  })), /*#__PURE__*/React.createElement(PlayPanel, {
+  }, boss.name, " is waiting on today's log. It keeps until you do."), /*#__PURE__*/React.createElement("div", {
+    className: "text-center text-[11px] mt-2 mb-4",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, charges.count ? 'Charges come from hitting your macro targets.' : 'Hit a macro target today and you fight with a charge in hand.'), /*#__PURE__*/React.createElement(PlayPanel, {
     title: "Daily hunt",
     right: dailyReady ? (fight.dailyStreak || 0) > 0 ? fight.dailyStreak + ' in a row' : loggedToday ? 'Ready' : 'Locked' : '+' + dailyAmber + ' Amber'
   }, /*#__PURE__*/React.createElement("div", {
