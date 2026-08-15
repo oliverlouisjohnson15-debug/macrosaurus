@@ -9015,6 +9015,33 @@ function PropPreview({ id }) {
   const p = PROP_ART[id]; if (!p) return null;
   return <span style={{ lineHeight: 0 }}><Sprite art={p.art} colors={p.colors} px={2.6} /></span>;
 }
+/* Swatches for the three fight slots. A shop row cannot stand your buddy in an arena or wave a
+   banner at you, but it can show the thing's own colours, which beats one grey glyph standing in for
+   thirteen different items. Same two-band construction as the scene previews. */
+const ARENA_SWATCH = {
+  arena_pit: ['var(--scene-top)', 'var(--surface2)', 'var(--border)'],
+  arena_bone: ['#f6ecd9', '#e3d2b0', '#cbbba0'],
+  arena_ash: ['#3a2a26', '#211615', '#8c4520'],
+  arena_ice: ['#dceaf3', '#b3d2e6', '#8fb6cf'],
+  arena_colosseum: ['#efe6d4', '#cbbb9c', '#b6a486'],
+};
+function ArenaSwatch({ id, size = 40 }) {
+  const a = ARENA_SWATCH[id] || ARENA_SWATCH.arena_pit;
+  return <div style={{ width: size, height: size, background: a[0], position: 'relative', overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '38%', background: a[1], borderTop: '2px solid ' + a[2] }} />
+    <div style={{ position: 'absolute', left: 6, bottom: 4, width: 10, height: 4, background: a[2] }} />
+    <div style={{ position: 'absolute', right: 5, bottom: 6, width: 6, height: 8, background: a[2] }} />
+  </div>;
+}
+function BannerSwatch({ id, size = 40 }) {
+  const fill = id === 'banner_champion' ? 'var(--fat)' : id === 'banner_founder' ? 'var(--weight)'
+    : id === 'banner_hunter' ? 'var(--surface2)' : 'var(--accent)';
+  return <div style={{ width: size, height: size, position: 'relative', background: 'var(--surface2)' }}>
+    <div style={{ position: 'absolute', left: 13, top: 6, width: 3, height: 28, background: 'var(--border)' }} />
+    <div style={{ position: 'absolute', left: 16, top: 6, width: 18, height: 13, background: fill, border: '2px solid var(--border)' }} />
+  </div>;
+}
+
 function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   const owned = (db.buddy && db.buddy.cosmetics) || [];
   const worn = equippedCosmetics(db.buddy);
@@ -9047,8 +9074,10 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
     if (c.kind === 'aura') return <span style={{ filter: auraFilter({ aura: c.id }) || undefined, lineHeight: 0 }}><BuddyAvatar buddy={auraBuddy} px={1.1} /></span>;
     if (c.kind === 'scene') return <ScenePreview id={c.id} />;
     if (c.kind === 'prop') return <PropPreview id={c.id} />;
-    const glyph = c.kind === 'arena' ? 'square' : c.kind === 'banner' ? 'goal' : 'star';
-    return <PixelGlyph kind={glyph} color="var(--accent-ink)" size={24} />;
+    if (c.kind === 'arena') return <ArenaSwatch id={c.id} />;
+    if (c.kind === 'banner') return <BannerSwatch id={c.id} />;
+    if (c.kind === 'flourish') return <PixelGlyph kind={c.id === 'flourish_meteor' ? 'bolt' : c.id === 'flourish_confetti' ? 'star' : 'dino'} color="var(--accent-ink)" size={24} />;
+    return <PixelGlyph kind="star" color="var(--accent-ink)" size={24} />;
   }
 
   // One shop row, in all five states the catalogue can be in: affordable, too dear, owned, worn, and
@@ -9136,7 +9165,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
                     <span className="pf block text-[9px] uppercase" style={{ letterSpacing: '0.12em' }}>{meta.label}</span>
                     <span className="block text-[10.5px]" style={{ color: 'var(--muted)' }}>{meta.blurb}</span>
                   </span>
-                  <span className="pf text-[9px] uppercase shrink-0" style={{ letterSpacing: '0.1em', color: 'var(--muted)' }}>{have} / {items.length} {isOpen ? '›' : '›'}</span>
+                  <span className="pf text-[9px] uppercase shrink-0" style={{ letterSpacing: '0.1em', color: 'var(--muted)' }}>{have} / {items.length} {isOpen ? '\u2039' : '\u203a'}</span>
                 </button>
                 {isOpen && <div className="px-2.5 pb-2.5 space-y-2">{items.map(c => <Row key={c.id} c={c} />)}</div>}
               </div>
@@ -9269,7 +9298,12 @@ function rivalStats(rival, rank, prestige) {
 const FIGHT_HIT = ['{x} chomps down', '{x} swings its tail', '{x} rakes with its claws', '{x} headbutts hard', '{x} lets out a roar', '{x} snaps its jaws', '{x} gores with its horns', '{x} stomps in'];
 // Macro types for the fight: label + colour + the macro that feeds them.
 const TYPE_META = { power: ['Power', 'var(--pro)', 'protein'], guard: ['Guard', 'var(--fat)', 'fats'], swift: ['Swift', 'var(--carb)', 'carbs'], renew: ['Renew', 'var(--good)', 'fibre'], balanced: ['Balanced', 'var(--muted)', 'a balance'] };
-function TypeChip({ t }) { const m = TYPE_META[t] || TYPE_META.balanced; return <span className="pf text-[7px] uppercase px-1 py-0.5 rounded" style={{ color: m[1], background: 'color-mix(in srgb, ' + m[1] + ' 16%, transparent)' }}>{m[0]}</span>; }
+function TypeChip({ t }) {
+  // A solid chip, not a tint: this is the only place an enemy's type is named, and a 16% wash of the
+  // macro colour on paper was too faint to read as a label at 7px.
+  const m = TYPE_META[t] || TYPE_META.balanced;
+  return <span className="pf text-[7px] uppercase px-1.5 py-1" style={{ letterSpacing: '0.1em', background: m[1], color: '#fffdf7', border: '2px solid var(--border)' }}>{m[0]}</span>;
+}
 
 /* ---- The Play overhaul's building blocks ----
    A panel is the app's standard card: ink title bar, one status on the right, a divided interior.
@@ -9470,6 +9504,11 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
     pendingRef.current = p;
   }
 
+  // How close the egg is to hatching, so the pre-hatch screen can say it rather than only refuse.
+  const hatchNeed = 3;
+  const hatchHave = Math.min(hatchNeed, streak);
+  const hatchPct = Math.round((hatchHave / hatchNeed) * 100);
+  const hatchLeft = Math.max(0, hatchNeed - hatchHave);
   const [phase, setPhase] = useState(si === 0 ? 'egg' : 'select');
   const [opp, setOpp] = useState(null); const [isBoss, setIsBoss] = useState(false); const [isDaily, setIsDaily] = useState(false); const [amberEarned, setAmberEarned] = useState(0);
   const [hpA, setHpA] = useState(100); const [hpB, setHpB] = useState(100);
@@ -9713,11 +9752,20 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
   );
 
   const body = (<>
-        {phase === 'egg' && <div className="text-center py-6">
-          <div className="flex justify-center mb-3"><Sprite art="egg" colors={crC('#EAD9A0', '#C77D3A')} px={7} /></div>
-          <div className="text-sm font-bold mb-1">Your buddy is still an egg</div>
-          <div className="text-[12px] text-[#8A8A90] mb-4">Log a day to hatch a fighter, then step into the pit.</div>
-          <Btn kind="accent" className="w-full" onClick={onClose}>Got it</Btn>
+        {/* STILL AN EGG. The same panel construction as everything else on this screen rather than a
+            bare paragraph, and it says how close the hatch is instead of just refusing. */}
+        {phase === 'egg' && <div className="fade-in">
+          <PlayPanel title="Still an egg" right={hatchPct + ' percent'}
+            footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
+              <div style={{ color: 'var(--text2)' }}>{hatchLeft > 0 ? hatchLeft + ' more logged day' + (hatchLeft === 1 ? '' : 's') + ' and you will meet me. No fights until then.' : 'Nearly out. No fights until then.'}</div></>}>
+            <FightScene height={112}>
+              <div className="absolute" style={{ left: '50%', marginLeft: -36, bottom: 14 }}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></div>
+            </FightScene>
+            <div className="p-3">
+              <PipLine pct={hatchPct} color="var(--accent)" height={12} cells={14} />
+            </div>
+          </PlayPanel>
+          <Btn kind="accent" className="w-full" onClick={() => { if (onLog) onLog(); else onClose(); }}>Log a meal</Btn>
         </div>}
 
         {phase === 'select' && <div className="fade-in">
@@ -9732,7 +9780,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
           {/* 1 · THIS WEEK'S BOSS. The panel that gives the week a point: who you are fighting, the
               macro that breaks its guard, and how far into the week you already are. */}
           <PlayPanel title="This week's boss" right={bossDaysLeft + (bossDaysLeft === 1 ? ' day left' : ' days left')}>
-            <FightScene height={112} label={Game.COSMETIC_BY_ID[wornArena] ? Game.COSMETIC_BY_ID[wornArena].name : null}>
+            <FightScene height={112} label={worn.arena && Game.COSMETIC_BY_ID[worn.arena] ? Game.COSMETIC_BY_ID[worn.arena].name : null}>
               <div className="absolute" style={{ right: 92, bottom: 14 }}>
                 <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={boss.name} anim="idle" px={3} /></span>
               </div>
