@@ -9133,16 +9133,17 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   return (
     <div className="fade-in">
       {onBack && <div className="mb-3"><button onClick={onBack} className="hit text-[11px] text-[#8A8A90]"><Icon.arrow_left width="16" /> Back</button></div>}
-      <div className="flex items-baseline justify-between gap-3 mb-1">
+      {/* No explainer under the heading. It listed three of the four ways Amber is earned and the
+          buddy's own nudge listed a different three; both were partial and they disagreed. Every
+          reward is already priced where it is earned, on Battle, which is where a reward is legible. */}
+      <div className="flex items-baseline justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">Amber Shop</h2>
         <span className="pf text-[10px] shrink-0" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
       </div>
-      <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Amber comes from logging your days, the daily hunt and whatever your buddy forages. Spend it here.</div>
 
       {/* THIS WEEK'S STALL. Six tabs at 390px runs to 8px type and leaves the rotation nowhere to
           live, so the shop leads with a stall that changes on Monday and collapses the rest. */}
-      <PlayPanel title="This week's stall" right={stallLeft + (stallLeft === 1 ? ' day left' : ' days left')}
-        footer="Six rotate in each Monday. Nothing leaves the catalogue, it only leaves the stall.">
+      <PlayPanel title="This week's stall" right={stallLeft + (stallLeft === 1 ? ' day left' : ' days left')}>
         <div className="p-2.5 space-y-2">
           {stall.map(c => c.kind === 'habitat'
             ? <Row key={c.id} c={c} onBuy={() => buyHabitat(c.id)} ownedLabel={Game.hasHabitat(habitatOwned, c.id) ? 'OWNED' : null} />
@@ -9180,8 +9181,7 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
 
       {/* HABITAT UPGRADES. Bought once, and they stack. Nothing here is ever swapped out, which is
           what makes it the sink that does not run out, and why it reads as a savings goal. */}
-      <PlayPanel title="Habitat upgrades" right="Kept for good"
-        footer="Bought once and they stack. Nothing here is ever swapped out, so this is what Amber is for.">
+      <PlayPanel title="Habitat upgrades" right="Kept for good">
         <div className="p-2.5 space-y-2">
           {Game.HABITAT.map(h => {
             const prog = Game.habitatProgress(habitatOwned, h.id, amber, earnPerDay);
@@ -9296,14 +9296,14 @@ function rivalStats(rival, rank, prestige) {
   return { hp: Math.round((80 + rank * 12) * sc), atk: Math.round((9 + rival.power * 3 + rank) * sc), def: Math.round((3 + rival.power * 2) * sc), ability: rival.ability || 'none' };
 }
 const FIGHT_HIT = ['{x} chomps down', '{x} swings its tail', '{x} rakes with its claws', '{x} headbutts hard', '{x} lets out a roar', '{x} snaps its jaws', '{x} gores with its horns', '{x} stomps in'];
-// Macro types for the fight: label + colour + the macro that feeds them.
-const TYPE_META = { power: ['Power', 'var(--pro)', 'protein'], guard: ['Guard', 'var(--fat)', 'fats'], swift: ['Swift', 'var(--carb)', 'carbs'], renew: ['Renew', 'var(--good)', 'fibre'], balanced: ['Balanced', 'var(--muted)', 'a balance'] };
-function TypeChip({ t }) {
-  // A solid chip, not a tint: this is the only place an enemy's type is named, and a 16% wash of the
-  // macro colour on paper was too faint to read as a label at 7px.
-  const m = TYPE_META[t] || TYPE_META.balanced;
-  return <span className="pf text-[7px] uppercase px-1.5 py-1" style={{ letterSpacing: '0.1em', background: m[1], color: '#fffdf7', border: '2px solid var(--border)' }}>{m[0]}</span>;
-}
+/* NO TYPE VOCABULARY ON THIS SCREEN. The fight carried a four-way macro type triangle (Power, Guard,
+   Swift, Renew) in four places - a row on the boss panel, a chip on each enemy, a matchup sentence
+   with an explicit multiplier, and a type on your own fighter derived from a hash of its NAME - and
+   the bout has been type-neutral since Phase 6 (see `start`, where mult is 1). Game.typeMult reached
+   the screen only through a display function and never once touched the combat loop, so the screen
+   was teaching a second model of how a fight is won, and charging about forty words for it.
+   The engine keeps its type table and its tests; the interface names the MACRO directly, which is
+   the real thing the type was always a wrapper around. See design-plans/24. */
 
 /* ---- The Play overhaul's building blocks ----
    A panel is the app's standard card: ink title bar, one status on the right, a divided interior.
@@ -9338,24 +9338,6 @@ function StatRow({ value, label, filled, total, color, note, first }) {
         <PipLine pct={Math.max(0, Math.min(100, (filled / (total || 1)) * 100))} color={color} height={12} cells={14} />
         <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>{note}</span>
       </div>
-    </div>
-  );
-}
-// The four macro types as a row, with the one that matters lit. On the boss panel this is the
-// weakness; it is the only place in the app that names a macro as a thing to go and eat today.
-function TypeRow({ lit }) {
-  return (
-    <div className="grid grid-cols-4 gap-1.5">
-      {Game.FIGHT_TYPES.map(t => {
-        const on = t === lit;
-        const m = TYPE_META[t] || TYPE_META.balanced;
-        return (
-          <div key={t} className="pf text-center text-[8px] uppercase py-1.5 px-1" style={{
-            letterSpacing: '0.08em', border: '2px solid var(--border)',
-            background: on ? m[1] : 'transparent', color: on ? 'var(--on-accent)' : 'var(--muted)', fontWeight: on ? 700 : 400,
-          }}>{m[0]}</div>
-        );
-      })}
     </div>
   );
 }
@@ -9431,7 +9413,6 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
     return Game.bossPlan(fortnight, week);
   }, [db.log_entries, db.targets, today]);
   const bossDaysLeft = Game.bossDaysLeft(today);
-  const buddyType = Game.typeForName(fighter.name);
   const amber = Game.amberBalance(db.amber_ledger);
   // The bought arena and banner are only ever seen HERE, which is what makes them worth selling
   // separately from the terrarium. Both fall back to a free default so a fight is never unpainted.
@@ -9470,15 +9451,6 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
     : wornBanner === 'banner_founder' ? { fill: 'var(--weight)', ink: '#fffdf7' }
     : wornBanner === 'banner_hunter' ? { fill: 'var(--surface2)', ink: 'var(--text)' }
     : { fill: 'var(--accent)', ink: 'var(--on-accent)' };
-  // What the matchup means, in a sentence. The type triangle has been in the engine since the fight
-  // was built and has never once been explained on screen.
-  function matchupLine(mine, theirs) {
-    const m = Game.typeMult(mine, theirs);
-    const mineL = (TYPE_META[mine] || TYPE_META.balanced)[0], theirsL = (TYPE_META[theirs] || TYPE_META.balanced)[0];
-    if (m > 1) return 'Your ' + mineL + ' beats its ' + theirsL + ', ' + m + 'x.';
-    if (m < 1) return 'Its ' + theirsL + ' resists your ' + mineL + ', ' + m + 'x.';
-    return 'Evenly matched on type, so this is down to the week you have had.';
-  }
   // The buddy's own read on today, in its voice: recovery first, since that is the one thing that
   // changes the fight and is not food.
   const fighterLine = (() => {
@@ -9791,14 +9763,16 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                 <span className="pf text-[15px]" style={{ letterSpacing: '0.04em' }}>{boss.name}</span>
                 <span className="pf text-[9px] uppercase tnum" style={{ letterSpacing: '0.1em', color: 'var(--muted)' }}>ATK {boss.stats.atk} DEF {boss.stats.def} HP {boss.stats.hp}</span>
               </div>
-              <TypeRow lit={bossPlan.type} />
+              {/* One sentence, and it names the macro rather than a type. The count it used to
+                  restate ("2 days in so far") is the track directly below, drawn as boxes you can
+                  read at a glance - see 20-ui-review 2.3. */}
               <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
-                Guards against everything but <b style={{ color: 'var(--accent-ink)' }}>{(TYPE_META[bossPlan.type] || TYPE_META.balanced)[0]}</b>, and {(TYPE_META[bossPlan.type] || TYPE_META.balanced)[0]} is {bossPlan.macro}.{' '}
+                Weak to <b style={{ color: 'var(--accent-ink)' }}>{bossPlan.macro}</b>, the macro you land least often.{' '}
                 {bossPlan.live
-                  ? bossPlan.daysHit + ' ' + bossPlan.macro + ' days in so far, so it is already taking 1.35x.'
+                  ? 'Already taking 1.35x.'
                   : bossPlan.daysHit === 0
-                    ? 'No ' + bossPlan.macro + ' days yet this week. Three of them and it starts taking 1.35x.'
-                    : bossPlan.daysHit + ' so far. ' + (bossPlan.daysNeeded - bossPlan.daysHit) + ' more and it starts taking 1.35x.'}
+                    ? 'Three ' + bossPlan.macro + ' days this week starts it.'
+                    : (bossPlan.daysNeeded - bossPlan.daysHit) + ' more and it starts taking 1.35x.'}
               </div>
               <div className="flex flex-col gap-1.5">
                 <div className="flex justify-between pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
@@ -9819,9 +9793,12 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
           </PlayPanel>
 
           {/* 2 · YOUR FIGHTER, AS A STAT SHEET. Every figure carries the meter and the sentence that
-              earned it, so the stats read as a picture of the week rather than game numbers. */}
+              earned it, so the stats read as a picture of the week rather than game numbers.
+              No status on the panel's bar: it used to be a type derived from a hash of the buddy's
+              NAME, so renaming it changed the label and nothing else. The three rows below carry
+              every number this panel owns. */}
           {loggedToday ? (
-            <PlayPanel title={fighter.name + ' · stage ' + Math.max(1, si)} right={(TYPE_META[buddyType] || TYPE_META.balanced)[0]}
+            <PlayPanel title={fighter.name + ' · stage ' + Math.max(1, si)}
               footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
                 <div style={{ color: 'var(--text2)' }}>{fighterLine}</div></>}>
               <FightScene height={112}>
@@ -9867,12 +9844,8 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                     <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={daily.name} anim="idle" px={2.5} /></span>
                   </div>
                   <div className="min-w-0 flex-1 flex flex-col gap-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="pf text-[13px]" style={{ letterSpacing: '0.04em' }}>{daily.name}</span>
-                      <TypeChip t={daily.type} />
-                    </div>
+                    <span className="pf text-[13px]" style={{ letterSpacing: '0.04em' }}>{daily.name}</span>
                     <span className="pf text-[8px] uppercase tnum" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>ATK {daily.stats.atk} DEF {daily.stats.def} HP {daily.stats.hp}</span>
-                    <span className="text-[11.5px]" style={{ color: 'var(--text2)' }}>{matchupLine(buddyType, daily.type)}</span>
                   </div>
                 </div>
                 {loggedToday
@@ -9939,7 +9912,7 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
               </div>
             ) : (
               <div className="text-[11px] leading-snug" style={{ opacity: 0.85 }}>
-                No charges today, so this is your week fighting alone.{bossPlan.live ? ' ' + (TYPE_META[bossPlan.type] || TYPE_META.balanced)[0] + ' still lands 1.35x.' : ''}
+                No charges today, so this is your week fighting alone.{bossPlan.live ? ' ' + bossPlan.macro + ' still lands 1.35x.' : ''}
               </div>
             ))}
           </div>
