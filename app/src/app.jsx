@@ -9503,7 +9503,11 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
   // attack is scaled by the type matchup (and the boss-weakness bonus when exploited) before the bout.
   function start(opponent, kind) {
     const isBossFight = kind === 'weekly'; // the weekly boss still grants the trophy
-    const mult = 1; // always balanced: no macro type advantage (Phase 6)
+    // No macro TYPE advantage (Phase 6): a hunt and a ladder rung are always balanced. The weekly
+    // boss is the one exception, and it is not a type - it is the macro this account misses most,
+    // and the bonus only opens once three days of it have landed this week. The panel has promised
+    // this 1.35x since the Play overhaul and nothing ever applied it; now the promise is the rule.
+    const mult = isBossFight ? bossPlan.mult : 1;
     const sm = Game.stanceMult(stance);
     const spec = (useSpecial && loadout.special > 0) ? Game.SPECIAL_ATK : 1;
     const eff = Object.assign({}, fighter.stats, {
@@ -9785,10 +9789,22 @@ function FightModal({ db, update, streak, onClose, onLog, embedded }) {
                   })}
                 </div>
               </div>
+              {/* THE FIGHT ITSELF. This panel led the tab with a boss, its stats, the week's track and
+                  a reward, and no way to take any of it: `start(x, 'weekly')` had no call site, so the
+                  win path and its result rows had been written and were unreachable. Gated on the
+                  boss's OWN once-a-week key and today's log - never on `gate`, which carries the
+                  ladder's one-attempt-a-day rule and would have the two fights eating each other. */}
+              {!bossReady
+                ? <div className="text-[11px] text-center" style={{ color: 'var(--muted)' }}>{boss.name} is down for this week. A new one comes Monday.</div>
+                : loggedToday
+                  ? <Btn kind="accent" className="w-full" onClick={() => start(boss, 'weekly')}>Fight {boss.name}</Btn>
+                  : <div className="text-[11px] text-center" style={{ color: 'var(--muted)' }}>{boss.name} is waiting on today's log. It keeps until you do.</div>}
             </div>
             <div className="px-2.5 py-2 flex items-center justify-between" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
               <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>Clears for</span>
-              <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.08em', color: 'var(--accent-ink)' }}>{Game.AMBER_REWARDS.weekly} Amber · {Game.AMBER_REWARDS.weeklyFirst} first time</span>
+              {/* The figure here is the figure the ledger mints, and nothing else. It used to also
+                  advertise a first-time bonus that no code has ever paid. */}
+              <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.08em', color: 'var(--accent-ink)' }}>{Game.AMBER_REWARDS.weekly} Amber</span>
             </div>
           </PlayPanel>
 
