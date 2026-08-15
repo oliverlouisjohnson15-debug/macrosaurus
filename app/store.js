@@ -218,6 +218,7 @@
       meal_plan: [],      // planned recipes on a calendar: { id, date, recipe_id, portion, cooked, added_at }
       items: {},          // Fight / trophy inventory: { itemId: count } (e.g. the Champion Belt)
       game_awards: {},    // idempotency keys for one-time grants (the check-in badge track, etc.)
+      habitat: [],        // permanent terrarium upgrades bought with Amber. A plain id list, UNIONED on merge like cosmetics: bought once, kept for good, and never lost to a stale device
       amber_ledger: [],   // append-only Amber-currency ledger: [{ id, date, delta, reason }]; balance = sum(delta). Append-only so a merge can never lose or double-count winnings (see mergeStates)
       fight: { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0, lastAttemptDate: null, lastDailyDate: null, dailyStreak: 0, dailyBest: 0 }, // ladder + weekly boss + daily hunt + prestige; one ladder/daily attempt per logged day
       game_salt: null,    // per-user random seed for the buddy's stable-per-day mood/personality flavour (set once on first run)
@@ -339,6 +340,13 @@
     // Amber currency is an append-only ledger: union by entry id so a device that earned or spent
     // offline can never have its Amber lost or double-counted. Balance is recomputed from this.
     out.amber_ledger   = unionBy(newer.amber_ledger,   older.amber_ledger,   byId);
+    // Habitat upgrades are permanent and cost real effort, so like cosmetics they union rather than
+    // taking the newer copy wholesale: a device that never saw a purchase must not undo it.
+    if (a.habitat || b.habitat) {
+      var hab = {};
+      [].concat(a.habitat || [], b.habitat || []).forEach(function (h) { if (h != null) hab[h] = 1; });
+      out.habitat = Object.keys(hab);
+    }
     // date-keyed maps: union keys, newer wins on a shared date
     out.day_meals     = Object.assign({}, older.day_meals || {},     newer.day_meals || {});
     out.day_overrides = Object.assign({}, older.day_overrides || {}, newer.day_overrides || {});

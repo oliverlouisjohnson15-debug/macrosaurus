@@ -245,6 +245,9 @@ input, select { color-scheme: light; }
    own full width; steps(frames) subdivides it into whole-frame jumps, so it is frame-count- and
    scale-agnostic (see SpriteSheet in app.jsx). */
 @keyframes sprite-play { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+/* One-shot strips stop on the last real frame rather than scrolling onto empty film past it. The
+   caller sets --sprite-last to that frame's offset. See SpriteSheet in app.jsx. */
+@keyframes sprite-hold { from { transform: translateX(0); } to { transform: translateX(var(--sprite-last, -100%)); } }
 
 /* Buddy terrarium: a lit backdrop + a gentle idle float + a contact shadow that breathes with it, so
    the same 24x24 pixel dino reads as a little living companion instead of a sticker on grey. All three
@@ -294,6 +297,14 @@ input, select { color-scheme: light; }
 @keyframes fpop { 0% { opacity: 0; transform: scale(.6); } 30% { opacity: 1; transform: scale(1.15) translateY(-4px); } 100% { opacity: 0; transform: scale(1) translateY(-14px); } }
 .fpop { animation: fpop .7s ease forwards; }
 /* screen-shake on a big hit (arena juice) */
+/* VICTORY FLOURISHES: the bought win animations, played in the ring where they are actually seen.
+   Each runs once, so a win reads as a moment rather than a loop. */
+@keyframes fstomp { 0%, 100% { transform: translateY(0); } 28% { transform: translateY(-30px); } 44% { transform: translateY(0); } 52% { transform: translateY(-5px); } 60% { transform: translateY(0); } }
+.fstomp { animation: fstomp 1.1s ease 1; }
+@keyframes fdust { 0%, 40% { transform: scaleX(.3); opacity: 0; } 48% { opacity: .5; } 100% { transform: scaleX(1.5); opacity: 0; } }
+.fdust { animation: fdust 1.1s ease 1 forwards; }
+@keyframes fmeteor { 0% { opacity: 0; transform: translate(40px, -30px); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-260px, 120px); } }
+.fmeteor { animation: fmeteor 1.1s linear 1 forwards; }
 @keyframes fshake { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-3px, 2px); } 40% { transform: translate(3px, -2px); } 60% { transform: translate(-2px, -2px); } 80% { transform: translate(2px, 2px); } }
 .fshake { animation: fshake .32s ease; }
 /* damage number floating up from a hit */

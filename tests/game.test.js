@@ -671,7 +671,9 @@ test('every cosmetic has a known kind, a price and a unique id', () => {
   const seen = {};
   Game.COSMETICS.forEach(c => {
     assert.ok(Game.COSMETIC_KINDS.indexOf(c.kind) >= 0, c.id + ' has an unknown kind');
-    assert.ok(c.price > 0, c.id + ' needs a price');
+    // Zero is a real price now: the arena and the victory flourish each ship a free default so a
+    // fight is never unpainted, and the founder's banner is earned rather than bought.
+    assert.ok(typeof c.price === 'number' && c.price >= 0, c.id + ' needs a price');
     assert.ok(c.name && c.desc, c.id + ' needs a name and description');
     assert.ok(!seen[c.id], 'duplicate cosmetic id ' + c.id);
     seen[c.id] = 1;
@@ -681,13 +683,14 @@ test('every cosmetic has a known kind, a price and a unique id', () => {
 });
 
 test('equippedFor: nothing owned means nothing worn', () => {
-  assert.deepStrictEqual(Game.equippedFor([], {}), { aura: null, scene: null, prop: null });
-  assert.deepStrictEqual(Game.equippedFor(null, null), { aura: null, scene: null, prop: null });
+  const empty = { aura: null, scene: null, prop: null, arena: null, banner: null, flourish: null };
+  assert.deepStrictEqual(Game.equippedFor([], {}), empty);
+  assert.deepStrictEqual(Game.equippedFor(null, null), empty);
 });
 
 test('equippedFor: an explicit choice is worn', () => {
   const eq = Game.equippedFor(['aura_ember', 'scene_tar', 'prop_fern'], { aura: 'aura_ember', scene: 'scene_tar', prop: 'prop_fern' });
-  assert.deepStrictEqual(eq, { aura: 'aura_ember', scene: 'scene_tar', prop: 'prop_fern' });
+  assert.deepStrictEqual(eq, { aura: 'aura_ember', scene: 'scene_tar', prop: 'prop_fern', arena: null, banner: null, flourish: null });
 });
 
 test('equippedFor: an explicit null takes the slot off, without forgetting the item is owned', () => {

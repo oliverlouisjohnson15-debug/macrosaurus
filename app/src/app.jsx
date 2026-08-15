@@ -6542,11 +6542,19 @@ function SpriteSheet({ palette = 'female', species = 'doux', group = 'base', ani
   const size = 24 * px;
   const dur = Math.max(0.1, frames / fps);
   const url = '/sprites/' + palette + '/' + species + '/' + group + '/' + anim + '.png';
+  /* A ONE-SHOT MUST HOLD ITS LAST FRAME, NOT RUN OFF THE END. `sprite-play` scrolls the strip a full
+     -100%, which is correct for a loop (frame n wraps to frame 0) but with `forwards` it settles one
+     frame PAST the last one, on empty film. That is why a defeated buddy vanished and left a bare
+     shadow on the result screen: `dead` played through and then held nothing. A one-shot therefore
+     scrolls only as far as the last real frame, in one step fewer, and holds there. */
+  const lastFrame = frames > 1 ? -100 * (frames - 1) / frames : 0;
+  const anim1 = loop
+    ? { animation: 'sprite-play ' + dur + 's steps(' + frames + ') infinite' }
+    : { animation: 'sprite-hold ' + dur + 's steps(' + Math.max(1, frames - 1) + ') 1 forwards', '--sprite-last': lastFrame + '%' };
   return (
     <div className={className} style={Object.assign({ width: size, height: size, overflow: 'hidden' }, style)}>
       <img src={url} alt="" aria-hidden="true" draggable="false"
-        style={{ height: size, width: 'auto', maxWidth: 'none', display: 'block', imageRendering: 'pixelated',
-          animation: 'sprite-play ' + dur + 's steps(' + frames + ') ' + (loop ? 'infinite' : '1 forwards') }}
+        style={Object.assign({ height: size, width: 'auto', maxWidth: 'none', display: 'block', imageRendering: 'pixelated' }, anim1)}
         onAnimationEnd={loop ? undefined : onEnd} />
     </div>
   );
@@ -8801,7 +8809,7 @@ function BuddyChatModal({ db, onClose, isPremium, meals, aiCalls, onAdd, onAddIt
     </div>
   );
 }
-function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, isPremium }) {
+function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, onLog, isPremium }) {
   // `Sheet` arms the back layer for us.
   useEffect(() => { if (db.onboarding && db.onboarding.sawDex) return; update(d => { d.onboarding = d.onboarding || {}; d.onboarding.sawDex = true; }); }, []);
   const today = Store.todayISO();
@@ -8856,7 +8864,7 @@ function MacrodexModal({ db, update, streak, onClose, onOpenFight, onOpenName, i
 
           {/* Battle: the arena is embedded straight into the tab (no teaser, no second modal) so tapping
               Battle lands you right on Daily Hunt + Boss Climb. The Play tabs above stay put. */}
-          {view === 'battle' && <FightModal db={db} update={update} streak={streak} onClose={onClose} embedded />}
+          {view === 'battle' && <FightModal db={db} update={update} streak={streak} onClose={onClose} onLog={onLog} embedded />}
 
           {/* Shop: the Amber wallet lives inside it now, no separate wallet card. */}
           {view === 'shop' && <ShopView db={db} amber={amber} buy={buy} equip={equip} update={update} onRename={onOpenName} />}
@@ -9011,93 +9019,162 @@ function ShopView({ db, amber, buy, equip, update, onRename, onBack }) {
   const owned = (db.buddy && db.buddy.cosmetics) || [];
   const worn = equippedCosmetics(db.buddy);
   const [colourOpen, setColourOpen] = useState(false);
-  // onBuy overrides the default cosmetic purchase, so the same Row renders one-off actions (rename,
-  // recolour) that open a flow instead of buying an owned item.
-  // One shop row. An unowned item shows its price; an owned one shows WEAR / WORN, so buying is only
-  // ever the first step and swapping between things you already own costs nothing.
-  const Row = ({ id, name, desc, price, preview, ownedLabel, onBuy, kind }) => {
-    const afford = amber >= price;
-    const isOwned = kind ? owned.indexOf(id) >= 0 : false;
-    const isWorn = kind ? worn[kind] === id : false;
+  const [openShelf, setOpenShelf] = useState(null);
+  const today = Store.todayISO();
+  const fight = db.fight || {};
+  // What this account has earned, which decides what the gated tiers will sell it.
+  const gateState = {
+    prestige: fight.prestige || 0,
+    belt: !!((db.game_awards || {})['belt']) || (fight.rank || 0) >= 10,
+    founder: !!((db.game_awards || {})['trophy:founder'] || (db.items || {}).founder),
+  };
+  const habitatOwned = (db.habitat || []);
+  // What they actually earn a day, so a habitat upgrade reads as "about 5 days" rather than a wall.
+  const earnPerDay = (() => {
+    const led = db.amber_ledger || [];
+    if (!led.length) return 30;
+    const cut = shiftISO(today, -13);
+    const recent = led.filter(e => e && e.date >= cut && e.delta > 0);
+    const got = recent.reduce((n, e) => n + e.delta, 0);
+    return Math.max(8, Math.round(got / 14)) || 30;
+  })();
+
+  // THE PREVIEW IS THE PURCHASE. An aura previews as your own dinosaur wearing it, a scene as that
+  // scene, a prop as that prop. The three fight slots have nothing to stand in on a shop row, so they
+  // take the app's own pixel glyphs rather than a picture of something they are not.
+  const auraBuddy = Object.assign({}, db.buddy || {}, { equipped: Object.assign({}, (db.buddy || {}).equipped, { aura: null }) });
+  function previewFor(c) {
+    if (c.kind === 'aura') return <span style={{ filter: auraFilter({ aura: c.id }) || undefined, lineHeight: 0 }}><BuddyAvatar buddy={auraBuddy} px={1.1} /></span>;
+    if (c.kind === 'scene') return <ScenePreview id={c.id} />;
+    if (c.kind === 'prop') return <PropPreview id={c.id} />;
+    const glyph = c.kind === 'arena' ? 'square' : c.kind === 'banner' ? 'goal' : 'star';
+    return <PixelGlyph kind={glyph} color="var(--accent-ink)" size={24} />;
+  }
+
+  // One shop row, in all five states the catalogue can be in: affordable, too dear, owned, worn, and
+  // gated behind something not yet earned. A gated item is SHOWN, because being able to see what the
+  // climb is for is the entire point of a tier.
+  const Row = ({ c, onBuy, ownedLabel }) => {
+    const isOwned = owned.indexOf(c.id) >= 0;
+    const isWorn = c.kind && worn[c.kind] === c.id;
+    const open = Game.gateMet(c.gate, gateState);
+    const afford = amber >= c.price;
     return (
-      <div className="pixel-box p-3 flex items-center gap-3" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: isWorn ? 'var(--accent)' : 'var(--border)' }}>
-        <div className="pixel-box shrink-0 inline-flex items-center justify-center overflow-hidden" style={{ background: 'var(--surface2)', boxShadow: 'none', width: 40, height: 40 }}>{preview}</div>
+      <div className="pixel-box p-2.5 flex items-center gap-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none', borderColor: isWorn ? 'var(--accent)' : 'var(--border)' }}>
+        <div className="pixel-box shrink-0 inline-flex items-center justify-center overflow-hidden" style={{ background: 'var(--surface2)', boxShadow: 'none', width: 40, height: 40 }}>{previewFor(c)}</div>
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="text-[11px] font-bold truncate">{name}</div>
-          <div className="text-[9px] text-[#8A8A90] leading-snug">{desc}</div>
+          <div className="text-[11.5px] font-bold truncate">{c.name}</div>
+          <div className="text-[10px] leading-snug" style={{ color: 'var(--muted)' }}>{c.desc}</div>
+          {!open && <div className="pf text-[7px] uppercase mt-1" style={{ letterSpacing: '0.1em', color: 'var(--muted2)' }}>{Game.GATE_LABEL[c.gate]}</div>}
         </div>
         {isOwned
           ? (isWorn
-            ? <button onClick={() => equip(kind, null)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
-            : <button onClick={() => equip(kind, id)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
+            ? <button onClick={() => equip(c.kind, null)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>WORN</button>
+            : <button onClick={() => equip(c.kind, c.id)} className="pixel-btn px-2.5 py-1.5 text-[8px] pf shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>WEAR</button>)
           : ownedLabel
             ? <span className="pf text-[8px] px-2 py-1.5 shrink-0" style={{ background: 'var(--surface2)', color: 'var(--good-ink)' }}>{ownedLabel}</span>
-            : <button onClick={onBuy || (() => buy(id))} disabled={!afford} className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1" style={{ background: afford ? 'var(--fat)' : 'var(--surface2)', color: afford ? '#1a1400' : 'var(--muted)', opacity: afford ? 1 : 0.7 }}><Spark size={12} /> {price}</button>}
+            : <button onClick={onBuy || (() => buy(c.id))} disabled={!afford || !open}
+                className="pixel-btn px-2.5 py-1.5 text-[9px] shrink-0 inline-flex items-center gap-1"
+                style={{ background: (afford && open) ? 'var(--fat)' : 'var(--surface2)', color: (afford && open) ? '#1a1400' : 'var(--muted)', opacity: (afford && open) ? 1 : 0.7 }}>
+                <Spark size={12} /> {c.price}
+              </button>}
       </div>
     );
   };
+
   const buddy = db.buddy || {};
-  const hatched = buddy.hatched !== false; // no buddy actions on an unhatched egg
+  const hatched = buddy.hatched !== false;
   const canRecolour = hatched && buddy.species && spritePalettes(buddy.species).length > 1;
-  // The buddy as an aura swatch wants it: itself, with the aura slot explicitly empty, so each row
-  // shows exactly the one aura it is selling. An explicit null is how equippedFor stores "nothing
-  // worn" (a missing key would fall back to the last owned aura and glow twice).
-  const auraBuddy = Object.assign({}, buddy, { equipped: Object.assign({}, buddy.equipped, { aura: null }) });
+  // The stall: six or seven things that change every Monday. Nothing ever leaves the catalogue, it
+  // only leaves the stall, which is scarcity without taking anything away.
+  const stall = Game.weeklyStall(db.game_salt || '', Game.shopWeekKey(today), owned.concat(habitatOwned));
+  const stallLeft = Game.stallDaysLeft(today);
+  const totalItems = Game.COSMETICS.length + Game.HABITAT.length;
+  const ownedCount = owned.length + habitatOwned.length;
+
+  function buyHabitat(id) {
+    const h = Game.HABITAT_BY_ID[id];
+    if (!h || Game.hasHabitat(habitatOwned, id) || amber < h.price) return;
+    update(d => {
+      d.habitat = (d.habitat || []).concat([id]);
+      d.amber_ledger = (d.amber_ledger || []).concat([{ id: 'spend:' + id, date: today, delta: -h.price, reason: h.name }]);
+    });
+  }
+
   return (
     <div className="fade-in">
       {onBack && <div className="mb-3"><button onClick={onBack} className="hit text-[11px] text-[#8A8A90]"><Icon.arrow_left width="16" /> Back</button></div>}
-      {/* The wallet is the other half of the heading, not a label floating above it: what you have
-          and what you are spending it in belong on one line, which is how the design draws it and
-          how every other titled row in the app is built. */}
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <h2 className="text-lg font-semibold">Amber Shop</h2>
         <span className="pf text-[10px] shrink-0" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
       </div>
-      {/* Where Amber comes from, honestly. This used to read "Win Amber from your buddy's fights",
-          which named the one source that is optional and left out every source that is not:
-          Game.AMBER_REWARDS pays for logging the day, landing it, foraging and coming back, and the
-          app says so in its own toast ("... found 10 Amber for today's log") - a toast whose action
-          opens this very sheet. So the first thing the shop said was contradicted by the message that
-          sent you to it. */}
       <div className="text-[10px] text-[#8A8A90] mb-4 leading-snug">Amber comes from logging your days, the daily hunt and whatever your buddy forages. Spend it here.</div>
 
-      {hatched && (onRename || canRecolour) && <>
-        <SheetLabel className="block mb-2">Your buddy</SheetLabel>
-        <div className="space-y-2 mb-5">
-          {onRename && <Row name="Rename" desc="Give your buddy a new name." price={RENAME_COST} onBuy={onRename}
-            preview={<span className="pf text-[13px] font-bold" style={{ color: 'var(--accent-ink)' }}>Aa</span>} />}
-          {canRecolour && <Row name="Change colour" desc="Switch your buddy's colourway." price={COLOUR_COST} onBuy={() => setColourOpen(true)}
-            preview={<div className="pixel-box p-0.5" style={{ background: 'var(--surface2)', boxShadow: 'none' }}><BuddyAvatar buddy={buddy} px={1.2} /></div>} />}
+      {/* THIS WEEK'S STALL. Six tabs at 390px runs to 8px type and leaves the rotation nowhere to
+          live, so the shop leads with a stall that changes on Monday and collapses the rest. */}
+      <PlayPanel title="This week's stall" right={stallLeft + (stallLeft === 1 ? ' day left' : ' days left')}
+        footer="Six rotate in each Monday. Nothing leaves the catalogue, it only leaves the stall.">
+        <div className="p-2.5 space-y-2">
+          {stall.map(c => c.kind === 'habitat'
+            ? <Row key={c.id} c={c} onBuy={() => buyHabitat(c.id)} ownedLabel={Game.hasHabitat(habitatOwned, c.id) ? 'OWNED' : null} />
+            : <Row key={c.id} c={c} />)}
         </div>
-      </>}
+      </PlayPanel>
 
-      {/* Three slots, one worn item each. Scenes and props dress the terrarium the buddy lives in,
-          which is why the shop keeps earning after the auras are all bought. */}
-      <SheetLabel className="block mb-2">Auras</SheetLabel>
-      <div className="space-y-2 mb-5">
-        {/* THE PREVIEW IS THE PURCHASE. A scene previews as that scene and a prop as that prop
-            sprite, both drawn from the tables the terrarium renders from; an aura previewed as a
-            star glyph with a glow behind it, which is not a thing anybody can buy. An aura is a rim
-            of light on YOUR dinosaur, so the swatch is your dinosaur wearing it - BuddyAvatar under
-            auraFilter, the same function the world draws with, in the same 40px slot the Change
-            colour row already previews the buddy in.
-            `auraBuddy` is the buddy with its aura slot explicitly emptied, so a swatch shows one
-            aura - the one it is selling - rather than the bought one glowing underneath it. */}
-        {Game.cosmeticsOfKind('aura').map(c => <Row key={c.id} id={c.id} kind="aura" name={c.name} desc={c.desc} price={c.price}
-          preview={<span style={{ filter: auraFilter({ aura: c.id }) || undefined, lineHeight: 0 }}><BuddyAvatar buddy={auraBuddy} px={1.1} /></span>} />)}
-      </div>
+      {/* EVERYTHING ELSE, collapsed into named shelves so six slots fit on a phone. */}
+      <PlayPanel title="Everything else" right={ownedCount + ' of ' + totalItems}>
+        <div>
+          {Game.COSMETIC_KINDS.map(kind => {
+            const items = Game.cosmeticsOfKind(kind);
+            const have = items.filter(c => owned.indexOf(c.id) >= 0).length;
+            const meta = Game.COSMETIC_KIND_META[kind];
+            const isOpen = openShelf === kind;
+            return (
+              <div key={kind} style={{ borderTop: '2px solid var(--surface2)' }}>
+                <button onClick={() => setOpenShelf(isOpen ? null : kind)} className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
+                  <span className="min-w-0">
+                    <span className="pf block text-[9px] uppercase" style={{ letterSpacing: '0.12em' }}>{meta.label}</span>
+                    <span className="block text-[10.5px]" style={{ color: 'var(--muted)' }}>{meta.blurb}</span>
+                  </span>
+                  <span className="pf text-[9px] uppercase shrink-0" style={{ letterSpacing: '0.1em', color: 'var(--muted)' }}>{have} / {items.length} {isOpen ? '›' : '›'}</span>
+                </button>
+                {isOpen && <div className="px-2.5 pb-2.5 space-y-2">{items.map(c => <Row key={c.id} c={c} />)}</div>}
+              </div>
+            );
+          })}
+          {hatched && (onRename || canRecolour) && <div style={{ borderTop: '2px solid var(--surface2)' }} className="px-2.5 py-2.5 space-y-2">
+            {onRename && <Row c={{ id: 'rename', name: 'Rename', desc: 'Give your buddy a new name.', price: RENAME_COST, kind: null }} onBuy={onRename} />}
+            {canRecolour && <Row c={{ id: 'recolour', name: 'Change colour', desc: "Switch your buddy's colourway.", price: COLOUR_COST, kind: null }} onBuy={() => setColourOpen(true)} />}
+          </div>}
+        </div>
+      </PlayPanel>
 
-      <SheetLabel className="block mb-2">Terrarium scenes</SheetLabel>
-      <div className="space-y-2 mb-5">
-        {Game.cosmeticsOfKind('scene').map(c => <Row key={c.id} id={c.id} kind="scene" name={c.name} desc={c.desc} price={c.price}
-          preview={<ScenePreview id={c.id} />} />)}
-      </div>
-
-      <SheetLabel className="block mb-2">Terrarium props</SheetLabel>
-      <div className="space-y-2">
-        {Game.cosmeticsOfKind('prop').map(c => <Row key={c.id} id={c.id} kind="prop" name={c.name} desc={c.desc} price={c.price}
-          preview={<PropPreview id={c.id} />} />)}
-      </div>
+      {/* HABITAT UPGRADES. Bought once, and they stack. Nothing here is ever swapped out, which is
+          what makes it the sink that does not run out, and why it reads as a savings goal. */}
+      <PlayPanel title="Habitat upgrades" right="Kept for good"
+        footer="Bought once and they stack. Nothing here is ever swapped out, so this is what Amber is for.">
+        <div className="p-2.5 space-y-2">
+          {Game.HABITAT.map(h => {
+            const prog = Game.habitatProgress(habitatOwned, h.id, amber, earnPerDay);
+            return (
+              <div key={h.id} className="pixel-box p-2.5" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.12em' }}>{h.name}</span>
+                  {prog.owned
+                    ? <span className="pf text-[9px] uppercase shrink-0" style={{ letterSpacing: '0.1em', color: 'var(--good-ink)' }}>Owned</span>
+                    : <button onClick={() => buyHabitat(h.id)} disabled={amber < h.price}
+                        className="pf text-[9px] uppercase shrink-0" style={{ letterSpacing: '0.1em', color: amber >= h.price ? 'var(--accent-ink)' : 'var(--muted)' }}>
+                        {amber >= h.price ? 'Buy · ' + h.price : h.price}
+                      </button>}
+                </div>
+                <div className="text-[11px] leading-snug mb-1.5" style={{ color: 'var(--text2)' }}>{h.desc}</div>
+                <PipLine pct={prog.pct * 100} color={prog.owned ? 'var(--good)' : 'var(--accent)'} height={10} cells={14} />
+                <div className="pf text-[7px] uppercase mt-1" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>{prog.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      </PlayPanel>
       {colourOpen && update && <BuddyColourModal db={db} update={update} onClose={() => setColourOpen(false)} />}
     </div>
   );
@@ -9194,7 +9271,89 @@ const FIGHT_HIT = ['{x} chomps down', '{x} swings its tail', '{x} rakes with its
 const TYPE_META = { power: ['Power', 'var(--pro)', 'protein'], guard: ['Guard', 'var(--fat)', 'fats'], swift: ['Swift', 'var(--carb)', 'carbs'], renew: ['Renew', 'var(--good)', 'fibre'], balanced: ['Balanced', 'var(--muted)', 'a balance'] };
 function TypeChip({ t }) { const m = TYPE_META[t] || TYPE_META.balanced; return <span className="pf text-[7px] uppercase px-1 py-0.5 rounded" style={{ color: m[1], background: 'color-mix(in srgb, ' + m[1] + ' 16%, transparent)' }}>{m[0]}</span>; }
 
-function FightModal({ db, update, streak, onClose, embedded }) {
+/* ---- The Play overhaul's building blocks ----
+   A panel is the app's standard card: ink title bar, one status on the right, a divided interior.
+   The battle screen is four of them, one job each, so nothing on it is decoration. */
+function PlayPanel({ title, right, rightTone, children, footer, className, style }) {
+  return (
+    <div className={'pixel-box p-0 mb-3 overflow-hidden ' + (className || '')} style={Object.assign({ background: 'var(--card)' }, style)}>
+      <CardHead title={title} right={right} rightTone={rightTone} />
+      {children}
+      {footer != null && <div className="px-2.5 py-2 text-[11px]" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)', color: 'var(--muted)' }}>{footer}</div>}
+    </div>
+  );
+}
+// A scene band: the sky/ground the app already paints, with whatever is standing in it on top.
+function FightScene({ height, label, children }) {
+  return (
+    <div className="relative overflow-hidden buddy-scene" style={{ height: height || 112, borderBottom: '2px solid var(--border)' }}>
+      {children}
+      {label && <div className="pf absolute left-2.5 top-2 text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>{label}</div>}
+    </div>
+  );
+}
+// One row of the fighter's stat sheet: the figure, the label, the meter, and the sentence that
+// earned it. The sentence is the whole point: a bare 41 is a game number, "5 protein days in the
+// last 7" is a picture of the week.
+function StatRow({ value, label, filled, total, color, note, first }) {
+  return (
+    <div className="flex gap-3 items-start" style={first ? null : { borderTop: '2px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
+      <span className="pf tnum shrink-0" style={{ fontSize: 24, color: color, minWidth: 58 }}>{value}</span>
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+        <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.12em' }}>{label}</span>
+        <PipLine pct={Math.max(0, Math.min(100, (filled / (total || 1)) * 100))} color={color} height={12} cells={14} />
+        <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>{note}</span>
+      </div>
+    </div>
+  );
+}
+// The four macro types as a row, with the one that matters lit. On the boss panel this is the
+// weakness; it is the only place in the app that names a macro as a thing to go and eat today.
+function TypeRow({ lit }) {
+  return (
+    <div className="grid grid-cols-4 gap-1.5">
+      {Game.FIGHT_TYPES.map(t => {
+        const on = t === lit;
+        const m = TYPE_META[t] || TYPE_META.balanced;
+        return (
+          <div key={t} className="pf text-center text-[8px] uppercase py-1.5 px-1" style={{
+            letterSpacing: '0.08em', border: '2px solid var(--border)',
+            background: on ? m[1] : 'transparent', color: on ? 'var(--on-accent)' : 'var(--muted)', fontWeight: on ? 700 : 400,
+          }}>{m[0]}</div>
+        );
+      })}
+    </div>
+  );
+}
+// Today's charges, as three tiles. Earned by today alone, spent in tonight's fight: the join between
+// the afternoon's lunch and the evening's battle that the old screen did not have.
+function ChargeTiles({ charges, spent, onSpend }) {
+  return (
+    <div className="grid grid-cols-3 gap-2 p-3">
+      {Game.CHARGE_META.map(c => {
+        const has = !!charges[c.key], used = spent && spent[c.key];
+        const live = has && !used;
+        return (
+          <button key={c.key} type="button" disabled={!live || !onSpend} onClick={() => live && onSpend && onSpend(c.key)}
+            className="flex flex-col items-center gap-1.5 py-2.5 px-1"
+            style={{
+              border: '3px solid ' + (live ? 'var(--border)' : 'var(--muted2)'),
+              background: live ? 'var(--accent)' : 'var(--surface3)',
+              color: live ? 'var(--on-accent)' : 'var(--muted)',
+              cursor: live && onSpend ? 'pointer' : 'default',
+            }}>
+            <span style={{ width: 12, height: 12, background: live ? 'var(--on-accent)' : 'transparent',
+              border: live ? 'none' : '3px solid var(--muted)', transform: c.key === 'heal' ? 'rotate(45deg)' : 'none' }} />
+            <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.1em' }}>{used ? 'Spent' : c.label}</span>
+            <span className="text-[10px] text-center leading-tight">{has ? c.earn : c.need}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FightModal({ db, update, streak, onClose, onLog, embedded }) {
   useBackClose(embedded ? null : onClose); // embedded in the Play hub's Battle tab, the hub owns back/close
   const fight = db.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 };
   const today = Store.todayISO();
@@ -9225,6 +9384,91 @@ function FightModal({ db, update, streak, onClose, embedded }) {
   const daily = Object.assign({}, dailyBase, { stats: rivalStats(dailyBase, dailyRank, fight.prestige || 0) });
   const dailyReady = Game.dailyReady(fight.lastDailyDate, today);
   const dailyAmber = Game.amberDailyReward(Game.dailyStreakNext(fight.lastDailyDate, fight.dailyStreak || 0, today));
+
+  // THE BOSS IS YOUR WORST HABIT. The weakness used to be a hash of the week number; it is now the
+  // macro this user actually misses most, counted over a fortnight, with the week's progress against
+  // it on the panel. Beating the boss and fixing the habit are now the same instruction.
+  const todayQ = dayQuality(db, today);
+  const bossPlan = useMemo(() => {
+    const fortnight = [], week = [];
+    for (let i = 0; i < 14; i++) fortnight.push(dayQuality(db, shiftISO(today, -i)));
+    const dow = (new Date(today + 'T00:00:00').getDay() + 6) % 7;   // 0 = Monday
+    for (let i = 0; i <= dow; i++) week.push(dayQuality(db, shiftISO(today, -i)));
+    return Game.bossPlan(fortnight, week);
+  }, [db.log_entries, db.targets, today]);
+  const bossDaysLeft = Game.bossDaysLeft(today);
+  const buddyType = Game.typeForName(fighter.name);
+  const amber = Game.amberBalance(db.amber_ledger);
+  // The bought arena and banner are only ever seen HERE, which is what makes them worth selling
+  // separately from the terrarium. Both fall back to a free default so a fight is never unpainted.
+  const worn = equippedCosmetics(db.buddy);
+  const wornArena = worn.arena || Game.COSMETIC_DEFAULT.arena;
+  const wornBanner = worn.banner || null;
+  const wornFlourish = worn.flourish || Game.COSMETIC_DEFAULT.flourish;
+  /* ARENA ART. Same house style as the terrarium: flat rectangles, a single dark horizon, nothing
+     that competes with the sprites standing on it. Each is a ground wash plus a handful of shapes on
+     the floor, so a new arena costs a few lines rather than new art. */
+  const arenaArt = (() => {
+    const base = (top, bottom, ground) => 'radial-gradient(72% 42% at 50% 60%, var(--buddy-glow), transparent 70%), linear-gradient(180deg, ' + top + ' 0%, ' + bottom + ' 61%, ' + ground + ' 61%)';
+    const floor = (left, bottom, w, h, bg, extra) => Object.assign({ left, bottom, width: w, height: h, background: bg }, extra || {});
+    const A = {
+      arena_pit: { name: 'The Pit', bg: base('var(--scene-top)', 'var(--scene-bottom)', 'var(--surface2)'), marks: [] },
+      arena_bone: {
+        name: 'Bone Yard', bg: base('#f6ecd9', '#efe0c4', '#e3d2b0'),
+        marks: [floor(28, 14, 34, 6, '#cbbba0'), floor(70, 22, 8, 20, '#cbbba0'), floor(84, 22, 8, 20, '#cbbba0'), floor(250, 16, 26, 5, '#cbbba0')],
+      },
+      arena_ash: {
+        name: 'Ash Ring', bg: base('#3a2a26', '#2a1d1a', '#211615'),
+        marks: [floor(0, 46, 390, 3, '#7a3a1e'), floor(40, 16, 30, 4, '#8c4520'), floor(240, 22, 44, 4, '#8c4520')],
+      },
+      arena_ice: {
+        name: 'Frozen Lake', bg: base('#dceaf3', '#c6dced', '#b3d2e6'),
+        marks: [floor(30, 30, 120, 2, '#8fb6cf', { transform: 'rotate(-4deg)' }), floor(180, 18, 150, 2, '#8fb6cf', { transform: 'rotate(3deg)' })],
+      },
+      arena_colosseum: {
+        name: 'The Colosseum', bg: base('#efe6d4', '#ddd0b6', '#cbbb9c'),
+        marks: [floor(0, 66, 390, 3, 'var(--border)'), floor(0, 74, 390, 10, '#c2b193'), floor(0, 88, 390, 10, '#b6a486')],
+      },
+    };
+    return A[wornArena] || A.arena_pit;
+  })();
+  const bannerArt = wornBanner === 'banner_champion' ? { fill: 'var(--fat)', ink: '#1a1400' }
+    : wornBanner === 'banner_founder' ? { fill: 'var(--weight)', ink: '#fffdf7' }
+    : wornBanner === 'banner_hunter' ? { fill: 'var(--surface2)', ink: 'var(--text)' }
+    : { fill: 'var(--accent)', ink: 'var(--on-accent)' };
+  // What the matchup means, in a sentence. The type triangle has been in the engine since the fight
+  // was built and has never once been explained on screen.
+  function matchupLine(mine, theirs) {
+    const m = Game.typeMult(mine, theirs);
+    const mineL = (TYPE_META[mine] || TYPE_META.balanced)[0], theirsL = (TYPE_META[theirs] || TYPE_META.balanced)[0];
+    if (m > 1) return 'Your ' + mineL + ' beats its ' + theirsL + ', ' + m + 'x.';
+    if (m < 1) return 'Its ' + theirsL + ' resists your ' + mineL + ', ' + m + 'x.';
+    return 'Evenly matched on type, so this is down to the week you have had.';
+  }
+  // The buddy's own read on today, in its voice: recovery first, since that is the one thing that
+  // changes the fight and is not food.
+  const fighterLine = (() => {
+    const night = lastSleepNight(db);
+    const dur = night ? Math.floor(night.rec.min / 60) + 'h' + (night.rec.min % 60 ? ' ' + (night.rec.min % 60) + 'm' : '') : null;
+    const pct = Math.round(Math.abs(readyBuff.atk - 1) * 100);
+    if (readyBuff.band === 'apex') return (dur ? 'Slept ' + dur + ', recovery ' + Math.round(readiness) + '. ' : '') + 'I am sharp today, so everything lands ' + pct + ' percent harder.';
+    if (readyBuff.band === 'drowsy') return (dur ? 'Slept ' + dur + ', recovery ' + Math.round(readiness) + '. ' : '') + 'I am slower today, so I will guard rather than swing. ' + buddySay(db, 'gentle', today, 1);
+    if (readyBuff.band) return (dur ? 'Slept ' + dur + ', recovery ' + Math.round(readiness) + '. ' : '') + 'Steady today. ' + buddySay(db, 'steady', today, 1);
+    return 'Built from your week. ' + buddySay(db, 'steady', today, 1);
+  })();
+  // Charges are earned by TODAY and spent in TONIGHT's fight. `spent` resets with each bout.
+  const charges = Game.chargesToday(todayQ);
+  const [spent, setSpent] = useState({});
+  const pendingRef = useRef(null);        // a charge played mid-fight, consumed by the next swing
+  function spendCharge(key) {
+    if (!charges[key] || spent[key]) return;
+    const meta = Game.CHARGE_META.find(c => c.key === key);
+    setSpent(s => Object.assign({}, s, { [key]: true }));
+    const p = pendingRef.current || { atk: 1, heal: 0, names: [] };
+    if (meta.heal) p.heal = (p.heal || 0) + meta.heal; else p.atk = (p.atk || 1) * meta.mult;
+    p.names = (p.names || []).concat([meta.label]);
+    pendingRef.current = p;
+  }
 
   const [phase, setPhase] = useState(si === 0 ? 'egg' : 'select');
   const [opp, setOpp] = useState(null); const [isBoss, setIsBoss] = useState(false); const [isDaily, setIsDaily] = useState(false); const [amberEarned, setAmberEarned] = useState(0);
@@ -9257,9 +9501,51 @@ function FightModal({ db, update, streak, onClose, embedded }) {
       hp: Math.max(1, Math.round(fighter.stats.hp * (1 + (readyBuff.heal || 0)))), // a recovery day starts you tankier
     });
     effRef.current = eff; setLastMult(mult);
+    setSpent({}); pendingRef.current = null;   // charges are per bout, not per day
     setOpp(opponent); setIsBoss(isBossFight); setIsDaily(kind === 'daily'); setMaxA(eff.hp); setMaxB(opponent.stats.hp); setHpA(eff.hp); setHpB(opponent.stats.hp); setLog([]); setWinner(null); setDrops([]); setAmberEarned(0); rewarded.current = false; setIntro(true); setPhase('fight'); const it = setTimeout(() => setIntro(false), 950); timers.current.push(it);
   }
   function prestige() { update(d => { d.fight = d.fight || {}; d.fight.rank = 0; d.fight.prestige = (d.fight.prestige || 0) + 1; }); setPhase('select'); }
+
+  /* THE RESULT, LINE BY LINE. A win used to be a number and a loss a kind sentence, and neither said
+     anything about the thing that would have changed the outcome. A defeat costs nothing here and
+     says so item by item, because "nothing was lost" is only reassuring if you can see it. */
+  const resultRows = useMemo(() => {
+    if (winner == null) return [];
+    if (winner === 'you') {
+      const rows = [];
+      if (isDaily) {
+        rows.push({ label: 'Hunt win', value: '+' + amberEarned + ' Amber', tone: 'var(--accent-ink)' });
+        rows.push({ label: 'Streak bonus, day ' + ((fight.dailyStreak || 0) + 1), value: 'Tomorrow, +' + Game.AMBER_REWARDS.dailyStreakBonus });
+        rows.push({ label: 'Boss climb', value: 'Rung ' + ((fight.rank || 0) + 1) + ', unmoved' });
+      } else if (isBoss) {
+        rows.push({ label: 'Boss felled', value: '+' + amberEarned + ' Amber', tone: 'var(--accent-ink)' });
+        rows.push({ label: 'Trophy', value: 'Earned', tone: 'var(--good-ink)' });
+      } else {
+        rows.push({ label: 'Rung cleared', value: '+' + amberEarned + ' Amber', tone: 'var(--accent-ink)' });
+        rows.push({ label: 'Boss climb', value: 'Rung ' + (fight.rank || 0) + ' of ' + FIGHT_LADDER.length, tone: 'var(--good-ink)' });
+      }
+      if (drops.length) rows.push({ label: 'Loot', value: drops.map(id => ITEMS[id] ? ITEMS[id].name : id).join(', '), tone: 'var(--good-ink)' });
+      return rows;
+    }
+    return [
+      { label: 'Amber', value: '0, none lost' },
+      { label: 'Logging streak', value: streak + ' days, held', tone: 'var(--good-ink)' },
+      { label: 'Boss climb', value: 'Rung ' + ((fight.rank || 0) + 1) + ', no step back', tone: 'var(--good-ink)' },
+    ];
+  }, [winner, amberEarned, drops, isDaily, isBoss, streak]);
+
+  // The closing line: the stat that decided it, and the food behind that stat. This is the whole
+  // reason the game is attached to a nutrition tracker, so it is the last thing the screen says.
+  const decidedLine = useMemo(() => {
+    if (winner == null || !opp) return '';
+    const s = fighter.stats;
+    if (winner === 'you') {
+      if (s.pro >= s.fib) return 'Attack carried it, and attack is protein. ' + s.pro + ' protein day' + (s.pro === 1 ? '' : 's') + ' this week hit harder than ' + Math.max(0, s.pro - 1) + ' would have.';
+      return 'You outlasted it, and that is fibre doing the work. ' + s.fib + ' fibre day' + (s.fib === 1 ? '' : 's') + ' this week held the line.';
+    }
+    const short = s.pro <= s.fib ? 'protein' : 'fibre';
+    return opp.name + ' outlasted you. Two more ' + short + ' days this week and that is a different fight.';
+  }, [winner, opp, fighter.stats.pro, fighter.stats.fib]);
 
   useEffect(() => {
     if (phase !== 'fight' || !opp || intro) return;
@@ -9268,6 +9554,15 @@ function FightModal({ db, update, streak, onClose, embedded }) {
     const rnd = (n) => Math.floor(Math.random() * n);
     const step = () => {
       if (!alive) return; round++;
+      // A charge played since the last swing. Heals land immediately; an attack charge waits for the
+      // buddy's next swing rather than being wasted on a round the enemy happens to win.
+      const pend = pendingRef.current;
+      if (pend && pend.heal) {
+        const back = Math.round(my.hp * pend.heal);
+        a = Math.min(my.hp, a + back); setHpA(a);
+        setLog(l => ['Heal charge spent. ' + back + ' back.', ...l].slice(0, 5));
+        pendingRef.current = pend.atk && pend.atk > 1 ? { atk: pend.atk, heal: 0, names: pend.names } : null;
+      }
       if (rv.ability === 'heal' && d2 > 0 && d2 < rv.hp * 0.7) { d2 = Math.min(rv.hp, d2 + Math.round(rv.hp * 0.06)); setHpB(d2); }
       const aAtk = Math.random() < my.atk / (my.atk + rv.atk);
       const atk = aAtk ? my : rv, def = aAtk ? rv : my;
@@ -9281,6 +9576,11 @@ function FightModal({ db, update, streak, onClose, embedded }) {
         let dmg = Math.max(3, atk.atk - Math.round(def.def / 2) + rnd(7));
         const atkHp = aAtk ? a : d2, atkMax = aAtk ? my.hp : rv.hp;
         if (atk.ability === 'rage' && atkHp < atkMax * 0.35) dmg = Math.round(dmg * 1.5);
+        // An attack charge rides the buddy's next swing, and says so in the log so the player can
+        // see what their lunch just bought them.
+        let chargeName = null;
+        const pa = pendingRef.current;
+        if (aAtk && pa && pa.atk > 1) { dmg = Math.round(dmg * pa.atk); chargeName = (pa.names || []).join(' and '); pendingRef.current = null; }
         const big = dmg >= 22;
         const hitTxt = big ? 'CRUNCH!' : (round % 3 === 0 ? 'CHOMP!' : round % 3 === 1 ? 'SMASH!' : 'THWACK!');
         if (big) { setShake(true); const shk = setTimeout(() => setShake(false), 320); timers.current.push(shk); }
@@ -9288,7 +9588,9 @@ function FightModal({ db, update, streak, onClose, embedded }) {
         if (aAtk) { d2 = Math.max(0, d2 - dmg); setHpB(d2); setLungeA(true); const lt = setTimeout(() => setLungeA(false), 350); timers.current.push(lt); setPop({ side: 'r', text: hitTxt, num: dmg, big, id: round }); }
         else { a = Math.max(0, a - dmg); setHpA(a); setLungeB(true); const lt = setTimeout(() => setLungeB(false), 350); timers.current.push(lt); setPop({ side: 'l', text: hitTxt, num: dmg, big, id: round }); }
         const nm = aAtk ? fighter.name : opp.name;
-        setLog(l => [FIGHT_HIT[rnd(FIGHT_HIT.length)].replace('{x}', nm) + (big ? '! Big one!' : '.'), ...l].slice(0, 5));
+        setLog(l => [chargeName
+          ? chargeName + ' charge spent. ' + dmg + ' damage.'
+          : FIGHT_HIT[rnd(FIGHT_HIT.length)].replace('{x}', nm) + (big ? '! Big one!' : '.'), ...l].slice(0, 5));
       }
       if (a <= 0 || d2 <= 0 || round >= 32) { alive = false; const win = d2 <= 0 ? true : a <= 0 ? false : (a / my.hp) >= (d2 / rv.hp); const et = setTimeout(() => { setWinner(win ? 'you' : 'them'); setPhase('done'); }, 750); timers.current.push(et); return; }
       const t = setTimeout(step, 760); timers.current.push(t);
@@ -9351,13 +9653,27 @@ function FightModal({ db, update, streak, onClose, embedded }) {
     </div>
   );
   const Ring = () => (
-    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: 'radial-gradient(72% 42% at 50% 60%, var(--buddy-glow), transparent 70%), linear-gradient(180deg, var(--scene-top) 0%, var(--scene-bottom) 61%, var(--surface2) 61%)' }}>
+    <div className={'pixel-box relative overflow-hidden mb-3' + (shake ? ' fshake' : '')} style={{ height: 188, background: arenaArt.bg }}>
       {/* horizon line where sky meets ground */}
       <div className="absolute left-0 right-0" style={{ top: '61%', height: 3, background: 'var(--border)' }} />
+      {/* THE BOUGHT ARENA. Only ever seen here, which is what makes it worth selling apart from the
+          terrarium: its own ground, its own horizon, and a few flat shapes on the floor. */}
+      {arenaArt.marks.map((m, i) => <div key={i} className="absolute" style={m} />)}
+      <div className="pf absolute text-[7px] uppercase" style={{ left: 8, top: 6, letterSpacing: '0.14em', color: 'var(--muted)' }}>{arenaArt.name}</div>
+      {/* THE BANNER: a standard planted behind your fighter, carrying the streak it was earned with. */}
+      {wornBanner && <div className="absolute" style={{ left: 84, bottom: 26 }}>
+        <div style={{ width: 3, height: 52, background: 'var(--border)' }} />
+        <div className="pf absolute flex items-center justify-center" style={{ left: 3, top: 0, width: 30, height: 22, fontSize: 9,
+          background: bannerArt.fill, color: bannerArt.ink, border: '2px solid var(--border)', letterSpacing: '0.04em' }}>{streak}</div>
+      </div>}
       {/* opponent (far, upper right), mirrored to face the buddy, standing on its own shadow */}
       <div className={'absolute ' + (intro ? 'fslideR' : (lungeB ? 'flungeLflip' : 'fbobFlip'))} style={{ top: 24, right: 22 }}><Stage px={5} shadowW={58}><EnemySprite name={opp.name} anim={enemyAnim} px={5} /></Stage></div>
       {/* player (near, lower left): the buddy's real animated sprite, a touch larger */}
-      <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob'))} style={{ bottom: 4, left: 14 }}><Stage px={6} shadowW={74}><FighterSprite buddy={db.buddy} anim={buddyAnim} px={6} /></Stage></div>
+      <div className={'absolute ' + (intro ? 'fslideL' : (lungeA ? 'flungeR' : 'fbob')) + (winner === 'you' && wornFlourish === 'flourish_stomp' ? ' fstomp' : '')} style={{ bottom: 4, left: 14 }}><Stage px={6} shadowW={74}><FighterSprite buddy={db.buddy} anim={buddyAnim} px={6} /></Stage></div>
+      {/* THE VICTORY FLOURISH, played where it is actually seen. A shop row cannot sell what the
+          player has never watched happen. */}
+      {winner === 'you' && wornFlourish === 'flourish_stomp' && <div className="absolute fdust" style={{ left: 20, bottom: 10, width: 120, height: 8, borderRadius: '50%', background: 'var(--border)', opacity: 0.35 }} />}
+      {winner === 'you' && wornFlourish === 'flourish_meteor' && <div className="absolute fmeteor" style={{ top: 10, right: 0, width: 90, height: 3, background: 'var(--fat)' }} />}
       {/* VS flash on entry */}
       {intro && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="pf fvs" style={{ fontSize: 26, color: 'var(--fat-ink)', WebkitTextStroke: '1px var(--border)' }}>VS</div></div>}
       {/* damage / hit pops */}
@@ -9405,61 +9721,141 @@ function FightModal({ db, update, streak, onClose, embedded }) {
         </div>}
 
         {phase === 'select' && <div className="fade-in">
-          {/* progress eyebrow */}
-          <div className="text-center pf text-[8px] uppercase text-[#8A8A90] mb-3 inline-flex items-center justify-center gap-1.5 w-full flex-wrap">
-            {(fight.prestige || 0) > 0 && <span style={{ color: 'var(--fat-ink)' }}>Prestige {fight.prestige} ·</span>}
-            <span>{ladderCleared ? 'All bosses cleared' : `Boss ${(fight.rank || 0) + 1}/${FIGHT_LADDER.length}`} · {fight.wins || 0} wins · {fight.trophies || 0}</span>
-            <PixelGlyph kind="trophy" color="var(--fat)" size={24} />
+          {/* The wallet lives on the battle screen because this is where Amber is earned. */}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="pf text-[9px] uppercase" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>
+              {(fight.prestige || 0) > 0 ? 'Prestige ' + fight.prestige + ' · ' : ''}{fight.wins || 0} wins
+            </span>
+            <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.1em', color: 'var(--fat-ink)' }}><Spark size={12} /> {amber} Amber</span>
           </div>
 
-          {/* your fighter: sprite, stats, and today's readiness edge, all grown from your eating */}
-          <div className="pixel-box p-3 mb-4 flex items-center gap-3" style={{ background: 'var(--surface2)', boxShadow: 'none' }}>
-            <div className="pixel-box shrink-0 inline-flex items-center justify-center buddy-scene" style={{ boxShadow: 'none', width: 62, height: 62 }}><FighterSprite buddy={db.buddy} anim="idle" px={2.2} /></div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-bold truncate">{fighter.name}</div>
-              <StatLine s={fighter.stats} />
-              {/* WHERE THE NUMBERS CAME FROM. The readiness line was the only thing on this screen
-                  that explained itself in terms of the user's actual life, and it was the best thing
-                  on it: "well rested, +15% attack today" is the whole idea of the game layer in six
-                  words. Every other figure here is grown from food - ATK from protein days, DEF from
-                  fibre days, HP from the streak (buddyStats) - and the screen had never once said so,
-                  so the stats read as arbitrary game numbers rather than as a picture of the week.
-                  Same source, stated plainly, right under the stats they explain. */}
-              <div className="text-[9px] mt-1 leading-snug" style={{ color: 'var(--muted)' }}>
-                Fed by your week: protein {fighter.stats.pro}/7 into attack, fibre {fighter.stats.fib}/7 into defence.
+          {/* 1 · THIS WEEK'S BOSS. The panel that gives the week a point: who you are fighting, the
+              macro that breaks its guard, and how far into the week you already are. */}
+          <PlayPanel title="This week's boss" right={bossDaysLeft + (bossDaysLeft === 1 ? ' day left' : ' days left')}>
+            <FightScene height={112} label={Game.COSMETIC_BY_ID[wornArena] ? Game.COSMETIC_BY_ID[wornArena].name : null}>
+              <div className="absolute" style={{ right: 92, bottom: 14 }}>
+                <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={boss.name} anim="idle" px={3} /></span>
               </div>
-              <div className="text-[9px] mt-0.5 leading-snug" style={{ color: readyBuff.band === 'apex' ? 'var(--good-ink)' : readyBuff.band === 'drowsy' ? 'var(--warn)' : 'var(--muted)' }}>
-                {readyBuff.band
-                  ? (readyBuff.atk > 1 ? 'Well rested: +' + Math.round((readyBuff.atk - 1) * 100) + '% attack today'
-                    : readyBuff.atk < 1 ? 'Low readiness: a defensive stance and a heal today'
-                    : 'Steady readiness today')
-                  : 'Connect a wearable and last night’s sleep will move these too'}
+              <div className="absolute" style={{ right: 104, bottom: 10, width: 44, height: 5, background: 'var(--border)', opacity: 0.45 }} />
+            </FightScene>
+            <div className="p-3 flex flex-col gap-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="pf text-[15px]" style={{ letterSpacing: '0.04em' }}>{boss.name}</span>
+                <span className="pf text-[9px] uppercase tnum" style={{ letterSpacing: '0.1em', color: 'var(--muted)' }}>ATK {boss.stats.atk} DEF {boss.stats.def} HP {boss.stats.hp}</span>
+              </div>
+              <TypeRow lit={bossPlan.type} />
+              <div className="text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>
+                Guards against everything but <b style={{ color: 'var(--accent-ink)' }}>{(TYPE_META[bossPlan.type] || TYPE_META.balanced)[0]}</b>, and {(TYPE_META[bossPlan.type] || TYPE_META.balanced)[0]} is {bossPlan.macro}.{' '}
+                {bossPlan.live
+                  ? bossPlan.daysHit + ' ' + bossPlan.macro + ' days in so far, so it is already taking 1.35x.'
+                  : bossPlan.daysHit === 0
+                    ? 'No ' + bossPlan.macro + ' days yet this week. Three of them and it starts taking 1.35x.'
+                    : bossPlan.daysHit + ' so far. ' + (bossPlan.daysNeeded - bossPlan.daysHit) + ' more and it starts taking 1.35x.'}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>
+                  <span>{bossPlan.macro}, this week</span><span>{bossPlan.daysHit} of {bossPlan.daysTotal} days</span>
+                </div>
+                <div className="grid gap-[3px]" style={{ gridTemplateColumns: 'repeat(7,1fr)' }}>
+                  {Array.from({ length: bossPlan.daysTotal }, (_, i) => {
+                    const done = i < bossPlan.daysHit;
+                    return <div key={i} style={{ height: 22, border: '2px ' + (done ? 'solid var(--border)' : 'dashed var(--muted2)'), background: done ? 'var(--weight)' : 'var(--surface3)' }} />;
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+            <div className="px-2.5 py-2 flex items-center justify-between" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)' }}>
+              <span className="pf text-[8px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--muted)' }}>Clears for</span>
+              <span className="pf text-[10px] uppercase" style={{ letterSpacing: '0.08em', color: 'var(--accent-ink)' }}>{Game.AMBER_REWARDS.weekly} Amber · {Game.AMBER_REWARDS.weeklyFirst} first time</span>
+            </div>
+          </PlayPanel>
 
-          <div className="pf text-[8px] uppercase text-[#8A8A90] mb-2">Your battles</div>
+          {/* 2 · YOUR FIGHTER, AS A STAT SHEET. Every figure carries the meter and the sentence that
+              earned it, so the stats read as a picture of the week rather than game numbers. */}
+          {loggedToday ? (
+            <PlayPanel title={fighter.name + ' · stage ' + Math.max(1, si)} right={(TYPE_META[buddyType] || TYPE_META.balanced)[0]}
+              footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
+                <div style={{ color: 'var(--text2)' }}>{fighterLine}</div></>}>
+              <FightScene height={112}>
+                <div className="absolute" style={{ left: '50%', marginLeft: -36, bottom: 14 }}><FighterSprite buddy={db.buddy} anim="idle" px={3} /></div>
+                <div className="absolute" style={{ left: '50%', marginLeft: -24, bottom: 10, width: 48, height: 5, background: 'var(--border)', opacity: 0.5 }} />
+              </FightScene>
+              <div className="p-3">
+                <StatRow first value={fighter.stats.atk} label="Attack" filled={fighter.stats.pro} total={7} color="var(--pro)"
+                  note={fighter.stats.pro + ' protein day' + (fighter.stats.pro === 1 ? '' : 's') + ' in the last 7'} />
+                <StatRow value={fighter.stats.def} label="Defence" filled={fighter.stats.fib} total={7} color="var(--carb)"
+                  note={fighter.stats.fib + ' fibre day' + (fighter.stats.fib === 1 ? '' : 's') + ' in the last 7'} />
+                <StatRow value={fighter.stats.hp} label="Health" filled={Math.min(streak, 14)} total={14} color="var(--cal)"
+                  note={streak + ' day streak, ' + fighter.stats.per + ' perfect day' + (fighter.stats.per === 1 ? '' : 's')} />
+              </div>
+            </PlayPanel>
+          ) : (
+            /* Nothing logged: the fighter panel steps aside entirely and the screen leads with the one
+               action, priced. It dims the fights rather than hiding them, and never scolds. */
+            <PlayPanel title="One log opens today" right={'+' + Game.AMBER_REWARDS.dailyLog + ' Amber'}
+              footer={<><span className="pf text-[8px] uppercase inline-block mb-1.5" style={{ letterSpacing: '0.14em', background: 'var(--accent)', color: 'var(--on-accent)', border: '2px solid var(--border)', padding: '3px 6px' }}>Says</span>
+                <div style={{ color: 'var(--text2)' }}>I fight on what you eat. Log one thing and I am up.</div></>}>
+              <FightScene height={112}>
+                <div className="absolute" style={{ left: '50%', marginLeft: -36, bottom: 14, opacity: 0.55 }}><FighterSprite buddy={db.buddy} anim="sleep" px={3} /></div>
+              </FightScene>
+              <div className="p-3">
+                <Btn kind="accent" className="w-full" onClick={() => { if (onLog) onLog(); else onClose(); }}>Log a meal</Btn>
+              </div>
+            </PlayPanel>
+          )}
 
-          {/* Daily Hunt: the quick everyday fight for Amber. */}
-          <FightCard tag="Daily Hunt" border={dailyReady ? 'var(--accent)' : 'var(--border)'} enemy={daily}
-            attemptTag={dailyReady ? (loggedToday ? 'ready' : 'log to arm') : 'cleared today'}
-            reward={<>{(fight.dailyStreak || 0) > 0 && <span style={{ color: 'var(--fat-ink)' }}><Icon.trend_up width="16" /> {fight.dailyStreak}-day streak · </span>}Beat it for <span className="font-bold" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> {dailyAmber} Amber</span>. A fresh one roams in tomorrow.</>}
-            action={dailyReady
-              ? (loggedToday
-                  ? <Btn kind="accent" className="w-full inline-flex items-center justify-center gap-2" onClick={() => start(daily, 'daily')}><PixelGlyph kind="glove" color="currentColor" size={24} /> Hunt</Btn>
-                  : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>Log a meal today to arm the hunt.</div>)
-              : <div className="text-[10px] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none', color: 'var(--good-ink)' }}>Hunt cleared today <Tick size={12} /> A fresh one lands tomorrow.</div>} />
+          {/* 3 · TODAY'S CHARGES. Earned by today, spent tonight. */}
+          <PlayPanel title="Today's charges" right={charges.count ? charges.count + ' of 3' : 'None yet'}
+            footer="Earned by today, spent in tonight's fight.">
+            <ChargeTiles charges={charges} spent={{}} onSpend={null} />
+          </PlayPanel>
 
-          {/* Boss Climb: the ladder folded into the boss. Beat progressively tougher bosses, one attempt
-              a day, to climb ranks and earn the Champion Belt, then prestige for a harder run. */}
-          <FightCard tag={ladderCleared ? 'Boss Climb · all cleared' : 'Boss Climb · Rank ' + ((fight.rank || 0) + 1) + '/' + FIGHT_LADDER.length} border="var(--danger)" enemy={rival}
-            attemptTag={ladderCleared ? null : (gate.can ? '1 attempt today' : gate.reason === 'used' ? 'used today' : 'log to unlock')}
-            reward="Climb the bosses for Amber, loot and the Champion Belt. Losing only teaches, never sets you back."
-            action={ladderCleared
-              ? <Btn kind="accent" className="w-full" onClick={prestige}><Icon.arrow_up width="16" /> Prestige · tougher climb, better drops</Btn>
-              : gate.can
-                ? <Btn kind="danger" className="w-full inline-flex items-center justify-center gap-2" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}><PixelGlyph kind="glove" color="currentColor" size={24} /> Fight</Btn>
-                : <div className="text-[10px] text-[#8A8A90] text-center pixel-box p-2" style={{ background: 'var(--surface3)', boxShadow: 'none' }}>{gate.reason === 'used' ? 'Today’s attempt is used, a fresh one lands tomorrow.' : 'Log a meal today to earn your attempt.'}</div>} />
+          {/* 4 · THE TWO FIGHTS. */}
+          <PlayPanel title="Daily hunt" right={dailyReady ? ((fight.dailyStreak || 0) > 0 ? fight.dailyStreak + ' in a row' : (loggedToday ? 'Ready' : 'Locked')) : '+' + dailyAmber + ' Amber'}>
+            <div className="p-3 flex flex-col gap-2.5">
+              {dailyReady ? <>
+                <div className="flex gap-3 items-center">
+                  <div className="pixel-box shrink-0 inline-flex items-end justify-center overflow-hidden buddy-scene" style={{ boxShadow: 'none', width: 68, height: 68 }}>
+                    <span style={{ display: 'inline-block', transform: 'scaleX(-1)' }}><EnemySprite name={daily.name} anim="idle" px={2.5} /></span>
+                  </div>
+                  <div className="min-w-0 flex-1 flex flex-col gap-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="pf text-[13px]" style={{ letterSpacing: '0.04em' }}>{daily.name}</span>
+                      <TypeChip t={daily.type} />
+                    </div>
+                    <span className="pf text-[8px] uppercase tnum" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>ATK {daily.stats.atk} DEF {daily.stats.def} HP {daily.stats.hp}</span>
+                    <span className="text-[11.5px]" style={{ color: 'var(--text2)' }}>{matchupLine(buddyType, daily.type)}</span>
+                  </div>
+                </div>
+                {loggedToday
+                  ? <Btn kind="accent" className="w-full" onClick={() => start(daily, 'daily')}>Hunt · {dailyAmber} Amber</Btn>
+                  : <div className="text-[11px] text-center" style={{ color: 'var(--muted)' }}>{daily.name} is waiting. Streak stays at {fight.dailyStreak || 0} either way.</div>}
+              </> : <div className="text-[11.5px]" style={{ color: 'var(--text2)' }}>
+                {daily.name} saw us off. Day {fight.dailyStreak || 1}, and day {(fight.dailyStreak || 1) + 1} pays {Game.AMBER_REWARDS.dailyStreakBonus} more.
+              </div>}
+            </div>
+            {!dailyReady && <div className="px-2.5 py-2 pf text-[8px] uppercase" style={{ background: 'var(--surface2)', borderTop: '2px solid var(--border)', letterSpacing: '0.14em', color: 'var(--muted)' }}>One hunt a day · back tomorrow</div>}
+          </PlayPanel>
+
+          <PlayPanel title="Boss climb" right={ladderCleared ? 'Prestige ' + (fight.prestige || 0) : (gate.can ? 'Rung ' + ((fight.rank || 0) + 1) + ' of ' + FIGHT_LADDER.length : 'Locked · rung ' + ((fight.rank || 0) + 1))}>
+            <div className="p-3 flex flex-col gap-2.5">
+              <PipLine pct={((fight.rank || 0) / FIGHT_LADDER.length) * 100} color="var(--accent)" height={12} cells={FIGHT_LADDER.length} />
+              {ladderCleared ? <>
+                <div className="text-[11.5px]" style={{ color: 'var(--text2)' }}>Belt held. Prestige {(fight.prestige || 0) + 1} resets the ladder, makes every rung harder, and opens Molten Core, Volcanic Shelf and The Colosseum in the shop.</div>
+                <Btn kind="accent" className="w-full" onClick={prestige}>Enter prestige {(fight.prestige || 0) + 1}</Btn>
+              </> : <>
+                <div className="flex justify-between items-baseline gap-2">
+                  <span className="text-[11.5px]" style={{ color: 'var(--text2)' }}>
+                    {gate.can ? 'One climb per logged day. ' + rival.name + ' holds rung ' + ((fight.rank || 0) + 1) + '.'
+                      : gate.reason === 'used' ? 'Today\u2019s climb is done. Rung ' + ((fight.rank || 0) + 1) + ' keeps.'
+                      : 'Nothing is lost by waiting. Rung ' + ((fight.rank || 0) + 1) + ' keeps.'}
+                  </span>
+                  <span className="pf text-[9px] uppercase shrink-0" style={{ letterSpacing: '0.1em', color: 'var(--accent-ink)' }}>{Game.AMBER_REWARDS.ladderRung} each</span>
+                </div>
+                {gate.can && <Btn kind="danger" className="w-full" onClick={() => { update(d => { d.fight = d.fight || { rank: 0, wins: 0, trophies: 0, lastBossWeek: null, prestige: 0 }; d.fight.lastAttemptDate = today; }); start(rival, 'ladder'); }}>Climb rung {(fight.rank || 0) + 1}</Btn>}
+              </>}
+            </div>
+          </PlayPanel>
         </div>}
 
         {(phase === 'fight' || phase === 'done') && opp && <div className="fade-in">
@@ -9468,13 +9864,59 @@ function FightModal({ db, update, streak, onClose, embedded }) {
             <div><div className="text-[9px] mb-1 font-bold text-right truncate">{opp.name}</div><HpBar hp={hpB} max={maxB} color="var(--danger)" align="r" /></div>
           </div>
           <Ring />
-          <div className="pixel-box p-2 mb-3 text-[10px] text-[#8A8A90] leading-relaxed" style={{ background: 'var(--surface3)', minHeight: 56 }}>{log.map((l, i) => <div key={i} style={{ opacity: 1 - i * 0.16 }}>› {l}</div>)}</div>
-          {phase === 'done' && <div className="text-center fade-in">
-            <div className="pf text-2xl mb-1" style={{ color: winner === 'you' ? 'var(--good-ink)' : 'var(--danger-ink)' }}>{winner === 'you' ? 'VICTORY ROAR!' : 'DOWN AND OUT'}</div>
-            <div className="text-[11px] text-[#8A8A90] mb-2">{winner === 'you' ? (isDaily ? 'Daily Hunt cleared!' : isBoss ? 'Boss felled! Trophy earned.' : ladderCleared ? 'The apex predator holds the pit.' : 'You climb the food chain!') : 'Your buddy needs a good feed, come back tomorrow and go again.'}</div>
-            {winner === 'you' && amberEarned > 0 && <div className="text-[14px] mb-2 font-bold" style={{ color: 'var(--fat-ink)' }}><Spark size={12} /> +{amberEarned} Amber</div>}
-            {winner === 'you' && drops.length > 0 && <div className="text-[11px] mb-3" style={{ color: 'var(--good-ink)' }}>Loot: {drops.map(id => ITEMS[id].name).join(', ')}</div>}
-            <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setPhase('select')}>Back</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Done</Btn></div>
+          {/* THE COMMAND BOX. The fight used to be something you watched from the moment you pressed
+              the button; the charges today earned sit here, where the four commands would be in the
+              game this borrows from, and each is spendable once. A fight with none in hand plays
+              exactly as it always did, and says so rather than showing dead buttons. */}
+          <div className="pixel-box p-2.5 mb-3" style={{ background: 'var(--cardhead-bg)', color: 'var(--cardhead-text)' }}>
+            <div className="text-[11px] leading-relaxed mb-2" style={{ minHeight: 56 }}>
+              {log.map((l, i) => <div key={i} style={{ opacity: 1 - i * 0.18 }}>› {l}</div>)}
+            </div>
+            {phase === 'fight' && (charges.count > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {Game.CHARGE_META.filter(c => charges[c.key]).map(c => {
+                  const used = !!spent[c.key];
+                  return (
+                    <button key={c.key} type="button" disabled={used} onClick={() => spendCharge(c.key)}
+                      className="pf text-[10px] uppercase inline-flex items-center justify-center gap-2 py-3"
+                      style={{ letterSpacing: '0.1em', border: '3px solid var(--border)',
+                        background: used ? 'var(--surface3)' : 'var(--accent)', color: used ? 'var(--muted)' : 'var(--on-accent)',
+                        cursor: used ? 'default' : 'pointer' }}>
+                      <span style={{ width: 11, height: 11, background: used ? 'var(--muted)' : 'var(--on-accent)', transform: c.key === 'heal' ? 'rotate(45deg)' : 'none' }} />
+                      {used ? 'Spent' : c.label}
+                    </button>
+                  );
+                })}
+                <button type="button" className="pf text-[10px] uppercase py-3" style={{ letterSpacing: '0.1em', border: '3px solid var(--border)', background: 'var(--card)', color: 'var(--text)' }}>Watch it out</button>
+              </div>
+            ) : (
+              <div className="text-[11px] leading-snug" style={{ opacity: 0.85 }}>
+                No charges today, so this is your week fighting alone.{bossPlan.live ? ' ' + (TYPE_META[bossPlan.type] || TYPE_META.balanced)[0] + ' still lands 1.35x.' : ''}
+              </div>
+            ))}
+          </div>
+          {phase === 'done' && <div className="fade-in">
+            {/* The result is a ledger, not a fanfare: what you got, what is one day away, what did not
+                move. Then the one card that names the stat that decided it and the food behind it. */}
+            <div className="text-center mb-3">
+              <div className="pf text-xl mb-1" style={{ color: winner === 'you' ? 'var(--good-ink)' : 'var(--danger-ink)' }}>{winner === 'you' ? 'You win' : 'You lose'}</div>
+              <div className="pf text-[10px] uppercase" style={{ letterSpacing: '0.12em', color: 'var(--muted)' }}>{winner === 'you' ? opp.name + ' down' : opp.name + ' stands'}</div>
+            </div>
+            <PlayPanel title={winner === 'you' ? 'Spoils' : 'What it cost'} right={winner === 'you' ? (isDaily ? 'Day ' + (fight.dailyStreak || 1) : null) : 'Nothing'}>
+              <div className="px-3 py-1">
+                {resultRows.map((r, i) => (
+                  <div key={i} className="flex items-baseline justify-between gap-3 py-2" style={i ? { borderTop: '2px solid var(--surface2)' } : null}>
+                    <span className="text-[12px]" style={{ color: 'var(--text2)' }}>{r.label}</span>
+                    <span className="pf text-[9px] uppercase shrink-0 text-right" style={{ letterSpacing: '0.1em', color: r.tone || 'var(--muted)' }}>{r.value}</span>
+                  </div>
+                ))}
+              </div>
+            </PlayPanel>
+            <PlayPanel title="What decided it">
+              <div className="p-3 text-[12px] leading-snug" style={{ color: 'var(--text2)' }}>{decidedLine}</div>
+            </PlayPanel>
+            {winner !== 'you' && onLog && <Btn kind="accent" className="w-full mb-3" onClick={() => { onLog(); }}>Log something with {bossPlan.macro}</Btn>}
+            <div className="flex gap-2"><Btn kind="ghost" className="flex-1" onClick={() => setPhase('select')}>Battle</Btn><Btn kind="accent" className="flex-1" onClick={onClose}>Done</Btn></div>
           </div>}
         </div>}
   </>);
@@ -19184,7 +19626,7 @@ function App() {
       {paywall && <Paywall reason={paywall.reason} onCheckout={startCheckout} onClose={() => setPaywall(null)} />}
       {feedbackOpen && <FeedbackSheet email={session.user.email} onClose={() => setFeedbackOpen(false)} />}
       {ghConsentOpen && <GoogleHealthDisclosure onClose={() => setGhConsentOpen(false)} onAgree={() => { setGhConsentOpen(false); try { window.MTRACK && MTRACK('gh_disclosure_agree'); } catch (_) {} ghConnect(); }} />}
-      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onClose={() => setDexOpen(false)} isPremium={isPremium} />}
+      {dexOpen && <MacrodexModal db={db} update={update} streak={appStreak} onOpenName={() => setNameOpen(true)} onLog={() => { setDexOpen(false); setAdding({ date: Store.todayISO(), mealId: meals[0].id }); }} onClose={() => setDexOpen(false)} isPremium={isPremium} />}
       {nameOpen && <NameBuddyModal db={db} update={update} buddy={appBuddy} onClose={() => setNameOpen(false)} />}
       {/* Lifted clear of the session player's fixed Finish button, which sits at the very bottom of
           a screen that hides the tab bar. A toast landing on the one control you need is worse than

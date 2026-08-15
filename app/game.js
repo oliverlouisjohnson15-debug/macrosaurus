@@ -322,6 +322,87 @@
     return { id: pool[h % pool.length], shiny: seedFor(salt, date + '#cishiny') % 11 === 0 };
   }
 
+  /* ---- THE BOSS IS YOUR WORST HABIT, WEARING A FACE ----
+     The weekly boss's weakness used to be `bossWeakness(weekKey)`, a hash of the week number, which
+     meant the one mechanic in the whole game that asks the user to eat a specific thing pointed
+     somewhere arbitrary. The app already knows which macro they habitually miss. Pointing the
+     weakness at that turns "beat the boss" into "fix the thing you keep missing", which is the only
+     honest reason for a nutrition tracker to have a boss at all.
+
+     `quals` is a list of dayQuality objects (nulls allowed for unlogged days), oldest last or first,
+     order does not matter. A fortnight is the window: long enough that one bad week does not pick
+     the target, short enough to follow someone who has just fixed their protein. */
+  var MACRO_TYPE = { protein: 'power', fat: 'guard', carbs: 'swift', fibre: 'renew' };
+  var WEAKNESS_DAYS = 3;        // days of the weakness macro this week before the 1.35x is live
+  var WEAKNESS_WEEK = 7;        // the track on the boss panel is a week long
+  function macroHitCounts(quals) {
+    var c = { protein: 0, fat: 0, carbs: 0, fibre: 0 }, n = 0;
+    (quals || []).forEach(function (q) {
+      if (!q || !q.logged) return;
+      n++;
+      if (q.proteinHit) c.protein++;
+      if (q.fatHit) c.fat++;
+      if (q.carbHit) c.carbs++;
+      if (q.fiberHit) c.fibre++;
+    });
+    return { counts: c, days: n };
+  }
+  // The macro missed most often. Ties break in a fixed order rather than randomly, so the boss does
+  // not flicker between two equally-missed macros from one render to the next. Fibre first because
+  // it is the one most people are furthest from and the one the engine cares about most.
+  var MACRO_ORDER = ['fibre', 'protein', 'carbs', 'fat'];
+  function weakestMacro(quals) {
+    var r = macroHitCounts(quals);
+    if (!r.days) return 'fibre';                 // nothing logged yet: fibre is the safe first ask
+    var best = null, bestRate = 2;
+    MACRO_ORDER.forEach(function (m) {
+      var rate = r.counts[m] / r.days;
+      if (rate < bestRate - 1e-9) { bestRate = rate; best = m; }
+    });
+    return best || 'fibre';
+  }
+  // Everything the boss panel needs: which type it is weak to, the macro that feeds that type, how
+  // many days of it have landed this week, and whether the bonus is already live.
+  //   `fortnight` = quality objects for the trailing 14 days (picks the target)
+  //   `week`      = quality objects for this week so far (fills the track)
+  function bossPlan(fortnight, week) {
+    var macro = weakestMacro(fortnight);
+    var key = macro === 'fibre' ? 'fiberHit' : macro === 'protein' ? 'proteinHit' : macro === 'carbs' ? 'carbHit' : 'fatHit';
+    var hit = 0;
+    (week || []).forEach(function (q) { if (q && q[key]) hit++; });
+    return {
+      macro: macro,
+      type: MACRO_TYPE[macro],
+      daysHit: Math.min(WEAKNESS_WEEK, hit),
+      daysNeeded: WEAKNESS_DAYS,
+      daysTotal: WEAKNESS_WEEK,
+      live: hit >= WEAKNESS_DAYS,
+      mult: hit >= WEAKNESS_DAYS ? 1.35 : 1,
+    };
+  }
+  // Days left in the boss's week, counting today. The week turns over on Monday, same as the app's
+  // other weekly surfaces.
+  function bossDaysLeft(todayISO) {
+    var dow = new Date(todayISO + 'T00:00:00').getDay();   // 0 Sun .. 6 Sat
+    return dow === 0 ? 1 : 8 - dow;
+  }
+
+  /* ---- TODAY'S CHARGES: the join between this afternoon's lunch and tonight's fight ----
+     Every other number on the battle screen is a rolling seven day window, which is why what someone
+     ate today barely moved the fight and the game could not be a reason to eat well this afternoon.
+     Charges are earned by TODAY alone and spent in TONIGHT's fight, and that is the whole point.
+     They are earned, never bought, and a fight with none plays exactly as it always did. */
+  var CHARGE_META = [
+    { key: 'power', label: 'POWER', earn: 'protein hit', need: 'hit protein', mult: 1.55 },
+    { key: 'heal', label: 'HEAL', earn: 'fibre hit', need: 'hit fibre', heal: 0.22 },
+    { key: 'special', label: 'SPECIAL', earn: 'a perfect day', need: 'a perfect day', mult: 2.1 },
+  ];
+  function chargesToday(q) {
+    var got = { power: !!(q && q.proteinHit), heal: !!(q && q.fiberHit), special: !!(q && q.perfect) };
+    got.count = (got.power ? 1 : 0) + (got.heal ? 1 : 0) + (got.special ? 1 : 0);
+    return got;
+  }
+
   // Fight gating: one ladder attempt per day, and only on a day with food logged.
   function fightGate(lastAttemptDate, loggedToday, today) {
     if (lastAttemptDate === today) return { can: false, reason: 'used' };
@@ -704,7 +785,24 @@
   // dress the habitat instead, which is art we already have and scales without new sprite work.
   // Ownership lives in db.buddy.cosmetics (unioned on merge, so a purchase can never be lost); which
   // of the owned items is actually worn lives in db.buddy.equipped (see equippedFor).
-  var COSMETIC_KINDS = ['aura', 'scene', 'prop'];
+  /* Six slots, not three. The old catalogue was thirteen items worth about 2,000 Amber against an
+     income of roughly 30 a day, so a committed user owned all of it inside a month and every reward
+     after that was confetti for a currency that bought nothing. Three new slots (arena, banner,
+     flourish) are things only ever seen in a FIGHT, which is why they are worth selling separately
+     from the terrarium, and the habitat upgrades below are permanent, stacking, and priced as
+     savings goals rather than impulse buys. Income is deliberately unchanged: the problem was never
+     that people earn too little, it is that there was nothing left to want.
+     `gate` is what has to be true to see it at all (see gateMet): a prestige level, a cleared
+     ladder, or a founding member flag. */
+  var COSMETIC_KINDS = ['aura', 'scene', 'prop', 'arena', 'banner', 'flourish'];
+  var COSMETIC_KIND_META = {
+    aura: { label: 'Auras', blurb: 'Worn one at a time' },
+    scene: { label: 'Terrarium scenes', blurb: 'The backdrop it lives in' },
+    prop: { label: 'Terrarium props', blurb: 'One decoration on the floor' },
+    arena: { label: 'Arenas', blurb: 'The backdrop of a fight' },
+    banner: { label: 'Banners', blurb: 'A standard behind your fighter' },
+    flourish: { label: 'Victory flourishes', blurb: 'What a win looks like' },
+  };
   var COSMETICS = [
     { id: 'aura_ember', name: 'Ember Aura', kind: 'aura', price: 180, desc: 'A warm ember glow that follows your buddy.' },
     { id: 'aura_frost', name: 'Frost Aura', kind: 'aura', price: 180, desc: 'A cool blue shimmer that trails your buddy.' },
@@ -719,11 +817,115 @@
     { id: 'prop_rock', name: 'Standing Stone', kind: 'prop', price: 110, desc: 'A weathered boulder to bask against.' },
     { id: 'prop_cycad', name: 'Cycad', kind: 'prop', price: 140, desc: 'A broad prehistoric palm, good for shade.' },
     { id: 'prop_nest', name: 'Nest Egg', kind: 'prop', price: 160, desc: 'A spare egg, kept safe beside your buddy.' },
+    // New auras
+    { id: 'aura_bloom', name: 'Verdant Bloom', kind: 'aura', price: 240, desc: 'Soft leaves drifting up around it.' },
+    { id: 'aura_static', name: 'Static Charge', kind: 'aura', price: 260, desc: 'Crackling white arcs, brief and sharp.' },
+    { id: 'aura_molten', name: 'Molten Core', kind: 'aura', price: 300, gate: 'prestige1', desc: 'Glowing from within, embers falling.' },
+    { id: 'aura_veil', name: 'Aurora Veil', kind: 'aura', price: 340, gate: 'prestige2', desc: 'Ribbons of green and violet light.' },
+    // New scenes
+    { id: 'scene_marsh', name: 'Moonlit Marsh', kind: 'scene', price: 260, desc: 'Still water, reeds, fireflies, a pale moon.' },
+    { id: 'scene_canyon', name: 'Fern Canyon', kind: 'scene', price: 300, desc: 'Stacked ledges, four falls, ferns on every shelf.' },
+    { id: 'scene_ember', name: 'Ember Desert', kind: 'scene', price: 280, desc: 'Low sun, red ridges, saguaro in silhouette.' },
+    { id: 'scene_star', name: 'Starfield', kind: 'scene', price: 360, gate: 'prestige1', desc: 'Night, a crescent moon, glowing spores in the grass.' },
+    // New props
+    { id: 'prop_trough', name: 'Feeding Trough', kind: 'prop', price: 130, desc: 'A stone bowl. It fills up on a well fed day.' },
+    { id: 'prop_log', name: 'Log Perch', kind: 'prop', price: 140, desc: 'A fallen log your buddy can sit on.' },
+    { id: 'prop_spring', name: 'Hot Spring', kind: 'prop', price: 200, desc: 'A steaming pool with gentle bubbles.' },
+    { id: 'prop_skull', name: 'Fossil Skull', kind: 'prop', price: 220, gate: 'belt', desc: 'A big skull, half buried in the ground.' },
+    // Arenas: only ever seen in a fight
+    { id: 'arena_pit', name: 'The Pit', kind: 'arena', price: 0, desc: 'A bare dirt ring. Where every fight starts.' },
+    { id: 'arena_bone', name: 'Bone Yard', kind: 'arena', price: 200, desc: 'Ribs and skulls half sunk in sand.' },
+    { id: 'arena_ash', name: 'Ash Ring', kind: 'arena', price: 240, desc: 'Volcanic grit with embers drifting across.' },
+    { id: 'arena_ice', name: 'Frozen Lake', kind: 'arena', price: 260, desc: 'Cracked ice under a cold blue light.' },
+    { id: 'arena_colosseum', name: 'The Colosseum', kind: 'arena', price: 360, gate: 'prestige1', desc: 'Stone tiers and a crowd of tiny pixel dinos.' },
+    // Banners: a standard planted behind your fighter
+    { id: 'banner_streak', name: 'Streak Banner', kind: 'banner', price: 180, desc: 'Carries your streak, and gains a gold mark every 10 days.' },
+    { id: 'banner_hunter', name: "Hunter's Pennant", kind: 'banner', price: 200, desc: 'A torn flag with a notch for each daily streak.' },
+    { id: 'banner_champion', name: "Champion's Standard", kind: 'banner', price: 320, gate: 'belt', desc: 'Heavy and gold trimmed. Unmistakable.' },
+    { id: 'banner_founder', name: "Founder's Colours", kind: 'banner', price: 0, gate: 'founder', desc: 'The founding member palette, yours to keep.' },
+    // Victory flourishes: what a win looks like
+    { id: 'flourish_roar', name: 'Roar', kind: 'flourish', price: 0, desc: 'Rears up and roars. Where every win starts.' },
+    { id: 'flourish_stomp', name: 'Stomp', kind: 'flourish', price: 160, desc: 'Lands hard, and a ring of dust rolls out.' },
+    { id: 'flourish_confetti', name: 'Confetti Burst', kind: 'flourish', price: 180, desc: 'Pixel confetti, the same as a milestone.' },
+    { id: 'flourish_meteor', name: 'Meteor', kind: 'flourish', price: 300, gate: 'prestige1', desc: 'A streak crosses the sky behind it.' },
   ];
+  // The two slots that always have something in them, so a fight is never unpainted.
+  var COSMETIC_DEFAULT = { arena: 'arena_pit', flourish: 'flourish_roar' };
   var COSMETIC_BY_ID = {}; COSMETICS.forEach(function (c) { COSMETIC_BY_ID[c.id] = c; });
   function cosmeticsOfKind(kind) { return COSMETICS.filter(function (c) { return c.kind === kind; }); }
   function shopPrice(id) { return COSMETIC_BY_ID[id] ? COSMETIC_BY_ID[id].price : null; }
   function canAfford(ledger, id) { var p = shopPrice(id); return p != null && amberBalance(ledger) >= p; }
+  // Has this item's gate been earned? `st` is { prestige, belt, founder }. An ungated item is always
+  // met. A gated item is still SHOWN in the shop (that is the point of a tier: you can see it), it
+  // just cannot be bought, so this only ever decides the button.
+  function gateMet(gate, st) {
+    if (!gate) return true;
+    var s = st || {};
+    if (gate === 'prestige1') return (s.prestige || 0) >= 1;
+    if (gate === 'prestige2') return (s.prestige || 0) >= 2;
+    if (gate === 'belt') return !!s.belt;
+    if (gate === 'founder') return !!s.founder;
+    return true;
+  }
+  var GATE_LABEL = { prestige1: 'Prestige 1', prestige2: 'Prestige 2', belt: 'Champion Belt', founder: 'Founding member' };
+
+  /* ---- HABITAT UPGRADES: the sink that does not run out ----
+     Not a slot. Each is bought once and changes the terrarium for good, so nothing here is ever
+     swapped out or made redundant by the next purchase. Priced as savings goals: at ~30 Amber a day
+     the top of this list is a fortnight of good days, which is the point. This is what someone is
+     still working towards in month six, when every worn slot is filled. */
+  var HABITAT = [
+    { id: 'hab_wide', name: 'Wider view', price: 400, desc: 'The terrarium grows wider, showing more of the scene.' },
+    { id: 'hab_sky', name: 'Living sky', price: 450, desc: 'The sky follows the real time of day, dawn through night.' },
+    { id: 'hab_prop2', name: 'Second prop', price: 500, desc: 'A second prop slot, so the floor can be dressed properly.' },
+    { id: 'hab_weather', name: 'Weather', price: 600, desc: 'Rain, snow and heat haze drift through with the season.' },
+    { id: 'hab_visitors', name: 'Visitors', price: 800, desc: 'Now and then another dino wanders through and leaves again.' },
+    { id: 'hab_deep', name: 'The deep tank', price: 1000, desc: 'A second level to the terrarium, with water below the ground.' },
+  ];
+  var HABITAT_BY_ID = {}; HABITAT.forEach(function (h) { HABITAT_BY_ID[h.id] = h; });
+  function hasHabitat(owned, id) { return (owned || []).indexOf(id) >= 0; }
+  // How a habitat upgrade reads on the shelf: owned, affordable now, or a number of days away at the
+  // rate this user actually earns. "About 5 days to go" is a goal; "800 Amber" is a wall.
+  function habitatProgress(owned, id, balance, perDay) {
+    var h = HABITAT_BY_ID[id];
+    if (!h) return null;
+    if (hasHabitat(owned, id)) return { owned: true, pct: 1, label: 'Bought, kept for good' };
+    var bal = Math.max(0, balance || 0);
+    var pct = Math.max(0, Math.min(1, bal / h.price));
+    if (bal >= h.price) return { owned: false, pct: 1, label: 'Affordable now' };
+    var rate = perDay > 0 ? perDay : 30;
+    var days = Math.max(1, Math.ceil((h.price - bal) / rate));
+    return { owned: false, pct: pct, label: bal + ' of ' + h.price + ' · about ' + days + ' day' + (days === 1 ? '' : 's') };
+  }
+
+  /* ---- THE WEEKLY STALL ----
+     Six tabs at 390px runs to 8px type and leaves the rotation nowhere to live, so the shop leads
+     with a stall that changes every Monday and collapses the rest into named shelves. Nothing ever
+     LEAVES the catalogue, it only leaves the stall, which is scarcity without taking anything away.
+     Deterministic per (user, week): the same week always offers the same stall, so it cannot
+     reshuffle under someone who is saving up for something they can see. */
+  var STALL_SIZE = 7;
+  function weeklyStall(salt, weekKey, ownedIds) {
+    var owned = {}; (ownedIds || []).forEach(function (id) { owned[id] = 1; });
+    // Free defaults and things already bought have no business on a stall.
+    var pool = COSMETICS.filter(function (c) { return c.price > 0 && !owned[c.id]; })
+      .concat(HABITAT.filter(function (h) { return !owned[h.id]; })
+        .map(function (h) { return { id: h.id, name: h.name, kind: 'habitat', price: h.price, desc: h.desc }; }));
+    // A stable shuffle: sort by a per-item hash of the week, which is a rotation nobody can predict
+    // but everyone on the same week sees the same shape of.
+    pool.sort(function (a, b) { return seedFor(salt || '', weekKey + '#' + a.id) - seedFor(salt || '', weekKey + '#' + b.id); });
+    return pool.slice(0, STALL_SIZE);
+  }
+  // Monday-based week key, matching the app's other weekly surfaces.
+  function shopWeekKey(todayISO) {
+    var d = new Date(todayISO + 'T00:00:00');
+    var dow = (d.getDay() + 6) % 7;              // 0 = Monday
+    return shiftISO(todayISO, -dow);
+  }
+  function stallDaysLeft(todayISO) {
+    var dow = (new Date(todayISO + 'T00:00:00').getDay() + 6) % 7;
+    return 7 - dow;
+  }
   // What the buddy is actually wearing, per slot: { aura, scene, prop }, each an id or null.
   // `owned` is db.buddy.cosmetics, `equipped` is db.buddy.equipped (a slot -> id map).
   //   - A slot PRESENT in `equipped` is an explicit choice: the id if it is genuinely owned and of
@@ -1141,6 +1343,29 @@
     COSMETIC_BY_ID: COSMETIC_BY_ID,
     COSMETIC_KINDS: COSMETIC_KINDS,
     cosmeticsOfKind: cosmeticsOfKind,
+    COSMETIC_KIND_META: COSMETIC_KIND_META,
+    COSMETIC_DEFAULT: COSMETIC_DEFAULT,
+    COSMETIC_BY_ID: COSMETIC_BY_ID,
+    gateMet: gateMet,
+    GATE_LABEL: GATE_LABEL,
+    HABITAT: HABITAT,
+    HABITAT_BY_ID: HABITAT_BY_ID,
+    hasHabitat: hasHabitat,
+    habitatProgress: habitatProgress,
+    weeklyStall: weeklyStall,
+    shopWeekKey: shopWeekKey,
+    stallDaysLeft: stallDaysLeft,
+    STALL_SIZE: STALL_SIZE,
+    MACRO_TYPE: MACRO_TYPE,
+    MACRO_ORDER: MACRO_ORDER,
+    weakestMacro: weakestMacro,
+    macroHitCounts: macroHitCounts,
+    bossPlan: bossPlan,
+    bossDaysLeft: bossDaysLeft,
+    WEAKNESS_DAYS: WEAKNESS_DAYS,
+    WEAKNESS_WEEK: WEAKNESS_WEEK,
+    CHARGE_META: CHARGE_META,
+    chargesToday: chargesToday,
     equippedFor: equippedFor,
     shopPrice: shopPrice,
     canAfford: canAfford,
