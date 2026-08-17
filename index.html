@@ -2990,9 +2990,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
-      streak_credit: [], // ISO dates banked by a soft reset: days that were ACTIVE before the food log
-                         // and weigh-ins behind them were cleared. Read alongside the live logs by
-                         // activeDatesSet in app.jsx, so a soft reset keeps the run it earned (see softReset)
+      streak_credit: [], // ISO dates banked by a fresh start: days that were ACTIVE before the entries
+                         // proving them were cleared. Read alongside the live logs by activeDatesSet in
+                         // app.jsx, so a fresh start keeps the run it was told to keep (see freshStart)
+      fresh_start: null, // ISO date of the last fresh start, so learnedTdee cannot read a pre-reset
+                         // adaptive target out of a target history the user chose to keep
       deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
       menstrual: { enabled: false, lastStart: null, cycleLen: 28 }, // optional cycle tracking so premenstrual water weight doesn't trigger a wrong calorie cut
       steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
@@ -3040,67 +3042,105 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return defaultState();
   }
 
-  /* ---- The soft reset ----
-     "Reset all data" above is the blunt instrument: it hands back defaultState and everything the
-     user built goes with it. That is the wrong tool for the thing people actually want, which is to
-     start the NUMBERS again - a run that went sideways, a plan anchored to a weight from three
-     months ago - while keeping the training blocks, the cookbook, the buddy, the shop and the streak
-     they have spent months on. Wiping all of that to re-anchor a calorie target is a price nobody
-     should have to pay, so this clears the tracking side only.
+  /* ---- Fresh start: a reset you configure ----
+     "Reset all data" above is the blunt instrument: it hands back defaultState, and the training
+     blocks, the cookbook, the buddy, the shop and the streak go with it. That is the wrong price for
+     the thing people actually want, which is for the NUMBERS to start again after a run went
+     sideways or a plan drifted off a weight from three months ago.
 
-     Cleared: the food log, the weigh-ins, the check-in ledger and its pointer, the target history,
-     the day-level carb/fat rebalances and per-day meal lists, the un-actioned check-in proposal, and
-     the diet-break clock (a dieting phase that no longer has a diet behind it).
+     But "clear the numbers" is not one decision, it is several, and they genuinely pull apart. A
+     diary is a record: somebody can want their targets re-anchored from today while keeping every
+     meal they have ever logged, because the log is the thing they are proudest of. Somebody else
+     wants the diary gone and the scale history kept. Guessing on their behalf is how a reset button
+     ends up either useless or terrifying, so this takes a `keep` map and clears exactly the rest.
 
-     Kept, deliberately: training, recipes, the shopping list, the pantry, the meal plan, saved meals
-     and foods, the buddy and everything it wears, Amber and the habitat, fight progress, badges,
-     records, freezes, steps/sleep/health, the profile and all its settings - and `expenditure`, the
-     TDEE the app has LEARNED about this person. That last one is not history, it is physiology: a
-     goal change already re-anchors on it rather than falling back to the Mifflin formula (see
-     GoalScreen.apply), and a restart deserves the same. What you ate is being cleared; what the app
-     worked out about your metabolism is not.
+     WHAT IS ALWAYS RESET, because it IS the fresh start and there is nothing to choose:
+       - the plan is re-anchored from today (opts.target), computed from the profile alone
+       - `expenditure`, the TDEE learned from check-ins, is forgotten. The whole point is to stop
+         reading the person the old run described; carrying its conclusions forward would be the one
+         thing a fresh start must not do
+       - the check-in cycle restarts today and any un-actioned proposal is dropped
+       - the diet-break clock and the goal pause are cleared: a dieting phase with no diet behind it
 
-     `opts.target` and `opts.weightKg` re-anchor the plan in the same breath, because a state with an
-     empty target history has no plan at all and the dashboard reads its calories straight off the
-     last one. The caller supplies the target because computing it needs the engine and the activity
-     multiplier, which live in app.jsx. */
+     WHAT `keep` CHOOSES, one flag per group, each owning every field that would otherwise be
+     orphaned (clearing the food log without its per-day meal lists leaves lists for days that no
+     longer exist). See FRESH_PARTS.
+
+     ONE COUPLING IS NOT OFFERED AS A CHOICE. Past days are scored against the target in force ON
+     them, not the newest one (Engine.targetOn), so a log kept while the target history is cleared
+     would have every day it holds silently re-scored against a bar set this morning. The target
+     history is therefore kept whenever the food log or the check-in ledger is kept, and the fresh
+     anchor is appended to it rather than replacing it. */
   var STREAK_CREDIT_DAYS = 400; // the longest run the app will ever count back (see streakEndingOn)
 
-  function softReset(state, opts) {
+  // The groups a fresh start can clear, and every field each one owns. Keyed so the UI hands back a
+  // plain { log: true, weight: false, ... } and neither side has to know the other's field names.
+  var FRESH_PARTS = {
+    log:      ['log_entries', 'day_meals', 'day_overrides'],
+    weight:   ['weight_entries'],
+    checkins: ['checkins'],
+    streak:   ['streak_credit', 'freezes', 'records'],
+    foods:    ['foods', 'saved_meals'],
+    recipes:  ['recipes', 'shopping_list', 'pantry', 'meal_plan'],
+    training: ['training'],
+  };
+  // Cleared no matter what is kept, and listed here (rather than only assigned below) because the
+  // merge has to know them too: a device that never saw the reset still holds the old expenditure.
+  var FRESH_ALWAYS = ['expenditure', 'pending_adjustment', 'diet_break', 'last_break_end', 'diet_break_snooze'];
+
+  // Which fields a given `keep` map clears. The single source of truth for both the reset itself and
+  // the merge that has to keep it cleared, so the two can never fall out of step.
+  function freshCleared(keep) {
+    var k = keep || {};
+    var out = FRESH_ALWAYS.slice();
+    Object.keys(FRESH_PARTS).forEach(function (part) {
+      if (!k[part]) out = out.concat(FRESH_PARTS[part]);
+    });
+    // The target history stands or falls with the days that read it (see the coupling note above).
+    if (!k.log && !k.checkins) out.push('targets');
+    return out;
+  }
+
+  function freshStart(state, opts) {
     var o = opts || {};
+    var keep = o.keep || {};
     var today = o.today || todayISO();
     var now = o.now || Date.now();
     var s = JSON.parse(JSON.stringify(state || defaultState()));
+    var d0 = defaultState();
+    var cleared = freshCleared(keep);
 
-    // Bank the streak FIRST, before the entries that prove it are thrown away. The streak is
-    // computed from the dates that carry a log, a weigh-in or a session (see activeDatesSet), so
-    // clearing two of those three would silently snap a run the user was told they had kept.
-    // Training dates are not banked: those logs survive the reset and are still read live.
-    var credit = {};
-    (s.streak_credit || []).forEach(function (d) { if (d) credit[d] = 1; });
-    (s.log_entries || []).forEach(function (e) { if (e && e.date) credit[e.date] = 1; });
-    (s.weight_entries || []).forEach(function (w) { if (w && w.date) credit[w.date] = 1; });
-    var floorDate = shiftISO(today, -STREAK_CREDIT_DAYS);
-    s.streak_credit = Object.keys(credit).filter(function (d) { return d > floorDate; }).sort();
+    // Bank the streak FIRST, before the entries that prove it are thrown away. The streak is not
+    // stored, it is derived from the dates carrying a log, a weigh-in or a session (see
+    // activeDatesSet), so clearing two of those three would silently snap a run the user chose to
+    // keep. Training dates are not banked: those logs are either kept and still read live, or
+    // cleared on purpose. Skipped entirely when the streak is being cleared too.
+    if (keep.streak) {
+      var credit = {};
+      (s.streak_credit || []).forEach(function (d) { if (d) credit[d] = 1; });
+      if (!keep.log) (s.log_entries || []).forEach(function (e) { if (e && e.date) credit[e.date] = 1; });
+      if (!keep.weight) (s.weight_entries || []).forEach(function (w) { if (w && w.date) credit[w.date] = 1; });
+      if (!keep.training) (((s.training || {}).logs) || []).forEach(function (l) { if (l && l.dateISO) credit[l.dateISO] = 1; });
+      var floorDate = shiftISO(today, -STREAK_CREDIT_DAYS);
+      s.streak_credit = Object.keys(credit).filter(function (d) { return d > floorDate; }).sort();
+    }
+    // Safe to run after the banking above: streak_credit is only ever in `cleared` when the streak is
+    // being cleared, which is the one case the banking is skipped.
+    cleared.forEach(function (f) { s[f] = (d0[f] === undefined ? null : JSON.parse(JSON.stringify(d0[f]))); });
 
-    s.log_entries = [];
-    s.weight_entries = [];
-    s.checkins = [];
-    s.targets = [];
-    s.day_overrides = {};
-    s.day_meals = {};
-    s.pending_adjustment = null;
-    s.diet_break = null;
-    s.last_break_end = null;
-    s.diet_break_snooze = null;
-    s.paused = false;
     // The check-in clock restarts today, exactly as it does for a profile saved at onboarding: the
     // first cycle of the new run begins now rather than being owed from a week that no longer exists.
     s.last_checkin = today;
+    s.paused = false;
+    // The day the fresh start happened. learnedTdee reads it so a KEPT target history cannot hand
+    // the new plan the very expenditure this reset just forgot (see learnedTdee in app.jsx).
+    s.fresh_start = today;
 
-    if (o.weightKg > 0) {
+    // A seed weigh-in, but only when the weigh-in history is the thing being cleared: without one
+    // the first check-in has nothing to measure the new run against. If the history is kept it
+    // already holds readings, and writing another would invent a weigh-in that never happened.
+    if (!keep.weight && o.weightKg > 0) {
       var kg = Math.round(o.weightKg * 100) / 100;
-      // One seed reading, so the first check-in has something to measure the new run against.
       s.weight_entries = [{ id: uid(), date: today, scale_weight: kg, trend_weight: kg }];
       if (s.profile) s.profile.weightKg = kg;
     }
@@ -3108,23 +3148,36 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       var t = Object.assign({}, o.target);
       t.id = t.id || uid();
       t.effective_date = today;
-      t.source = t.source || 'soft-reset';
-      s.targets = [t];
+      t.source = t.source || 'fresh-start';
+      // Appended, never substituted: a kept history is what lets every day already eaten keep the
+      // bar it was actually set. When the history went, this is simply the first entry of the new one.
+      s.targets = (s.targets || []).filter(function (x) { return x && x.effective_date && x.effective_date < today; }).concat([t]);
     }
 
-    // The soft-reset watermark, the counterpart to _wipe. Without it the very next merge from a
-    // device that has not seen the reset unions the whole food log and every weigh-in back in.
-    s._soft = now;
+    // The watermark, the narrower counterpart to _wipe. Without it the very next merge from a device
+    // that has not seen the reset unions every cleared collection straight back in. It carries the
+    // LIST of what was cleared, because unlike a wipe, what a fresh start clears is a choice.
+    s._soft = { at: now, cleared: cleared };
     s._rev = now;
     return s;
   }
 
-  // The collections a soft reset empties. A pre-soft-reset copy contributes nothing to these on a
-  // merge, and everything to the rest.
-  function withoutTracking(s) {
-    return Object.assign({}, s, {
-      log_entries: [], weight_entries: [], checkins: [], targets: [], day_overrides: {}, day_meals: {},
-    });
+  // A pre-fresh-start copy, with exactly the fields that reset cleared emptied out. Everything else
+  // it holds still merges normally, which is the whole difference between this and _wipe: a wipe
+  // discards such a copy wholesale, and would take the gym session it logged offline with it.
+  var DEFAULT_CLEARED = ['log_entries', 'weight_entries', 'checkins', 'targets', 'day_overrides', 'day_meals'];
+  function softMark(s) {
+    // Tolerates the first shape this shipped in, a bare timestamp, which meant the default set.
+    var m = s && s._soft;
+    if (!m) return null;
+    if (typeof m === 'number') return { at: m, cleared: DEFAULT_CLEARED };
+    return { at: +m.at || 0, cleared: Array.isArray(m.cleared) ? m.cleared : DEFAULT_CLEARED };
+  }
+  function withoutCleared(s, fields) {
+    var d0 = defaultState();
+    var out = Object.assign({}, s);
+    (fields || []).forEach(function (f) { out[f] = (d0[f] === undefined ? null : JSON.parse(JSON.stringify(d0[f]))); });
+    return out;
   }
 
   // Union two arrays by a stable key, keeping the FIRST occurrence on conflict (callers pass the
@@ -3162,16 +3215,26 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     var ra = (a && a._rev) || 0, rb = (b && b._rev) || 0;
     var newer = ra >= rb ? a : b, older = ra >= rb ? b : a;
-    // Soft-reset watermark, the narrower cousin of _wipe above. A soft reset stamps _soft = t and
-    // clears the tracking side only, so a copy that predates it must NOT be discarded wholesale the
-    // way a pre-wipe copy is: it may hold the only record of a gym session or a recipe saved offline.
-    // It loses exactly what the reset cleared and keeps its place in every other union, so the food
-    // log and the weigh-ins stay gone while nothing else the user built is collateral damage.
-    var soft = Math.max((a._soft || 0), (b._soft || 0));
-    if (soft) {
-      var preSoft = function (s) { return (s._soft || 0) < soft && (s._rev || 0) < soft; };
-      if (preSoft(newer)) newer = withoutTracking(newer);
-      if (preSoft(older)) older = withoutTracking(older);
+    // Fresh-start watermark, the narrower cousin of _wipe above. A fresh start stamps _soft with the
+    // time AND the list of fields it chose to clear, so a copy that predates it must NOT be discarded
+    // wholesale the way a pre-wipe copy is: it may hold the only record of a gym session or a recipe
+    // saved offline. It loses exactly what that reset cleared and keeps its place in every other
+    // union, so the food log stays gone while nothing the user kept is collateral damage.
+    // Two fresh starts on two devices inside one sync gap is not a case worth extra machinery: the
+    // later one's choices win, which is the more recent statement of what the user wanted.
+    var ma = softMark(a), mb = softMark(b);
+    var mark = (!ma || (mb && mb.at > ma.at)) ? mb : ma;
+    if (mark && mark.at) {
+      var preSoft = function (s) { var m = softMark(s); return (m ? m.at : 0) < mark.at && (s._rev || 0) < mark.at; };
+      if (preSoft(newer)) newer = withoutCleared(newer, mark.cleared);
+      if (preSoft(older)) older = withoutCleared(older, mark.cleared);
+      // Rebind a and b to the stripped copies. The unions below read newer/older, but the field-wise
+      // rules further down (expenditure, records, badges, buddy, fight) read a and b, and a rule like
+      // "keep whichever expenditure was learned most recently" will happily reach into the pre-reset
+      // copy and hand back the very figure this reset threw away. Stripping in one place, here, is
+      // what stops the next rule added below from quietly reopening the same hole.
+      a = (ra >= rb) ? newer : older;
+      b = (ra >= rb) ? older : newer;
     }
     var out = JSON.parse(JSON.stringify(newer));
     var byId = function (e) { return e && e.id; };
@@ -3361,7 +3424,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     out._rev = Math.max(ra, rb);
     out._wipe = wipe; // carry the reset watermark forward so it keeps protecting later merges
-    if (soft) out._soft = soft; // likewise for the soft reset, or the next stale device undoes it
+    if (mark && mark.at) out._soft = mark; // likewise for a fresh start, or the next stale device undoes it
+    // The fresh-start date gates learnedTdee against a KEPT target history, so it must survive a
+    // merge with a device that never saw the reset (which would otherwise carry no date at all).
+    var fsA = (a && a.fresh_start) || '', fsB = (b && b.fresh_start) || '';
+    if (fsA || fsB) out.fresh_start = fsA >= fsB ? fsA : fsB;
     return out;
   }
 
@@ -3376,7 +3443,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     load: load,
     save: save,
     reset: reset,
-    softReset: softReset,
+    freshStart: freshStart,
+    FRESH_PARTS: FRESH_PARTS,
+    freshCleared: freshCleared,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Store;
@@ -13114,10 +13183,10 @@ function trainedDates(db) {
   return out;
 }
 // Every date that counts as ACTIVE for the streak, in ONE place: a food log, a weigh-in, a logged
-// session, or a day banked by a soft reset (Store.softReset). The three surfaces that draw a streak
+// session, or a day banked by a fresh start (Store.freshStart). The three surfaces that draw a streak
 // - the dashboard number, its rolling week strip and the app-level streak the header and Play read -
-// each built this set by hand, which is how a soft reset that clears the food log and the weigh-ins
-// while promising to keep the run could have snapped it on two of the three and not the third.
+// each built this set by hand, which is how a reset that clears the food log and the weigh-ins while
+// promising to keep the run could have snapped it on two of the three and not the third.
 function activeDatesSet(db) {
   const out = new Set(db && db.streak_credit || []);
   (db && db.log_entries || []).forEach(e => {
@@ -13178,12 +13247,17 @@ function completeLoggedDates(db, startISO, endISO) {
 // The TDEE the app has LEARNED about this user, if it's recent enough to trust (smoothed expenditure
 // first, else the last adaptive target's estimate). Used so goal/profile changes build on learned
 // data instead of resetting to the Mifflin formula. Returns null when stale (>= 21 days) or absent.
+// A fresh start forgets the learned expenditure on purpose, but it can KEEP the target history (the
+// days already eaten need it, see Engine.targetOn). Those old targets carry the very estimate that
+// was just discarded, so without this gate the next goal change would quietly read the old run's
+// conclusions back out of them and the reset would not have been one.
 function learnedTdee(db, todayISO) {
+  const since = db.fresh_start || null;
   const ex = db.expenditure;
-  if (ex && ex.kcal > 0 && ex.updated && daysBetween(ex.updated, todayISO) < 21) return Math.round(ex.kcal);
+  if (ex && ex.kcal > 0 && ex.updated && daysBetween(ex.updated, todayISO) < 21 && !(since && ex.updated < since)) return Math.round(ex.kcal);
   for (let i = (db.targets || []).length - 1; i >= 0; i--) {
     const t = db.targets[i];
-    if (t && t.estimatedTDEE > 0 && (t.source || '').indexOf('adaptive') === 0 && t.effective_date && daysBetween(t.effective_date, todayISO) < 21) return Math.round(t.estimatedTDEE);
+    if (t && t.estimatedTDEE > 0 && (t.source || '').indexOf('adaptive') === 0 && t.effective_date && daysBetween(t.effective_date, todayISO) < 21 && !(since && t.effective_date < since)) return Math.round(t.estimatedTDEE);
   }
   return null;
 }
@@ -39005,6 +39079,165 @@ function BodyDetailsScreen({
     onClick: onFreshStart
   }, "Full setup & recalculate"));
 }
+
+/* ---- Fresh start: the reset you configure ----
+   One button that clears "your data" is either useless or terrifying, and which one it is depends
+   entirely on what the person happens to care about. A diary is a record: somebody can want their
+   targets re-anchored from today while keeping every meal they have ever logged, because the log is
+   the thing they are proudest of. Somebody else wants the diary gone and the scale history kept.
+   So this screen asks, one row per group, and says plainly what it cannot let you choose.
+
+   The rows default to clearing the tracking history and keeping everything else, which is the common
+   case; the point of showing them all is that the uncommon case is one tap away rather than
+   impossible. Store.freshStart owns what each group actually contains. */
+const FRESH_ROWS = [{
+  key: 'log',
+  label: 'Food log',
+  keep: false,
+  desc: 'Every meal you have logged, with each day\'s meal list and carb/fat balance'
+}, {
+  key: 'weight',
+  label: 'Weigh-ins',
+  keep: false,
+  desc: 'Your scale and body-fat readings, and the trend line drawn through them'
+}, {
+  key: 'checkins',
+  label: 'Check-in history',
+  keep: false,
+  desc: 'The weekly ledger of check-ins and what each one changed'
+}, {
+  key: 'streak',
+  label: 'Streak, freezes & records',
+  keep: true,
+  desc: 'Your current run, your longest ever, and the misses a freeze forgave'
+}, {
+  key: 'foods',
+  label: 'Saved foods & quick-log meals',
+  keep: true,
+  desc: 'Your food library, your corrections to it, and your named meals'
+}, {
+  key: 'recipes',
+  label: 'Recipes, shopping list & meal plan',
+  keep: true,
+  desc: 'Your cookbook, the pantry list and anything planned on the calendar'
+}, {
+  key: 'training',
+  label: 'Training',
+  keep: true,
+  desc: 'Blocks, logged sessions, custom exercises, gyms and your training settings'
+}];
+const FRESH_DEFAULTS = () => {
+  const k = {};
+  FRESH_ROWS.forEach(r => {
+    k[r.key] = r.keep;
+  });
+  return k;
+};
+
+// Keep or clear, as two words rather than ON and OFF: this is the one screen in the app where a
+// toggle's meaning cannot be guessed from the thing it sits next to, and guessing wrong is expensive.
+function KeepRow({
+  label,
+  desc,
+  keep,
+  onClick
+}) {
+  return /*#__PURE__*/React.createElement("button", {
+    onClick: onClick,
+    className: "w-full flex items-start justify-between gap-3 pixel-box px-4 py-3 mb-2 text-left",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "min-w-0 flex-1"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "block text-sm"
+  }, label), /*#__PURE__*/React.createElement("span", {
+    className: "block text-[11px] mt-0.5 leading-snug",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, desc)), /*#__PURE__*/React.createElement("span", {
+    className: "pf text-[9px] px-2.5 py-1.5 shrink-0 mt-0.5",
+    style: {
+      background: keep ? 'var(--surface3)' : 'var(--danger)',
+      color: keep ? 'var(--muted)' : '#ffffff',
+      border: '2px solid var(--border)'
+    }
+  }, keep ? 'KEEP' : 'CLEAR'));
+}
+function FreshStartScreen({
+  db,
+  onBack,
+  onConfirm
+}) {
+  const [keep, setKeep] = useState(FRESH_DEFAULTS);
+  const [confirming, setConfirming] = useState(false);
+  const toggle = k => setKeep(x => Object.assign({}, x, {
+    [k]: !x[k]
+  }));
+  const clearing = FRESH_ROWS.filter(r => !keep[r.key]);
+  // The weight the new plan gets built on. Named on screen, because a restart anchored to a figure
+  // you cannot see is the first thing you would want to check.
+  const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
+  const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
+  const kg = latest && latest.scale_weight || db.profile && db.profile.weightKg || null;
+  const shownKg = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
+  // The one coupling that is not offered as a choice, surfaced rather than hidden: a day already
+  // eaten is scored against the target in force ON it, so a kept log needs its old targets kept too.
+  const targetsKept = keep.log || keep.checkins;
+  return /*#__PURE__*/React.createElement(SubScreen, {
+    title: "Fresh start",
+    onBack: onBack,
+    intro: "Start your numbers again without starting the whole app again. Your plan is re-anchored from today and the app forgets what it had learned about you; everything below is yours to choose."
+  }, /*#__PURE__*/React.createElement(Card, {
+    className: "p-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--muted)',
+      letterSpacing: '0.16em'
+    }
+  }, "Always happens"), /*#__PURE__*/React.createElement("ul", {
+    className: "text-[12px] leading-relaxed space-y-1.5",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, /*#__PURE__*/React.createElement("li", null, "Your calorie and macro targets are worked out again from your profile", shownKg ? ', starting from ' + shownKg : '', ", and take effect today."), /*#__PURE__*/React.createElement("li", null, "The app forgets the calorie burn it had learned from your check-ins, so the new plan is not the old run's conclusions in a new hat."), /*#__PURE__*/React.createElement("li", null, "Your check-in cycle restarts today, and any check-in waiting for your answer is dropped."), /*#__PURE__*/React.createElement("li", null, "Any diet break or paused goal ends."))), /*#__PURE__*/React.createElement("div", {
+    className: "pf text-[9px] uppercase mb-2",
+    style: {
+      color: 'var(--muted)',
+      letterSpacing: '0.16em'
+    }
+  }, "Choose what to clear"), FRESH_ROWS.map(r => /*#__PURE__*/React.createElement(KeepRow, {
+    key: r.key,
+    label: r.label,
+    desc: r.desc,
+    keep: !!keep[r.key],
+    onClick: () => toggle(r.key)
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] leading-relaxed mt-3 mb-4 px-1",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, targetsKept ? 'Your old targets are kept too, so every day you keep still shows the bar it was actually set rather than one worked out this morning.' : 'With the log and the check-ins both going, your old targets go with them.', ' ', "Your profile and settings, your buddy and everything it has earned, and anything synced from Google Health are never touched here.", !keep.streak && (keep.log || keep.training) ? ' Clearing your streak does not clear the days behind it, so a kept log or kept sessions will start rebuilding a run straight away.' : '', keep.streak && (!keep.log || !keep.weight || !keep.training) ? ' The days behind your streak are kept as credit, so the run you have built carries on from where it is.' : ''), /*#__PURE__*/React.createElement(Btn, {
+    kind: "danger",
+    className: "w-full",
+    onClick: () => setConfirming(true)
+  }, clearing.length ? 'Clear ' + clearing.length + ' thing' + (clearing.length === 1 ? '' : 's') + ' & re-anchor my plan' : 'Re-anchor my plan'), /*#__PURE__*/React.createElement("button", {
+    onClick: onBack,
+    className: "w-full py-3 text-[12px] mt-2",
+    style: {
+      color: 'var(--text2)'
+    }
+  }, "Cancel"), confirming && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    title: clearing.length ? 'Clear these and start fresh?' : 'Re-anchor your plan?',
+    body: (clearing.length ? 'This permanently clears: ' + clearing.map(r => r.label.toLowerCase()).join(', ') + '. ' : 'Nothing will be cleared. ') + 'Your plan is re-anchored from today' + (shownKg ? ' starting from ' + shownKg : '') + ', and the app forgets what it had learned about your calorie burn. This cannot be undone, so export your data first if you want a copy.',
+    confirmLabel: clearing.length ? 'Clear & start fresh' : 'Re-anchor',
+    onConfirm: () => onConfirm(keep),
+    onClose: () => setConfirming(false)
+  }));
+}
 function CycleScreen({
   db,
   update,
@@ -40145,7 +40378,7 @@ function More({
   update,
   onSignOut,
   onReset,
-  onSoftReset,
+  onFreshReset,
   onDeleteAccount,
   onFreshStart,
   email,
@@ -40192,7 +40425,6 @@ function More({
   const [delBusy, setDelBusy] = useState(false);
   const [delErr, setDelErr] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
-  const [softOpen, setSoftOpen] = useState(false);
   const [legal, setLegal] = useState(null);
   const [feedback, setFeedback] = useState(false);
   async function doDelete() {
@@ -40291,6 +40523,11 @@ function More({
       db: db,
       update: update,
       onBack: back
+    }),
+    freshstart: () => /*#__PURE__*/React.createElement(FreshStartScreen, {
+      db: db,
+      onBack: back,
+      onConfirm: onFreshReset
     })
   };
   if (screen && SCREENS[screen]) return /*#__PURE__*/React.createElement("div", {
@@ -40422,9 +40659,9 @@ function More({
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1"
   }, "Start again"), /*#__PURE__*/React.createElement(MenuRow, {
-    label: "Reset calories & weigh-ins",
-    desc: "Clear your food log, weigh-ins and check-ins, and re-anchor your plan from today. Keeps everything else",
-    onClick: () => setSoftOpen(true)
+    label: "Fresh start",
+    desc: "Re-anchor your plan from today and pick exactly what to clear. Keeps whatever you choose",
+    onClick: () => setScreen('freshstart')
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1"
   }, "Danger zone"), /*#__PURE__*/React.createElement(MenuRow, {
@@ -40443,23 +40680,9 @@ function More({
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]/70 pt-4 text-center"
-  }, BRAND, " · your data syncs to your account")), softOpen && (() => {
-    // Say the number the new plan will be built on, rather than "your current weight". A restart
-    // anchored to a figure the user cannot see is the one thing they would want to check first.
-    const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
-    const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
-    const kg = latest && latest.scale_weight || db.profile && db.profile.weightKg || null;
-    const shown = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
-    return /*#__PURE__*/React.createElement(ConfirmDialog, {
-      title: "Reset calories & weigh-ins?",
-      body: 'This clears your food log, your weigh-ins and your check-in history, then re-anchors your calorie and macro targets from today' + (shown ? ', starting from your latest weigh-in of ' + shown : '') + '. Your training blocks and sessions, recipes, shopping list, saved meals and foods, your streak, your buddy, your Amber and everything you have unlocked all stay exactly as they are. This cannot be undone, so export your data first if you want a copy of the old log.',
-      confirmLabel: "Reset my numbers",
-      onConfirm: onSoftReset,
-      onClose: () => setSoftOpen(false)
-    });
-  })(), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, BRAND, " · your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Reset all data & start over?",
-    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your calories and weigh-ins to start again, use Reset calories & weigh-ins above: it keeps your training, recipes, streak and buddy.",
+    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your numbers to start again, use Fresh start above: it re-anchors your plan and lets you keep your training, recipes, streak, buddy and anything else you choose.",
     confirmLabel: "Reset everything",
     onConfirm: onReset,
     onClose: () => setResetOpen(false)
@@ -48903,29 +49126,27 @@ function App() {
     }
     setView('dashboard');
   }
-  // The soft reset: the calorie log and the weigh-in history start again, everything else stays.
-  // Store.softReset does the state surgery (and says what it keeps and why); the job here is to
-  // re-anchor the plan in the same breath, because a state with no target history has no plan at
-  // all. Same three moves as a goal change (GoalScreen.apply): take the weight the scale last
-  // actually saw, build the target on the LEARNED expenditure where we have a recent one rather
-  // than falling back to the formula, and start the check-in cycle from today.
-  function softReset() {
+  // A fresh start, with `keep` saying which groups survive it (see Store.FRESH_PARTS). Store.freshStart
+  // does the state surgery and explains what it clears and why; the job here is to re-anchor the plan
+  // in the same breath, because a state with no target at all has no plan and the dashboard reads its
+  // calories straight off the last one. The target is built from the profile ALONE, with no priorTdee:
+  // a fresh start forgets what the old run taught the app, which is the one thing that separates it
+  // from a goal change (GoalScreen.apply, which deliberately does carry the learned figure forward).
+  function freshStart(keep) {
     const today = Store.todayISO();
     setDb(prev => {
       const weighed = (prev.weight_entries || []).filter(w => w && w.scale_weight != null);
       const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
       const weightKg = latest && latest.scale_weight || prev.profile && prev.profile.weightKg || 0;
-      const prior = learnedTdee(prev, today);
       const prof = withActivity(Object.assign({}, prev.profile, weightKg ? {
         weightKg: +weightKg.toFixed(2)
       } : {}));
-      const target = Object.assign(E.computeInitialTargets(prof, prior ? {
-        priorTdee: prior
-      } : undefined), {
-        source: 'soft-reset'
+      const target = Object.assign(E.computeInitialTargets(prof), {
+        source: 'fresh-start'
       });
-      const n = Store.softReset(prev, {
+      const n = Store.freshStart(prev, {
         today,
+        keep,
         weightKg,
         target
       });
@@ -48936,7 +49157,7 @@ function App() {
       return n;
     });
     setView('dashboard');
-    showToast('Fresh start. Your training, recipes, streak and buddy are all exactly where you left them.');
+    showToast('Fresh start. Your plan is re-anchored from today.');
   }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
@@ -49130,7 +49351,7 @@ function App() {
     update: update,
     onSignOut: signOut,
     onReset: resetAll,
-    onSoftReset: softReset,
+    onFreshReset: freshStart,
     onDeleteAccount: deleteAccount,
     onFreshStart: () => setFresh(true),
     email: session.user.email,

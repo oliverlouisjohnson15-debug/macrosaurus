@@ -3261,10 +3261,10 @@ function trainedDates(db) {
   return out;
 }
 // Every date that counts as ACTIVE for the streak, in ONE place: a food log, a weigh-in, a logged
-// session, or a day banked by a soft reset (Store.softReset). The three surfaces that draw a streak
+// session, or a day banked by a fresh start (Store.freshStart). The three surfaces that draw a streak
 // - the dashboard number, its rolling week strip and the app-level streak the header and Play read -
-// each built this set by hand, which is how a soft reset that clears the food log and the weigh-ins
-// while promising to keep the run could have snapped it on two of the three and not the third.
+// each built this set by hand, which is how a reset that clears the food log and the weigh-ins while
+// promising to keep the run could have snapped it on two of the three and not the third.
 function activeDatesSet(db) {
   const out = new Set((db && db.streak_credit) || []);
   ((db && db.log_entries) || []).forEach(e => { if (e && e.date) out.add(e.date); });
@@ -3312,12 +3312,18 @@ function completeLoggedDates(db, startISO, endISO) {
 // The TDEE the app has LEARNED about this user, if it's recent enough to trust (smoothed expenditure
 // first, else the last adaptive target's estimate). Used so goal/profile changes build on learned
 // data instead of resetting to the Mifflin formula. Returns null when stale (>= 21 days) or absent.
+// A fresh start forgets the learned expenditure on purpose, but it can KEEP the target history (the
+// days already eaten need it, see Engine.targetOn). Those old targets carry the very estimate that
+// was just discarded, so without this gate the next goal change would quietly read the old run's
+// conclusions back out of them and the reset would not have been one.
 function learnedTdee(db, todayISO) {
+  const since = db.fresh_start || null;
   const ex = db.expenditure;
-  if (ex && ex.kcal > 0 && ex.updated && daysBetween(ex.updated, todayISO) < 21) return Math.round(ex.kcal);
+  if (ex && ex.kcal > 0 && ex.updated && daysBetween(ex.updated, todayISO) < 21 && !(since && ex.updated < since)) return Math.round(ex.kcal);
   for (let i = (db.targets || []).length - 1; i >= 0; i--) {
     const t = db.targets[i];
-    if (t && t.estimatedTDEE > 0 && (t.source || '').indexOf('adaptive') === 0 && t.effective_date && daysBetween(t.effective_date, todayISO) < 21) return Math.round(t.estimatedTDEE);
+    if (t && t.estimatedTDEE > 0 && (t.source || '').indexOf('adaptive') === 0 && t.effective_date && daysBetween(t.effective_date, todayISO) < 21
+      && !(since && t.effective_date < since)) return Math.round(t.estimatedTDEE);
   }
   return null;
 }
@@ -15733,6 +15739,91 @@ function BodyDetailsScreen({ db, update, onBack, onFreshStart }) {
   </SubScreen>);
 }
 
+/* ---- Fresh start: the reset you configure ----
+   One button that clears "your data" is either useless or terrifying, and which one it is depends
+   entirely on what the person happens to care about. A diary is a record: somebody can want their
+   targets re-anchored from today while keeping every meal they have ever logged, because the log is
+   the thing they are proudest of. Somebody else wants the diary gone and the scale history kept.
+   So this screen asks, one row per group, and says plainly what it cannot let you choose.
+
+   The rows default to clearing the tracking history and keeping everything else, which is the common
+   case; the point of showing them all is that the uncommon case is one tap away rather than
+   impossible. Store.freshStart owns what each group actually contains. */
+const FRESH_ROWS = [
+  { key: 'log', label: 'Food log', keep: false, desc: 'Every meal you have logged, with each day\'s meal list and carb/fat balance' },
+  { key: 'weight', label: 'Weigh-ins', keep: false, desc: 'Your scale and body-fat readings, and the trend line drawn through them' },
+  { key: 'checkins', label: 'Check-in history', keep: false, desc: 'The weekly ledger of check-ins and what each one changed' },
+  { key: 'streak', label: 'Streak, freezes & records', keep: true, desc: 'Your current run, your longest ever, and the misses a freeze forgave' },
+  { key: 'foods', label: 'Saved foods & quick-log meals', keep: true, desc: 'Your food library, your corrections to it, and your named meals' },
+  { key: 'recipes', label: 'Recipes, shopping list & meal plan', keep: true, desc: 'Your cookbook, the pantry list and anything planned on the calendar' },
+  { key: 'training', label: 'Training', keep: true, desc: 'Blocks, logged sessions, custom exercises, gyms and your training settings' },
+];
+const FRESH_DEFAULTS = () => { const k = {}; FRESH_ROWS.forEach(r => { k[r.key] = r.keep; }); return k; };
+
+// Keep or clear, as two words rather than ON and OFF: this is the one screen in the app where a
+// toggle's meaning cannot be guessed from the thing it sits next to, and guessing wrong is expensive.
+function KeepRow({ label, desc, keep, onClick }) {
+  return (<button onClick={onClick} className="w-full flex items-start justify-between gap-3 pixel-box px-4 py-3 mb-2 text-left" style={{ background: 'var(--surface2)' }}>
+    <span className="min-w-0 flex-1">
+      <span className="block text-sm">{label}</span>
+      <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text2)' }}>{desc}</span>
+    </span>
+    <span className="pf text-[9px] px-2.5 py-1.5 shrink-0 mt-0.5" style={{ background: keep ? 'var(--surface3)' : 'var(--danger)', color: keep ? 'var(--muted)' : '#ffffff', border: '2px solid var(--border)' }}>{keep ? 'KEEP' : 'CLEAR'}</span>
+  </button>);
+}
+
+function FreshStartScreen({ db, onBack, onConfirm }) {
+  const [keep, setKeep] = useState(FRESH_DEFAULTS);
+  const [confirming, setConfirming] = useState(false);
+  const toggle = (k) => setKeep(x => Object.assign({}, x, { [k]: !x[k] }));
+  const clearing = FRESH_ROWS.filter(r => !keep[r.key]);
+  // The weight the new plan gets built on. Named on screen, because a restart anchored to a figure
+  // you cannot see is the first thing you would want to check.
+  const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
+  const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
+  const kg = (latest && latest.scale_weight) || (db.profile && db.profile.weightKg) || null;
+  const shownKg = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
+  // The one coupling that is not offered as a choice, surfaced rather than hidden: a day already
+  // eaten is scored against the target in force ON it, so a kept log needs its old targets kept too.
+  const targetsKept = keep.log || keep.checkins;
+  return (<SubScreen title="Fresh start" onBack={onBack}
+    intro="Start your numbers again without starting the whole app again. Your plan is re-anchored from today and the app forgets what it had learned about you; everything below is yours to choose.">
+    <Card className="p-4 mb-4">
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Always happens</div>
+      <ul className="text-[12px] leading-relaxed space-y-1.5" style={{ color: 'var(--text2)' }}>
+        <li>Your calorie and macro targets are worked out again from your profile{shownKg ? ', starting from ' + shownKg : ''}, and take effect today.</li>
+        <li>The app forgets the calorie burn it had learned from your check-ins, so the new plan is not the old run's conclusions in a new hat.</li>
+        <li>Your check-in cycle restarts today, and any check-in waiting for your answer is dropped.</li>
+        <li>Any diet break or paused goal ends.</li>
+      </ul>
+    </Card>
+
+    <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Choose what to clear</div>
+    {FRESH_ROWS.map(r => <KeepRow key={r.key} label={r.label} desc={r.desc} keep={!!keep[r.key]} onClick={() => toggle(r.key)} />)}
+
+    <div className="text-[11px] leading-relaxed mt-3 mb-4 px-1" style={{ color: 'var(--text2)' }}>
+      {targetsKept
+        ? 'Your old targets are kept too, so every day you keep still shows the bar it was actually set rather than one worked out this morning.'
+        : 'With the log and the check-ins both going, your old targets go with them.'}
+      {' '}Your profile and settings, your buddy and everything it has earned, and anything synced from Google Health are never touched here.
+      {!keep.streak && (keep.log || keep.training) ? ' Clearing your streak does not clear the days behind it, so a kept log or kept sessions will start rebuilding a run straight away.' : ''}
+      {keep.streak && (!keep.log || !keep.weight || !keep.training) ? ' The days behind your streak are kept as credit, so the run you have built carries on from where it is.' : ''}
+    </div>
+
+    <Btn kind="danger" className="w-full" onClick={() => setConfirming(true)}>
+      {clearing.length ? 'Clear ' + clearing.length + ' thing' + (clearing.length === 1 ? '' : 's') + ' & re-anchor my plan' : 'Re-anchor my plan'}
+    </Btn>
+    <button onClick={onBack} className="w-full py-3 text-[12px] mt-2" style={{ color: 'var(--text2)' }}>Cancel</button>
+
+    {confirming && <ConfirmDialog title={clearing.length ? 'Clear these and start fresh?' : 'Re-anchor your plan?'}
+      body={(clearing.length
+        ? 'This permanently clears: ' + clearing.map(r => r.label.toLowerCase()).join(', ') + '. '
+        : 'Nothing will be cleared. ')
+        + 'Your plan is re-anchored from today' + (shownKg ? ' starting from ' + shownKg : '') + ', and the app forgets what it had learned about your calorie burn. This cannot be undone, so export your data first if you want a copy.'}
+      confirmLabel={clearing.length ? 'Clear & start fresh' : 'Re-anchor'} onConfirm={() => onConfirm(keep)} onClose={() => setConfirming(false)} />}
+  </SubScreen>);
+}
+
 function CycleScreen({ db, update, onBack }) {
   const [commit, tick] = useCommit(update);
   const m = db.menstrual || { enabled: false, lastStart: null, cycleLen: 28 };
@@ -16221,7 +16312,7 @@ function FeedbackSheet({ email, onClose }) {
     </Sheet>
   );
 }
-function More({ db, update, onSignOut, onReset, onSoftReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
+function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
   const [tab, setTab] = useState('settings');
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
@@ -16232,7 +16323,7 @@ function More({ db, update, onSignOut, onReset, onSoftReset, onDeleteAccount, on
   const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
   const [guide, setGuide] = useState(false);
   const [delOpen, setDelOpen] = useState(false); const [delText, setDelText] = useState(''); const [delBusy, setDelBusy] = useState(false); const [delErr, setDelErr] = useState('');
-  const [resetOpen, setResetOpen] = useState(false); const [softOpen, setSoftOpen] = useState(false); const [legal, setLegal] = useState(null);
+  const [resetOpen, setResetOpen] = useState(false); const [legal, setLegal] = useState(null);
   const [feedback, setFeedback] = useState(false);
   async function doDelete() { setDelBusy(true); setDelErr(''); try { await onDeleteAccount(); } catch (e) { setDelErr(e.message || 'Something went wrong.'); setDelBusy(false); } }
   function exportData() {
@@ -16260,6 +16351,7 @@ function More({ db, update, onSignOut, onReset, onSoftReset, onDeleteAccount, on
     reminders: () => <RemindersScreen db={db} update={update} onBack={back} />,
     integrations: () => <IntegrationsScreen db={db} update={update} onBack={back} showToast={showToast} />,
     health: () => <HealthScreen db={db} update={update} onBack={back} />,
+    freshstart: () => <FreshStartScreen db={db} onBack={back} onConfirm={onFreshReset} />,
   };
   if (screen && SCREENS[screen]) return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
@@ -16318,7 +16410,7 @@ function More({ db, update, onSignOut, onReset, onSoftReset, onDeleteAccount, on
             training blocks, cookbook, buddy and streak they have spent months building - and if the
             only button on offer erases all of it, that is the button they end up pressing. */}
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Start again</div>
-        <MenuRow label="Reset calories & weigh-ins" desc="Clear your food log, weigh-ins and check-ins, and re-anchor your plan from today. Keeps everything else" onClick={() => setSoftOpen(true)} />
+        <MenuRow label="Fresh start" desc="Re-anchor your plan from today and pick exactly what to clear. Keeps whatever you choose" onClick={() => setScreen('freshstart')} />
 
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Danger zone</div>
         <MenuRow label="Reset all data" desc="Wipe everything, training and recipes included, and start over. Keeps your login" tone="danger" onClick={() => setResetOpen(true)} />
@@ -16326,20 +16418,7 @@ function More({ db, update, onSignOut, onReset, onSoftReset, onDeleteAccount, on
 
         <div className="text-[11px] text-[#8A8A90]/70 pt-4 text-center">{BRAND} · your data syncs to your account</div>
       </div>}
-      {softOpen && (() => {
-        // Say the number the new plan will be built on, rather than "your current weight". A restart
-        // anchored to a figure the user cannot see is the one thing they would want to check first.
-        const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
-        const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
-        const kg = (latest && latest.scale_weight) || (db.profile && db.profile.weightKg) || null;
-        const shown = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
-        return <ConfirmDialog title="Reset calories & weigh-ins?"
-          body={'This clears your food log, your weigh-ins and your check-in history, then re-anchors your calorie and macro targets from today'
-            + (shown ? ', starting from your latest weigh-in of ' + shown : '')
-            + '. Your training blocks and sessions, recipes, shopping list, saved meals and foods, your streak, your buddy, your Amber and everything you have unlocked all stay exactly as they are. This cannot be undone, so export your data first if you want a copy of the old log.'}
-          confirmLabel="Reset my numbers" onConfirm={onSoftReset} onClose={() => setSoftOpen(false)} />;
-      })()}
-      {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your calories and weigh-ins to start again, use Reset calories & weigh-ins above: it keeps your training, recipes, streak and buddy." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
+      {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your numbers to start again, use Fresh start above: it re-anchors your plan and lets you keep your training, recipes, streak, buddy and anything else you choose." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
       {legal && <LegalDoc doc={legal} onClose={() => setLegal(null)} />}
       {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
         <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
@@ -19574,27 +19653,26 @@ function App() {
   }
   async function signOut() { if (supa) await supa.auth.signOut(); setDb(null); setView('dashboard'); }
   function resetAll() { const prevKey = (db && db.profile && db.profile.aiKey) || ''; const f2 = Store.defaultState(); f2.aiKey = prevKey; const t = Date.now(); f2._wipe = t; f2._rev = t; setDb(f2); if (session) { localSave(session.user.id, f2); cloudSave(session.user.id, f2); } setView('dashboard'); }
-  // The soft reset: the calorie log and the weigh-in history start again, everything else stays.
-  // Store.softReset does the state surgery (and says what it keeps and why); the job here is to
-  // re-anchor the plan in the same breath, because a state with no target history has no plan at
-  // all. Same three moves as a goal change (GoalScreen.apply): take the weight the scale last
-  // actually saw, build the target on the LEARNED expenditure where we have a recent one rather
-  // than falling back to the formula, and start the check-in cycle from today.
-  function softReset() {
+  // A fresh start, with `keep` saying which groups survive it (see Store.FRESH_PARTS). Store.freshStart
+  // does the state surgery and explains what it clears and why; the job here is to re-anchor the plan
+  // in the same breath, because a state with no target at all has no plan and the dashboard reads its
+  // calories straight off the last one. The target is built from the profile ALONE, with no priorTdee:
+  // a fresh start forgets what the old run taught the app, which is the one thing that separates it
+  // from a goal change (GoalScreen.apply, which deliberately does carry the learned figure forward).
+  function freshStart(keep) {
     const today = Store.todayISO();
     setDb(prev => {
       const weighed = (prev.weight_entries || []).filter(w => w && w.scale_weight != null);
       const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
       const weightKg = (latest && latest.scale_weight) || (prev.profile && prev.profile.weightKg) || 0;
-      const prior = learnedTdee(prev, today);
       const prof = withActivity(Object.assign({}, prev.profile, weightKg ? { weightKg: +weightKg.toFixed(2) } : {}));
-      const target = Object.assign(E.computeInitialTargets(prof, prior ? { priorTdee: prior } : undefined), { source: 'soft-reset' });
-      const n = Store.softReset(prev, { today, weightKg, target });
+      const target = Object.assign(E.computeInitialTargets(prof), { source: 'fresh-start' });
+      const n = Store.freshStart(prev, { today, keep, weightKg, target });
       if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); }
       return n;
     });
     setView('dashboard');
-    showToast('Fresh start. Your training, recipes, streak and buddy are all exactly where you left them.');
+    showToast('Fresh start. Your plan is re-anchored from today.');
   }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
@@ -19661,7 +19739,7 @@ function App() {
         importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
       {view === 'goals' && <Goals onBack={() => setView('more')} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
-      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onSoftReset={softReset} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
+      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onFreshReset={freshStart} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
           bar and the centre Add button get out of the way of the one control that matters there. */}
