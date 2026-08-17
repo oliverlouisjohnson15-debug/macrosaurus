@@ -122,6 +122,13 @@ function fmtRest(secs) {
 }
 
 // Sessions that belong to a given week, ordered, with their log if one exists.
+// How long a session will take, from its own prescription: every set costs its rest plus about
+// forty seconds of work. Written out inline in three places before this, which meant the block
+// preview and the session list could quietly disagree about the same session.
+function sessionMins(exercises) {
+  return Math.round((exercises || []).reduce((a, e) => a + (((e.target && e.target.sets) || 0) * ((((e.target && e.target.restSec) || 120) + 40) / 60)), 0));
+}
+
 function weekPlan(block, week, logs) {
   const comp = Training.completion(block, logs);
   return Training.weekSessions(block, week)
@@ -131,34 +138,79 @@ function weekPlan(block, week, logs) {
 
 // ---- shared bits ------------------------------------------------------------------------------
 
-// The coverage instrument. One row per muscle: a track marked at MEV and MAV, and a bar that
-// changes tone by band. Deliberately the same "row of discrete blocks" language as the macro
-// meters elsewhere in the app, so it reads as the same family of instrument.
+/* ---- the coverage instrument, per `Build a block v3.dc.html` ------------------------------------
+   One muscle's week as a POSITION on its own MEV-to-MRV band: the shaded stripe is the range where
+   the work is worth doing, and the marker is where this week actually puts you.
+
+   It used to be a bar that filled from the left with two hairlines on it, and the fill was the
+   problem. A filling bar means more is better - it is how every progress bar and every macro meter
+   in this app behaves, correctly - and here more is emphatically not better, because the whole
+   argument of the panel is that the range has a TOP as well as a bottom. Someone at 26 sets against
+   an MRV of 22 was shown a fuller, healthier-looking bar than someone sitting perfectly in the
+   middle of their range. The band reads the right way round: outside the stripe is outside the
+   stripe, whichever end you fall off.
+
+   Used on every screen in the module that talks about volume, so the reading is learned once. */
 function CoverageRow({ row, compact }) {
-  const tone = { none: 'var(--danger)', under: 'var(--danger)', maintaining: 'var(--warn)', productive: 'var(--good)', high: 'var(--warn)', over: 'var(--danger)' }[row.band];
-  const scale = Math.max(row.mrv, row.sets, 1);
-  const pct = v => Math.min(100, (v / scale) * 100);
+  const span = row.mrv + 6;
+  const status = row.sets < row.mev ? 'short' : row.sets > row.mrv ? 'over' : 'in';
+  const tone = status === 'in' ? 'var(--good)' : status === 'short' ? 'var(--muted2)' : 'var(--warn)';
   return (
-    <div className={compact ? 'mb-2' : 'mb-4'}>
+    <div>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[12px] truncate" style={{ color: 'var(--text2)' }}>{row.label}</span>
-        <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--muted)' }}>
-          <span style={{ color: tone, fontWeight: 700 }}>{row.sets}</span> / {row.mev}-{row.mav}
+        <span className="text-[11.5px] truncate" style={{ color: 'var(--text2)' }}>{row.label}</span>
+        <span className="text-[11px] tnum shrink-0 font-bold"
+          style={{ color: status === 'in' ? 'var(--good-ink)' : status === 'short' ? 'var(--muted)' : 'var(--warn-ink)' }}>
+          {row.sets} / {row.mev}-{row.mrv}
         </span>
       </div>
-      <div className="relative h-2 mt-1" style={{ background: 'var(--track)' }}>
-        <div className="absolute inset-y-0 left-0" style={{ width: pct(row.sets) + '%', background: tone }} />
-        {/* MEV and MAV markers: the floor that grows and the top of the productive band. */}
-        <div className="absolute inset-y-0 w-px" style={{ left: pct(row.mev) + '%', background: 'var(--muted2)' }} />
-        <div className="absolute inset-y-0 w-px" style={{ left: pct(row.mav) + '%', background: 'var(--muted2)' }} />
+      <div className="relative mt-1.5" style={{ height: compact ? 9 : 10, border: '2px solid var(--border)', background: 'var(--track)' }}>
+        <div className="absolute inset-y-0" style={{ left: (row.mev / span * 100) + '%', width: ((row.mrv - row.mev) / span * 100) + '%', background: 'var(--accent-dim)' }} />
+        <div className="absolute" style={{
+          top: -3, bottom: -3, width: 5, background: tone,
+          left: 'calc(' + Math.min(98, row.sets / span * 100) + '% - 2px)',
+          transition: 'left .25s cubic-bezier(.2,.8,.2,1)',
+        }} />
       </div>
     </div>
   );
 }
 
-function CoverageBars({ coverage, limit, compact }) {
+/* A shaded stripe and a marker mean nothing until somebody says once what they are, so any group of
+   these carries the key. Suppressed on the compact/limited variants, where the bars are a glance
+   inside a bigger card rather than the thing you came to read. */
+function CoverageBars({ coverage, limit, compact, legend }) {
   const rows = limit ? coverage.rows.slice().sort((a, b) => a.pct - b.pct).slice(0, limit) : coverage.rows;
-  return <div>{rows.map(r => <CoverageRow key={r.muscle} row={r} compact={compact} />)}</div>;
+  const showKey = legend != null ? legend : !compact;
+  return (
+    <div>
+      {showKey && (
+        <div className="flex gap-3 mb-3 flex-wrap">
+          {/* The band swatch is a SLICE OF THE BAR, not a colour chip. As a flat square of
+              accent-dim on a cream card it was very nearly invisible: the band only reads at all
+              because it sits on the darker track, so the key has to carry the track with it. */}
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+            <span className="shrink-0" style={{ width: 22, height: 9, border: '2px solid var(--border)', background: 'var(--track)' }}>
+              <span className="block h-full" style={{ width: '60%', marginLeft: '20%', background: 'var(--accent-dim)' }} />
+            </span>
+            the range
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+            <span className="shrink-0" style={{ width: 5, height: 11, background: 'var(--good)' }} />in it
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+            <span className="shrink-0" style={{ width: 5, height: 11, background: 'var(--muted2)' }} />short
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--muted2)' }}>
+            <span className="shrink-0" style={{ width: 5, height: 11, background: 'var(--warn)' }} />past recovery
+          </span>
+        </div>
+      )}
+      <div className={'flex flex-col ' + (compact ? 'gap-2' : 'gap-2.5')}>
+        {rows.map(r => <CoverageRow key={r.muscle} row={r} compact={compact} />)}
+      </div>
+    </div>
+  );
 }
 
 // A single line the user can act on. The audit produces the fact, this writes the sentence.
@@ -444,7 +496,7 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
               const done = !!log;
               const isNext = next && session.id === next.session.id;
               const sets = (session.exercises || []).reduce((a, e) => a + (e.target.sets || 0), 0);
-              const mins = Math.round((session.exercises || []).reduce((a, e) => a + (e.target.sets || 0) * (((e.target.restSec || 120) + 40) / 60), 0));
+              const mins = sessionMins(session.exercises);
               return (
                 <button key={session.id} onClick={() => onOpen(session, block)}
                   className="w-full flex items-center gap-3 py-3 text-left"
@@ -770,6 +822,8 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
   const [notes, setNotes] = useState(existing ? existing.notes || '' : '');
   const [exNotes, setExNotes] = useState(() => (existing && existing.exerciseNotes) || {});
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [sessionMenu, setSessionMenu] = useState(false);  // the header's MORE, for the whole session
+  const [targetFor, setTargetFor] = useState(null); // index of the movement whose prescription is open
   const [signOff, setSignOff] = useState(null);    // the buddy's send-off, once the session is saved
   const [startedAt] = useState(() => (existing && existing.startedAt ? Date.parse(existing.startedAt) : Date.now()));
   // Anything in today's plan that the gym you are standing in has not got. Computed once, on open,
@@ -922,7 +976,15 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
     const skipRest = type === 'drop' || nextType === 'drop' || (it.superset && items.some(x => x !== it && x.superset === it.superset));
     if (t.prefs.restTimer && !skipRest) {
       const secs = (it.target && it.target.restSec) || 120;
-      setRest({ endsAt: Date.now() + secs * 1000, seconds: secs, alerted: false });
+      // What the rest is FOR. A bare countdown tells you when to move but not what to move to, and
+      // the answer is not si + 1: rows get ticked in any order, so the next set is the first one
+      // still unlogged. When there is none left, the movement is done and saying so is the point.
+      const workRows = it.sets.map((s, i) => ({ s: s, i: i })).filter(x => (x.s.type || 'work') !== 'warmup');
+      const nextPos = workRows.findIndex(x => x.i !== si && !x.s.done);
+      setRest({
+        endsAt: Date.now() + secs * 1000, seconds: secs, alerted: false,
+        from: nextPos < 0 ? null : codes[ii] + ' · set ' + (nextPos + 1) + ' of ' + workRows.length,
+      });
     }
     // Finishing an exercise moves you on, because otherwise you are looking at a card of ticks.
     const allDone = it.sets.every((s, i) => (i === si ? true : s.done));
@@ -1043,6 +1105,25 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
       sessionsLast7: prior.filter(l => daysBetween(l.dateISO, today) < 7).length + 1,
       name: (session && session.name) || 'Session',
       blockName: block ? block.name : null,
+      // The receipt. The send-off used to be praise and three numbers, which is a lovely moment and
+      // no record of what just happened: you closed it and the only way to see what you had actually
+      // lifted was to go and find the session in History.
+      movementsDone: items.filter(it => it.sets.some(s => s.done && (s.type || 'work') !== 'warmup')).length,
+      movementsTotal: items.length,
+      prList: prs.slice(0, 3).map(p => ({
+        name: (Training.byId(p.exerciseId, t.custom) || {}).name || p.exerciseId,
+        label: p.label,
+      })),
+      movements: items.map((it, ii) => {
+        const logged = it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup');
+        return {
+          name: codes[ii] + ' · ' + ((Training.byId(it.exerciseId, t.custom) || {}).name || it.exerciseId),
+          detail: logged.length
+            ? logged.map(s => (s.weightKg > 0 ? toDisplayWeight(s.weightKg, units) + unitLabel(units) : 'BW') + ' × ' + (s.reps == null ? '–' : s.reps)).join(' · ')
+            : 'not logged',
+          logged: logged.length > 0,
+        };
+      }),
     };
   }
 
@@ -1068,16 +1149,14 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
 
   const totalSets = items.reduce((a, it) => a + it.sets.filter(s => (s.type || 'work') !== 'warmup').length, 0);
   const doneSets = items.reduce((a, it) => a + it.sets.filter(s => s.done && (s.type || 'work') !== 'warmup').length, 0);
-  const volume = items.reduce((a, it) => a + it.sets.reduce((b, s) => b + (s.done ? (+s.weightKg || 0) * (+s.reps || 0) : 0), 0), 0);
   const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-  const pct = totalSets ? Math.round((doneSets / totalSets) * 100) : 0;
+  const allWorkDone = totalSets > 0 && doneSets === totalSets;
   const codes = Training.sessionCodes(items);
 
   return (
-    // Clears the session footer. It is one bar now rather than a Finish button with a rest card
-    // stacked above it, so this is the footer's own height plus a line of air - and the extra when
-    // the rest row is showing, since that row appears mid-scroll without warning.
-    <div className="fade-in" style={{ paddingBottom: rest ? '184px' : '104px' }}>
+    // Finish rides at the end of the list now, so the only thing to clear is the rest bar, and only
+    // while it is up. Nothing is pinned over the session otherwise.
+    <div className="fade-in" style={{ paddingBottom: rest ? '132px' : '24px' }}>
       {/* ---- SESSION BAR, per `Session.dc.html` ----
           A live session is the one screen in the app that owns the phone for an hour, and the design
           gives it its own chrome to say so: the header's purple, the session's name, the clock in
@@ -1085,20 +1164,49 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           counts that matter hanging off its ends. On the paper background this was a back link, a
           title and a hairline, which read as a page heading rather than as an instrument you are
           mid-way through. */}
-      <div className="sticky top-0 z-20 -mx-5 px-3 pt-2.5 pb-2 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-2 mb-2">
-          <button onClick={onExit} aria-label="Back to Train" className="pf text-[9px] uppercase hit shrink-0" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>&lsaquo; Train</button>
-          <div className="pf text-[10px] uppercase flex-1 min-w-0 text-center truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.12em' }}>{session ? session.name : 'Empty session'}</div>
-          <div className="pf tnum text-[12px] shrink-0 text-right" style={{ color: 'var(--on-header-accent)' }}>{fmtClock(elapsed)}</div>
+      <div className="sticky top-0 z-20 -mx-5 border-b-[3px]" style={{ background: 'var(--header)', borderColor: 'var(--border)' }}>
+        <div className="flex items-center gap-2 px-3 pt-2 pb-2">
+          <button onClick={onExit} aria-label="Back to Train" className="hit shrink-0 flex items-center" style={{ color: 'var(--nav-off)' }}>
+            <Icon.chevron width="16" height="16" style={{ transform: 'rotate(180deg)' }} />
+          </button>
+          {/* Your buddy is in the room with you for the whole hour, not only on the movement you have
+              open. It is the same idle strip the header uses everywhere else, so it costs no new art. */}
+          <SessionBuddy db={db} pattern={items[focus] && (Training.byId(items[focus].exerciseId, t.custom) || {}).pattern} trigger={lift.n} />
+          <div className="flex-1 min-w-0">
+            <div className="pf text-[9.5px] uppercase truncate" style={{ color: 'var(--header-text)', letterSpacing: '0.09em' }}>
+              {session ? session.name : 'Empty session'}{session && session.week ? ' · Week ' + session.week : ''}
+            </div>
+            <div className="pf text-[7.5px] uppercase tnum mt-1" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>{fmtClock(elapsed)} elapsed</div>
+          </div>
+          <button onClick={() => setSessionMenu(true)} aria-label="Session options"
+            className="pf text-[7.5px] uppercase shrink-0 px-2.5"
+            style={{ minHeight: 38, background: 'var(--cardhead-bg)', border: '2px solid var(--border)', color: 'var(--header-text)', letterSpacing: '0.1em' }}>More</button>
         </div>
-        <div className="flex gap-[1px] mb-1.5" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
-          {Array.from({ length: 24 }, (_, i) => (
-            <i key={i} className="flex-1" style={{ height: 9, background: i < Math.round(pct / 100 * 24) ? 'var(--accent)' : 'rgba(255,255,255,0.28)' }} />
-          ))}
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{doneSets} / {totalSets} sets</span>
-          <span className="pf text-[9px] uppercase tnum" style={{ color: 'var(--nav-off)', letterSpacing: '0.1em' }}>{Math.round(toDisplayWeight(volume, units)).toLocaleString()} {unitLabel(units)} moved</span>
+        {/* ---- the spine, per `Session in progress.dc.html` ----
+            Orientation without a word: one pip per working set, grouped by movement, so the shape of
+            the whole session and where you are inside it are the same picture. The bar it replaces
+            was 24 identical segments that knew nothing about movements, so a session with three sets
+            left in the last exercise looked the same as one with three left spread across three.
+            Deliberately not tappable: the movement headers are the navigation, and two ways to jump
+            around was the confusion this screen already had. */}
+        <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'var(--card)', borderTop: '3px solid var(--border)' }}>
+          <div className="flex gap-[5px] flex-1 min-w-0" aria-hidden="true">
+            {items.map((it, ii) => {
+              const w = it.sets.filter(s => (s.type || 'work') !== 'warmup');
+              if (!w.length) return null;
+              return (
+                <div key={ii} className="flex gap-[2px]" style={{ flex: w.length }}>
+                  {w.map((s, si) => (
+                    <i key={si} className="flex-1" style={{
+                      height: 10, border: '2px solid var(--border)', transition: 'background .18s',
+                      background: s.done ? 'var(--good)' : (ii === focus ? 'var(--accent)' : 'var(--track)'),
+                    }} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          <span className="text-[10.5px] tnum shrink-0" style={{ color: 'var(--muted)' }}>{doneSets} / {totalSets} sets</span>
         </div>
       </div>
 
@@ -1203,10 +1311,20 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                 <span className="block text-[14px] font-bold leading-tight" style={{ color: open ? 'var(--cardhead-text)' : done ? 'var(--muted)' : 'var(--text)' }}>
                   {ex ? ex.name : it.exerciseId}
                 </span>
-                {!open && <span className="block pf text-[8px] uppercase mt-1.5" style={{ color: done ? 'var(--good-ink)' : 'var(--accent-ink)', letterSpacing: '0.1em' }}>
-                  {work.length} {work.length === 1 ? 'set' : 'sets'} / {tgt ? tgt.repLow + '-' + tgt.repHigh : '–'} reps
-                  {tgt ? ' / ' + tgt.rir + ' RIR' : ''}
-                </span>}
+                {/* The subtitle answers a different question in each of the three states, which is
+                    what makes the closed rows worth reading at all. Open: which set you are on.
+                    Finished: what you actually put in, so a scan down the card stack is a receipt.
+                    Ahead of you: what you are being asked for. It used to say the prescription in
+                    every state, so a movement you had already done still read as work outstanding. */}
+                <span className="block pf text-[8px] uppercase mt-1.5" style={{
+                  color: open ? 'var(--nav-off)' : done ? 'var(--good-ink)' : 'var(--accent-ink)', letterSpacing: '0.1em',
+                }}>
+                  {open
+                    ? 'Set ' + Math.min(work.length, (work.findIndex(s => !s.done) + 1) || work.length) + ' of ' + work.length
+                    : done
+                      ? work.length + ' x ' + (work[0] && work[0].weightKg > 0 ? toDisplayWeight(work[0].weightKg, units) + unitLabel(units) : 'BW') + ' logged'
+                      : work.length + ' x ' + (tgt ? tgt.repLow + '-' + tgt.repHigh : '–') + (tgt ? ' at ' + tgt.rir + ' RIR' : ' reps')}
+                </span>
               </span>
               {open
                 ? <span className="shrink-0" style={{ color: 'var(--cardhead-text)' }}><Icon.chevron width="16" height="16" style={{ transform: 'rotate(90deg)' }} /></span>
@@ -1224,41 +1342,57 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   {tgt && <MetaBit label={tgt.rir + ' RIR'} onHelp={() => setHelp('rir')} hideHelp={t.prefs.hideHelp} />}
                   {tgt && tgt.tempo && <MetaBit label={tgt.tempo} onHelp={() => setHelp('tempo:' + tgt.tempo)} hideHelp={t.prefs.hideHelp} />}
                   {tgt && <MetaBit label={fmtRest(tgt.restSec || 120)} onHelp={() => setHelp('rest')} muted hideHelp={t.prefs.hideHelp} />}
-                  <span className="ml-auto shrink-0 flex items-center gap-2">
-                    <span className="text-[11.5px] text-right" style={{ color: 'var(--muted)' }}>{work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? tgt.repLow + '–' + tgt.repHigh : '–'} reps</span>
-                    <LiftBuddy db={db} pattern={ex && ex.pattern} trigger={lift.ii === ii ? lift.n : 0} />
+                  {/* The buddy used to stand at the end of this row, where three cues plus the
+                      prescription plus a 36px sprite did not fit a 375px card and it hung over the
+                      border. It lives in the header now, where it is on screen for the whole session
+                      instead of only for whichever movement happens to be open. */}
+                  <span className="ml-auto shrink-0 text-[11.5px] text-right" style={{ color: 'var(--muted)' }}>
+                    {work.length} {work.length === 1 ? 'set' : 'sets'} · {tgt ? tgt.repLow + '–' + tgt.repHigh : '–'} reps
                   </span>
                 </div>
 
                 {it.note && <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{it.note}</div>}
 
+                {/* ---- what you did last time, ABOVE the table ----
+                    It used to sit under the set rows, which is the one place it is no use: you type
+                    into the first row, and the thing you are trying to beat was below the fold. And
+                    it showed a single set, so "30kg x 9, 30kg x 9, 27.5kg x 8", the shape of the
+                    session and the drop-off on the last one and the whole reason to look, came back as
+                    "30kg x 9". Still only a reference line and never a number in the box: we ask for
+                    an effort, and what that costs in kilos is the lifter's call on the day. */}
+                {(() => {
+                  const lts = it.sets.map(x => x.lastTime).filter(Boolean);
+                  if (lts.length) {
+                    return (
+                      <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
+                        <span style={{ color: 'var(--muted2)' }}>Last time: </span>
+                        {lts.map(l => (l.weightKg > 0 ? toDisplayWeight(l.weightKg, units) + unitLabel(units) : 'BW') + ' × ' + l.reps).join(', ')}
+                      </div>
+                    );
+                  }
+                  // A grip you have never done has no history, so the line borrows the movement it
+                  // came from and says whose number it is. Deliberately only the LINE: the weight box
+                  // stays empty, because a wide-grip row is not the weight of a plain one and a
+                  // number sitting in an input reads as an instruction rather than a reference.
+                  const ref = Training.lastReference(t.logs, it.exerciseId, today, t.custom);
+                  if (!ref || !ref.borrowed) return null;
+                  const from = Training.byId(ref.fromId, t.custom);
+                  return (
+                    <div className="text-[11.5px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
+                      New to this one. On {from ? from.name : 'the plain version'} you did {toDisplayWeight(ref.best.weightKg, units)}{unitLabel(units)} × {ref.best.repsAtBest}
+                    </div>
+                  );
+                })()}
+
                 {/* Warm-up, only until you have started. Once the first working set is in, telling
                     you what to warm up with is stale advice taking up a third of the card. */}
                 {warmups.length === 0 && !work.some(x => x.done) && work[0] && work[0].weightKg > 0
                   && Training.warmupSets(work[0].weightKg, ex).length > 0 && (
-                  <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
+                  <div className="text-[11.5px] mb-4 leading-snug" style={{ color: 'var(--accent-ink)' }}>
                     <span style={{ color: 'var(--muted2)' }}>Warm up: </span>
                     {Training.warmupSets(work[0].weightKg, ex).map(u => u.reps + ' @ ' + toDisplayWeight(u.weightKg, units) + unitLabel(units)).join(', ')}
                   </div>
                 )}
-
-                {/* One tool row where four stacked blocks used to be. The note box, the history
-                    button and the options grid were all permanently on screen, so the card was
-                    mostly chrome and the set table, which is the only thing you touch while
-                    training, started two thirds of the way down. */}
-                <div className="flex gap-2 mb-4">
-                  <ToolBtn on={noteOpen === it.exerciseId || !!exNotes[it.exerciseId]}
-                    onClick={() => setNoteOpen(noteOpen === it.exerciseId ? null : it.exerciseId)}>Note</ToolBtn>
-                  <ToolBtn disabled={!hist.length} onClick={() => setPastFor(it.exerciseId)}>History</ToolBtn>
-                  <ToolBtn on={menuOpen === ii} onClick={() => setMenuOpen(ii)}>More</ToolBtn>
-                </div>
-
-                {(noteOpen === it.exerciseId || exNotes[it.exerciseId]) && (
-                  <input value={exNotes[it.exerciseId] || ''} onChange={e => setExNote(it.exerciseId, e.target.value)}
-                    placeholder="e.g. seat 3, pin 6" autoFocus={noteOpen === it.exerciseId}
-                    className="w-full pixel-box px-3 h-10 text-[12px] mb-4" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-                )}
-
 
                 {/* ---- set table ---- */}
                 <div className="flex items-center gap-2 pb-2">
@@ -1360,32 +1494,23 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
                   );
                 })}
 
-                {/* Last time as a reference line, not a column and not a number typed into the box.
-                    We ask for an effort; what that costs in kilos is the lifter's call on the day. */}
-                {(() => {
-                  const lt = it.sets.map(x => x.lastTime).filter(Boolean)[0];
-                  if (lt) {
-                    return (
-                      <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>
-                        Last time {toDisplayWeight(lt.weightKg, units)}{unitLabel(units)} × {lt.reps}
-                      </div>
-                    );
-                  }
-                  // A grip you have never done has no history, so the line borrows the movement it
-                  // came from and says whose number it is. Deliberately only the LINE: the weight box
-                  // stays empty, because a wide-grip row is not the weight of a plain one and a
-                  // number sitting in an input reads as an instruction rather than a reference.
-                  const ref = Training.lastReference(t.logs, it.exerciseId, today, t.custom);
-                  if (!ref || !ref.borrowed) return null;
-                  const from = Training.byId(ref.fromId, t.custom);
-                  return (
-                    <div className="text-[11px] mt-2" style={{ color: 'var(--muted2)' }}>
-                      New to this one. On {from ? from.name : 'the plain version'} you did {toDisplayWeight(ref.best.weightKg, units)}{unitLabel(units)} × {ref.best.repsAtBest}
-                    </div>
-                  );
-                })()}
-
                 <button onClick={() => addSet(ii)} className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>+ Add set</button>
+
+                {/* One tool row, and now BELOW the table. These are the three things you reach for
+                    between sets rather than during one, and above the rows they pushed the only part
+                    of the card you actually touch while training a third of the way further down. */}
+                <div className="flex gap-2 mt-3">
+                  <ToolBtn on={noteOpen === it.exerciseId || !!exNotes[it.exerciseId]}
+                    onClick={() => setNoteOpen(noteOpen === it.exerciseId ? null : it.exerciseId)}>Note</ToolBtn>
+                  <ToolBtn disabled={!hist.length} onClick={() => setPastFor(it.exerciseId)}>History</ToolBtn>
+                  <ToolBtn on={menuOpen === ii} onClick={() => setMenuOpen(ii)}>More</ToolBtn>
+                </div>
+
+                {(noteOpen === it.exerciseId || exNotes[it.exerciseId]) && (
+                  <input value={exNotes[it.exerciseId] || ''} onChange={e => setExNote(it.exerciseId, e.target.value)}
+                    placeholder="e.g. seat 3, pin 6" autoFocus={noteOpen === it.exerciseId}
+                    className="w-full pixel-box px-3 h-10 text-[12px] mt-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+                )}
               </div>
             )}
           </div>
@@ -1407,47 +1532,57 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
         </div>
       </Card>
 
-      {/* ---- THE SESSION FOOTER, per `Session.dc.html` ----
-          One purple bar at the bottom of the screen, matching the one at the top, with the rest timer
-          as a row INSIDE it rather than a second card floating above it. Two stacked pixel-boxes with
-          their own shadows read as a cramped pile and cost 56px of the list; one bar that grows a row
-          when you are resting costs nothing when you are not. */}
-      <div className="fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px]"
-        style={{ background: 'var(--header)', borderColor: 'var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {rest && (
-          <div className="px-3 pt-2.5 pb-1">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="pf text-[10px] uppercase tnum" role="timer" style={{ color: restLeft <= 0 ? 'var(--on-header-accent)' : 'var(--header-text)', letterSpacing: '0.1em' }}>
-                Rest · {restLeft <= 0 ? 'Go' : fmtClock(restLeft)}
-              </span>
-              {/* The timer finishing was announced by a beep and a colour, both of which are no use to
-                  a screen reader. Only the transition is announced, never the count: a polite region
-                  on a per-second value would read the whole two minutes out loud. */}
-              <span className="sr-only" aria-live="assertive">{restLeft <= 0 ? 'Rest over, next set' : ''}</span>
-              {/* These are pressed mid-set, one handed, with the phone on a bench and chalk on your
-                  fingers, which is the worst pointing conditions the app ever sees, so every one of
-                  them keeps a 44px tap target via `.hit` even at this size. */}
-              <span className="flex items-center gap-3 shrink-0">
-                <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt - 15000 }))} className="hit pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>−15</button>
-                <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 15000, seconds: r.seconds + 15, alerted: false }))} className="hit pf text-[9px] uppercase" style={{ color: 'var(--nav-off)', letterSpacing: '0.08em' }}>+15</button>
-                <button onClick={() => setRest(null)} aria-label="Skip rest" className="hit pf text-[9px] uppercase" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.08em' }}>Skip <Icon.play width="16" /></button>
-              </span>
-            </div>
-            <div className="flex gap-[1px]" style={{ border: '2px solid var(--border)', background: 'var(--border)' }}>
-              {Array.from({ length: 20 }, (_, i) => {
-                const gone = rest.seconds > 0 ? Math.round((1 - restLeft / rest.seconds) * 20) : 20;
-                return <i key={i} className="flex-1" style={{ height: 9, background: i < gone ? 'var(--accent)' : 'rgba(255,255,255,0.28)' }} />;
-              })}
-            </div>
-          </div>
-        )}
-        <div className="px-3 py-2.5">
-          <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 pf text-[12px] uppercase"
-            style={{ borderWidth: 2, letterSpacing: '0.06em', background: doneSets ? 'var(--accent)' : 'var(--card)', color: doneSets ? 'var(--on-accent)' : 'var(--text)' }}>
-            {doneSets ? 'Finish · ' + doneSets + (doneSets === 1 ? ' set' : ' sets') : 'Finish session'}
-          </button>
+      {/* ---- FINISH, at the end of the session rather than pinned over it ----
+          It was a fixed bar, which meant the loudest control on the screen was permanently the one
+          that ENDS the thing you are in the middle of, sitting under your thumb for the whole hour.
+          At the end of the list it is where you arrive when the work is done, it can say what state
+          you are in, and it gives the rest bar the bottom of the screen to itself. */}
+      <div className="mb-2">
+        <button onClick={() => setConfirmEnd(true)} className="pixel-btn w-full h-14 pf text-[11px] uppercase"
+          style={{ borderWidth: 3, letterSpacing: '0.05em', background: allWorkDone ? 'var(--accent)' : 'var(--surface2)', color: allWorkDone ? 'var(--on-accent)' : 'var(--text2)' }}>
+          {allWorkDone ? 'Finish the session' : 'Finish early · ' + doneSets + ' of ' + totalSets}
+        </button>
+        <div className="text-[10.5px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>
+          {allWorkDone ? 'Every set is in. Nothing else to do.' : 'What you have logged is kept. The rest stays unlogged.'}
         </div>
       </div>
+
+      {/* ---- THE REST BAR ----
+          Now the only thing pinned to the bottom, and only while it is running. The clock is big
+          because it is read across a gym at arm's length, and the line beside it says what the rest
+          is for: a countdown that does not name the next set makes you go back up and find it. */}
+      {rest && (
+        <div className="fixed inset-x-0 bottom-0 max-w-md mx-auto z-30 border-t-[3px] fade-in px-3 pt-2.5 pb-3"
+          style={{ background: 'var(--cardhead-bg)', borderColor: 'var(--border)', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
+          <div className="flex items-center gap-2.5">
+            <span className="pf text-[20px] tnum shrink-0" role="timer"
+              style={{ color: restLeft <= 0 ? 'var(--on-header-accent)' : 'var(--cardhead-text)' }}>
+              {restLeft <= 0 ? 'GO' : fmtClock(restLeft)}
+            </span>
+            <span className="flex-1 min-w-0 text-[11px] leading-snug" style={{ color: 'var(--nav-off)' }}>
+              {rest.from ? 'Next: ' + rest.from : 'Movement done. The next one is open below.'}
+            </span>
+            {/* The timer finishing was announced by a beep and a colour, both of which are no use to
+                a screen reader. Only the transition is announced, never the count: a polite region
+                on a per-second value would read the whole two minutes out loud. */}
+            <span className="sr-only" aria-live="assertive">{restLeft <= 0 ? 'Rest over, next set' : ''}</span>
+            {/* Pressed mid-set, one handed, phone on a bench, chalk on your fingers: the worst
+                pointing conditions the app ever sees, so all three keep a real 44px target. */}
+            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt - 10000 }))} aria-label="Ten seconds less rest"
+              className="shrink-0 w-11 h-11 text-[12px]" style={{ border: '2px solid var(--cardhead-text)', color: 'var(--cardhead-text)' }}>−10</button>
+            <button onClick={() => setRest(r => r && Object.assign({}, r, { endsAt: r.endsAt + 30000, seconds: r.seconds + 30, alerted: false }))} aria-label="Thirty seconds more rest"
+              className="shrink-0 w-11 h-11 text-[12px]" style={{ border: '2px solid var(--cardhead-text)', color: 'var(--cardhead-text)' }}>+30</button>
+            <button onClick={() => setRest(null)} aria-label="Skip rest"
+              className="shrink-0 h-11 px-3 pf text-[9px] uppercase" style={{ border: '2px solid var(--accent)', background: 'var(--accent)', color: 'var(--on-accent)', letterSpacing: '0.06em' }}>Skip</button>
+          </div>
+          <div className="mt-2.5" style={{ height: 8, border: '2px solid var(--cardhead-text)', background: 'rgba(255,253,247,0.14)' }}>
+            <div style={{
+              height: '100%', background: 'var(--accent)', transition: 'width 1s linear',
+              width: (rest.seconds > 0 ? Math.max(0, restLeft / rest.seconds * 100) : 0) + '%',
+            }} />
+          </div>
+        </div>
+      )}
 
       {plateFor != null && (() => {
         const [pi, ps] = String(plateFor).split(':').map(Number);
@@ -1459,6 +1594,17 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
           onClose={() => setMenuOpen(null)}
           actions={[
             { label: 'Swap for something else', sub: 'Keeps your sets and reps', onClick: () => setSwapping(menuOpen) },
+            // The prescription was readable on this screen and editable only back in the builder, so
+            // "three sets is plenty today" meant leaving the session to change it. It is the most
+            // common on-the-day edit there is and it belongs where the work is happening.
+            {
+              label: 'Sets and reps',
+              sub: items[menuOpen].target
+                ? items[menuOpen].target.sets + ' × ' + items[menuOpen].target.repLow + '-' + items[menuOpen].target.repHigh + ' at ' + items[menuOpen].target.rir + ' RIR'
+                : 'Set the prescription for today',
+              disabled: !items[menuOpen].target,
+              onClick: () => setTargetFor(menuOpen),
+            },
             { label: 'Log warm-up sets', sub: 'Adds rows above the working sets', onClick: () => addWarmups(menuOpen) },
             items[menuOpen].superset
               ? { label: 'Break the superset', onClick: () => toggleSuperset(menuOpen) }
@@ -1468,6 +1614,50 @@ function SessionPlayer({ db, update, showToast, sessionId, blockId, freeform, on
             { label: 'Remove from session', danger: true, onClick: () => removeExercise(menuOpen) },
           ]} />
       )}
+      {/* Changing the prescription changes the SETS as well, or the number in the header and the
+          number of rows underneath it disagree, which is the app arguing with itself. Rows already
+          logged are never taken away: dropping a set you have done would delete work you did. */}
+      {targetFor != null && items[targetFor] && items[targetFor].target && (
+        <TargetSheet row={items[targetFor]} name={(Training.byId(items[targetFor].exerciseId, t.custom) || {}).name}
+          onClose={() => setTargetFor(null)}
+          onChange={(patch) => mutate(n => {
+            const it2 = n[targetFor];
+            it2.target = Object.assign({}, it2.target, patch);
+            if (patch.sets != null) {
+              const work = it2.sets.filter(s => (s.type || 'work') !== 'warmup');
+              const want = Math.max(work.filter(s => s.done).length, patch.sets);
+              while (work.length > want) { const drop = work.pop(); it2.sets.splice(it2.sets.indexOf(drop), 1); }
+              while (work.length < want) {
+                const last = work[work.length - 1] || { type: 'work' };
+                const row = Object.assign({}, last, { done: false, reps: null, rir: null, type: 'work' });
+                it2.sets.push(row); work.push(row);
+              }
+            }
+          })} />
+      )}
+
+      {/* The session's own options, off the header. Everything here is about the whole session
+          rather than one movement, which is why it was homeless before: adding a movement was a
+          button at the bottom of the list and the rest had nowhere to live at all. */}
+      {sessionMenu && (
+        <ActionSheet title={session ? session.name : 'Empty session'} onClose={() => setSessionMenu(false)}
+          actions={[
+            { label: 'Add a movement', sub: 'Something you did that is not in the plan', onClick: () => setPicking(true) },
+            {
+              label: t.prefs.restTimer === false ? 'Turn the rest timer on' : 'Turn the rest timer off',
+              sub: t.prefs.restTimer === false ? 'A countdown starts when you tick a set' : 'No countdown when you tick a set',
+              onClick: () => {
+                const on = t.prefs.restTimer === false;
+                trainUpdate(update, (tr) => { tr.prefs = Object.assign({}, tr.prefs, { restTimer: on }); });
+                if (!on) setRest(null);
+                showToast && showToast(on ? 'Rest timer on.' : 'Rest timer off.');
+              },
+            },
+            { label: 'Finish the session', sub: doneSets ? doneSets + (doneSets === 1 ? ' set' : ' sets') + ' saved' : 'Nothing ticked, so nothing saved', onClick: () => setConfirmEnd(true) },
+            { label: 'Leave without finishing', sub: 'Everything ticked is already saved. Come back to it later.', onClick: onExit },
+          ]} />
+      )}
+
       {pr && <PRFlash pr={pr} db={db} units={units} onClose={() => setPr(null)} />}
       {signOff && <SessionSignOff db={db} facts={signOff} units={units} onDone={onExit} />}
       {help && <TrainHelp topic={help} db={db} onClose={() => setHelp(null)}
@@ -1537,11 +1727,22 @@ const PATTERN_ANIM = {
   horizPull: 'avoid', vertPull: 'avoid',       // a pull is a drive back toward it
   carry: 'move', core: 'dash', isolation: 'bite',
 };
-function LiftBuddy({ db, pattern, trigger }) {
+/* The buddy in the session header: framed, idling, and doing the rep with you when you tick a set.
+   It used to stand at the end of the prescription row inside the open card, which meant two things
+   went wrong at once. It only existed on whichever movement happened to be open, so between
+   exercises and while resting the one character in the app was absent from the screen it should own
+   most. And three cues plus the prescription plus a 36px sprite do not fit a 375px row, so it hung
+   over the card border. In the header it is on screen for the whole hour and has room of its own.
+
+   Driven off the tick rather than a timer, so it moves when you move and is otherwise perfectly
+   still. That distinction is the whole point: a sprite bouncing away on its own mid-set is
+   decoration and would be the first thing anyone asked us to turn off. This is company. Honours
+   prefers-reduced-motion by not playing the one-shot, and an unhatched egg does not pretend to lift. */
+function SessionBuddy({ db, pattern, trigger }) {
   const [rep, setRep] = useState(0);
   useEffect(() => { if (trigger > 0) setRep(trigger); }, [trigger]);
   const buddy = (db && db.buddy) || {};
-  if (buddy.hatched === false) return null;    // an egg has nothing to lift with
+  if (buddy.hatched === false) return null;   // an egg does not come to the gym
   const species = buddy.species || 'doux';
   const move = PATTERN_ANIM[pattern] || 'jump';
   let palette = buddy.palette || 'female';
@@ -1551,13 +1752,15 @@ function LiftBuddy({ db, pattern, trigger }) {
   const playing = rep > 0 && rep === trigger && !prefersReducedMotion();
   const anim = playing ? move : 'idle';
   return (
-    <span className="inline-block" style={{ lineHeight: 0, opacity: 0.9 }} aria-hidden="true">
+    <span className="shrink-0 flex items-center justify-center overflow-hidden" aria-hidden="true"
+      style={{ width: 30, height: 30, lineHeight: 0, background: 'var(--cardhead-bg)', border: '2px solid var(--border)' }}>
       <SpriteSheet key={anim + ':' + rep} palette={palette} species={species} group="base" anim={anim}
-        px={1.5} fps={playing ? 9 : BUDDY_IDLE_FPS} loop={!playing}
+        px={1.1} fps={playing ? 9 : BUDDY_IDLE_FPS} loop={!playing}
         onEnd={playing ? () => setRep(0) : undefined} />
     </span>
   );
 }
+
 
 /* The prescription line carries up to three of these, and each used to end in a solid accent-filled
    "?" chip: three neon squares in a row on the busiest card in the app, shouting louder than the
@@ -1979,6 +2182,178 @@ function CustomExercise({ db, update, initialName, basedOn, onDone, onClose }) {
   );
 }
 
+/* ---- the mesocycle grid, per `Build a block v3.dc.html` -----------------------------------------
+   Weeks down, sessions across, each cell its own set count shaded by how hard that week is. It is
+   the climb, drawn, and the climb is the entire argument for a block over a list of workouts.
+
+   Shared by every screen that talks about a whole block - building one, reviewing the one you just
+   finished, running it again, looking at somebody else's - because "what is a block" should be the
+   same picture everywhere. Before this, four screens each described a block a different way, in
+   sentences, and none of them showed the shape.
+
+   `weeks` is [{week, deload, sessions:[{name, sets}]}]; `readBlock` below builds it from a block. */
+function MesoGrid({ weeks, sessions }) {
+  if (!weeks || !weeks.length || !sessions || !sessions.length) return null;
+  const peak = Math.max.apply(null, weeks.map(w => Math.max.apply(null, w.sessions.map(s => s.sets).concat([1]))));
+  return (
+    <div className="flex gap-1.5">
+      <div className="flex flex-col gap-1 pt-[13px] shrink-0">
+        {weeks.map(w => (
+          <span key={w.week} className="pf text-[7.5px] w-4" style={{ height: 22, lineHeight: '22px', letterSpacing: '0.06em', color: w.deload ? 'var(--warn-ink)' : w.week === 1 ? 'var(--muted)' : 'var(--accent-ink)' }}>W{w.week}</span>
+        ))}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(' + sessions.length + ',1fr)' }}>
+          {sessions.map((s, i) => (
+            <span key={i} className="pf text-[7px] text-center truncate" style={{ letterSpacing: '0.04em', color: 'var(--muted2)' }}>{s.name.length > 6 ? s.name.slice(0, 5) : s.name}</span>
+          ))}
+        </div>
+        <div className="flex flex-col gap-1 mt-1">
+          {weeks.map(w => (
+            <div key={w.week} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(' + sessions.length + ',1fr)' }}>
+              {w.sessions.map((s, i) => (
+                <div key={i} title={s.name + ', week ' + w.week + ': ' + s.sets + ' sets'}
+                  className="flex items-center justify-center text-[9.5px] tnum"
+                  style={{
+                    height: 22, boxSizing: 'border-box', border: '2px solid var(--border)', transition: 'background .25s ease',
+                    background: w.deload ? 'var(--surface2)' : 'color-mix(in srgb, var(--accent) ' + Math.min(100, Math.max(18, Math.round(s.sets / peak * 100))) + '%, var(--track))',
+                    color: w.deload ? 'var(--muted)' : 'var(--on-accent)',
+                  }}>{s.sets}</div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A block, read into the shape MesoGrid wants. Reads the block itself rather than recomputing
+// anything: training.js owns the numbers, this only arranges them.
+function readBlock(block) {
+  if (!block) return null;
+  const weeks = [];
+  for (let w = 1; w <= (block.weeks || 4); w++) {
+    const ss = Training.weekSessions(block, w);
+    if (!ss.length) continue;
+    weeks.push({
+      week: w, deload: ss.some(s => s.deload),
+      sessions: ss.map(s => ({
+        name: s.name, moves: (s.exercises || []).length, mins: sessionMins(s.exercises),
+        sets: (s.exercises || []).reduce((a, e) => a + ((e.target && e.target.sets) || 0), 0),
+      })),
+    });
+  }
+  if (!weeks.length) return null;
+  const s1 = weeks[0].sessions;
+  // "Upper A, Lower A, Upper B, Lower B" said back as "UPPER / LOWER x2", which is how anybody who
+  // trains would describe it, and how the split reads at a glance in a panel header.
+  const bases = [];
+  s1.forEach(s => { const b = s.name.replace(/\s+[A-Z0-9]$/, '').trim(); if (bases.indexOf(b) === -1) bases.push(b); });
+  const rounds = bases.length ? Math.round(s1.length / bases.length) : 1;
+  return {
+    weeks: weeks, sessions: s1,
+    weekSets: s1.reduce((a, s) => a + s.sets, 0),
+    minutesEach: Math.round(s1.reduce((a, s) => a + s.mins, 0) / s1.length),
+    movesEach: Math.round(s1.reduce((a, s) => a + s.moves, 0) / s1.length),
+    splitName: bases.join(' / ') + (rounds > 1 ? ' x' + rounds : ''),
+  };
+}
+
+/* ---- the live block preview --------------------------------------------------------------------
+   The thing the old wizard never did: show you the block while you are still answering. It was a
+   column of segmented controls and a Build button, so the first time you saw what four days and
+   sixty minutes actually meant was after it had been generated, and changing your mind meant going
+   back and building again. Now every answer redraws this panel above the questions.
+
+   The mesocycle grid is the centrepiece: weeks down, sessions across, each cell its own set count,
+   shaded by how hard that week is. It is the climb, drawn, and the climb is the entire argument for
+   a block over a list of workouts.
+
+   IMPORTANT: none of these numbers are computed here. The panel runs the real engine and reads the
+   real block back, which is the rule the whole module is built on - `training.js` owns every number.
+   A preview with its own arithmetic would be a second, quietly different app, and the moment the two
+   disagreed the preview would be a lie told at exactly the moment someone is deciding. */
+function BlockPreview({ preview, changeLine, brought, sourceCount }) {
+  if (!preview) {
+    return (
+      <Card className="p-4 mb-4">
+        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Working out what that looks like...</div>
+      </Card>
+    );
+  }
+  const { weeks, cov, weekSets, sessions, minutesEach, splitName } = preview;
+  const shortN = cov.rows.filter(r => r.sets < r.mev).length;
+  const overN = cov.rows.filter(r => r.sets > r.mrv).length;
+  const settled = !shortN && !overN;
+  // Only what is out of range, and only the worst three. All seventeen bars is the coverage screen's
+  // job; here it would bury the one or two that actually want a decision.
+  const attention = cov.rows.filter(r => r.sets < r.mev || r.sets > r.mrv)
+    .sort((a, b) => (b.sets > b.mrv ? 1 : 0) - (a.sets > a.mrv ? 1 : 0)).slice(0, 3);
+
+  return (
+    <div className="sticky top-0 z-10 -mx-5 px-5 pb-2.5 mb-3" style={{ background: 'var(--bg)' }}>
+      <Card className="p-0 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5" style={{ background: 'var(--cardhead-bg)' }}>
+          <span className="pf text-[8px] uppercase truncate" style={{ color: 'var(--cardhead-text)', letterSpacing: '0.11em' }}>{splitName}</span>
+          <span className="pf text-[8px] uppercase tnum shrink-0" style={{ color: 'var(--on-header-accent)', letterSpacing: '0.11em' }}>{weekSets} sets / wk</span>
+        </div>
+        <div className="p-3">
+          <MesoGrid weeks={weeks} sessions={sessions} />
+
+          <div className="flex items-center gap-2 mt-3 pt-2.5" style={{ borderTop: '2px solid var(--track)' }}>
+            <span className="shrink-0" style={{ width: 11, height: 11, border: '2px solid var(--border)', background: settled ? 'var(--good)' : overN ? 'var(--warn)' : 'var(--track)' }} />
+            <span className="flex-1 text-[11px] leading-snug" style={{ color: 'var(--text2)' }}>
+              {settled
+                ? 'Every muscle lands inside the range that works for you.'
+                : overN
+                  ? overN + (overN === 1 ? ' muscle is' : ' muscles are') + ' past what you can recover from.'
+                  : shortN + (shortN === 1 ? ' muscle sits' : ' muscles sit') + ' under the range that grows anything.'}
+            </span>
+          </div>
+
+          {attention.map(r => <div key={r.muscle} className="mt-2"><CoverageRow row={r} compact /></div>)}
+
+          {/* Every answer writes a one-line consequence. Without it the panel redraws and you are
+              left to spot the difference yourself, which nobody does. */}
+          <div key={changeLine} className="mt-2.5 px-2.5 py-2 text-[10.5px] leading-snug"
+            style={{ borderLeft: '3px solid ' + (changeLine ? 'var(--accent)' : 'var(--track)'), background: 'var(--surface2)', color: changeLine ? 'var(--text2)' : 'var(--muted2)', animation: changeLine ? 'fade .3s ease both' : 'none' }}>
+            {changeLine || 'Change any answer and the block redraws above.'}
+          </div>
+
+          <div className="flex items-center gap-2 mt-2.5">
+            <span className="pf text-[7.5px] uppercase shrink-0 px-1.5 py-1" style={{ letterSpacing: '0.1em', border: '2px solid var(--border)', background: 'var(--accent-dim)', color: 'var(--accent-ink)' }}>
+              {brought ? 'Yours + builder' : 'Builder'}
+            </span>
+            <span className="text-[10.5px] leading-snug" style={{ color: 'var(--muted)' }}>
+              {brought
+                ? 'Your ' + sourceCount + ' ' + (sourceCount === 1 ? 'day' : 'days') + ' set the movements. The builder sets volume and the four-week climb.'
+                : 'No source, so the builder writes all four weeks from your answers below.'}
+            </span>
+          </div>
+          <div className="text-[10.5px] mt-2" style={{ color: 'var(--muted2)' }}>About {minutesEach} min a session.</div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* A question, with what it costs shown against its own label. The shared `Field` has no room for
+   that readout, and the readout is the point: "Days a week / 4 sessions", "How long a session /
+   8 movements" turns a form into a conversation where every answer visibly does something. */
+function TrainField({ label, effect, hint, children }) {
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <span className="pf text-[9px] uppercase" style={{ color: 'var(--muted)', letterSpacing: '0.12em' }}>{label}</span>
+        {effect ? <span className="text-[10.5px] shrink-0 tnum" style={{ color: 'var(--accent-ink)' }}>{effect}</span> : null}
+      </div>
+      {children}
+      {hint && <div className="text-[10.5px] mt-2 leading-snug" style={{ color: 'var(--muted)' }}>{hint}</div>}
+    </div>
+  );
+}
+
 // ---- block wizard -----------------------------------------------------------------------------
 // Free users get the whole thing built deterministically from their equipment and days. Premium
 // adds the AI pass that swaps in movements suited to what they actually like doing.
@@ -2020,6 +2395,53 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const [readNote, setReadNote] = useState(null);
   const [readErr, setReadErr] = useState(false);
   const [fails, setFails] = useState([]);   // files that did not read, kept so they can be retried
+
+  /* The live preview. Every answer runs the REAL engine and reads the real block back, so what is
+     drawn above the questions is the block you will get rather than a sketch of one. Memoised on the
+     answers themselves: building four weeks is cheap but not free, and it must not rerun because a
+     text box somewhere else on the screen changed. A throw here is not worth a broken screen, so it
+     falls back to no preview and the questions still work. */
+  const preview = useMemo(() => {
+    try {
+      const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets });
+      const blk = draftDays > 0
+        ? Training.blockFromTemplate(t.draft.days, {
+          weeks: 4, shape: shape, intensity: intensity, targets: targets, custom: t.custom,
+          name: t.draft.name || 'My block', source: 'import', startISO: null,
+        })
+        : Training.generateBlock({
+          daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+          gym: gym, equipment: equipment.length ? equipment : null, dislikes: t.prefs.dislikes,
+          custom: t.custom, sessionMinutes: minutes, emphasis: emphasis, source: 'generated',
+        });
+      const read = readBlock(blk);
+      if (!read) return null;
+      return Object.assign({ cov: Training.coverage(Training.blockWeekVolume(blk, 1, t.custom), targets) }, read);
+    } catch (_) { return null; }
+  }, [days, minutes, experience, goal, shape, intensity, emphasis, equipment, gym, draftDays, t.draft, t.custom, t.volumeTargets]);
+
+  // The one-line consequence of the answer you just changed. Without it the panel silently redraws
+  // and you are left to spot the difference between two grids of numbers, which nobody does.
+  const lastPreview = useRef(null);
+  const [changeLine, setChangeLine] = useState('');
+  useEffect(() => {
+    const before = lastPreview.current;
+    lastPreview.current = preview;
+    if (!before || !preview) return;
+    const inRange = (cov, muscle) => {
+      const r = cov.rows.filter(x => x.muscle === muscle)[0];
+      return !!r && r.sets >= r.mev && r.sets <= r.mrv;
+    };
+    const parts = [];
+    const d = preview.weekSets - before.weekSets;
+    if (d) parts.push((d > 0 ? '+' : '') + d + ' sets a week');
+    const fixed = preview.cov.rows.filter(r => inRange(preview.cov, r.muscle) && !inRange(before.cov, r.muscle));
+    const broke = preview.cov.rows.filter(r => !inRange(preview.cov, r.muscle) && inRange(before.cov, r.muscle));
+    if (fixed.length) parts.push(fixed.slice(0, 2).map(r => r.label.toLowerCase()).join(', ') + ' now in range');
+    if (broke.length) parts.push(broke.slice(0, 2).map(r => r.label.toLowerCase()).join(', ') + ' dropped out of range');
+    if (preview.minutesEach !== before.minutesEach) parts.push('about ' + preview.minutesEach + ' min a session');
+    setChangeLine(parts.join(' · ') || 'nothing else moved');
+  }, [preview]);
 
   // Fold a parse's result into the draft basket: the days, any custom exercises it had to guess at
   // (see Training.importTemplate), and everything worth a second look. One place both the batched
@@ -2213,13 +2635,14 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
 
   return (
     <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">Build a block</h1>
-      <Collapsible label="Four weeks that build on each other" sub="What that means" variant="inline" className="mb-6">
-        <div className="text-[12px] leading-snug mt-2" style={{ color: 'var(--muted)' }}>
-          Week one introduces the work at a volume you can definitely recover from. Weeks two and three add sets where you have room and ask for a little more effort each time. Week four backs off, so the next block starts on a fresh body rather than a tired one.
-        </div>
-      </Collapsible>
+      <div className="flex items-baseline justify-between gap-2">
+        <button onClick={onBack} className="pf text-[9px] uppercase hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
+        {preview && <span className="text-[10.5px]" style={{ color: 'var(--muted2)' }}>about {preview.minutesEach} min a session</span>}
+      </div>
+      <h1 className="pf text-lg mt-2 mb-1">Build a block</h1>
+
+      {/* The block, drawn, while you are still answering. */}
+      <BlockPreview preview={preview} changeLine={changeLine} brought={draftDays > 0} sourceCount={draftDays} />
 
       {/* Bringing something beats describing it, and describing it beats filling in a form - so this
           sits first, and it is entirely optional: skip straight to the questions below for a block
@@ -2301,33 +2724,36 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         {wishNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{wishNote}</div>}
       </Card>
 
-      <Field label="Days a week" hint="Also which track I pull from a source that offers more than one.">
+      <TrainField label="Days a week" effect={preview ? preview.sessions.length + ' sessions' : ''}
+        hint="Also which track I pull from a source that offers more than one.">
         <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
-      </Field>
-      <Field label="How long a session" hint="Decides how many movements fit.">
+      </TrainField>
+      <TrainField label="How long a session" effect={preview ? preview.movesEach + ' movements' : ''}
+        hint="Decides how many movements fit.">
         <Seg value={minutes} onChange={setMinutes} options={[{ v: 40, l: '40 min' }, { v: 60, l: '60 min' }, { v: 80, l: '80 min' }, { v: 100, l: '100 min' }]} />
-      </Field>
-      <Field label="Where you are" hint="Sets your starting volume. Movable later.">
+      </TrainField>
+      <TrainField label="Where you are" effect={preview ? preview.weekSets + ' sets' : ''}
+        hint="Sets your starting volume. Movable later.">
         <Seg value={experience} onChange={setExperience} options={[{ v: 'beginner', l: 'Newer' }, { v: 'intermediate', l: 'A while' }, { v: 'advanced', l: 'Years' }]} />
-      </Field>
-      <Field label="Goal">
+      </TrainField>
+      <TrainField label="Goal" hint="Shifts rep ranges and what leads each session.">
         <Seg value={goal} onChange={setGoal} options={[{ v: 'hypertrophy', l: 'Muscle' }, { v: 'strength', l: 'Strength' }, { v: 'general', l: 'General' }]} />
-      </Field>
+      </TrainField>
       {/* The house default: high intensity, lower volume, training close to failure - what the
           research on proximity to failure and the reference programmes this app is built from both
           point at. A real choice, not a hidden constant: pick moderate for more sets and effort that
           stops a few reps short every week instead. */}
-      <Field label="Training intensity" hint={intensity === 'high'
+      <TrainField label="Training intensity" hint={intensity === 'high'
         ? 'High intensity, lower volume: fewer sets, closer to true failure by the last week. Our default.'
         : 'More volume, moderate effort: more sets, always a rep or two in reserve.'}>
         <Seg value={intensity} onChange={setIntensity} options={[{ v: 'high', l: 'High intensity' }, { v: 'moderate', l: 'More volume' }]} />
-      </Field>
-      <Field label="Block shape" hint={Training.SHAPES[shape].label}>
+      </TrainField>
+      <TrainField label="Block shape" hint={Training.SHAPES[shape].label}>
         <Seg value={shape} onChange={setShape} options={[
           { v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' },
           { v: 'as-written', l: 'As brought' },
         ]} />
-      </Field>
+      </TrainField>
       {/* A gym, not a checkbox grid. It decides both what is available and what to reach for first,
           which is why it replaced the nine tick boxes that used to live here. */}
       <Field label="Where you will train it" hint="Changes which movements the block reaches for.">
@@ -2345,22 +2771,27 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           before the button that actually builds the block. Folded behind the same inline disclosure
           the screen already opens with, so the default is calm and nothing is lost: the summary
           names what you picked, so a closed row still tells you where you stand. */}
-      <Collapsible
-        label={emphasis.length ? 'Bringing up ' + emphasis.map(m => Training.MUSCLE_LABEL[m].toLowerCase()).join(', ') : 'Anything to bring up'}
-        sub={emphasis.length ? 'Change' : 'Optional'} variant="inline" className="mb-5">
-        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
-          Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it.
-        </div>
+      {/* Out of the disclosure it was folded into. Hiding it made the screen calmer and made the
+          field useless: nobody opens a closed row labelled "Optional", so the one question on this
+          screen that is about YOUR body rather than your diary was the one nobody answered. It earns
+          the space now because every chip you press moves the panel above, so the trade it makes is
+          visible instead of promised. */}
+      <TrainField label="Anything to bring up"
+        effect={emphasis.length ? emphasis.length + ' picked' : ''}
+        hint="Whatever you pick starts nearer the top of its useful range, and the rest eases back to pay for it.">
         <div className="flex gap-2 flex-wrap">
           {Training.MUSCLES.map(m => (
             <button key={m} onClick={() => setEmphasis(emphasis.indexOf(m) !== -1 ? emphasis.filter(x => x !== m) : emphasis.concat([m]))}
-              className="pixel-box px-2 py-2 text-[11px]"
-              style={{ background: emphasis.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)', color: emphasis.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)' }}>
+              className="pixel-box px-2.5 text-[11px]" style={{
+                minHeight: 44,
+                background: emphasis.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)',
+                color: emphasis.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)',
+              }}>
               {Training.MUSCLE_LABEL[m]}
             </button>
           ))}
         </div>
-      </Collapsible>
+      </TrainField>
 
       {draftDays > 0 && (
         <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
@@ -2517,20 +2948,20 @@ function BlockBuilder({ db, update, showToast, isPremium, blockId, draft, clearD
         </div>
       )}
 
-      {/* Live coverage for the week being edited. This is the whole point of building it here. */}
+      {/* ---- Week volume, per `Build a block v3.dc.html` ----
+          Every muscle, not the worst five, and drawn as a POSITION on its own MEV-to-MRV band rather
+          than as a bar filling up. The distinction matters here more than anywhere: a filling bar
+          says more is better, and the entire point of this panel is that there is a top to the range
+          as well as a bottom. The legend is there because a shaded band and a marker mean nothing
+          until somebody says once what they are. */}
       <Card className="p-4 mb-4">
-        <div className="flex items-baseline justify-between mb-2">
-          <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Week {week} coverage</div>
-          <div className="text-[11px]" style={{ color: cov.gaps.length ? 'var(--warn)' : 'var(--good)' }}>
-            {cov.totalSets} sets · {cov.gaps.length ? cov.gaps.length + ' short' : 'all covered'}
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <div className="pf text-[9px] uppercase" style={{ color: 'var(--muted)' }}>Week {week} volume</div>
+          <div className="text-[11px]" style={{ color: cov.gaps.length || cov.overs.length ? 'var(--warn)' : 'var(--good)' }}>
+            {cov.totalSets} sets · {cov.overs.length ? cov.overs.length + ' past recovery' : cov.gaps.length ? cov.gaps.length + ' short' : 'all covered'}
           </div>
         </div>
-        <CoverageBars coverage={cov} limit={5} compact />
-        {cov.overs.length > 0 && (
-          <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--danger)' }}>
-            {cov.overs[0].label} is past what you can recover from at {cov.overs[0].sets} sets. Take some off.
-          </div>
-        )}
+        <CoverageBars coverage={cov} />
       </Card>
 
       {/* Day cards, in the same language as the session screen: the coach's letter code, the
@@ -2683,7 +3114,7 @@ function SessionPreview({ db, update, showToast, session, block, onBack, onStart
   const items = Training.sessionItems(live);
   const codes = Training.sessionCodes(items);
   const sets = items.reduce((a, e) => a + (e.target.sets || 0), 0);
-  const mins = Math.round(items.reduce((a, e) => a + (e.target.sets || 0) * (((e.target.restSec || 120) + 40) / 60), 0));
+  const mins = sessionMins(items);
   const log = t.logs.filter(l => l.sessionId === live.id)[0];
   const prog = block ? Training.blockProgress(block, Store.todayISO()) : null;
   const editable = !!(block && update);
@@ -3059,8 +3490,14 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, o
             <div className="flex items-start justify-between gap-2">
               <button onClick={() => onOpen(block.id)} className="min-w-0 flex-1 text-left">
                 <span className="block text-[15px] font-semibold leading-tight" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{block.name}</span>
+                {/* What KIND of block it is, in the same words the builder's panel header uses.
+                    "4 days a week" does not distinguish an upper/lower from a push/pull/legs, and
+                    that is the first thing you want when picking one out of a list of six. */}
                 <span className="block text-[12px] tnum mt-1" style={{ color: 'var(--muted)' }}>
-                  {comp.done} of {comp.total} sessions logged · {block.daysPerWeek || (block.days || []).length} days a week{block.shared ? ' · shared' : ''}
+                  {(read => read ? read.splitName + ' · ' + read.weekSets + ' sets a week' : (block.daysPerWeek || (block.days || []).length) + ' days a week')(readBlock(block))}
+                </span>
+                <span className="block text-[12px] tnum mt-0.5" style={{ color: 'var(--muted2)' }}>
+                  {comp.done} of {comp.total} sessions logged{block.shared ? ' · shared' : ''}
                 </span>
               </button>
               <button onClick={() => setConfirm(block)} aria-label={'Delete ' + block.name}
@@ -3373,6 +3810,23 @@ function BlockReviewScreen({ db, update, showToast, isPremium, onUpgrade, blockI
         </Card>
       )}
 
+      {/* The block you just ran, in the same grid the builder drew it in. Closing the loop matters
+          here: you agreed to this climb four weeks ago as a picture, and this is that picture again
+          next to what you actually did with it. */}
+      {(() => {
+        const read = readBlock(block);
+        if (!read) return null;
+        return (
+          <Card className="p-0 overflow-hidden mb-4">
+            <CardHead title={read.splitName} right={read.weekSets + ' sets / wk'} />
+            <div className="p-3.5">
+              <div className="text-[11px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>What you signed up for, four weeks ago.</div>
+              <MesoGrid weeks={read.weeks} sessions={read.sessions} />
+            </div>
+          </Card>
+        );
+      })()}
+
       <Card className="p-4 mb-4">
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What you actually trained</div>
         <div className="text-[11px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>Average sets a week, from the sessions you logged rather than the ones we wrote down.</div>
@@ -3444,6 +3898,20 @@ function RerunScreen({ db, update, showToast, blockId, onBack, onDraft }) {
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; How it went</button>
       <h1 className="pf text-lg mb-1">Run it again</h1>
       <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>{plan.headline}</div>
+
+      {/* The block you are about to run, drawn, before the list of individual changes. The screen
+          was a column of swap decisions with no sense of the whole, so you were agreeing to changes
+          without seeing the thing they add up to. */}
+      {(() => {
+        const read = readBlock(block);
+        if (!read) return null;
+        return (
+          <Card className="p-0 overflow-hidden mb-4">
+            <CardHead title={read.splitName} right={read.weekSets + ' sets / wk'} />
+            <div className="p-3.5"><MesoGrid weeks={read.weeks} sessions={read.sessions} /></div>
+          </Card>
+        );
+      })()}
 
       {!actionable.length && (
         <Card className="p-4 mb-4">
@@ -4290,6 +4758,26 @@ function SharedBlockPreview({ db, pub, onBack, onAdopt }) {
         </Card>
       )}
 
+      {/* The shape of the thing you are about to take on, before the movement lists. "Four weeks,
+          four days" is a sentence; this is the climb, and it is what tells you whether somebody
+          else's block is a week you can actually stand up to. Same grid as the builder draws, so a
+          block adopted from the library and a block you wrote look like the same kind of object. */}
+      {(() => {
+        const read = readBlock(result.block);
+        if (!read) return null;
+        return (
+          <Card className="p-0 overflow-hidden mb-4">
+            <CardHead title={read.splitName} right={read.weekSets + ' sets / wk'} />
+            <div className="p-3.5">
+              <MesoGrid weeks={read.weeks} sessions={read.sessions} />
+              <div className="text-[10.5px] mt-2.5" style={{ color: 'var(--muted2)' }}>
+                About {read.minutesEach} min a session, once it is re-periodised to your numbers.
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
+
       <Card className="p-4 mb-4">
         <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>Your week 1</div>
         <CoverageBars coverage={cov} limit={6} compact />
@@ -4393,6 +4881,8 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
   }
 
   const cov = Training.coverage(Training.plannedVolume(draft.days, t.custom), targets);
+  // Lines the import marked as worth a second look, across every day. One number for the whole draft.
+  const flagged = draft.days.reduce((a, d) => a + (d.exercises || []).filter(e => !!e.check).length, 0);
   function edit(fn) { trainUpdate(update, (tr) => { fn(tr.draft); tr.draft.days.forEach((d, i) => { d.dayOfWeek = i; }); }); }
 
   return (
@@ -4401,9 +4891,37 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
        button, and the last thing on this screen is how you throw the draft away. */
     <div className="fade-in pb-28">
       <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">Draft block</h1>
-      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-        {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} read from your plan. Tap any movement to change it.
+      {/* "Draft block" named the object; "What I read" names what you are here to do, which is check
+          the app's reading of somebody else's plan before four weeks get built on top of it. */}
+      <h1 className="pf text-lg mb-1">What I read</h1>
+      <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+        {draft.days.length} {draft.days.length === 1 ? 'day' : 'days'} read from your plan. Sets, reps and the four-week climb come from the builder.
+      </div>
+
+      {/* ---- the count bar, per `Build a block v3.dc.html` ----
+          How many lines want a look, pinned while you scroll the days. The flags were already on the
+          rows, but they were scattered through three day cards, so the only way to know whether you
+          had dealt with them all was to scroll back up and count. This says it, and follows you.
+          "Everything matched" is worth showing just as loudly: the fear with an importer is that it
+          quietly dropped something, and the answer to that fear is a number, not silence. */}
+      <div className="sticky top-0 z-10 -mx-5 px-5 pb-2.5 mb-3" style={{ background: 'var(--bg)' }}>
+        <div className="pixel-box flex items-center gap-2.5 px-2.5 py-2" style={{ background: 'var(--card)' }}>
+          <span className="shrink-0 flex items-center justify-center pf text-[10px]"
+            style={{ width: 26, height: 26, border: '2px solid var(--border)', background: flagged ? 'var(--warn)' : 'var(--good)', color: flagged ? '#241f2e' : '#05140a' }}>
+            {flagged ? String(flagged) : <Tick size={12} />}
+          </span>
+          <span className="flex-1 text-[11.5px] leading-snug" style={{ color: 'var(--text2)' }}>
+            {flagged
+              ? flagged + (flagged === 1 ? ' line needs a look' : ' lines need a look') + '. Everything else matched.'
+              : 'Everything is placed. Nothing was dropped.'}
+          </span>
+          {flagged > 0 && (
+            <button onClick={() => edit(d => d.days.forEach(day => (day.exercises || []).forEach(e => { delete e.check; })))}
+              className="pf text-[7.5px] uppercase shrink-0 px-2" style={{ minHeight: 44, letterSpacing: '0.1em', border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
+              Accept all
+            </button>
+          )}
+        </div>
       </div>
 
       <Field label="Call it"><TextInput value={name} onChange={e => { setName(e.target.value); edit(d => { d.name = e.target.value; }); }} /></Field>
@@ -4481,6 +4999,17 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
                     </span>
                   )}
                 </button>
+                {/* Agreeing with the guess is the common answer and it had no control at all: the
+                    only way to clear a flag was to open the picker and re-choose the movement the
+                    app had already chosen. Now the row offers both, and the count bar above can
+                    actually reach zero. */}
+                {differs && (
+                  <button onClick={() => edit(d => { delete d.days[di].exercises[ei].check; })}
+                    aria-label={'Keep ' + shown + ' as ' + lib.name}
+                    className="shrink-0 px-2 text-[11px]" style={{ minHeight: 44, border: '2px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)' }}>
+                    Keep
+                  </button>
+                )}
                 <span className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px] tnum" style={{ color: 'var(--muted)' }}>
                     {e.target.sets} x {e.target.repLow}-{e.target.repHigh}
@@ -4912,7 +5441,7 @@ function SessionSignOff({ db, facts, units, onDone }) {
           ))}
         </div>
       )}
-      <div className="w-full max-w-sm pixel-box fade-in p-5" style={{ background: 'var(--card)' }}>
+      <div className="w-full max-w-sm pixel-box fade-in p-5 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--card)' }}>
         <div className="flex justify-center mb-4">
           <BuddyScene buddy={buddy} stageIndex={stage} px={4} w={150} h={112}
             floor={26} spriteBottom={6} shadowW={62} eq={equippedCosmetics(buddy)} />
@@ -4927,7 +5456,30 @@ function SessionSignOff({ db, facts, units, onDone }) {
           {stat(facts.sets === 1 ? 'set' : 'sets', facts.sets)}
           {facts.tonnageKg > 0 && stat(unitLabel(units) + ' moved', Math.round(toDisplayWeight(facts.tonnageKg, units)).toLocaleString())}
           {stat(facts.minutes === 1 ? 'minute' : 'minutes', facts.minutes)}
+          {facts.movementsTotal > 0 && stat('movements', facts.movementsDone + '/' + facts.movementsTotal)}
         </div>
+
+        {/* A record is the one thing here worth its own frame. Named, with the number, because
+            "1 PR" is a badge and "Incline dumbbell press, heaviest ever" is the thing you tell
+            somebody about. Capped at three: past that it is a list, not a moment. */}
+        {(facts.prList || []).map((p, i) => (
+          <div key={i} className="pixel-box p-3 mb-2 text-[11.5px] leading-snug"
+            style={{ borderColor: 'var(--good)', background: 'var(--card)', color: 'var(--good-ink)' }}>
+            <span className="font-bold">{p.name}</span> · {p.label}
+          </div>
+        ))}
+
+        {/* What you actually lifted, movement by movement. */}
+        {(facts.movements || []).length > 0 && (
+          <div className="pixel-box mb-4" style={{ background: 'var(--card)' }}>
+            {facts.movements.map((m, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2.5" style={i ? { borderTop: '2px solid var(--track)' } : null}>
+                <span className="flex-1 min-w-0 text-[12px] leading-snug" style={{ color: m.logged ? 'var(--text2)' : 'var(--muted2)' }}>{m.name}</span>
+                <span className="text-[11px] tnum shrink-0 text-right" style={{ color: 'var(--muted)' }}>{m.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* The one place the streak is worth mentioning: a session is an active day now, and the
             person who trained instead of logging their dinner should be told their run is safe. */}
