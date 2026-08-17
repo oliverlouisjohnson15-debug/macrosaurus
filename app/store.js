@@ -279,32 +279,38 @@
     return defaultState();
   }
 
-  /* ---- Fresh start: a reset you configure ----
+  /* ---- Fresh start: a line, not a bonfire ----
      "Reset all data" above is the blunt instrument: it hands back defaultState, and the training
      blocks, the cookbook, the buddy, the shop and the streak go with it. That is the wrong price for
      the thing people actually want, which is for the NUMBERS to start again after a run went
      sideways or a plan drifted off a weight from three months ago.
 
-     But "clear the numbers" is not one decision, it is several, and they genuinely pull apart. A
-     diary is a record: somebody can want their targets re-anchored from today while keeping every
-     meal they have ever logged, because the log is the thing they are proudest of. Somebody else
-     wants the diary gone and the scale history kept. Guessing on their behalf is how a reset button
-     ends up either useless or terrifying, so this takes a `keep` map and clears exactly the rest.
+     The first version of this cleared the food log, the weigh-ins and the check-ins by default, and
+     that was the wrong instinct. MacroFactor's recommended reset - "change your expenditure start
+     date" - deletes nothing at all: it moves a line, the algorithm ignores everything before it, and
+     the docs describe the result as being "as if you're a new user again" while you "keep all your
+     settings". Deletion lives somewhere else entirely, under account and data deletion, and their
+     own help calls it "generally not ideal or necessary". They are right, for two reasons that hold
+     here just as well. A cutoff is REVERSIBLE and a delete is not. And a diary is something people
+     are proud of; making them trade it for a working calorie target is a bad bargain.
 
-     WHAT IS ALWAYS RESET, because it IS the fresh start and there is nothing to choose:
-       - the plan is re-anchored from today (opts.target), computed from the profile alone
-       - `expenditure`, the TDEE learned from check-ins, is forgotten. The whole point is to stop
-         reading the person the old run described; carrying its conclusions forward would be the one
-         thing a fresh start must not do
-       - the check-in cycle restarts today and any un-actioned proposal is dropped
-       - the diet-break clock and the goal pause are cleared: a dieting phase with no diet behind it
+     So the default clears nothing you have written down. What it does is draw the line:
+       - `fresh_start` is stamped with today. Everything that DECIDES a number - the learned burn,
+         the dieting clock, the goal's start post, the burn estimator - refuses to look before it
+         (see planFloorISO in app.jsx). Everything that DISPLAYS your history still shows all of it.
+       - `expenditure` is dropped, because it is a conclusion about a run that has been closed.
+       - the check-in cycle restarts today and any un-actioned proposal goes with the old run.
+       - the diet-break clock and the goal pause are cleared.
+       - the plan is re-anchored (opts.target) and setup is owed (onboarding.needsSetup), because
+         re-anchoring on a profile nobody has confirmed is how the plan drifted in the first place.
 
-     WHAT `keep` CHOOSES, one flag per group, each owning every field that would otherwise be
-     orphaned (clearing the food log without its per-day meal lists leaves lists for days that no
-     longer exist). See FRESH_PARTS.
+     `keep` is then the OPT-IN destructive half, for the person who genuinely wants the log gone
+     rather than retired. Every flag defaults to true at the call site; each group owns every field
+     that would otherwise be orphaned (clearing the food log without its per-day meal lists leaves
+     lists for days that no longer exist). See FRESH_PARTS.
 
      ONE COUPLING IS NOT OFFERED AS A CHOICE. Past days are scored against the target in force ON
-     them, not the newest one (Engine.targetOn), so a log kept while the target history is cleared
+     them, not the newest one (Engine.targetOn), so a log kept while the target history was cleared
      would have every day it holds silently re-scored against a bar set this morning. The target
      history is therefore kept whenever the food log or the check-in ledger is kept, and the fresh
      anchor is appended to it rather than replacing it. */
@@ -320,6 +326,9 @@
     foods:    ['foods', 'saved_meals'],
     recipes:  ['recipes', 'shopping_list', 'pantry', 'meal_plan'],
     training: ['training'],
+    // Declared windows outlive the run that declared them: a holiday from the old cut still bridges
+    // the streak and still shapes targets, so it has to be something you can put down.
+    weekplans: ['week_plans'],
   };
   // Cleared no matter what is kept, and listed here (rather than only assigned below) because the
   // merge has to know them too: a device that never saw the reset still holds the old expenditure.

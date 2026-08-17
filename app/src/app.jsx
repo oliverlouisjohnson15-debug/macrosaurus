@@ -3255,6 +3255,19 @@ function plannedActiveDates(db) {
 // told their run had broken, which was simply untrue about the week they had actually had.
 // Mirrored server-side by activeStreak() in supabase/functions/push-nudge/decide.ts: the two must
 // agree, or the push would chase a streak the app can see is perfectly safe.
+/* ---- The plan floor ----
+   A fresh start does not delete your history any more; it draws a line and says the plan starts here
+   (see Store.freshStart, and MacroFactor's "expenditure start date", which is the same idea). Days
+   before the line are still yours to open and read - that is the whole point of not deleting them -
+   but they describe a run that has been deliberately closed, so nothing that DECIDES a number may
+   look at them. Without this the line would be decorative: the app would carry on learning your
+   burn, counting your dieting weeks and measuring your goal from the run you just retired.
+
+   Display is deliberately not floored. Your diary, your weight chart and your streak still show
+   everything, because a reset that hides the work is the destructive one wearing a disguise. */
+function planFloorISO(db) { return (db && db.fresh_start) || null; }
+function afterFloor(db, iso) { const f = planFloorISO(db); return !f || (iso && iso >= f); }
+
 function trainedDates(db) {
   const out = new Set();
   (((db || {}).training || {}).logs || []).forEach(l => { if (l && l.dateISO) out.add(l.dateISO); });
@@ -3361,6 +3374,9 @@ function dietBreakStatus(db, today) {
   const anchors = [];
   if (db.last_break_end && db.last_break_end <= today) anchors.push(db.last_break_end);
   if (db.diet_break && db.diet_break.end < today) anchors.push(db.diet_break.end);
+  // A fresh start closes the dieting clock the same way the end of a diet break does. Otherwise a
+  // kept log would have the app offering a diet break for a cut the user has already called off.
+  if (planFloorISO(db) && planFloorISO(db) <= today) anchors.push(planFloorISO(db));
   const windowStart = anchors.length ? anchors.reduce((a, b) => a > b ? a : b) : dietStart;
   const daysDieting = Math.max(0, daysBetween(windowStart, today));
   const checkins = (db.checkins || []).filter(c => c.date >= windowStart).length;
@@ -6095,8 +6111,10 @@ function progressVerdict(db) {
   // Anchored to when THIS goal was set, not to the first weigh-in on the account. Measuring from
   // the earliest reading ever made this "lifetime progress": on an account with months of history
   // behind an older goal, the total was a distance the current goal never asked for.
-  const goalStart = (db.targets || []).filter(t => t.source === 'goal-change' && t.effective_date)
-    .map(t => t.effective_date).sort().pop() || null;
+  // A fresh start sets the goal again as surely as a goal change does, so it anchors this the same
+  // way: distance covered is measured from the line, not from a run the user has retired.
+  const goalStart = (db.targets || []).filter(t => (t.source === 'goal-change' || t.source === 'fresh-start') && t.effective_date)
+    .map(t => t.effective_date).concat(planFloorISO(db) ? [planFloorISO(db)] : []).sort().pop() || null;
   const anchor = goalStart ? (ents.find(e => e.date >= goalStart) || ents[ents.length - 1]) : ents[0];
   const startKg = anchor ? val(anchor) : null;
   if (p.goalWeightKg > 0 && startKg != null) {
@@ -6335,10 +6353,13 @@ function ExpenditureCard({ db, plan }) {
   const today = Store.todayISO();
   const t = currentTargets(db);
   const kcalByDate = {};
-  db.log_entries.forEach(e => { kcalByDate[e.date] = (kcalByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
+  // Floored at the fresh-start line: this panel counts the days behind the burn estimate, and the
+  // estimate itself begins again at the line. Counting kept history here read "enough data" off days
+  // the engine is no longer allowed to use, so the readiness meter and the engine disagreed.
+  db.log_entries.forEach(e => { if (afterFloor(db, e.date)) kcalByDate[e.date] = (kcalByDate[e.date] || 0) + (e.computed_macros ? e.computed_macros.kcal : 0); });
   const targetByDate = {}; // lets the engine drop incomplete (abandoned) logging days from the intake average
   Object.keys(kcalByDate).forEach(dd => targetByDate[dd] = plannedKcalOn(db, dd));
-  const weights = db.weight_entries.map(w => ({ date: w.date, kg: w.scale_weight }));
+  const weights = db.weight_entries.filter(w => afterFloor(db, w.date)).map(w => ({ date: w.date, kg: w.scale_weight }));
   const bmr = E.mifflinBMR(withActivity(db.profile));
   const est = E.liveExpenditure({ weights, kcalByDate, targetByDate, today, windowDays: 14, currentTargetKcal: t ? t.kcal : null, goalType: db.profile.goalType, rateKgPerWeek: db.profile.rateKgPerWeek, bmr });
   const unit = db.profile.weight_unit;
@@ -15746,28 +15767,36 @@ function BodyDetailsScreen({ db, update, onBack, onFreshStart }) {
   </SubScreen>);
 }
 
-/* ---- Fresh start: the reset you configure ----
-   One button that clears "your data" is either useless or terrifying, and which one it is depends
-   entirely on what the person happens to care about. A diary is a record: somebody can want their
-   targets re-anchored from today while keeping every meal they have ever logged, because the log is
-   the thing they are proudest of. Somebody else wants the diary gone and the scale history kept.
-   So this screen asks, one row per group, and says plainly what it cannot let you choose.
+/* ---- Fresh start ----
+   The first cut of this screen defaulted to deleting your food log, your weigh-ins and your
+   check-ins, and that was the wrong instinct. MacroFactor's recommended reset - "change your
+   expenditure start date" - deletes nothing: it moves a line, the algorithm ignores everything
+   before it, and you are, in their words, "as if you're a new user again" while keeping all your
+   settings. Deletion sits somewhere else entirely, under account and data deletion, and their own
+   help calls it "generally not ideal or necessary".
 
-   The rows default to clearing the tracking history and keeping everything else, which is the common
-   case; the point of showing them all is that the uncommon case is one tap away rather than
-   impossible. Store.freshStart owns what each group actually contains. */
+   Two reasons that is right and worth copying. A line is REVERSIBLE and a delete is not. And a diary
+   is a thing people are proud of; making somebody trade three months of it for a working calorie
+   target is a bargain nobody should be offered by default.
+
+   So this screen leads with what it does NOT do. The line is drawn, setup re-runs, the app forgets
+   what it had concluded about your burn, and everything you have written down stays exactly where it
+   is. Deleting is still here for the person who genuinely wants the log gone rather than retired,
+   but it is a section you have to open, every row already saying Keep. */
 const FRESH_ROWS = [
-  { key: 'log', label: 'Food log', keep: false, desc: 'Every meal you have logged, with each day\'s meal list and carb/fat balance' },
-  { key: 'weight', label: 'Weigh-ins', keep: false, desc: 'Your scale and body-fat readings, and the trend line drawn through them' },
-  { key: 'checkins', label: 'Check-in history', keep: false, desc: 'The weekly ledger of check-ins and what each one changed' },
-  { key: 'streak', label: 'Streak, freezes & records', keep: true, desc: 'Your current run, your longest ever, and the misses a freeze forgave' },
-  { key: 'foods', label: 'Saved foods & quick-log meals', keep: true, desc: 'Your food library, your corrections to it, and your named meals' },
-  { key: 'recipes', label: 'Recipes, shopping list & meal plan', keep: true, desc: 'Your cookbook, the pantry list and anything planned on the calendar' },
-  { key: 'training', label: 'Training', keep: true, desc: 'Blocks, logged sessions, custom exercises, gyms and your training settings' },
+  { key: 'log', label: 'Food log', desc: 'Every meal you have logged, with each day\'s meal list and carb/fat balance' },
+  { key: 'weight', label: 'Weigh-ins', desc: 'Your scale and body-fat readings, and the trend line drawn through them' },
+  { key: 'checkins', label: 'Check-in history', desc: 'The weekly ledger of check-ins and what each one changed' },
+  { key: 'weekplans', label: 'Declared weeks', desc: 'Holidays, trips and busy weeks you told the buddy about, past and upcoming' },
+  { key: 'streak', label: 'Streak, freezes & records', desc: 'Your current run, your longest ever, and the misses a freeze forgave' },
+  { key: 'foods', label: 'Saved foods & quick-log meals', desc: 'Your food library, your corrections to it, and your named meals' },
+  { key: 'recipes', label: 'Recipes, shopping list & meal plan', desc: 'Your cookbook, the pantry list and anything planned on the calendar' },
+  { key: 'training', label: 'Training', desc: 'Blocks, logged sessions, custom exercises, gyms and your training settings' },
 ];
-const FRESH_DEFAULTS = () => { const k = {}; FRESH_ROWS.forEach(r => { k[r.key] = r.keep; }); return k; };
+// Everything is kept unless the user opens the drawer and says otherwise.
+const FRESH_DEFAULTS = () => { const k = {}; FRESH_ROWS.forEach(r => { k[r.key] = true; }); return k; };
 
-// Keep or clear, as two words rather than ON and OFF: this is the one screen in the app where a
+// Keep or delete, as two words rather than ON and OFF: this is the one screen in the app where a
 // toggle's meaning cannot be guessed from the thing it sits next to, and guessing wrong is expensive.
 function KeepRow({ label, desc, keep, onClick }) {
   return (<button onClick={onClick} className="w-full flex items-start justify-between gap-3 pixel-box px-4 py-3 mb-2 text-left" style={{ background: 'var(--surface2)' }}>
@@ -15775,59 +15804,72 @@ function KeepRow({ label, desc, keep, onClick }) {
       <span className="block text-sm">{label}</span>
       <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text2)' }}>{desc}</span>
     </span>
-    <span className="pf text-[9px] px-2.5 py-1.5 shrink-0 mt-0.5" style={{ background: keep ? 'var(--surface3)' : 'var(--danger)', color: keep ? 'var(--muted)' : '#ffffff', border: '2px solid var(--border)' }}>{keep ? 'KEEP' : 'CLEAR'}</span>
+    <span className="pf text-[9px] px-2.5 py-1.5 shrink-0 mt-0.5" style={{ background: keep ? 'var(--surface3)' : 'var(--danger)', color: keep ? 'var(--muted)' : '#ffffff', border: '2px solid var(--border)' }}>{keep ? 'KEEP' : 'DELETE'}</span>
   </button>);
 }
 
-function FreshStartScreen({ db, onBack, onConfirm }) {
+function FreshStartScreen({ db, onBack, onConfirm, onExport }) {
   const [keep, setKeep] = useState(FRESH_DEFAULTS);
   const [confirming, setConfirming] = useState(false);
   const toggle = (k) => setKeep(x => Object.assign({}, x, { [k]: !x[k] }));
-  const clearing = FRESH_ROWS.filter(r => !keep[r.key]);
+  const deleting = FRESH_ROWS.filter(r => !keep[r.key]);
   // The weight the new plan gets built on. Named on screen, because a restart anchored to a figure
   // you cannot see is the first thing you would want to check.
   const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
   const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
   const kg = (latest && latest.scale_weight) || (db.profile && db.profile.weightKg) || null;
   const shownKg = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
-  // The one coupling that is not offered as a choice, surfaced rather than hidden: a day already
-  // eaten is scored against the target in force ON it, so a kept log needs its old targets kept too.
-  const targetsKept = keep.log || keep.checkins;
+  const loggedDays = new Set((db.log_entries || []).map(e => e.date)).size;
   return (<SubScreen title="Fresh start" onBack={onBack}
-    intro="Start your numbers again without starting the whole app again. You'll go back through setup to re-pick your goal, the app forgets what it had learned about you, and everything below is yours to choose.">
+    intro="For when the plan has drifted and you want the numbers to start again. Your history is not deleted: the app simply stops reading it when it works out your targets.">
     <Card className="p-4 mb-4">
-      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Always happens</div>
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>What happens</div>
       <ul className="text-[12px] leading-relaxed space-y-1.5" style={{ color: 'var(--text2)' }}>
         <li><b>You go through setup again</b>, so you can confirm your weight{shownKg ? ' (' + shownKg + ' at the moment)' : ''} and re-pick your goal, your pace and how you want to eat. Your new targets come from those answers.</li>
-        <li>The app forgets the calorie burn it had learned from your check-ins, so the new plan is not the old run's conclusions in a new hat.</li>
-        <li>Your check-in cycle restarts today, and any check-in waiting for your answer is dropped.</li>
-        <li>Any diet break or paused goal ends.</li>
+        <li><b>Today becomes the starting line.</b> Working out your targets, your calorie burn, how long you have been dieting and how far you have come all begin here and ignore everything before it.</li>
+        <li>The app forgets the calorie burn it had learned, and starts learning it again from your next few check-ins.</li>
+        <li>Your check-in cycle restarts today. Any diet break or paused goal ends.</li>
       </ul>
     </Card>
 
-    <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Choose what to clear</div>
-    {FRESH_ROWS.map(r => <KeepRow key={r.key} label={r.label} desc={r.desc} keep={!!keep[r.key]} onClick={() => toggle(r.key)} />)}
+    <Card className="p-4 mb-4" style={{ borderColor: 'var(--accent)' }}>
+      <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)', letterSpacing: '0.16em' }}>What stays</div>
+      <div className="text-[12px] leading-relaxed" style={{ color: 'var(--text2)' }}>
+        Everything you have written down.{loggedDays ? ' All ' + loggedDays + ' of your logged days' : ' Your food log'}, your weigh-ins and their chart, your check-in history, your streak, your recipes and shopping list, your training, your buddy and everything it has earned. You can still open and read all of it; the plan just no longer counts it.
+      </div>
+    </Card>
 
-    <div className="text-[11px] leading-relaxed mt-3 mb-4 px-1" style={{ color: 'var(--text2)' }}>
-      {targetsKept
-        ? 'Your old targets are kept too, so every day you keep still shows the bar it was actually set rather than one worked out this morning.'
-        : 'With the log and the check-ins both going, your old targets go with them.'}
-      {' '}Your profile and settings, your buddy and everything it has earned, and anything synced from Google Health are never touched here.
-      {!keep.streak && (keep.log || keep.training) ? ' Clearing your streak does not clear the days behind it, so a kept log or kept sessions will start rebuilding a run straight away.' : ''}
-      {keep.streak && (!keep.log || !keep.weight || !keep.training) ? ' The days behind your streak are kept as credit, so the run you have built carries on from where it is.' : ''}
-    </div>
+    {/* The destructive half, behind a disclosure, every row already saying Keep. Somebody who wants
+        a bad month genuinely gone can have it; nobody gets it by accident on the way to a target. */}
+    <Collapsible label="Delete some of it as well" sub="Optional" className="mb-4">
+      <div className="text-[11px] leading-relaxed mb-3 px-1" style={{ color: 'var(--text2)' }}>
+        You do not need any of this to start fresh, and none of it can be undone. Export your data first if you want a copy.
+        {onExport && <> <TextBtn onClick={onExport}>Export my data</TextBtn></>}
+      </div>
+      {FRESH_ROWS.map(r => <KeepRow key={r.key} label={r.label} desc={r.desc} keep={!!keep[r.key]} onClick={() => toggle(r.key)} />)}
+      {deleting.length > 0 && <div className="text-[11px] leading-relaxed mt-3 px-1" style={{ color: 'var(--danger-ink)' }}>
+        {!keep.log && !keep.checkins
+          ? 'With the log and the check-ins both going, your old targets go with them. '
+          : 'Your old targets are kept, so every day you keep still shows the bar it was actually set. '}
+        {keep.streak && (!keep.log || !keep.weight || !keep.training)
+          ? 'The days behind your streak are kept as credit, so the run you have built carries on.' : ''}
+        {!keep.streak && (keep.log || keep.training)
+          ? 'Clearing your streak does not clear the days behind it, so a kept log or kept sessions will start rebuilding a run straight away.' : ''}
+      </div>}
+    </Collapsible>
 
-    <Btn kind="danger" className="w-full" onClick={() => setConfirming(true)}>
-      {clearing.length ? 'Clear ' + clearing.length + ' thing' + (clearing.length === 1 ? '' : 's') + ' & set up again' : 'Set up again'}
+    <Btn kind={deleting.length ? 'danger' : 'accent'} className="w-full" onClick={() => setConfirming(true)}>
+      {deleting.length ? 'Delete ' + deleting.length + ' thing' + (deleting.length === 1 ? '' : 's') + ' & set up again' : 'Set up again'}
     </Btn>
     <button onClick={onBack} className="w-full py-3 text-[12px] mt-2" style={{ color: 'var(--text2)' }}>Cancel</button>
 
-    {confirming && <ConfirmDialog title={clearing.length ? 'Clear these and start fresh?' : 'Set your plan up again?'}
-      body={(clearing.length
-        ? 'This permanently clears: ' + clearing.map(r => r.label.toLowerCase()).join(', ') + '. '
-        : 'Nothing will be cleared. ')
-        + 'The app forgets what it had learned about your calorie burn, then takes you through setup to re-pick your goal and pace. This cannot be undone, so export your data first if you want a copy.'}
-      confirmLabel={clearing.length ? 'Clear & set up again' : 'Set up again'} onConfirm={() => onConfirm(keep)} onClose={() => setConfirming(false)} />}
+    {confirming && <ConfirmDialog title={deleting.length ? 'Delete these and start fresh?' : 'Start fresh?'}
+      confirmKind={deleting.length ? 'danger' : 'accent'}
+      body={(deleting.length
+        ? 'This permanently deletes: ' + deleting.map(r => r.label.toLowerCase()).join(', ') + '. That part cannot be undone. '
+        : 'Nothing is deleted. ')
+        + 'Today becomes the starting line for your plan, the app forgets what it had learned about your calorie burn, and setup runs again so you can re-pick your goal.'}
+      confirmLabel={deleting.length ? 'Delete & set up again' : 'Set up again'} onConfirm={() => onConfirm(keep)} onClose={() => setConfirming(false)} />}
   </SubScreen>);
 }
 
@@ -16113,6 +16155,7 @@ function SettingsOverview({ db, update, onOpen, onFreshStart, onOpenProgress }) 
         + ((() => { const w = E.weekPlanContext(db.week_plans, Store.todayISO()); const pl = w.active || w.upcoming; return pl ? ' · ' + pl.label.toLowerCase() + ' on top' : ''; })()),
         kw: 'weekly shape cycling high days refeed carryover even out banking calories holiday travel away window' },
       { key: 'checkins', label: 'Check-ins & weigh-ins', status: 'Check in ' + DOW_FULL[checkinDay] + 's · weigh ' + (weigh === 'daily' ? 'most mornings' : DOW_FULL[p.weighDay != null ? p.weighDay : checkinDay] + 's'), kw: 'check in checkin weigh weight scale cadence day weekly' },
+      { key: 'freshstart', label: 'Fresh start', status: (db.fresh_start ? 'Line drawn ' + fmtShortDay(db.fresh_start) : 'Draw a line at today and set your targets up again') + ' \u00b7 nothing is deleted', kw: 'fresh start over reset restart begin again start again recalculate recalibrate expenditure start date wipe clear plan drifted wrong numbers new chapter' },
       { key: 'macros', label: 'Calories & macros', status: (base.kcal != null ? Math.round(base.kcal) + ' kcal' : 'not set') + ' · ' + setBy, kw: 'calories macros protein carbs fat kcal targets custom own numbers' },
     ] },
     { title: 'Your body', rows: [
@@ -16358,7 +16401,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
     reminders: () => <RemindersScreen db={db} update={update} onBack={back} />,
     integrations: () => <IntegrationsScreen db={db} update={update} onBack={back} showToast={showToast} />,
     health: () => <HealthScreen db={db} update={update} onBack={back} />,
-    freshstart: () => <FreshStartScreen db={db} onBack={back} onConfirm={onFreshReset} />,
+    freshstart: () => <FreshStartScreen db={db} onBack={back} onConfirm={onFreshReset} onExport={exportData} />,
   };
   if (screen && SCREENS[screen]) return (
     <div className="max-w-md lg:max-w-2xl mx-auto px-5 pb-28 lg:pb-12 pt-6">{SCREENS[screen]()}</div>
@@ -16412,20 +16455,16 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
         <MenuRow label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
         <MenuRow label="Credits" desc="The artists behind the icons" onClick={() => setLegal('credits')} />
 
-        {/* Two ways to start again, and the gentle one comes first on purpose. Somebody whose run
-            went sideways wants their calories and their scale history to start over, not to lose the
-            training blocks, cookbook, buddy and streak they have spent months building - and if the
-            only button on offer erases all of it, that is the button they end up pressing. */}
-        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Start again</div>
-        <MenuRow label="Fresh start" desc="Re-pick your goal and set your targets up again, choosing exactly what to clear. Keeps whatever you choose" onClick={() => setScreen('freshstart')} />
-
+        {/* Fresh start used to sit here, and that was the wrong shelf: it deletes nothing by default,
+            and somebody whose numbers feel wrong looks in their plan settings, not in the danger
+            zone. It lives under Your plan now. What is left here genuinely is irreversible. */}
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Danger zone</div>
         <MenuRow label="Reset all data" desc="Wipe everything, training and recipes included, and start over. Keeps your login" tone="danger" onClick={() => setResetOpen(true)} />
         <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
 
         <div className="text-[11px] text-[#8A8A90]/70 pt-4 text-center">{BRAND} · your data syncs to your account</div>
       </div>}
-      {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your numbers to start again, use Fresh start above: it re-anchors your plan and lets you keep your training, recipes, streak, buddy and anything else you choose." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
+      {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your numbers to start again, use Fresh start under Settings → Your plan: it draws a line at today and deletes nothing." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
       {legal && <LegalDoc doc={legal} onClose={() => setLegal(null)} />}
       {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
         <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>

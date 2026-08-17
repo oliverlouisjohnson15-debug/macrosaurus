@@ -68,10 +68,12 @@ function activeDates(s) {
 const streakOf = (s, today) => Game.computeStreak(activeDates(s), new Set(((s.freezes || {}).frozen) || []), today, new Set()).streak;
 
 
-// The default the screen offers: clear the tracking history, keep everything you built.
-const DEFAULTS = { log: false, weight: false, checkins: false, streak: true, foods: true, recipes: true, training: true };
-const KEEP_ALL = { log: true, weight: true, checkins: true, streak: true, foods: true, recipes: true, training: true };
+// The default the screen offers: nothing is deleted at all. Deleting is a drawer you have to open.
+const KEEP_ALL = { log: true, weight: true, checkins: true, weekplans: true, streak: true, foods: true, recipes: true, training: true };
+const DEFAULTS = KEEP_ALL;
 const KEEP_NONE = {};
+// What the drawer looks like when somebody really does want the tracking history gone.
+const DELETE_TRACKING = Object.assign({}, KEEP_ALL, { log: false, weight: false, checkins: false });
 const TARGET = { kcal: 2040, protein_g: 168, carbs_g: 190, fat_g: 58 };
 const run = (s, keep, extra) => Store.freshStart(s, Object.assign({ today: TODAY, now: 5000, keep, weightKg: 81.6, target: TARGET }, extra || {}));
 
@@ -118,6 +120,45 @@ test('a fresh start never touches the profile, the buddy or anything synced from
   assert.strictEqual(s.profile.weight_unit, 'kg');
 });
 
+test('the default is a line, not a bonfire: every word of history survives it', () => {
+  const before = livedIn();
+  const s = run(before, KEEP_ALL);
+  // Nothing the user wrote down is gone.
+  assert.strictEqual(s.log_entries.length, before.log_entries.length);
+  assert.deepStrictEqual(s.weight_entries, before.weight_entries);
+  assert.deepStrictEqual(s.checkins, before.checkins);
+  assert.deepStrictEqual(s.week_plans, before.week_plans);
+  assert.deepStrictEqual(s.recipes, before.recipes);
+  assert.deepStrictEqual(s.training, before.training);
+  assert.deepStrictEqual(s.foods, before.foods);
+  assert.strictEqual(streakOf(s, TODAY), FIXTURE_STREAK);
+  // And the old run is still retired: the line is drawn and the learned burn is dropped.
+  assert.strictEqual(s.fresh_start, TODAY);
+  assert.strictEqual(s.expenditure, null);
+  assert.strictEqual(s.onboarding.needsSetup, true);
+  // The only thing the merge has to defend is what was actually cleared.
+  assert.deepStrictEqual(s._soft.cleared.sort(), ['diet_break', 'diet_break_snooze', 'expenditure', 'last_break_end', 'pending_adjustment']);
+});
+
+test('a default fresh start needs no streak credit, because the days are still there', () => {
+  // Credit exists only to survive deletion. When nothing is deleted there is nothing to bank, and
+  // the run stands on its own entries, which is why the week strip can be honest about it.
+  const s = run(livedIn(), KEEP_ALL);
+  assert.deepStrictEqual(s.streak_credit, []);
+  assert.strictEqual(streakOf(s, TODAY), FIXTURE_STREAK);
+});
+
+test('a stale device merging into a default fresh start loses nothing but the old burn', () => {
+  const stale = livedIn();
+  const fresh = run(livedIn(), KEEP_ALL);
+  [Store.mergeStates(fresh, stale), Store.mergeStates(stale, fresh)].forEach(m => {
+    assert.strictEqual(m.log_entries.length, stale.log_entries.length, 'the diary is intact');
+    assert.deepStrictEqual(m.checkins, stale.checkins);
+    assert.strictEqual(m.expenditure, null, 'but the retired conclusion stays retired');
+    assert.strictEqual(m.fresh_start, TODAY, 'and the line holds');
+  });
+});
+
 /* ---- each group keeps or clears on its own ---- */
 
 test('keeping nothing clears every group', () => {
@@ -136,11 +177,12 @@ test('keeping nothing clears every group', () => {
   assert.deepStrictEqual(s.meal_plan, []);
   assert.deepStrictEqual(s.training.blocks, []);
   assert.deepStrictEqual(s.training.logs, []);
+  assert.deepStrictEqual(s.week_plans, []);
   assert.strictEqual(s.targets.length, 1);          // only the fresh anchor
   assert.strictEqual(streakOf(s, TODAY), 1);        // just the seed weigh-in
 });
 
-test('keeping everything clears nothing but the plan it re-anchors', () => {
+test('the default deletes nothing at all', () => {
   const before = livedIn();
   const s = run(before, KEEP_ALL);
   assert.strictEqual(s.log_entries.length, before.log_entries.length);
@@ -158,7 +200,7 @@ test('keeping everything clears nothing but the plan it re-anchors', () => {
 
 test('the food log can be kept while the weigh-ins start again', () => {
   const before = livedIn();
-  const s = run(before, Object.assign({}, DEFAULTS, { log: true }));
+  const s = run(before, Object.assign({}, DELETE_TRACKING, { log: true }));
   assert.strictEqual(s.log_entries.length, before.log_entries.length, 'the diary survived');
   assert.deepStrictEqual(s.day_overrides, before.day_overrides, 'and its per-day balance with it');
   assert.strictEqual(s.weight_entries.length, 1, 'the scale started again');
@@ -168,7 +210,7 @@ test('the food log can be kept while the weigh-ins start again', () => {
 
 test('the weigh-ins can be kept while the food log starts again', () => {
   const before = livedIn();
-  const s = run(before, Object.assign({}, DEFAULTS, { weight: true }));
+  const s = run(before, Object.assign({}, DELETE_TRACKING, { weight: true }));
   assert.deepStrictEqual(s.log_entries, []);
   assert.deepStrictEqual(s.weight_entries, before.weight_entries, 'untouched, and no seed invented');
 });
@@ -188,7 +230,7 @@ test('the profile weight is squared up with the scale, kept history or not', () 
 test('a kept food log keeps the target history that scores it', () => {
   const before = livedIn();
   const oldTarget = before.targets[0];
-  const s = run(before, Object.assign({}, DEFAULTS, { log: true }));
+  const s = run(before, Object.assign({}, DELETE_TRACKING, { log: true }));
   assert.strictEqual(s.targets.length, 2, 'the old target and the new anchor');
   assert.strictEqual(s.targets[0].id, oldTarget.id);
   // The point of keeping it: a day already eaten still resolves to the bar it was actually set.
@@ -198,12 +240,12 @@ test('a kept food log keeps the target history that scores it', () => {
 });
 
 test('a kept check-in history keeps the targets its entries refer to', () => {
-  const s = run(livedIn(), Object.assign({}, DEFAULTS, { checkins: true }));
+  const s = run(livedIn(), Object.assign({}, DELETE_TRACKING, { checkins: true }));
   assert.strictEqual(s.targets.length, 2);
 });
 
 test('with both gone the target history goes too', () => {
-  const s = run(livedIn(), DEFAULTS);
+  const s = run(livedIn(), DELETE_TRACKING);
   assert.strictEqual(s.targets.length, 1);
   assert.strictEqual(s.targets[0].kcal, 2040);
 });
@@ -213,7 +255,7 @@ test('a kept target history cannot smuggle the old learned TDEE into the new pla
   // stops it reading one from before the reset, which would undo the whole point.
   const before = livedIn();
   before.targets.push({ id: 't1', effective_date: shiftISO(TODAY, -3), source: 'adaptive', estimatedTDEE: 2680, kcal: 2100 });
-  const s = run(before, Object.assign({}, DEFAULTS, { log: true }));
+  const s = run(before, Object.assign({}, DELETE_TRACKING, { log: true }));
   const stillThere = s.targets.filter(t => (t.source || '').indexOf('adaptive') === 0);
   assert.strictEqual(stillThere.length, 1, 'the adaptive target is kept for the days it scored');
   assert.ok(stillThere[0].effective_date < s.fresh_start, 'but it predates the fresh start, so learnedTdee skips it');
@@ -222,7 +264,7 @@ test('a kept target history cannot smuggle the old learned TDEE into the new pla
 /* ---- the streak ---- */
 
 test('a kept streak survives the entries that proved it being cleared', () => {
-  const s = run(livedIn(), DEFAULTS);
+  const s = run(livedIn(), DELETE_TRACKING);
   assert.strictEqual(streakOf(s, TODAY), FIXTURE_STREAK);
   const tomorrow = shiftISO(TODAY, 1);
   s.log_entries.push({ id: 'new', date: tomorrow, meal_id: 'm_1', computed_macros: { kcal: 300 } });
@@ -230,14 +272,14 @@ test('a kept streak survives the entries that proved it being cleared', () => {
 });
 
 test('a kept streak banks the training days too when the sessions are being cleared', () => {
-  const s = run(livedIn(), Object.assign({}, DEFAULTS, { training: false }));
+  const s = run(livedIn(), Object.assign({}, DELETE_TRACKING, { training: false }));
   assert.deepStrictEqual(s.training.logs, []);
   assert.strictEqual(streakOf(s, TODAY), FIXTURE_STREAK, 'the trained day was banked before its log went');
 });
 
 test('a kept streak banks nothing for a group that is itself kept', () => {
   // Nothing to bank when the log stays: its own dates still prove the run, live.
-  const s = run(livedIn(), Object.assign({}, DEFAULTS, { log: true, weight: true, training: true }));
+  const s = run(livedIn(), KEEP_ALL);
   assert.deepStrictEqual(s.streak_credit, []);
   assert.strictEqual(streakOf(s, TODAY), FIXTURE_STREAK);
 });
@@ -246,7 +288,7 @@ test('clearing the streak clears the credit, the records and the freezes', () =>
   const before = livedIn();
   before.freezes = { frozen: [shiftISO(TODAY, -5)] };
   before.streak_credit = ['2026-01-01'];
-  const s = run(before, Object.assign({}, DEFAULTS, { streak: false }));
+  const s = run(before, Object.assign({}, DELETE_TRACKING, { streak: false }));
   assert.deepStrictEqual(s.streak_credit, []);
   assert.deepStrictEqual(s.freezes, { frozen: [] });
   assert.deepStrictEqual(s.records, { longestStreak: 0 });
@@ -255,7 +297,7 @@ test('clearing the streak clears the credit, the records and the freezes', () =>
 test('clearing the streak while keeping the log leaves the days to rebuild from', () => {
   // Nothing is banked, and nothing needs to be: the kept diary still carries its own dates, so the
   // run stands on the days themselves rather than on credit written down for it.
-  const s = run(livedIn(), Object.assign({}, DEFAULTS, { log: true, streak: false }));
+  const s = run(livedIn(), Object.assign({}, DELETE_TRACKING, { log: true, streak: false }));
   assert.deepStrictEqual(s.streak_credit, []);
   assert.strictEqual(s.log_entries.length, 5);
   assert.strictEqual(streakOf(s, TODAY), FIXTURE_STREAK);
@@ -264,7 +306,7 @@ test('clearing the streak while keeping the log leaves the days to rebuild from'
 test('banked credit is bounded, so it cannot grow without end', () => {
   const before = livedIn();
   before.log_entries.push({ id: 'ancient', date: shiftISO(TODAY, -900), meal_id: 'm_1', computed_macros: { kcal: 100 } });
-  const s = run(before, DEFAULTS);
+  const s = run(before, DELETE_TRACKING);
   assert.ok(!s.streak_credit.includes(shiftISO(TODAY, -900)));
   assert.ok(s.streak_credit.includes(shiftISO(TODAY, -4)));
 });
@@ -297,7 +339,7 @@ test('a stale device cannot re-open setup once it has been done', () => {
 
 test('a stale device cannot union back whatever this reset cleared', () => {
   const stale = livedIn();                                  // _rev 1000, never saw the reset
-  const fresh = run(livedIn(), DEFAULTS);
+  const fresh = run(livedIn(), DELETE_TRACKING);
   [Store.mergeStates(fresh, stale), Store.mergeStates(stale, fresh)].forEach(m => {
     assert.deepStrictEqual(m.log_entries, []);
     assert.deepStrictEqual(m.checkins, []);
@@ -311,7 +353,7 @@ test('a stale device cannot union back whatever this reset cleared', () => {
 
 test('the merge only clears what THIS reset chose to clear', () => {
   const stale = livedIn();
-  const fresh = run(livedIn(), Object.assign({}, DEFAULTS, { log: true }));
+  const fresh = run(livedIn(), Object.assign({}, DELETE_TRACKING, { log: true }));
   const m = Store.mergeStates(fresh, stale);
   assert.strictEqual(m.log_entries.length, 5, 'a kept log is not stripped out of the stale copy');
   assert.deepStrictEqual(m.checkins, [], 'a cleared one still is');
@@ -324,7 +366,7 @@ test('a fresh start is not a wipe: work only the stale device has still merges i
   stale.training.logs.push({ id: 'tl_offline', dateISO: shiftISO(TODAY, -1), blockId: 'b1', sets: [] });
   stale.recipes.push({ id: 'r_offline', title: 'Katsu curry', ingredients: [], steps: [] });
   stale.amber_ledger.push({ id: 'a_offline', date: shiftISO(TODAY, -1), delta: 15, reason: 'Daily hunt' });
-  const m = Store.mergeStates(run(livedIn(), DEFAULTS), stale);
+  const m = Store.mergeStates(run(livedIn(), DELETE_TRACKING), stale);
   assert.ok(m.training.logs.some(l => l.id === 'tl_offline'), 'the gym session survived');
   assert.ok(m.recipes.some(r => r.id === 'r_offline'), 'the recipe survived');
   assert.ok(m.amber_ledger.some(e => e.id === 'a_offline'), 'the Amber survived');
@@ -332,7 +374,7 @@ test('a fresh start is not a wipe: work only the stale device has still merges i
 });
 
 test('two devices that HAVE seen the reset keep logging normally afterwards', () => {
-  const fresh = run(livedIn(), DEFAULTS);
+  const fresh = run(livedIn(), DELETE_TRACKING);
   const laptop = JSON.parse(JSON.stringify(fresh));
   laptop.log_entries.push({ id: 'post1', date: TODAY, meal_id: 'm_1', computed_macros: { kcal: 420 } });
   laptop._rev = 6000;
@@ -343,7 +385,7 @@ test('two devices that HAVE seen the reset keep logging normally afterwards', ()
 });
 
 test('the merge tolerates the bare-timestamp watermark the first version wrote', () => {
-  const legacy = run(livedIn(), DEFAULTS);
+  const legacy = run(livedIn(), DELETE_TRACKING);
   legacy._soft = 5000; // the old shape: a timestamp, meaning the original fixed set
   const m = Store.mergeStates(legacy, livedIn());
   assert.deepStrictEqual(m.log_entries, []);
@@ -370,9 +412,9 @@ test('migrate backfills the new fields without disturbing existing ones', () => 
 });
 
 test('a second fresh start does not un-bank the first', () => {
-  const first = run(livedIn(), DEFAULTS);
+  const first = run(livedIn(), DELETE_TRACKING);
   const later = shiftISO(TODAY, 1);
   first.log_entries.push({ id: 'n1', date: later, meal_id: 'm_1', computed_macros: { kcal: 300 } });
-  const second = Store.freshStart(first, { today: later, now: 6000, keep: DEFAULTS, weightKg: 82, target: TARGET });
+  const second = Store.freshStart(first, { today: later, now: 6000, keep: DELETE_TRACKING, weightKg: 82, target: TARGET });
   assert.strictEqual(streakOf(second, later), FIXTURE_STREAK + 1);
 });
