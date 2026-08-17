@@ -15818,14 +15818,22 @@ function FreshStartScreen({ db, onBack, onConfirm, onExport }) {
   const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
   const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
   const kg = (latest && latest.scale_weight) || (db.profile && db.profile.weightKg) || null;
-  const shownKg = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
+  // Date the figure unless the scale saw it today. Somebody reaching for this screen is often
+  // somebody who stopped tracking for a while, so the most recent reading can be weeks old, and
+  // presenting it bare reads as "this is what you weigh" when it is "this is what you last weighed".
+  // The wizard asks for it again either way; this is so the number is not a surprise when it does.
+  const kgDate = latest && latest.scale_weight != null ? latest.date : null;
+  const stale = kgDate && kgDate !== Store.todayISO();
+  const shownKg = kg != null
+    ? fmtWeight(kg, db.profile && db.profile.weight_unit) + (stale ? ', last weighed ' + fmtShortDay(kgDate) : '')
+    : null;
   const loggedDays = new Set((db.log_entries || []).map(e => e.date)).size;
   return (<SubScreen title="Fresh start" onBack={onBack}
     intro="For when the plan has drifted and you want the numbers to start again. Your history is not deleted: the app simply stops reading it when it works out your targets.">
     <Card className="p-4 mb-4">
       <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>What happens</div>
       <ul className="text-[12px] leading-relaxed space-y-1.5" style={{ color: 'var(--text2)' }}>
-        <li><b>You go through setup again</b>, so you can confirm your weight{shownKg ? ' (' + shownKg + ' at the moment)' : ''} and re-pick your goal, your pace and how you want to eat. Your new targets come from those answers.</li>
+        <li><b>You go through setup again</b>, so you can confirm your weight{shownKg ? ' (' + shownKg + ')' : ''} and re-pick your goal, your pace and how you want to eat. Your new targets come from those answers.</li>
         <li><b>Today becomes the starting line.</b> Working out your targets, your calorie burn, how long you have been dieting and how far you have come all begin here and ignore everything before it.</li>
         <li>The app forgets the calorie burn it had learned, and starts learning it again from your next few check-ins.</li>
         <li>Your check-in cycle restarts today. Any diet break or paused goal ends.</li>
