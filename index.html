@@ -43590,6 +43590,7 @@ function demoState() {
     if (new URLSearchParams(window.location.search).has('draft')) {
       const src = [['Day 1', [['CAM - SMITH MACHINE INCLINE PRESS', 2, 6, '2110'], ['CAM - MACHINE LAT PULLDOWN', 2, 8, '2110'], ['CAM - DECLINE CHEST FLY', 2, 8, '2110'], ['CAM - T-BAR ROW (MEGA MASS)', 2, 6, '2110'], ['CAM - T-BAR ROW', 1, 8, '2110'], ['CAM - HANGING LEG RAISES', 2, 8, '2110']]], ['Day 2', [['CAM - PENDULUM SQUAT', 2, 8, '2110'], ['CAM - SPLIT SQUAT SMITH MACHINE', 1, 6, '2110'], ['CAM - HAMSTRING CURL', 2, 8, '2110'], ['CAM - MACHINE ADDUCTION', 2, 8, '2110'], ['CAM - LEG EXTENSIONS', 2, 8, '2110']]], ['Day 3', [['CAM - DB SEATED SHOULDER PRESS', 2, 8, '3110'], ['CAM - MACHINE LATERAL RAISE', 2, 10, '2110'], ['CAM - MACHINE REAR DELT FLY', 1, 10, '2110'], ['CAM - ALTERNATING DUMBBELL HAMMER CURL', 2, 8, '2110'], ['CAM - FRENCH PRESS (OHTX)', 2, 6, '2110'], ['the finisher coach showed me', 2, 12, null]]]];
       const days = [];
+      s.training.custom = s.training.custom || [];
       src.forEach(([name, rows], i) => {
         const parsed = {
           days: [{
@@ -43603,8 +43604,14 @@ function demoState() {
           }]
         };
         const res = Training.importTemplate(parsed, {
-          custom: []
+          custom: s.training.custom
         });
+        // "the finisher coach showed me" has no library match, so a real read mints a custom
+        // exercise from the model's own guess (see Training.importTemplate). The wizard merges
+        // that into t.custom the moment it happens; this fixture has to do the same or the
+        // preview shows a plain exercise line with no "worth a second look" flag on it, which is
+        // exactly the state this fixture exists to make reviewable.
+        if (res.newCustom && res.newCustom.length) s.training.custom = s.training.custom.concat(res.newCustom);
         Training.mergeDraftDays(days, res.template, {
           kind: 'file',
           name: 'screenshot-' + (i + 1) + '.png'
@@ -53467,10 +53474,8 @@ function BlockWizard({
       readFiles(e.target.files);
       e.target.value = '';
     }
-  })), tab === 'link' && /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1"
+  })), tab === 'link' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "mb-2"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: url,
     onChange: e => setUrl(e.target.value),
@@ -53478,7 +53483,7 @@ function BlockWizard({
   })), /*#__PURE__*/React.createElement("button", {
     onClick: readLink,
     disabled: !!readBusy || !url.trim(),
-    className: "pixel-box px-4 text-[12.5px]",
+    className: "pixel-box w-full h-11 text-[12.5px]",
     style: {
       background: 'var(--surface2)'
     }
@@ -53624,7 +53629,7 @@ function BlockWizard({
     onChange: setIntensity,
     options: [{
       v: 'high',
-      l: 'High intensity (default)'
+      l: 'High intensity'
     }, {
       v: 'moderate',
       l: 'More volume'
@@ -53643,7 +53648,7 @@ function BlockWizard({
       l: '3 + light week'
     }, {
       v: 'as-written',
-      l: 'Exactly as brought'
+      l: 'As brought'
     }]
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Where you will train it",

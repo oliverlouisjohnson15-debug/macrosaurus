@@ -2249,9 +2249,9 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
           </label>
         )}
         {tab === 'link' && (
-          <div className="flex gap-2">
-            <div className="flex-1"><TextInput value={url} onChange={e => setUrl(e.target.value)} placeholder="Instagram, TikTok or YouTube link" /></div>
-            <button onClick={readLink} disabled={!!readBusy || !url.trim()} className="pixel-box px-4 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+          <div>
+            <div className="mb-2"><TextInput value={url} onChange={e => setUrl(e.target.value)} placeholder="Instagram, TikTok or YouTube link" /></div>
+            <button onClick={readLink} disabled={!!readBusy || !url.trim()} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
               {readBusy || 'Read it'}
             </button>
           </div>
@@ -2320,12 +2320,12 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       <Field label="Training intensity" hint={intensity === 'high'
         ? 'High intensity, lower volume: fewer sets, closer to true failure by the last week. Our default.'
         : 'More volume, moderate effort: more sets, always a rep or two in reserve.'}>
-        <Seg value={intensity} onChange={setIntensity} options={[{ v: 'high', l: 'High intensity (default)' }, { v: 'moderate', l: 'More volume' }]} />
+        <Seg value={intensity} onChange={setIntensity} options={[{ v: 'high', l: 'High intensity' }, { v: 'moderate', l: 'More volume' }]} />
       </Field>
       <Field label="Block shape" hint={Training.SHAPES[shape].label}>
         <Seg value={shape} onChange={setShape} options={[
           { v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' },
-          { v: 'as-written', l: 'Exactly as brought' },
+          { v: 'as-written', l: 'As brought' },
         ]} />
       </Field>
       {/* A gym, not a checkbox grid. It decides both what is available and what to reach for first,

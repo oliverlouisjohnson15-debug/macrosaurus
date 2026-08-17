@@ -17474,9 +17474,16 @@ function demoState() {
           ['CAM - FRENCH PRESS (OHTX)', 2, 6, '2110'], ['the finisher coach showed me', 2, 12, null]]],
       ];
       const days = [];
+      s.training.custom = s.training.custom || [];
       src.forEach(([name, rows], i) => {
         const parsed = { days: [{ name: name, exercises: rows.map(([n, st, r, tempo]) => ({ name: n, sets: st, repLow: r, tempo: tempo })) }] };
-        const res = Training.importTemplate(parsed, { custom: [] });
+        const res = Training.importTemplate(parsed, { custom: s.training.custom });
+        // "the finisher coach showed me" has no library match, so a real read mints a custom
+        // exercise from the model's own guess (see Training.importTemplate). The wizard merges
+        // that into t.custom the moment it happens; this fixture has to do the same or the
+        // preview shows a plain exercise line with no "worth a second look" flag on it, which is
+        // exactly the state this fixture exists to make reviewable.
+        if (res.newCustom && res.newCustom.length) s.training.custom = s.training.custom.concat(res.newCustom);
         Training.mergeDraftDays(days, res.template, { kind: 'file', name: 'screenshot-' + (i + 1) + '.png' });
       });
       s.training.draft = { name: "Cam Kissel's Program", days: days, source: 'import', weekLabel: 'Week 4 (08/10/26 - 08/15/26)' };
