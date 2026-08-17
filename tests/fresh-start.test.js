@@ -171,7 +171,16 @@ test('the weigh-ins can be kept while the food log starts again', () => {
   const s = run(before, Object.assign({}, DEFAULTS, { weight: true }));
   assert.deepStrictEqual(s.log_entries, []);
   assert.deepStrictEqual(s.weight_entries, before.weight_entries, 'untouched, and no seed invented');
-  assert.strictEqual(s.profile.weightKg, before.profile.weightKg, 'nor the profile weight rewritten');
+});
+
+test('the profile weight is squared up with the scale, kept history or not', () => {
+  // profile.weightKg only moves at a check-in, so it can sit months behind. The setup wizard this
+  // hands over to prefills from it, and opening on a stale figure is the drift the reset exists to end.
+  const before = livedIn();
+  assert.strictEqual(before.profile.weightKg, 82);          // stale
+  [DEFAULTS, Object.assign({}, DEFAULTS, { weight: true })].forEach(keep => {
+    assert.strictEqual(run(before, keep).profile.weightKg, 81.6, 'squared up to what was passed in');
+  });
 });
 
 /* ---- the coupling the user is NOT offered a choice about ---- */

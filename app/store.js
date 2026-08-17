@@ -373,13 +373,16 @@
     // the new plan the very expenditure this reset just forgot (see learnedTdee in app.jsx).
     s.fresh_start = today;
 
-    // A seed weigh-in, but only when the weigh-in history is the thing being cleared: without one
-    // the first check-in has nothing to measure the new run against. If the history is kept it
-    // already holds readings, and writing another would invent a weigh-in that never happened.
-    if (!keep.weight && o.weightKg > 0) {
+    if (o.weightKg > 0) {
       var kg = Math.round(o.weightKg * 100) / 100;
-      s.weight_entries = [{ id: uid(), date: today, scale_weight: kg, trend_weight: kg }];
+      // profile.weightKg is only refreshed at a check-in, so it can sit months behind the scale. The
+      // setup wizard this hands over to prefills its weight field from it, and a fresh start that
+      // opens on a figure from three months ago is the exact drift the reset was meant to end.
       if (s.profile) s.profile.weightKg = kg;
+      // A seed reading, but only when the weigh-in history is the thing being cleared: without one
+      // the first check-in has nothing to measure the new run against. If the history is kept it
+      // already holds readings, and writing another would invent a weigh-in that never happened.
+      if (!keep.weight) s.weight_entries = [{ id: uid(), date: today, scale_weight: kg, trend_weight: kg }];
     }
     if (o.target) {
       var t = Object.assign({}, o.target);

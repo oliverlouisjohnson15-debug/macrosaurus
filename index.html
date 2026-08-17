@@ -3136,13 +3136,16 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     // the new plan the very expenditure this reset just forgot (see learnedTdee in app.jsx).
     s.fresh_start = today;
 
-    // A seed weigh-in, but only when the weigh-in history is the thing being cleared: without one
-    // the first check-in has nothing to measure the new run against. If the history is kept it
-    // already holds readings, and writing another would invent a weigh-in that never happened.
-    if (!keep.weight && o.weightKg > 0) {
+    if (o.weightKg > 0) {
       var kg = Math.round(o.weightKg * 100) / 100;
-      s.weight_entries = [{ id: uid(), date: today, scale_weight: kg, trend_weight: kg }];
+      // profile.weightKg is only refreshed at a check-in, so it can sit months behind the scale. The
+      // setup wizard this hands over to prefills its weight field from it, and a fresh start that
+      // opens on a figure from three months ago is the exact drift the reset was meant to end.
       if (s.profile) s.profile.weightKg = kg;
+      // A seed reading, but only when the weigh-in history is the thing being cleared: without one
+      // the first check-in has nothing to measure the new run against. If the history is kept it
+      // already holds readings, and writing another would invent a weigh-in that never happened.
+      if (!keep.weight) s.weight_entries = [{ id: uid(), date: today, scale_weight: kg, trend_weight: kg }];
     }
     if (o.target) {
       var t = Object.assign({}, o.target);
@@ -39189,7 +39192,7 @@ function FreshStartScreen({
   return /*#__PURE__*/React.createElement(SubScreen, {
     title: "Fresh start",
     onBack: onBack,
-    intro: "Start your numbers again without starting the whole app again. Your plan is re-anchored from today and the app forgets what it had learned about you; everything below is yours to choose."
+    intro: "Start your numbers again without starting the whole app again. You'll go back through setup to re-pick your goal, the app forgets what it had learned about you, and everything below is yours to choose."
   }, /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-4"
   }, /*#__PURE__*/React.createElement("div", {
@@ -39203,7 +39206,7 @@ function FreshStartScreen({
     style: {
       color: 'var(--text2)'
     }
-  }, /*#__PURE__*/React.createElement("li", null, "Your calorie and macro targets are worked out again from your profile", shownKg ? ', starting from ' + shownKg : '', ", and take effect today."), /*#__PURE__*/React.createElement("li", null, "The app forgets the calorie burn it had learned from your check-ins, so the new plan is not the old run's conclusions in a new hat."), /*#__PURE__*/React.createElement("li", null, "Your check-in cycle restarts today, and any check-in waiting for your answer is dropped."), /*#__PURE__*/React.createElement("li", null, "Any diet break or paused goal ends."))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("b", null, "You go through setup again"), ", so you can confirm your weight", shownKg ? ' (' + shownKg + ' at the moment)' : '', " and re-pick your goal, your pace and how you want to eat. Your new targets come from those answers."), /*#__PURE__*/React.createElement("li", null, "The app forgets the calorie burn it had learned from your check-ins, so the new plan is not the old run's conclusions in a new hat."), /*#__PURE__*/React.createElement("li", null, "Your check-in cycle restarts today, and any check-in waiting for your answer is dropped."), /*#__PURE__*/React.createElement("li", null, "Any diet break or paused goal ends."))), /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
     style: {
       color: 'var(--muted)',
@@ -39224,16 +39227,16 @@ function FreshStartScreen({
     kind: "danger",
     className: "w-full",
     onClick: () => setConfirming(true)
-  }, clearing.length ? 'Clear ' + clearing.length + ' thing' + (clearing.length === 1 ? '' : 's') + ' & re-anchor my plan' : 'Re-anchor my plan'), /*#__PURE__*/React.createElement("button", {
+  }, clearing.length ? 'Clear ' + clearing.length + ' thing' + (clearing.length === 1 ? '' : 's') + ' & set up again' : 'Set up again'), /*#__PURE__*/React.createElement("button", {
     onClick: onBack,
     className: "w-full py-3 text-[12px] mt-2",
     style: {
       color: 'var(--text2)'
     }
   }, "Cancel"), confirming && /*#__PURE__*/React.createElement(ConfirmDialog, {
-    title: clearing.length ? 'Clear these and start fresh?' : 'Re-anchor your plan?',
-    body: (clearing.length ? 'This permanently clears: ' + clearing.map(r => r.label.toLowerCase()).join(', ') + '. ' : 'Nothing will be cleared. ') + 'Your plan is re-anchored from today' + (shownKg ? ' starting from ' + shownKg : '') + ', and the app forgets what it had learned about your calorie burn. This cannot be undone, so export your data first if you want a copy.',
-    confirmLabel: clearing.length ? 'Clear & start fresh' : 'Re-anchor',
+    title: clearing.length ? 'Clear these and start fresh?' : 'Set your plan up again?',
+    body: (clearing.length ? 'This permanently clears: ' + clearing.map(r => r.label.toLowerCase()).join(', ') + '. ' : 'Nothing will be cleared. ') + 'The app forgets what it had learned about your calorie burn, then takes you through setup to re-pick your goal and pace. This cannot be undone, so export your data first if you want a copy.',
+    confirmLabel: clearing.length ? 'Clear & set up again' : 'Set up again',
     onConfirm: () => onConfirm(keep),
     onClose: () => setConfirming(false)
   }));
@@ -40660,7 +40663,7 @@ function More({
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1"
   }, "Start again"), /*#__PURE__*/React.createElement(MenuRow, {
     label: "Fresh start",
-    desc: "Re-anchor your plan from today and pick exactly what to clear. Keeps whatever you choose",
+    desc: "Re-pick your goal and set your targets up again, choosing exactly what to clear. Keeps whatever you choose",
     onClick: () => setScreen('freshstart')
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1"
@@ -48702,7 +48705,14 @@ function App() {
       return n;
     });
   }
-  function saveProfile(profile, isNew) {
+  // `opts.syncWeighIn` makes today's weigh-in agree with the weight just stated, creating it if there
+  // isn't one. Only the fresh start passes it: that flow has already written a seed reading from the
+  // scale, so if the wizard's weight is then edited the two would disagree, and the seed is what the
+  // first check-in measures the new run against. The plain "Full setup & recalculate" route
+  // deliberately does NOT pass it, because its weight field is prefilled from the profile, which can
+  // lag a real morning reading, and writing that back would overwrite good data with a stale figure.
+  function saveProfile(profile, isNew, opts) {
+    const o = opts || {};
     setDb(prev => {
       const n = JSON.parse(JSON.stringify(prev || Store.defaultState()));
       const prevProf = prev && prev.profile || {};
@@ -48715,22 +48725,39 @@ function App() {
         goal_type: profile.goalType,
         rate_per_week_kg: profile.rateKgPerWeek
       };
+      const today = Store.todayISO();
       const t = E.computeInitialTargets(withActivity(profile));
       t.id = Store.uid();
-      t.effective_date = Store.todayISO();
-      n.targets.push(t);
-      if (isNew && !n.weight_entries.length) {
+      t.effective_date = today;
+      // Today can only have ONE target in force. A fresh start writes a fallback anchor before handing
+      // over to this wizard (so bailing out still leaves a usable plan), and pushing on top of it would
+      // leave two entries dated today with only their order deciding which wins.
+      n.targets = (n.targets || []).filter(x => x && x.effective_date && x.effective_date < today).concat([t]);
+      if (o.syncWeighIn && profile.weightKg > 0) {
+        const kg = +(+profile.weightKg).toFixed(2);
+        const ex = n.weight_entries.find(x => x.date === today);
+        if (ex) ex.scale_weight = kg;else n.weight_entries.push({
+          id: Store.uid(),
+          date: today,
+          scale_weight: kg
+        });
+        if (profile.bodyFatPct != null) {
+          const e2 = n.weight_entries.find(x => x.date === today);
+          if (e2) e2.bodyfat = +profile.bodyFatPct;
+        }
+        recomputeTrend(n);
+      } else if (isNew && !n.weight_entries.length) {
         const seed = {
           id: Store.uid(),
-          date: Store.todayISO(),
+          date: today,
           scale_weight: +profile.weightKg.toFixed(2),
           trend_weight: +profile.weightKg.toFixed(2)
         };
         if (profile.bodyFatPct != null) seed.bodyfat = +profile.bodyFatPct;
         n.weight_entries.push(seed);
       }
-      n.last_checkin = Store.todayISO();
-      if (n.profile.checkinDay == null) n.profile.checkinDay = new Date(Store.todayISO() + 'T00:00:00').getDay();
+      n.last_checkin = today;
+      if (n.profile.checkinDay == null) n.profile.checkinDay = new Date(today + 'T00:00:00').getDay();
       if (isNew) {
         n.onboarding = Object.assign({
           welcomed: false,
@@ -48739,7 +48766,10 @@ function App() {
         }, n.onboarding);
         n.onboarding.welcomed = true;
       }
-      if (session) cloudSave(session.user.id, n);
+      if (session) {
+        localSave(session.user.id, n);
+        cloudSave(session.user.id, n);
+      }
       return n;
     });
     setFresh(false);
@@ -49132,6 +49162,10 @@ function App() {
   // calories straight off the last one. The target is built from the profile ALONE, with no priorTdee:
   // a fresh start forgets what the old run taught the app, which is the one thing that separates it
   // from a goal change (GoalScreen.apply, which deliberately does carry the learned figure forward).
+  // Hands over to the setup wizard when the surgery is done, because re-anchoring a plan on a profile
+  // that has not been looked at since signup is exactly how the plan drifted in the first place. The
+  // target written below is a FALLBACK, not the answer: it exists so that backing out of the wizard
+  // still leaves a working plan rather than a dashboard with no numbers on it.
   function freshStart(keep) {
     const today = Store.todayISO();
     setDb(prev => {
@@ -49157,7 +49191,7 @@ function App() {
       return n;
     });
     setView('dashboard');
-    showToast('Fresh start. Your plan is re-anchored from today.');
+    setFresh('reset'); // 'reset' rather than true, so the wizard knows to settle today's weigh-in too
   }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
@@ -49179,10 +49213,20 @@ function App() {
   if (!db) return /*#__PURE__*/React.createElement(Loading, {
     text: "Digging up your data…"
   });
+  // Two ways in: "Full setup & recalculate" from Body details (fresh === true), and the hand-off from
+  // a fresh start (fresh === 'reset'), which has already cleared what you chose and seeded today's
+  // weigh-in, so whatever weight you settle on in here has to land on that reading too. Backing out is
+  // safe either way: the plan you had (or the fallback the fresh start wrote) is still in place.
   if (fresh) return /*#__PURE__*/React.createElement(Wizard, {
     initial: db.profile,
-    onDone: pr => saveProfile(pr, false),
-    onCancel: () => setFresh(false)
+    onCancel: () => setFresh(false),
+    onDone: pr => {
+      const wasReset = fresh === 'reset';
+      saveProfile(pr, false, {
+        syncWeighIn: wasReset
+      });
+      if (wasReset) showToast('Fresh start. Your plan is set from today.');
+    }
   });
   // First-run order (Professor-Oak style): meet + pick your egg FIRST, so there's delight and identity
   // before any forms; the essentials Wizard comes after. Existing accounts (logs or a named buddy) skip

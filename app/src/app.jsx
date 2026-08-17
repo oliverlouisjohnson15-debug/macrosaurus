@@ -15787,11 +15787,11 @@ function FreshStartScreen({ db, onBack, onConfirm }) {
   // eaten is scored against the target in force ON it, so a kept log needs its old targets kept too.
   const targetsKept = keep.log || keep.checkins;
   return (<SubScreen title="Fresh start" onBack={onBack}
-    intro="Start your numbers again without starting the whole app again. Your plan is re-anchored from today and the app forgets what it had learned about you; everything below is yours to choose.">
+    intro="Start your numbers again without starting the whole app again. You'll go back through setup to re-pick your goal, the app forgets what it had learned about you, and everything below is yours to choose.">
     <Card className="p-4 mb-4">
       <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)', letterSpacing: '0.16em' }}>Always happens</div>
       <ul className="text-[12px] leading-relaxed space-y-1.5" style={{ color: 'var(--text2)' }}>
-        <li>Your calorie and macro targets are worked out again from your profile{shownKg ? ', starting from ' + shownKg : ''}, and take effect today.</li>
+        <li><b>You go through setup again</b>, so you can confirm your weight{shownKg ? ' (' + shownKg + ' at the moment)' : ''} and re-pick your goal, your pace and how you want to eat. Your new targets come from those answers.</li>
         <li>The app forgets the calorie burn it had learned from your check-ins, so the new plan is not the old run's conclusions in a new hat.</li>
         <li>Your check-in cycle restarts today, and any check-in waiting for your answer is dropped.</li>
         <li>Any diet break or paused goal ends.</li>
@@ -15811,16 +15811,16 @@ function FreshStartScreen({ db, onBack, onConfirm }) {
     </div>
 
     <Btn kind="danger" className="w-full" onClick={() => setConfirming(true)}>
-      {clearing.length ? 'Clear ' + clearing.length + ' thing' + (clearing.length === 1 ? '' : 's') + ' & re-anchor my plan' : 'Re-anchor my plan'}
+      {clearing.length ? 'Clear ' + clearing.length + ' thing' + (clearing.length === 1 ? '' : 's') + ' & set up again' : 'Set up again'}
     </Btn>
     <button onClick={onBack} className="w-full py-3 text-[12px] mt-2" style={{ color: 'var(--text2)' }}>Cancel</button>
 
-    {confirming && <ConfirmDialog title={clearing.length ? 'Clear these and start fresh?' : 'Re-anchor your plan?'}
+    {confirming && <ConfirmDialog title={clearing.length ? 'Clear these and start fresh?' : 'Set your plan up again?'}
       body={(clearing.length
         ? 'This permanently clears: ' + clearing.map(r => r.label.toLowerCase()).join(', ') + '. '
         : 'Nothing will be cleared. ')
-        + 'Your plan is re-anchored from today' + (shownKg ? ' starting from ' + shownKg : '') + ', and the app forgets what it had learned about your calorie burn. This cannot be undone, so export your data first if you want a copy.'}
-      confirmLabel={clearing.length ? 'Clear & start fresh' : 'Re-anchor'} onConfirm={() => onConfirm(keep)} onClose={() => setConfirming(false)} />}
+        + 'The app forgets what it had learned about your calorie burn, then takes you through setup to re-pick your goal and pace. This cannot be undone, so export your data first if you want a copy.'}
+      confirmLabel={clearing.length ? 'Clear & set up again' : 'Set up again'} onConfirm={() => onConfirm(keep)} onClose={() => setConfirming(false)} />}
   </SubScreen>);
 }
 
@@ -16410,7 +16410,7 @@ function More({ db, update, onSignOut, onReset, onFreshReset, onDeleteAccount, o
             training blocks, cookbook, buddy and streak they have spent months building - and if the
             only button on offer erases all of it, that is the button they end up pressing. */}
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Start again</div>
-        <MenuRow label="Fresh start" desc="Re-anchor your plan from today and pick exactly what to clear. Keeps whatever you choose" onClick={() => setScreen('freshstart')} />
+        <MenuRow label="Fresh start" desc="Re-pick your goal and set your targets up again, choosing exactly what to clear. Keeps whatever you choose" onClick={() => setScreen('freshstart')} />
 
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Danger zone</div>
         <MenuRow label="Reset all data" desc="Wipe everything, training and recipes included, and start over. Keeps your login" tone="danger" onClick={() => setResetOpen(true)} />
@@ -19484,7 +19484,14 @@ function App() {
   }, [session]);
 
   function update(m) { setDb(prev => { const n = JSON.parse(JSON.stringify(prev)); m(n); n._rev = Date.now(); if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n; }); }
-  function saveProfile(profile, isNew) {
+  // `opts.syncWeighIn` makes today's weigh-in agree with the weight just stated, creating it if there
+  // isn't one. Only the fresh start passes it: that flow has already written a seed reading from the
+  // scale, so if the wizard's weight is then edited the two would disagree, and the seed is what the
+  // first check-in measures the new run against. The plain "Full setup & recalculate" route
+  // deliberately does NOT pass it, because its weight field is prefilled from the profile, which can
+  // lag a real morning reading, and writing that back would overwrite good data with a stale figure.
+  function saveProfile(profile, isNew, opts) {
+    const o = opts || {};
     setDb(prev => {
       const n = JSON.parse(JSON.stringify(prev || Store.defaultState())); const prevProf = (prev && prev.profile) || {}; n.profile = profile;
       // The egg picker (which now runs BEFORE this wizard) stubbed the familiarity choice + lesson state
@@ -19492,12 +19499,23 @@ function App() {
       if (prevProf.newToTracking != null) n.profile.newToTracking = prevProf.newToTracking;
       if (prevProf.lessonState) n.profile.lessonState = prevProf.lessonState;
       n.goals = { goal_type: profile.goalType, rate_per_week_kg: profile.rateKgPerWeek };
-      const t = E.computeInitialTargets(withActivity(profile)); t.id = Store.uid(); t.effective_date = Store.todayISO(); n.targets.push(t);
-      if (isNew && !n.weight_entries.length) { const seed = { id: Store.uid(), date: Store.todayISO(), scale_weight: +profile.weightKg.toFixed(2), trend_weight: +profile.weightKg.toFixed(2) }; if (profile.bodyFatPct != null) seed.bodyfat = +profile.bodyFatPct; n.weight_entries.push(seed); }
-      n.last_checkin = Store.todayISO();
-      if (n.profile.checkinDay == null) n.profile.checkinDay = new Date(Store.todayISO() + 'T00:00:00').getDay();
+      const today = Store.todayISO();
+      const t = E.computeInitialTargets(withActivity(profile)); t.id = Store.uid(); t.effective_date = today;
+      // Today can only have ONE target in force. A fresh start writes a fallback anchor before handing
+      // over to this wizard (so bailing out still leaves a usable plan), and pushing on top of it would
+      // leave two entries dated today with only their order deciding which wins.
+      n.targets = (n.targets || []).filter(x => x && x.effective_date && x.effective_date < today).concat([t]);
+      if (o.syncWeighIn && profile.weightKg > 0) {
+        const kg = +(+profile.weightKg).toFixed(2);
+        const ex = n.weight_entries.find(x => x.date === today);
+        if (ex) ex.scale_weight = kg; else n.weight_entries.push({ id: Store.uid(), date: today, scale_weight: kg });
+        if (profile.bodyFatPct != null) { const e2 = n.weight_entries.find(x => x.date === today); if (e2) e2.bodyfat = +profile.bodyFatPct; }
+        recomputeTrend(n);
+      } else if (isNew && !n.weight_entries.length) { const seed = { id: Store.uid(), date: today, scale_weight: +profile.weightKg.toFixed(2), trend_weight: +profile.weightKg.toFixed(2) }; if (profile.bodyFatPct != null) seed.bodyfat = +profile.bodyFatPct; n.weight_entries.push(seed); }
+      n.last_checkin = today;
+      if (n.profile.checkinDay == null) n.profile.checkinDay = new Date(today + 'T00:00:00').getDay();
       if (isNew) { n.onboarding = Object.assign({ welcomed: false, sawDex: false, dismissed: false }, n.onboarding); n.onboarding.welcomed = true; }
-      if (session) cloudSave(session.user.id, n); return n;
+      if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n;
     });
     setFresh(false);
     if (isNew) setShowWelcome(true);
@@ -19659,6 +19677,10 @@ function App() {
   // calories straight off the last one. The target is built from the profile ALONE, with no priorTdee:
   // a fresh start forgets what the old run taught the app, which is the one thing that separates it
   // from a goal change (GoalScreen.apply, which deliberately does carry the learned figure forward).
+  // Hands over to the setup wizard when the surgery is done, because re-anchoring a plan on a profile
+  // that has not been looked at since signup is exactly how the plan drifted in the first place. The
+  // target written below is a FALLBACK, not the answer: it exists so that backing out of the wizard
+  // still leaves a working plan rather than a dashboard with no numbers on it.
   function freshStart(keep) {
     const today = Store.todayISO();
     setDb(prev => {
@@ -19672,7 +19694,7 @@ function App() {
       return n;
     });
     setView('dashboard');
-    showToast('Fresh start. Your plan is re-anchored from today.');
+    setFresh('reset'); // 'reset' rather than true, so the wizard knows to settle today's weigh-in too
   }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
@@ -19687,7 +19709,12 @@ function App() {
   if (recovering) return <ResetPassword onDone={() => setRecovering(false)} />;
   if (!session) return <Auth />;
   if (!db) return <Loading text="Digging up your data…" />;
-  if (fresh) return <Wizard initial={db.profile} onDone={(pr) => saveProfile(pr, false)} onCancel={() => setFresh(false)} />;
+  // Two ways in: "Full setup & recalculate" from Body details (fresh === true), and the hand-off from
+  // a fresh start (fresh === 'reset'), which has already cleared what you chose and seeded today's
+  // weigh-in, so whatever weight you settle on in here has to land on that reading too. Backing out is
+  // safe either way: the plan you had (or the fallback the fresh start wrote) is still in place.
+  if (fresh) return <Wizard initial={db.profile} onCancel={() => setFresh(false)}
+    onDone={(pr) => { const wasReset = fresh === 'reset'; saveProfile(pr, false, { syncWeighIn: wasReset }); if (wasReset) showToast('Fresh start. Your plan is set from today.'); }} />;
   // First-run order (Professor-Oak style): meet + pick your egg FIRST, so there's delight and identity
   // before any forms; the essentials Wizard comes after. Existing accounts (logs or a named buddy) skip
   // both. `?demo&egg` previews just the picker; `?demo&onboard` walks the whole flow.
