@@ -3265,8 +3265,15 @@ function trainedDates(db) {
 // - the dashboard number, its rolling week strip and the app-level streak the header and Play read -
 // each built this set by hand, which is how a reset that clears the food log and the weigh-ins while
 // promising to keep the run could have snapped it on two of the three and not the third.
-function activeDatesSet(db) {
-  const out = new Set((db && db.streak_credit) || []);
+//
+// `banked` (default true) is what separates the streak's LENGTH from its SHAPE. The number wants the
+// carried-over days, because keeping the run is exactly what the reset promised. Anything that draws
+// a particular day and says "you were active on this one" must not have them: the entries behind
+// those days are gone. The rolling week strip lit all seven pips on a diary that had just been
+// emptied, which reads as the app inventing a week you did not have. Credit is a length, not a set
+// of days anyone can point at.
+function activeDatesSet(db, banked) {
+  const out = new Set(banked === false ? [] : ((db && db.streak_credit) || []));
   ((db && db.log_entries) || []).forEach(e => { if (e && e.date) out.add(e.date); });
   ((db && db.weight_entries) || []).forEach(w => { if (w && w.date) out.add(w.date); });
   trainedDates(db).forEach(d => out.add(d));
@@ -11463,7 +11470,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     const ft = E.fiberTarget(et.eff.kcal);
     // The rolling week of the streak, oldest first, on the same "counts as active" set computeStreak
     // uses - logged, weighed or trained, plus anything a freeze already covered.
-    const active = activeDatesSet(db);
+    const active = activeDatesSet(db, false); // the shape of the week, so only days with something really on them
     const frozen = new Set((db.freezes && db.freezes.frozen) || []);
     const week = [];
     for (let i = 6; i >= 0; i--) { const d = shiftISO(today, -i); week.push(active.has(d) || frozen.has(d)); }
@@ -19515,6 +19522,9 @@ function App() {
       n.last_checkin = today;
       if (n.profile.checkinDay == null) n.profile.checkinDay = new Date(today + 'T00:00:00').getDay();
       if (isNew) { n.onboarding = Object.assign({ welcomed: false, sawDex: false, dismissed: false }, n.onboarding); n.onboarding.welcomed = true; }
+      // Explicitly false, never deleted: mergeStates layers newer over older, so a removed key would
+      // let a stale device's `true` survive and put the user back through setup they have just done.
+      n.onboarding = Object.assign({}, n.onboarding, { needsSetup: false });
       if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); } return n;
     });
     setFresh(false);
@@ -19693,8 +19703,7 @@ function App() {
       if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); }
       return n;
     });
-    setView('dashboard');
-    setFresh('reset'); // 'reset' rather than true, so the wizard knows to settle today's weigh-in too
+    setView('dashboard'); // Store.freshStart flags onboarding.needsSetup; the render gate takes it from here
   }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
@@ -19709,12 +19718,16 @@ function App() {
   if (recovering) return <ResetPassword onDone={() => setRecovering(false)} />;
   if (!session) return <Auth />;
   if (!db) return <Loading text="Digging up your data…" />;
-  // Two ways in: "Full setup & recalculate" from Body details (fresh === true), and the hand-off from
-  // a fresh start (fresh === 'reset'), which has already cleared what you chose and seeded today's
-  // weigh-in, so whatever weight you settle on in here has to land on that reading too. Backing out is
-  // safe either way: the plan you had (or the fallback the fresh start wrote) is still in place.
-  if (fresh) return <Wizard initial={db.profile} onCancel={() => setFresh(false)}
-    onDone={(pr) => { const wasReset = fresh === 'reset'; saveProfile(pr, false, { syncWeighIn: wasReset }); if (wasReset) showToast('Fresh start. Your plan is set from today.'); }} />;
+  // Two ways in. "Full setup & recalculate" from Body details is optional and cancellable: nothing has
+  // happened yet, so backing out costs nothing. The hand-off from a fresh start is neither. It is
+  // flagged on the state rather than held in a React variable so that closing the tab mid-setup does
+  // not drop you onto a dashboard whose numbers you never agreed to, and it offers no Cancel, because
+  // the data is already cleared and the only thing left to decide is the plan itself. Whatever weight
+  // is settled on in here also has to land on today's weigh-in, which the reset seeded from the scale.
+  const needsSetup = !!(db.onboarding && db.onboarding.needsSetup);
+  if (fresh || needsSetup) return <Wizard initial={db.profile}
+    onCancel={needsSetup ? null : () => setFresh(false)}
+    onDone={(pr) => { saveProfile(pr, false, { syncWeighIn: needsSetup }); if (needsSetup) showToast('Fresh start. Your plan is set from today.'); }} />;
   // First-run order (Professor-Oak style): meet + pick your egg FIRST, so there's delight and identity
   // before any forms; the essentials Wizard comes after. Existing accounts (logs or a named buddy) skip
   // both. `?demo&egg` previews just the picker; `?demo&onboard` walks the whole flow.

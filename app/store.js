@@ -372,6 +372,10 @@
     // The day the fresh start happened. learnedTdee reads it so a KEPT target history cannot hand
     // the new plan the very expenditure this reset just forgot (see learnedTdee in app.jsx).
     s.fresh_start = today;
+    // Setup is owed, and it is recorded on the state rather than held in a React variable so that
+    // closing the tab halfway through cannot leave someone on a dashboard whose numbers they never
+    // agreed to. Cleared by saveProfile when the wizard is finished.
+    s.onboarding = Object.assign({}, s.onboarding, { needsSetup: true });
 
     if (o.weightKg > 0) {
       var kg = Math.round(o.weightKg * 100) / 100;

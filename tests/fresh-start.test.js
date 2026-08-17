@@ -269,6 +269,30 @@ test('banked credit is bounded, so it cannot grow without end', () => {
   assert.ok(s.streak_credit.includes(shiftISO(TODAY, -4)));
 });
 
+test('a fresh start owes setup, and says so on the state so a reload cannot skip it', () => {
+  [DEFAULTS, KEEP_ALL, KEEP_NONE].forEach(keep => {
+    assert.strictEqual(run(livedIn(), keep).onboarding.needsSetup, true);
+  });
+  // The flag rides on onboarding, whose other first-run switches must survive untouched.
+  const before = livedIn();
+  before.onboarding = { welcomed: true, sawDex: true, dismissed: true, eggPicked: true };
+  const s = run(before, DEFAULTS);
+  assert.strictEqual(s.onboarding.welcomed, true);
+  assert.strictEqual(s.onboarding.eggPicked, true);
+});
+
+test('a stale device cannot re-open setup once it has been done', () => {
+  // saveProfile writes needsSetup:false rather than deleting the key, because mergeStates layers the
+  // newer onboarding over the older one and a missing key would let the stale `true` through.
+  const mid = run(livedIn(), DEFAULTS);            // setup owed, _rev 5000
+  const done = JSON.parse(JSON.stringify(mid));
+  done.onboarding = Object.assign({}, done.onboarding, { needsSetup: false });
+  done._rev = 7000;
+  [Store.mergeStates(done, mid), Store.mergeStates(mid, done)].forEach(m => {
+    assert.strictEqual(m.onboarding.needsSetup, false, 'setup stays done');
+  });
+});
+
 /* ---- the merge, which has to keep a cleared thing cleared ---- */
 
 test('a stale device cannot union back whatever this reset cleared', () => {
