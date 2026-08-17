@@ -83,6 +83,11 @@ export function activeStreak(d: Record<string, unknown>, today: string): number 
   // push to somebody whose streak the app can see is perfectly safe, which is the worst push we
   // could possibly send: wrong, and wrong about the day they worked hardest.
   add((d.training as { logs?: unknown } | undefined)?.logs, "dateISO");
+  // Days banked by a soft reset, which clears the food log and the weigh-ins but keeps the run they
+  // earned (Store.softReset). Without these, the evening after somebody resets their numbers we
+  // would push "your streak is about to break" about a streak the app is still happily showing.
+  const credit = d.streak_credit;
+  if (Array.isArray(credit)) for (const c of credit) if (typeof c === "string" && c) active.add(c);
   // Bridge planned days so a declared trip cannot snap the run, without counting toward it.
   const planned = plannedDays(d);
   const frozen = (d.freezes as { frozen?: string[] } | undefined)?.frozen;

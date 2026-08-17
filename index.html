@@ -2990,6 +2990,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       records: { longestStreak: 0 }, // streak records shown in the trophy cabinet
       freezes: { frozen: [] }, // streak-freeze: ISO dates auto-forgiven (max one per calendar month)
       onboarding: { welcomed: false, sawDex: false, dismissed: false }, // first-run welcome tour + getting-started checklist
+      streak_credit: [], // ISO dates banked by a soft reset: days that were ACTIVE before the food log
+                         // and weigh-ins behind them were cleared. Read alongside the live logs by
+                         // activeDatesSet in app.jsx, so a soft reset keeps the run it earned (see softReset)
       deleted: {},        // deletion tombstones { entryId: deletedAtMs } so a merge/sync never resurrects a deleted item
       menstrual: { enabled: false, lastStart: null, cycleLen: 28 }, // optional cycle tracking so premenstrual water weight doesn't trigger a wrong calorie cut
       steps: {},          // daily step counts (Google Health sync or manual): { 'YYYY-MM-DD': count }. Powers the steps tile + steps-first check-in coaching.
@@ -3037,6 +3040,93 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return defaultState();
   }
 
+  /* ---- The soft reset ----
+     "Reset all data" above is the blunt instrument: it hands back defaultState and everything the
+     user built goes with it. That is the wrong tool for the thing people actually want, which is to
+     start the NUMBERS again - a run that went sideways, a plan anchored to a weight from three
+     months ago - while keeping the training blocks, the cookbook, the buddy, the shop and the streak
+     they have spent months on. Wiping all of that to re-anchor a calorie target is a price nobody
+     should have to pay, so this clears the tracking side only.
+
+     Cleared: the food log, the weigh-ins, the check-in ledger and its pointer, the target history,
+     the day-level carb/fat rebalances and per-day meal lists, the un-actioned check-in proposal, and
+     the diet-break clock (a dieting phase that no longer has a diet behind it).
+
+     Kept, deliberately: training, recipes, the shopping list, the pantry, the meal plan, saved meals
+     and foods, the buddy and everything it wears, Amber and the habitat, fight progress, badges,
+     records, freezes, steps/sleep/health, the profile and all its settings - and `expenditure`, the
+     TDEE the app has LEARNED about this person. That last one is not history, it is physiology: a
+     goal change already re-anchors on it rather than falling back to the Mifflin formula (see
+     GoalScreen.apply), and a restart deserves the same. What you ate is being cleared; what the app
+     worked out about your metabolism is not.
+
+     `opts.target` and `opts.weightKg` re-anchor the plan in the same breath, because a state with an
+     empty target history has no plan at all and the dashboard reads its calories straight off the
+     last one. The caller supplies the target because computing it needs the engine and the activity
+     multiplier, which live in app.jsx. */
+  var STREAK_CREDIT_DAYS = 400; // the longest run the app will ever count back (see streakEndingOn)
+
+  function softReset(state, opts) {
+    var o = opts || {};
+    var today = o.today || todayISO();
+    var now = o.now || Date.now();
+    var s = JSON.parse(JSON.stringify(state || defaultState()));
+
+    // Bank the streak FIRST, before the entries that prove it are thrown away. The streak is
+    // computed from the dates that carry a log, a weigh-in or a session (see activeDatesSet), so
+    // clearing two of those three would silently snap a run the user was told they had kept.
+    // Training dates are not banked: those logs survive the reset and are still read live.
+    var credit = {};
+    (s.streak_credit || []).forEach(function (d) { if (d) credit[d] = 1; });
+    (s.log_entries || []).forEach(function (e) { if (e && e.date) credit[e.date] = 1; });
+    (s.weight_entries || []).forEach(function (w) { if (w && w.date) credit[w.date] = 1; });
+    var floorDate = shiftISO(today, -STREAK_CREDIT_DAYS);
+    s.streak_credit = Object.keys(credit).filter(function (d) { return d > floorDate; }).sort();
+
+    s.log_entries = [];
+    s.weight_entries = [];
+    s.checkins = [];
+    s.targets = [];
+    s.day_overrides = {};
+    s.day_meals = {};
+    s.pending_adjustment = null;
+    s.diet_break = null;
+    s.last_break_end = null;
+    s.diet_break_snooze = null;
+    s.paused = false;
+    // The check-in clock restarts today, exactly as it does for a profile saved at onboarding: the
+    // first cycle of the new run begins now rather than being owed from a week that no longer exists.
+    s.last_checkin = today;
+
+    if (o.weightKg > 0) {
+      var kg = Math.round(o.weightKg * 100) / 100;
+      // One seed reading, so the first check-in has something to measure the new run against.
+      s.weight_entries = [{ id: uid(), date: today, scale_weight: kg, trend_weight: kg }];
+      if (s.profile) s.profile.weightKg = kg;
+    }
+    if (o.target) {
+      var t = Object.assign({}, o.target);
+      t.id = t.id || uid();
+      t.effective_date = today;
+      t.source = t.source || 'soft-reset';
+      s.targets = [t];
+    }
+
+    // The soft-reset watermark, the counterpart to _wipe. Without it the very next merge from a
+    // device that has not seen the reset unions the whole food log and every weigh-in back in.
+    s._soft = now;
+    s._rev = now;
+    return s;
+  }
+
+  // The collections a soft reset empties. A pre-soft-reset copy contributes nothing to these on a
+  // merge, and everything to the rest.
+  function withoutTracking(s) {
+    return Object.assign({}, s, {
+      log_entries: [], weight_entries: [], checkins: [], targets: [], day_overrides: {}, day_meals: {},
+    });
+  }
+
   // Union two arrays by a stable key, keeping the FIRST occurrence on conflict (callers pass the
   // authoritative array first). Anything without a key is kept as-is (never dropped).
   function unionBy(primary, secondary, keyFn) {
@@ -3072,6 +3162,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     var ra = (a && a._rev) || 0, rb = (b && b._rev) || 0;
     var newer = ra >= rb ? a : b, older = ra >= rb ? b : a;
+    // Soft-reset watermark, the narrower cousin of _wipe above. A soft reset stamps _soft = t and
+    // clears the tracking side only, so a copy that predates it must NOT be discarded wholesale the
+    // way a pre-wipe copy is: it may hold the only record of a gym session or a recipe saved offline.
+    // It loses exactly what the reset cleared and keeps its place in every other union, so the food
+    // log and the weigh-ins stay gone while nothing else the user built is collateral damage.
+    var soft = Math.max((a._soft || 0), (b._soft || 0));
+    if (soft) {
+      var preSoft = function (s) { return (s._soft || 0) < soft && (s._rev || 0) < soft; };
+      if (preSoft(newer)) newer = withoutTracking(newer);
+      if (preSoft(older)) older = withoutTracking(older);
+    }
     var out = JSON.parse(JSON.stringify(newer));
     var byId = function (e) { return e && e.id; };
     var byDate = function (e) { return e && e.date; };
@@ -3082,6 +3183,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     out.recipes        = unionBy(newer.recipes,        older.recipes,        byId);
     out.shopping_list  = unionBy(newer.shopping_list,  older.shopping_list,  byId);
     out.pantry         = Array.from(new Set([].concat(older.pantry || [], newer.pantry || [])));
+    // Streak credit is a bank of days already earned, so it unions like the pantry: a device that
+    // never saw a soft reset must not be able to un-bank the run the reset preserved.
+    out.streak_credit  = Array.from(new Set([].concat(older.streak_credit || [], newer.streak_credit || []))).sort();
     out.meal_plan      = unionBy(newer.meal_plan,      older.meal_plan,      byId);
     // Meal names/order: union by id so a rename or added meal on one device isn't lost to a
     // higher-_rev copy that never saw it. Removals are tombstoned at save time (see the settings
@@ -3257,6 +3361,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     }
     out._rev = Math.max(ra, rb);
     out._wipe = wipe; // carry the reset watermark forward so it keeps protecting later merges
+    if (soft) out._soft = soft; // likewise for the soft reset, or the next stale device undoes it
     return out;
   }
 
@@ -3271,6 +3376,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     load: load,
     save: save,
     reset: reset,
+    softReset: softReset,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Store;
@@ -13005,6 +13111,22 @@ function trainedDates(db) {
   (((db || {}).training || {}).logs || []).forEach(l => {
     if (l && l.dateISO) out.add(l.dateISO);
   });
+  return out;
+}
+// Every date that counts as ACTIVE for the streak, in ONE place: a food log, a weigh-in, a logged
+// session, or a day banked by a soft reset (Store.softReset). The three surfaces that draw a streak
+// - the dashboard number, its rolling week strip and the app-level streak the header and Play read -
+// each built this set by hand, which is how a soft reset that clears the food log and the weigh-ins
+// while promising to keep the run could have snapped it on two of the three and not the third.
+function activeDatesSet(db) {
+  const out = new Set(db && db.streak_credit || []);
+  (db && db.log_entries || []).forEach(e => {
+    if (e && e.date) out.add(e.date);
+  });
+  (db && db.weight_entries || []).forEach(w => {
+    if (w && w.date) out.add(w.date);
+  });
+  trainedDates(db).forEach(d => out.add(d));
   return out;
 }
 function cycleCoverage(db, todayISO) {
@@ -29001,8 +29123,7 @@ function Dashboard({
   // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
   // with a monthly freeze forgiving one miss.
   const frozenSet = new Set(db.freezes && db.freezes.frozen || []);
-  const trainSet = trainedDates(db);
-  const activeSet = new Set([...logSet, ...weighSet, ...trainSet]);
+  const activeSet = activeDatesSet(db);
   const streakInfo = computeStreak(activeSet, frozenSet, today, new Set(plannedActiveDates(db)));
   const streak = streakInfo.streak;
   // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
@@ -29342,7 +29463,7 @@ function Dashboard({
     const ft = E.fiberTarget(et.eff.kcal);
     // The rolling week of the streak, oldest first, on the same "counts as active" set computeStreak
     // uses - logged, weighed or trained, plus anything a freeze already covered.
-    const active = new Set([...(db.log_entries || []).map(e => e.date), ...(db.weight_entries || []).map(w => w.date), ...trainedDates(db)]);
+    const active = activeDatesSet(db);
     const frozen = new Set(db.freezes && db.freezes.frozen || []);
     const week = [];
     for (let i = 6; i >= 0; i--) {
@@ -40024,6 +40145,7 @@ function More({
   update,
   onSignOut,
   onReset,
+  onSoftReset,
   onDeleteAccount,
   onFreshStart,
   email,
@@ -40070,6 +40192,7 @@ function More({
   const [delBusy, setDelBusy] = useState(false);
   const [delErr, setDelErr] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
+  const [softOpen, setSoftOpen] = useState(false);
   const [legal, setLegal] = useState(null);
   const [feedback, setFeedback] = useState(false);
   async function doDelete() {
@@ -40298,9 +40421,15 @@ function More({
     onClick: () => setLegal('credits')
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1"
+  }, "Start again"), /*#__PURE__*/React.createElement(MenuRow, {
+    label: "Reset calories & weigh-ins",
+    desc: "Clear your food log, weigh-ins and check-ins, and re-anchor your plan from today. Keeps everything else",
+    onClick: () => setSoftOpen(true)
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1"
   }, "Danger zone"), /*#__PURE__*/React.createElement(MenuRow, {
     label: "Reset all data",
-    desc: "Wipe your data and start over, keeps your login",
+    desc: "Wipe everything, training and recipes included, and start over. Keeps your login",
     tone: "danger",
     onClick: () => setResetOpen(true)
   }), /*#__PURE__*/React.createElement(MenuRow, {
@@ -40314,9 +40443,23 @@ function More({
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-[#8A8A90]/70 pt-4 text-center"
-  }, BRAND, " · your data syncs to your account")), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
+  }, BRAND, " · your data syncs to your account")), softOpen && (() => {
+    // Say the number the new plan will be built on, rather than "your current weight". A restart
+    // anchored to a figure the user cannot see is the one thing they would want to check first.
+    const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
+    const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
+    const kg = latest && latest.scale_weight || db.profile && db.profile.weightKg || null;
+    const shown = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
+    return /*#__PURE__*/React.createElement(ConfirmDialog, {
+      title: "Reset calories & weigh-ins?",
+      body: 'This clears your food log, your weigh-ins and your check-in history, then re-anchors your calorie and macro targets from today' + (shown ? ', starting from your latest weigh-in of ' + shown : '') + '. Your training blocks and sessions, recipes, shopping list, saved meals and foods, your streak, your buddy, your Amber and everything you have unlocked all stay exactly as they are. This cannot be undone, so export your data first if you want a copy of the old log.',
+      confirmLabel: "Reset my numbers",
+      onConfirm: onSoftReset,
+      onClose: () => setSoftOpen(false)
+    });
+  })(), resetOpen && /*#__PURE__*/React.createElement(ConfirmDialog, {
     title: "Reset all data & start over?",
-    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy.",
+    body: "This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your calories and weigh-ins to start again, use Reset calories & weigh-ins above: it keeps your training, recipes, streak and buddy.",
     confirmLabel: "Reset everything",
     onConfirm: onReset,
     onClose: () => setResetOpen(false)
@@ -48760,6 +48903,41 @@ function App() {
     }
     setView('dashboard');
   }
+  // The soft reset: the calorie log and the weigh-in history start again, everything else stays.
+  // Store.softReset does the state surgery (and says what it keeps and why); the job here is to
+  // re-anchor the plan in the same breath, because a state with no target history has no plan at
+  // all. Same three moves as a goal change (GoalScreen.apply): take the weight the scale last
+  // actually saw, build the target on the LEARNED expenditure where we have a recent one rather
+  // than falling back to the formula, and start the check-in cycle from today.
+  function softReset() {
+    const today = Store.todayISO();
+    setDb(prev => {
+      const weighed = (prev.weight_entries || []).filter(w => w && w.scale_weight != null);
+      const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
+      const weightKg = latest && latest.scale_weight || prev.profile && prev.profile.weightKg || 0;
+      const prior = learnedTdee(prev, today);
+      const prof = withActivity(Object.assign({}, prev.profile, weightKg ? {
+        weightKg: +weightKg.toFixed(2)
+      } : {}));
+      const target = Object.assign(E.computeInitialTargets(prof, prior ? {
+        priorTdee: prior
+      } : undefined), {
+        source: 'soft-reset'
+      });
+      const n = Store.softReset(prev, {
+        today,
+        weightKg,
+        target
+      });
+      if (session) {
+        localSave(session.user.id, n);
+        cloudSave(session.user.id, n);
+      }
+      return n;
+    });
+    setView('dashboard');
+    showToast('Fresh start. Your training, recipes, streak and buddy are all exactly where you left them.');
+  }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
     // Server-side function verifies the caller's own JWT, then deletes their data + auth record.
@@ -48825,7 +49003,7 @@ function App() {
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
-  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date), ...trainedDates(db)]), new Set(db.freezes && db.freezes.frozen || []), _today, new Set(plannedActiveDates(db))).streak;
+  const appStreak = computeStreak(activeDatesSet(db), new Set(db.freezes && db.freezes.frozen || []), _today, new Set(plannedActiveDates(db))).streak;
   const appBuddy = Game.buddyView(db.buddy && db.buddy.stage || 0, appStreak);
   return /*#__PURE__*/React.createElement("div", {
     className: "lg:pl-56"
@@ -48952,6 +49130,7 @@ function App() {
     update: update,
     onSignOut: signOut,
     onReset: resetAll,
+    onSoftReset: softReset,
     onDeleteAccount: deleteAccount,
     onFreshStart: () => setFresh(true),
     email: session.user.email,

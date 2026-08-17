@@ -3260,6 +3260,18 @@ function trainedDates(db) {
   (((db || {}).training || {}).logs || []).forEach(l => { if (l && l.dateISO) out.add(l.dateISO); });
   return out;
 }
+// Every date that counts as ACTIVE for the streak, in ONE place: a food log, a weigh-in, a logged
+// session, or a day banked by a soft reset (Store.softReset). The three surfaces that draw a streak
+// - the dashboard number, its rolling week strip and the app-level streak the header and Play read -
+// each built this set by hand, which is how a soft reset that clears the food log and the weigh-ins
+// while promising to keep the run could have snapped it on two of the three and not the third.
+function activeDatesSet(db) {
+  const out = new Set((db && db.streak_credit) || []);
+  ((db && db.log_entries) || []).forEach(e => { if (e && e.date) out.add(e.date); });
+  ((db && db.weight_entries) || []).forEach(w => { if (w && w.date) out.add(w.date); });
+  trainedDates(db).forEach(d => out.add(d));
+  return out;
+}
 function cycleCoverage(db, todayISO) {
   const cs = cycleStartISO(db, todayISO);
   const days = Math.max(1, daysBetween(cs, todayISO) + 1);
@@ -11208,8 +11220,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
   // streak: consecutive ACTIVE days (food logged OR weighed in OR a session trained) ending today,
   // with a monthly freeze forgiving one miss.
   const frozenSet = new Set((db.freezes && db.freezes.frozen) || []);
-  const trainSet = trainedDates(db);
-  const activeSet = new Set([...logSet, ...weighSet, ...trainSet]);
+  const activeSet = activeDatesSet(db);
   const streakInfo = computeStreak(activeSet, frozenSet, today, new Set(plannedActiveDates(db)));
   const streak = streakInfo.streak;
   // Reward logging directly: the first log of each day mints a little Amber, so the daily habit visibly
@@ -11446,7 +11457,7 @@ function Dashboard({ db, update, onCheckIn, onReview, onWeigh, setView, onQuickA
     const ft = E.fiberTarget(et.eff.kcal);
     // The rolling week of the streak, oldest first, on the same "counts as active" set computeStreak
     // uses - logged, weighed or trained, plus anything a freeze already covered.
-    const active = new Set([...(db.log_entries || []).map(e => e.date), ...(db.weight_entries || []).map(w => w.date), ...trainedDates(db)]);
+    const active = activeDatesSet(db);
     const frozen = new Set((db.freezes && db.freezes.frozen) || []);
     const week = [];
     for (let i = 6; i >= 0; i--) { const d = shiftISO(today, -i); week.push(active.has(d) || frozen.has(d)); }
@@ -16210,7 +16221,7 @@ function FeedbackSheet({ email, onClose }) {
     </Sheet>
   );
 }
-function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
+function More({ db, update, onSignOut, onReset, onSoftReset, onDeleteAccount, onFreshStart, email, isAdmin, onOpenAdmin, sub, isPremium, aiCalls, onUpgrade, onManage, rewards, showToast, initialScreen, onConsumeInitial, onOpenProgress }) {
   const [tab, setTab] = useState('settings');
   const [screen, setScreen] = useState(initialScreen || null); // the open settings subscreen, or null for the overview
   // Consumed once, so arriving here later by the normal route lands on the overview.
@@ -16221,7 +16232,7 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
   const freeLeft = Math.max(0, FREE_AI_MONTHLY - (aiCalls || 0));
   const [guide, setGuide] = useState(false);
   const [delOpen, setDelOpen] = useState(false); const [delText, setDelText] = useState(''); const [delBusy, setDelBusy] = useState(false); const [delErr, setDelErr] = useState('');
-  const [resetOpen, setResetOpen] = useState(false); const [legal, setLegal] = useState(null);
+  const [resetOpen, setResetOpen] = useState(false); const [softOpen, setSoftOpen] = useState(false); const [legal, setLegal] = useState(null);
   const [feedback, setFeedback] = useState(false);
   async function doDelete() { setDelBusy(true); setDelErr(''); try { await onDeleteAccount(); } catch (e) { setDelErr(e.message || 'Something went wrong.'); setDelBusy(false); } }
   function exportData() {
@@ -16302,13 +16313,33 @@ function More({ db, update, onSignOut, onReset, onDeleteAccount, onFreshStart, e
         <MenuRow label="Health disclaimer" desc="Macrosaurus is not medical advice" onClick={() => setLegal('health')} />
         <MenuRow label="Credits" desc="The artists behind the icons" onClick={() => setLegal('credits')} />
 
+        {/* Two ways to start again, and the gentle one comes first on purpose. Somebody whose run
+            went sideways wants their calories and their scale history to start over, not to lose the
+            training blocks, cookbook, buddy and streak they have spent months building - and if the
+            only button on offer erases all of it, that is the button they end up pressing. */}
+        <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Start again</div>
+        <MenuRow label="Reset calories & weigh-ins" desc="Clear your food log, weigh-ins and check-ins, and re-anchor your plan from today. Keeps everything else" onClick={() => setSoftOpen(true)} />
+
         <div className="text-[11px] uppercase tracking-widest text-[#8A8A90] pt-4 pb-1 px-1">Danger zone</div>
-        <MenuRow label="Reset all data" desc="Wipe your data and start over, keeps your login" tone="danger" onClick={() => setResetOpen(true)} />
+        <MenuRow label="Reset all data" desc="Wipe everything, training and recipes included, and start over. Keeps your login" tone="danger" onClick={() => setResetOpen(true)} />
         <MenuRow label="Delete account" desc="Permanently remove your account and all data" tone="danger" onClick={() => { setDelOpen(true); setDelText(''); setDelErr(''); }} />
 
         <div className="text-[11px] text-[#8A8A90]/70 pt-4 text-center">{BRAND} · your data syncs to your account</div>
       </div>}
-      {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
+      {softOpen && (() => {
+        // Say the number the new plan will be built on, rather than "your current weight". A restart
+        // anchored to a figure the user cannot see is the one thing they would want to check first.
+        const weighed = (db.weight_entries || []).filter(w => w && w.scale_weight != null);
+        const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
+        const kg = (latest && latest.scale_weight) || (db.profile && db.profile.weightKg) || null;
+        const shown = kg != null ? fmtWeight(kg, db.profile && db.profile.weight_unit) : null;
+        return <ConfirmDialog title="Reset calories & weigh-ins?"
+          body={'This clears your food log, your weigh-ins and your check-in history, then re-anchors your calorie and macro targets from today'
+            + (shown ? ', starting from your latest weigh-in of ' + shown : '')
+            + '. Your training blocks and sessions, recipes, shopping list, saved meals and foods, your streak, your buddy, your Amber and everything you have unlocked all stay exactly as they are. This cannot be undone, so export your data first if you want a copy of the old log.'}
+          confirmLabel="Reset my numbers" onConfirm={onSoftReset} onClose={() => setSoftOpen(false)} />;
+      })()}
+      {resetOpen && <ConfirmDialog title="Reset all data & start over?" body="This wipes your profile, food log, weigh-ins and history, then returns you to setup. Your login stays. This cannot be undone, so export your data first if you want a copy. If you only want your calories and weigh-ins to start again, use Reset calories & weigh-ins above: it keeps your training, recipes, streak and buddy." confirmLabel="Reset everything" onConfirm={onReset} onClose={() => setResetOpen(false)} />}
       {legal && <LegalDoc doc={legal} onClose={() => setLegal(null)} />}
       {delOpen && <div className="fixed inset-0 z-[85] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setDelOpen(false); setDelErr(''); }}>
         <div className="w-full max-w-sm pixel-box p-5 fade-in" style={{ background: '#0F0F12' }} onClick={e => e.stopPropagation()}>
@@ -19543,6 +19574,28 @@ function App() {
   }
   async function signOut() { if (supa) await supa.auth.signOut(); setDb(null); setView('dashboard'); }
   function resetAll() { const prevKey = (db && db.profile && db.profile.aiKey) || ''; const f2 = Store.defaultState(); f2.aiKey = prevKey; const t = Date.now(); f2._wipe = t; f2._rev = t; setDb(f2); if (session) { localSave(session.user.id, f2); cloudSave(session.user.id, f2); } setView('dashboard'); }
+  // The soft reset: the calorie log and the weigh-in history start again, everything else stays.
+  // Store.softReset does the state surgery (and says what it keeps and why); the job here is to
+  // re-anchor the plan in the same breath, because a state with no target history has no plan at
+  // all. Same three moves as a goal change (GoalScreen.apply): take the weight the scale last
+  // actually saw, build the target on the LEARNED expenditure where we have a recent one rather
+  // than falling back to the formula, and start the check-in cycle from today.
+  function softReset() {
+    const today = Store.todayISO();
+    setDb(prev => {
+      const weighed = (prev.weight_entries || []).filter(w => w && w.scale_weight != null);
+      const latest = weighed.length ? weighed.slice().sort((x, y) => x.date.localeCompare(y.date))[weighed.length - 1] : null;
+      const weightKg = (latest && latest.scale_weight) || (prev.profile && prev.profile.weightKg) || 0;
+      const prior = learnedTdee(prev, today);
+      const prof = withActivity(Object.assign({}, prev.profile, weightKg ? { weightKg: +weightKg.toFixed(2) } : {}));
+      const target = Object.assign(E.computeInitialTargets(prof, prior ? { priorTdee: prior } : undefined), { source: 'soft-reset' });
+      const n = Store.softReset(prev, { today, weightKg, target });
+      if (session) { localSave(session.user.id, n); cloudSave(session.user.id, n); }
+      return n;
+    });
+    setView('dashboard');
+    showToast('Fresh start. Your training, recipes, streak and buddy are all exactly where you left them.');
+  }
   async function deleteAccount() {
     if (!supa) throw new Error('Account deletion needs an internet connection.');
     // Server-side function verifies the caller's own JWT, then deletes their data + auth record.
@@ -19580,7 +19633,7 @@ function App() {
   const meals = mealsForDay(db, Store.todayISO());
   // App-level streak so the Play hub (Macrodex) can open from the header/sidebar, not just the dashboard.
   const _today = Store.todayISO();
-  const appStreak = computeStreak(new Set([...db.log_entries.map(e => e.date), ...db.weight_entries.map(w => w.date), ...trainedDates(db)]), new Set((db.freezes && db.freezes.frozen) || []), _today, new Set(plannedActiveDates(db))).streak;
+  const appStreak = computeStreak(activeDatesSet(db), new Set((db.freezes && db.freezes.frozen) || []), _today, new Set(plannedActiveDates(db))).streak;
   const appBuddy = Game.buddyView((db.buddy && db.buddy.stage) || 0, appStreak);
   return (
     <div className="lg:pl-56">
@@ -19608,7 +19661,7 @@ function App() {
         importUrl={trainImport} onConsumeImport={() => setTrainImport(null)}
         onUpgrade={(feature) => { setPaywall({ reason: feature || 'training' }); window.MTRACK && MTRACK('paywall_view', { reason: feature || 'training' }); }} />}
       {view === 'goals' && <Goals onBack={() => setView('more')} db={db} update={update} showToast={showToast} onCheckIn={() => setCheckingIn(true)} onWeigh={() => setWeighing(true)} onEditPlan={() => { setSettingScreen('goal'); setView('more'); }} />}
-      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
+      {view === 'more' && <More onOpenProgress={() => setView('goals')} db={db} update={update} onSignOut={signOut} onReset={resetAll} onSoftReset={softReset} onDeleteAccount={deleteAccount} onFreshStart={() => setFresh(true)} email={session.user.email} isAdmin={isAdmin} onOpenAdmin={() => setView('admin')} sub={sub} isPremium={isPremium} aiCalls={aiCalls} onUpgrade={() => { setPaywall({ reason: 'manual' }); window.MTRACK && MTRACK('paywall_view', { reason: 'menu' }); }} onManage={openPortal} rewards={rewards} showToast={showToast} initialScreen={settingScreen} onConsumeInitial={() => setSettingScreen(null)} />}
       {view === 'admin' && isAdmin && <AdminPanel onBack={() => setView('more')} adminEmail={session.user.email} update={update} />}
       {/* Hidden while a workout is being logged: the session player is a focused mode, so the tab
           bar and the centre Add button get out of the way of the one control that matters there. */}
