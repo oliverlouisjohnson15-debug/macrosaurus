@@ -238,7 +238,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   // already filled in, so the share lands one tap from being read.
   useEffect(() => {
     if (!importUrl) return;
-    setScreen({ name: 'import', url: importUrl });
+    setScreen({ name: 'wizard', url: importUrl });
     onConsumeImport && onConsumeImport();
   }, [importUrl]);
 
@@ -285,26 +285,23 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'wizard') {
     return page(<BlockWizard db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      onBack={() => go('home')} onDraft={(draft) => go('builder', { draft })} onShots={() => go('draft')} />);
-  }
-  if (screen.name === 'import') {
-    return page(<WorkoutImport db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
       initialUrl={screen.url}
-      onBack={() => go(screen.from || 'home')} onDraft={(draft) => go('builder', { draft })}
-      onCollected={() => go('draft')} />);
+      onBack={() => go(screen.from || 'home')}
+      onDraft={(draft, opts) => go('builder', Object.assign({ draft: draft }, opts))} onShots={() => go('draft')} />);
   }
   if (screen.name === 'draft') {
     return page(<BlockDraft db={db} update={update} showToast={showToast} isPremium={isPremium} onUpgrade={onUpgrade}
-      onBack={() => go('home')} onImport={() => go('import', { from: 'draft' })}
+      onBack={() => go('home')} onImport={() => go('wizard', { from: 'draft' })}
       onBuild={(draft) => {
         // The draft's days become week 1 and the block is written on top, exactly as a single
-        // import would be. Nothing about a multi-source block is a different code path.
-        //
-        // 'as-written' rather than the app's own periodisation, because these days came off somebody
-        // else's plan. Adding a set a week to a programme built on two hard sets is not building on
-        // it, it is disagreeing with it, and the person chose that coach over us.
+        // build would be - nothing about a multi-source block is a different code path. It takes
+        // the source as INSPIRATION, same as a single import now does: our progression and the
+        // house intensity apply on top, at whatever shape and style the wizard was last set to,
+        // rather than freezing the numbers a screenshot happened to show.
+        const prefs = tdb(db).prefs || {};
         const block = Training.blockFromTemplate(draft.days, {
-          weeks: 4, shape: 'as-written', targets: trainTargets(db), custom: tdb(db).custom,
+          weeks: 4, shape: prefs.shape || 'build4', intensity: prefs.intensity || 'high',
+          targets: trainTargets(db), custom: tdb(db).custom,
           name: draft.name || 'My block', source: 'import', startISO: Store.todayISO(),
           sourceRef: { kind: 'draft', days: draft.days.length, importedISO: Store.todayISO() },
         });
@@ -318,8 +315,7 @@ function TrainTab({ db, update, showToast, isPremium, onUpgrade, onFocusMode, im
   }
   if (screen.name === 'blocks') {
     return page(<BlockList db={db} update={update} showToast={showToast}
-      onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard')}
-      onImport={() => go('import', { from: 'blocks' })}
+      onBack={() => go('home')} onOpen={(blockId) => go('builder', { blockId, from: 'blocks' })} onNew={() => go('wizard', { from: 'blocks' })}
       onCoverage={(blockId) => go('coverage', { blockId, from: 'blocks' })}
       onReview={(blockId) => go('review', { blockId, from: 'blocks' })}
       onStart={(blk) => {
@@ -537,7 +533,6 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
             Build a 4-week block
           </button>
           <div className="flex gap-2 mb-2">
-            <button onClick={() => go('import')} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Import one</button>
             <button onClick={() => go('library')} className="pixel-box flex-1 h-11 text-[12px]" style={{ background: 'var(--surface2)' }}>Browse blocks</button>
           </div>
           <button onClick={() => setWhyEmpty(true)} className="w-full py-2 text-[12px]" style={{ color: 'var(--accent-ink)' }}>
@@ -613,17 +608,15 @@ function TrainHome({ db, update, showToast, isPremium, onUpgrade, block, onOpen,
         </div>
       )}
 
-      {/* ---- where new blocks come from. Three routes, given equal weight, because which one a
-              person reaches for depends entirely on whether they already follow a coach. ---- */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      {/* ---- where new blocks come from. One route in now: bringing a source (a reel, a PDF, a
+              screenshot) and building from scratch are the same wizard, not a choice between two
+              screens - the wizard itself asks whether you have something to bring. ---- */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
         <button onClick={() => go('library')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
           Browse<br />blocks
         </button>
-        <button onClick={() => go('import')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
-          Import<br />a plan
-        </button>
         <button onClick={() => go('wizard')} className="pixel-box py-3 px-1 text-[11.5px] leading-tight" style={{ background: 'var(--surface2)' }}>
-          Build<br />with AI
+          Build<br />a block
         </button>
       </div>
 
@@ -1989,14 +1982,23 @@ function CustomExercise({ db, update, initialName, basedOn, onDone, onClose }) {
 // ---- block wizard -----------------------------------------------------------------------------
 // Free users get the whole thing built deterministically from their equipment and days. Premium
 // adds the AI pass that swaps in movements suited to what they actually like doing.
-function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDraft, onShots }) {
+// ---- the one way in: bring something or don't, answer a few questions, build ------------------
+// Used to be two screens competing for the same job: "Import a plan" read a source and froze its
+// numbers exactly as written; "Build with AI" started from nothing. But nobody who has a PDF wants
+// a SEPARATE "generate one" option once they have brought it, and nobody starting from nothing
+// wants to be asked which screen that is. So: one wizard. Bring a source or skip that step
+// entirely, answer how many days and how hard, and it builds - taking a source as INSPIRATION
+// (exercise selection, day structure, character) with our own progression and house intensity
+// applied on top, not a photocopy of someone else's numbers.
+function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDraft, onShots, initialUrl }) {
   useBackClose(onBack);
   const t = tdb(db);
   const draftDays = ((t.draft && t.draft.days) || []).length;
   const [whyEmpty, setWhyEmpty] = useState(false);
   const [days, setDays] = useState(t.prefs.daysPerWeek || 4);
   const [goal, setGoal] = useState('hypertrophy');
-  const [shape, setShape] = useState('build4');
+  const [shape, setShape] = useState(t.prefs.shape || 'build4');
+  const [intensity, setIntensity] = useState(t.prefs.intensity || 'high');
   const [minutes, setMinutes] = useState(t.prefs.sessionMinutes || 60);
   const [experience, setExperience] = useState(t.prefs.experience || 'intermediate');
   const [equipment, setEquipment] = useState(t.prefs.equipment || []);
@@ -2007,58 +2009,84 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   const [wish, setWish] = useState('');
   const [wishNote, setWishNote] = useState(null);
   const [wishBusy, setWishBusy] = useState(false);
-  const [shotBusy, setShotBusy] = useState('');
-  const [shotNote, setShotNote] = useState(null);
-  const [shotErr, setShotErr] = useState(false);
-  const [shotCtx, setShotCtx] = useState('');
-  const [shotFails, setShotFails] = useState([]);   // the files that did not read, kept so they can be retried
+  // The intake tabs. A file (screenshot, PDF, spreadsheet, plain text) is the common case and comes
+  // first; a shared reel is second because the link is usually already on the clipboard; paste is
+  // the fallback when neither exists as a file. All three land in the same place: the draft basket.
+  const [tab, setTab] = useState(() => initialUrl ? 'link' : 'file');
+  const [url, setUrl] = useState(initialUrl || '');
+  const [text, setText] = useState('');
+  const [ctx, setCtx] = useState('');
+  const [readBusy, setReadBusy] = useState('');
+  const [readNote, setReadNote] = useState(null);
+  const [readErr, setReadErr] = useState(false);
+  const [fails, setFails] = useState([]);   // files that did not read, kept so they can be retried
 
-  // Read one or more screenshots of sessions into the draft basket. Each image is read on its own,
-  // because a screenshot is one session: batching them into a single call would blur four days into
-  // one soup and lose which movement belonged to which day.
+  // Fold a parse's result into the draft basket: the days, any custom exercises it had to guess at
+  // (see Training.importTemplate), and everything worth a second look. One place both the batched
+  // file reader and the single-shot link/paste readers write through, so there is exactly one way a
+  // source becomes part of the draft rather than two slightly different ones.
+  function mergeIntoDraft(tr, parts) {
+    const d = tr.draft || { name: (parts[0].parsed && parts[0].parsed.name) || 'My block', days: [] };
+    parts.forEach(p => Training.mergeDraftDays(d.days, p.res.template, p.sourceRef));
+    const newCustom = parts.reduce((a, p) => a.concat((p.res && p.res.newCustom) || []), []);
+    if (newCustom.length) tr.custom = (tr.custom || []).concat(newCustom);
+    const gather = (k) => parts.reduce((a, p) => a.concat((p.res && p.res[k]) || []), []);
+    d.unresolved = (d.unresolved || []).concat(gather('unresolved'));
+    d.mismatches = (d.mismatches || []).concat(gather('mismatches'));
+    d.loose = (d.loose || []).concat(gather('loose'));
+    d.weekLabel = d.weekLabel || parts.map(p => p.res && p.res.weekLabel).filter(Boolean)[0] || null;
+    d.source = 'import';
+    tr.draft = d;
+  }
+
+  // Read one or more files into the draft basket. Each is read on its own, because a screenshot or
+  // a page is one session: batching them into a single call would blur four days into one soup and
+  // lose which movement belonged to which day. A single PDF holding a whole programme is still one
+  // file and one read - `days` tells the model which of its day-count tracks to pull, or how to
+  // adapt a single track to fit, so the FIRST upload can already be the whole thing.
   //
   // Three things this has to survive, all of which it did not before. A single hung request used to
   // stall the whole run with no way out, so every read has a deadline and one retry. Five reads in a
   // row is minutes of staring at a button, so they run a few at a time and the label counts what has
   // FINISHED rather than what has started. And a file that fails is named and offered back, instead
   // of disappearing into an anonymous tally.
-  async function readShots(files) {
+  async function readFiles(files) {
     const list = Array.from(files || []);
     if (!list.length) return;
     if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
-    const ctx = shotCtx;
-    setShotErr(false); setShotNote(null); setShotFails([]);
+    const note = ctx;
+    setReadErr(false); setReadNote(null); setFails([]);
     let done = 0;
-    const label = () => setShotBusy('Read ' + done + ' of ' + list.length + '...');
+    const label = () => setReadBusy('Read ' + done + ' of ' + list.length + '...');
     label();
 
     async function readOne(file) {
-      const content = withImportNote((await workoutContentFromFile(file)).blocks, ctx);
+      const content = withImportNote((await workoutContentFromFile(file)).blocks, note);
       // One retry, because the failure this catches is a dropped request rather than an unreadable
-      // picture, and re-uploading five screenshots to fix one of them is a miserable ask.
+      // file, and re-uploading five of them to fix one is a miserable ask.
       let parsed;
       try {
-        parsed = await aiParseWorkout(content, { timeoutMs: 90000 });
+        parsed = await aiParseWorkout(content, { timeoutMs: 90000, days });
       } catch (e) {
         if (e && e.aiError) throw e;              // a paywall or a quota is not worth asking twice
-        parsed = await aiParseWorkout(content, { timeoutMs: 90000 });
+        parsed = await aiParseWorkout(content, { timeoutMs: 90000, days });
       }
       const res = Training.importTemplate(parsed, { custom: t.custom });
       if (!res.template.length) throw new Error('nothing readable in it');
-      return { parsed: parsed, res: res, template: res.template, file: file };
+      return { parsed: parsed, res: res, sourceRef: { kind: 'file', name: file.name || 'a file' } };
     }
 
     // Results are collected in upload order and written once at the end, so the days land in the
     // order they were picked however the reads happen to finish, and the draft is saved once.
     const results = new Array(list.length).fill(null);
-    const fails = [];
+    const fails2 = [];
     let cursor = 0;
     async function worker() {
       for (;;) {
         const i = cursor++;
         if (i >= list.length) return;
         try { results[i] = await readOne(list[i]); }
-        catch (e) { fails.push({ file: list[i], why: (e && e.message) || 'could not be read' }); }
+        catch (e) { fails2.push({ file: list[i], why: (e && e.message) || 'could not be read' }); }
         done++; label();
       }
     }
@@ -2067,37 +2095,63 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     const got = results.filter(Boolean);
     // Counted out here, not inside the updater: trainUpdate hands React a function it runs when it
     // pleases, so anything tallied in there is still zero by the time the message below reads it.
-    const added = got.reduce((a, r) => a + r.template.length, 0);
-    if (got.length) {
-      trainUpdate(update, (tr) => {
-        const d = tr.draft || { name: (got[0].parsed && got[0].parsed.name) || 'My block', days: [] };
-        got.forEach(r => Training.mergeDraftDays(d.days, r.template, { kind: 'file', name: r.file.name || 'screenshot' }));
-        // Everything the read was unsure about rides along with the draft, so the review screen can
-        // show it. A movement the library could not place used to be dropped here without a word,
-        // which is how three of Day 3's seven went missing in silence; a movement matched to the
-        // wrong piece of kit is worse still, because the day looks right and you find out in the gym.
-        const gather = (k) => got.reduce((a, r) => a.concat((r.res && r.res[k]) || []), []);
-        d.unresolved = (d.unresolved || []).concat(gather('unresolved'));
-        d.mismatches = (d.mismatches || []).concat(gather('mismatches'));
-        d.loose = (d.loose || []).concat(gather('loose'));
-        d.weekLabel = d.weekLabel || got.map(r => r.res && r.res.weekLabel).filter(Boolean)[0] || null;
-        d.source = 'import';
-        tr.draft = d;
-      });
-    }
-    setShotBusy('');
-    setShotFails(fails);
+    const added = got.reduce((a, r) => a + r.res.template.length, 0);
+    if (got.length) trainUpdate(update, (tr) => mergeIntoDraft(tr, got));
+    setReadBusy('');
+    setFails(fails2);
     if (!added) {
-      setShotErr(true);
-      setShotNote('I could not read a session out of ' + (list.length === 1 ? 'that' : 'those') + '. A screenshot showing the exercise names, sets and reps works best.');
+      setReadErr(true);
+      setReadNote('I could not read a session out of ' + (list.length === 1 ? 'that' : 'those') + '. A file or screenshot showing the exercise names, sets and reps works best.');
       return;
     }
-    setShotErr(false);
-    setShotNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft block'
-      + (fails.length ? ', and ' + fails.length + ' I could not read: ' + fails.map(f => f.file.name || 'a screenshot').join(', ') + '.' : '.')
-      + (fails.length ? ' Try those again, or open the draft to build what did read.' : ' Add more, or open the draft to build it.'));
-    if (!fails.length) onShots && onShots();
+    setReadErr(false);
+    setReadNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft'
+      + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.')
+      + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
   }
+
+  // Link and paste are single sources, read the same way but without the batching a pile of files
+  // needs. Both land in the same draft basket as a file would. Named distinctly from readFiles'
+  // OWN internal readOne (per-file, batched) so the two are never mistaken for each other.
+  async function readSingleSource(getContent, sourceRef, busyLabel) {
+    if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
+    setReadErr(false); setReadNote(null); setReadBusy(busyLabel || 'Reading it');
+    try {
+      const content = withImportNote(await getContent(), ctx);
+      setReadBusy('Working out what it says');
+      const parsed = await aiParseWorkout(content, { timeoutMs: 120000, days });
+      const res = Training.importTemplate(parsed, { custom: t.custom });
+      if (!res.template.length) {
+        setReadErr(true);
+        setReadNote('I could not find any exercises in that. If it is a video where the plan is only spoken over music, a screenshot of the plan usually works better.');
+        setReadBusy(''); return;
+      }
+      trainUpdate(update, (tr) => mergeIntoDraft(tr, [{ parsed: parsed, res: res, sourceRef: sourceRef }]));
+      setReadBusy('');
+      setReadNote(res.template.length + (res.template.length === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.');
+    } catch (e) {
+      setReadErr(true);
+      setReadNote((e && e.message) || 'That did not work. Try another way in.');
+      setReadBusy('');
+    }
+  }
+  function readLink() {
+    const u = url.trim();
+    if (!u) return;
+    readSingleSource(async () => {
+      const src = await extractRecipeSource(u);
+      if (!src || !src.ok || !src.sourceText) {
+        throw new Error('I could not read anything public behind that link. Paste the caption in, or upload a screenshot of the plan.');
+      }
+      return [{ type: 'text', text: 'This was read from a shared ' + (src.platform || 'social') + ' post. It may include the caption and what the creator says out loud.\n\n' + String(src.sourceText).slice(0, 24000) }];
+    }, { kind: 'link', url: u }, 'Reading the post');
+  }
+  function readPaste() {
+    const v = text.trim();
+    if (!v) return;
+    readSingleSource(async () => [{ type: 'text', text: 'A training plan, pasted in by the person who wants to follow it.\n\n' + v.slice(0, 24000) }], { kind: 'paste' }, 'Reading it');
+  }
+
   const EQUIP = [['barbell', 'Barbell'], ['dumbbell', 'Dumbbells'], ['machine', 'Machines'], ['cable', 'Cables'], ['bodyweight', 'Bodyweight'], ['smith', 'Smith'], ['ez', 'EZ bar'], ['kettlebell', 'Kettlebell'], ['trapbar', 'Trap bar']];
 
   // Say it in a sentence and the coach fills the form in. Deliberately fills the FORM rather than
@@ -2106,7 +2160,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
   async function askCoach() {
     const v = wish.trim();
     if (!v) return;
-    if (!isPremium) { onUpgrade && onUpgrade('block_generate'); return; }
+    if (!isPremium) { onUpgrade && onUpgrade('workout_import'); return; }
     setWishBusy(true); setWishNote(null);
     try {
       const r = await aiParseTrainingWish(v);
@@ -2124,22 +2178,37 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
     setWishBusy(false);
   }
 
+  // Build from whatever is in the draft basket if anything is, else from the form alone. Either way
+  // this is the ONE build action: a source is inspiration the engine periodises on top of, at
+  // whatever shape and intensity are set below, not a frozen photocopy of someone else's numbers.
   function build() {
     setBusy(true);
     const targets = Training.defaultTargets({ experience: experience, volumeTargets: t.volumeTargets });
-    const block = Training.generateBlock({
-      daysPerWeek: days, weeks: 4, shape: shape, goal: goal, targets: targets,
-      gym: gym, equipment: equipment.length ? equipment : null,
-      dislikes: t.prefs.dislikes, custom: t.custom,
-      sessionMinutes: minutes, emphasis: emphasis, source: 'generated',
-    });
+    let block;
+    if (draftDays > 0) {
+      block = Training.blockFromTemplate(t.draft.days, {
+        weeks: 4, shape: shape, intensity: intensity, targets: targets, custom: t.custom,
+        name: t.draft.name || 'My block', source: 'import', startISO: null,
+        sourceRef: { kind: 'draft', days: t.draft.days.length, importedISO: Store.todayISO() },
+      });
+    } else {
+      block = Training.generateBlock({
+        daysPerWeek: days, weeks: 4, shape: shape, intensity: intensity, goal: goal, targets: targets,
+        gym: gym, equipment: equipment.length ? equipment : null,
+        dislikes: t.prefs.dislikes, custom: t.custom,
+        sessionMinutes: minutes, emphasis: emphasis, source: 'generated',
+      });
+    }
     block.gymId = gym ? gym.id : null;
     // Remember the answers, so the next block does not ask again.
     trainUpdate(update, (tr) => {
-      tr.prefs = Object.assign({}, tr.prefs, { daysPerWeek: days, sessionMinutes: minutes, experience: experience, equipment: equipment });
+      tr.prefs = Object.assign({}, tr.prefs, {
+        daysPerWeek: days, sessionMinutes: minutes, experience: experience, equipment: equipment,
+        shape: shape, intensity: intensity,
+      });
     });
     setBusy(false);
-    onDraft(block);
+    onDraft(block, { clearDraft: draftDays > 0 });
   }
 
   return (
@@ -2152,38 +2221,72 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </div>
       </Collapsible>
 
-      {/* Three routes in, in the order people actually have something to hand. A screenshot of what
-          you already do beats describing it, and describing it beats filling in a form. */}
+      {/* Bringing something beats describing it, and describing it beats filling in a form - so this
+          sits first, and it is entirely optional: skip straight to the questions below for a block
+          built from nothing. Whatever comes in here is INSPIRATION, not a photocopy: the engine
+          still owns the numbers, at the shape and intensity chosen further down. */}
       <Card className="p-4 mb-4">
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Show the coach</div>
+        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--accent-ink)' }}>Bring a programme (optional)</div>
         <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          Sessions you already do, from any app or a coach's message. Add as many as you like.
+          A PDF, a spreadsheet, a coach's message, a reel, or just the text. Set the day count below first if the source offers more than one version, so I pull the right one. Skip this entirely and I will write you one from nothing.
         </div>
+
+        <div className="mb-4"><Pill value={tab} onChange={setTab} options={[{ v: 'file', l: 'File' }, { v: 'link', l: 'Link' }, { v: 'paste', l: 'Paste' }]} /></div>
+
         {/* The note sits ABOVE the picker, because on a phone the file chooser takes over the screen
             the moment you tap it and whatever you meant to type never gets typed. */}
         <Field label="Anything I should know" hint={IMPORT_NOTE_HINT}>
-          <textarea value={shotCtx} onChange={e => setShotCtx(e.target.value)} rows={2}
-            placeholder="These are Mon to Fri, in order. Ignore the cardio at the bottom."
+          <textarea value={ctx} onChange={e => setCtx(e.target.value)} rows={2}
+            placeholder="This is the 5 day option. Weights are in pounds."
             className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
         </Field>
-        <label className={'pixel-box flex items-center justify-center h-12 text-[12.5px] ' + (shotBusy ? 'opacity-60' : 'cursor-pointer')} style={{ background: 'var(--surface2)' }}>
-          {shotBusy || (isPremium ? 'Upload screenshots' : 'Upload screenshots · Premium')}
-          <input type="file" className="hidden" accept="image/*" multiple disabled={!!shotBusy}
-            onChange={e => { readShots(e.target.files); e.target.value = ''; }} />
-        </label>
-        {shotBusy && (
-          <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>
-            Each screenshot is read on its own so the days stay separate, so a handful takes a moment.
+
+        {tab === 'file' && (
+          <label className={'pixel-box flex items-center justify-center h-12 text-[12.5px] ' + (readBusy ? 'opacity-60' : 'cursor-pointer')} style={{ background: 'var(--surface2)' }}>
+            {readBusy || (isPremium ? 'Choose file(s)' : 'Choose file(s) · Premium')}
+            <input type="file" className="hidden" accept=".pdf,.xlsx,.csv,.tsv,.txt,.md,image/*" multiple disabled={!!readBusy}
+              onChange={e => { readFiles(e.target.files); e.target.value = ''; }} />
+          </label>
+        )}
+        {tab === 'link' && (
+          <div className="flex gap-2">
+            <div className="flex-1"><TextInput value={url} onChange={e => setUrl(e.target.value)} placeholder="Instagram, TikTok or YouTube link" /></div>
+            <button onClick={readLink} disabled={!!readBusy || !url.trim()} className="pixel-box px-4 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+              {readBusy || 'Read it'}
+            </button>
           </div>
         )}
-        {shotNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: shotErr ? 'var(--danger)' : 'var(--accent-ink)' }}>{shotNote}</div>}
+        {tab === 'paste' && (
+          <div>
+            <textarea value={text} onChange={e => setText(e.target.value)} rows={6}
+              placeholder={'Monday - Push\nBench press 4x6-8\nIncline DB press 3x10\n...'}
+              className="w-full pixel-box px-3 py-3 text-[13px] mb-2" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
+            <button onClick={readPaste} disabled={!!readBusy || !text.trim()} className="pixel-box w-full h-11 text-[12.5px]" style={{ background: 'var(--surface2)' }}>
+              {readBusy || 'Read it'}
+            </button>
+          </div>
+        )}
+
+        {readBusy && (
+          <div className="text-[11px] mt-2 leading-snug" style={{ color: 'var(--muted2)' }}>
+            Each file is read on its own so the days stay separate, so a handful takes a moment.
+          </div>
+        )}
+        {readNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: readErr ? 'var(--danger)' : 'var(--accent-ink)' }}>{readNote}</div>}
         {/* Whatever failed is still in memory, so retrying is a tap rather than another trip through
-            the photo picker hunting for which four of the five already worked. */}
-        {!shotBusy && shotFails.length > 0 && (
-          <button onClick={() => readShots(shotFails.map(f => f.file))}
+            the file picker hunting for which four of the five already worked. */}
+        {!readBusy && fails.length > 0 && (
+          <button onClick={() => readFiles(fails.map(f => f.file))}
             className="pixel-box w-full h-11 text-[12px] mt-2" style={{ background: 'var(--surface2)' }}>
-            Try {shotFails.length === 1 ? 'that one' : 'those ' + shotFails.length} again
+            Try {fails.length === 1 ? 'that one' : 'those ' + fails.length} again
           </button>
+        )}
+
+        {draftDays > 0 && (
+          <div className="text-[12px] mt-3 pt-3 leading-snug border-t" style={{ borderColor: 'var(--border)', color: 'var(--text2)' }}>
+            {draftDays} {draftDays === 1 ? 'day' : 'days'} in your draft so far.{' '}
+            <button onClick={onShots} className="underline" style={{ color: 'var(--accent-ink)' }}>Review it</button>
+          </div>
         )}
       </Card>
 
@@ -2198,7 +2301,7 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         {wishNote && <div className="text-[12px] mt-2 leading-snug" style={{ color: 'var(--accent-ink)' }}>{wishNote}</div>}
       </Card>
 
-      <Field label="Days a week">
+      <Field label="Days a week" hint="Also which track I pull from a source that offers more than one.">
         <Seg value={days} onChange={setDays} options={[2, 3, 4, 5, 6].map(n => ({ v: n, l: String(n) }))} />
       </Field>
       <Field label="How long a session" hint="Decides how many movements fit.">
@@ -2210,8 +2313,20 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
       <Field label="Goal">
         <Seg value={goal} onChange={setGoal} options={[{ v: 'hypertrophy', l: 'Muscle' }, { v: 'strength', l: 'Strength' }, { v: 'general', l: 'General' }]} />
       </Field>
+      {/* The house default: high intensity, lower volume, training close to failure - what the
+          research on proximity to failure and the reference programmes this app is built from both
+          point at. A real choice, not a hidden constant: pick moderate for more sets and effort that
+          stops a few reps short every week instead. */}
+      <Field label="Training intensity" hint={intensity === 'high'
+        ? 'High intensity, lower volume: fewer sets, closer to true failure by the last week. Our default.'
+        : 'More volume, moderate effort: more sets, always a rep or two in reserve.'}>
+        <Seg value={intensity} onChange={setIntensity} options={[{ v: 'high', l: 'High intensity (default)' }, { v: 'moderate', l: 'More volume' }]} />
+      </Field>
       <Field label="Block shape" hint={Training.SHAPES[shape].label}>
-        <Seg value={shape} onChange={setShape} options={[{ v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' }]} />
+        <Seg value={shape} onChange={setShape} options={[
+          { v: 'build4', l: 'Build 4' }, { v: 'build3-deload1', l: '3 + light week' },
+          { v: 'as-written', l: 'Exactly as brought' },
+        ]} />
       </Field>
       {/* A gym, not a checkbox grid. It decides both what is available and what to reach for first,
           which is why it replaced the nine tick boxes that used to live here. */}
@@ -2247,15 +2362,14 @@ function BlockWizard({ db, update, showToast, isPremium, onUpgrade, onBack, onDr
         </div>
       </Collapsible>
 
-      <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-        {busy ? 'Building...' : 'Build it'}
-      </button>
-
       {draftDays > 0 && (
-        <button onClick={onShots} className="pixel-box w-full h-12 text-[12.5px] mt-2" style={{ background: 'var(--surface2)' }}>
-          Open your draft ({draftDays} {draftDays === 1 ? 'day' : 'days'})
-        </button>
+        <div className="text-[12px] mb-3 leading-snug" style={{ color: 'var(--muted)' }}>
+          Building from the {draftDays} {draftDays === 1 ? 'day' : 'days'} you have brought, at the shape and intensity above.
+        </div>
       )}
+      <button onClick={build} disabled={busy} className="pixel-btn w-full h-14 font-bold mt-2" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
+        {busy ? 'Building...' : draftDays > 0 ? 'Build it from what I brought' : 'Build it'}
+      </button>
 
       {gymPick && <GymPicker db={db} update={update} onClose={() => setGymPick(false)}
         onPicked={(g) => { setGym(g); setGymPick(false); }} />}
@@ -2876,7 +2990,7 @@ function TargetSheet({ row, name, onChange, onClose }) {
 // sight, and nothing anywhere opened the editor on a saved block, so BlockBuilder's "Delete this
 // block" button could not be reached at all. A block built by mistake was permanent. Editing and
 // deleting are the same screen because they answer the same question: this one is wrong, now what.
-function BlockList({ db, update, showToast, onBack, onOpen, onNew, onImport, onCoverage, onReview, onStart }) {
+function BlockList({ db, update, showToast, onBack, onOpen, onNew, onCoverage, onReview, onStart }) {
   useBackClose(onBack);
   const t = tdb(db);
   const today = Store.todayISO();
@@ -2984,11 +3098,11 @@ function BlockList({ db, update, showToast, onBack, onOpen, onNew, onImport, onC
         );
       })}
 
-      {/* The two ways to get another one, at the bottom where the design puts them, so they are
-          reachable whether the list is empty or twelve long. */}
-      <div className="grid grid-cols-2 gap-2.5 mt-1">
-        <button onClick={onNew} className="pixel-btn py-3.5 px-2 pf text-[10px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
-        <button onClick={onImport} className="pixel-btn py-3.5 px-2 pf text-[10px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--card)', color: 'var(--text)' }}>Import a plan</button>
+      {/* One way to get another one, at the bottom where the design puts it, reachable whether the
+          list is empty or twelve long. Bringing a source is a step inside this now, not a separate
+          screen competing with it. */}
+      <div className="mt-1">
+        <button onClick={onNew} className="pixel-btn w-full py-3.5 px-2 pf text-[10px] uppercase" style={{ borderWidth: 2, letterSpacing: '0.06em', background: 'var(--accent)', color: 'var(--on-accent)' }}>Build a block</button>
       </div>
 
       {fixing && (() => {
@@ -3735,10 +3849,15 @@ function TrainSettings({ db, update, showToast, onBack, onHowItWorks }) {
 
 // Read a plan out of whatever we managed to get hold of. `content` is an array of Anthropic content
 // blocks, so the same function serves pasted text, a PDF, a screenshot and a scraped caption.
+// `days` is the day count chosen in the wizard: it decides which track a multi-option source hands
+// back, and how a single-track source gets adapted. {{DAYS}} appears more than once in the prompt, so
+// this needs a global replace, unlike the single {{NAME}} swap in buddyVoice().
 async function aiParseWorkout(content, opts) {
+  const days = (opts && opts.days) || 4;
+  const prompt = WORKOUT_PROMPT.replace(/\{\{DAYS\}\}/g, String(days));
   const j = await aiRequest({
     model: AI_MODEL, max_tokens: 3000,
-    messages: [{ role: 'user', content: [{ type: 'text', text: WORKOUT_PROMPT, cache_control: { type: 'ephemeral' } }].concat(content) }],
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }].concat(content) }],
   }, opts);
   const txt = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '';
   if (!txt.trim()) throw new Error('Nothing came back. Try a clearer source.');
@@ -3968,232 +4087,6 @@ function withImportNote(blocks, note) {
   return blocks.concat([{ type: 'text', text: 'WHAT THE PERSON SAID ABOUT THIS:\n' + v.slice(0, 1200) }]);
 }
 const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say.';
-
-// ---- the import screen -------------------------------------------------------------------------
-function WorkoutImport({ db, update, showToast, isPremium, onUpgrade, onBack, onDraft, onCollected, initialUrl }) {
-  useBackClose(onBack);
-  const t = tdb(db);
-  const [tab, setTab] = useState('link');
-  const [url, setUrl] = useState(initialUrl || '');
-  const [text, setText] = useState('');
-  const [ctx, setCtx] = useState('');
-  const [busy, setBusy] = useState('');
-  const [err, setErr] = useState(null);
-  const [result, setResult] = useState(null);   // { parsed, template, unresolved, source }
-  const draftDays = ((t.draft && t.draft.days) || []).length;
-  const [whyEmpty, setWhyEmpty] = useState(false);
-
-  function gate() {
-    if (isPremium) return true;
-    onUpgrade && onUpgrade('workout_import');
-    return false;
-  }
-
-  async function run(getContent, sourceRef, busyLabel) {
-    if (!gate()) return;
-    setErr(null); setBusy(busyLabel || 'Reading it');
-    try {
-      const content = withImportNote(await getContent(), ctx);
-      setBusy('Working out what it says');
-      const parsed = await aiParseWorkout(content, { timeoutMs: 120000 });
-      const res = Training.importTemplate(parsed, { custom: t.custom });
-      if (!res.template.length) {
-        setErr('I could not find any exercises in that. If it is a video where the plan is only spoken over music, a screenshot of the plan usually works better.');
-        setBusy(''); return;
-      }
-      setResult({ parsed, template: res.template, unresolved: res.unresolved, sourceRef });
-    } catch (e) {
-      setErr((e && e.message) || 'That did not work. Try another way in.');
-    }
-    setBusy('');
-  }
-
-  function importLink() {
-    const u = url.trim();
-    if (!u) return;
-    run(async () => {
-      const src = await extractRecipeSource(u);
-      if (!src || !src.ok || !src.sourceText) {
-        throw new Error('I could not read anything public behind that link. Paste the caption in, or screenshot the plan and upload it.');
-      }
-      return [{ type: 'text', text: 'This was read from a shared ' + (src.platform || 'social') + ' post. It may include the caption and what the creator says out loud.\n\n' + String(src.sourceText).slice(0, 24000) }];
-    }, { kind: 'link', url: u }, 'Reading the post');
-  }
-
-  function importFiles(files) {
-    const f = (files || [])[0];
-    if (!f) return;
-    run(async () => (await workoutContentFromFile(f)).blocks, { kind: 'file', name: f.name }, 'Reading ' + f.name);
-  }
-
-  function importText() {
-    const v = text.trim();
-    if (!v) return;
-    run(async () => [{ type: 'text', text: 'A training plan, pasted in by the person who wants to follow it.\n\n' + v.slice(0, 24000) }], { kind: 'paste' }, 'Reading it');
-  }
-
-  function accept() {
-    const block = Training.blockFromTemplate(result.template, {
-      // As written: see the note on the draft screen's build. An import is a plan someone chose.
-      weeks: 4, shape: 'as-written', targets: trainTargets(db), custom: t.custom,
-      name: (result.parsed && result.parsed.name) || 'Imported block',
-      source: 'import', sourceRef: Object.assign({ importedISO: Store.todayISO() }, result.sourceRef || {}),
-      startISO: Store.todayISO(),
-    });
-    onDraft(block);
-  }
-  // Collect these days instead of building now. Re-importing a corrected "Upper A" from the same
-  // source replaces it rather than leaving you with two; a same-named day from a different source is
-  // a different day and is kept. See Training.mergeDraftDays.
-  function collect() {
-    trainUpdate(update, (tr) => {
-      const d = tr.draft || { name: (result.parsed && result.parsed.name) || 'My block', days: [] };
-      Training.mergeDraftDays(d.days, result.template, result.sourceRef || null);
-      tr.draft = d;
-    });
-    showToast && showToast('Added to your draft block.');
-    onCollected && onCollected();
-  }
-
-  if (result) {
-    return (
-      <div className="fade-in pb-24">
-        <button onClick={() => setResult(null)} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Try again</button>
-        <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--muted)' }}>What I read</div>
-        <h1 className="text-[19px] font-bold leading-tight mb-2">{(result.parsed && result.parsed.name) || 'Imported plan'}</h1>
-        <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-          Here is what I read. Nothing is saved yet, and you can change every line of it on the next screen.
-        </div>
-
-        {result.parsed && result.parsed.confidence === 'low' && (
-          <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))' }}>
-            <div className="text-[12px] leading-snug">Most of that source was hard to read, so check it carefully before you start it.</div>
-          </Card>
-        )}
-
-        {result.unresolved.length > 0 && (
-          <Card className="p-4 mb-4">
-            <div className="pf text-[9px] uppercase mb-2" style={{ color: 'var(--warn)' }}>Left out</div>
-            <div className="text-[12px] mb-2 leading-snug" style={{ color: 'var(--muted)' }}>
-              I did not recognise these, so I have left them out rather than guess at the wrong movement. Add them yourself on the next screen.
-            </div>
-            {result.unresolved.map((u, i) => (
-              <div key={i} className="text-[12px]" style={{ color: 'var(--text2)' }}>{u.dayName}: {u.name}</div>
-            ))}
-          </Card>
-        )}
-
-        {result.template.map((day, i) => (
-          <Card key={i} className="p-4 mb-4">
-            <div className="text-[13px] font-bold mb-2">{day.name}</div>
-            {day.exercises.map(it => (
-              <div key={it.id} className="flex items-baseline justify-between gap-2 py-1 border-t" style={{ borderColor: 'var(--border)' }}>
-                <span className="text-[12px] truncate"><ExerciseName id={it.exerciseId} custom={t.custom} /></span>
-                <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--muted)' }}>{it.target.sets} x {it.target.repLow}-{it.target.repHigh}</span>
-              </div>
-            ))}
-          </Card>
-        ))}
-
-        <div className="text-[11px] mb-4 leading-snug" style={{ color: 'var(--muted2)' }}>
-          Whatever you build becomes week 1, and the app writes weeks 2 to 4 on top of it, adding work where you have room and backing off at the end.
-          {result.template.length < 3
-            ? ' If this is one post out of a series, add it to your draft and import the rest before you build.'
-            : ''}
-          {draftDays ? ' Your draft already has ' + draftDays + (draftDays === 1 ? ' day' : ' days') + ' in it.' : ''}
-        </div>
-
-        <StickyAction>
-          {/* Two routes out, and which one is primary depends on what we just read. A single day is
-              almost always one post out of a series, so collecting is the sensible default there;
-              a full week is a whole programme and should just become a block. */}
-          {result.template.length >= 3 ? (
-            <div className="flex gap-2">
-              <button onClick={collect} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>Add to draft</button>
-              <button onClick={accept} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Build the block</button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={accept} className="pixel-box flex-1 h-14 text-[12.5px]" style={{ background: 'var(--surface2)' }}>Build now</button>
-              <button onClick={collect} className="pixel-btn flex-1 h-14 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-                Add to draft{draftDays ? ' (' + (draftDays + result.template.length) + ')' : ''}
-              </button>
-            </div>
-          )}
-        </StickyAction>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fade-in">
-      <button onClick={onBack} className="pf text-[9px] uppercase mb-4 hit" style={{ color: 'var(--accent-ink)' }}>&lsaquo; Train</button>
-      <h1 className="pf text-lg mb-1">Import a plan</h1>
-      <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-        A reel, a PDF, a spreadsheet, a screenshot or just the text. It lands as a block you can edit.
-      </div>
-
-      <div className="mb-4"><Pill value={tab} onChange={setTab} options={[{ v: 'link', l: 'Link' }, { v: 'file', l: 'File' }, { v: 'paste', l: 'Paste' }]} /></div>
-
-      {/* One note, above the three routes in, because it is worth the same to all of them: a reel
-          rarely says which day is which either. It goes to the model with the source. */}
-      <Card className="p-4 mb-4">
-        <Field label="Anything I should know" hint={IMPORT_NOTE_HINT}>
-          <textarea value={ctx} onChange={e => setCtx(e.target.value)} rows={2}
-            placeholder="This is the Wednesday session. Weights are in pounds."
-            className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-        </Field>
-      </Card>
-
-      {tab === 'link' && (
-        <Card className="p-4 mb-4">
-          <Field label="Instagram, TikTok or YouTube link" hint="Works best when the plan is written in the caption or said out loud. Pure music-over-clips will not read.">
-            <TextInput value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste the link" />
-          </Field>
-          <button onClick={importLink} disabled={!!busy || !url.trim()} className="pixel-btn w-full py-3 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            {busy || (isPremium ? 'Read it' : 'Read it · Premium')}
-          </button>
-        </Card>
-      )}
-
-      {tab === 'file' && (
-        <Card className="p-4 mb-4">
-          <div className="text-[12px] mb-4 leading-snug" style={{ color: 'var(--muted)' }}>
-            PDF, Excel, CSV, a text file or a photo of the plan. Spreadsheets keep their rows and columns, so a week-per-column layout reads properly.
-          </div>
-          <label className="pixel-box flex items-center justify-center py-6 text-[13px] cursor-pointer" style={{ background: 'var(--surface2)' }}>
-            {busy || 'Choose a file'}
-            <input type="file" className="hidden" accept=".pdf,.xlsx,.csv,.tsv,.txt,.md,image/*"
-              onChange={e => { importFiles(e.target.files); e.target.value = ''; }} />
-          </label>
-        </Card>
-      )}
-
-      {tab === 'paste' && (
-        <Card className="p-4 mb-4">
-          <Field label="Paste the plan" hint="A message from your coach, a caption you copied, anything with the sessions in it.">
-            <textarea value={text} onChange={e => setText(e.target.value)} rows={8}
-              placeholder={'Monday - Push\nBench press 4x6-8\nIncline DB press 3x10\n...'}
-              className="w-full pixel-box px-3 py-3 text-[13px]" style={{ background: 'var(--surface2)', color: 'var(--text)' }} />
-          </Field>
-          <button onClick={importText} disabled={!!busy || !text.trim()} className="pixel-btn w-full py-3 font-bold" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>
-            {busy || (isPremium ? 'Read it' : 'Read it · Premium')}
-          </button>
-        </Card>
-      )}
-
-      {err && (
-        <Card className="p-4 mb-4" style={{ background: 'color-mix(in srgb, var(--danger) 12%, var(--surface2))' }}>
-          <div className="text-[12px] leading-snug">{err}</div>
-        </Card>
-      )}
-
-      <div className="text-[11px] leading-snug" style={{ color: 'var(--muted2)' }}>
-        Nothing is saved until you say so, and anything I cannot recognise gets shown to you rather than guessed at.
-      </div>
-    </div>
-  );
-}
 
 /* ============================================================================
  * The shared block library
@@ -4454,6 +4347,9 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
       const res = Training.importTemplate(revised, { custom: t.custom });
       if (!res.template.length) throw new Error('That left nothing I could read. Try describing the change another way.');
       trainUpdate(update, (tr) => {
+        // A movement the tweak added or renamed can need a fresh guess exactly as a first import
+        // can, and it has to land in t.custom or the day above points at an id nothing holds.
+        if (res.newCustom && res.newCustom.length) tr.custom = (tr.custom || []).concat(res.newCustom);
         // The revision REPLACES the draft rather than merging into it, because it is the same plan
         // corrected, not another source arriving. Merging would leave both readings side by side.
         tr.draft = Object.assign({}, tr.draft, {
@@ -4579,7 +4475,9 @@ function BlockDraft({ db, update, showToast, isPremium, onUpgrade, onBack, onBui
                       say what happened, not to argue for it. */}
                   {differs && (
                     <span className="block text-[10.5px] mt-0.5" style={{ color: 'var(--warn)' }}>
-                      {e.check === 'kit' ? 'Counted as ' + lib.name : 'Read as ' + lib.name + '?'}
+                      {e.check === 'kit' ? 'Counted as ' + lib.name
+                        : e.check === 'auto' ? 'Not in the library - guessed which muscle, tap to check'
+                          : 'Read as ' + lib.name + '?'}
                     </span>
                   )}
                 </button>

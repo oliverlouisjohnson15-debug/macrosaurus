@@ -1597,18 +1597,32 @@
     return out;
   }
 
-  function repScheme(ex, muscle, bias) {
+  // The house style is a CHOICE, not a fact, so it is a parameter, not a constant baked into the
+  // maths. 'high' (the default) is the pair of reference programmes this was built from: 2 working
+  // sets to start a movement, RIR walking to true failure by the final building week, isolation work
+  // held to the same 8-12 rep / long-rest range as the compounds. 'moderate' is the RP-style band
+  // this replaced: more sets, effort stopping a few reps short, isolation allowed a wider, shorter
+  // rest range - a real alternative for someone who finds training that close to failure unsustainable
+  // week after week, not a worse version of the default.
+  var INTENSITY = {
+    high: { startSets: 2, rirFloor: 0, isoRepLow: 8, isoRepHigh: 12, isoRest: 120 },
+    moderate: { startSets: 3, rirFloor: 1, isoRepLow: 10, isoRepHigh: 15, isoRest: 90 },
+  };
+  function intensityOf(key) { return INTENSITY[key] || INTENSITY.high; }
+
+  function repScheme(ex, muscle, bias, intensity) {
     var b = +bias || 0;   // light kit means the same effort has to come from more reps, not more load
+    var iv = intensityOf(intensity);
     var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
     if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 60 };
     // Both reference programmes hold isolation work in the same low-to-mid range as the compounds
     // (5-10 majority, "3/4 of your training" per the RIR-based programme's own rep-range chapter)
     // and rest it just as long: "long rest periods are superior to short... this also applies to
     // unilateral training". Longer, harder-recovered sets beat quick, shallow ones for growth.
-    if (muscle === 'ca') return { repLow: 10 + b, repHigh: 15 + b, restSec: 90 };
+    if (muscle === 'ca') return { repLow: 10 + b, repHigh: 15 + b, restSec: iv.isoRest };
     return compound
       ? { repLow: 6 + b, repHigh: 10 + b, restSec: 150 }
-      : { repLow: 8 + b, repHigh: 12 + b, restSec: 120 };
+      : { repLow: iv.isoRepLow + b, repHigh: iv.isoRepHigh + b, restSec: iv.isoRest };
   }
 
   // Block shapes. The DEFAULT is four building weeks with no deload baked in, and that is a
@@ -1712,6 +1726,7 @@
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
     var targets = opts.targets || defaultTargets(opts.prefs);
+    var iv = intensityOf(opts.intensity);
 
     // Adding a set a week is how a block builds, but it must never walk a muscle past its own
     // ceiling. Triceps is the one that catches you out: every press feeds it half a set, so a
@@ -1744,9 +1759,10 @@
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
-      // Walks 3-2-1-0: the final building week lands at true failure (0 RIR), not a floor of 1.
-      // Stopping short of failure every week is the thing "high intensity" is supposed to rule out.
-      var rir = isDeload ? 4 : Math.max(0, 4 - w);
+      // Walks 3-2-1-0 on the default 'high' intensity: the final building week lands at true failure
+      // (0 RIR), not a floor of 1. Stopping short of failure every week is the thing "high intensity"
+      // is supposed to rule out. 'moderate' keeps the old floor of 1 for anyone who wants it.
+      var rir = isDeload ? 4 : Math.max(iv.rirFloor, 4 - w);
       var weekSess = [];
       template.forEach(function (day, di) {
         weekSess.push({
@@ -1791,6 +1807,10 @@
       name: opts.name || blockName(template, opts),
       goal: opts.goal || 'hypertrophy',
       weeks: weeks, shape: shape, daysPerWeek: opts.daysPerWeek || template.length,
+      // Stored on the block, not just used to build it, so a later "add a movement mid-block" or
+      // "build my next block" carries the same style forward instead of silently reverting to the
+      // default the moment nobody is explicitly passing it any more.
+      intensity: opts.intensity || 'high',
       startISO: opts.startISO || null,
       source: opts.source || 'generated',
       sourceRef: opts.sourceRef || null,
@@ -1802,35 +1822,76 @@
   // build a block from. The AI hands over names and numbers; THIS decides what each name actually
   // is, and it refuses to guess. Anything unresolved comes back in `unresolved` so the import
   // screen can ask rather than silently dropping a movement or logging the wrong one.
+  // A name-derived id, so the SAME unresolved movement named twice (two lines in one source, or the
+  // same source re-imported) mints or finds ONE custom exercise rather than a fresh one every time.
+  function autoCustomId(name) {
+    var slug = norm(name).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+    return 'cu_auto_' + (slug || 'exercise');
+  }
+  var VALID_EQUIPMENT = { barbell: 1, dumbbell: 1, machine: 1, cable: 1, smith: 1, ez: 1, kettlebell: 1, trapbar: 1, bodyweight: 1, band: 1 };
+
   function importTemplate(parsed, opts) {
     opts = opts || {};
-    var unresolved = [];
+    var unresolved = [];   // rows the library had no match for - still IN the plan, via newCustom
     var loose = [];        // matched, but on a weak score - worth a second look
     var mismatches = [];   // right movement, kit the source did not ask for
+    var newCustom = [];    // custom exercises minted this call, for the caller to save into t.custom
+    var mintedById = {};
+
+    // Mint (or reuse) a custom exercise from the model's own best-guess classification, for a name
+    // the library genuinely has nothing for. This is what makes importing never drop a line: it used
+    // to leave a gap only a human could fill; now the plan gets everything the source had, with the
+    // guessed ones flagged (check: 'auto') for a second look rather than left out.
+    function autoResolve(raw) {
+      var id = autoCustomId(raw.name);
+      if (mintedById[id]) return mintedById[id];
+      var already = byId(id, opts.custom);
+      if (already) { mintedById[id] = already; return already; }
+      var guess = MUSCLES.filter(function (m) { return (raw.muscle || []).indexOf(m) !== -1; });
+      // No usable guess at all (an old caller, or the model skipped the field): still cannot fail to
+      // mint one, so fall back to a plausible default rather than leaving the exercise out.
+      if (!guess.length) guess = ['ch'];
+      var pattern = raw.pattern === 'isolation' ? 'isolation' : raw.pattern === 'core' ? 'core' : 'compound';
+      var equipment = VALID_EQUIPMENT[raw.equipment] ? raw.equipment : 'bodyweight';
+      var ex = {
+        id: id, name: tidyName(raw.name) || String(raw.name || 'Exercise'),
+        equipment: equipment, pattern: pattern, profile: 'mid',
+        primary: guess, secondary: [], custom: true, auto: true,
+      };
+      mintedById[id] = ex;
+      newCustom.push(ex);
+      return ex;
+    }
+
+    var customPool = (opts.custom || []).concat(newCustom);
     var template = ((parsed && parsed.days) || []).map(function (day, di) {
       var exercises = [];
       var dayName = day.name || ('Day ' + (di + 1));
       (day.exercises || []).forEach(function (raw, ei) {
-        var id, how = 'exact';
+        var id, how = 'exact', minted = null;
         if (raw.exerciseId && byId(raw.exerciseId, opts.custom)) { id = raw.exerciseId; }
         else {
           var d = resolveDetail(raw.name, opts.custom);
           if (d) { id = d.id; how = d.how; }
         }
-        if (!id) { unresolved.push({ day: di, dayName: dayName, name: raw.name, index: ei }); return; }
+        if (!id) {
+          minted = autoResolve(raw);
+          id = minted.id; how = 'auto';
+          unresolved.push({ day: di, dayName: dayName, name: raw.name, index: ei, autoId: id });
+        }
         if (how === 'loose') loose.push({ day: di, dayName: dayName, name: raw.name, matched: (byId(id, opts.custom) || {}).name });
-        var kit = kitMismatch(raw.name, id, opts.custom);
+        var kit = how === 'auto' ? null : kitMismatch(raw.name, id, opts.custom);
         if (kit) mismatches.push({ day: di, dayName: dayName, name: raw.name, said: kit.said, got: kit.got, matched: kit.name });
         // Which rows are worth a second look, marked ON the row. A screen that says "counted as" on
         // every line says nothing: "Hanging leg raises, counted as Hanging leg raise" is a plural,
-        // not a decision. Only two things are: kit the library has no version of, and a match that
-        // only just cleared the threshold.
-        var check = kit ? 'kit' : (how === 'loose' ? 'loose' : null);
+        // not a decision. Three things are: kit the library has no version of, a match that only just
+        // cleared the threshold, and a name the library had nothing at all for (auto-created).
+        var check = kit ? 'kit' : how === 'auto' ? 'auto' : (how === 'loose' ? 'loose' : null);
         // A weak SCORE on a name that ends up identical to the library's is not a weak match, it is
         // the scorer being cautious about a word it had not seen ("T-bar row (mega mass)"). Nothing
         // to look at, so nothing to say.
         if (check === 'loose' && sameMovement(tidyName(raw.name), (byId(id, opts.custom) || {}).name)) check = null;
-        var ex = byId(id, opts.custom);
+        var ex = minted || byId(id, opts.custom);
         var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
         var lo = +raw.repLow || 0, hi = +raw.repHigh || 0;
         // A source that gives one rep number ("4 x 10") means a target, not a range. Open it into a
@@ -1859,19 +1920,17 @@
         dayOfWeek: day.dayOfWeek == null ? di : clamp(+day.dayOfWeek, 0, 6),
         exercises: exercises,
       };
-      // Name it for what it trains, once the movements are known. Only touches a name that says
-      // nothing on its own, so a coach's "Upper A" survives exactly as they wrote it.
-      row.name = nameDay(row.name, row, opts.custom);
-      // Movements this day had that could not be placed, kept ON THE DAY rather than in a list
-      // somewhere else. A day that is short two movements should say so where you are looking at it,
-      // and the fix belongs next to the gap. Ignored by every downstream reader, which all take
-      // day.exercises.
-      row.missing = unresolved.filter(function (u) { return u.day === di; })
-        .map(function (u) { return { name: tidyName(u.name) || u.name, raw: u.name }; });
+      // Name it for what it trains, once the movements are known - including anything auto-created
+      // this call, so a day built entirely from guessed movements still gets a real name instead of
+      // falling back to "Day 1".
+      row.name = nameDay(row.name, row, customPool);
+      // Nothing is ever left off the day any more (see autoResolve above), so this always empty now.
+      // Kept so any saved draft from before this change, or a caller still reading it, sees an array.
+      row.missing = [];
       return row;
     }).filter(function (d) { return d.exercises.length > 0; });
     return {
-      template: template, unresolved: unresolved, loose: loose, mismatches: mismatches,
+      template: template, unresolved: unresolved, loose: loose, mismatches: mismatches, newCustom: newCustom,
       days: template.length,
       // Whatever the source said about which week this is. The app builds four weeks from one, so a
       // screenshot taken on week four of somebody's programme is worth saying out loud.
@@ -2135,9 +2194,10 @@
   // Append a movement, prescribed the way the block builder prescribes one: a compound gets fewer
   // reps and longer rest than an isolation, and the RIR follows the week, so a movement added in
   // week 3 is not softer than everything around it.
-  function addExerciseToSession(session, exerciseId, custom, itemId) {
+  function addExerciseToSession(session, exerciseId, custom, itemId, intensity) {
     var ex = byId(exerciseId, custom);
     if (!ex || !session) return null;
+    var iv = intensityOf(intensity);
     var compound = ex.pattern !== 'isolation' && ex.pattern !== 'core';
     var list = sessionItems(session);
     var item = {
@@ -2145,10 +2205,10 @@
       exerciseId: exerciseId,
       order: list.length,
       target: {
-        sets: 2,
-        repLow: compound ? 6 : 8, repHigh: compound ? 10 : 12,
-        rir: Math.max(0, 4 - (session.week || 1)),
-        restSec: compound ? 150 : 120,
+        sets: iv.startSets,
+        repLow: compound ? 6 : iv.isoRepLow, repHigh: compound ? 10 : iv.isoRepHigh,
+        rir: Math.max(iv.rirFloor, 4 - (session.week || 1)),
+        restSec: compound ? 150 : iv.isoRest,
       },
     };
     list.push(item);
@@ -2438,6 +2498,7 @@
     var days = clamp(opts.daysPerWeek || 4, 2, 6);
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
+    var iv = intensityOf(opts.intensity);
     var targets = opts.emphasis && opts.emphasis.length
       ? emphasise(opts.targets || defaultTargets(opts.prefs), opts.emphasis)
       : (opts.targets || defaultTargets(opts.prefs));
@@ -2455,11 +2516,11 @@
         var ex = pickFor(muscles[m], { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
         if (!ex) continue;
         used[ex.id] = 1;
-        var rs = repScheme(ex, muscles[m], opts.repBias);
+        var rs = repScheme(ex, muscles[m], opts.repBias, opts.intensity);
         exercises.push({
           id: ex.id + '_' + i + '_' + exercises.length,
           exerciseId: ex.id, order: exercises.length,
-          target: { sets: 2, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: defaultTempo(ex) },
+          target: { sets: iv.startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: defaultTempo(ex) },
         });
       }
       return { kind: kind, name: name, dayOfWeek: i, exercises: exercises };
@@ -2498,10 +2559,10 @@
           var exf = pickFor(m, { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
           if (!exf) break;
           used[exf.id] = 1;
-          var rsf = repScheme(exf, m, opts.repBias);
+          var rsf = repScheme(exf, m, opts.repBias, opts.intensity);
           dest.exercises.push({
             id: exf.id + '_freq' + guard + '_' + dest.exercises.length, exerciseId: exf.id, order: dest.exercises.length,
-            target: { sets: 2, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: defaultTempo(exf) },
+            target: { sets: iv.startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: defaultTempo(exf) },
           });
         }
       });
@@ -2534,10 +2595,10 @@
         if (!ex2) { stuck[gap.muscle] = true; continue; }
         used[ex2.id] = 1;
         var shortest = template.reduce(function (a, b) { return a.exercises.length <= b.exercises.length ? a : b; });
-        var rs2 = repScheme(ex2, gap.muscle, opts.repBias);
+        var rs2 = repScheme(ex2, gap.muscle, opts.repBias, opts.intensity);
         shortest.exercises.push({
           id: ex2.id + '_add_' + shortest.exercises.length, exerciseId: ex2.id, order: shortest.exercises.length,
-          target: { sets: 2, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: defaultTempo(ex2) },
+          target: { sets: iv.startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: defaultTempo(ex2) },
         });
       }
     }
@@ -2715,6 +2776,9 @@
     var next = generateBlock(Object.assign({}, opts, {
       daysPerWeek: block.daysPerWeek, weeks: block.weeks, shape: block.shape,
       goal: block.goal, targets: tuneTargets(targets, review),
+      // The style carries forward by default, same as the shape and the days do - it is a standing
+      // choice, not a one-off, unless the caller explicitly asks for something else this time.
+      intensity: opts.intensity || block.intensity,
       name: null,
     }));
     next.previousBlockId = block.id;
@@ -3094,6 +3158,7 @@
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
+    INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
     blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
     tuneTargets: tuneTargets, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,

@@ -7536,18 +7536,32 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     return out;
   }
 
-  function repScheme(ex, muscle, bias) {
+  // The house style is a CHOICE, not a fact, so it is a parameter, not a constant baked into the
+  // maths. 'high' (the default) is the pair of reference programmes this was built from: 2 working
+  // sets to start a movement, RIR walking to true failure by the final building week, isolation work
+  // held to the same 8-12 rep / long-rest range as the compounds. 'moderate' is the RP-style band
+  // this replaced: more sets, effort stopping a few reps short, isolation allowed a wider, shorter
+  // rest range - a real alternative for someone who finds training that close to failure unsustainable
+  // week after week, not a worse version of the default.
+  var INTENSITY = {
+    high: { startSets: 2, rirFloor: 0, isoRepLow: 8, isoRepHigh: 12, isoRest: 120 },
+    moderate: { startSets: 3, rirFloor: 1, isoRepLow: 10, isoRepHigh: 15, isoRest: 90 },
+  };
+  function intensityOf(key) { return INTENSITY[key] || INTENSITY.high; }
+
+  function repScheme(ex, muscle, bias, intensity) {
     var b = +bias || 0;   // light kit means the same effort has to come from more reps, not more load
+    var iv = intensityOf(intensity);
     var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
     if (ex && ex.pattern === 'core') return { repLow: 10, repHigh: 20, restSec: 60 };
     // Both reference programmes hold isolation work in the same low-to-mid range as the compounds
     // (5-10 majority, "3/4 of your training" per the RIR-based programme's own rep-range chapter)
     // and rest it just as long: "long rest periods are superior to short... this also applies to
     // unilateral training". Longer, harder-recovered sets beat quick, shallow ones for growth.
-    if (muscle === 'ca') return { repLow: 10 + b, repHigh: 15 + b, restSec: 90 };
+    if (muscle === 'ca') return { repLow: 10 + b, repHigh: 15 + b, restSec: iv.isoRest };
     return compound
       ? { repLow: 6 + b, repHigh: 10 + b, restSec: 150 }
-      : { repLow: 8 + b, repHigh: 12 + b, restSec: 120 };
+      : { repLow: iv.isoRepLow + b, repHigh: iv.isoRepHigh + b, restSec: iv.isoRest };
   }
 
   // Block shapes. The DEFAULT is four building weeks with no deload baked in, and that is a
@@ -7651,6 +7665,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
     var targets = opts.targets || defaultTargets(opts.prefs);
+    var iv = intensityOf(opts.intensity);
 
     // Adding a set a week is how a block builds, but it must never walk a muscle past its own
     // ceiling. Triceps is the one that catches you out: every press feeds it half a set, so a
@@ -7683,9 +7698,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var sessions = [];
     for (var w = 1; w <= weeks; w++) {
       var isDeload = SHAPES[shape].deload && w === weeks;
-      // Walks 3-2-1-0: the final building week lands at true failure (0 RIR), not a floor of 1.
-      // Stopping short of failure every week is the thing "high intensity" is supposed to rule out.
-      var rir = isDeload ? 4 : Math.max(0, 4 - w);
+      // Walks 3-2-1-0 on the default 'high' intensity: the final building week lands at true failure
+      // (0 RIR), not a floor of 1. Stopping short of failure every week is the thing "high intensity"
+      // is supposed to rule out. 'moderate' keeps the old floor of 1 for anyone who wants it.
+      var rir = isDeload ? 4 : Math.max(iv.rirFloor, 4 - w);
       var weekSess = [];
       template.forEach(function (day, di) {
         weekSess.push({
@@ -7730,6 +7746,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       name: opts.name || blockName(template, opts),
       goal: opts.goal || 'hypertrophy',
       weeks: weeks, shape: shape, daysPerWeek: opts.daysPerWeek || template.length,
+      // Stored on the block, not just used to build it, so a later "add a movement mid-block" or
+      // "build my next block" carries the same style forward instead of silently reverting to the
+      // default the moment nobody is explicitly passing it any more.
+      intensity: opts.intensity || 'high',
       startISO: opts.startISO || null,
       source: opts.source || 'generated',
       sourceRef: opts.sourceRef || null,
@@ -7741,35 +7761,76 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // build a block from. The AI hands over names and numbers; THIS decides what each name actually
   // is, and it refuses to guess. Anything unresolved comes back in `unresolved` so the import
   // screen can ask rather than silently dropping a movement or logging the wrong one.
+  // A name-derived id, so the SAME unresolved movement named twice (two lines in one source, or the
+  // same source re-imported) mints or finds ONE custom exercise rather than a fresh one every time.
+  function autoCustomId(name) {
+    var slug = norm(name).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+    return 'cu_auto_' + (slug || 'exercise');
+  }
+  var VALID_EQUIPMENT = { barbell: 1, dumbbell: 1, machine: 1, cable: 1, smith: 1, ez: 1, kettlebell: 1, trapbar: 1, bodyweight: 1, band: 1 };
+
   function importTemplate(parsed, opts) {
     opts = opts || {};
-    var unresolved = [];
+    var unresolved = [];   // rows the library had no match for - still IN the plan, via newCustom
     var loose = [];        // matched, but on a weak score - worth a second look
     var mismatches = [];   // right movement, kit the source did not ask for
+    var newCustom = [];    // custom exercises minted this call, for the caller to save into t.custom
+    var mintedById = {};
+
+    // Mint (or reuse) a custom exercise from the model's own best-guess classification, for a name
+    // the library genuinely has nothing for. This is what makes importing never drop a line: it used
+    // to leave a gap only a human could fill; now the plan gets everything the source had, with the
+    // guessed ones flagged (check: 'auto') for a second look rather than left out.
+    function autoResolve(raw) {
+      var id = autoCustomId(raw.name);
+      if (mintedById[id]) return mintedById[id];
+      var already = byId(id, opts.custom);
+      if (already) { mintedById[id] = already; return already; }
+      var guess = MUSCLES.filter(function (m) { return (raw.muscle || []).indexOf(m) !== -1; });
+      // No usable guess at all (an old caller, or the model skipped the field): still cannot fail to
+      // mint one, so fall back to a plausible default rather than leaving the exercise out.
+      if (!guess.length) guess = ['ch'];
+      var pattern = raw.pattern === 'isolation' ? 'isolation' : raw.pattern === 'core' ? 'core' : 'compound';
+      var equipment = VALID_EQUIPMENT[raw.equipment] ? raw.equipment : 'bodyweight';
+      var ex = {
+        id: id, name: tidyName(raw.name) || String(raw.name || 'Exercise'),
+        equipment: equipment, pattern: pattern, profile: 'mid',
+        primary: guess, secondary: [], custom: true, auto: true,
+      };
+      mintedById[id] = ex;
+      newCustom.push(ex);
+      return ex;
+    }
+
+    var customPool = (opts.custom || []).concat(newCustom);
     var template = ((parsed && parsed.days) || []).map(function (day, di) {
       var exercises = [];
       var dayName = day.name || ('Day ' + (di + 1));
       (day.exercises || []).forEach(function (raw, ei) {
-        var id, how = 'exact';
+        var id, how = 'exact', minted = null;
         if (raw.exerciseId && byId(raw.exerciseId, opts.custom)) { id = raw.exerciseId; }
         else {
           var d = resolveDetail(raw.name, opts.custom);
           if (d) { id = d.id; how = d.how; }
         }
-        if (!id) { unresolved.push({ day: di, dayName: dayName, name: raw.name, index: ei }); return; }
+        if (!id) {
+          minted = autoResolve(raw);
+          id = minted.id; how = 'auto';
+          unresolved.push({ day: di, dayName: dayName, name: raw.name, index: ei, autoId: id });
+        }
         if (how === 'loose') loose.push({ day: di, dayName: dayName, name: raw.name, matched: (byId(id, opts.custom) || {}).name });
-        var kit = kitMismatch(raw.name, id, opts.custom);
+        var kit = how === 'auto' ? null : kitMismatch(raw.name, id, opts.custom);
         if (kit) mismatches.push({ day: di, dayName: dayName, name: raw.name, said: kit.said, got: kit.got, matched: kit.name });
         // Which rows are worth a second look, marked ON the row. A screen that says "counted as" on
         // every line says nothing: "Hanging leg raises, counted as Hanging leg raise" is a plural,
-        // not a decision. Only two things are: kit the library has no version of, and a match that
-        // only just cleared the threshold.
-        var check = kit ? 'kit' : (how === 'loose' ? 'loose' : null);
+        // not a decision. Three things are: kit the library has no version of, a match that only just
+        // cleared the threshold, and a name the library had nothing at all for (auto-created).
+        var check = kit ? 'kit' : how === 'auto' ? 'auto' : (how === 'loose' ? 'loose' : null);
         // A weak SCORE on a name that ends up identical to the library's is not a weak match, it is
         // the scorer being cautious about a word it had not seen ("T-bar row (mega mass)"). Nothing
         // to look at, so nothing to say.
         if (check === 'loose' && sameMovement(tidyName(raw.name), (byId(id, opts.custom) || {}).name)) check = null;
-        var ex = byId(id, opts.custom);
+        var ex = minted || byId(id, opts.custom);
         var compound = ex && ex.pattern !== 'isolation' && ex.pattern !== 'core';
         var lo = +raw.repLow || 0, hi = +raw.repHigh || 0;
         // A source that gives one rep number ("4 x 10") means a target, not a range. Open it into a
@@ -7798,19 +7859,17 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         dayOfWeek: day.dayOfWeek == null ? di : clamp(+day.dayOfWeek, 0, 6),
         exercises: exercises,
       };
-      // Name it for what it trains, once the movements are known. Only touches a name that says
-      // nothing on its own, so a coach's "Upper A" survives exactly as they wrote it.
-      row.name = nameDay(row.name, row, opts.custom);
-      // Movements this day had that could not be placed, kept ON THE DAY rather than in a list
-      // somewhere else. A day that is short two movements should say so where you are looking at it,
-      // and the fix belongs next to the gap. Ignored by every downstream reader, which all take
-      // day.exercises.
-      row.missing = unresolved.filter(function (u) { return u.day === di; })
-        .map(function (u) { return { name: tidyName(u.name) || u.name, raw: u.name }; });
+      // Name it for what it trains, once the movements are known - including anything auto-created
+      // this call, so a day built entirely from guessed movements still gets a real name instead of
+      // falling back to "Day 1".
+      row.name = nameDay(row.name, row, customPool);
+      // Nothing is ever left off the day any more (see autoResolve above), so this always empty now.
+      // Kept so any saved draft from before this change, or a caller still reading it, sees an array.
+      row.missing = [];
       return row;
     }).filter(function (d) { return d.exercises.length > 0; });
     return {
-      template: template, unresolved: unresolved, loose: loose, mismatches: mismatches,
+      template: template, unresolved: unresolved, loose: loose, mismatches: mismatches, newCustom: newCustom,
       days: template.length,
       // Whatever the source said about which week this is. The app builds four weeks from one, so a
       // screenshot taken on week four of somebody's programme is worth saying out loud.
@@ -8074,9 +8133,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
   // Append a movement, prescribed the way the block builder prescribes one: a compound gets fewer
   // reps and longer rest than an isolation, and the RIR follows the week, so a movement added in
   // week 3 is not softer than everything around it.
-  function addExerciseToSession(session, exerciseId, custom, itemId) {
+  function addExerciseToSession(session, exerciseId, custom, itemId, intensity) {
     var ex = byId(exerciseId, custom);
     if (!ex || !session) return null;
+    var iv = intensityOf(intensity);
     var compound = ex.pattern !== 'isolation' && ex.pattern !== 'core';
     var list = sessionItems(session);
     var item = {
@@ -8084,10 +8144,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
       exerciseId: exerciseId,
       order: list.length,
       target: {
-        sets: 2,
-        repLow: compound ? 6 : 8, repHigh: compound ? 10 : 12,
-        rir: Math.max(0, 4 - (session.week || 1)),
-        restSec: compound ? 150 : 120,
+        sets: iv.startSets,
+        repLow: compound ? 6 : iv.isoRepLow, repHigh: compound ? 10 : iv.isoRepHigh,
+        rir: Math.max(iv.rirFloor, 4 - (session.week || 1)),
+        restSec: compound ? 150 : iv.isoRest,
       },
     };
     list.push(item);
@@ -8377,6 +8437,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var days = clamp(opts.daysPerWeek || 4, 2, 6);
     var weeks = opts.weeks || 4;
     var shape = SHAPES[opts.shape] ? opts.shape : 'build4';
+    var iv = intensityOf(opts.intensity);
     var targets = opts.emphasis && opts.emphasis.length
       ? emphasise(opts.targets || defaultTargets(opts.prefs), opts.emphasis)
       : (opts.targets || defaultTargets(opts.prefs));
@@ -8394,11 +8455,11 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         var ex = pickFor(muscles[m], { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
         if (!ex) continue;
         used[ex.id] = 1;
-        var rs = repScheme(ex, muscles[m], opts.repBias);
+        var rs = repScheme(ex, muscles[m], opts.repBias, opts.intensity);
         exercises.push({
           id: ex.id + '_' + i + '_' + exercises.length,
           exerciseId: ex.id, order: exercises.length,
-          target: { sets: 2, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: defaultTempo(ex) },
+          target: { sets: iv.startSets, repLow: rs.repLow, repHigh: rs.repHigh, rir: 3, restSec: rs.restSec, tempo: defaultTempo(ex) },
         });
       }
       return { kind: kind, name: name, dayOfWeek: i, exercises: exercises };
@@ -8437,10 +8498,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
           var exf = pickFor(m, { equipment: opts.equipment, dislikes: opts.dislikes, excluded: opts.excluded, prefer: opts.prefer, custom: opts.custom, used: used });
           if (!exf) break;
           used[exf.id] = 1;
-          var rsf = repScheme(exf, m, opts.repBias);
+          var rsf = repScheme(exf, m, opts.repBias, opts.intensity);
           dest.exercises.push({
             id: exf.id + '_freq' + guard + '_' + dest.exercises.length, exerciseId: exf.id, order: dest.exercises.length,
-            target: { sets: 2, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: defaultTempo(exf) },
+            target: { sets: iv.startSets, repLow: rsf.repLow, repHigh: rsf.repHigh, rir: 3, restSec: rsf.restSec, tempo: defaultTempo(exf) },
           });
         }
       });
@@ -8473,10 +8534,10 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
         if (!ex2) { stuck[gap.muscle] = true; continue; }
         used[ex2.id] = 1;
         var shortest = template.reduce(function (a, b) { return a.exercises.length <= b.exercises.length ? a : b; });
-        var rs2 = repScheme(ex2, gap.muscle, opts.repBias);
+        var rs2 = repScheme(ex2, gap.muscle, opts.repBias, opts.intensity);
         shortest.exercises.push({
           id: ex2.id + '_add_' + shortest.exercises.length, exerciseId: ex2.id, order: shortest.exercises.length,
-          target: { sets: 2, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: defaultTempo(ex2) },
+          target: { sets: iv.startSets, repLow: rs2.repLow, repHigh: rs2.repHigh, rir: 3, restSec: rs2.restSec, tempo: defaultTempo(ex2) },
         });
       }
     }
@@ -8654,6 +8715,9 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     var next = generateBlock(Object.assign({}, opts, {
       daysPerWeek: block.daysPerWeek, weeks: block.weeks, shape: block.shape,
       goal: block.goal, targets: tuneTargets(targets, review),
+      // The style carries forward by default, same as the shape and the days do - it is a standing
+      // choice, not a one-off, unless the caller explicitly asks for something else this time.
+      intensity: opts.intensity || block.intensity,
       name: null,
     }));
     next.previousBlockId = block.id;
@@ -9033,6 +9097,7 @@ function(a,b,c){if(!Vd(b))throw Error(n(200));return Wd(null,a,b,!1,c)};Q.unmoun
     loadStep: loadStep, progressExercise: progressExercise, detectStall: detectStall,
     plateBreakdown: plateBreakdown, usesBar: usesBar, warmupSets: warmupSets, PLATES_KG: PLATES_KG, PLATES_LB: PLATES_LB,
     generateBlock: generateBlock, blockFromTemplate: blockFromTemplate, importTemplate: importTemplate,
+    INTENSITY: INTENSITY, intensityOf: intensityOf,
     weekSessions: weekSessions, blockWeekVolume: blockWeekVolume,
     blockProgress: blockProgress, completion: completion, reviewBlock: reviewBlock, trainingSummary: trainingSummary,
     tuneTargets: tuneTargets, nextBlock: nextBlock, prefillSets: prefillSets, deloadAdvice: deloadAdvice, readinessAdjust: readinessAdjust,
@@ -10069,12 +10134,16 @@ const LABEL_PROMPT = 'Read this nutrition label carefully and return ONLY the nu
 const AI_PROMPT = 'You are a UK nutrition estimator helping someone log a meal. Your job is to be CALIBRATED: as close to what a dietitian would get weighing the same plate as you can manage, erring neither high nor low. Do not pad an estimate to be safe, and do not flatter one either. A confident wrong number in either direction is the failure mode.\n\nMETHOD, work through these in order rather than jumping to a calorie figure:\n1. IDENTIFY every distinct component and how it was cooked (grilled, boiled, roasted, fried, battered). Cooking method moves calories more than almost anything else you can see.\n2. SCALE the image before you guess any weight. Find a reference object and reason from its real size: a UK dinner plate is about 27 cm across, a side plate about 20 cm, a fork about 19 cm long, a teaspoon bowl about 3 cm, a mug about 8 cm across the rim, a 330 ml can about 6.6 cm wide and 11.5 cm tall, a skinless chicken breast about 12-15 cm long. Judge each component\'s footprint and depth against that reference, then turn volume into grams with a sensible density (most cooked foods 0.5-1.1 g per ml, leafy salad about 0.2, oils about 0.9). If nothing in the frame gives you scale, lower your confidence and widen the range rather than guessing big.\n3. CHECK THE WEIGHT against a normal served portion before you use it. Typical UK servings: a chicken breast 150-180 g, a portion of cooked rice or pasta 180-250 g, chips 130-200 g, a jacket potato 200-250 g, a naan 90-130 g, a chapati or roti 45-70 g (a large or restaurant one 90-140 g), a slice of bread 36 g, a fillet of fish 120-160 g. A weight far outside these needs visible evidence in the photo.\n4. PRICE each component from a realistic per-100 g profile for that food AS SERVED, then multiply by its grams. Anchors per 100 g: grilled chicken breast 165 kcal, cooked lean mince 250, battered fish 230, boiled rice 130, boiled pasta 160, roast potatoes 150, chips 270-310, white bread 260, naan 310, chapati or roti 300, cooked lentils and beans 115-140, most cooked vegetables 25-60, salad leaves 20, cheddar 415, mayonnaise 680, double cream 450, butter 745, oil 900, pastry 400-500.\n5. FAT CHECK every component before you total up. This is the one error that has actually been measured: tested against meals weighed in a research kitchen, photo-based estimators came out roughly 30 g of fat and 250-345 kcal per meal LOW, and it was almost all cooking fat that nobody could see. So for each component ask, in order: was it fried, sauteed, roasted or griddled in oil or butter? was it finished with butter, ghee, cream or cheese? is it dressed, glazed, battered, breaded or bound with mayonnaise? was the pan, tray or grill oiled first? If the answer is yes and that fat is not already inside the per-100 g figure you priced it from, add it, and name it in that item\'s "assumption". Working amounts: a tablespoon of oil is 14 g and about 125 kcal, a knob of butter 10 g and 75 kcal, a restaurant salad dressing 20-30 g, a roasting tray of vegetables 15-25 g of oil. This is a check for fat that IS there and went uncounted, not a licence to add fat to food that was grilled, boiled, steamed or poached.\n6. CALIBRATE the total against the plate. A normal home dinner is usually 500-900 kcal, a light lunch 300-600, a large restaurant main 800-1400. If your total lands well outside the believable band for what you can actually see, find the component you mis-weighted and correct it rather than defending the number.\n\nCount the cooking fat properly: it is invisible in a photo and it is real. Restaurant, pub and takeaway kitchens cook with far more oil, butter and ghee than a home cook does, and they do it as standard: vegetables finished in butter, a curry base fried in oil, rice cooked in ghee, a pan or griddle oiled between every order. Where the food came out of a professional kitchen, include that fat even though you cannot see it, and say so in "assumption". The same goes for dressings, mayo, breading, glazes and cheese, which are exactly the calories people miss.\n\nWhat you must NOT do is add a component that is not there at all: a side, a sauce or a dip that is neither visible nor implied by the dish, or a second helping of fat you have already counted once inside the per-100 g figure for a food that was priced as cooked. Double-counting and invented extras are what push an estimate too high, not the oil itself. Grilled, boiled, steamed, poached and air-fried food carries little or no added fat, so do not add any there.\n\nCONTEXT:\n- RESTAURANT / CHAIN: if the dish matches a known UK chain (e.g. Pizza Express, Zizzi, Franco Manca, Nando\'s, Wagamama, Wetherspoons and other pub chains like Greene King, Pret, Greggs, Five Guys, McDonald\'s, KFC), use that chain\'s PUBLISHED nutrition for the closest matching menu item as your baseline, then adjust for what you can see (size, extra cheese, sides, sauces, dips), and name the item you anchored to in "assumption". If the user names the place or dish, use it.\n- TAKEAWAY (curry house, kebab, chippy, independent): usually cooked with more oil, ghee or butter than the same dish at home, so carry that through into the fat, but keep the portion to what is actually in the photo.\n- HOME-COOKED: estimate from the visible ingredients and normal home portions, and include the cooking fat and sauces.\n\nRespond ONLY with compact JSON: {"name": string, "items": [{"name": string, "grams": number, "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "user_specified": boolean, "assumption": string}], "kcal": number, "protein_g": number, "carbs_g": number, "fat_g": number, "fiber_g": number, "satfat_g": number, "sugars_g": number, "salt_g": number, "kcal_low": number, "kcal_high": number, "confidence": "low"|"medium"|"high", "assumptions": string, "question": string, "question_options": [string]}. Top-level totals are your best single estimate for the WHOLE portion and must equal the sum of the items. ALWAYS estimate fiber_g for every item and the total from the foods present, vegetables, salad, wholegrains, beans, fruit, potato skins, wholemeal bread all carry fibre; lean meat and most sauces carry little to none. Never leave fibre at 0 when fibrous foods are present. carbs_g is carbohydrate EXCLUDING fibre, as UK labels declare it, so fibre is counted ONCE, in fiber_g, and never also inside carbs_g; fibre itself carries about 2 kcal per gram, so your kcal total should account for it alongside protein, carbs and fat. ALSO estimate satfat_g (saturated fat), sugars_g (total sugars, including those naturally in fruit, milk and juice) and salt_g for every item and the total, since these decide how nutritious the meal is rated: butter, cream, cheese, coconut, fatty meat and pastry drive saturated fat; puddings, fizzy drinks, juice, sauces, ketchup and sweetened yoghurt drive sugars; cured meat, cheese, bread, stock, soy sauce, crisps and anything from a takeaway or a chain kitchen drive salt. Use the same published or typical UK figures you anchored the calories to, and never leave all three at 0 for a meal that obviously contains them. kcal_low/kcal_high = an honest plausible range CENTRED on your estimate: your top-level kcal should sit near the middle of it, never at the top. Make the range wide when you had no scale reference or the dish is opaque (a stew, a curry, anything with hidden oil), and narrow when the food is packaged, weighed by the user, or a named chain item. grams = estimated cooked weight (0 only if impossible). CRITICAL: if the user states an explicit weight or countable portion for a food (e.g. "225g of chicken", "2 eggs", "a 30g scoop of whey", "1 tbsp olive oil"), treat it as EXACT and authoritative: set that item\'s grams to the stated weight (convert counts and spoons to grams using standard weights), derive its kcal and macros from a realistic per-100g profile for that food at that weight, and set "user_specified": true. Never override, round or second-guess a weight the user gave you. For any food the user did not quantify, set "user_specified": false and estimate grams as usual. "assumption" = a short plain note about THAT ITEM that helps someone check it, e.g. "fried in oil", "restaurant size", "Pizza Express Margherita". "assumptions" = one short plain sentence on the biggest thing that could make this wrong, written for the person who ate the meal, e.g. "Hard to tell how much oil is in the sauce." Write both of these in ordinary language and do NOT narrate your method: no mention of scaling, reference objects, plates used as rulers, per-100 g figures, or what you could not see in the frame. They are reading a food diary, not your working. "question" = ONE short question whose answer would most reduce your uncertainty, asked only when it genuinely would: something you cannot see but the person definitely knows, such as how a dish was cooked, whether a sauce or dressing was on it, which size they ordered, or how much of it they finished. Ask about the component carrying the most calories, never about a detail worth a few kcal. "question_options" = 2 to 4 short tappable answers, a few words each, covering the realistic possibilities. When your estimate is already confident, or the notes already answer it, set "question" to "" and "question_options" to []. Never ask more than one thing, never ask something the user has already told you, and always return a complete best-guess estimate alongside the question: the question refines an answer you have already given, it does not replace it. ' + 'When you are unsure, WIDEN THE RANGE rather than shifting your central estimate upward: an honest middle with a wide range is worth more than a high number. Give calories to the nearest 5 or 10 and macros to the nearest gram, rather than implying a precision you do not have. Write all text fields (name, assumption, assumptions) in British English spelling (e.g. fibre, yoghurt, flavour, caramelised), while keeping the JSON keys exactly as specified.';
 
 // Training import: turn whatever could be read out of a shared reel, a coach's PDF, a spreadsheet or
-// a screenshot into a week of sessions. The model reads names and numbers only. It never decides how
-// much volume is appropriate, never invents progression and never resolves a movement to our library:
-// Training.importTemplate does all three deterministically, and flags anything it cannot resolve.
+// a screenshot into a week of sessions, at the day count the person asked for. The model reads names
+// and numbers, picks the right day-count track (or adapts one that does not offer a choice), and gives
+// a muscle/equipment/pattern GUESS for every movement so the app never has to drop one it cannot
+// recognise. It never decides how much volume is appropriate and never invents progression: that guess
+// is a fallback only, Training.importTemplate still resolves against the real library first and only
+// falls back to the guess (minting a custom exercise from it) when nothing in the library matches.
 // The 'You are a strength coach reading someone else' phrase is the signature ai-proxy classifies as
 // the premium workout_import feature, so keep it in step with featureOf() in ai-proxy/index.ts.
-const WORKOUT_PROMPT = 'You are a strength coach reading someone else\'s training plan and writing down exactly what it says. The source may be a social video caption or transcript, a PDF from a coach, a spreadsheet exported to text, a screenshot, or a pasted message. Extract the TRAINING WEEK it describes. Rules: copy the movement names as written, do not translate them into your own vocabulary and do not correct spelling. Record only sets, reps and rest that the source actually states, and leave a field out when it does not state it. NEVER invent exercises, days, sets or reps that are not in the source. NEVER add your own advice, warm-ups or extra movements. If the source shows several weeks, return only the FIRST week, because the app builds the remaining weeks itself. If a line is a note, a heading, a warm-up instruction or a cardio finisher rather than a resistance movement, leave it out. The person importing the plan may have added a note of their own, marked as WHAT THE PERSON SAID ABOUT THIS. Treat it as context they know and the source does not show: it can tell you which day of the week this is, what to call the session, which parts of the image to read and which to ignore, or that a number is in pounds rather than kilos. Trust it over your own reading of the source where the two disagree, and use it to name the day when the source does not name one. It is still not a source of exercises: never add a movement, a set or a rep that appears in neither the source nor that note. Respond ONLY with compact JSON: {"name": string, "confidence": "low"|"medium"|"high", "note": string, "week_label": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null}]}]}. tempo = the four-character tempo the source prints against a movement, copied exactly ("2110", "3110", "30X0"), and null when it does not state one. Coaching apps put it in a column of its own next to sets and reps, and it is part of the prescription: leave it out and the plan is not the plan any more. week_label = copy the week the source is SHOWING, exactly as printed, when it says so anywhere: a selector reading "Week 4", a heading, a date range against a week number. Coaching apps put the current week in a dropdown at the top and a screenshot captures whichever one happened to be open, so this is often the difference between importing the start of a programme and importing its fourth week. "" when the source names no week. name = what the plan calls itself, or a short plain description if it is unnamed. dayOfWeek = 0 for Monday through 6 for Sunday when the source names actual weekdays, otherwise null. repLow/repHigh = the rep range; if a single number is given put it in repLow and leave repHigh null. note = one short sentence on anything you could not read or had to leave out, or "" if the source was complete. confidence reflects how much of the plan was actually legible. British English in all text fields, keeping the JSON keys exactly as specified.';
+// {{DAYS}} is replaced at the call site with the day count the person chose in the wizard.
+const WORKOUT_PROMPT = 'You are a strength coach reading someone else\'s training plan and writing down exactly what it says. The source may be a social video caption or transcript, a PDF from a coach, a spreadsheet exported to text, a screenshot, or a pasted message. Extract the TRAINING WEEK it describes, built for a {{DAYS}}-day training week. Rules: copy the movement names as written, do not translate them into your own vocabulary and do not correct spelling. Record only sets, reps and rest that the source actually states, and leave a field out when it does not state it. NEVER invent exercises, sets or reps that are not in the source. NEVER add your own advice, warm-ups or extra movements.\n\nDAY COUNT: some sources offer several explicitly labelled versions of the same programme at different day counts ("4 Day Option", "5 Day Option", "6 Day Option", and similar). When the source does this, extract ONLY the track matching {{DAYS}} days and ignore the others completely - never blend two tracks together. When the source offers no such choice and is a single programme (a straight week, or a rotation that repeats on its own schedule, such as a 6-day push/pull/legs cycle run three-on-one-off), adapt it to {{DAYS}} days yourself: keep every exercise choice and each day\'s muscle grouping as close to the source as you can, condensing or extending the rotation rather than inventing a different structure. Say so plainly in "note" whenever you had to adapt rather than found an exact match. If the source shows several WEEKS of the same track, return only the FIRST week, because the app builds the remaining weeks itself.\n\nIf a line is a note, a heading, a warm-up instruction or a cardio finisher rather than a resistance movement, leave it out. The person importing the plan may have added a note of their own, marked as WHAT THE PERSON SAID ABOUT THIS. Treat it as context they know and the source does not show: it can tell you which day of the week this is, what to call the session, which parts of the image to read and which to ignore, that a number is in pounds rather than kilos, or which day-count track they want if the source is ambiguous about it. Trust it over your own reading of the source where the two disagree, and use it to name the day when the source does not name one. It is still not a source of exercises: never add a movement, a set or a rep that appears in neither the source nor that note.\n\nEVERY EXERCISE NEEDS A MUSCLE GUESS. Give your best-guess classification for every movement, even ones you are confident are a normal gym staple, because the app checks your name against its own exercise library first and a small number will not match it (an unusual variant, a coach\'s own name for something, a piece of branded kit) - your guess is what lets the app add it anyway instead of quietly dropping it. muscle = the primary muscle code(s) it trains, from: ch=chest, fd=front delts, sd=side delts, rd=rear delts, lt=lats, ub=upper back, lb=lower back, bi=biceps, tr=triceps, fa=forearms, ab=abs, ob=obliques, qu=quads, ha=hamstrings, gl=glutes, ad=adductors, ca=calves. equipment = one of: barbell, dumbbell, machine, cable, smith, ez, kettlebell, trapbar, bodyweight, band - read off what the source shows or names, your best guess if it does not say. pattern = "compound" for a multi-joint movement, "isolation" for a single-joint one, "core" for direct ab/oblique work.\n\nRespond ONLY with compact JSON: {"name": string, "confidence": "low"|"medium"|"high", "note": string, "week_label": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null, "muscle": [string], "equipment": string, "pattern": "compound"|"isolation"|"core"}]}]}. tempo = the four-character tempo the source prints against a movement, copied exactly ("2110", "3110", "30X0"), and null when it does not state one. Coaching apps put it in a column of its own next to sets and reps, and it is part of the prescription: leave it out and the plan is not the plan any more. week_label = copy the week the source is SHOWING, exactly as printed, when it says so anywhere: a selector reading "Week 4", a heading, a date range against a week number. Coaching apps put the current week in a dropdown at the top and a screenshot captures whichever one happened to be open, so this is often the difference between importing the start of a programme and importing its fourth week. "" when the source names no week. name = what the plan calls itself, or a short plain description if it is unnamed. dayOfWeek = 0 for Monday through 6 for Sunday when the source names actual weekdays, otherwise null. repLow/repHigh = the rep range; if a single number is given put it in repLow and leave repHigh null. note = one short sentence on anything you could not read, had to adapt, or had to leave out, or "" if the source was complete and matched exactly. confidence reflects how much of the plan was actually legible. British English in all text fields, keeping the JSON keys exactly as specified.';
 
 // The tweak pass. An import is never right first time: a screenshot cannot say which day is the
 // Friday, the coach's own shorthand resolves to the wrong machine, and half a plan's character lives
@@ -10085,7 +10154,7 @@ const WORKOUT_PROMPT = 'You are a strength coach reading someone else\'s trainin
 // this can no more invent a movement the library does not have than the first pass could.
 // The 'You are a strength coach correcting a training plan' phrase is the signature ai-proxy
 // classifies as workout_import, so keep it in step with featureOf() in ai-proxy/index.ts.
-const WORKOUT_TWEAK_PROMPT = 'You are a strength coach correcting a training plan someone has just imported into their app, using notes they have written about what is wrong with it. You are given the plan as JSON exactly as the app read it, and what the person wants changed. Apply ONLY what they asked for, and return the WHOLE plan in the same shape, including every day and every movement you did not touch. Rules: keep movement names, day names, sets, reps, RIR and tempo EXACTLY as given unless the person asked for that specific thing to change. Never change a number they did not mention. If they name a movement to swap, replace it and carry its sets, reps and tempo over unless they said otherwise. If they ask for something to come out, remove it. If they ask for something to go in, add it with sets and reps that match the rest of that day rather than numbers of your own invention. If they say a movement was read wrongly and tell you what it really was, use their name for it. If they tell you which weekday a session is, put it in the day name. Never add advice, warm-ups, cardio, extra sets or extra movements that they did not ask for, and never "improve" a plan that someone else wrote: it is not yours to make better. If something they asked for is ambiguous or you cannot do it, leave that part alone and say so plainly. Respond ONLY with compact JSON: {"name": string, "note": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null}]}]}. dayOfWeek = 0 for Monday through 6 for Sunday when the person says which day it is, otherwise null. note = one short sentence saying what you changed, or what you could not do and why. British English in all text fields, keeping the JSON keys exactly as specified.';
+const WORKOUT_TWEAK_PROMPT = 'You are a strength coach correcting a training plan someone has just imported into their app, using notes they have written about what is wrong with it. You are given the plan as JSON exactly as the app read it, and what the person wants changed. Apply ONLY what they asked for, and return the WHOLE plan in the same shape, including every day and every movement you did not touch. Rules: keep movement names, day names, sets, reps, RIR and tempo EXACTLY as given unless the person asked for that specific thing to change. Never change a number they did not mention. If they name a movement to swap, replace it and carry its sets, reps and tempo over unless they said otherwise. If they ask for something to come out, remove it. If they ask for something to go in, add it with sets and reps that match the rest of that day rather than numbers of your own invention. If they say a movement was read wrongly and tell you what it really was, use their name for it. If they tell you which weekday a session is, put it in the day name. Never add advice, warm-ups, cardio, extra sets or extra movements that they did not ask for, and never "improve" a plan that someone else wrote: it is not yours to make better. If something they asked for is ambiguous or you cannot do it, leave that part alone and say so plainly. Any movement you add or rename needs a muscle guess for the same reason it did on the first read: give your best-guess "muscle" code(s) (ch=chest, fd=front delts, sd=side delts, rd=rear delts, lt=lats, ub=upper back, lb=lower back, bi=biceps, tr=triceps, fa=forearms, ab=abs, ob=obliques, qu=quads, ha=hamstrings, gl=glutes, ad=adductors, ca=calves), "equipment" (barbell, dumbbell, machine, cable, smith, ez, kettlebell, trapbar, bodyweight, band) and "pattern" ("compound"|"isolation"|"core"), so the app can add it even if its name does not match the library. Carry a touched movement\'s existing guess forward unchanged unless the correction changes what it actually is. Respond ONLY with compact JSON: {"name": string, "note": string, "days": [{"name": string, "dayOfWeek": number|null, "exercises": [{"name": string, "sets": number|null, "repLow": number|null, "repHigh": number|null, "rir": number|null, "restSec": number|null, "tempo": string|null, "muscle": [string], "equipment": string, "pattern": "compound"|"isolation"|"core"}]}]}. dayOfWeek = 0 for Monday through 6 for Sunday when the person says which day it is, otherwise null. note = one short sentence saying what you changed, or what you could not do and why. British English in all text fields, keeping the JSON keys exactly as specified.';
 
 /* THE TRAINING VOICE IS THE BUDDY'S VOICE
  * ----------------------------------------------------------------------------
@@ -50243,7 +50312,7 @@ function TrainTab({
   useEffect(() => {
     if (!importUrl) return;
     setScreen({
-      name: 'import',
+      name: 'wizard',
       url: importUrl
     });
     onConsumeImport && onConsumeImport();
@@ -50336,26 +50405,12 @@ function TrainTab({
       showToast: showToast,
       isPremium: isPremium,
       onUpgrade: onUpgrade,
-      onBack: () => go('home'),
-      onDraft: draft => go('builder', {
-        draft
-      }),
-      onShots: () => go('draft')
-    }));
-  }
-  if (screen.name === 'import') {
-    return page(/*#__PURE__*/React.createElement(WorkoutImport, {
-      db: db,
-      update: update,
-      showToast: showToast,
-      isPremium: isPremium,
-      onUpgrade: onUpgrade,
       initialUrl: screen.url,
       onBack: () => go(screen.from || 'home'),
-      onDraft: draft => go('builder', {
-        draft
-      }),
-      onCollected: () => go('draft')
+      onDraft: (draft, opts) => go('builder', Object.assign({
+        draft: draft
+      }, opts)),
+      onShots: () => go('draft')
     }));
   }
   if (screen.name === 'draft') {
@@ -50366,19 +50421,20 @@ function TrainTab({
       isPremium: isPremium,
       onUpgrade: onUpgrade,
       onBack: () => go('home'),
-      onImport: () => go('import', {
+      onImport: () => go('wizard', {
         from: 'draft'
       }),
       onBuild: draft => {
         // The draft's days become week 1 and the block is written on top, exactly as a single
-        // import would be. Nothing about a multi-source block is a different code path.
-        //
-        // 'as-written' rather than the app's own periodisation, because these days came off somebody
-        // else's plan. Adding a set a week to a programme built on two hard sets is not building on
-        // it, it is disagreeing with it, and the person chose that coach over us.
+        // build would be - nothing about a multi-source block is a different code path. It takes
+        // the source as INSPIRATION, same as a single import now does: our progression and the
+        // house intensity apply on top, at whatever shape and style the wizard was last set to,
+        // rather than freezing the numbers a screenshot happened to show.
+        const prefs = tdb(db).prefs || {};
         const block = Training.blockFromTemplate(draft.days, {
           weeks: 4,
-          shape: 'as-written',
+          shape: prefs.shape || 'build4',
+          intensity: prefs.intensity || 'high',
           targets: trainTargets(db),
           custom: tdb(db).custom,
           name: draft.name || 'My block',
@@ -50421,8 +50477,7 @@ function TrainTab({
         blockId,
         from: 'blocks'
       }),
-      onNew: () => go('wizard'),
-      onImport: () => go('import', {
+      onNew: () => go('wizard', {
         from: 'blocks'
       }),
       onCoverage: blockId => go('coverage', {
@@ -50776,12 +50831,6 @@ function TrainHome({
   }, "Build a 4-week block"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2 mb-2"
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => go('import'),
-    className: "pixel-box flex-1 h-11 text-[12px]",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Import one"), /*#__PURE__*/React.createElement("button", {
     onClick: () => go('library'),
     className: "pixel-box flex-1 h-11 text-[12px]",
     style: {
@@ -50888,7 +50937,7 @@ function TrainHome({
       color: 'var(--danger)'
     }
   }, "Delete")), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 gap-2 mb-4"
+    className: "grid grid-cols-2 gap-2 mb-4"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => go('library'),
     className: "pixel-box py-3 px-1 text-[11.5px] leading-tight",
@@ -50896,18 +50945,12 @@ function TrainHome({
       background: 'var(--surface2)'
     }
   }, "Browse", /*#__PURE__*/React.createElement("br", null), "blocks"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => go('import'),
-    className: "pixel-box py-3 px-1 text-[11.5px] leading-tight",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Import", /*#__PURE__*/React.createElement("br", null), "a plan"), /*#__PURE__*/React.createElement("button", {
     onClick: () => go('wizard'),
     className: "pixel-box py-3 px-1 text-[11.5px] leading-tight",
     style: {
       background: 'var(--surface2)'
     }
-  }, "Build", /*#__PURE__*/React.createElement("br", null), "with AI")), /*#__PURE__*/React.createElement("div", {
+  }, "Build", /*#__PURE__*/React.createElement("br", null), "a block")), /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-center flex-wrap gap-x-4 gap-y-2 py-2 pf text-[10px] uppercase",
     style: {
       letterSpacing: '0.08em'
@@ -53028,6 +53071,14 @@ function CustomExercise({
 // ---- block wizard -----------------------------------------------------------------------------
 // Free users get the whole thing built deterministically from their equipment and days. Premium
 // adds the AI pass that swaps in movements suited to what they actually like doing.
+// ---- the one way in: bring something or don't, answer a few questions, build ------------------
+// Used to be two screens competing for the same job: "Import a plan" read a source and froze its
+// numbers exactly as written; "Build with AI" started from nothing. But nobody who has a PDF wants
+// a SEPARATE "generate one" option once they have brought it, and nobody starting from nothing
+// wants to be asked which screen that is. So: one wizard. Bring a source or skip that step
+// entirely, answer how many days and how hard, and it builds - taking a source as INSPIRATION
+// (exercise selection, day structure, character) with our own progression and house intensity
+// applied on top, not a photocopy of someone else's numbers.
 function BlockWizard({
   db,
   update,
@@ -53036,7 +53087,8 @@ function BlockWizard({
   onUpgrade,
   onBack,
   onDraft,
-  onShots
+  onShots,
+  initialUrl
 }) {
   useBackClose(onBack);
   const t = tdb(db);
@@ -53044,7 +53096,8 @@ function BlockWizard({
   const [whyEmpty, setWhyEmpty] = useState(false);
   const [days, setDays] = useState(t.prefs.daysPerWeek || 4);
   const [goal, setGoal] = useState('hypertrophy');
-  const [shape, setShape] = useState('build4');
+  const [shape, setShape] = useState(t.prefs.shape || 'build4');
+  const [intensity, setIntensity] = useState(t.prefs.intensity || 'high');
   const [minutes, setMinutes] = useState(t.prefs.sessionMinutes || 60);
   const [experience, setExperience] = useState(t.prefs.experience || 'intermediate');
   const [equipment, setEquipment] = useState(t.prefs.equipment || []);
@@ -53055,48 +53108,79 @@ function BlockWizard({
   const [wish, setWish] = useState('');
   const [wishNote, setWishNote] = useState(null);
   const [wishBusy, setWishBusy] = useState(false);
-  const [shotBusy, setShotBusy] = useState('');
-  const [shotNote, setShotNote] = useState(null);
-  const [shotErr, setShotErr] = useState(false);
-  const [shotCtx, setShotCtx] = useState('');
-  const [shotFails, setShotFails] = useState([]); // the files that did not read, kept so they can be retried
+  // The intake tabs. A file (screenshot, PDF, spreadsheet, plain text) is the common case and comes
+  // first; a shared reel is second because the link is usually already on the clipboard; paste is
+  // the fallback when neither exists as a file. All three land in the same place: the draft basket.
+  const [tab, setTab] = useState(() => initialUrl ? 'link' : 'file');
+  const [url, setUrl] = useState(initialUrl || '');
+  const [text, setText] = useState('');
+  const [ctx, setCtx] = useState('');
+  const [readBusy, setReadBusy] = useState('');
+  const [readNote, setReadNote] = useState(null);
+  const [readErr, setReadErr] = useState(false);
+  const [fails, setFails] = useState([]); // files that did not read, kept so they can be retried
 
-  // Read one or more screenshots of sessions into the draft basket. Each image is read on its own,
-  // because a screenshot is one session: batching them into a single call would blur four days into
-  // one soup and lose which movement belonged to which day.
+  // Fold a parse's result into the draft basket: the days, any custom exercises it had to guess at
+  // (see Training.importTemplate), and everything worth a second look. One place both the batched
+  // file reader and the single-shot link/paste readers write through, so there is exactly one way a
+  // source becomes part of the draft rather than two slightly different ones.
+  function mergeIntoDraft(tr, parts) {
+    const d = tr.draft || {
+      name: parts[0].parsed && parts[0].parsed.name || 'My block',
+      days: []
+    };
+    parts.forEach(p => Training.mergeDraftDays(d.days, p.res.template, p.sourceRef));
+    const newCustom = parts.reduce((a, p) => a.concat(p.res && p.res.newCustom || []), []);
+    if (newCustom.length) tr.custom = (tr.custom || []).concat(newCustom);
+    const gather = k => parts.reduce((a, p) => a.concat(p.res && p.res[k] || []), []);
+    d.unresolved = (d.unresolved || []).concat(gather('unresolved'));
+    d.mismatches = (d.mismatches || []).concat(gather('mismatches'));
+    d.loose = (d.loose || []).concat(gather('loose'));
+    d.weekLabel = d.weekLabel || parts.map(p => p.res && p.res.weekLabel).filter(Boolean)[0] || null;
+    d.source = 'import';
+    tr.draft = d;
+  }
+
+  // Read one or more files into the draft basket. Each is read on its own, because a screenshot or
+  // a page is one session: batching them into a single call would blur four days into one soup and
+  // lose which movement belonged to which day. A single PDF holding a whole programme is still one
+  // file and one read - `days` tells the model which of its day-count tracks to pull, or how to
+  // adapt a single track to fit, so the FIRST upload can already be the whole thing.
   //
   // Three things this has to survive, all of which it did not before. A single hung request used to
   // stall the whole run with no way out, so every read has a deadline and one retry. Five reads in a
   // row is minutes of staring at a button, so they run a few at a time and the label counts what has
   // FINISHED rather than what has started. And a file that fails is named and offered back, instead
   // of disappearing into an anonymous tally.
-  async function readShots(files) {
+  async function readFiles(files) {
     const list = Array.from(files || []);
     if (!list.length) return;
     if (!isPremium) {
       onUpgrade && onUpgrade('workout_import');
       return;
     }
-    const ctx = shotCtx;
-    setShotErr(false);
-    setShotNote(null);
-    setShotFails([]);
+    const note = ctx;
+    setReadErr(false);
+    setReadNote(null);
+    setFails([]);
     let done = 0;
-    const label = () => setShotBusy('Read ' + done + ' of ' + list.length + '...');
+    const label = () => setReadBusy('Read ' + done + ' of ' + list.length + '...');
     label();
     async function readOne(file) {
-      const content = withImportNote((await workoutContentFromFile(file)).blocks, ctx);
+      const content = withImportNote((await workoutContentFromFile(file)).blocks, note);
       // One retry, because the failure this catches is a dropped request rather than an unreadable
-      // picture, and re-uploading five screenshots to fix one of them is a miserable ask.
+      // file, and re-uploading five of them to fix one is a miserable ask.
       let parsed;
       try {
         parsed = await aiParseWorkout(content, {
-          timeoutMs: 90000
+          timeoutMs: 90000,
+          days
         });
       } catch (e) {
         if (e && e.aiError) throw e; // a paywall or a quota is not worth asking twice
         parsed = await aiParseWorkout(content, {
-          timeoutMs: 90000
+          timeoutMs: 90000,
+          days
         });
       }
       const res = Training.importTemplate(parsed, {
@@ -53106,15 +53190,17 @@ function BlockWizard({
       return {
         parsed: parsed,
         res: res,
-        template: res.template,
-        file: file
+        sourceRef: {
+          kind: 'file',
+          name: file.name || 'a file'
+        }
       };
     }
 
     // Results are collected in upload order and written once at the end, so the days land in the
     // order they were picked however the reads happen to finish, and the draft is saved once.
     const results = new Array(list.length).fill(null);
-    const fails = [];
+    const fails2 = [];
     let cursor = 0;
     async function worker() {
       for (;;) {
@@ -53123,7 +53209,7 @@ function BlockWizard({
         try {
           results[i] = await readOne(list[i]);
         } catch (e) {
-          fails.push({
+          fails2.push({
             file: list[i],
             why: e && e.message || 'could not be read'
           });
@@ -53136,40 +53222,85 @@ function BlockWizard({
     const got = results.filter(Boolean);
     // Counted out here, not inside the updater: trainUpdate hands React a function it runs when it
     // pleases, so anything tallied in there is still zero by the time the message below reads it.
-    const added = got.reduce((a, r) => a + r.template.length, 0);
-    if (got.length) {
-      trainUpdate(update, tr => {
-        const d = tr.draft || {
-          name: got[0].parsed && got[0].parsed.name || 'My block',
-          days: []
-        };
-        got.forEach(r => Training.mergeDraftDays(d.days, r.template, {
-          kind: 'file',
-          name: r.file.name || 'screenshot'
-        }));
-        // Everything the read was unsure about rides along with the draft, so the review screen can
-        // show it. A movement the library could not place used to be dropped here without a word,
-        // which is how three of Day 3's seven went missing in silence; a movement matched to the
-        // wrong piece of kit is worse still, because the day looks right and you find out in the gym.
-        const gather = k => got.reduce((a, r) => a.concat(r.res && r.res[k] || []), []);
-        d.unresolved = (d.unresolved || []).concat(gather('unresolved'));
-        d.mismatches = (d.mismatches || []).concat(gather('mismatches'));
-        d.loose = (d.loose || []).concat(gather('loose'));
-        d.weekLabel = d.weekLabel || got.map(r => r.res && r.res.weekLabel).filter(Boolean)[0] || null;
-        d.source = 'import';
-        tr.draft = d;
-      });
-    }
-    setShotBusy('');
-    setShotFails(fails);
+    const added = got.reduce((a, r) => a + r.res.template.length, 0);
+    if (got.length) trainUpdate(update, tr => mergeIntoDraft(tr, got));
+    setReadBusy('');
+    setFails(fails2);
     if (!added) {
-      setShotErr(true);
-      setShotNote('I could not read a session out of ' + (list.length === 1 ? 'that' : 'those') + '. A screenshot showing the exercise names, sets and reps works best.');
+      setReadErr(true);
+      setReadNote('I could not read a session out of ' + (list.length === 1 ? 'that' : 'those') + '. A file or screenshot showing the exercise names, sets and reps works best.');
       return;
     }
-    setShotErr(false);
-    setShotNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft block' + (fails.length ? ', and ' + fails.length + ' I could not read: ' + fails.map(f => f.file.name || 'a screenshot').join(', ') + '.' : '.') + (fails.length ? ' Try those again, or open the draft to build what did read.' : ' Add more, or open the draft to build it.'));
-    if (!fails.length) onShots && onShots();
+    setReadErr(false);
+    setReadNote(added + (added === 1 ? ' day' : ' days') + ' added to your draft' + (fails2.length ? ', and ' + fails2.length + ' I could not read: ' + fails2.map(f => f.file.name || 'a file').join(', ') + '.' : '.') + (fails2.length ? ' Try those again, or build below.' : ' Add another, or build below.'));
+  }
+
+  // Link and paste are single sources, read the same way but without the batching a pile of files
+  // needs. Both land in the same draft basket as a file would. Named distinctly from readFiles'
+  // OWN internal readOne (per-file, batched) so the two are never mistaken for each other.
+  async function readSingleSource(getContent, sourceRef, busyLabel) {
+    if (!isPremium) {
+      onUpgrade && onUpgrade('workout_import');
+      return;
+    }
+    setReadErr(false);
+    setReadNote(null);
+    setReadBusy(busyLabel || 'Reading it');
+    try {
+      const content = withImportNote(await getContent(), ctx);
+      setReadBusy('Working out what it says');
+      const parsed = await aiParseWorkout(content, {
+        timeoutMs: 120000,
+        days
+      });
+      const res = Training.importTemplate(parsed, {
+        custom: t.custom
+      });
+      if (!res.template.length) {
+        setReadErr(true);
+        setReadNote('I could not find any exercises in that. If it is a video where the plan is only spoken over music, a screenshot of the plan usually works better.');
+        setReadBusy('');
+        return;
+      }
+      trainUpdate(update, tr => mergeIntoDraft(tr, [{
+        parsed: parsed,
+        res: res,
+        sourceRef: sourceRef
+      }]));
+      setReadBusy('');
+      setReadNote(res.template.length + (res.template.length === 1 ? ' day' : ' days') + ' added to your draft. Add another, or build below.');
+    } catch (e) {
+      setReadErr(true);
+      setReadNote(e && e.message || 'That did not work. Try another way in.');
+      setReadBusy('');
+    }
+  }
+  function readLink() {
+    const u = url.trim();
+    if (!u) return;
+    readSingleSource(async () => {
+      const src = await extractRecipeSource(u);
+      if (!src || !src.ok || !src.sourceText) {
+        throw new Error('I could not read anything public behind that link. Paste the caption in, or upload a screenshot of the plan.');
+      }
+      return [{
+        type: 'text',
+        text: 'This was read from a shared ' + (src.platform || 'social') + ' post. It may include the caption and what the creator says out loud.\n\n' + String(src.sourceText).slice(0, 24000)
+      }];
+    }, {
+      kind: 'link',
+      url: u
+    }, 'Reading the post');
+  }
+  function readPaste() {
+    const v = text.trim();
+    if (!v) return;
+    readSingleSource(async () => [{
+      type: 'text',
+      text: 'A training plan, pasted in by the person who wants to follow it.\n\n' + v.slice(0, 24000)
+    }], {
+      kind: 'paste'
+    }, 'Reading it');
   }
   const EQUIP = [['barbell', 'Barbell'], ['dumbbell', 'Dumbbells'], ['machine', 'Machines'], ['cable', 'Cables'], ['bodyweight', 'Bodyweight'], ['smith', 'Smith'], ['ez', 'EZ bar'], ['kettlebell', 'Kettlebell'], ['trapbar', 'Trap bar']];
 
@@ -53180,7 +53311,7 @@ function BlockWizard({
     const v = wish.trim();
     if (!v) return;
     if (!isPremium) {
-      onUpgrade && onUpgrade('block_generate');
+      onUpgrade && onUpgrade('workout_import');
       return;
     }
     setWishBusy(true);
@@ -53200,26 +53331,50 @@ function BlockWizard({
     }
     setWishBusy(false);
   }
+
+  // Build from whatever is in the draft basket if anything is, else from the form alone. Either way
+  // this is the ONE build action: a source is inspiration the engine periodises on top of, at
+  // whatever shape and intensity are set below, not a frozen photocopy of someone else's numbers.
   function build() {
     setBusy(true);
     const targets = Training.defaultTargets({
       experience: experience,
       volumeTargets: t.volumeTargets
     });
-    const block = Training.generateBlock({
-      daysPerWeek: days,
-      weeks: 4,
-      shape: shape,
-      goal: goal,
-      targets: targets,
-      gym: gym,
-      equipment: equipment.length ? equipment : null,
-      dislikes: t.prefs.dislikes,
-      custom: t.custom,
-      sessionMinutes: minutes,
-      emphasis: emphasis,
-      source: 'generated'
-    });
+    let block;
+    if (draftDays > 0) {
+      block = Training.blockFromTemplate(t.draft.days, {
+        weeks: 4,
+        shape: shape,
+        intensity: intensity,
+        targets: targets,
+        custom: t.custom,
+        name: t.draft.name || 'My block',
+        source: 'import',
+        startISO: null,
+        sourceRef: {
+          kind: 'draft',
+          days: t.draft.days.length,
+          importedISO: Store.todayISO()
+        }
+      });
+    } else {
+      block = Training.generateBlock({
+        daysPerWeek: days,
+        weeks: 4,
+        shape: shape,
+        intensity: intensity,
+        goal: goal,
+        targets: targets,
+        gym: gym,
+        equipment: equipment.length ? equipment : null,
+        dislikes: t.prefs.dislikes,
+        custom: t.custom,
+        sessionMinutes: minutes,
+        emphasis: emphasis,
+        source: 'generated'
+      });
+    }
     block.gymId = gym ? gym.id : null;
     // Remember the answers, so the next block does not ask again.
     trainUpdate(update, tr => {
@@ -53227,11 +53382,15 @@ function BlockWizard({
         daysPerWeek: days,
         sessionMinutes: minutes,
         experience: experience,
-        equipment: equipment
+        equipment: equipment,
+        shape: shape,
+        intensity: intensity
       });
     });
     setBusy(false);
-    onDraft(block);
+    onDraft(block, {
+      clearDraft: draftDays > 0
+    });
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "fade-in"
@@ -53260,56 +53419,115 @@ function BlockWizard({
     style: {
       color: 'var(--accent-ink)'
     }
-  }, "Show the coach"), /*#__PURE__*/React.createElement("div", {
+  }, "Bring a programme (optional)"), /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mb-4 leading-snug",
     style: {
       color: 'var(--muted)'
     }
-  }, "Sessions you already do, from any app or a coach's message. Add as many as you like."), /*#__PURE__*/React.createElement(Field, {
+  }, "A PDF, a spreadsheet, a coach's message, a reel, or just the text. Set the day count below first if the source offers more than one version, so I pull the right one. Skip this entirely and I will write you one from nothing."), /*#__PURE__*/React.createElement("div", {
+    className: "mb-4"
+  }, /*#__PURE__*/React.createElement(Pill, {
+    value: tab,
+    onChange: setTab,
+    options: [{
+      v: 'file',
+      l: 'File'
+    }, {
+      v: 'link',
+      l: 'Link'
+    }, {
+      v: 'paste',
+      l: 'Paste'
+    }]
+  })), /*#__PURE__*/React.createElement(Field, {
     label: "Anything I should know",
     hint: IMPORT_NOTE_HINT
   }, /*#__PURE__*/React.createElement("textarea", {
-    value: shotCtx,
-    onChange: e => setShotCtx(e.target.value),
+    value: ctx,
+    onChange: e => setCtx(e.target.value),
     rows: 2,
-    placeholder: "These are Mon to Fri, in order. Ignore the cardio at the bottom.",
+    placeholder: "This is the 5 day option. Weights are in pounds.",
     className: "w-full pixel-box px-3 py-3 text-[13px]",
     style: {
       background: 'var(--surface2)',
       color: 'var(--text)'
     }
-  })), /*#__PURE__*/React.createElement("label", {
-    className: 'pixel-box flex items-center justify-center h-12 text-[12.5px] ' + (shotBusy ? 'opacity-60' : 'cursor-pointer'),
+  })), tab === 'file' && /*#__PURE__*/React.createElement("label", {
+    className: 'pixel-box flex items-center justify-center h-12 text-[12.5px] ' + (readBusy ? 'opacity-60' : 'cursor-pointer'),
     style: {
       background: 'var(--surface2)'
     }
-  }, shotBusy || (isPremium ? 'Upload screenshots' : 'Upload screenshots · Premium'), /*#__PURE__*/React.createElement("input", {
+  }, readBusy || (isPremium ? 'Choose file(s)' : 'Choose file(s) · Premium'), /*#__PURE__*/React.createElement("input", {
     type: "file",
     className: "hidden",
-    accept: "image/*",
+    accept: ".pdf,.xlsx,.csv,.tsv,.txt,.md,image/*",
     multiple: true,
-    disabled: !!shotBusy,
+    disabled: !!readBusy,
     onChange: e => {
-      readShots(e.target.files);
+      readFiles(e.target.files);
       e.target.value = '';
     }
-  })), shotBusy && /*#__PURE__*/React.createElement("div", {
+  })), tab === 'link' && /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    value: url,
+    onChange: e => setUrl(e.target.value),
+    placeholder: "Instagram, TikTok or YouTube link"
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: readLink,
+    disabled: !!readBusy || !url.trim(),
+    className: "pixel-box px-4 text-[12.5px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, readBusy || 'Read it')), tab === 'paste' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("textarea", {
+    value: text,
+    onChange: e => setText(e.target.value),
+    rows: 6,
+    placeholder: 'Monday - Push\nBench press 4x6-8\nIncline DB press 3x10\n...',
+    className: "w-full pixel-box px-3 py-3 text-[13px] mb-2",
+    style: {
+      background: 'var(--surface2)',
+      color: 'var(--text)'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: readPaste,
+    disabled: !!readBusy || !text.trim(),
+    className: "pixel-box w-full h-11 text-[12.5px]",
+    style: {
+      background: 'var(--surface2)'
+    }
+  }, readBusy || 'Read it')), readBusy && /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] mt-2 leading-snug",
     style: {
       color: 'var(--muted2)'
     }
-  }, "Each screenshot is read on its own so the days stay separate, so a handful takes a moment."), shotNote && /*#__PURE__*/React.createElement("div", {
+  }, "Each file is read on its own so the days stay separate, so a handful takes a moment."), readNote && /*#__PURE__*/React.createElement("div", {
     className: "text-[12px] mt-2 leading-snug",
     style: {
-      color: shotErr ? 'var(--danger)' : 'var(--accent-ink)'
+      color: readErr ? 'var(--danger)' : 'var(--accent-ink)'
     }
-  }, shotNote), !shotBusy && shotFails.length > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: () => readShots(shotFails.map(f => f.file)),
+  }, readNote), !readBusy && fails.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => readFiles(fails.map(f => f.file)),
     className: "pixel-box w-full h-11 text-[12px] mt-2",
     style: {
       background: 'var(--surface2)'
     }
-  }, "Try ", shotFails.length === 1 ? 'that one' : 'those ' + shotFails.length, " again")), /*#__PURE__*/React.createElement(Card, {
+  }, "Try ", fails.length === 1 ? 'that one' : 'those ' + fails.length, " again"), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mt-3 pt-3 leading-snug border-t",
+    style: {
+      borderColor: 'var(--border)',
+      color: 'var(--text2)'
+    }
+  }, draftDays, " ", draftDays === 1 ? 'day' : 'days', " in your draft so far.", ' ', /*#__PURE__*/React.createElement("button", {
+    onClick: onShots,
+    className: "underline",
+    style: {
+      color: 'var(--accent-ink)'
+    }
+  }, "Review it"))), /*#__PURE__*/React.createElement(Card, {
     className: "p-4 mb-6"
   }, /*#__PURE__*/React.createElement("div", {
     className: "pf text-[9px] uppercase mb-2",
@@ -53339,7 +53557,8 @@ function BlockWizard({
       color: 'var(--accent-ink)'
     }
   }, wishNote)), /*#__PURE__*/React.createElement(Field, {
-    label: "Days a week"
+    label: "Days a week",
+    hint: "Also which track I pull from a source that offers more than one."
   }, /*#__PURE__*/React.createElement(Seg, {
     value: days,
     onChange: setDays,
@@ -53398,6 +53617,19 @@ function BlockWizard({
       l: 'General'
     }]
   })), /*#__PURE__*/React.createElement(Field, {
+    label: "Training intensity",
+    hint: intensity === 'high' ? 'High intensity, lower volume: fewer sets, closer to true failure by the last week. Our default.' : 'More volume, moderate effort: more sets, always a rep or two in reserve.'
+  }, /*#__PURE__*/React.createElement(Seg, {
+    value: intensity,
+    onChange: setIntensity,
+    options: [{
+      v: 'high',
+      l: 'High intensity (default)'
+    }, {
+      v: 'moderate',
+      l: 'More volume'
+    }]
+  })), /*#__PURE__*/React.createElement(Field, {
     label: "Block shape",
     hint: Training.SHAPES[shape].label
   }, /*#__PURE__*/React.createElement(Seg, {
@@ -53409,6 +53641,9 @@ function BlockWizard({
     }, {
       v: 'build3-deload1',
       l: '3 + light week'
+    }, {
+      v: 'as-written',
+      l: 'Exactly as brought'
     }]
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Where you will train it",
@@ -53455,7 +53690,12 @@ function BlockWizard({
       background: emphasis.indexOf(m) !== -1 ? 'var(--good)' : 'var(--surface2)',
       color: emphasis.indexOf(m) !== -1 ? '#05140a' : 'var(--text2)'
     }
-  }, Training.MUSCLE_LABEL[m])))), /*#__PURE__*/React.createElement("button", {
+  }, Training.MUSCLE_LABEL[m])))), draftDays > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "text-[12px] mb-3 leading-snug",
+    style: {
+      color: 'var(--muted)'
+    }
+  }, "Building from the ", draftDays, " ", draftDays === 1 ? 'day' : 'days', " you have brought, at the shape and intensity above."), /*#__PURE__*/React.createElement("button", {
     onClick: build,
     disabled: busy,
     className: "pixel-btn w-full h-14 font-bold mt-2",
@@ -53463,13 +53703,7 @@ function BlockWizard({
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, busy ? 'Building...' : 'Build it'), draftDays > 0 && /*#__PURE__*/React.createElement("button", {
-    onClick: onShots,
-    className: "pixel-box w-full h-12 text-[12.5px] mt-2",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, "Open your draft (", draftDays, " ", draftDays === 1 ? 'day' : 'days', ")"), gymPick && /*#__PURE__*/React.createElement(GymPicker, {
+  }, busy ? 'Building...' : draftDays > 0 ? 'Build it from what I brought' : 'Build it'), gymPick && /*#__PURE__*/React.createElement(GymPicker, {
     db: db,
     update: update,
     onClose: () => setGymPick(false),
@@ -54394,7 +54628,6 @@ function BlockList({
   onBack,
   onOpen,
   onNew,
-  onImport,
   onCoverage,
   onReview,
   onStart
@@ -54553,26 +54786,17 @@ function BlockList({
       }
     }, "How it went"))));
   }), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-2.5 mt-1"
+    className: "mt-1"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: onNew,
-    className: "pixel-btn py-3.5 px-2 pf text-[10px] uppercase",
+    className: "pixel-btn w-full py-3.5 px-2 pf text-[10px] uppercase",
     style: {
       borderWidth: 2,
       letterSpacing: '0.06em',
       background: 'var(--accent)',
       color: 'var(--on-accent)'
     }
-  }, "Build a block"), /*#__PURE__*/React.createElement("button", {
-    onClick: onImport,
-    className: "pixel-btn py-3.5 px-2 pf text-[10px] uppercase",
-    style: {
-      borderWidth: 2,
-      letterSpacing: '0.06em',
-      background: 'var(--card)',
-      color: 'var(--text)'
-    }
-  }, "Import a plan")), fixing && (() => {
+  }, "Build a block")), fixing && (() => {
     const list = Training.blockFixes(fixing, t.custom);
     const LABEL = {
       dayName: 'Name the days for what they train',
@@ -55740,7 +55964,12 @@ function TrainSettings({
 
 // Read a plan out of whatever we managed to get hold of. `content` is an array of Anthropic content
 // blocks, so the same function serves pasted text, a PDF, a screenshot and a scraped caption.
+// `days` is the day count chosen in the wizard: it decides which track a multi-option source hands
+// back, and how a single-track source gets adapted. {{DAYS}} appears more than once in the prompt, so
+// this needs a global replace, unlike the single {{NAME}} swap in buddyVoice().
 async function aiParseWorkout(content, opts) {
+  const days = opts && opts.days || 4;
+  const prompt = WORKOUT_PROMPT.replace(/\{\{DAYS\}\}/g, String(days));
   const j = await aiRequest({
     model: AI_MODEL,
     max_tokens: 3000,
@@ -55748,7 +55977,7 @@ async function aiParseWorkout(content, opts) {
       role: 'user',
       content: [{
         type: 'text',
-        text: WORKOUT_PROMPT,
+        text: prompt,
         cache_control: {
           type: 'ephemeral'
         }
@@ -56086,353 +56315,6 @@ function withImportNote(blocks, note) {
   }]);
 }
 const IMPORT_NOTE_HINT = 'Optional. Anything the picture cannot say.';
-
-// ---- the import screen -------------------------------------------------------------------------
-function WorkoutImport({
-  db,
-  update,
-  showToast,
-  isPremium,
-  onUpgrade,
-  onBack,
-  onDraft,
-  onCollected,
-  initialUrl
-}) {
-  useBackClose(onBack);
-  const t = tdb(db);
-  const [tab, setTab] = useState('link');
-  const [url, setUrl] = useState(initialUrl || '');
-  const [text, setText] = useState('');
-  const [ctx, setCtx] = useState('');
-  const [busy, setBusy] = useState('');
-  const [err, setErr] = useState(null);
-  const [result, setResult] = useState(null); // { parsed, template, unresolved, source }
-  const draftDays = (t.draft && t.draft.days || []).length;
-  const [whyEmpty, setWhyEmpty] = useState(false);
-  function gate() {
-    if (isPremium) return true;
-    onUpgrade && onUpgrade('workout_import');
-    return false;
-  }
-  async function run(getContent, sourceRef, busyLabel) {
-    if (!gate()) return;
-    setErr(null);
-    setBusy(busyLabel || 'Reading it');
-    try {
-      const content = withImportNote(await getContent(), ctx);
-      setBusy('Working out what it says');
-      const parsed = await aiParseWorkout(content, {
-        timeoutMs: 120000
-      });
-      const res = Training.importTemplate(parsed, {
-        custom: t.custom
-      });
-      if (!res.template.length) {
-        setErr('I could not find any exercises in that. If it is a video where the plan is only spoken over music, a screenshot of the plan usually works better.');
-        setBusy('');
-        return;
-      }
-      setResult({
-        parsed,
-        template: res.template,
-        unresolved: res.unresolved,
-        sourceRef
-      });
-    } catch (e) {
-      setErr(e && e.message || 'That did not work. Try another way in.');
-    }
-    setBusy('');
-  }
-  function importLink() {
-    const u = url.trim();
-    if (!u) return;
-    run(async () => {
-      const src = await extractRecipeSource(u);
-      if (!src || !src.ok || !src.sourceText) {
-        throw new Error('I could not read anything public behind that link. Paste the caption in, or screenshot the plan and upload it.');
-      }
-      return [{
-        type: 'text',
-        text: 'This was read from a shared ' + (src.platform || 'social') + ' post. It may include the caption and what the creator says out loud.\n\n' + String(src.sourceText).slice(0, 24000)
-      }];
-    }, {
-      kind: 'link',
-      url: u
-    }, 'Reading the post');
-  }
-  function importFiles(files) {
-    const f = (files || [])[0];
-    if (!f) return;
-    run(async () => (await workoutContentFromFile(f)).blocks, {
-      kind: 'file',
-      name: f.name
-    }, 'Reading ' + f.name);
-  }
-  function importText() {
-    const v = text.trim();
-    if (!v) return;
-    run(async () => [{
-      type: 'text',
-      text: 'A training plan, pasted in by the person who wants to follow it.\n\n' + v.slice(0, 24000)
-    }], {
-      kind: 'paste'
-    }, 'Reading it');
-  }
-  function accept() {
-    const block = Training.blockFromTemplate(result.template, {
-      // As written: see the note on the draft screen's build. An import is a plan someone chose.
-      weeks: 4,
-      shape: 'as-written',
-      targets: trainTargets(db),
-      custom: t.custom,
-      name: result.parsed && result.parsed.name || 'Imported block',
-      source: 'import',
-      sourceRef: Object.assign({
-        importedISO: Store.todayISO()
-      }, result.sourceRef || {}),
-      startISO: Store.todayISO()
-    });
-    onDraft(block);
-  }
-  // Collect these days instead of building now. Re-importing a corrected "Upper A" from the same
-  // source replaces it rather than leaving you with two; a same-named day from a different source is
-  // a different day and is kept. See Training.mergeDraftDays.
-  function collect() {
-    trainUpdate(update, tr => {
-      const d = tr.draft || {
-        name: result.parsed && result.parsed.name || 'My block',
-        days: []
-      };
-      Training.mergeDraftDays(d.days, result.template, result.sourceRef || null);
-      tr.draft = d;
-    });
-    showToast && showToast('Added to your draft block.');
-    onCollected && onCollected();
-  }
-  if (result) {
-    return /*#__PURE__*/React.createElement("div", {
-      className: "fade-in pb-24"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: () => setResult(null),
-      className: "pf text-[9px] uppercase mb-4 hit",
-      style: {
-        color: 'var(--accent-ink)'
-      }
-    }, "‹ Try again"), /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[9px] uppercase mb-2",
-      style: {
-        color: 'var(--muted)'
-      }
-    }, "What I read"), /*#__PURE__*/React.createElement("h1", {
-      className: "text-[19px] font-bold leading-tight mb-2"
-    }, result.parsed && result.parsed.name || 'Imported plan'), /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] mb-4 leading-snug",
-      style: {
-        color: 'var(--muted)'
-      }
-    }, "Here is what I read. Nothing is saved yet, and you can change every line of it on the next screen."), result.parsed && result.parsed.confidence === 'low' && /*#__PURE__*/React.createElement(Card, {
-      className: "p-4 mb-4",
-      style: {
-        background: 'color-mix(in srgb, var(--warn) 12%, var(--surface2))'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] leading-snug"
-    }, "Most of that source was hard to read, so check it carefully before you start it.")), result.unresolved.length > 0 && /*#__PURE__*/React.createElement(Card, {
-      className: "p-4 mb-4"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "pf text-[9px] uppercase mb-2",
-      style: {
-        color: 'var(--warn)'
-      }
-    }, "Left out"), /*#__PURE__*/React.createElement("div", {
-      className: "text-[12px] mb-2 leading-snug",
-      style: {
-        color: 'var(--muted)'
-      }
-    }, "I did not recognise these, so I have left them out rather than guess at the wrong movement. Add them yourself on the next screen."), result.unresolved.map((u, i) => /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "text-[12px]",
-      style: {
-        color: 'var(--text2)'
-      }
-    }, u.dayName, ": ", u.name))), result.template.map((day, i) => /*#__PURE__*/React.createElement(Card, {
-      key: i,
-      className: "p-4 mb-4"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-[13px] font-bold mb-2"
-    }, day.name), day.exercises.map(it => /*#__PURE__*/React.createElement("div", {
-      key: it.id,
-      className: "flex items-baseline justify-between gap-2 py-1 border-t",
-      style: {
-        borderColor: 'var(--border)'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "text-[12px] truncate"
-    }, /*#__PURE__*/React.createElement(ExerciseName, {
-      id: it.exerciseId,
-      custom: t.custom
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "text-[11px] whitespace-nowrap",
-      style: {
-        color: 'var(--muted)'
-      }
-    }, it.target.sets, " x ", it.target.repLow, "-", it.target.repHigh))))), /*#__PURE__*/React.createElement("div", {
-      className: "text-[11px] mb-4 leading-snug",
-      style: {
-        color: 'var(--muted2)'
-      }
-    }, "Whatever you build becomes week 1, and the app writes weeks 2 to 4 on top of it, adding work where you have room and backing off at the end.", result.template.length < 3 ? ' If this is one post out of a series, add it to your draft and import the rest before you build.' : '', draftDays ? ' Your draft already has ' + draftDays + (draftDays === 1 ? ' day' : ' days') + ' in it.' : ''), /*#__PURE__*/React.createElement(StickyAction, null, result.template.length >= 3 ? /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-2"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: collect,
-      className: "pixel-box flex-1 h-14 text-[12.5px]",
-      style: {
-        background: 'var(--surface2)'
-      }
-    }, "Add to draft"), /*#__PURE__*/React.createElement("button", {
-      onClick: accept,
-      className: "pixel-btn flex-1 h-14 font-bold",
-      style: {
-        background: 'var(--accent)',
-        color: 'var(--on-accent)'
-      }
-    }, "Build the block")) : /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-2"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: accept,
-      className: "pixel-box flex-1 h-14 text-[12.5px]",
-      style: {
-        background: 'var(--surface2)'
-      }
-    }, "Build now"), /*#__PURE__*/React.createElement("button", {
-      onClick: collect,
-      className: "pixel-btn flex-1 h-14 font-bold",
-      style: {
-        background: 'var(--accent)',
-        color: 'var(--on-accent)'
-      }
-    }, "Add to draft", draftDays ? ' (' + (draftDays + result.template.length) + ')' : ''))));
-  }
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fade-in"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: onBack,
-    className: "pf text-[9px] uppercase mb-4 hit",
-    style: {
-      color: 'var(--accent-ink)'
-    }
-  }, "‹ Train"), /*#__PURE__*/React.createElement("h1", {
-    className: "pf text-lg mb-1"
-  }, "Import a plan"), /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mb-4 leading-snug",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "A reel, a PDF, a spreadsheet, a screenshot or just the text. It lands as a block you can edit."), /*#__PURE__*/React.createElement("div", {
-    className: "mb-4"
-  }, /*#__PURE__*/React.createElement(Pill, {
-    value: tab,
-    onChange: setTab,
-    options: [{
-      v: 'link',
-      l: 'Link'
-    }, {
-      v: 'file',
-      l: 'File'
-    }, {
-      v: 'paste',
-      l: 'Paste'
-    }]
-  })), /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Anything I should know",
-    hint: IMPORT_NOTE_HINT
-  }, /*#__PURE__*/React.createElement("textarea", {
-    value: ctx,
-    onChange: e => setCtx(e.target.value),
-    rows: 2,
-    placeholder: "This is the Wednesday session. Weights are in pounds.",
-    className: "w-full pixel-box px-3 py-3 text-[13px]",
-    style: {
-      background: 'var(--surface2)',
-      color: 'var(--text)'
-    }
-  }))), tab === 'link' && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Instagram, TikTok or YouTube link",
-    hint: "Works best when the plan is written in the caption or said out loud. Pure music-over-clips will not read."
-  }, /*#__PURE__*/React.createElement(TextInput, {
-    value: url,
-    onChange: e => setUrl(e.target.value),
-    placeholder: "Paste the link"
-  })), /*#__PURE__*/React.createElement("button", {
-    onClick: importLink,
-    disabled: !!busy || !url.trim(),
-    className: "pixel-btn w-full py-3 font-bold",
-    style: {
-      background: 'var(--accent)',
-      color: 'var(--on-accent)'
-    }
-  }, busy || (isPremium ? 'Read it' : 'Read it · Premium'))), tab === 'file' && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] mb-4 leading-snug",
-    style: {
-      color: 'var(--muted)'
-    }
-  }, "PDF, Excel, CSV, a text file or a photo of the plan. Spreadsheets keep their rows and columns, so a week-per-column layout reads properly."), /*#__PURE__*/React.createElement("label", {
-    className: "pixel-box flex items-center justify-center py-6 text-[13px] cursor-pointer",
-    style: {
-      background: 'var(--surface2)'
-    }
-  }, busy || 'Choose a file', /*#__PURE__*/React.createElement("input", {
-    type: "file",
-    className: "hidden",
-    accept: ".pdf,.xlsx,.csv,.tsv,.txt,.md,image/*",
-    onChange: e => {
-      importFiles(e.target.files);
-      e.target.value = '';
-    }
-  }))), tab === 'paste' && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4"
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Paste the plan",
-    hint: "A message from your coach, a caption you copied, anything with the sessions in it."
-  }, /*#__PURE__*/React.createElement("textarea", {
-    value: text,
-    onChange: e => setText(e.target.value),
-    rows: 8,
-    placeholder: 'Monday - Push\nBench press 4x6-8\nIncline DB press 3x10\n...',
-    className: "w-full pixel-box px-3 py-3 text-[13px]",
-    style: {
-      background: 'var(--surface2)',
-      color: 'var(--text)'
-    }
-  })), /*#__PURE__*/React.createElement("button", {
-    onClick: importText,
-    disabled: !!busy || !text.trim(),
-    className: "pixel-btn w-full py-3 font-bold",
-    style: {
-      background: 'var(--accent)',
-      color: 'var(--on-accent)'
-    }
-  }, busy || (isPremium ? 'Read it' : 'Read it · Premium'))), err && /*#__PURE__*/React.createElement(Card, {
-    className: "p-4 mb-4",
-    style: {
-      background: 'color-mix(in srgb, var(--danger) 12%, var(--surface2))'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-[12px] leading-snug"
-  }, err)), /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] leading-snug",
-    style: {
-      color: 'var(--muted2)'
-    }
-  }, "Nothing is saved until you say so, and anything I cannot recognise gets shown to you rather than guessed at."));
-}
 
 /* ============================================================================
  * The shared block library
@@ -56833,6 +56715,9 @@ function BlockDraft({
       });
       if (!res.template.length) throw new Error('That left nothing I could read. Try describing the change another way.');
       trainUpdate(update, tr => {
+        // A movement the tweak added or renamed can need a fresh guess exactly as a first import
+        // can, and it has to land in t.custom or the day above points at an id nothing holds.
+        if (res.newCustom && res.newCustom.length) tr.custom = (tr.custom || []).concat(res.newCustom);
         // The revision REPLACES the draft rather than merging into it, because it is the same plan
         // corrected, not another source arriving. Merging would leave both readings side by side.
         tr.draft = Object.assign({}, tr.draft, {
@@ -57041,7 +56926,7 @@ function BlockDraft({
         style: {
           color: 'var(--warn)'
         }
-      }, e.check === 'kit' ? 'Counted as ' + lib.name : 'Read as ' + lib.name + '?')), /*#__PURE__*/React.createElement("span", {
+      }, e.check === 'kit' ? 'Counted as ' + lib.name : e.check === 'auto' ? 'Not in the library - guessed which muscle, tap to check' : 'Read as ' + lib.name + '?')), /*#__PURE__*/React.createElement("span", {
         className: "flex items-center gap-2 shrink-0"
       }, /*#__PURE__*/React.createElement("span", {
         className: "text-[11px] tnum",

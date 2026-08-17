@@ -99,6 +99,11 @@ function featureOf(prompt: string): string {
   if (p.includes('You are a strength coach correcting a training plan')) return 'workout_import';
   if (p.includes('You are a strength coach looking at a volume audit')) return 'coverage_advice';
   if (p.includes('You are a strength coach writing up a finished')) return 'block_review';
+  // The wizard's "tell the coach" shortcut: fills in the days/experience/equipment form from a
+  // sentence, never touches an exercise. Part of the same paid training feature as the read above -
+  // the client already gated it as such, this closes the matching gap that left it actually free.
+  // Signature must stay in step with aiParseTrainingWish() in app/src/train.jsx.
+  if (p.includes('You turn a sentence about training into JSON')) return 'workout_import';
   if (p.includes('You are Macrosaurus')) return 'coach';
   // Food-quality nutrient estimates (single food and the day's batch). Classified for two reasons:
   // to gate them as Premium here rather than trusting the client flag, and so their spend is

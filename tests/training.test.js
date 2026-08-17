@@ -448,6 +448,41 @@ test('build4 shape has no deload week', () => {
   assert.ok(!T.weekSessions(block, 4).some(s => s.deload));
 });
 
+test('intensity is a choice, not a constant: moderate keeps the old floor and starting volume', () => {
+  const hi = T.generateBlock({ daysPerWeek: 4, weeks: 4 });
+  const mod = T.generateBlock({ daysPerWeek: 4, weeks: 4, intensity: 'moderate' });
+  assert.equal(hi.intensity, 'high', 'defaults to high when nothing is asked for');
+  assert.equal(mod.intensity, 'moderate');
+  const rirAt = (block, w) => T.weekSessions(block, w)[0].exercises[0].target.rir;
+  assert.equal(rirAt(hi, 4), 0, 'high reaches true failure by the last building week');
+  assert.equal(rirAt(mod, 4), 1, 'moderate keeps a rep in reserve');
+  const isoOf = (block) => T.weekSessions(block, 1).flatMap(s => s.exercises)
+    .find(e => T.byId(e.exerciseId).pattern === 'isolation').target;
+  assert.deepEqual([isoOf(hi).repLow, isoOf(hi).repHigh], [8, 12]);
+  assert.deepEqual([isoOf(mod).repLow, isoOf(mod).repHigh], [10, 15]);
+});
+
+test('nextBlock carries the intensity forward unless told otherwise', () => {
+  const block = T.generateBlock({ daysPerWeek: 4, weeks: 4, intensity: 'moderate' });
+  const review = { adherence: 100, stalled: [], coverage: { rows: [] } };
+  const targets = T.defaultTargets({ experience: 'intermediate' });
+  const kept = T.nextBlock(block, review, targets, {});
+  assert.equal(kept.intensity, 'moderate');
+  const overridden = T.nextBlock(block, review, targets, { intensity: 'high' });
+  assert.equal(overridden.intensity, 'high');
+});
+
+test('addExerciseToSession honours the intensity it is given, defaults to high', () => {
+  const session = { week: 4, exercises: [] };
+  const withoutIntensity = T.addExerciseToSession(session, 'db_lateral', null, 'a');
+  assert.equal(withoutIntensity.target.sets, 2);
+  assert.equal(withoutIntensity.target.rir, 0, 'high has no floor by week 4');
+  const session2 = { week: 4, exercises: [] };
+  const moderate = T.addExerciseToSession(session2, 'db_lateral', null, 'b', 'moderate');
+  assert.equal(moderate.target.sets, 3);
+  assert.equal(moderate.target.rir, 1, 'moderate keeps its floor of 1');
+});
+
 test('no session ever exceeds MRV for a muscle', () => {
   // The engine adding sets each week must not walk a muscle past its ceiling.
   const targets = T.defaultTargets();
@@ -518,22 +553,40 @@ test('a single rep target is opened into a range so progression has somewhere to
   assert.ok(t.repHigh > t.repLow, `range collapsed to ${t.repLow}-${t.repHigh}`);
 });
 
-test('an unreadable movement is reported, never guessed at or silently dropped', () => {
-  const { template, unresolved } = T.importTemplate({
+test('an unreadable movement is auto-created, never silently dropped', () => {
+  const { template, unresolved, newCustom } = T.importTemplate({
     days: [{ name: 'Day 1', exercises: [
       { name: 'Bench Press', sets: 3 },
-      { name: 'the special thing coach showed me', sets: 3 },
+      { name: 'the special thing coach showed me', sets: 3, muscle: ['tr'], equipment: 'cable', pattern: 'isolation' },
     ] }],
   });
-  assert.equal(template[0].exercises.length, 1, 'only the movement we understood is kept');
-  assert.equal(unresolved.length, 1);
+  assert.equal(template[0].exercises.length, 2, 'the plan keeps everything the source had');
+  assert.equal(unresolved.length, 1, 'still flagged, just not dropped');
   assert.equal(unresolved[0].name, 'the special thing coach showed me');
   assert.equal(unresolved[0].dayName, 'Day 1');
+  const auto = template[0].exercises[1];
+  assert.equal(auto.check, 'auto');
+  assert.equal(newCustom.length, 1);
+  assert.deepEqual(newCustom[0].primary, ['tr']);
+  assert.equal(newCustom[0].equipment, 'cable');
+  assert.equal(newCustom[0].pattern, 'isolation');
+  assert.ok(newCustom[0].custom && newCustom[0].auto);
 });
 
-test('a day where nothing resolved does not become an empty session', () => {
-  const { template } = T.importTemplate({ days: [{ name: 'Mystery', exercises: [{ name: 'qqqq', sets: 3 }] }] });
-  assert.equal(template.length, 0);
+test('a movement with no muscle guess at all still mints something rather than failing', () => {
+  const { template, newCustom } = T.importTemplate({ days: [{ name: 'Mystery', exercises: [{ name: 'qqqq', sets: 3 }] }] });
+  assert.equal(template.length, 1, 'the day survives even on a totally unrecognised name');
+  assert.equal(template[0].exercises.length, 1);
+  assert.equal(newCustom.length, 1);
+  assert.ok(newCustom[0].primary.length > 0, 'never mints an exercise with no primary muscle at all');
+});
+
+test('the same unresolved name twice mints one custom exercise, not two', () => {
+  const { template, newCustom } = T.importTemplate({
+    days: [{ name: 'A', exercises: [{ name: 'Dirty 30s', sets: 2 }] }, { name: 'B', exercises: [{ name: 'Dirty 30s', sets: 2 }] }],
+  });
+  assert.equal(newCustom.length, 1, 'the second occurrence reuses the first mint');
+  assert.equal(template[0].exercises[0].exerciseId, template[1].exercises[0].exerciseId);
 });
 
 // ---- the draft basket --------------------------------------------------------------------------
@@ -1619,14 +1672,14 @@ test('a plural is not a substitution worth flagging', () => {
   assert.deepEqual(template[0].exercises.map(e => e.check), [null, null, null]);
 });
 
-test('a movement nothing could place is kept on its own day, not dropped', () => {
+test('a movement nothing could place is kept on its own day, auto-created not dropped', () => {
   const { template } = T.importTemplate({ days: [{ name: 'Day 3', exercises: [
     { name: 'CAM - MACHINE LATERAL RAISE', sets: 2 },
     { name: 'the finisher coach showed me', sets: 2 },
   ] }] });
-  assert.equal(template[0].exercises.length, 1);
-  assert.equal(template[0].missing.length, 1, 'the unplaceable movement rides with its own day');
-  assert.equal(template[0].missing[0].name, 'The finisher coach showed me');
+  assert.equal(template[0].exercises.length, 2, 'both movements ride with the day, including the guessed one');
+  assert.deepEqual(template[0].missing, [], 'missing is always empty now - nothing is ever left off a day');
+  assert.equal(template[0].exercises[1].check, 'auto');
 });
 
 // ---- a variation of a movement you already have ---------------------------------------------------
